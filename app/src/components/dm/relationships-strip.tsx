@@ -18,11 +18,13 @@ interface Person {
   level: number; // -1 = unknown (no Relationships DB)
   pageId: string | null; // doc/record page; null = room-only (no doc yet)
   roomId: string | null; // 1:1 DM room with this person, when one exists
+  avatarUrl?: string | null; // partner's profile image (structured source)
 }
 
 interface DmRoomRow {
   id: string;
-  members: { displayName: string; isAgent: boolean }[];
+  docPageId: string | null;
+  members: { displayName: string; isAgent: boolean; avatarUrl: string | null }[];
 }
 
 interface PageRow {
@@ -83,7 +85,7 @@ function Face({ person }: { person: Person }) {
       {imgOk ? (
  // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`/avatars/${person.key}.png`}
+          src={person.avatarUrl || `/avatars/${person.key}.png`}
           alt={person.name}
           onError={() => setImgOk(false)}
           className="h-11 w-11 rounded-full object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
@@ -139,7 +141,12 @@ export function RelationshipsStrip() {
         const roomByName = new Map<string, string>();
         // agent-attached 1:1 rooms ARE relations, doc or not — show a face
         // even before the agent writes the first doc page
-        const roomRelations: { name: string; roomId: string }[] = [];
+        const roomRelations: {
+          name: string;
+          roomId: string;
+          docPageId: string | null;
+          avatarUrl: string | null;
+        }[] = [];
         try {
           const { rooms }: { rooms: DmRoomRow[] } = await (await fetch("/api/dm/rooms")).json();
           for (const room of rooms ?? []) {
@@ -152,7 +159,12 @@ export function RelationshipsStrip() {
             const hasAgent = room.members.some((m) => m.isAgent);
             const partner = humans.find((m) => nameKey(m.displayName) !== nameKey(myName ?? ""));
             if (hasAgent && myName && partner) {
-              roomRelations.push({ name: partner.displayName, roomId: room.id });
+              roomRelations.push({
+                name: partner.displayName,
+                roomId: room.id,
+                docPageId: room.docPageId ?? null,
+                avatarUrl: partner.avatarUrl ?? null,
+              });
             }
           }
         } catch {
@@ -217,15 +229,17 @@ export function RelationshipsStrip() {
         }
         for (const r of roomRelations) {
           const key = r.name.toLowerCase();
-          if (!byPartner.has(key)) {
-            byPartner.set(key, {
-              key,
-              name: r.name,
-              level: levels.get(key) ?? -1,
-              pageId: null,
-              roomId: r.roomId,
-            });
-          }
+          const prev = byPartner.get(key);
+          byPartner.set(key, {
+            key,
+            name: r.name,
+            level: prev?.level ?? levels.get(key) ?? -1,
+            // the room's own doc link is authoritative; title-parsed pages
+            // only fill in for seeded records without a room
+            pageId: r.docPageId ?? prev?.pageId ?? null,
+            roomId: r.roomId,
+            avatarUrl: r.avatarUrl,
+          });
         }
         const list = [...byPartner.values()];
         list.sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
@@ -242,21 +256,8 @@ export function RelationshipsStrip() {
   /** The relationship doc (agent-maintained, OKF) is the card's document;
  * the seeded record page is only the fallback for people without a room
  * or whose room has no doc yet (no consent / no messages processed). */
-  async function openPerson(person: Person) {
-    if (person.roomId) {
-      try {
-        const res = await fetch(`/api/dm/rooms/${person.roomId}`);
-        if (res.ok) {
-          const { room } = await res.json();
-          if (room?.rootPageId) {
-            router.push(`/p/${room.rootPageId}`);
-            return;
-          }
-        }
-      } catch {
- // fall through to the record page
-      }
-    }
+  function openPerson(person: Person) {
+    // doc link is resolved server-side (rooms API docPageId) — no per-click fetch
     if (person.pageId) router.push(`/p/${person.pageId}`);
     else if (person.roomId) router.push(`/dm/${person.roomId}`);
   }
@@ -272,7 +273,7 @@ export function RelationshipsStrip() {
           <button
             key={p.pageId ?? p.roomId ?? p.key}
             data-testid={`rel-face-${p.pageId ?? p.roomId ?? p.key}`}
-            onClick={() => void openPerson(p)}
+            onClick={() => openPerson(p)}
             className="flex w-[76px] shrink-0 flex-col items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
           >
             <Face person={p} />

@@ -3,6 +3,7 @@ import { and, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import {
+  agentRoomStates,
   chatMessages,
   chatRoomMembers,
   chatRooms,
@@ -33,6 +34,9 @@ export interface DmRoomSummary {
     hasAttachments: boolean;
   } | null;
   unreadCount: number;
+  /** the agent-maintained relationship doc's page id, when one exists —
+   * OKF path encoded as base64url (legacy rooms: the Postgres page id) */
+  docPageId: string | null;
 }
 
 /** Assemble my DM rooms into summaries (members, last message, unread count). */
@@ -77,6 +81,24 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
     .groupBy(chatMessages.roomId);
   const unreadByRoom = new Map(unreadRows.map((r) => [r.roomId, r.count]));
 
+  // relationship doc link (agent_room_states) — structured, no title parsing
+  const states = await db
+    .select({
+      roomId: agentRoomStates.roomId,
+      rootPageId: agentRoomStates.rootPageId,
+      rootOkfPath: agentRoomStates.rootOkfPath,
+    })
+    .from(agentRoomStates)
+    .where(inArray(agentRoomStates.roomId, roomIds));
+  const docByRoom = new Map(
+    states.map((st) => [
+      st.roomId,
+      st.rootOkfPath
+        ? Buffer.from(st.rootOkfPath, "utf8").toString("base64url")
+        : st.rootPageId,
+    ])
+  );
+
   const summaries = rooms.map((room) => {
     const last = lastByRoom.get(room.id);
     return {
@@ -97,6 +119,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
           }
         : null,
       unreadCount: unreadByRoom.get(room.id) ?? 0,
+      docPageId: docByRoom.get(room.id) ?? null,
     };
   });
  // most recent conversation first (rooms without messages sort by creation)
