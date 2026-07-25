@@ -12,10 +12,10 @@
 | 인증서 | Let's Encrypt, certbot 자동 갱신 |
 | 앱 | 컨테이너 `memory-live-app-1` → `127.0.0.1:3120` |
 | DB | 컨테이너 `memory-live-postgres-1` (포트 미공개) |
-| 콘텐츠(OKF) | 호스트 바인드 마운트 `/mnt/newdata/deploy/memory-live-content` |
+| 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
 | nginx | `/etc/nginx/sites-available/memory-live` |
 | compose | `docker-compose.prod.yml` (프로젝트명 `memory-live`) |
-| 시크릿 | `/mnt/newdata/deploy/memory-live.env` (600, git 밖) |
+| 시크릿 | `.env.prod` (600, `.env*` 룰로 gitignore) |
 
 구조는 `nginx(443) → 127.0.0.1:3120 → app 컨테이너 → postgres 컨테이너`다.
 
@@ -23,7 +23,7 @@
 
 ```bash
 cd /mnt/newdata/git/notion
-E=/mnt/newdata/deploy/memory-live.env
+E=.env.prod
 
 # 배포 — 이미지를 커밋 SHA로 태깅해 라이브 버전을 특정 가능하게 만든다
 TAG=$(git rev-parse --short HEAD)
@@ -68,6 +68,17 @@ dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기
 `docker-compose.prod.yml`은 별도 파일이고 프로젝트명도 `memory-live`로 다르다.
 개발 중 `docker compose up`이 라이브를 건드리는 일이 없어야 한다. 실행할 때
 `-f docker-compose.prod.yml`을 명시해야만 뜬다.
+
+### 3.5 배포 상태는 전부 프로젝트 안에 둔다
+
+`.env.prod`, OKF 콘텐츠(`deploy/okf-content/`), DB 덤프(`deploy/backups/`) 모두
+리포 안에 있다. 처음엔 시크릿을 git에서 떼어놓는다며 `/mnt/newdata/deploy/` 아래로
+뺐다가 **되돌렸다.** `.gitignore`에 이미 `.env*`가 있어 리포 안에 둬도 커밋될 일이
+없는데, 밖으로 빼면 배포 상태가 파일시스템 여기저기 흩어져 다음 사람이 찾지 못한다.
+`/deploy/`는 gitignore에 추가했다 — 프로젝트 안에 있되 소스가 아니라 데이터다.
+
+덕분에 compose의 경로도 절대경로가 아니라 `./deploy/okf-content`, `.env.prod`처럼
+프로젝트 상대경로다. 리포만 있으면 배포가 재현된다.
 
 ## 4. 함정 — 여기서 시간을 썼다
 

@@ -33,5 +33,10 @@ memory-data/content/Relationship doc*/
 memory-data/content/Relationships.csv
 memory-data/content/demo.md
 
+# production runtime state — the live OKF content tree and DB dumps.
+# Lives in the project so deploys are discoverable, but is data, not source.
+/deploy/
+
 # local backups (not source)
 /backup/
+memory-data/content-test/

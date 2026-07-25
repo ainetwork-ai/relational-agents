@@ -21,7 +21,9 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - /mnt/newdata/deploy/memory-live.env
+      # gitignored by the .env* rule — secrets stay out of git without living
+      # outside the project, where nobody would find them.
+      - .env.prod
     environment:
       # Inside the compose network the DB is a service name, not a host port.
       POSTGRES_URL: postgresql://memory_live:${POSTGRES_PASSWORD}@postgres:5432/memory_live
@@ -30,7 +32,7 @@ services:
     volumes:
       # The OKF tree IS the content database and the app writes to it, so it is
       # a bind mount — inspectable from the host, and recoverable into git.
-      - /mnt/newdata/deploy/memory-live-content:/data/okf
+      - ./deploy/okf-content:/data/okf
       - memory_live_mdmirror:/data/md-mirror
     ports:
       # Loopback only; nginx terminates TLS and proxies here.
