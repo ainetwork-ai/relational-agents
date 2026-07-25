@@ -8,7 +8,7 @@ ENS is the identity layer that makes that agent nameable, discoverable, and
 verifiable:
 
 - **A name at birth.** The same relay that mints the agent on-chain also mints
-  it an ENS subname (e.g. `chanho-ava-39065f.relagent.eth`) on Sepolia, owned
+  it an ENS subname (e.g. `chanho-ava-39065f.ainetwork.eth`) on Sepolia, owned
   by the agent's own wallet. Nothing is hard-coded: the name is derived from
   the room, and records are written from live registry data.
 - **ENSIP-26 agent text records for discovery.** Each agent name carries

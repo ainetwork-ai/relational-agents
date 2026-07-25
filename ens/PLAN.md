@@ -17,7 +17,7 @@ The birth relay (the same call that runs `registerRelationalAgent`) also mints
 an ENS subname for the agent under a parent we control:
 
 ```
-chanho-ava-39065f.relagent.eth
+chanho-ava-39065f.ainetwork.eth
 └── <slugified room name>-<roomId 6> . ${ENS_PARENT_NAME}
 ```
 
@@ -66,7 +66,7 @@ relationship. The dissolve relay sets `relagent:dissolvedAt` on the name.
 ## Implementation steps
 
 1. One-time setup script `ens/register-parent.mjs`: register + wrap
-   `relagent.eth` on Sepolia, set resolver (uses `ens-cli` where convenient).
+   `ainetwork.eth` on Sepolia, set resolver (uses `ens-cli` where convenient).
 2. `app/src/lib/ens.ts` (viem): `mintAgentSubname()`, `setAgentRecords()`
    (ENSIP-26 set + ENSIP-25 attestation), `setDissolvedRecord()`,
    `resolveMemberName()`, `verifyAgentName()` (the ENSIP-25 check, used by the
@@ -83,7 +83,7 @@ relationship. The dissolve relay sets `relagent:dissolvedAt` on the name.
 ## Env
 
 ```
-ENS_PARENT_NAME=relagent.eth
+ENS_PARENT_NAME=ainetwork.eth
 ENS_REGISTRY=0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e       # all chains
 ENS_NAMEWRAPPER=0x0635513f179D50A207757E05759CbD106d7dFcE8   # Sepolia
 ENS_PUBLIC_RESOLVER=0x8FADE66B79cC9f707aB26799354482EB93a5B7dD # Sepolia
@@ -92,7 +92,7 @@ ENS_PUBLIC_RESOLVER=0x8FADE66B79cC9f707aB26799354482EB93a5B7dD # Sepolia
 
 ## Demo beat (15s, after the on-chain mint scene)
 
-Agent posts: "🔤 I have a name — `chanho-ava-39065f.relagent.eth`". Cut to the
+Agent posts: "🔤 I have a name — `chanho-ava-39065f.ainetwork.eth`". Cut to the
 ENS app: `agent-context`, `agent-endpoint[a2a]`, and the
 `agent-registration[…][…]` attestation. Then a terminal beat: `ens-cli` (or
 curl) resolves the name → fetches the agent card → the agent answers over A2A.
@@ -101,4 +101,4 @@ Identity → discovery → conversation, all from the name.
 ## Stretch
 
 - CCIP-Read offchain resolver so `agent-context` is always the live card.
-- Member subnames (`chanho.relagent.eth`) + name-first invites.
+- Member subnames (`chanho.ainetwork.eth`) + name-first invites.

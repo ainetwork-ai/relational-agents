@@ -4,6 +4,7 @@ import {
   createWalletClient,
   encodeFunctionData,
   http,
+  labelhash,
   namehash,
   toHex,
   type Hex,
@@ -25,32 +26,28 @@ import { sepolia } from "viem/chains";
 
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
-const NAMEWRAPPER_ABI = [
+// Names are UNWRAPPED (current controller); subnames go through the registry.
+const REGISTRY_ABI = [
   {
     type: "function",
     name: "setSubnodeRecord",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "parentNode", type: "bytes32" },
-      { name: "label", type: "string" },
+      { name: "node", type: "bytes32" },
+      { name: "label", type: "bytes32" },
       { name: "owner", type: "address" },
       { name: "resolver", type: "address" },
       { name: "ttl", type: "uint64" },
-      { name: "fuses", type: "uint32" },
-      { name: "expiry", type: "uint64" },
     ],
-    outputs: [{ name: "node", type: "bytes32" }],
+    outputs: [],
   },
   {
     type: "function",
-    name: "safeTransferFrom",
+    name: "setOwner",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "from", type: "address" },
-      { name: "to", type: "address" },
-      { name: "id", type: "uint256" },
-      { name: "amount", type: "uint256" },
-      { name: "data", type: "bytes" },
+      { name: "node", type: "bytes32" },
+      { name: "owner", type: "address" },
     ],
     outputs: [],
   },
@@ -89,11 +86,12 @@ const RESOLVER_ABI = [
 
 function env() {
   const parent = process.env.ENS_PARENT_NAME;
-  const wrapper = process.env.ENS_NAMEWRAPPER as Hex | undefined;
+  const registry = (process.env.ENS_REGISTRY ??
+    "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e") as Hex;
   const resolver = process.env.ENS_PUBLIC_RESOLVER as Hex | undefined;
   const key = (process.env.RELAYER_KEY ?? process.env.DEPLOYER_KEY) as Hex | undefined;
-  if (!parent || !wrapper || !resolver || !key || !/^0x[0-9a-fA-F]{64}$/.test(key)) return null;
-  return { parent, wrapper, resolver, key };
+  if (!parent || !resolver || !key || !/^0x[0-9a-fA-F]{64}$/.test(key)) return null;
+  return { parent, registry, resolver, key };
 }
 
 /** ERC-7930 interoperable address (eip155): 0x0001 version · 0x0000 chainType ·
@@ -150,10 +148,10 @@ export async function mintAgentSubname(input: AgentEnsInput): Promise<string | n
 
     // 1) subname → relayer first (so it can write records), agent wallet after
     const mintTx = await wallet.writeContract({
-      address: cfg.wrapper,
-      abi: NAMEWRAPPER_ABI,
+      address: cfg.registry,
+      abi: REGISTRY_ABI,
       functionName: "setSubnodeRecord",
-      args: [parentNode, label, account.address, cfg.resolver, BigInt(0), 0, BigInt(0)],
+      args: [parentNode, labelhash(label), account.address, cfg.resolver, BigInt(0)],
     });
     await pub.waitForTransactionReceipt({ hash: mintTx, timeout: 120_000 });
 
@@ -197,10 +195,10 @@ export async function mintAgentSubname(input: AgentEnsInput): Promise<string | n
     // 3) the agent owns its own name (ENSIP-25: attestation by the name owner)
     if (/^0x[0-9a-fA-F]{40}$/.test(input.agentWallet)) {
       const xferTx = await wallet.writeContract({
-        address: cfg.wrapper,
-        abi: NAMEWRAPPER_ABI,
-        functionName: "safeTransferFrom",
-        args: [account.address, input.agentWallet as Hex, BigInt(node), BigInt(1), "0x"],
+        address: cfg.registry,
+        abi: REGISTRY_ABI,
+        functionName: "setOwner",
+        args: [node, input.agentWallet as Hex],
       });
       await pub.waitForTransactionReceipt({ hash: xferTx, timeout: 120_000 });
     }
