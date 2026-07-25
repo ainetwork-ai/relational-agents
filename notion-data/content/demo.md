@@ -13,7 +13,7 @@ Concept: a relationship-management workspace. The star is the relational agent �
 ## Setup — three wallets, two consents (off camera)
 
 1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
-2. **Wire the triangle**: from Chanho, invite **Hannah** → switch to Hannah's profile, accept → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. Consent is anchored to each side's wallet identity: the accept can only happen inside a session that wallet signed into.
+2. **Wire the triangle**: from Chanho, invite **Hannah** → in each profile, both sign the **Relational Agent Contract** (an EIP-712 `RelationConsent` — MetaMask shows the relation id and the parties) → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. The signature pair is stored and can be relayed as-is to the ERC-8004-compatible `RelationalAgentRegistry` on-chain.
 3. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
 
 The pre-roll and the 2:12 finale lean on these two pre-wired relationships (the Lisbon egg tart lives with Hannah, and only there). On camera, the tenth relationship — Isla — is born fresh.
@@ -52,7 +52,7 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 ## 0:33–1:00 · Mutual consent → the relationship is born
 
 **Screen actions**:
-1. Isla accepts the invite (flash her side / the accepted state).
+1. Isla opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields and she signs. Flash Chanho's side signing too — **2/2 signed**.
 2. On acceptance, a page **titles itself into being** in the sidebar: **Chanho ❤️ Isla Montgomery** — and the relational agent greets both: "I'll take care of this story with you."
 3. Pull back: this heart-page now sits among nine others — **Chanho ❤️ Maya, Hannah, Sophie, Lily, Claire, Ava, Zoe, Mia, Riley** — each a relationship consented to the same way.
 
@@ -72,25 +72,34 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 ## 1:40–2:12 · It remembers (upload → memory)
 
 **Screen actions**:
-1. In **Chanho ❤️ Hannah Brooks**, drag the egg tart photo (`dashboard/public/date/web/IMG_2569.jpg`) into the chat: "midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
-2. Ask: "What did we eat that night in Lisbon?" → the agent answers from the record it just wrote, photo attached, with a link to the **Chanho ❤️ Hannah** page.
+1. In **Chanho ❤️ Hannah Brooks**, drop the egg tart photo (`dashboard/public/date/web/IMG_2569.jpg`) **into the agent chat**: "@agent midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
+2. Ask the agent: "What did we eat that night in Lisbon?" → it answers from the record it just wrote, photo attached, with a link to the **Chanho ❤️ Hannah** page.
 
 **VO**:
 > "Drop in a photo, and the agent files the memory — into this relationship's record, and nowhere else. Ask, and it answers from memory — not search."
 
-## 2:12–2:48 · Finale: the other partner asks (the fun bit)
+## 2:12–2:40 · Finale: the FaceTime question (the fun bit)
 
 **Screen actions**:
-1. Cut to **Ava's profile**. In **Chanho ❤️ Ava Thorne**, Ava types casually:
-   > "Remember the egg tarts we had in Lisbon?"
-2. The agent answers honestly — it has nothing to remember:
-   > "I have no record of egg tarts. Or Lisbon. Not in this relationship."
-3. Beat. Split-screen: Hannah's record shows the 🥧 memory · Ava's chat shows the blank. The pre-roll's promise, live.
+1. **FaceTime rings** — the facetime app UI, **Ava** calling. Chanho answers; her video fills the screen.
+2. Ava, casually: *"Do you like egg tarts? I found a place."* Beat — the audience knows where the egg tarts live.
+3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Do we have anything about egg tarts?"* → agent: **"No record. Not in this relationship."**
+4. Chanho, back on camera, perfectly calm: *"…I've been meaning to try them."* The agent that remembers Hannah's natas says nothing here — it isn't in this room.
 
 **VO**: none — screen and captions carry it.
-Closing caption: **"An agent that remembers also knows what never happened."**
+Caption: **"An agent that remembers also knows what never happened."**
 
-## 2:48–3:00 · Closing
+## 2:40–2:52 · Epilogue: the relationship ends, the agent remains
+
+**Screen actions**:
+1. Quiet cut: one member leaves a relationship (leave/dissolve on a ❤️ room). The chat closes.
+2. The **Chanho ❤️ …** page and its agent are still there — record intact, memories sealed. The registry entry (ERC-8004 agent) doesn't un-mint.
+3. Slow push-in on the last Timeline entry.
+
+**VO**:
+> "People leave. The agent stays — holding what was shared, for whoever comes back to read it. What two people made together doesn't belong to either of them alone."
+
+## 2:52–3:00 · Closing
 
 **Screen**: Graph view zooms out — ten "Chanho ❤️ …" nodes orbiting one very busy Chanho → title card.
 
@@ -116,9 +125,9 @@ Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-a
 5. **Inside Manage** — when the briefing highlights Olivia Aug 2 / Emma Aug 7, draw a thin underline animation across the two Event Date cells (0.3s each, staggered) — the data itself is the graphic.
 6. **Manage → Remember (1:40)** — **whip pan** from Sophie's page to the agent chat (0.25s, motion blur): "turning to ask."
 7. **Inside Remember** — as the agent quotes Isla, **push-zoom 110%** onto the quoted chat lines in her record for 1s, then settle.
-8. **Remember → Egg tart (2:12)** — no transition. **Hard cut + kill the BGM.** Dry silence sets up the joke.
-9. **The private message** — freeze 0.5s as 🔒 appears → zoom 130% into "Not in this relationship." → hold 1.5s of total stillness → cut to the Relationships table, where no row so much as blinks (the database's indifference is the punchline) → cut back.
-10. **Egg tart → Closing (2:48)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
+8. **Remember → FaceTime (2:12)** — no transition. **Hard cut + FaceTime ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
+9. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
+10. **FaceTime → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
 11. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 
 Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 8–9 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
