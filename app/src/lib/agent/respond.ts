@@ -18,7 +18,22 @@ import { ensureOkfDocTree, readOkfSectionTexts } from "./okf-docs";
 export interface RespondResult {
   action: "reply" | "silent";
   text?: string;
+  /** Images the agent attaches to its reply — /uploads/* only, taken from the doc. */
+  attachments?: { url: string; name: string }[];
   messageId?: string;
+}
+
+/** Only locally-uploaded images may ride along on an agent reply. */
+function sanitizeAttachments(raw: unknown): { url: string; name: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (a): a is { url: string; name?: string } =>
+        !!a && typeof a === "object" && typeof (a as { url?: unknown }).url === "string"
+    )
+    .filter((a) => a.url.startsWith("/uploads/") && !a.url.includes(".."))
+    .slice(0, 4)
+    .map((a) => ({ url: a.url, name: typeof a.name === "string" ? a.name : "image" }));
 }
 
 /** Mention detection: @agent / @{displayName} (case-insensitive). */
@@ -63,7 +78,8 @@ async function llmDecision(
           `You are the ${persona} of the "${roomName}" room. Take part in the conversation grounded in the relationship document.${custom}\n` +
           `Rules: always reply when mentioned. When not mentioned, ${proactive ? "chime in briefly only if the members must know something (a scheduling conflict, an important remembered fact)" : "stay silent"}. Otherwise stay silent.\n` +
           `When you cite the document, mention the relationship-doc link (/p/${rootPageId ?? ""}).\n` +
-          `Output JSON only: {"action":"reply","text":"..."} or {"action":"silent"}`,
+          `When you recommend a place or a date idea, ground it in this relationship's memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
+          `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"/uploads/...","name":"..."}]} or {"action":"silent"}`,
       },
       {
         role: "user",
@@ -76,7 +92,11 @@ async function llmDecision(
     const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
     const parsed = JSON.parse((fenced ? fenced[1] : raw).trim()) as RespondResult;
     if (parsed.action === "reply" && typeof parsed.text === "string" && parsed.text.trim())
-      return { action: "reply", text: parsed.text.trim() };
+      return {
+        action: "reply",
+        text: parsed.text.trim(),
+        attachments: sanitizeAttachments(parsed.attachments),
+      };
     return { action: "silent" };
   } catch {
  // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
@@ -139,7 +159,12 @@ export async function respondToMessage(
   if (decision.action === "reply" && decision.text) {
     const [reply] = await db
       .insert(chatMessages)
-      .values({ roomId, authorId: agentUserId, text: decision.text })
+      .values({
+        roomId,
+        authorId: agentUserId,
+        text: decision.text,
+        attachments: decision.attachments ?? [],
+      })
       .returning();
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: `agent:${agentUserId}` });
     decision.messageId = reply.id;

@@ -1,0 +1,97 @@
+import { NextRequest, NextResponse } from "next/server";
+import { and, eq, ne } from "drizzle-orm";
+import { requireAuth } from "@/lib/auth/middleware";
+import { db } from "@/lib/db";
+import { agentRoomStates, chatMessages, chatRoomMembers, users } from "@/lib/db/schema";
+import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
+import { ensureOkfDocTree, appendOkfLines, okfDocMeta } from "@/lib/agent/okf-docs";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Demo fixture: back-fill this room with the story evidence the finale needs —
+ * the other member's sunset photos (golden-hour spam) plus her "I love
+ * sunsets" line, and the corresponding People-notes / Open-topics entries the
+ * agent grounds its Belém Tower recommendation in. Idempotent per room.
+ */
+
+const MAPS_URL = "https://maps.app.goo.gl/Nir82uC1c9UQTQtd7";
+const TOWER_IMG = "/uploads/belem-tower.jpg";
+const SUNSETS = ["/uploads/sunset-1.jpg", "/uploads/sunset-2.jpg", "/uploads/sunset-3.jpg", "/uploads/sunset-4.jpg"];
+const MARKER = "I love sunsets";
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { roomId } = await ctx.params;
+  const access = await requireRoomAccess(roomId, auth.user.id);
+  if ("error" in access) return access.error;
+
+  // the other HUMAN member is the sunset lover (demo: Ava)
+  const memberRows = await db
+    .select({ userId: chatRoomMembers.userId })
+    .from(chatRoomMembers)
+    .where(and(eq(chatRoomMembers.roomId, roomId), ne(chatRoomMembers.userId, auth.user.id)));
+  const other = (
+    await Promise.all(
+      memberRows.map(async (m) => (await db.select().from(users).where(eq(users.id, m.userId)))[0])
+    )
+  ).find((u) => u && !u.isAgent);
+  if (!other)
+    return NextResponse.json({ error: "No other human member to seed as" }, { status: 400 });
+
+  // idempotency: if her sunset line is already in the room, do nothing
+  const existing = await db
+    .select({ id: chatMessages.id, text: chatMessages.text })
+    .from(chatMessages)
+    .where(eq(chatMessages.roomId, roomId));
+  if (existing.some((m) => m.text.includes(MARKER)))
+    return NextResponse.json({ seeded: false, reason: "already seeded" });
+
+  // a golden-hour week, backdated so it reads as history
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const seedMsgs: { authorId: string; text: string; attachments?: { url: string; name: string }[]; createdAt: Date; processedAt: Date }[] = [
+    { authorId: other.id, text: "golden hour again 🌇", attachments: [{ url: SUNSETS[0], name: "sunset.jpg" }], createdAt: new Date(now - 6 * day), processedAt: new Date() },
+    { authorId: other.id, text: "caught this on my walk home", attachments: [{ url: SUNSETS[1], name: "sunset.jpg" }], createdAt: new Date(now - 5 * day), processedAt: new Date() },
+    { authorId: auth.user.id, text: "you and your skies 😄", createdAt: new Date(now - 5 * day + 60_000), processedAt: new Date() },
+    { authorId: other.id, text: `${MARKER} — best part of my day, every day`, attachments: [{ url: SUNSETS[2], name: "sunset.jpg" }], createdAt: new Date(now - 3 * day), processedAt: new Date() },
+    { authorId: other.id, text: "tonight's was unreal 🧡", attachments: [{ url: SUNSETS[3], name: "sunset.jpg" }], createdAt: new Date(now - day), processedAt: new Date() },
+  ];
+  await db.insert(chatMessages).values(seedMsgs.map((m) => ({ ...m, roomId })));
+
+  // ground the agent: the preference (People notes) + the reusable rec (Open topics)
+  const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
+  const tree = ensureOkfDocTree(roomId, access.room.name, {
+    rootPath: state?.rootOkfPath,
+    sectionPaths: state?.sectionOkfPaths,
+  });
+  appendOkfLines(
+    tree.sectionPaths["people"],
+    "People notes",
+    [
+      {
+        type: "bulleted_list",
+        text: `${other.displayName} — loves sunsets ("${MARKER} — best part of my day"); keeps sharing golden-hour photos in chat.`,
+      },
+    ],
+    okfDocMeta(roomId, "people")
+  );
+  appendOkfLines(
+    tree.sectionPaths["open-topics"],
+    "Open topics",
+    [
+      {
+        type: "bulleted_list",
+        text:
+          `Date idea — Belém Tower at sunset. Why: the sun setting over the Tagus river pairs with the tower for a romantic mood — and ${other.displayName} loves sunsets (see People notes). ` +
+          `Map: ${MAPS_URL} Image: ${TOWER_IMG}`,
+      },
+      { type: "image", text: "Belém Tower at sunset", url: TOWER_IMG },
+    ],
+    okfDocMeta(roomId, "open-topics")
+  );
+
+  await publishToRoomMembers(roomId, { type: "dm-message", clientId: req.headers.get("x-client-id") });
+  return NextResponse.json({ seeded: true, messages: seedMsgs.length, sunsetLover: other.displayName });
+}

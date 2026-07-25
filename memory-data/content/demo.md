@@ -68,16 +68,17 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 **VO**: none — screen and captions carry it.
 Caption: **"An agent that remembers also knows what never happened."**
 
-## 2:40–2:52 · Epilogue: the relationship ends, the agent remains
+## 2:40–2:52 · Epilogue: the relationship grows (Belém Tower)
+
+Prep (once, after the consent scene): from Chanho's session, `POST /api/dm/rooms/{avaRoomId}/seed-sunsets` — back-fills **Chanho ❤️ Ava** with Ava's golden-hour photo history and her *"I love sunsets"* line, and grounds the agent's People notes / Open topics with the Belém Tower recommendation (Maps link + photo).
 
 **Screen actions**:
-1. Quiet cut: in a ❤️ room, one member clicks **Leave** — **MetaMask opens** with a `RelationDissolve` (same relation id, same parties as the birth contract). One signature does nothing yet: the other member's room shows the 💔 banner — *"…asked to close this relationship. 1/2 signed."*
-2. The other member clicks **Sign the dissolution**; MetaMask again. On the second signature the chat closes for both — born by mutual consent, closed only by mutual consent. The agent's last line: *"I'll keep everything you shared, sealed."*
-3. The **Chanho ❤️ …** page and its agent are still there — record intact, memories sealed. The registry entry (ERC-8004 agent) doesn't un-mint; `dissolveRelationalAgent` only stamps `dissolvedAt` on-chain.
-4. Slow push-in on the last Timeline entry.
+1. Back in **Chanho ❤️ Ava**, scroll past Ava's sunset photos (the story evidence — she posts them constantly). Chanho: *"@agent plan the egg tart date"*.
+2. The agent answers **from this relationship's memory**: it books the calendar event for the egg tart place, then recommends **Belém Tower** right nearby — *"the sunset over the Tagus wraps the tower in a romantic glow — and you told me you love sunsets"* — with the tower photo attached and the **Google Maps link** (https://maps.app.goo.gl/Nir82uC1c9UQTQtd7) clickable in chat.
+3. Push-in on the recommendation card: photo, reason, map link. The Chanho ❤️ Ava agent now has its own story to grow.
 
 **VO**:
-> "People leave. The agent stays — holding what was shared, for whoever comes back to read it. What two people made together doesn't belong to either of them alone."
+> "And that's how it grows — the agent plans from what these two share: she loves sunsets, so it finds the tower where the sun goes down."
 
 ## 2:52–3:00 · Closing — Chanho's home (담당: hyeonjj)
 

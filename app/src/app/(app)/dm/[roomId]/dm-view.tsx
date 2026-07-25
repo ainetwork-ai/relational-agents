@@ -492,6 +492,27 @@ export function DmView({ roomId }: { roomId: string }) {
     }
   }
 
+  /** Make bare URLs in a message clickable (agent recs carry Google Maps links). */
+  function linkify(text: string, mine: boolean) {
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+)/g);
+    if (parts.length === 1) return text;
+    return parts.map((part, i) =>
+      /^https?:\/\//.test(part) ? (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          className={`underline underline-offset-2 ${mine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"}`}
+        >
+          {part}
+        </a>
+      ) : (
+        part
+      )
+    );
+  }
+
   if (error) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -742,7 +763,7 @@ export function DmView({ roomId }: { roomId: string }) {
                       )}
                       {m.text && (
                         <p className="whitespace-pre-wrap break-words" data-testid="dm-msg-text">
-                          {m.text}
+                          {linkify(m.text, mine)}
                         </p>
                       )}
                     </div>
