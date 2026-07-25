@@ -62,8 +62,24 @@ export function IncomingCallHost() {
   const router = useRouter();
   const pathname = usePathname();
   const [ringing, setRinging] = useState<Ringing | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
   const stopRingRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // who am I — the ring event carries the CALLER, and my own outgoing ring
+  // must never pop as an incoming call on my other surfaces
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d?.user?.id) setMeId(d.user.id);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function clear() {
     stopRingRef.current?.();
@@ -73,6 +89,14 @@ export function IncomingCallHost() {
     setRinging(null);
   }
 
+  // entering the call room makes the card moot — and the ring can land a
+  // beat BEFORE the caller's own navigation to /call, so this also kills
+  // the self-ring that slipped in during that gap (stuck ringtone bug)
+  useEffect(() => {
+    if (ringing && pathname.startsWith("/call/")) clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, ringing]);
+
   useDmEvents((event) => {
     if (!event.roomId) return;
     if (event.type === "dm-call-ring") {
@@ -80,6 +104,7 @@ export function IncomingCallHost() {
       const roomId = event.roomId;
       // my own outgoing ring, already in a call view, or already showing one
       if (!caller || pathname.startsWith("/call/")) return;
+      if (meId !== null && caller.id === meId) return;
       void fetch(`/api/calls/${roomId}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
