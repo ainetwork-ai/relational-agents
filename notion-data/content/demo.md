@@ -74,10 +74,10 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 ## 2:12–2:48 · Finale: a loyal agent (the fun bit)
 
 **Screen actions**:
-1. Chanho opens **Chanho ❤️ Hannah Brooks** and types casually into the agent chat:
-   > "Remember the egg tarts we had in Portugal?"
+1. Chanho opens **Chanho ❤️ Ava Thorne** and types casually into the agent chat:
+   > "Remember the egg tarts we had in Lisbon?"
 2. Instead of replying in the open, a **🔒 private message** appears — visible only to the owner:
-   > 🔒 "Chanho, I have no record of egg tarts. Or Portugal. Not in ❤️ Hannah — not in any of your ten ❤️ pages. …Are you sure about this woman?"
+   > 🔒 "Chanho, I have no record of egg tarts. Or Lisbon. Not in this relationship. …Whatever happened in Lisbon, it didn't happen with Ava."
 3. Beat. Chanho: "…never mind." → Agent: "I will pretend this conversation never happened."
 
 **VO**: none — screen and captions carry the joke.
@@ -110,7 +110,7 @@ Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-a
 6. **Manage → Remember (1:40)** — **whip pan** from Sophie's page to the agent chat (0.25s, motion blur): "turning to ask."
 7. **Inside Remember** — as the agent quotes Isla, **push-zoom 110%** onto the quoted chat lines in her record for 1s, then settle.
 8. **Remember → Egg tart (2:12)** — no transition. **Hard cut + kill the BGM.** Dry silence sets up the joke.
-9. **The private message** — freeze 0.5s as 🔒 appears → zoom 130% into "Not in any of your ten ❤️ pages." → hold 1.5s of total stillness → cut to the Relationships table, where no row so much as blinks (the database's indifference is the punchline) → cut back.
+9. **The private message** — freeze 0.5s as 🔒 appears → zoom 130% into "Not in this relationship." → hold 1.5s of total stillness → cut to the Relationships table, where no row so much as blinks (the database's indifference is the punchline) → cut back.
 10. **Egg tart → Closing (2:48)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
 11. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 

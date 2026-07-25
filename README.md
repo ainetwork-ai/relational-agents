@@ -7,7 +7,7 @@ One relationship = one agent = one memory bundle.
 
 ## Why not one agent per person?
 
-Chanho ate egg tarts in Porto with **Hannah**. Tonight **Ava** asks his agent the wrong
+Chanho ate egg tarts in Lisbon with **Hannah**. Tonight **Ava** asks his agent an innocent
 question: *"Remember the egg tart?"* 🥧
 
 ### 😈 One agent per person
@@ -16,12 +16,12 @@ question: *"Remember the egg tart?"* 🥧
 
 **Nobody hacked anything.** One shared memory store, so a friendly question from Ava walks
 out with Hannah's memory. Swap Ava for a stranger and the question for an injection:
-**same door, all ten relationships.**
+**same door, his whole life.**
 
 ### 🛡️ One agent per relationship
 
 <img src="docs/img/relational_agent.png" width="720" alt="One agent per relationship: the Chanho–Hannah agent holds the egg tart memory, the Chanho–Ava agent has none, so nothing leaks">
 
-**No egg tart memory — no leak.** The Chanho–Ava agent isn't hiding Porto; Porto **does not
+**No egg tart memory — no leak.** The Chanho–Ava agent isn't hiding Lisbon; Lisbon **does not
 exist** in there. Isolation is structural, not a rule the model has to remember. And each
 agent never existed until **both people said yes**.
