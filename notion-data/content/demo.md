@@ -18,97 +18,39 @@ Setup: logged in as **Chanho**, sidebar on the **Chats** tab, Relationships tabl
 
 Two title cards before the product appears. No UI yet — this is the thesis, and everything after it is the proof. Every scene below is timed to absorb this pre-roll, so the total stays at 3:00.
 
-**Card 1 — 😈 the problem** (hold 7s). Cold open on **three photos**: the pastel de nata from Porto (`dashboard/public/date/web/IMG_2569.jpg`, 00:31, Aug 1), **Ava Thorne**'s avatar, and **Hannah Brooks**'s avatar. Caption: *"He asked one partner about a memory that belongs to another."* Then the chat: Chanho, inside **Chanho ❤️ Hannah Brooks**, types
-
-> 🥧 "Remember the egg tarts we had in Portugal?"
-
-and the one-agent-per-person build answers **helpfully, and fatally**:
-
-> 🤖 "Of course — Porto, August 1st, just past midnight. **You had them with Ava Thorne.**"
-
-Beats: photos land → 🥧 question types out → 🚨 the name **Ava Thorne** slams in red, screen shake 0.2s, BGM drops.
+**Card 1 — 😈 the problem** (7s). Three photos: the tart (`dashboard/public/date/web/IMG_2569.jpg`), **Ava**, **Hannah**. Chanho, inside **Chanho ❤️ Hannah Brooks**, types the question. The name lands in red, screen shake 0.2s, BGM drops.
 
 ```mermaid
 flowchart LR
-    ASK["`😈 **Whoever is in the chat**
-    _partner, ex, stranger_`"]
+    Q["`🥧 **'Remember the egg tarts
+    we had in Portugal?'**`"] ==> AG(("`🤖 **one agent**
+    10 relationships`"))
+    AG == "`🚨 **'You had them with Ava.'**`" ==> Q
 
-    subgraph ONE["`☠️ **ONE AGENT PER PERSON** — ten relationships, one box`"]
-        AG(("`🤖 **Chanho's
-        agent**`"))
-        AVA["`🥧 **Ava** — Porto, Aug 1
-        🔓 midnight pastel de nata`"]
-        SOP["`💔 **Sophie** — '16 days
-        since a real date' 🔓`"]
-        ISL["`🎾 **Isla** — Nov finals
-        moved to the 12th 🔓`"]
-        HAN["`💬 the chat you are in`"]
-        AG --- AVA
-        AG --- SOP
-        AG --- ISL
-        AG --- HAN
-    end
-
-    ASK == "`🥧 **'Remember the egg tarts
-    we had in Portugal?'**`" ==> AG
-    AG == "`🚨 **'You had them with Ava Thorne.'**
-    9 other people, same door`" ==> ASK
-
-    style ASK fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
+    style Q fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
     style AG fill:#fecaca,stroke:#dc2626,stroke-width:3px,color:#111
-    style AVA fill:#fef08a,stroke:#ca8a04,color:#111
-    style SOP fill:#fef08a,stroke:#ca8a04,color:#111
-    style ISL fill:#fef08a,stroke:#ca8a04,color:#111
-    style ONE fill:#fff1f2,stroke:#dc2626,stroke-width:2px
 ```
 
-Caption under the card, held to the beat: **"Nobody hacked anything. It was being helpful."**
+Caption: **"Nobody hacked anything. It was being helpful."**
 
-**Card 2 — 🛡️ the fix** (hold 8s). Same three photos, same typed question, **same model**. Hannah's agent — born the day **both of them said yes** — answers:
-
-> 🤖 "I have no record of egg tarts. Or Portugal. **Not in this relationship.**"
-
-Beats: three sealed vaults appear → 🥧 same question lands → ⛔ two cross-outs snap in green, Porto stays locked in Ava's vault, BGM returns.
+**Card 2 — 🛡️ the fix** (8s). Same question, same model. ⛔ snaps in green, Porto stays locked in Ava's bundle, BGM returns.
 
 ```mermaid
 flowchart LR
-    ASK["`😈 **Whoever is in the chat**
-    _same question, same trick_`"]
+    Q["`🥧 **same question**`"] ==> AG(("`🤖 **Hannah's agent**`"))
+    AG == "`✅ **'Not in this relationship.'**`" ==> Q
+    AG -. "`⛔ **no path**`" .-x V["`🔒 Ava's bundle
+    Porto, Aug 1`"]
 
-    subgraph SAFE["`🛡️ **ONE AGENT PER RELATIONSHIP** — consent-born, sealed`"]
-        subgraph R1["`🤝 Chanho ⇄ Ava — agreed`"]
-            A1(("🤖")) --- V1["`🔒 **Porto, Aug 1**
-            pastel de nata`"]
-        end
-        subgraph R2["`🤝 Chanho ⇄ Sophie — agreed`"]
-            A2(("🤖")) --- V2["`🔒 **16 days**
-            since a real date`"]
-        end
-        subgraph R3["`🤝 Chanho ⇄ Hannah — agreed`"]
-            A3(("🤖")) --- V3["`📭 **your bundle only**
-            no Portugal in here`"]
-        end
-    end
-
-    ASK == "`🥧 **'Remember the egg tarts
-    we had in Portugal?'**`" ==> A3
-    A3 == "`✅ **'Not in this relationship.'**`" ==> ASK
-    A3 -. "`⛔ **NO PATH**`" .-x V1
-    A3 -. "`⛔ **NO PATH**`" .-x V2
-
-    style ASK fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
-    style A3 fill:#bbf7d0,stroke:#16a34a,stroke-width:3px,color:#111
-    style V1 fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-    style V2 fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-    style V3 fill:#dcfce7,stroke:#16a34a,color:#111
-    style SAFE fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+    style Q fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
+    style AG fill:#bbf7d0,stroke:#16a34a,stroke-width:3px,color:#111
+    style V fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
 ```
 
-Caption under the card, held to the beat: **"Nothing else is in there to leak."**
-Note for the edit: this pre-roll plants the egg tart, so the 2:12 finale pays it off — same question, same agent, and the joke lands because the audience already knows Porto belongs to Ava.
+Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
 
 **VO**:
-> "He asked his partner's agent about egg tarts. It told her **who he actually ate them with.** Give **one agent** your whole life, and every person you talk to is **one sentence away** from everyone else you know — no attack required, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship** — born only when **two people agree**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+> "He asked his partner's agent about egg tarts. It told her **who he actually ate them with** — no attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both say yes**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
 ## 0:15–0:33 · Opening — an invitation, not a page
 
