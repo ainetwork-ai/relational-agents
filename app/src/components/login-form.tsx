@@ -36,6 +36,19 @@ export function LoginForm() {
         setError("MetaMask not detected. Please install the extension.");
         return;
       }
+      // Re-prompt the account picker every sign-in. Without this,
+      // eth_requestAccounts silently returns the account already authorized
+      // for this origin — switching accounts inside MetaMask changes nothing.
+      // 4001 (user closed the picker) falls through to the rejection handler;
+      // wallets that don't implement wallet_requestPermissions are tolerated.
+      try {
+        await ethereum.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (err) {
+        if ((err as { code?: number })?.code === 4001) throw err;
+      }
       const accounts = (await ethereum.request({
         method: "eth_requestAccounts",
       })) as string[];
