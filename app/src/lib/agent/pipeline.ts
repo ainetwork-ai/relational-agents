@@ -46,15 +46,22 @@ export function runPipeline(roomId: string): Promise<RunResult> {
   return next;
 }
 
-/** Offline/test path (AGENT_FAKE_LLM=1): applies the batch deterministically. */
+const IMG_EXT = /\.(png|jpe?g|gif|webp|heic)$/i;
+
+/** Offline/test path (AGENT_FAKE_LLM=1): applies the batch deterministically.
+ *  Image attachments are embedded as markdown so photos land in the doc too. */
 function fakeEdits(batch: ChatMessage[]): DocEdit[] {
   const ids = batch.map((m) => m.id);
+  const lines: string[] = [];
+  for (const m of batch) {
+    if (m.text) lines.push(`- ${m.text}`);
+    for (const a of m.attachments ?? []) {
+      if (IMG_EXT.test(a.url)) lines.push(`![${a.name || "photo"}](${a.url})`);
+      else lines.push(`- 📎 [${a.name || "file"}](${a.url})`);
+    }
+  }
   return [
-    {
-      section: "timeline",
-      markdown: batch.map((m) => `- ${m.text}`).join("\n"),
-      sourceMessageIds: ids,
-    },
+    { section: "timeline", markdown: lines.join("\n"), sourceMessageIds: ids },
     { section: "overview", markdown: `Captured ${batch.length} recent messages.`, sourceMessageIds: ids },
   ];
 }
