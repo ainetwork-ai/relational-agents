@@ -1,6 +1,8 @@
 node_modules/
 .next/
 .next-e2e/
+# NEXT_DIST_DIR variants — a second dev server needs its own build dir
+.next-*/
 .env*
 !.env.example
 *.tsbuildinfo
