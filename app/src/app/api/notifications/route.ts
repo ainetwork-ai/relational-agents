@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { notifications, pages, users } from "@/lib/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,8 @@ export async function GET() {
     .select({ n: notifications, actor: users, pageTitle: pages.title })
     .from(notifications)
     .leftJoin(users, eq(notifications.actorId, users.id))
-    .leftJoin(pages, eq(notifications.pageId, pages.id))
+    // pageId is text (it can hold OKF ids); cast the uuid side for the join
+    .leftJoin(pages, sql`${notifications.pageId} = ${pages.id}::text`)
     .where(eq(notifications.userId, auth.user.id))
     .orderBy(desc(notifications.createdAt))
     .limit(100);
