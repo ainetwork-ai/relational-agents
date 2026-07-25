@@ -36,6 +36,65 @@ function sanitizeAttachments(raw: unknown): { url: string; name: string }[] {
     .map((a) => ({ url: a.url, name: typeof a.name === "string" ? a.name : "image" }));
 }
 
+/** A photo in the record, with the line that introduces it. */
+interface DocPhoto {
+  url: string;
+  context: string;
+}
+
+const IMG_LINE = /!\[([^\]]*)\]\((\/uploads\/[A-Za-z0-9._-]+)\)/g;
+
+/** Photos the record holds, each carried with its caption and the line above
+ *  it — that text is what an answer about the photo will echo. */
+function docPhotos(sections: Record<string, string>): DocPhoto[] {
+  const out: DocPhoto[] = [];
+  for (const body of Object.values(sections)) {
+    const lines = body.split("\n");
+    lines.forEach((line, i) => {
+      for (const m of line.matchAll(IMG_LINE)) {
+        const before = lines
+          .slice(Math.max(0, i - 3), i)
+          .filter((l) => l.trim() && !l.startsWith("Sources:"))
+          .join(" ");
+        out.push({ url: m[2], context: `${m[1]} ${before}`.trim() });
+      }
+    });
+  }
+  return out;
+}
+
+const STOPWORDS = new Set(
+  "the a an and or of to in on at for with from this that they you your our we us it is was were be been are her his their there here what when where which who how".split(" ")
+);
+
+function contentWords(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9가-힣\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+  );
+}
+
+/** The photo whose surroundings the answer is talking about. Deterministic, so
+ *  a recall that mentions the egg tart shows it whether or not the model
+ *  remembered to fill in "attachments". */
+function photoForAnswer(text: string, photos: DocPhoto[]): DocPhoto | null {
+  const words = contentWords(text);
+  let best: DocPhoto | null = null;
+  let bestScore = 0;
+  for (const p of photos) {
+    let score = 0;
+    for (const w of contentWords(p.context)) if (words.has(w)) score++;
+    if (score > bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
 /** Mention detection: @agent / @{displayName} (case-insensitive). */
 export function isMentioned(text: string, agentName: string): boolean {
   const t = text.toLowerCase();
@@ -49,6 +108,26 @@ export function isMentioned(text: string, agentName: string): boolean {
 function fakeDecision(message: ChatMessage, mentioned: boolean): RespondResult {
   if (!mentioned) return { action: "silent" };
   return { action: "reply", text: `[fake-agent] Reply to "${message.text.slice(0, 60)}".` };
+}
+
+/** Attach what the answer is about. The model is asked to fill in
+ *  "attachments" and often does not — or paraphrases the url until it no
+ *  longer resolves — so a miss falls back to matching the record itself. */
+function withPhoto(
+  text: string,
+  supplied: { url: string; name: string }[],
+  sections: Record<string, string>
+): RespondResult {
+  const photos = docPhotos(sections);
+  const known = new Set(photos.map((p) => p.url));
+  const valid = supplied.filter((a) => known.has(a.url));
+  if (valid.length) return { action: "reply", text, attachments: valid };
+  const match = photoForAnswer(text, photos);
+  return {
+    action: "reply",
+    text,
+    attachments: match ? [{ url: match.url, name: match.context.slice(0, 60) || "photo" }] : [],
+  };
 }
 
 async function llmDecision(
@@ -96,15 +175,11 @@ async function llmDecision(
     const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
     const parsed = JSON.parse((fenced ? fenced[1] : raw).trim()) as RespondResult;
     if (parsed.action === "reply" && typeof parsed.text === "string" && parsed.text.trim())
-      return {
-        action: "reply",
-        text: parsed.text.trim(),
-        attachments: sanitizeAttachments(parsed.attachments),
-      };
+      return withPhoto(parsed.text.trim(), sanitizeAttachments(parsed.attachments), sections);
     return { action: "silent" };
   } catch {
  // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
-    return mentioned ? { action: "reply", text: raw.trim().slice(0, 2000) } : { action: "silent" };
+    return mentioned ? withPhoto(raw.trim().slice(0, 2000), [], sections) : { action: "silent" };
   }
 }
 
