@@ -22,6 +22,6 @@ out with Hannah's memory. Swap Ava for a stranger and the question for an inject
 
 <img src="docs/img/relational_agent.png" width="720" alt="One agent per relationship: the Chanho–Hannah agent holds the egg tart memory, the Chanho–Ava agent has none, so nothing leaks">
 
-**No egg tart memory — no leak.** The Chanho–Ava agent isn't hiding Lisbon; Lisbon **does not
-exist** in there. Isolation is structural, not a rule the model has to remember. And each
-agent never existed until **both people said yes**.
+**No egg tart memory — no leak.** The Chanho–Ava agent is right there and answers honestly —
+it just holds nothing beyond what Chanho and Ava shared. Lisbon **does not exist** in there.
+Isolation is structural, not a rule the model has to remember.
