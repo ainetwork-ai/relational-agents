@@ -38,6 +38,8 @@ Nothing is pre-wired — both relationships are formed on camera.
 
 Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks over a video call — and whose agent has nothing to leak.
 
+3. **Seed the rooms before the epilogue** — `cd app && pnpm demo:seed "<room>" --as Chanho`, once per room, in the cut between 2:12 and 2:40. A relationship born on camera has an **empty document**, and the agent answers only from the document: unseeded, the Belém Tower recommendation comes back as *"I have nothing to go on"* and the epilogue dies on screen. The seed back-fills Ava's sunset photos and the Open-topics entry the recommendation is grounded in. Always pass `--as Chanho` — without it the room's creator becomes the driver and the sunset preference is recorded against the wrong person. Rehearse the line with `pnpm demo:ask "<room>" "@agent plan the egg tart date"` (it removes its own messages afterwards); a good take answers **Belém Tower + why + map link + tower photo** in about three seconds.
+
 ## 0:15–1:00 · Mutual consent → two relationships are born
 
 **Screen actions**:
