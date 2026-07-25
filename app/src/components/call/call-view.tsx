@@ -446,10 +446,12 @@ export function CallView({ roomId }: { roomId: string }) {
   }, [roomId]);
 
   // ---- STT: my mic → the agent's ear (never the transcript) ----
-  // Off by default: Web Speech re-opens the mic on every silence-restart, so
-  // the capture indicator blinks through the whole call. Flip the env to demo
-  // the agent-whisper flow until the external STT feed replaces this engine.
-  const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH === "1";
+  // ON by default — utterances must reach /utterance for the agent's in-call
+  // whispers and the end-of-call summary. Known cost until the external STT
+  // feed replaces this engine: Web Speech re-opens the mic on every
+  // silence-restart, so the capture indicator blinks. Set the env to "0" to
+  // silence the engine entirely.
+  const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH !== "0";
   const { supported: sttSupported } = useSpeechTranscript({
     enabled: webSpeechOn && status === "active" && micOn,
     onFinal: (text) => {
