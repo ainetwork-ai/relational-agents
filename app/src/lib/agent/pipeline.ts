@@ -319,7 +319,13 @@ async function runOnce(roomId: string): Promise<RunResult> {
   );
  // Private @agent exchanges belong to one member; the record is shared by both,
  // so they never become memories (they stay in `batch` to advance the checkpoint).
-  const typed = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
+  // "📞 Video Call ended · 4:12" is the call bubble the DM view renders, not
+  // something either of them said. Now that a finished call writes its own
+  // recap, leaving these in would record the call twice — once as what was
+  // discussed, once as the bare fact that a call happened.
+  const typed = batch.filter(
+    (m) => !agentIds.has(m.authorId) && !m.privateToUserId && !m.text.startsWith("📞 ")
+  );
  // Spoken lines join the same stream, tagged so the model knows they were said
  // out loud and so provenance can cite the call instead of a message anchor.
   const callOf = new Map(settled.map((u) => [u.id, u.callId]));

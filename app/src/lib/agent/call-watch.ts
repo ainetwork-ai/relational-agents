@@ -9,8 +9,10 @@ import {
   chatRoomMembers,
   chatRooms,
   users,
+  type CallUtterance,
 } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
+import { setOkfAcl } from "@/lib/okf-acl";
 import { aiChat } from "@/lib/ai";
 import {
   appendOkfLines,
@@ -99,30 +101,43 @@ export function forgetCallFacts(callId: string): void {
  * notes, not a transcript.
  */
 export async function recapCall(roomId: string, callId: string): Promise<{ recorded: boolean }> {
+  const spoken = await claimCallUtterances(callId);
+  return writeCallRecap(roomId, callId, spoken);
+}
+
+/**
+ * Take this call's unprocessed lines out of the write queue, and return them.
+ *
+ * Split from the summary because the claim has to happen *before* the call is
+ * deleted and the "call ended" message posted: that message wakes the write
+ * pipeline, which no longer sees a live call to skip, and whoever got there
+ * first won — the call ended up scattered line by line instead of summarised.
+ * The claim is one UPDATE, so the hangup request can await it; the summary
+ * (an LLM round-trip) runs after, off the request path.
+ */
+export async function claimCallUtterances(callId: string): Promise<CallUtterance[]> {
   const spoken = await db
     .select()
     .from(callUtterances)
     .where(and(eq(callUtterances.callId, callId), isNull(callUtterances.processedAt)))
     .orderBy(asc(callUtterances.createdAt));
   forgetCallFacts(callId);
-  if (spoken.length < 2) {
-    // too little was said to be worth a memory; drop it from the queue anyway
-    if (spoken.length)
-      await db
-        .update(callUtterances)
-        .set({ processedAt: new Date() })
-        .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
-    return { recorded: false };
-  }
+  if (spoken.length)
+    await db
+      .update(callUtterances)
+      .set({ processedAt: new Date() })
+      .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+  return spoken;
+}
 
-  // Claim them before the slow part. Ending a call also posts a chat message,
-  // which wakes the write pipeline; with the call already deleted it no longer
-  // skips these, and whoever got there first won — the call ended up scattered
-  // line by line instead of summarised.
-  await db
-    .update(callUtterances)
-    .set({ processedAt: new Date() })
-    .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+/** Summarise claimed lines into one Timeline entry. */
+export async function writeCallRecap(
+  roomId: string,
+  callId: string,
+  spoken: CallUtterance[]
+): Promise<{ recorded: boolean }> {
+  // too little was said to be worth a memory (already out of the queue)
+  if (spoken.length < 2) return { recorded: false };
 
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
@@ -131,6 +146,18 @@ export async function recapCall(roomId: string, callId: string): Promise<{ recor
     rootPath: state?.rootOkfPath,
     sectionPaths: state?.sectionOkfPaths,
   });
+  // The OKF tree has no permissions of its own, so a doc folder is only
+  // participant-private once okf_acl knows about it. A call can be the first
+  // thing that ever happens in a room — creating the folder here without
+  // registering it would leave the record workspace-readable until the write
+  // pipeline happened to run.
+  const memberIds = (
+    await db
+      .select({ userId: chatRoomMembers.userId })
+      .from(chatRoomMembers)
+      .where(eq(chatRoomMembers.roomId, roomId))
+  ).map((m) => m.userId);
+  await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
 
   const names = new Map<string, string>();
   const people = await db

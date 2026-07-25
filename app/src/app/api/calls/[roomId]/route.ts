@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { chatMessages, type ChatRoom } from "@/lib/db/schema";
 import { maybeAutoRun } from "@/lib/agent/triggers";
+import { claimCallUtterances, writeCallRecap } from "@/lib/agent/call-watch";
 import { deleteCall, getCall, setCall, RING_STALE_MS, type CallSdp } from "@/lib/call-store";
 import type { PageEvent } from "@/lib/realtime";
 
@@ -133,6 +134,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       break;
     }
     case "end": {
+      // Claim the call's spoken lines while the call is still live — the
+      // pipeline skips a live call's utterances, so this is the window where
+      // the recap can take them before "call ended" wakes the pipeline and it
+      // folds them in one by one. One UPDATE; the summary runs off-request.
+      const spoken = call ? await claimCallUtterances(call.callId) : [];
       deleteCall(roomId);
       await notify("dm-call-end");
       if (call) {
@@ -142,6 +148,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
             ? `📞 Video Call ended · ${mmss(Date.now() - call.acceptedAt)}`
             : "📞 Missed call";
         void postCallEvent(access.room, call.callerId, text).catch(console.error);
+        // one entry for the whole call, the way a meeting gets notes
+        if (spoken.length)
+          void writeCallRecap(roomId, call.callId, spoken).catch((err) =>
+            console.error("call recap failed:", err)
+          );
       }
       break;
     }
