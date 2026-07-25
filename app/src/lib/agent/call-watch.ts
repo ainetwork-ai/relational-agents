@@ -22,6 +22,7 @@ import {
   readOkfSectionTexts,
 } from "./okf-docs";
 import { CHAT_ROUTE_PREFIX } from "./pipeline";
+import { KEY_BY_ALIAS, SECTIONS, type SectionKey } from "./parse-edits";
 
 /**
  * The agent listening in on a call.
@@ -90,6 +91,42 @@ async function factSheet(roomId: string, callId: string): Promise<string> {
 
 export function forgetCallFacts(callId: string): void {
   cache().delete(callId);
+}
+
+/** Sections a call may file something under — the timeline is excluded because
+ *  the summary already lands there, and a duplicate entry is worse than none. */
+const RECAP_SECTIONS = SECTIONS.filter((s) => s.key !== "timeline");
+const SECTION_MENU = RECAP_SECTIONS.map((s) => `${s.key} (${s.title})`).join(", ");
+
+interface RecapEntry {
+  section: SectionKey;
+  markdown: string;
+}
+
+/** LLM output → summary + validated entries. Never throws: a call that is
+ *  summarised but whose entries are malformed still gets recorded. */
+function parseRecap(raw: string): { summary: string; entries: RecapEntry[] } {
+  const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  const body = (fenced ? fenced[1] : raw).trim();
+  let parsed: { summary?: unknown; entries?: unknown };
+  try {
+    parsed = JSON.parse(body) as typeof parsed;
+  } catch {
+ // the model answered in prose — that IS the summary, which is the part
+ // that matters; sections are the bonus
+    return { summary: body.slice(0, 2_000), entries: [] };
+  }
+  const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+  const entries: RecapEntry[] = [];
+  for (const item of Array.isArray(parsed.entries) ? parsed.entries : []) {
+    const e = item as Record<string, unknown>;
+    const section =
+      typeof e?.section === "string" ? KEY_BY_ALIAS.get(e.section.trim().toLowerCase()) : undefined;
+    if (!section || section === "timeline") continue;
+    const text = typeof e?.markdown === "string" ? e.markdown.trim().replace(/^-\s*/, "") : "";
+    if (text) entries.push({ section, markdown: text });
+  }
+  return { summary, entries };
 }
 
 /**
@@ -170,25 +207,51 @@ export async function writeCallRecap(
     .join("\n")
     .slice(0, 8_000);
 
-  let summary = "";
+  let raw = "";
   try {
-    summary = await aiChat(
+    raw = await aiChat(
       [
         {
           role: "system",
           content:
-            "Write what this call was about for the couple's shared record. Two or three sentences, past tense, naming what they did, decided, or plan to do. " +
-            "Only what was actually said — no advice, no invented detail. Plain prose, no heading, no bullet list.",
+            "Write up a call for a couple's shared record.\n" +
+            '"summary": what the call was about — two or three sentences, past tense, naming what they did, decided, or plan to do. ' +
+            "Only what was actually said: no advice, no invented detail. Plain prose, no heading, no bullet list.\n" +
+            '"entries": anything from the call that belongs in a section of its own, each as {"section": "<key>", "markdown": "- <one line>"}. ' +
+            `Sections: ${SECTION_MENU}. ` +
+            "A plan the two settled on is a decision. A question they left open is an open topic. Something learned about a person goes to people notes. " +
+            "The call already goes on the timeline as the summary — never put an entry there. Nothing qualifies? Return an empty list; do not restate the summary.\n" +
+            'JSON only: {"summary":"…","entries":[…]}',
         },
         { role: "user", content: script },
       ],
-      { maxTokens: 250, temperature: 0.2 }
+      { maxTokens: 400, temperature: 0.2 }
     );
   } catch (err) {
     console.error("call recap failed:", err);
     return { recorded: false };
   }
-  if (!summary.trim()) return { recorded: false };
+
+  const { summary, entries } = parseRecap(raw);
+  if (!summary) return { recorded: false };
+
+  // The call itself is one thing that happened → one timeline entry. What it
+  // produced — a decision, an open question — belongs where a reader would
+  // look for it, not buried in a paragraph about a phone call.
+  for (const entry of entries) {
+    const secRel = tree.sectionPaths[entry.section];
+    if (!secRel) continue;
+    const title = SECTIONS.find((s) => s.key === entry.section)?.title ?? entry.section;
+    appendOkfLines(
+      secRel,
+      title,
+      [
+        { type: "bulleted_list", text: entry.markdown },
+        { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
+      ],
+      okfDocMeta(roomId, entry.section)
+    );
+  }
 
   const rel = tree.sectionPaths.timeline;
   if (rel) {
@@ -196,7 +259,7 @@ export async function writeCallRecap(
       rel,
       "Timeline",
       [
-        { type: "callout", text: summary.trim(), icon: "📞" },
+        { type: "callout", text: summary, icon: "📞" },
         { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
       ],
       okfDocMeta(roomId, "timeline")

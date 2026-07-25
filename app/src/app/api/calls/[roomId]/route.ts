@@ -14,6 +14,7 @@ import {
   type CallSdp,
 } from "@/lib/call-store";
 import type { PageEvent } from "@/lib/realtime";
+import { claimCallUtterances, writeCallRecap } from "@/lib/agent/call-watch";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       break;
     }
     case "end": {
+      // Take the call's spoken lines out of the write queue while the call is
+      // still live — the pipeline skips a live call's utterances, so this is
+      // the window where the recap can claim them. Any chat message can wake
+      // the pipeline, and once the call is deleted it would fold the lines in
+      // one by one instead of leaving them to the summary. One UPDATE, so the
+      // hangup can await it; the summary itself runs off the request.
+      const spoken = call ? await claimCallUtterances(call.callId) : [];
       deleteCall(roomId);
       await notify("dm-call-end");
       if (call) {
@@ -174,6 +182,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
             ? `📞 Video Call ended · ${mmss(Date.now() - call.acceptedAt)}`
             : "📞 Missed call";
         void postCallEvent(access.room, call.callerId, text).catch(console.error);
+        // one entry for the whole call, the way a meeting gets notes
+        if (spoken.length)
+          void writeCallRecap(roomId, call.callId, spoken).catch((err) =>
+            console.error("call recap failed:", err)
+          );
       }
       break;
     }

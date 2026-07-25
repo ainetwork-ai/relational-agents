@@ -30,7 +30,7 @@ export interface DocEdit {
 // LLMs often emit the display title ("Overview") or odd casing instead of the
 // key — normalize both keys and titles to lowercase and accept them as keys
 // (only unknown values are rejected).
-const KEY_BY_ALIAS = new Map<string, SectionKey>(
+export const KEY_BY_ALIAS = new Map<string, SectionKey>(
   SECTIONS.flatMap((s) => [
     [s.key.toLowerCase(), s.key],
     [s.title.toLowerCase(), s.key],
