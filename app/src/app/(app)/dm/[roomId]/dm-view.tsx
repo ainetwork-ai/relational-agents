@@ -56,6 +56,8 @@ interface DmMessage {
   createdAt: string;
   /** set on a private exchange with the agent — only this member ever sees it */
   privateToUserId?: string | null;
+  /** set once the agent folded this message into the shared record */
+  recordedAt?: string | null;
 }
 
 const TYPING_TTL_MS = 3_500;
@@ -853,6 +855,16 @@ export function DmView({ roomId }: { roomId: string }) {
                         <p className="whitespace-pre-wrap break-words" data-testid="dm-msg-text">
                           {linkify(m.text, mine)}
                         </p>
+                      )}
+                      {m.recordedAt && !m.privateToUserId && (
+                        <Link
+                          href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
+                          data-testid="dm-msg-recorded"
+                          className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+                        >
+                          <Sparkles size={10} />
+                          Added to your record
+                        </Link>
                       )}
                       {m.privateToUserId && (
                         <p

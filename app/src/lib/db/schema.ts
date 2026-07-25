@@ -680,6 +680,10 @@ export const chatMessages = pgTable(
  // checkpoint that stays safe under createdAt ties, replacing
  // lastProcessedMessageId comparisons.
     processedAt: timestamp("processed_at"),
+ // set when this message actually became part of the relationship record (it
+ // was cited as a source of an applied edit). Drives the quiet "added to your
+ // record" marker, so the agent no longer announces itself in the transcript.
+    recordedAt: timestamp("recorded_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("chat_messages_room_created_idx").on(t.roomId, t.createdAt)]

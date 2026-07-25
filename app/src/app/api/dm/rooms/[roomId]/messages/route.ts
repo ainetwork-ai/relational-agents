@@ -113,26 +113,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
  // DM rooms share the agent rooms' harvest trigger — K+ pending now / idle scheduling
   const autoRun = await maybeAutoRun(room);
 
- // When the agent just recorded something, let it react in the room so the
- // memory is visible — "saved this to our story" with a link to the doc.
-  if (autoRun && autoRun.edits > 0 && auth.user.id !== null) {
-    try {
-      const { chatRoomBots } = await import("@/lib/db/schema");
-      const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
-      if (bot) {
-        const hadImage = attachments.length > 0;
-        await db.insert(chatMessages).values({
-          roomId,
-          authorId: bot.agentUserId,
-          text: hadImage
-            ? "📌 Saved this moment to our story — photo and all. I'll remember it for us. 💞"
-            : "📌 Noted — I've added that to our relationship's memory. 💞",
-        });
-        await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
-      }
-    } catch (err) {
-      console.error("agent ack failed:", err);
-    }
+ // No "saved it!" bubble: this is a room between two people, and an assistant
+ // narrating its own bookkeeping pushes their conversation off screen. The
+ // pipeline stamps recordedAt on the messages it used and the transcript shows
+ // a quiet marker there instead.
+  if (autoRun && autoRun.edits > 0) {
+    await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
   }
 
  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response

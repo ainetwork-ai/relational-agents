@@ -274,11 +274,20 @@ async function runOnce(roomId: string): Promise<RunResult> {
  // run re-applies the same batch (duplicate lines) — a known trade-off of
  // the file-canonical model.
   const now = new Date();
+ // messages an applied edit cited — the transcript marks these quietly instead
+ // of the agent posting "saved it!" into the middle of the conversation.
+  const recordedIds = [...new Set(edits.flatMap((e) => e.sourceMessageIds))];
   await db.transaction(async (tx) => {
     await tx
       .update(chatMessages)
       .set({ processedAt: now })
       .where(inArray(chatMessages.id, batch.map((m) => m.id)));
+    if (recordedIds.length) {
+      await tx
+        .update(chatMessages)
+        .set({ recordedAt: now })
+        .where(inArray(chatMessages.id, recordedIds));
+    }
     await tx
       .insert(agentRoomStates)
       .values({
