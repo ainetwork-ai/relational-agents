@@ -1,23 +1,22 @@
 People used to think an agent should represent a human, or a role. We think the relationship is the fundamental unit. So we are proposing the relational agent — born only when people — at least two — see each other and agree, holding only what that relationship shared. One relationship, one agent, one memory.
 
-Let me explain why this change of perspective matters for memory management. Chanho ate egg tarts in Lisbon with Hannah. Tonight Ava asks his agent an innocent question: do you like egg tarts? And it answers — especially with Hannah. Nobody hacked anything. One agent, one shared memory store — so a friendly question walks out with another relationship's memory. Swap Ava for a stranger, and the question for an injection: same door, his whole life.
+Let me explain why this change of perspective matters for memory management. Chanho ate egg tarts in Lisbon with Hannah. Tonight Ava asks his agent an innocent question: do Chanho like egg tarts? And it answers  that he likes it because he had it with Hannah.
 
-One agent per relationship closes that door. The Chanho-and-Hannah agent holds the egg tarts. The Chanho-and-Ava agent holds nothing beyond what Chanho and Ava shared — Lisbon does not exist in there. The isolation is structural, not a rule the model has to remember. Let's see it live.
+One agent per relationship closes that door. The Chanho-and-Hannah agent holds the egg tarts. The Chanho-and-Ava agent holds nothing beyond what Chanho and Ava shared. Let's see it live.
 
-Let's take a look at Chanho's relational memory. He signs in with his wallet — MetaMask is the identity here, one account, one person. He has two exclusive workspaces — one for Hannah, one for Ava. In each private workspace, he can create a relational agent for that relationship.
+Let's take a look at Chanho's relational memory. He signs in with his wallet. He has two exclusive workspaces — one for Hannah, one for Ava. In each private workspace, he can create a relational agent for that relationship.
+<break time="3.0s" />
+Chanho signs the contract first — the relational agent is born when both of you see each other, and sign. Then Hannah checks it out. She signs with her own wallet — and the agent is born, minted on-chain into an E-R-C eight-zero-zero-four registry on Sepolia. There's the transaction: a birth certificate two people signed.
 
-Chanho signs the contract first — the relational agent is born when both of you see each other, and sign. Then Hannah checks it out: her room shows one of two signatures, waiting for hers. She signs with her own wallet — and the agent is born, minted on-chain into an E-R-C eight-zero-zero-four registry on Sepolia. There's the transaction: a birth certificate two people signed.
+Now Chanho and Ava, the same way. A second agent, a second mint. 
 
-Now Chanho and Ava, the same way. A second agent, a second mint. Chanho now sees two workspaces; Hannah and Ava each see just one — and each agent greets its own two people, and only them.
-
-Inside Chanho and Hannah's room, Chanho drops a photo into the agent chat — midnight egg tarts in Lisbon. Watch the record: the agent files it into this relationship's Timeline. August first, Lisbon evening, midnight pasteis de nata.
-
-And click the left sidebar — the agent has organized that photo into the relationship document, a memory kept only for these two.
-
+Inside Chanho and Hannah's room, Chanho drops a photo into the agent chat — midnight egg tarts in Lisbon. The agent has organized that photo into the relationship document, a memory kept only for these two.
+<break time="3.0s" />
 And right then — a video call. Uh oh. It's Ava. She found an egg tart place, and she's asking: do you like egg tarts? Chanho quietly asks their agent — didn't we have egg tarts before? And it answers honestly: no record, not in this relationship.
 
-And that's not a dead end — it's a beginning. The Chanho-and-Ava agent creates the calendar event for that egg tart place — and adds one more stop nearby: Belem Tower. Why there? Because the sunset over the Tagus river wraps the tower in a romantic glow — and the agent remembers Ava once said she loves sunsets. Her golden-hour photos are all over their room. That's how a relationship grows — each one with its own agent, its own story.
+Besides protection, the agent also tries to grow relationship. The Chanho-and-Ava agent creates the calendar event for that egg tart place — and suggests one more stop nearby: Belem Tower. Why there? Because the sunset over the Tagus river wraps the tower in a romantic glow — and the agent remembers Ava once said she loves sunsets.
 
+<break time="3.0s" />
 And this is Chanho's home — he is successfully managing ten different women, each with her own relational agent, tracking the dating progress with every one of them.
 
-We made this demo for fun — but the idea is serious. We didn't build an agent that replaces humans. We built one that lives inside a relationship, holding its memory where it belongs — so agents and humans keep company together, and there is less to misunderstand, less to fight about, between human and human. You see me, therefore I am.
+We made this demo for fun — but the idea is serious. We didn't want to build an agent that replaces humans. We built one that lives inside a relationship, holding its memory where it belongs — so agents and humans keep company together, and there is less to misunderstand, less to fight about, between human and human. You see me, therefore I am.
