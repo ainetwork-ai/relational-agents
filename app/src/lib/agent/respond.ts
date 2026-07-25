@@ -202,7 +202,10 @@ export async function respondToMessage(
   );
 
   const config = (agent.agentConfig ?? {}) as AgentConfig;
-  const mentioned = isMentioned(message.text, agent.displayName);
+ // a quiet message is addressed to the agent by definition — the lock is the
+ // address, so it need not also be spelled out with an @
+  const mentioned =
+    Boolean(message.privateToUserId) || isMentioned(message.text, agent.displayName);
 
   let decision: RespondResult;
   if (process.env.AGENT_FAKE_LLM === "1") {

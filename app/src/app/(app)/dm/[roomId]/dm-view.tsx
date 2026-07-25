@@ -113,6 +113,8 @@ export function DmView({
 
   const [input, setInput] = useState("");
   const [pendingAtt, setPendingAtt] = useState<DmAttachment[]>([]);
+ // asking the agent without the room hearing it — held until you send
+  const [quiet, setQuiet] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -321,7 +323,7 @@ export function DmView({
       const res = await fetch(`/api/dm/rooms/${roomId}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-client-id": clientId },
-        body: JSON.stringify({ text, attachments: pendingAtt }),
+        body: JSON.stringify({ text, attachments: pendingAtt, quiet: draftIsPrivate }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -336,6 +338,7 @@ export function DmView({
       });
       setInput("");
       setPendingAtt([]);
+      setQuiet(false); // one quiet question at a time — you opt in per message
       setGuard(null);
       if (data.autoRun?.rootPageId) {
         setRoom((r) => (r ? { ...r, rootPageId: data.autoRun.rootPageId } : r));
@@ -387,12 +390,13 @@ export function DmView({
     return hrs < 24 ? `saved ${hrs}h ago` : `saved ${Math.floor(hrs / 24)}d ago`;
   }, [messages]);
 
-  /** Mirrors the server's mention test — the draft decides which mode you send in. */
-  const draftIsPrivate = useMemo(() => {
-    if (!agentMember) return false;
-    const t = input.toLowerCase();
-    return t.includes("@agent") || t.includes(`@${agentMember.displayName.toLowerCase()}`);
-  }, [input, agentMember]);
+  /** Mentioning the agent is an ordinary mention — it answers in the room, in
+   *  front of both of them. Quiet is a separate thing you choose by holding the
+   *  toggle down, never something the wording puts you in. */
+  const draftIsPrivate = quiet && Boolean(agentMember);
+  /** Overlays above the composer line up with the text field, which starts one
+   *  button further right once the quiet toggle is there. */
+  const composerInset = agentMember ? "left-[5.5rem]" : "left-11";
 
   /** Candidates for the "@" menu — the agent first, since mentioning it is how
    *  you ask the relationship a question, and nothing on screen says so. */
@@ -1045,7 +1049,7 @@ export function DmView({
           <div
             data-testid="dm-mention-menu"
             role="listbox"
-            className="absolute bottom-full left-11 z-30 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+            className={`absolute bottom-full ${composerInset} z-30 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900`}
           >
             {mentionItems.map((u, i) => (
               <button
@@ -1072,7 +1076,7 @@ export function DmView({
                   </span>
                   {u.isAgent && (
                     <span className="block truncate text-[11px] text-neutral-400">
-                      Ask quietly — answers from your record, just to you
+                      Ask in the room — answers from your record
                     </span>
                   )}
                 </span>
@@ -1089,7 +1093,7 @@ export function DmView({
             a mention makes it private, anything else is on the shared record. */}
         <div
           data-testid="dm-compose-mode"
-          className="pointer-events-none absolute -top-0.5 left-11 flex items-center gap-1.5 text-[11px] text-neutral-400"
+          className={`pointer-events-none absolute -top-0.5 ${composerInset} flex items-center gap-1.5 text-[11px] text-neutral-400`}
         >
           {draftIsPrivate ? (
             <>
@@ -1114,6 +1118,26 @@ export function DmView({
           className="hidden"
           onChange={(e) => void uploadFiles(e.target.files)}
         />
+        {agentMember && (
+          <button
+            type="button"
+            data-testid="dm-quiet-toggle"
+            aria-label="Ask the agent quietly"
+            aria-pressed={quiet}
+            data-tip={quiet ? "Quiet — only you and the agent" : "Ask the agent quietly"}
+            onClick={() => {
+              setQuiet((q) => !q);
+              composerRef.current?.focus();
+            }}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all active:scale-90 ${
+              quiet
+                ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300"
+                : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            }`}
+          >
+            <Lock size={17} />
+          </button>
+        )}
         <button
           type="button"
           data-testid="dm-attach"
@@ -1130,7 +1154,7 @@ export function DmView({
           data-testid="dm-composer-input"
           value={input}
           rows={1}
-          placeholder="Type a message…"
+          placeholder={draftIsPrivate ? "Ask your agent…" : "Type a message…"}
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => (isComposingRef.current = true)}
           onCompositionEnd={() => (isComposingRef.current = false)}
@@ -1165,7 +1189,12 @@ export function DmView({
               e.currentTarget.blur();
             }
           }}
-          className="max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-lg border border-neutral-200 bg-white px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
+          className={`max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-lg border px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 ${
+            draftIsPrivate
+              ? // dashed = this one is not going to the room
+                "border-dashed border-purple-300 bg-purple-50/40 focus:border-purple-400 dark:border-purple-700/70 dark:bg-purple-950/20 dark:focus:border-purple-500"
+              : "border-neutral-200 bg-white focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
+          }`}
         />
         <button
           type="submit"
