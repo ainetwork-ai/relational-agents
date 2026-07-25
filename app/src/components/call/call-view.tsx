@@ -23,21 +23,32 @@ interface CallState {
 }
 type ViewStatus = "loading" | "ringing-out" | "active" | "declined" | "ended";
 
-/** Wait for non-trickle ICE: full SDP in one blob (host candidates gather in
- * ms on localhost); capped so a stall can't hang the call. */
+/** Wait for non-trickle ICE: full SDP in one blob, capped so a stall can't
+ * hang the call. With TURN servers configured, gathering rarely reaches
+ * "complete" before the cap — so a 350ms lull in candidate arrivals also
+ * counts as done (the SDP already carries everything gathered so far).
+ * Same-machine handshakes drop from a hard 2s to ~0.4s. */
 function waitIceComplete(pc: RTCPeerConnection, capMs = 2000): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
+    let lull: ReturnType<typeof setTimeout> | undefined;
     const done = () => {
       pc.removeEventListener("icegatheringstatechange", check);
+      pc.removeEventListener("icecandidate", onCandidate);
       clearTimeout(timer);
+      clearTimeout(lull);
       resolve();
     };
     const check = () => {
       if (pc.iceGatheringState === "complete") done();
     };
+    const onCandidate = (ev: RTCPeerConnectionIceEvent) => {
+      clearTimeout(lull);
+      if (ev.candidate) lull = setTimeout(done, 350);
+    };
     const timer = setTimeout(done, capMs);
     pc.addEventListener("icegatheringstatechange", check);
+    pc.addEventListener("icecandidate", onCandidate);
   });
 }
 
@@ -416,6 +427,16 @@ export function CallView({ roomId }: { roomId: string }) {
     const t = setTimeout(() => leave("room"), 2500);
     return () => clearTimeout(t);
   }, [mediaError, leave]);
+
+  // the offer/answer dance is SSE-notification driven and a missed
+  // dm-call-signal used to park "Connecting…" until the next reconnect —
+  // poll as a backup while the handshake is still open
+  useEffect(() => {
+    if (remoteLive) return;
+    if (status !== "active" && status !== "loading" && status !== "ringing-out") return;
+    const iv = setInterval(() => void sync(), 2_000);
+    return () => clearInterval(iv);
+  }, [status, remoteLive, sync]);
 
   // heartbeat — the server reclaims calls whose participants stopped beating
   // (a crashed browser never sends the pagehide end)
