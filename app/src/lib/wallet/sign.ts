@@ -11,6 +11,7 @@
 
 import type { Address, Hex, TypedDataDefinition } from "viem";
 import {
+  getInjectedProvider,
   getWalletClient,
   toWalletError,
   WalletSignatureError,
@@ -99,6 +100,13 @@ export async function signTypedDataWithWallet(
 ): Promise<SignedTypedData> {
   const client = getWalletClient();
   const address = opts.address ?? (await connectWallet());
+  // viem refuses to sign when the domain's chainId differs from the wallet's
+  // active chain. If the typed data pins a chain, switch to it first (adding
+  // it if the wallet doesn't know it), so the user isn't left to do it by hand.
+  const wantChainId = Number(
+    (typedData as { domain?: { chainId?: number | bigint } }).domain?.chainId ?? 0
+  );
+  if (wantChainId) await ensureChain(wantChainId);
   try {
     const signature = await client.signTypedData({
       account: address,
@@ -107,6 +115,42 @@ export async function signTypedDataWithWallet(
     return { address, signature, typedData };
   } catch (err) {
     throw toWalletError(err);
+  }
+}
+
+/** Sepolia is the only chain this app pins today; extend if more are added. */
+const KNOWN_CHAINS: Record<number, { chainName: string; rpcUrls: string[]; nativeCurrency: { name: string; symbol: string; decimals: number }; blockExplorerUrls: string[] }> = {
+  11155111: {
+    chainName: "Sepolia",
+    rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
+    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+  },
+};
+
+/** Switch the wallet to `chainId` (EIP-3326), adding it (EIP-3085) on 4902. */
+async function ensureChain(chainId: number): Promise<void> {
+  const provider = getInjectedProvider();
+  if (!provider) return;
+  const hex = `0x${chainId.toString(16)}`;
+  try {
+    const current = (await provider.request({ method: "eth_chainId" })) as string;
+    if (parseInt(current, 16) === chainId) return;
+  } catch {
+    /* fall through to switch */
+  }
+  try {
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
+  } catch (err) {
+    // 4902 = chain unknown to the wallet → add it, then it's active
+    if ((err as { code?: number })?.code === 4902 && KNOWN_CHAINS[chainId]) {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [{ chainId: hex, ...KNOWN_CHAINS[chainId] }],
+      });
+    } else {
+      throw toWalletError(err);
+    }
   }
 }
 
