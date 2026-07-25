@@ -211,7 +211,7 @@ export function Sidebar({
       <aside
         data-testid="sidebar"
         style={{ width: sbWidth }}
-        className={`group/sidebar relative flex h-full shrink-0 flex-col border-r border-neutral-200/80 bg-neutral-50 dark:border-white/10 dark:bg-[#202020] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-64 max-md:shadow-xl max-md:transition-transform max-md:duration-200 md:translate-x-0 ${
+        className={`group/sidebar relative flex h-full shrink-0 flex-col border-r border-neutral-200/80 bg-neutral-50 dark:border-white/10 dark:bg-[#202020] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-64 max-md:shadow-xl max-md:transition-transform max-md:duration-200 ${
           mobileNavOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
         }`}
       >
