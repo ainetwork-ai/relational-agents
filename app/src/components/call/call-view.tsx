@@ -453,13 +453,21 @@ export function CallView({ roomId }: { roomId: string }) {
   // silence-restart, so the capture indicator blinks. Set the env to "0" to
   // silence the engine entirely.
   const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH !== "0";
+  // recognition language: ?stt=ko-KR beats the env beats en-US — deployment
+  // stays English while a tester can flip one call to Korean from the URL
+  const [sttLang] = useState<string | undefined>(() =>
+    typeof window === "undefined"
+      ? undefined
+      : new URLSearchParams(window.location.search).get("stt") ??
+        process.env.NEXT_PUBLIC_STT_LANG
+  );
   const {
     interim: sttInterim,
     error: sttError,
     supported: sttSupported,
   } = useSpeechTranscript({
     enabled: webSpeechOn && status === "active" && micOn,
-    lang: process.env.NEXT_PUBLIC_STT_LANG, // default en-US (contract) — set ko-KR for Korean demos
+    lang: sttLang,
     onFinal: (text) => {
       // Not a chat message: a call speaks a line every few seconds and those
       // would bury what the two of them actually typed. The agent reads these
