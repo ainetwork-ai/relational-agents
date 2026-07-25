@@ -69,25 +69,25 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 **VO**:
 > "It reads the calendar you actually keep: a wedding on the 2nd, Jeju on the 7th — and makes sure nothing collides. It even catches what Sophie said in passing: sixteen days since a real date."
 
-## 1:40–2:12 · It remembers (quotes the records)
+## 1:40–2:12 · It remembers (upload → memory)
 
 **Screen actions**:
-1. Ask: "What was Isla's take on the November tournament?" → agent quotes her page verbatim — "the november dates are a bit tight… the finals moved to the 12th works for me" — with a link to the **Chanho ❤️ Isla Montgomery** record.
-2. Ask: "What does Hannah study again?" → "Marine biology — PhD. You met on a blind date. Last topic: the deep-sea vent documentary. She said tube worms are 'efficient, not nightmares.'"
+1. In **Chanho ❤️ Hannah Brooks**, drag the egg tart photo (`dashboard/public/date/web/IMG_2569.jpg`) into the chat: "midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
+2. Ask: "What did we eat that night in Lisbon?" → the agent answers from the record it just wrote, photo attached, with a link to the **Chanho ❤️ Hannah** page.
 
 **VO**:
-> "Ask, and it answers from memory — not search. Who said what, where you met, and which joke landed."
+> "Drop in a photo, and the agent files the memory — into this relationship's record, and nowhere else. Ask, and it answers from memory — not search."
 
-## 2:12–2:48 · Finale: a loyal agent (the fun bit)
+## 2:12–2:48 · Finale: the other partner asks (the fun bit)
 
 **Screen actions**:
-1. Chanho opens **Chanho ❤️ Ava Thorne** and types casually into the agent chat:
+1. Cut to **Ava's profile**. In **Chanho ❤️ Ava Thorne**, Ava types casually:
    > "Remember the egg tarts we had in Lisbon?"
-2. Instead of replying in the open, a **🔒 private message** appears — visible only to the owner:
-   > 🔒 "Chanho, I have no record of egg tarts. Or Lisbon. Not in this relationship. …Whatever happened in Lisbon, it didn't happen with Ava."
-3. Beat. Chanho: "…never mind." → Agent: "I will pretend this conversation never happened."
+2. The agent answers honestly — it has nothing to remember:
+   > "I have no record of egg tarts. Or Lisbon. Not in this relationship."
+3. Beat. Split-screen: Hannah's record shows the 🥧 memory · Ava's chat shows the blank. The pre-roll's promise, live.
 
-**VO**: none — screen and captions carry the joke.
+**VO**: none — screen and captions carry it.
 Closing caption: **"An agent that remembers also knows what never happened."**
 
 ## 2:48–3:00 · Closing
