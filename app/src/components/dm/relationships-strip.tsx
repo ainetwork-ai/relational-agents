@@ -16,7 +16,7 @@ interface Person {
   key: string;
   name: string;
   level: number; // -1 = unknown (no Relationships DB)
-  pageId: string; // record page to open (fallback)
+  pageId: string | null; // doc/record page; null = room-only (no doc yet)
   roomId: string | null; // 1:1 DM room with this person, when one exists
 }
 
@@ -45,7 +45,7 @@ const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤�
 const partnerOf = (title: string, myName?: string | null) => {
   const sides = title
     .split(HEART_SPLIT)
-    .map((s) => s.replace(/^.*—/, "").trim())
+    .map((s) => s.replace(/^.*—/, "").replace(/-[0-9a-f]{6}\s*$/i, "").trim())
     .filter(Boolean);
   if (sides.length === 0) return title.trim();
   if (myName) {
@@ -137,6 +137,9 @@ export function RelationshipsStrip() {
  // to their room here and resolve the doc on click. Group rooms are
  // out of scope (a room-level doc has no single person to attach to).
         const roomByName = new Map<string, string>();
+        // agent-attached 1:1 rooms ARE relations, doc or not — show a face
+        // even before the agent writes the first doc page
+        const roomRelations: { name: string; roomId: string }[] = [];
         try {
           const { rooms }: { rooms: DmRoomRow[] } = await (await fetch("/api/dm/rooms")).json();
           for (const room of rooms ?? []) {
@@ -145,6 +148,11 @@ export function RelationshipsStrip() {
             for (const m of humans) {
               const nk = nameKey(m.displayName ?? "");
               if (nk && !roomByName.has(nk)) roomByName.set(nk, room.id);
+            }
+            const hasAgent = room.members.some((m) => m.isAgent);
+            const partner = humans.find((m) => nameKey(m.displayName) !== nameKey(myName ?? ""));
+            if (hasAgent && myName && partner) {
+              roomRelations.push({ name: partner.displayName, roomId: room.id });
             }
           }
         } catch {
@@ -207,6 +215,18 @@ export function RelationshipsStrip() {
             roomId: prev?.roomId ?? roomByName.get(key) ?? null,
           });
         }
+        for (const r of roomRelations) {
+          const key = r.name.toLowerCase();
+          if (!byPartner.has(key)) {
+            byPartner.set(key, {
+              key,
+              name: r.name,
+              level: levels.get(key) ?? -1,
+              pageId: null,
+              roomId: r.roomId,
+            });
+          }
+        }
         const list = [...byPartner.values()];
         list.sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
         if (alive) setPeople(list);
@@ -237,23 +257,21 @@ export function RelationshipsStrip() {
  // fall through to the record page
       }
     }
-    router.push(`/p/${person.pageId}`);
+    if (person.pageId) router.push(`/p/${person.pageId}`);
+    else if (person.roomId) router.push(`/dm/${person.roomId}`);
   }
 
   if (!people || people.length === 0) return null;
 
   return (
     <div data-testid="rel-strip" className="px-1 pb-2">
-      <h3 className="px-1 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-        Relationships
-      </h3>
       <div
         className="flex w-full flex-nowrap gap-px overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {people.map((p) => (
           <button
-            key={p.pageId}
-            data-testid={`rel-face-${p.pageId}`}
+            key={p.pageId ?? p.roomId ?? p.key}
+            data-testid={`rel-face-${p.pageId ?? p.roomId ?? p.key}`}
             onClick={() => void openPerson(p)}
             className="flex w-[76px] shrink-0 flex-col items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
           >

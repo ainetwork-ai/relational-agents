@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { dmRoomLabel, useDmRoomsStore, type DmRoomSummary } from "@/stores/dm-rooms";
 import { DmAvatar } from "./dm-avatar";
+import { RelationshipsStrip } from "./relationships-strip";
 import { NewDmModal } from "./new-dm-modal";
 
 function preview(room: DmRoomSummary): string {
@@ -57,6 +58,9 @@ export function DmSection() {
           <Plus size={17} strokeWidth={2.2} />
         </button>
       </div>
+
+      {/* face strip and room list share this section's one header */}
+      <RelationshipsStrip />
 
       {!loaded ? (
         <div className="space-y-1.5 px-2 py-1">

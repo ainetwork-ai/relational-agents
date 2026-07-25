@@ -21,7 +21,6 @@ import { useToastStore } from "@/stores/toast";
 import { IconPicker } from "@/components/page/icon-picker";
 import { PageIcon } from "@/components/page-icon";
 import { DmSection } from "@/components/dm/dm-section";
-import { RelationshipsStrip } from "@/components/dm/relationships-strip";
 import { RelationAgentsSection } from "@/components/sidebar/relation-agents-section";
 import { ChatsToolbar } from "@/components/sidebar/chats-toolbar";
 
@@ -321,8 +320,6 @@ export function ChatsPanel() {
 
   return (
     <div className="flex-1 overflow-y-auto px-2 pb-4" data-testid="chats-panel">
-      <RelationshipsStrip />
-
       <DmSection />
 
       <RelationAgentsSection />
