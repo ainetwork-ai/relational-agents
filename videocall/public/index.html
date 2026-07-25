@@ -920,11 +920,14 @@
       try {
         const { call } = await (await fetch("/api/notion-call")).json();
         if (!call) {
-          // declined / cancelled / hung up — or the ring never registered
-          if (sawCall || ++empty > 12) endCall();
+          // a lone null can be a transient bridge/app hiccup — only give up
+          // on a steady signal (3 misses once rung; ~12s if it never rings)
+          empty++;
+          if (sawCall ? empty >= 3 : empty > 12) endCall();
           return;
         }
         sawCall = true;
+        empty = 0;
         if (call.status !== "active") return;
         if (!offered) {
           offered = true;

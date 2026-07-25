@@ -251,7 +251,12 @@ const server = http.createServer(async (req, res) => {
     res.end("not found");
     return;
   }
-  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
+  // no-store: a stale cached page speaks an old bridge protocol and can
+  // sabotage live calls (it once auto-cancelled every ring)
+  res.writeHead(200, {
+    "Content-Type": MIME[path.extname(file)] || "application/octet-stream",
+    "Cache-Control": "no-store",
+  });
   res.end(fs.readFileSync(file));
 });
 
