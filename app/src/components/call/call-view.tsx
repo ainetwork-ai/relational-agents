@@ -217,7 +217,9 @@ export function CallView({ roomId }: { roomId: string }) {
 
   const ensurePc = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    // candidate pool: gathering starts at construction, not at offer time —
+    // by the time the SDP is created the candidates are already in hand
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 1 });
     const stream = await ensureLocalStream();
     for (const track of stream.getTracks()) pc.addTrack(track, stream);
     pc.ontrack = (ev) => {
@@ -297,7 +299,10 @@ export function CallView({ roomId }: { roomId: string }) {
       const iAmCaller = meId !== null && call.callerId === meId;
       iAmCallerRef.current = iAmCaller;
       if (call.status === "ringing") {
-        void ensureLocalStream().catch(() => {});
+        // pre-warm while the phone rings: camera/mic AND the peer connection
+        // (its candidate pool gathers in the background), so accept → offer
+        // is instant instead of paying getUserMedia + ICE on the spot
+        void ensurePc().catch(() => {});
         if (!iAmCaller && meId !== null && !acceptPostedRef.current) {
           // I'm standing on the call page while the other side rings me:
           // either we both dialed at once (glare — my invite lost the race
