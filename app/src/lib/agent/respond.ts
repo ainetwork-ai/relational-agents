@@ -78,6 +78,8 @@ async function llmDecision(
           `You are the ${persona} of the "${roomName}" room. Take part in the conversation grounded in the relationship document.${custom}\n` +
           `Rules: always reply when mentioned. When not mentioned, ${proactive ? "chime in briefly only if the members must know something (a scheduling conflict, an important remembered fact)" : "stay silent"}. Otherwise stay silent.\n` +
           `Answer from the document above. If a section records something that bears on the question, say what is recorded — a partial memory is still an answer. ` +
+          `When asked what to do, where to go, or what they would like, make one concrete suggestion and say which remembered detail it follows from ` +
+          `("she loves sunsets — you two watched one at …"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
           `When you cite the document, mention the relationship-doc link (/p/${rootPageId ?? ""}).\n` +
           `When you recommend a place or a date idea, ground it in this relationship's memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +

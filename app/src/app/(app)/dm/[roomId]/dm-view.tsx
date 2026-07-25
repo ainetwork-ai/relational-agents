@@ -900,7 +900,7 @@ export function DmView({ roomId }: { roomId: string }) {
                           className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
                         >
                           <Lock size={10} />
-                          Only you and the agent — not in your shared record
+                          Quiet · only you and the agent — not in your shared record
                         </p>
                       )}
                     </div>
@@ -1019,7 +1019,7 @@ export function DmView({ roomId }: { roomId: string }) {
                   </span>
                   {u.isAgent && (
                     <span className="block truncate text-[11px] text-neutral-400">
-                      Ask your relationship — answers from your record
+                      Ask quietly — answers from your record, just to you
                     </span>
                   )}
                 </span>
@@ -1042,7 +1042,7 @@ export function DmView({ roomId }: { roomId: string }) {
             <>
               <Lock size={11} className="text-neutral-500 dark:text-neutral-400" />
               <span className="text-neutral-500 dark:text-neutral-400">
-                Private — only you and the agent
+                Quiet — only you and the agent
               </span>
             </>
           ) : (
