@@ -29,10 +29,20 @@ services:
       POSTGRES_URL: postgresql://memory_live:${POSTGRES_PASSWORD}@postgres:5432/memory_live
       OKF_ROOT: /data/okf
       MD_MIRROR_ROOT: /data/md-mirror
+      # The default AI_URL is localhost:8100, which inside a container means the
+      # container itself — the agent's LLM calls died with ECONNREFUSED. vLLM
+      # runs on the host, reachable through the gateway alias below.
+      AI_URL: http://host.docker.internal:8100/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # The OKF tree IS the content database and the app writes to it, so it is
       # a bind mount — inspectable from the host, and recoverable into git.
       - ./deploy/okf-content:/data/okf
+      # Uploads/avatars are written at runtime under public/, so they get the
+      # same treatment as the OKF tree: mounted, never baked into the image.
+      - ./deploy/uploads:/app/public/uploads
+      - ./deploy/avatars:/app/public/avatars
       - memory_live_mdmirror:/data/md-mirror
     ports:
       # Loopback only; nginx terminates TLS and proxies here.

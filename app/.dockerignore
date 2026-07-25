@@ -12,3 +12,8 @@ playwright-report
 .omc
 okf-fs
 *.log
+# User uploads and avatars are runtime data written by the running app. Baking
+# them in makes the image huge and, worse, silently discards everything users
+# uploaded on every redeploy. They are mounted as volumes instead.
+public/uploads
+public/avatars
