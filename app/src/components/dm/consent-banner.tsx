@@ -49,14 +49,16 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
         body: JSON.stringify({ signature }),
       });
       const data = await res.json();
-      if (!res.ok) setError(data.error || "Signing failed");
+      if (!res.ok) setError(data.error || `Sign-in failed (${res.status})`);
       await refresh();
     } catch (err) {
-      setError(
-        err instanceof WalletSignatureError && err.reason === "rejected"
-          ? "Signature request was rejected."
-          : "Signing failed"
-      );
+      if (err instanceof WalletSignatureError && err.reason === "rejected") {
+        setError("Signature request was rejected.");
+      } else {
+        // surface the real cause — wallet errors are otherwise swallowed
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Signing failed: ${msg.slice(0, 140)}`);
+      }
     } finally {
       setBusy(false);
     }
