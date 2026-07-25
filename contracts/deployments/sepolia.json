@@ -1,11 +1,12 @@
 {
  "network": "sepolia",
  "chainId": 11155111,
- "address": "0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba",
- "deployTx": "0xb7137940cbdf10760c192c815baea6f4739f8725b2b9c466de98343a249c1a54",
+ "address": "0xf1dc0686c8b22a1afe8941c2613f7efa4e439256",
+ "deployTx": "0xe0d76066b1aa5443a83df9c886d636cf42e54559213b403668a83cdf5194b30e",
  "deployer": "0x466e00d1Dd650987Cc173E620Fa933aDEaABCB86",
- "gasUsed": 1551551,
+ "gasUsed": 1587271,
  "compiler": "solc 0.8.28, optimizer runs=200",
- "domainSeparator": "0x1ebc3ed5359cc921505994ea9a2e874402ecdbbc9ed47d19bf71a12f538ec42a",
+ "note": "EIP-712 address[] hashing fixed (per-element bytes32); on-chain registration verified (tx 0xb33b90\u2026, agentId 1)",
+ "supersedes": "0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba",
  "deployedAt": "2026-07-25"
 }

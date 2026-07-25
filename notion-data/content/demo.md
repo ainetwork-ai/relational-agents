@@ -52,12 +52,12 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 ## 0:33–1:00 · Mutual consent → the relationship is born
 
 **Screen actions**:
-1. Isla opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields and she signs. Flash Chanho's side signing too — **2/2 signed**.
-2. On acceptance, a page **titles itself into being** in the sidebar: **Chanho ❤️ Isla Montgomery** — and the relational agent greets both: "I'll take care of this story with you."
-3. Pull back: this heart-page now sits among nine others — **Chanho ❤️ Maya, Hannah, Sophie, Lily, Claire, Ava, Zoe, Mia, Riley** — each a relationship consented to the same way.
+1. Isla opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields (relation id + both parties) and she signs. Cut to Chanho's side signing too — the banner ticks **1/2 → 2/2 signed**.
+2. On the second signature the agent is **minted on-chain**: a system line drops in — *"📜 Registered on-chain — agent #N in the ERC-8004 registry (Sepolia). tx: 0x…"* — with the tx link. Both signatures were relayed for them; neither paid gas. (B-roll option: the Etherscan tx page, the RelationalAgentRegistry `Registered` event.)
+3. The heart-page **titles itself into being** in the sidebar — **Chanho ❤️ Isla Montgomery** — and the agent greets both: "I'll take care of this story with you." It also appears in the left **Agents** section.
 
 **VO**:
-> "The record isn't created by one person — it's *agreed into existence*. The moment Isla says yes, the page and the agent are born together. Nine others already said yes. This is the tenth."
+> "The record isn't created by one person — it's *agreed into existence*. Both sign, and the agent is minted into an on-chain registry — its birth certificate is a contract two people signed, not a setting one person flipped."
 
 ## 1:00–1:40 · It manages (real data on screen)
 

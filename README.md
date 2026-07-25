@@ -1,5 +1,9 @@
 # I relate, therefore I am.
 
+<p align="center">
+  <img src="https://miro.medium.com/v2/resize:fit:1100/format:webp/1*8BgszdbJ7G507507tPH2AQ.gif" alt="Relational agents" width="720">
+</p>
+
 **An agent is born only when two people agree.**
 
 Every relationship gets its own agent, holding only what that relationship shared.
@@ -46,7 +50,7 @@ registerRelationalAgent(bytes32 relationId, address[] parties, string agentURI, 
 - Standard ERC-8004 surface for indexers: `register()` overloads, `Registered` /
   `MetadataSet` events, per-agent key-value metadata (`relationId`, `parties`).
 
-Live on Sepolia: [`0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba`](https://sepolia.etherscan.io/address/0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba)
+Live on Sepolia: [`0xf1dc0686c8b22a1afe8941c2613f7efa4e439256`](https://sepolia.etherscan.io/address/0xf1dc0686c8b22a1afe8941c2613f7efa4e439256)
 ([deployment record](contracts/deployments/sepolia.json))
 
 ## The agent — A2A wire, OKF memory

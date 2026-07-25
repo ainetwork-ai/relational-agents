@@ -7,6 +7,7 @@ import { eq, inArray } from "drizzle-orm";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
 import { buildRelationConsentTypedData } from "@/lib/relation-contract";
 import { provisionRoomAgent } from "@/lib/agent/provision";
+import { relayRelationOnChain } from "@/lib/relation-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -139,6 +140,35 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           authorId: agentUserId,
           text: `Hi ${parties.map((p) => p.displayName).join(" & ")} 💞 I'm your relationship agent, born from both your signatures. I'll remember only what the two of you share here — nothing leaves this relationship. Nice to meet you both!`,
         });
+      }
+      // Relay both signatures on-chain: mint the agent in the ERC-8004 registry.
+      const contracts = await db
+        .select({ address: relationContracts.address, signature: relationContracts.signature })
+        .from(relationContracts)
+        .where(eq(relationContracts.roomId, roomId));
+      const signaturesByAddress = Object.fromEntries(
+        contracts.map((c) => [c.address.toLowerCase(), c.signature])
+      );
+      const onchain = await relayRelationOnChain({
+        roomId,
+        signaturesByAddress,
+        agentUri: `okf://relationship/${roomId}`,
+      });
+      if (onchain) {
+        // stash the tx + agentId on the agent's card so the UI can link it
+        const agentRow = await db.select().from(users).where(eq(users.id, agentUserId)).limit(1);
+        const card = (agentRow[0]?.agentCardJson ?? {}) as Record<string, unknown>;
+        await db
+          .update(users)
+          .set({ agentCardJson: { ...card, onchain } })
+          .where(eq(users.id, agentUserId));
+        if (onchain.txHash) {
+          await db.insert(chatMessages).values({
+            roomId,
+            authorId: agentUserId,
+            text: `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia). tx: ${onchain.txHash}`,
+          });
+        }
       }
     } catch (err) {
       console.error("agent auto-provision failed:", err);

@@ -137,6 +137,17 @@ contract RelationalAgentRegistry {
         return _partiesOfRelation[relationId];
     }
 
+    /// EIP-712 array hash: keccak256 of the 32-byte-encoded elements
+    /// concatenated. `abi.encodePacked(address[])` packs 20-byte addresses and
+    /// does NOT match what wallets sign — encode each to bytes32 first.
+    function _hashParties(address[] memory parties) private pure returns (bytes32) {
+        bytes32[] memory enc = new bytes32[](parties.length);
+        for (uint256 i = 0; i < parties.length; i++) {
+            enc[i] = bytes32(uint256(uint160(parties[i])));
+        }
+        return keccak256(abi.encodePacked(enc));
+    }
+
     function consentDigest(bytes32 relationId, address[] memory parties)
         public
         view
@@ -147,11 +158,7 @@ contract RelationalAgentRegistry {
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
                 keccak256(
-                    abi.encode(
-                        CONSENT_TYPEHASH,
-                        relationId,
-                        keccak256(abi.encodePacked(parties))
-                    )
+                    abi.encode(CONSENT_TYPEHASH, relationId, _hashParties(parties))
                 )
             )
         );
