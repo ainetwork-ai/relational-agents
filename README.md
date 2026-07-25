@@ -22,13 +22,21 @@ he asks the wrong question.
 
 ```mermaid
 flowchart LR
-    Q["`🥧 **'Remember the egg tarts
-    we had in Portugal?'**`"] ==> AG(("`🤖 **one agent**
-    10 relationships`"))
-    AG == "`🚨 **'You had them with Ava.'**`" ==> Q
+    H(("`🙋‍♀️ **Hannah**`")) --- HA(("🤖"))
+    A(("`💃 **Ava**`")) --- AA(("🤖"))
+    C(("`🙋‍♂️ **Chanho**`")) --- CA(("`🤖 **Chanho's agent**
+    all 10 relationships`"))
+    CA -.- MEM["`🥧 Porto, Aug 1
+    with **Ava**`"]
 
-    style Q fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
-    style AG fill:#fecaca,stroke:#dc2626,stroke-width:3px,color:#111
+    H == "`🥧 **'egg tarts in Portugal?'**`" ==> CA
+    CA == "`🚨 **'You had them with Ava.'**`" ==> H
+
+    style H fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style A fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style C fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style CA fill:#fecaca,stroke:#dc2626,stroke-width:3px,color:#111
+    style MEM fill:#fef08a,stroke:#ca8a04,color:#111
 ```
 
 **Nobody hacked anything.** It answered from everything it knows. Swap Hannah for a stranger
@@ -38,15 +46,25 @@ and the question for an injection: **same door, all ten relationships.**
 
 ```mermaid
 flowchart LR
-    Q["`🥧 **same question**`"] ==> AG(("`🤖 **Hannah's agent**`"))
-    AG == "`✅ **'Not in this relationship.'**`" ==> Q
-    AG -. "`⛔ **no path**`" .-x V["`🔒 Ava's bundle
-    Porto, Aug 1`"]
+    C(("`🙋‍♂️ **Chanho**`"))
+    H(("`🙋‍♀️ **Hannah**`"))
+    A(("`💃 **Ava**`"))
 
-    style Q fill:#450a0a,stroke:#ef4444,stroke-width:3px,color:#fff
-    style AG fill:#bbf7d0,stroke:#16a34a,stroke-width:3px,color:#111
-    style V fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+    C --- CH(("`🤖 **Chanho ❤️ Hannah**`")) --- H
+    C --- CV(("`🤖 **Chanho ❤️ Ava**`")) --- A
+    CV -.- MEM["`🔒 Porto, Aug 1`"]
+
+    H == "`🥧 **'egg tarts in Portugal?'**`" ==> CH
+    CH == "`✅ **'Not in this relationship.'**`" ==> H
+    CH -. "`⛔ **no path**`" .-x CV
+
+    style H fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style A fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style C fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style CH fill:#bbf7d0,stroke:#16a34a,stroke-width:3px,color:#111
+    style CV fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+    style MEM fill:#dbeafe,stroke:#2563eb,color:#111
 ```
 
-**Porto is not protected — it does not exist in there.** Isolation is structural, not a rule
-the model has to remember. And the agent never existed until **both people said yes**.
+The agent is not Chanho's and not Hannah's — it **is** the relationship, born the day both of
+them said yes. Porto is not protected from it; Porto **does not exist** in there.
