@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, UserPlus, Copy } from "lucide-react";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
 import { copyText } from "@/lib/compat";
@@ -106,12 +107,18 @@ export function MembersModal() {
     if (res.ok) setInviteUrl((await res.json()).url);
   }
 
-  return (
+  // Portal to <body> — this renders inside the workspace switcher, and a
+  // transformed ancestor would trap `fixed` inside the sidebar.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]"
       onClick={() => setOpen(false)}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Workspace members"
         data-testid="members-modal"
         onClick={(e) => e.stopPropagation()}
         className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800"
@@ -268,6 +275,7 @@ export function MembersModal() {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

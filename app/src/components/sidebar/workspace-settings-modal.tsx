@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Download } from "lucide-react";
 import type { ActiveWorkspace } from "./workspace-switcher";
 
@@ -89,12 +90,18 @@ export function WorkspaceSettingsModal({
     setError(d.error ?? "Could not save workspace");
   }
 
-  return (
+  // Portal to <body> so the overlay covers the viewport — rendering inside the
+  // sidebar traps `fixed` under an ancestor transform/overflow (same fix as NewDmModal).
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Workspace settings"
         data-testid="workspace-settings-modal"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800"
@@ -186,6 +193,7 @@ export function WorkspaceSettingsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
