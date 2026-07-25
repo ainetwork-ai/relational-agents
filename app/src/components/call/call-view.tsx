@@ -606,9 +606,17 @@ export function CallView({ roomId }: { roomId: string }) {
               ? "STT unavailable"
               : sttError
                 ? `STT error: ${sttError}`
-                : sttInterim
-                  ? `🎙 ${sttInterim}`
-                  : "STT listening"}
+                : "STT listening"}
+          </div>
+        )}
+        {/* live caption — what the engine hears, as it hears it (the demo
+            can SEE the speech land instead of trusting a tiny badge) */}
+        {webSpeechOn && status === "active" && sttInterim && (
+          <div
+            data-testid="call-stt-caption"
+            className="pointer-events-none absolute bottom-24 left-1/2 max-w-[70%] -translate-x-1/2 rounded-lg bg-black/70 px-4 py-2 text-center text-lg font-medium leading-snug text-white shadow-lg"
+          >
+            {sttInterim}
           </div>
         )}
         {/* demo/test: one click = one canned utterance through the REAL
