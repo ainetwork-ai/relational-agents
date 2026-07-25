@@ -9,6 +9,7 @@ import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
 import { DmAvatar } from "@/components/dm/dm-avatar";
+import { CallButton } from "@/components/call/call-button";
 import { ConsentBanner } from "@/components/dm/consent-banner";
 import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { signTypedDataWithWallet } from "@/lib/wallet/sign";
@@ -677,6 +678,7 @@ export function DmView({ roomId }: { roomId: string }) {
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          <CallButton roomId={roomId} />
           {/* One chip for the agent: that it is here, when it last wrote, and
               the way into the record. It reads as presence, not as a feature. */}
           {room?.rootPageId && (

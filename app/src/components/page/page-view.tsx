@@ -17,6 +17,7 @@ import { uploadBlob } from "@/lib/upload";
 import { Breadcrumbs } from "./breadcrumbs";
 import { RowPropertiesPanel } from "@/components/database/row-properties";
 import { PresenceBar } from "@/components/presence/presence-bar";
+import { PageCallButton } from "@/components/call/call-button";
 import { LiveCursors } from "@/components/presence/live-cursors";
 import { usePresence } from "@/hooks/use-presence";
 import { useRecentsStore } from "@/stores/recents";
@@ -140,6 +141,7 @@ export function PageView({
         >
           <MessageSquare size={16} />
         </button>
+        <PageCallButton pageId={initialPage.id} />
         <CopyLinkButton pageId={initialPage.id} />
         <SharePopover pageId={initialPage.id} />
         <PageOptionsMenu page={page} />
