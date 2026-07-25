@@ -1,4 +1,7 @@
 import "server-only";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 /**
  * In-memory store for live video-call signaling state, one call per DM room.
@@ -32,9 +35,33 @@ export interface CallState {
 
 const KEY = Symbol.for("app.calls");
 
+// Write-through file persistence: a dev-server restart used to wipe every
+// live call — both sides wedged on a dead room mid-call. Reads stay
+// synchronous (call-watch and the routes keep their API); the file is tiny
+// and rewritten on every transition. Restart zombies age out via the
+// heartbeat reclaim (ACTIVE_STALE_MS).
+const PERSIST_FILE =
+  process.env.CALL_STORE_PATH ?? path.join(os.tmpdir(), "notion-call-store.json");
+
+function persist(map: Map<string, CallState>): void {
+  try {
+    fs.writeFileSync(PERSIST_FILE, JSON.stringify([...map.values()]));
+  } catch {
+    /* tmp unwritable — stay in-memory only */
+  }
+}
+
 function calls(): Map<string, CallState> {
   const g = globalThis as unknown as Record<symbol, Map<string, CallState>>;
-  if (!g[KEY]) g[KEY] = new Map();
+  if (!g[KEY]) {
+    g[KEY] = new Map();
+    try {
+      const rows = JSON.parse(fs.readFileSync(PERSIST_FILE, "utf8")) as CallState[];
+      for (const c of rows) if (c?.roomId) g[KEY].set(c.roomId, c);
+    } catch {
+      /* first boot / no file yet */
+    }
+  }
   return g[KEY];
 }
 
@@ -56,9 +83,13 @@ export function listCalls(): CallState[] {
 }
 
 export function setCall(state: CallState): void {
-  calls().set(state.roomId, state);
+  const map = calls();
+  map.set(state.roomId, state);
+  persist(map);
 }
 
 export function deleteCall(roomId: string): void {
-  calls().delete(roomId);
+  const map = calls();
+  map.delete(roomId);
+  persist(map);
 }
