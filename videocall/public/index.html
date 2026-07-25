@@ -926,8 +926,15 @@
       fetch("/api/notion-call/end", { method: "POST" }).catch(() => {});
       return bail(I18N[lang].noCamera);
     }
-    // STUN so srflx candidates exist — host-only would break a two-device demo
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    // STUN for a reflexive path, TURN as the relay of last resort (symmetric
+    // NATs) — free openrelay tier, demo-grade only; mirrors the app's CallView
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+      ],
+    });
     notionPc = pc;
     notionStream.getTracks().forEach((t) => pc.addTrack(t, notionStream));
     pc.ontrack = (e) => { document.getElementById("notionRemote").srcObject = e.streams[0]; };
@@ -948,7 +955,11 @@
       let call;
       try {
         call = (await (await fetch("/api/notion-call")).json()).call;
-      } catch { return; /* transient bridge hiccup — next tick */ }
+      } catch {
+        // a dead bridge/app must not ring forever: 12 straight errors = over
+        if (++empty >= 12) endCall();
+        return;
+      }
       if (!call) {
         // a lone null can be a transient app hiccup — only give up on a
         // steady signal (3 misses once rung; ~12s if it never rings)
