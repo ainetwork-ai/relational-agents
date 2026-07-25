@@ -82,12 +82,24 @@ export function IncomingCallHost() {
   }, []);
 
   function clear() {
-    stopRingRef.current?.();
-    stopRingRef.current = null;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    setRinging(null);
+    setRinging(null); // the ringtone/timer live in the effect below — its cleanup stops them
   }
+
+  // The ringtone is an EFFECT of the ringing state, never started inside a
+  // state updater: StrictMode double-invokes updaters, and a second oscillator
+  // started there overwrote the stop handle — the first tone rang forever,
+  // through accept, decline and end alike.
+  useEffect(() => {
+    if (!ringing) return;
+    stopRingRef.current = startRingtone();
+    timerRef.current = setTimeout(() => setRinging(null), RING_TIMEOUT_MS);
+    return () => {
+      stopRingRef.current?.();
+      stopRingRef.current = null;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+    };
+  }, [ringing]);
 
   // entering the call room makes the card moot — and the ring can land a
   // beat BEFORE the caller's own navigation to /call, so this also kills
@@ -109,12 +121,8 @@ export function IncomingCallHost() {
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d?.call?.status !== "ringing" || d.call.callerId !== caller.id) return;
-          setRinging((cur) => {
-            if (cur) return cur;
-            stopRingRef.current = startRingtone();
-            timerRef.current = setTimeout(clear, RING_TIMEOUT_MS);
-            return { roomId, caller };
-          });
+          // pure updater — all side effects live in the ringing effect
+          setRinging((cur) => cur ?? { roomId, caller });
         });
       return;
     }
