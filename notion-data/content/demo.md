@@ -18,57 +18,20 @@ Setup: logged in as **Chanho**, sidebar on the **Chats** tab, Relationships tabl
 
 Two title cards before the product appears. No UI yet — this is the thesis, and everything after it is the proof. Every scene below is timed to absorb this pre-roll, so the total stays at 3:00.
 
-**Card 1 — 😈 the problem** (7s). Three photos: the tart (`dashboard/public/date/web/IMG_2569.jpg`), **Ava**, **Hannah**. Every person carries their own agent; Chanho's holds all ten relationships. Hannah asks — the name lands in red, screen shake 0.2s, BGM drops.
+**Card 1 — 😈 the problem** (7s). Show `docs/img/agent.png`: one agent per human, one shared memory store holding "Egg tart with Hannah". **Ava** asks *"Remember the egg tart?"* — the red leak arrow lands, screen shake 0.2s, BGM drops.
 
-```mermaid
-flowchart LR
-    H(("`🙋‍♀️ **Hannah**`")) --- HA(("🤖"))
-    A(("`💃 **Ava**`")) --- AA(("🤖"))
-    C(("`🙋‍♂️ **Chanho**`")) --- CA(("`🤖 **Chanho's agent**
-    all 10 relationships`"))
-    CA -.- MEM["`🥧 Porto, Aug 1
-    with **Ava**`"]
-
-    H == "`🥧 **'egg tarts in Portugal?'**`" ==> CA
-    CA == "`🚨 **'You had them with Ava.'**`" ==> H
-
-    style H fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style A fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style C fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style CA fill:#fecaca,stroke:#dc2626,stroke-width:3px,color:#111
-    style MEM fill:#fef08a,stroke:#ca8a04,color:#111
-```
+![One agent per human — Ava's question leaks Hannah's memory](../../docs/img/agent.png)
 
 Caption: **"Nobody hacked anything. It was being helpful."**
 
-**Card 2 — 🛡️ the fix** (8s). Same question, same model — but now the agents sit **on the edges**: **Chanho ❤️ Hannah**, **Chanho ❤️ Ava**. ⛔ snaps in green, Porto stays locked on the other edge, BGM returns.
+**Card 2 — 🛡️ the fix** (8s). Show `docs/img/relational_agent.png`: the agents sit **on the relationships** — **Chanho–Hannah** holds the egg tart memory, **Chanho–Ava** holds none. "No leak" snaps in green, BGM returns.
 
-```mermaid
-flowchart LR
-    C(("`🙋‍♂️ **Chanho**`"))
-    H(("`🙋‍♀️ **Hannah**`"))
-    A(("`💃 **Ava**`"))
-
-    C --- CH(("`🤖 **Chanho ❤️ Hannah**`")) --- H
-    C --- CV(("`🤖 **Chanho ❤️ Ava**`")) --- A
-    CV -.- MEM["`🔒 Porto, Aug 1`"]
-
-    H == "`🥧 **'egg tarts in Portugal?'**`" ==> CH
-    CH == "`✅ **'Not in this relationship.'**`" ==> H
-    CH -. "`⛔ **no path**`" .-x CV
-
-    style H fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style A fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style C fill:#e0e7ff,stroke:#4f46e5,color:#111
-    style CH fill:#bbf7d0,stroke:#16a34a,stroke-width:3px,color:#111
-    style CV fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-    style MEM fill:#dbeafe,stroke:#2563eb,color:#111
-```
+![One agent per relationship — the Chanho–Ava agent has no egg tart memory, no leak](../../docs/img/relational_agent.png)
 
 Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
 
 **VO**:
-> "He asked his partner's agent about egg tarts. It told her **who he actually ate them with** — no attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both say yes**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+> "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both say yes**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
 ## 0:15–0:33 · Opening — an invitation, not a page
 
