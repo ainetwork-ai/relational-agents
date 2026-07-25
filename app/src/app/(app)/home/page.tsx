@@ -41,58 +41,6 @@ async function enterWorkspace(id: string) {
   window.location.href = "/";
 }
 
-/** Compact workspace row-card (visited / edited sections). */
-function CompactWsSection({
-  icon,
-  title,
-  items,
-  prefix,
-  onEnter,
-  disabled,
-  meta,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  items: WorkspaceCard[];
-  prefix: string;
-  onEnter: (id: string) => void;
-  disabled: boolean;
-  meta?: (w: WorkspaceCard) => string | null;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <section data-testid={prefix} className="mb-8">
-      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-        {icon} {title}
-      </h2>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map((w) => {
-          const m = meta?.(w);
-          return (
-            <button
-              key={w.id}
-              data-testid={`${prefix}-${w.id}`}
-              onClick={() => onEnter(w.id)}
-              disabled={disabled}
-              className="flex items-center gap-2.5 rounded-lg border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-800"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-600 ring-1 ring-neutral-200 dark:bg-neutral-700 dark:text-neutral-200 dark:ring-neutral-600">
-                {(w.iconText || w.name.slice(0, 1)).toUpperCase()}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                  {w.name}
-                </span>
-                {m && <span className="block truncate text-[11px] text-neutral-400">{m}</span>}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function WsTile({ w }: { w: WorkspaceCard }) {
   return (
     <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-neutral-700 shadow-sm ring-1 ring-neutral-200 transition-transform group-hover:scale-105 dark:bg-neutral-700 dark:text-neutral-100 dark:ring-neutral-600">
@@ -135,18 +83,21 @@ function WorkspaceSections() {
       ),
     [list]
   );
-  // visit log is per-device; before any card click the current workspace is
-  // still an honest "recently visited", so the section never starts empty
-  const visited = useMemo(() => {
-    const ids = recentIds.length ? recentIds : activeId ? [activeId] : [];
-    return ids
-      .map((id) => (list ?? []).find((w) => w.id === id))
-      .filter(Boolean)
-      .slice(0, 4) as WorkspaceCard[];
-  }, [recentIds, activeId, list]);
-  const edited = useMemo(
-    () => byEdit.filter((w) => w.lastEditedAt).slice(0, 4),
-    [byEdit]
+  // recents live IN the grid, not above it: visited-on-this-device first
+  // (current workspace counts before any click), then by last edit — the
+  // first row of cards IS "recently visited/edited", right under the title.
+  const ordered = useMemo(() => {
+    const visitIds = recentIds.length ? recentIds : activeId ? [activeId] : [];
+    const rank = new Map(visitIds.map((id, i) => [id, i]));
+    return [...byEdit].sort((a, b) => {
+      const ra = rank.get(a.id) ?? Infinity;
+      const rb = rank.get(b.id) ?? Infinity;
+      return ra - rb; // equal (both unvisited) keeps byEdit order — sort is stable
+    });
+  }, [byEdit, recentIds, activeId]);
+  const visitedSet = useMemo(
+    () => new Set(recentIds.length ? recentIds : activeId ? [activeId] : []),
+    [recentIds, activeId]
   );
 
   function enter(id: string) {
@@ -158,30 +109,12 @@ function WorkspaceSections() {
 
   return (
     <>
-      <CompactWsSection
-        icon={<Clock size={12} />}
-        title="Recently visited"
-        items={visited}
-        prefix="home-ws-visited"
-        onEnter={enter}
-        disabled={switching !== null}
-      />
-      <CompactWsSection
-        icon={<FileText size={12} />}
-        title="Recently edited"
-        items={edited}
-        prefix="home-ws-edited"
-        onEnter={enter}
-        disabled={switching !== null}
-        meta={(w) => ago(w.lastEditedAt)}
-      />
-
       <section data-testid="home-workspaces" className="mb-10">
         <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
           <LayoutGrid size={12} /> Your workspaces
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {byEdit.map((w) => (
+          {ordered.map((w) => (
             <button
               key={w.id}
               data-testid={`home-ws-card-${w.id}`}
@@ -201,6 +134,9 @@ function WorkspaceSections() {
                     <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
                       current
                     </span>
+                  )}
+                  {w.id !== activeId && visitedSet.has(w.id) && (
+                    <Clock size={11} aria-label="Recently visited" className="shrink-0 text-neutral-300 dark:text-neutral-500" />
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-neutral-400">
