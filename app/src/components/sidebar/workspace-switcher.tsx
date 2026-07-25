@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronsUpDown, Plus, Settings, Check, Users, Sun, Moon, Monitor } from "lucide-react";
 import { setThemeMode, useThemeMode, type ThemeMode } from "@/components/dark-mode-toggle";
 import { usePagesStore } from "@/stores/pages";
+import { recordWorkspaceVisit } from "@/lib/recent-workspaces";
 import { WorkspaceSettingsModal } from "./workspace-settings-modal";
 import { MembersModal } from "@/components/workspace/members-modal";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
@@ -97,6 +98,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
     });
     setBusy(false);
     if (!res.ok) return;
+    recordWorkspaceVisit(id);
     const picked = list.find((w) => w.id === id);
     if (picked) {
       setDisplay({

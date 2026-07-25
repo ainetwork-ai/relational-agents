@@ -12,6 +12,12 @@ export default async function Home() {
   const session = await getSession();
   if (!session.userId) redirect("/login");
 
+  // No workspace explicitly chosen this session → land on Home, where the
+  // workspace cards live. Deep links (/p/…) are untouched; only the root
+  // route routes through the picker. Once a card is clicked (or the switcher
+  // used), activeWorkspaceId is pinned and the root goes straight to content.
+  if (!session.activeWorkspaceId) redirect("/home");
+
   const workspaceId = await getDefaultWorkspaceId(session.userId);
   if (workspaceId) {
     const [first] = await db

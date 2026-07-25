@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { workspaces, workspaceMembers } from "@/lib/db/schema";
-import { and, eq, ne } from "drizzle-orm";
+import { pages, workspaces, workspaceMembers } from "@/lib/db/schema";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 
@@ -28,8 +28,25 @@ export async function GET() {
     .where(and(eq(workspaceMembers.userId, auth.user.id), ne(workspaceMembers.role, "guest")))
     .orderBy(workspaceMembers.joinedAt);
 
+  // per-workspace last content edit — lets Home order/annotate the cards
+  const lastEdited = new Map<string, string>();
+  if (rows.length) {
+    const edits = await db
+      .select({
+        workspaceId: pages.workspaceId,
+        lastEditedAt: sql<string>`max(${pages.updatedAt})`,
+      })
+      .from(pages)
+      .where(inArray(pages.workspaceId, rows.map((r) => r.id)))
+      .groupBy(pages.workspaceId);
+    for (const e of edits) lastEdited.set(e.workspaceId, e.lastEditedAt);
+  }
+
   const activeId = await getDefaultWorkspaceId(auth.user.id);
-  return NextResponse.json({ workspaces: rows, activeId });
+  return NextResponse.json({
+    workspaces: rows.map((r) => ({ ...r, lastEditedAt: lastEdited.get(r.id) ?? null })),
+    activeId,
+  });
 }
 
 /** POST { name } → create a workspace, join as owner, switch to it. */
