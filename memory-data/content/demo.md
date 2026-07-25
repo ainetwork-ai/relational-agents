@@ -5,7 +5,7 @@ icon: 🎬
 
 # You see me, therefore I am.
 
-**An agent is born only when two people see each other.**
+**An agent is born only when people — at least two — see each other.**
 
 Total runtime 3:00 · 1440×900 · light mode.
 Concept: a relationship-management workspace. The star is the relational agent — born only by mutual consent, it manages and remembers your relationships. All scenes below use the REAL data in this workspace: the **Relationships** database (Relationships.csv) and the **Relationship Records** pages — every record titled **"Chanho ❤️ {name}"** (Chanho ❤️ Isla Montgomery, Chanho ❤️ Hannah Brooks, Chanho ❤️ Sophie Miller, and seven more).
@@ -29,35 +29,34 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 **VO**:
 > "Ava asked Chanho's agent, 'Do you like egg tarts?' — and it answered, 'especially with Hannah,' from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
-## Setup — three wallets, two consents (live, right after the pre-roll)
+## Setup — three wallets (live, right after the pre-roll)
 
-Demonstrated for real, not pre-wired off camera:
+Nothing is pre-wired — both relationships are formed on camera.
 
 1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
-2. **Wire the triangle**: from Chanho, invite **Hannah** → in each profile, both sign the **Relational Agent Contract** (an EIP-712 `RelationConsent` — MetaMask shows the relation id and the parties) → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. The signature pair is stored and can be relayed as-is to the ERC-8004-compatible `RelationalAgentRegistry` on-chain.
-3. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
+2. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
 
-The rest of the script leans on these two relationships (the Lisbon egg tart lives with Hannah, and only there). Later, the tenth relationship — Isla — is born fresh on camera.
+Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks over a video call — and whose agent has nothing to leak.
 
 ## 0:15–0:33 · Opening — first login lands on the dashboard
 
 **Screen actions**:
-1. First login (MetaMask sign-in). The main page opens on the **Relationships dashboard** — the dashboard view over the Relationships database: ten ❤️ relationships at a glance, upcoming dates highlighted. Hold one beat (~2s) so the viewer orients.
+1. First login (MetaMask sign-in). The main page opens on the **Relationships dashboard** — the dashboard view over the Relationships database: your ❤️ relationships at a glance, upcoming dates highlighted. Hold one beat (~2s) so the viewer orients.
 2. Sidebar, **Chats** tab. In the **Direct messages** section, click the **+**. The **New direct message** modal opens with the member list.
-3. Pick **Isla Montgomery** and send the first hello. A pending invite appears — "waiting for Isla."
+3. Pick **Hannah Brooks**, then **Ava Thorne** — two invitations go out. Pending rows appear: "waiting for Hannah," "waiting for Ava."
 
 **VO**:
-> "Sign in, and you land on your relationships — all of them, one dashboard. But this story doesn't start with a page. It starts with an invitation. Chanho reaches out to Isla — one message, and the door is open."
+> "Sign in, and you land on your relationships — one dashboard. But this story doesn't start with a page. It starts with an invitation. Chanho reaches out to Hannah and Ava — one message each, and the door is open."
 
-## 0:33–1:00 · Mutual consent → the relationship is born
+## 0:33–1:00 · Mutual consent → two relationships are born
 
 **Screen actions**:
-1. Isla opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields (relation id + both parties) and she signs. Cut to Chanho's side signing too — the banner ticks **1/2 → 2/2 signed**.
-2. On the second signature the agent is **minted on-chain**: a system line drops in — *"📜 Registered on-chain — agent #N in the ERC-8004 registry (Sepolia). tx: 0x…"* — with the tx link. Both signatures were relayed for them; neither paid gas. (B-roll option: the Etherscan tx page, the RelationalAgentRegistry `Registered` event.)
-3. The heart-page **titles itself into being** in the sidebar — **Chanho ❤️ Isla Montgomery** — and the agent greets both: "I'll take care of this story with you." It also appears in the left **Agents** section.
+1. **Chanho ❤️ Hannah first.** Hannah opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields (relation id + both parties) and she signs. Cut to Chanho signing too — the banner ticks **1/2 → 2/2 signed**.
+2. On the second signature the agent is **minted on-chain**: a system line drops in — *"📜 Registered on-chain — agent #N in the ERC-8004 registry (Sepolia). tx: 0x…"* — with the tx link. Both signatures were relayed for them; neither paid gas. (B-roll: the Etherscan tx page, the RelationalAgentRegistry `Registered` event.)
+3. **Now Chanho ❤️ Ava**, the same way — Ava signs, Chanho signs, **2/2**, a second on-chain mint. Two heart-pages **title themselves into being** in the sidebar — **Chanho ❤️ Hannah Brooks** and **Chanho ❤️ Ava Thorne** — each agent greets both members, and both show up in the left **Agents** section.
 
 **VO**:
-> "The record isn't created by one person — it's *agreed into existence*. Both sign, and the agent is minted into an on-chain registry — its birth certificate is a contract two people signed, not a setting one person flipped."
+> "The record isn't created by one person — it's *agreed into existence*. Both sign, and the agent is minted into an on-chain registry — its birth certificate is a contract two people signed, not a setting one person flipped. Two relationships, two agents, born the same way."
 
 ## 1:00–1:40 · It manages (real data on screen)
 
@@ -78,10 +77,10 @@ The rest of the script leans on these two relationships (the Lisbon egg tart liv
 **VO**:
 > "Drop in a photo, and the agent files the memory — into this relationship's record, and nowhere else. Ask, and it answers from memory — not search."
 
-## 2:12–2:40 · Finale: the FaceTime question (the fun bit)
+## 2:12–2:40 · Finale: the video-call question (the fun bit)
 
 **Screen actions**:
-1. **FaceTime rings** — the facetime app UI, **Ava** calling. Chanho answers; her video fills the screen.
+1. **A video call rings** — the call UI, **Ava** calling. Chanho answers; her video fills the screen.
 2. Ava, casually: *"Do you like egg tarts? I found a place."* Beat — the audience knows where the egg tarts live.
 3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Do we have anything about egg tarts?"* → agent: **"No record. Not in this relationship."**
 4. Chanho, back on camera, perfectly calm: *"…I've been meaning to try them."* The agent that remembers Hannah's natas says nothing here — it isn't in this room.
@@ -120,15 +119,15 @@ Global rules:
 Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-app transition of its own):
 
 1. **Pre-roll → Login (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s onto the login screen; the MetaMask signature lands and the **Relationships dashboard** fills the main page (hold ~2s). From home base, the cursor moves to the Chats **+** — the first gesture is reaching out.
-2. **Invite → Consent (0:33)** — on Isla's *accept* the New-DM modal doesn't just close; its avatar **match-cuts into the freshly-created sidebar row** **Chanho ❤️ Isla Montgomery** (0.4s). The page is born from the invitation.
+2. **Invite → Consent (0:33)** — on Hannah's *accept* the New-DM modal doesn't just close; its avatar **match-cuts into the freshly-created sidebar row** **Chanho ❤️ Hannah Brooks** (0.4s). The page is born from the invitation.
 3. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
 4. **Consent → Manage (1:00)** — **match cut** on the agent avatar: chat bubble avatar aligns to the same position as the briefing card avatar. 0.4s crossfade.
 5. **Inside Manage** — when the briefing highlights Olivia Aug 2 / Emma Aug 7, draw a thin underline animation across the two Event Date cells (0.3s each, staggered) — the data itself is the graphic.
 6. **Manage → Remember (1:40)** — **whip pan** from Sophie's page to the agent chat (0.25s, motion blur): "turning to ask."
-7. **Inside Remember** — as the agent quotes Isla, **push-zoom 110%** onto the quoted chat lines in her record for 1s, then settle.
-8. **Remember → FaceTime (2:12)** — no transition. **Hard cut + FaceTime ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
+7. **Inside Remember** — as the agent quotes Hannah, **push-zoom 110%** onto the quoted chat lines in her record for 1s, then settle.
+8. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
 9. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
-10. **FaceTime → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
+10. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
 11. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 
 Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 8–9 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
