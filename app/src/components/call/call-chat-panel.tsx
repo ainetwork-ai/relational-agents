@@ -76,7 +76,7 @@ export function CallChatPanel({
                 <div className="text-[11px] font-medium text-neutral-400">
                   {author?.displayName ?? "…"}
                   <span className="ml-1.5 font-normal">
-                    {new Date(m.createdAt).toLocaleTimeString([], {
+                    {new Date(m.createdAt).toLocaleTimeString("en-US", {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}

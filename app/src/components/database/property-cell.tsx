@@ -17,7 +17,7 @@ import { copyText } from "@/lib/compat";
 function fmtTimestamp(v: unknown): string {
   if (!v) return "";
   const d = new Date(v as string | number | Date);
-  return isNaN(d.getTime()) ? "" : d.toLocaleString();
+  return isNaN(d.getTime()) ? "" : d.toLocaleString("en-US");
 }
 
 export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {

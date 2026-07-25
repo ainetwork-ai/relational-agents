@@ -32,7 +32,7 @@ export function mentionChipHtml(item: MentionItem, escape: (s: string) => string
 
 function todayItem(): MentionItem {
   const now = new Date();
-  const label = now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const label = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   return { kind: "date", id: now.toISOString().slice(0, 10), label };
 }
 
@@ -40,7 +40,7 @@ function todayItem(): MentionItem {
 function dateItem(iso: string): MentionItem {
  // parse as local date (avoid the UTC shift of new Date("yyyy-mm-dd"))
   const [y, m, d] = iso.split("-").map(Number);
-  const label = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString(undefined, {
+  const label = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

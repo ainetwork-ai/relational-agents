@@ -716,7 +716,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   </div>
                   <p
                     data-testid={`msg-time-${m.id}`}
-                    title={new Date(m.createdAt).toLocaleString()}
+                    title={new Date(m.createdAt).toLocaleString("en-US")}
                     className="mt-1 flex items-center justify-end gap-1 text-[10px] text-neutral-400 dark:text-neutral-500"
                   >
                     <span>{formatRelativeTime(m.createdAt)}</span>
@@ -724,7 +724,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="msg-time-abs"
                       className="opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                      ({new Date(m.createdAt).toLocaleString()})
+                      ({new Date(m.createdAt).toLocaleString("en-US")})
                     </span>
                   </p>
                 </>
@@ -842,7 +842,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   </div>
                   <p
                     data-testid={`msg-time-${m.id}`}
-                    title={new Date(m.createdAt).toLocaleString()}
+                    title={new Date(m.createdAt).toLocaleString("en-US")}
                     className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 dark:text-neutral-500"
                   >
                     <span>{formatRelativeTime(m.createdAt)}</span>
@@ -850,7 +850,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="msg-time-abs"
                       className="opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                      ({new Date(m.createdAt).toLocaleString()})
+                      ({new Date(m.createdAt).toLocaleString("en-US")})
                     </span>
                   </p>
                 </>

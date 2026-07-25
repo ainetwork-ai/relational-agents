@@ -87,7 +87,7 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
           </label>
           <p data-testid="notif-dnd-status" className="text-xs text-neutral-400">
             {dndOn && prefs.dndUntil
-              ? `Do not disturb until ${new Date(prefs.dndUntil).toLocaleTimeString([], {
+              ? `Do not disturb until ${new Date(prefs.dndUntil).toLocaleTimeString("en-US", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}`

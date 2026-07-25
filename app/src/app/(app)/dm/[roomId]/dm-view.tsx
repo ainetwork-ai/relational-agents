@@ -68,11 +68,11 @@ const GUARD_DEBOUNCE_MS = 800;
 const MAX_ATTACHMENTS = 8;
 
 function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
 function dateLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("ko-KR", {
+  return new Date(iso).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",

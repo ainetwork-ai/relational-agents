@@ -82,7 +82,7 @@ export function PageHistoryModal({
                     {s.title || "Untitled"}
                   </p>
                   <p className="text-xs text-neutral-400">
-                    {new Date(s.createdAt).toLocaleString()} · {s.blockCount} block
+                    {new Date(s.createdAt).toLocaleString("en-US")} · {s.blockCount} block
                     {s.blockCount === 1 ? "" : "s"}
                   </p>
                 </div>
