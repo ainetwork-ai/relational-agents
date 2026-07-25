@@ -140,6 +140,11 @@ function WorkspaceSections() {
                   <span className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
                     {w.name}
                   </span>
+                  {w.iconUrl && w.iconText && (
+                    // photo replaces the emoji tile, so the emoji (e.g. the
+                    // relationship heart) rides along beside the name instead
+                    <span className="shrink-0 text-xs leading-none">{w.iconText}</span>
+                  )}
                   {w.id === activeId && (
                     <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
                       current
