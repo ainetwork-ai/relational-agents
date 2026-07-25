@@ -6,7 +6,14 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { chatMessages, type ChatRoom } from "@/lib/db/schema";
 import { maybeAutoRun } from "@/lib/agent/triggers";
-import { deleteCall, getCall, setCall, RING_STALE_MS, type CallSdp } from "@/lib/call-store";
+import {
+  deleteCall,
+  getCall,
+  setCall,
+  ACTIVE_STALE_MS,
+  RING_STALE_MS,
+  type CallSdp,
+} from "@/lib/call-store";
 import type { PageEvent } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +41,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 interface CallActionBody {
-  action?: "invite" | "cancel" | "accept" | "decline" | "offer" | "answer" | "end";
+  action?:
+    | "invite"
+    | "cancel"
+    | "accept"
+    | "decline"
+    | "offer"
+    | "answer"
+    | "end"
+    | "heartbeat";
   sdp?: CallSdp;
 }
 
@@ -76,17 +91,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     });
 
   // one line per transition — today's "why is nobody ringing" hunts took
-  // screenshots and guesswork; this makes them a grep
-  console.log(
-    `[call] ${action} room=${roomId.slice(0, 8)} by=${me.slice(0, 8)} was=${
-      call ? call.status : "none"
-    }`
-  );
+  // screenshots and guesswork; this makes them a grep (heartbeats excluded:
+  // one per member per 10s would drown the log)
+  if (action !== "heartbeat")
+    console.log(
+      `[call] ${action} room=${roomId.slice(0, 8)} by=${me.slice(0, 8)} was=${
+        call ? call.status : "none"
+      }`
+    );
 
   switch (action) {
     case "invite": {
-      // a ringing call nobody answered goes stale; an active call blocks
-      if (call && !(call.status === "ringing" && Date.now() - call.startedAt > RING_STALE_MS))
+      // stale calls are reclaimable: a ringing one nobody answered, or an
+      // active one whose participants stopped heartbeating (crashed browser —
+      // the pagehide end never fired). A live call still blocks.
+      const lastSign = call ? call.beatAt ?? call.acceptedAt ?? call.startedAt : 0;
+      const reclaimable =
+        !call ||
+        (call.status === "ringing" && Date.now() - call.startedAt > RING_STALE_MS) ||
+        (call.status === "active" && Date.now() - lastSign > ACTIVE_STALE_MS);
+      if (!reclaimable)
         return NextResponse.json({ error: "Call already in progress" }, { status: 409 });
       setCall({
         roomId,
@@ -151,6 +175,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
             : "📞 Missed call";
         void postCallEvent(access.room, call.callerId, text).catch(console.error);
       }
+      break;
+    }
+    case "heartbeat": {
+      // liveness only — no event, no log; feeds the invite reclaim clock
+      if (call) setCall({ ...call, beatAt: Date.now() });
       break;
     }
     default:

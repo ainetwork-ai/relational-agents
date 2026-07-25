@@ -26,6 +26,8 @@ export interface CallState {
   startedAt: number;
   /** when the callee accepted — the call-duration clock (chat bubble) */
   acceptedAt?: number;
+  /** last heartbeat from any participant — the liveness clock */
+  beatAt?: number;
 }
 
 const KEY = Symbol.for("app.calls");
@@ -38,6 +40,10 @@ function calls(): Map<string, CallState> {
 
 /** A ringing call nobody answered within this window is dead — invite may reclaim it. */
 export const RING_STALE_MS = 2 * 60 * 1000;
+
+/** An active call whose participants stopped heartbeating is a ghost (a
+ * crashed browser never sends the pagehide end) — invite may reclaim it. */
+export const ACTIVE_STALE_MS = 45 * 1000;
 
 export function getCall(roomId: string): CallState | null {
   return calls().get(roomId) ?? null;

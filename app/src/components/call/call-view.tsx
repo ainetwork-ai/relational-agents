@@ -320,6 +320,21 @@ export function CallView({ roomId }: { roomId: string }) {
     return () => stop?.();
   }, [status]);
 
+  // heartbeat — the server reclaims calls whose participants stopped beating
+  // (a crashed browser never sends the pagehide end)
+  useEffect(() => {
+    if (status !== "active" && status !== "ringing-out") return;
+    const beat = () =>
+      void fetch(`/api/calls/${roomId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-client-id": clientId },
+        body: JSON.stringify({ action: "heartbeat" }),
+      }).catch(() => {});
+    beat();
+    const iv = setInterval(beat, 10_000);
+    return () => clearInterval(iv);
+  }, [status, roomId, clientId]);
+
   // a page that dies mid-call (refresh/close) must not leave a ghost call —
   // the next ring would silently 409-join it and sit on stale SDP forever
   useEffect(() => {
