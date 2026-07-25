@@ -1,0 +1,12 @@
+allowBuilds:
+  '@ainblockchain/ain-js': set this to true or false
+  eccrypto: set this to true or false
+  esbuild: set this to true or false
+  keccak: set this to true or false
+  postinstall-postinstall: set this to true or false
+  secp256k1: set this to true or false
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
