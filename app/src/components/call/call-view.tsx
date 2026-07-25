@@ -102,6 +102,10 @@ export function CallView({ roomId }: { roomId: string }) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const iAmCallerRef = useRef(false); // sync() keeps this current for the ICE handler
+  const lastRestartRef = useRef(0);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const offerPostedRef = useRef(false); // caller: my offer went out
   // idempotency by CONTENT, not a boolean: joining a leftover call means the
   // stored SDP can be replaced mid-flight (a fresh caller re-offers), and a
@@ -149,6 +153,28 @@ export function CallView({ roomId }: { roomId: string }) {
     }
   }, []);
 
+  // A mid-call network blip used to freeze the video forever — nobody
+  // listened to the ICE state. The CALLER drives recovery (re-offer with
+  // iceRestart; the server voids the old answer and the callee re-answers
+  // because its idempotency is keyed by offer content).
+  const restartIce = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc || endedRef.current || !iAmCallerRef.current) return;
+    if (Date.now() - lastRestartRef.current < 8_000) return; // one attempt per blip
+    lastRestartRef.current = Date.now();
+    try {
+      await pc.setLocalDescription(await pc.createOffer({ iceRestart: true }));
+      await waitIceComplete(pc);
+      await fetch(`/api/calls/${roomId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-client-id": clientId },
+        body: JSON.stringify({ action: "offer", sdp: pc.localDescription }),
+      });
+    } catch {
+      /* the next ICE state change retries */
+    }
+  }, [roomId, clientId]);
+
   const ensurePc = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
     // STUN for a reflexive path (different routers), TURN as the relay of
@@ -168,11 +194,31 @@ export function CallView({ roomId }: { roomId: string }) {
         setRemoteLive(true);
       }
     };
+    pc.oniceconnectionstatechange = () => {
+      const st = pc.iceConnectionState;
+      if (st === "connected" || st === "completed") {
+        if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+        setReconnecting(false);
+        return;
+      }
+      if (st === "failed") {
+        setReconnecting(true);
+        void restartIce();
+      } else if (st === "disconnected") {
+        // often self-heals within seconds — restart only if it doesn't
+        setReconnecting(true);
+        if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = setTimeout(() => void restartIce(), 4_000);
+      }
+    };
     pcRef.current = pc;
     return pc;
-  }, [ensureLocalStream]);
+  }, [ensureLocalStream, restartIce]);
 
   const teardown = useCallback(() => {
+    if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+    disconnectTimerRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -217,6 +263,7 @@ export function CallView({ roomId }: { roomId: string }) {
         return;
       }
       const iAmCaller = meId !== null && call.callerId === meId;
+      iAmCallerRef.current = iAmCaller;
       if (call.status === "ringing") {
         void ensureLocalStream().catch(() => {});
         setStatus(iAmCaller ? "ringing-out" : "loading");
@@ -431,6 +478,12 @@ export function CallView({ roomId }: { roomId: string }) {
                 </>
               )}
             </div>
+          </div>
+        )}
+        {/* mid-call network blip — recovery runs underneath */}
+        {reconnecting && status === "active" && (
+          <div className="absolute left-1/2 top-6 -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-sm text-white/90">
+            Reconnecting…
           </div>
         )}
         {/* my PiP */}
