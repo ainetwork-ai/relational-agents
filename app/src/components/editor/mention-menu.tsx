@@ -5,6 +5,7 @@ import { FileText, Calendar } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { MonthGrid } from "@/components/database/property-cell";
+import { initial } from "@/lib/glyph";
 
 export interface MentionItem {
   kind: "page" | "person" | "date";
@@ -151,7 +152,7 @@ export function MentionMenu({
                     <span className="shrink-0 text-neutral-400">
                       {item.kind === "person" ? (
                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                          {(item.label ?? "?").slice(0, 1).toUpperCase()}
+                          {initial(item.label)}
                         </span>
                       ) : item.kind === "page" ? (
                         item.icon ? <span className="text-base"><PageIcon icon={item.icon} /></span> : <FileText size={15} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { initial } from "@/lib/glyph";
 
 interface Me {
   id: string;
@@ -77,7 +78,7 @@ export function ProfileSettings({ initialName }: { initialName: string }) {
     <img src={me.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
   ) : (
     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-300 text-[10px] font-medium text-neutral-700 dark:bg-neutral-600 dark:text-neutral-200">
-      {(me?.displayName ?? initialName).slice(0, 1).toUpperCase()}
+      {initial(me?.displayName ?? initialName)}
     </span>
   );
 
@@ -101,7 +102,7 @@ export function ProfileSettings({ initialName }: { initialName: string }) {
               <img src={me.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
             ) : (
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
-                {(me?.displayName ?? initialName).slice(0, 1).toUpperCase()}
+                {initial(me?.displayName ?? initialName)}
               </span>
             )}
             <button

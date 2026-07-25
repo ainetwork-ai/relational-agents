@@ -2,9 +2,10 @@
 
 import type { PresentClient, PresenceSelf } from "@/hooks/use-presence";
 import type { PublicUser } from "@/lib/auth/public-user";
+import { initial } from "@/lib/glyph";
 
 function initials(name: string) {
-  return name.slice(0, 1).toUpperCase();
+  return initial(name);
 }
 
 /** Face pile of everyone on the page (self + others), deduped by userId. */

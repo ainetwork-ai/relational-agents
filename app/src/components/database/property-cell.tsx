@@ -12,6 +12,7 @@ import {
 } from "@/lib/db-relation";
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
+import { initial } from "@/lib/glyph";
 
 /** Format a row timestamp (Date or ISO string over JSON) for display. */
 function fmtTimestamp(v: unknown): string {
@@ -1013,7 +1014,7 @@ function PersonCell({
         {label ? (
           <>
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-              {label.slice(0, 1).toUpperCase()}
+              {initial(label)}
             </span>
             <span className="text-sm text-neutral-700 dark:text-neutral-200">{label}</span>
           </>
@@ -1046,7 +1047,7 @@ function PersonCell({
               className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
             >
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                {m.displayName.slice(0, 1).toUpperCase()}
+                {initial(m.displayName)}
               </span>
               <span className="text-sm text-neutral-700 dark:text-neutral-200">
                 {m.displayName}

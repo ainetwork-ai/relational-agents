@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
 import { applyView, optionClass, personLabel } from "@/lib/db-values";
 import { useDb } from "./database-block";
+import { initial } from "@/lib/glyph";
 
 const NONE = "none";
 
@@ -141,7 +142,7 @@ export function BoardView({ view }: { view: DbView }) {
                     {assignee && (
                       <div className="mt-1.5 flex items-center gap-1">
                         <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-semibold text-white">
-                          {assignee.slice(0, 1).toUpperCase()}
+                          {initial(assignee)}
                         </span>
                         <span className="text-xs text-neutral-500">{assignee}</span>
                       </div>

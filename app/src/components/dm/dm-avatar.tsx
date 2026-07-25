@@ -2,6 +2,7 @@
 
 import { Bot } from "lucide-react";
 import type { DmUser } from "@/stores/dm-rooms";
+import { initial } from "@/lib/glyph";
 
 /** DM avatar: image when avatarUrl exists, else the name's first letter
  * (members-modal convention). Agents keep the same person-style initial —
@@ -23,7 +24,7 @@ export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
           style={style}
           className="flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
         >
-          {user.displayName.charAt(0).toUpperCase()}
+          {initial(user.displayName)}
         </span>
         <span
           className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-purple-600 text-white ring-[1.5px] ring-white dark:bg-purple-500 dark:ring-neutral-900"
@@ -50,7 +51,7 @@ export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
       style={style}
       className="flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
     >
-      {user.displayName.charAt(0).toUpperCase()}
+      {initial(user.displayName)}
     </span>
   );
 }

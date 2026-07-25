@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Globe, Link as LinkIcon, UserPlus } from "lucide-react";
 import { copyText } from "@/lib/compat";
 import { MemorySelect } from "@/components/database/memory-select";
+import { initial } from "@/lib/glyph";
 
 const PERMS = ["view", "comment", "edit", "full"] as const;
 type Perm = (typeof PERMS)[number];
@@ -286,7 +287,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-medium text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
-                    {m.user.displayName.slice(0, 1).toUpperCase()}
+                    {initial(m.user.displayName)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-neutral-700 dark:text-neutral-200">
                     {m.user.displayName}
@@ -314,7 +315,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-200 text-[10px] font-medium text-amber-700 dark:bg-amber-800 dark:text-amber-200">
-                    {i.email.slice(0, 1).toUpperCase()}
+                    {initial(i.email)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-neutral-700 dark:text-neutral-200">
                     {i.email}

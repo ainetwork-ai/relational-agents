@@ -6,6 +6,7 @@ import { X, UserPlus, Copy } from "lucide-react";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
 import { copyText } from "@/lib/compat";
 import type { PublicUser } from "@/lib/auth/public-user";
+import { initial } from "@/lib/glyph";
 
 interface MemberRow {
   user: PublicUser;
@@ -147,7 +148,7 @@ export function MembersModal() {
                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-700 dark:text-neutral-300"
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[11px] font-medium text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
-                  {user.displayName.slice(0, 1).toUpperCase()}
+                  {initial(user.displayName)}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{user.displayName}</span>
                 {editable ? (

@@ -9,6 +9,7 @@ import {
   workspaces,
   type User,
 } from "@/lib/db/schema";
+import { firstGlyphs } from "@/lib/glyph";
 
 /**
  * `users.displayName` is the ONE global name for a person — every surface that
@@ -214,7 +215,7 @@ async function renamePersonalWorkspaces(
     if (ws.name !== oldBase && ws.name !== oldSuffixed) continue;
     const base = workspaceNameFor(newName);
     const target = ws.name === oldBase ? base : `${base} ${userId.slice(0, 6)}`;
-    const patch = { iconText: newName.slice(0, 2).toUpperCase() };
+    const patch = { iconText: firstGlyphs(newName, 2).toUpperCase() };
     try {
       await db.update(workspaces).set({ ...patch, name: target }).where(eq(workspaces.id, ws.id));
       renamed += 1;

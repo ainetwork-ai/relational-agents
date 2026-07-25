@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { workspaces, workspaceMembers, pages, blocks } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { firstGlyphs } from "@/lib/glyph";
 
 const GETTING_STARTED = [
   { type: "heading1" as const, text: "Welcome" },
@@ -55,14 +56,14 @@ export async function ensureWorkspace(userId: string, displayName: string) {
   try {
     [workspace] = await db
       .insert(workspaces)
-      .values({ name: base, iconText: displayName.slice(0, 2).toUpperCase(), createdBy: userId })
+      .values({ name: base, iconText: firstGlyphs(displayName, 2).toUpperCase(), createdBy: userId })
       .returning();
   } catch {
     [workspace] = await db
       .insert(workspaces)
       .values({
         name: `${base} ${userId.slice(0, 6)}`,
-        iconText: displayName.slice(0, 2).toUpperCase(),
+        iconText: firstGlyphs(displayName, 2).toUpperCase(),
         createdBy: userId,
       })
       .returning();

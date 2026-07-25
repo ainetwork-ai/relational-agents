@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { initial } from "@/lib/glyph";
 
 /** Rose scale per emotion level (Lv.0 🩶 … Lv.7 💝) — matches the
  * relationship dashboard's badge palette. */
@@ -93,7 +94,7 @@ function Face({ person }: { person: Person }) {
         />
       ) : (
         <span className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-200 text-base font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
-          {person.name.charAt(0).toUpperCase()}
+          {initial(person.name)}
         </span>
       )}
       {person.level >= 0 && <HeartBadge level={person.level} />}
