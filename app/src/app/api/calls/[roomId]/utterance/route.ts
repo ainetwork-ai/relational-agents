@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { callUtterances } from "@/lib/db/schema";
 import { requireRoomAccess } from "@/lib/chat-room-access";
 import { getCall } from "@/lib/call-store";
+import { watchUtterance } from "@/lib/agent/call-watch";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       text: text.slice(0, MAX_TEXT),
     })
     .returning();
+
+  // Judge it out of band: the speaker's client must not wait on the agent to
+  // finish thinking before the next sentence can be posted.
+  void watchUtterance(roomId, call.callId, auth.user.id, utterance.text).catch((err) =>
+    console.error("call watch failed:", err)
+  );
 
   return NextResponse.json({ utterance: { id: utterance.id, callId: utterance.callId } }, { status: 201 });
 }
