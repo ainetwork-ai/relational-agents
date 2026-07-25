@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>videocall test harness — WebRTC P2P + Azure STT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 14px/1.5 -apple-system, "Segoe UI", sans-serif; background: #111; color: #eee; height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 10px 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #1a1a1a; border-bottom: 1px solid #333; }
+  header input { background: #222; border: 1px solid #444; color: #eee; border-radius: 6px; padding: 6px 8px; }
+  header input.key { width: 260px; }
+  header input.small { width: 110px; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button.gray { background: #374151; }
+  button.red { background: #dc2626; }
+  button:disabled { opacity: .4; cursor: default; }
+  #status { color: #9ca3af; margin-left: auto; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #videoArea { position: relative; flex: 1; background: #000; }
+  #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
+  #localVideo { position: absolute; right: 16px; bottom: 16px; width: 176px; border-radius: 10px; border: 1px solid #444; background: #222; }
+  aside { width: 340px; border-left: 1px solid #333; display: flex; flex-direction: column; background: #161616; }
+  aside h2 { font-size: 13px; padding: 10px 14px; border-bottom: 1px solid #2a2a2a; color: #9ca3af; font-weight: 600; }
+  #transcript { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+  #transcript .line { background: #232323; border-radius: 8px; padding: 6px 10px; }
+  #interim { padding: 8px 14px; font-style: italic; color: #9ca3af; min-height: 34px; border-top: 1px solid #2a2a2a; }
+</style>
+</head>
+<body>
+<header>
+  <input id="room" class="small" value="demo" title="room id" />
+  <button id="callerBtn">Start as Caller</button>
+  <button id="calleeBtn">Start as Callee</button>
+  <button id="hangupBtn" class="red" disabled>Hang up</button>
+  <button id="ringBtn" class="gray">Ring test</button>
+  <input id="sttKey" class="key" placeholder="Azure Speech key" />
+  <input id="sttRegion" class="small" placeholder="region (eastus)" />
+  <button id="sttBtn" class="gray">Start STT</button>
+  <span id="status">idle</span>
+</header>
+<main>
+  <div id="videoArea">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay playsinline muted></video>
+  </div>
+  <aside>
+    <h2>Transcript</h2>
+    <div id="transcript"></div>
+    <div id="interim"></div>
+  </aside>
+</main>
+<script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+<script type="module">
+import { createAzureTranscript } from "/web/azure-transcript.js";
+import { startRingtone, stopRingtone } from "/web/ringtone.js";
+
+const $ = (id) => document.getElementById(id);
+const status = (t) => ($("status").textContent = t);
+const roomUrl = () => `/api/rtc/${$("room").value || "demo"}`;
+
+// persist Azure creds locally so reloads are painless (demo machine only)
+$("sttKey").value = localStorage.getItem("azureKey") || "";
+$("sttRegion").value = localStorage.getItem("azureRegion") || "";
+
+let pc = null, localStream = null;
+
+async function getMedia() {
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: { echoCancellation: true },
+  });
+  $("localVideo").srcObject = localStream;
+  return localStream;
+}
+
+function newPc() {
+  pc = new RTCPeerConnection(); // localhost: host candidates only, no STUN needed
+  localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+  pc.ontrack = (e) => { $("remoteVideo").srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => status(`pc: ${pc.connectionState}`);
+  return pc;
+}
+
+// non-trickle: wait for ICE gathering complete (2s cap), then ship whole SDP
+function gatherComplete(pc) {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 2000);
+    pc.addEventListener("icegatheringstatechange", () => {
+      if (pc.iceGatheringState === "complete") { clearTimeout(timer); resolve(); }
+    });
+  });
+}
+
+const post = (role, sdp) =>
+  fetch(roomUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, sdp }) });
+
+async function poll(role) {
+  for (;;) {
+    const state = await (await fetch(roomUrl())).json();
+    if (state[role]) return state[role];
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+$("callerBtn").onclick = async () => {
+  lockRoles();
+  await fetch(roomUrl(), { method: "DELETE" }); // fresh room
+  await getMedia();
+  newPc();
+  await pc.setLocalDescription(await pc.createOffer());
+  await gatherComplete(pc);
+  await post("offer", pc.localDescription);
+  status("waiting for answer…");
+  const answer = await poll("answer");
+  await pc.setRemoteDescription(answer);
+};
+
+$("calleeBtn").onclick = async () => {
+  lockRoles();
+  status("waiting for offer…");
+  const offer = await poll("offer");
+  await getMedia();
+  newPc();
+  await pc.setRemoteDescription(offer);
+  await pc.setLocalDescription(await pc.createAnswer());
+  await gatherComplete(pc);
+  await post("answer", pc.localDescription);
+};
+
+function lockRoles() {
+  $("callerBtn").disabled = $("calleeBtn").disabled = true;
+  $("hangupBtn").disabled = false;
+}
+
+$("hangupBtn").onclick = () => {
+  pc?.close(); pc = null;
+  localStream?.getTracks().forEach((t) => t.stop()); localStream = null;
+  $("remoteVideo").srcObject = $("localVideo").srcObject = null;
+  $("callerBtn").disabled = $("calleeBtn").disabled = false;
+  $("hangupBtn").disabled = true;
+  status("idle");
+};
+
+// ---- ringtone smoke test ----
+let ring = null;
+$("ringBtn").onclick = () => {
+  if (ring) { stopRingtone(ring); ring = null; $("ringBtn").textContent = "Ring test"; }
+  else { ring = startRingtone(); $("ringBtn").textContent = "Stop ring"; }
+};
+
+// ---- Azure STT ----
+let stt = null;
+$("sttBtn").onclick = async () => {
+  if (stt) { await stt.stop(); stt = null; $("sttBtn").textContent = "Start STT"; return; }
+  const key = $("sttKey").value.trim(), region = $("sttRegion").value.trim();
+  if (!key || !region) { status("enter Azure key + region"); return; }
+  localStorage.setItem("azureKey", key);
+  localStorage.setItem("azureRegion", region);
+  stt = createAzureTranscript({
+    sdk: window.SpeechSDK,
+    key, region,
+    lang: "en-US",
+    onInterim: (t) => ($("interim").textContent = t),
+    onFinal: (t) => {
+      const div = document.createElement("div");
+      div.className = "line";
+      div.textContent = `🎙 ${t}`;
+      $("transcript").appendChild(div);
+      $("transcript").scrollTop = $("transcript").scrollHeight;
+    },
+    onError: (m) => status(`stt error: ${m}`),
+    onState: (s) => status(`stt: ${s}`),
+  });
+  await stt.start();
+  $("sttBtn").textContent = "Stop STT";
+};
+</script>
+</body>
+</html>
