@@ -257,9 +257,10 @@ export function RelationshipsStrip() {
  * the seeded record page is only the fallback for people without a room
  * or whose room has no doc yet (no consent / no messages processed). */
   function openPerson(person: Person) {
-    // doc link is resolved server-side (rooms API docPageId) — no per-click fetch
-    if (person.pageId) router.push(`/p/${person.pageId}`);
-    else if (person.roomId) router.push(`/dm/${person.roomId}`);
+    // a face opens the conversation — the room header links to the doc.
+    // seeded records without a room still fall back to their page.
+    if (person.roomId) router.push(`/dm/${person.roomId}`);
+    else if (person.pageId) router.push(`/p/${person.pageId}`);
   }
 
   if (!people || people.length === 0) return null;
