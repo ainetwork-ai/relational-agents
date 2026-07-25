@@ -41,6 +41,44 @@ function waitIceComplete(pc: RTCPeerConnection, capMs = 2000): Promise<void> {
   });
 }
 
+/** Outgoing ringback — the ONE state that sounds is "Calling…". WebAudio
+ * dual-tone like the incoming ringtone, slower cadence. Returns the stop
+ * function; the caller manages it from an effect so cleanup is the single,
+ * unavoidable stop path (StrictMode replay and navigation included). */
+function startRingback(): (() => void) | null {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return null;
+    const ctx = new Ctx();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(ctx.destination);
+    const o1 = ctx.createOscillator();
+    o1.frequency.value = 440;
+    const o2 = ctx.createOscillator();
+    o2.frequency.value = 480;
+    o1.connect(gain);
+    o2.connect(gain);
+    o1.start();
+    o2.start();
+    const burst = () => {
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0.04, t);
+      gain.gain.setValueAtTime(0, t + 1.5);
+    };
+    burst();
+    const iv = setInterval(burst, 4000);
+    return () => {
+      clearInterval(iv);
+      void ctx.close();
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The in-call view: WebRTC state machine + layout (remote video main, local
  * PiP, controls, transcript panel right). Signaling is notify-then-refetch —
@@ -272,6 +310,15 @@ export function CallView({ roomId }: { roomId: string }) {
     const t = setTimeout(() => leave("room"), 30_000);
     return () => clearTimeout(t);
   }, [status, leave]);
+
+  // ringback sounds while Calling… and ONLY then — accept, decline, cancel,
+  // end or leaving all pass through a status change, so the cleanup is the
+  // guaranteed stop
+  useEffect(() => {
+    if (status !== "ringing-out") return;
+    const stop = startRingback();
+    return () => stop?.();
+  }, [status]);
 
   // a page that dies mid-call (refresh/close) must not leave a ghost call —
   // the next ring would silently 409-join it and sit on stale SDP forever
