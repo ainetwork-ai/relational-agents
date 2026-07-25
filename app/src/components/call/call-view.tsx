@@ -101,7 +101,9 @@ export function CallView({ roomId }: { roomId: string }) {
 
   const ensurePc = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
-    const pc = new RTCPeerConnection();
+    // STUN so srflx candidates exist — host-only works same-machine, but a
+    // two-device demo needs at least a reflexive path
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
     const stream = await ensureLocalStream();
     for (const track of stream.getTracks()) pc.addTrack(track, stream);
     pc.ontrack = (ev) => {
@@ -146,13 +148,16 @@ export function CallView({ roomId }: { roomId: string }) {
       if (!res.ok) return;
       const { call } = (await res.json()) as { call: CallState | null };
       if (!call) {
-        // no live call — declined/cancelled/ended elsewhere, or a stale open tab
-        if (status === "active" || status === "ringing-out") {
+        // no live call — declined/cancelled/ended elsewhere, or a stale open
+        // tab. "loading" leaves too: a decline can land before this view
+        // finishes mounting, and showing "Call ended" without navigating
+        // strands the caller on /call.
+        if (status === "active" || status === "ringing-out" || status === "loading") {
           endedRef.current = true;
           teardown();
           setStatus("ended");
           router.push(rootPageId ? `/p/${rootPageId}` : `/dm/${roomId}`);
-        } else if (status === "loading") setStatus("ended");
+        }
         return;
       }
       const iAmCaller = meId !== null && call.callerId === meId;
