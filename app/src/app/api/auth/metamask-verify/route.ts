@@ -5,6 +5,11 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { toPublicUser } from "@/lib/auth/public-user";
+import {
+  applyLoginDisplayName,
+  fallbackDisplayName,
+  normalizeDisplayName,
+} from "@/lib/auth/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -66,20 +71,14 @@ export async function POST(req: NextRequest) {
     let user = existing;
  // Returning user typed a (different) name → honor it. Login is the only
  // place the form offers a name, so this is how you rename yourself.
-    if (user && typeof displayName === "string" && displayName.trim() && displayName.trim() !== user.displayName) {
-      const [renamed] = await db
-        .update(users)
-        .set({ displayName: displayName.trim() })
-        .where(eq(users.id, user.id))
-        .returning();
-      user = renamed;
-    }
+    if (user) user = await applyLoginDisplayName(user, displayName);
     if (!user) {
       const [created] = await db
         .insert(users)
         .values({
           ainAddress: normalizedAddress,
-          displayName: displayName || `User-${address.slice(0, 8)}`,
+          displayName:
+            normalizeDisplayName(displayName) ?? fallbackDisplayName(address),
           status: "online",
         })
         .returning();

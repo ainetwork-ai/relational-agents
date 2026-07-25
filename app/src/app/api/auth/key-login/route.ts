@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureWorkspace } from "@/lib/auth/provision";
+import {
+  applyLoginDisplayName,
+  fallbackDisplayName,
+  normalizeDisplayName,
+} from "@/lib/auth/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +51,16 @@ export async function POST(req: NextRequest) {
       .where(eq(users.ainAddress, normalizedAddress))
       .limit(1);
 
-    if (!user) {
+    if (user) {
+ // returning user typed a (different) name → that's the rename gesture
+      user = await applyLoginDisplayName(user, displayName);
+    } else {
       const [created] = await db
         .insert(users)
         .values({
           ainAddress: normalizedAddress,
-          displayName: displayName || `User-${address.slice(0, 8)}`,
+          displayName:
+            normalizeDisplayName(displayName) ?? fallbackDisplayName(address),
           status: "online",
         })
         .returning();
