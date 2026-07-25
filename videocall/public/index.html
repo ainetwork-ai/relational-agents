@@ -808,11 +808,18 @@
   const pipVideo = document.getElementById("pipVideo");
   let callTimers = [];
   let ringAudio = null;
+  let notionBusy = false;
   let notionPoll = null;
   let notionPc = null;
   let notionStream = null;
+  // a page that dies mid-call (refresh/close) must not leave a ghost call
+  // behind — it would block the next ring with "already live"
+  window.addEventListener("pagehide", () => {
+    if (notionBusy) navigator.sendBeacon("/api/notion-call/end");
+  });
 
   function startRingtone() {
+    if (ringAudio) return; // never stack a second (unstoppable) ring
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const gain = ctx.createGain();
@@ -892,6 +899,11 @@
   }
 
   async function startNotionCall(g) {
+    // synchronous guard — notionPoll/notionPc are set after awaits, so a
+    // double-click's second click would slip past them and stack an
+    // unstoppable second ringtone
+    if (notionBusy) return;
+    notionBusy = true;
     showRinging([g]);
     const bail = (msg) => {
       ringStatus.textContent = msg;
@@ -904,31 +916,57 @@
       return bail(String(e.message || e).slice(0, 60));
     }
     try {
-      // the idle preview is video-only; a call needs the mic too
-      notionStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // the idle preview is video-only; a call needs the mic too. Echo
+      // cancellation matters: both call tabs usually share one machine.
+      notionStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
     } catch {
       fetch("/api/notion-call/end", { method: "POST" }).catch(() => {});
       return bail(I18N[lang].noCamera);
     }
-    const pc = new RTCPeerConnection();
+    // STUN so srflx candidates exist — host-only would break a two-device demo
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
     notionPc = pc;
     notionStream.getTracks().forEach((t) => pc.addTrack(t, notionStream));
     pc.ontrack = (e) => { document.getElementById("notionRemote").srcObject = e.streams[0]; };
 
+    // unanswered ring gives up like a real phone (the callee's incoming card
+    // auto-dismisses at 30s too)
+    let active = false;
+    callTimers.push(setTimeout(() => {
+      if (!active) {
+        stopRingtone();
+        ringStatus.textContent = I18N[lang].noAnswer;
+        callTimers.push(setTimeout(endCall, 1800));
+      }
+    }, 30000));
+
     let offered = false, answered = false, sawCall = false, empty = 0;
     notionPoll = setInterval(async () => {
+      let call;
       try {
-        const { call } = await (await fetch("/api/notion-call")).json();
-        if (!call) {
-          // a lone null can be a transient bridge/app hiccup — only give up
-          // on a steady signal (3 misses once rung; ~12s if it never rings)
-          empty++;
-          if (sawCall ? empty >= 3 : empty > 12) endCall();
-          return;
-        }
-        sawCall = true;
-        empty = 0;
-        if (call.status !== "active") return;
+        call = (await (await fetch("/api/notion-call")).json()).call;
+      } catch { return; /* transient bridge hiccup — next tick */ }
+      if (!call) {
+        // a lone null can be a transient app hiccup — only give up on a
+        // steady signal (3 misses once rung; ~12s if it never rings)
+        empty++;
+        if (sawCall ? empty >= 3 : empty > 12) endCall();
+        return;
+      }
+      sawCall = true;
+      empty = 0;
+      if (call.status !== "active") return;
+      if (!active) {
+        active = true;
+        stopRingtone(); // answered — the ringback must die immediately
+        ringStatus.textContent = I18N[lang].connecting;
+      }
+      // SDP failures are fatal for this call — a swallowed throw here used
+      // to leave the view (and once the ringtone) stuck forever
+      try {
         if (!offered) {
           offered = true;
           await pc.setLocalDescription(await pc.createOffer());
@@ -942,13 +980,14 @@
         if (call.answer && !answered) {
           answered = true;
           await pc.setRemoteDescription(call.answer);
-          stopRingtone();
           callView.classList.remove("ringing");
           callView.classList.add("connected", "notion-live");
           pipVideo.srcObject = notionStream;
           pipVideo.hidden = false;
         }
-      } catch { /* transient — next tick */ }
+      } catch {
+        endCall();
+      }
     }, 1000);
   }
 
@@ -970,6 +1009,7 @@
     callTimers = [];
     stopRingtone();
     callView.classList.remove("active", "ringing", "connected", "notion-live");
+    notionBusy = false;
     if (notionPoll) {
       clearInterval(notionPoll);
       notionPoll = null;

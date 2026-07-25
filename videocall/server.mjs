@@ -141,15 +141,21 @@ async function handleNotionCall(req, res, url) {
   try {
     if (url.pathname === "/api/notion-call" && req.method === "POST") {
       await ensureRoom();
+      // a leftover call (caller page died mid-call) would make this ring a
+      // silent "already live" no-op — clear it and ring fresh
       const live = await notionCallState();
-      if (!live) {
-        const r = await callerFetch(`/api/calls/${bridgeRoom}`, {
+      if (live) {
+        await callerFetch(`/api/calls/${bridgeRoom}`, {
           method: "POST",
-          body: JSON.stringify({ action: "invite" }),
+          body: JSON.stringify({ action: live.status === "ringing" ? "cancel" : "end" }),
         });
-        if (!r.ok && r.status !== 409) throw new Error(`invite: ${r.status}`);
       }
-      res.end(JSON.stringify({ ok: true, roomId: bridgeRoom, already: !!live }));
+      const r = await callerFetch(`/api/calls/${bridgeRoom}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "invite" }),
+      });
+      if (!r.ok && r.status !== 409) throw new Error(`invite: ${r.status}`);
+      res.end(JSON.stringify({ ok: true, roomId: bridgeRoom, cleared: !!live }));
     } else if (url.pathname === "/api/notion-call" && req.method === "GET") {
       res.end(JSON.stringify({ roomId: bridgeRoom, call: await notionCallState() }));
     } else if (url.pathname === "/api/notion-call/signal" && req.method === "POST") {
