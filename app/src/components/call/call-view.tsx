@@ -96,6 +96,7 @@ export function CallView({ roomId }: { roomId: string }) {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [remoteLive, setRemoteLive] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -132,13 +133,20 @@ export function CallView({ roomId }: { roomId: string }) {
   // ---- media ----
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
-    localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    return stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      return stream;
+    } catch (err) {
+      // denied/missing devices — without this the failure was swallowed and
+      // the OTHER side sat on "Connecting…" with no idea why
+      setMediaError(true);
+      throw err;
+    }
   }, []);
 
   const ensurePc = useCallback(async () => {
@@ -320,6 +328,14 @@ export function CallView({ roomId }: { roomId: string }) {
     return () => stop?.();
   }, [status]);
 
+  // blocked camera/mic ends the call visibly — lingering would leave the
+  // other side ringing at a peer that can never send media
+  useEffect(() => {
+    if (!mediaError) return;
+    const t = setTimeout(() => leave("room"), 2500);
+    return () => clearTimeout(t);
+  }, [mediaError, leave]);
+
   // heartbeat — the server reclaims calls whose participants stopped beating
   // (a crashed browser never sends the pagehide end)
   useEffect(() => {
@@ -403,11 +419,17 @@ export function CallView({ roomId }: { roomId: string }) {
               {partner?.displayName ?? "…"}
             </div>
             <div className="text-sm text-white/70" data-testid="call-status">
-              {status === "ringing-out" && "Calling…"}
-              {status === "loading" && "Connecting…"}
-              {status === "active" && "Connecting…"}
-              {status === "declined" && "Declined"}
-              {status === "ended" && "Call ended"}
+              {mediaError ? (
+                "Camera/mic blocked — allow access in the browser and call again"
+              ) : (
+                <>
+                  {status === "ringing-out" && "Calling…"}
+                  {status === "loading" && "Connecting…"}
+                  {status === "active" && "Connecting…"}
+                  {status === "declined" && "Declined"}
+                  {status === "ended" && "Call ended"}
+                </>
+              )}
             </div>
           </div>
         )}
