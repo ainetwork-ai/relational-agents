@@ -41,6 +41,58 @@ async function enterWorkspace(id: string) {
   window.location.href = "/";
 }
 
+/** Compact workspace row-card (visited / edited sections). */
+function CompactWsSection({
+  icon,
+  title,
+  items,
+  prefix,
+  onEnter,
+  disabled,
+  meta,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: WorkspaceCard[];
+  prefix: string;
+  onEnter: (id: string) => void;
+  disabled: boolean;
+  meta?: (w: WorkspaceCard) => string | null;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section data-testid={prefix} className="mb-8">
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+        {icon} {title}
+      </h2>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((w) => {
+          const m = meta?.(w);
+          return (
+            <button
+              key={w.id}
+              data-testid={`${prefix}-${w.id}`}
+              onClick={() => onEnter(w.id)}
+              disabled={disabled}
+              className="flex items-center gap-2.5 rounded-lg border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-600 ring-1 ring-neutral-200 dark:bg-neutral-700 dark:text-neutral-200 dark:ring-neutral-600">
+                {(w.iconText || w.name.slice(0, 1)).toUpperCase()}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                  {w.name}
+                </span>
+                {m && <span className="block truncate text-[11px] text-neutral-400">{m}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function WsTile({ w }: { w: WorkspaceCard }) {
   return (
     <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-neutral-700 shadow-sm ring-1 ring-neutral-200 transition-transform group-hover:scale-105 dark:bg-neutral-700 dark:text-neutral-100 dark:ring-neutral-600">
@@ -83,13 +135,18 @@ function WorkspaceSections() {
       ),
     [list]
   );
-  const visited = useMemo(
-    () =>
-      recentIds
-        .map((id) => (list ?? []).find((w) => w.id === id))
-        .filter(Boolean)
-        .slice(0, 4) as WorkspaceCard[],
-    [recentIds, list]
+  // visit log is per-device; before any card click the current workspace is
+  // still an honest "recently visited", so the section never starts empty
+  const visited = useMemo(() => {
+    const ids = recentIds.length ? recentIds : activeId ? [activeId] : [];
+    return ids
+      .map((id) => (list ?? []).find((w) => w.id === id))
+      .filter(Boolean)
+      .slice(0, 4) as WorkspaceCard[];
+  }, [recentIds, activeId, list]);
+  const edited = useMemo(
+    () => byEdit.filter((w) => w.lastEditedAt).slice(0, 4),
+    [byEdit]
   );
 
   function enter(id: string) {
@@ -101,33 +158,23 @@ function WorkspaceSections() {
 
   return (
     <>
-      {visited.length > 0 && (
-        <section data-testid="home-ws-visited" className="mb-8">
-          <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            <Clock size={12} /> Recently visited
-          </h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {visited.map((w) => (
-              <button
-                key={w.id}
-                data-testid={`home-ws-visited-${w.id}`}
-                onClick={() => enter(w.id)}
-                disabled={switching !== null}
-                className="flex items-center gap-2.5 rounded-lg border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-800"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-600 ring-1 ring-neutral-200 dark:bg-neutral-700 dark:text-neutral-200 dark:ring-neutral-600">
-                  {(w.iconText || w.name.slice(0, 1)).toUpperCase()}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                    {w.name}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      <CompactWsSection
+        icon={<Clock size={12} />}
+        title="Recently visited"
+        items={visited}
+        prefix="home-ws-visited"
+        onEnter={enter}
+        disabled={switching !== null}
+      />
+      <CompactWsSection
+        icon={<FileText size={12} />}
+        title="Recently edited"
+        items={edited}
+        prefix="home-ws-edited"
+        onEnter={enter}
+        disabled={switching !== null}
+        meta={(w) => ago(w.lastEditedAt)}
+      />
 
       <section data-testid="home-workspaces" className="mb-10">
         <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
