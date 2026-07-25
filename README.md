@@ -67,3 +67,46 @@ open the Chanho–Hannah folder. The [`notion-mcp`](notion-mcp/) server exposes 
 surface as MCP tools, so an external agent reads and writes the exact bundle the in-app agent does.
 
 One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.
+
+## Architecture
+
+A workspace holds many relationships. Each relationship, once both people sign the contract,
+gets its own A2A agent; the agent reaches its memory through `notion-mcp` into a single OKF
+bundle — and the `okf_acl` gate makes every other bundle unreachable.
+
+```mermaid
+flowchart TB
+    subgraph WS["🏢 Workspace (a team space)"]
+        direction TB
+        R1(["💞 Chanho ❤️ Hannah"])
+        R2(["💞 Chanho ❤️ Ava"])
+        R3(["💞 …more relationships"])
+    end
+
+    R1 -->|"EIP-712 contract<br/>both sign"| A1["🤖 A2A agent"]
+    R2 -->|"EIP-712 contract<br/>both sign"| A2["🤖 A2A agent"]
+
+    A1 -->|"MCP tools"| M1["🔌 notion-mcp"]
+    A2 -->|"MCP tools"| M2["🔌 notion-mcp"]
+
+    M1 -->|"read / write<br/>(okf_acl gated)"| O1["📁 OKF bundle<br/>Chanho–Hannah"]
+    M2 -->|"read / write<br/>(okf_acl gated)"| O2["📁 OKF bundle<br/>Chanho–Ava"]
+
+    A1 -. "⛔ no path" .-x O2
+    A2 -. "⛔ no path" .-x O1
+
+    style WS fill:#f8fafc,stroke:#64748b,stroke-width:2px
+    style R1 fill:#fce7f3,stroke:#db2777,color:#111
+    style R2 fill:#fce7f3,stroke:#db2777,color:#111
+    style R3 fill:#f1f5f9,stroke:#94a3b8,color:#64748b
+    style A1 fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111
+    style A2 fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111
+    style M1 fill:#dbeafe,stroke:#2563eb,color:#111
+    style M2 fill:#dbeafe,stroke:#2563eb,color:#111
+    style O1 fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
+    style O2 fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
+```
+
+**Workspace → many relationships → one A2A agent each → MCP → one OKF bundle each.** The
+crossed-out paths are the point: isolation isn't a policy the model follows, it's a boundary
+in the filesystem and the contract.
