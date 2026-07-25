@@ -58,7 +58,7 @@ so any A2A client — our own dispatcher, a Kakao bot, an external
 [eve](relation-agent/) agent — talks to it the same way. Membership is authorized by a
 per-member Bearer token; a third party who only knows the URL is refused.
 
-Its memory is **OKF** — the folder tree *is* the database. Each relationship gets one bundle:
+Its memory is **OKF** ([Open Knowledge Format](app/src/lib/okf-store.ts)) — the folder tree *is* the database. Each relationship gets one bundle:
 a folder of Markdown (Overview, Timeline, People notes, Decisions, Open topics). The agent
 *writes* memories by appending to those files, and *answers* by reading them back with source
 links. Because a bundle is one folder gated by [`okf_acl`](app/src/lib/okf-acl.ts), the
