@@ -20,7 +20,7 @@ const PHOTO_DIR = path.join(HERE, "..", "public", "date", "web");
 const CACHE_FILE = path.join(HERE, "..", ".uploads-cache.json");
 // port-relative by default — the button resolves it against whatever host the
 // viewer is on (localhost tunnel, LAN IP), so no address is baked in
-const FACETIME = (process.env.FACETIME_URL ?? ":3111").replace(/\/$/, "");
+const VIDEOCALL = (process.env.VIDEOCALL_URL ?? ":3111").replace(/\/$/, "");
 
 let cookie = null;
 async function login() {
@@ -102,15 +102,15 @@ for (const rel of dash.relationships) {
     `Last date: ${ago(rel.daysSinceDate)}`,
   ].filter(Boolean);
   for (const p of pills) add("bulleted_list", { text: p }, right);
-  // FaceTime button — a real workspace BUTTON block whose action chain deep-links
-  // into the FaceTime app (?call=<first name> auto-starts the call)
+  // Video Call button — a real workspace BUTTON block whose action chain deep-links
+  // into the video call app (?call=<first name> auto-starts the call)
   const first = rel.name.split(" ")[0];
   add(
     "button",
     {
-      text: `FaceTime ${first}`,
+      text: `Video Call ${first}`,
       icon: "📞",
-      actions: [{ type: "open_url", url: `${FACETIME}/?call=${encodeURIComponent(first.toLowerCase())}` }],
+      actions: [{ type: "open_url", url: `${VIDEOCALL}/?call=${encodeURIComponent(first.toLowerCase())}` }],
     },
     right
   );

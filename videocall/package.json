@@ -1,0 +1,10 @@
+{
+  "name": "videocall-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Video call UI (zero dependencies)",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Video Call</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo",
+      "Malgun Gothic", "Helvetica Neue", sans-serif;
+    background: #1c1c1e;
+    color: #fff;
+    display: flex;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- sidebar ---- */
+  .sidebar {
+    width: 410px;
+    min-width: 410px;
+    height: 100%;
+    background: rgba(38, 38, 40, 0.88);
+    backdrop-filter: blur(40px);
+    display: flex;
+    flex-direction: column;
+    padding: 14px 24px 0;
+    position: relative;
+    z-index: 2;
+  }
+
+  .traffic { display: flex; gap: 8px; padding: 6px 0 18px; }
+  .traffic span { width: 13px; height: 13px; border-radius: 50%; }
+  .traffic .r { background: #ff5f57; }
+  .traffic .y { background: #febc2e; }
+  .traffic .g { background: #28c840; }
+
+  .actions { display: flex; gap: 10px; }
+  .btn {
+    flex: 1;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 0 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.2;
+  }
+  .btn svg { width: 18px; height: 16px; display: block; }
+  .btn.link { background: rgba(120, 120, 128, 0.28); }
+  .btn.link:hover { background: rgba(120, 120, 128, 0.4); }
+  .btn.new { background: #43ba4d; font-weight: 500; }
+  .btn.new:hover { background: #4cc957; }
+
+  .calls { flex: 1; overflow-y: auto; margin-top: 8px; padding-bottom: 20px; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 26px 0 4px 2px;
+  }
+  .call {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 2px;
+    border-radius: 8px;
+    cursor: default;
+  }
+  .call:hover { background: rgba(255, 255, 255, 0.06); }
+  .call-sep { height: 1px; background: rgba(255, 255, 255, 0.08); margin-left: 60px; }
+
+  .avatar-img {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+  }
+  .avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #9c9ca3 0%, #7c7c84 100%);
+    flex: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .avatar::before {
+    content: "";
+    position: absolute;
+    top: 9px; left: 50%;
+    transform: translateX(-50%);
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    top: 27px; left: 50%;
+    transform: translateX(-50%);
+    width: 30px; height: 20px;
+    border-radius: 50% 50% 0 0;
+    background: #fff;
+  }
+
+  .meta { flex: 1; min-width: 0; }
+  .name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .name.missed { color: #ff453a; }
+  .sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.55);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .sub svg { width: 14px; height: 14px; flex: none; opacity: 0.85; }
+
+  /* ---- New Video Call sheet (videocallSuggest.png reference) ---- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+  .sheet {
+    width: 560px;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    background: #161617;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    padding: 22px 26px 20px;
+  }
+  .sheet h2 { font-size: 17px; font-weight: 700; text-align: center; margin-bottom: 18px; }
+
+  .to-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(118, 118, 128, 0.20);
+    border-radius: 24px;
+    padding: 8px 8px 8px 16px;
+    min-height: 46px;
+    flex-wrap: wrap;
+  }
+  .to-row label { font-size: 15px; color: rgba(255, 255, 255, 0.55); }
+  .to-row input {
+    flex: 1;
+    min-width: 60px;
+    background: none;
+    border: none;
+    outline: none;
+    color: #fff;
+    caret-color: #30d158;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .token {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(48, 209, 88, 0.22);
+    color: #30d158;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 14px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .token:hover { background: rgba(255, 69, 58, 0.25); color: #ff453a; }
+  .plus-btn {
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 50%;
+    border: none;
+    background: rgba(118, 118, 128, 0.32);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .plus-btn:hover { background: rgba(118, 118, 128, 0.5); }
+
+  .suggested-title {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 20px 2px 16px;
+  }
+  .suggest-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    row-gap: 22px;
+    flex: 1;
+    min-height: 110px;
+    overflow-y: auto;
+  }
+  .person {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+  }
+  .person img {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid transparent;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .person:hover img { transform: scale(1.04); }
+  .person.selected img { border-color: #30d158; }
+  .person .p-name {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    max-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sheet-footer {
+    display: flex;
+    align-items: center;
+    margin-top: 22px;
+    gap: 10px;
+  }
+  .sheet-footer .spacer { flex: 1; }
+  .pill-btn {
+    border: none;
+    border-radius: 10px;
+    background: rgba(118, 118, 128, 0.28);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 18px;
+    cursor: pointer;
+  }
+  .pill-btn:hover { background: rgba(118, 118, 128, 0.42); }
+  .go-btn {
+    border: none;
+    border-radius: 10px;
+    background: #43ba4d;
+    color: #fff;
+    padding: 9px 26px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .go-btn.enabled { opacity: 1; pointer-events: auto; }
+  .go-btn:hover { background: #4cc957; }
+  .go-btn svg { width: 20px; height: 17px; }
+
+  .lang-toggle {
+    position: fixed;
+    top: 14px;
+    right: 16px;
+    z-index: 20;
+    display: flex;
+    gap: 4px;
+    background: rgba(118, 118, 128, 0.28);
+    border-radius: 7px;
+    padding: 3px;
+  }
+  .lang-toggle button {
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.65);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .lang-toggle button.active { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+  /* ---- in-call: takes over the WHOLE window like a real macOS video call app ---- */
+  .call-view {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: none;
+    z-index: 30;
+  }
+  .call-view.active { display: block; }
+
+  .call-topbar {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 6;
+  }
+  .call-topbar .traffic { padding: 0; }
+  .name-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(20, 20, 22, 0.55);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 4px 12px 4px 5px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: default;
+  }
+  .name-pill img {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .name-pill .chev { color: rgba(255, 255, 255, 0.55); font-size: 12px; }
+  .share-circle {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: #fff;
+    cursor: pointer;
+    z-index: 6;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 2;
+    background: radial-gradient(120% 90% at 50% 20%, #2c2c30 0%, #101012 70%);
+  }
+  .call-view.ringing .ring-center { display: flex; }
+  .ring-stack { display: flex; }
+  .ring-stack img {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #101012;
+    margin-left: -18px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  .ring-stack img:first-child { margin-left: 0; }
+  .ring-name { font-size: 20px; font-weight: 600; max-width: 70%; text-align: center; }
+  .ring-status { font-size: 14px; color: rgba(255, 255, 255, 0.7); }
+
+  .tiles {
+    position: absolute;
+    inset: 0;
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 4px;
+    padding: 4px;
+  }
+  .call-view.connected .tiles { display: grid; }
+  .tiles.solo { padding: 0; gap: 0; }
+  .tiles.solo .tile { border-radius: 0; }
+  .tiles.solo .tile .tile-name { display: none; }
+  .tile {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #1a1a1c;
+    opacity: 0;
+    transform: scale(0.92);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .tile.joined { opacity: 1; transform: scale(1); }
+  /* video-off style (Google Meet-like): blurred backdrop + centered circular avatar */
+  .tile .tile-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(46px) brightness(0.32) saturate(0.9);
+    transform: scale(1.2);
+  }
+  .tile .tile-avatar {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(38%, 120px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+  .tile .tile-name {
+    position: absolute;
+    left: 8px;
+    bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(14px);
+    padding: 3px 9px;
+    border-radius: 6px;
+  }
+  .tile.speaking { outline: 3px solid rgba(255, 255, 255, 0.85); outline-offset: -3px; }
+
+  .pip {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    width: 170px;
+    aspect-ratio: 4/3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+    z-index: 3;
+    background: #222;
+    display: none;
+  }
+  .call-view.connected .pip { display: block; }
+  .pip video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .pip .pip-fallback {
+    position: absolute; inset: 0;
+    background: radial-gradient(100% 80% at 50% 20%, #3c3c40, #131315);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.35); font-size: 11px;
+  }
+
+  /* bottom-right control cluster (green cam / orange mic / grey … / red X) */
+  .controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    gap: 10px;
+    z-index: 6;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .call-view:hover .controls, .call-view.ringing .controls { opacity: 1; }
+  .ctrl {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+  .ctrl.cam { background: #30d158; }
+  .ctrl.cam:hover { background: #43dd68; }
+  .ctrl.mic { background: #ff9f0a; }
+  .ctrl.mic:hover { background: #ffb03a; }
+  .ctrl.more { background: #ff453a; opacity: 0.92; background: rgba(120,120,128,0.85); }
+  .ctrl.more:hover { background: rgba(150,150,158,0.9); }
+  .ctrl.end { background: #ff3b30; }
+  .ctrl.end:hover { background: #ff5e54; }
+  .ctrl.off { background: rgba(120, 120, 128, 0.6); }
+  .ctrl svg { width: 18px; height: 18px; }
+
+  /* ---- idle camera pane ---- */
+  .stage { flex: 1; position: relative; background: #000; }
+  .stage > video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+  .stage .fallback {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 60% 10%, #3a3a3e 0%, #151517 55%, #0a0a0b 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+
+    <div class="actions">
+      <button class="btn link" id="sideCreateLink">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.4"/>
+          <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.32-1.3"/>
+        </svg>
+        <span id="sideCreateLinkLabel">Create Link</span>
+      </button>
+      <button class="btn new">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="2" y="6" width="13" height="12" rx="3"/>
+          <path d="M16.5 10.5 21 7.5a.8.8 0 0 1 1.2.7v7.6a.8.8 0 0 1-1.2.7l-4.5-3z"/>
+        </svg>
+        <span id="sideNewLabel">New Video Call</span>
+      </button>
+    </div>
+
+    <div class="calls" id="calls"></div>
+  </aside>
+
+  <div class="lang-toggle" id="langToggle">
+    <button data-lang="en" class="active">EN</button>
+    <button data-lang="pt">PT</button>
+  </div>
+
+  <!-- New Video Call sheet -->
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <h2 id="sheetTitle">New Video Call</h2>
+      <div class="to-row" id="toRow">
+        <label id="toLabel">To:</label>
+        <input id="toInput" autocomplete="off" />
+        <button class="plus-btn" id="plusBtn">+</button>
+      </div>
+      <div class="suggested-title" id="suggestedTitle">Suggested</div>
+      <div class="suggest-grid" id="suggestGrid"></div>
+      <div class="sheet-footer">
+        <button class="pill-btn" id="createLinkBtn">Create Link</button>
+        <div class="spacer"></div>
+        <button class="pill-btn" id="cancelBtn">Cancel</button>
+        <button class="go-btn" id="goBtn">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <rect x="2" y="6" width="13" height="12" rx="3"/>
+            <path d="M16.5 10.5 21 7.5a.8.8 0 0 1 1.2.7v7.6a.8.8 0 0 1-1.2.7l-4.5-3z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="stage">
+    <div class="fallback" id="fallback">Camera Unavailable</div>
+    <video id="preview" autoplay playsinline muted hidden></video>
+
+    <div class="call-view" id="callView">
+      <div class="call-topbar">
+        <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="name-pill">
+          <img id="pillAvatar" src="/gfs/emma.png" alt="" />
+          <span id="pillName">Emma</span>
+          <span class="chev">›</span>
+        </div>
+      </div>
+      <button class="share-circle" title="SharePlay"></button>
+      <div class="ring-center">
+        <div class="ring-stack" id="ringStack"></div>
+        <div class="ring-name" id="ringName"></div>
+        <div class="ring-status" id="ringStatus">Calling…</div>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="pip">
+        <div class="pip-fallback">No Camera</div>
+        <video id="pipVideo" autoplay playsinline muted hidden></video>
+      </div>
+      <div class="controls">
+        <button class="ctrl cam" id="camBtn" title="Camera">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="13" height="12" rx="3"/><path d="M16.5 10.5 21 7.5a.8.8 0 0 1 1.2.7v7.6a.8.8 0 0 1-1.2.7l-4.5-3z"/></svg>
+        </button>
+        <button class="ctrl mic" id="micBtn" title="Mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="ctrl more" title="More">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        <button class="ctrl end" id="endBtn" title="End">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+<script>
+  // ---- data ----
+  const GIRLFRIENDS = [
+    { id: "emma", name: "Emma" },
+    { id: "sophia", name: "Sophia" },
+    { id: "luna", name: "Luna" },
+    { id: "olivia", name: "Olivia" },
+    { id: "mia", name: "Mia Collins" },
+    { id: "hannah", name: "Hannah Brooks" },
+    { id: "maya", name: "Maya Sterling" },
+    { id: "riley", name: "Riley Vance" },
+    { id: "zoe", name: "Zoe Harrison" },
+    { id: "sophie", name: "Sophie Miller" },
+  ];
+  const img = (id) => `/gfs/${id}.png`;
+
+  // ---- i18n (real macOS strings) ----
+  const I18N = {
+    en: {
+      title: "New Video Call", to: "To:", suggested: "Suggested",
+      createLink: "Create Link", cancel: "Cancel",
+      ringing: "Calling…", connecting: "Connecting…",
+      sideLink: "Create Link", sideNew: "New Video Call",
+      people: (n) => `${n} people`,
+      sections: { today: "Today", yesterday: "Yesterday", lastWeek: "Last Week" },
+      kinds: { video: "Video Call", audio: "Audio Call" },
+      noCamera: "Camera Unavailable", noCameraShort: "No Camera",
+      time: ({ h, m }) => {
+        const ampm = h < 12 ? "AM" : "PM";
+        const hh = h % 12 === 0 ? 12 : h % 12;
+        return `${hh}:${String(m).padStart(2, "0")} ${ampm}`;
+      },
+      date: (iso) => {
+        const [y, mo, d] = iso.split("-").map(Number);
+        return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][mo - 1]} ${d}, ${y}`;
+      },
+    },
+    pt: {
+      title: "Nova Chamada", to: "Para:", suggested: "Sugestões",
+      createLink: "Criar Link", cancel: "Cancelar",
+      ringing: "Calling…", connecting: "Conectando…",
+      sideLink: "Criar Link", sideNew: "Nova Chamada",
+      people: (n) => `${n} pessoas`,
+      sections: { today: "Hoje", yesterday: "Ontem", lastWeek: "Semana Passada" },
+      kinds: { video: "Chamada de Vídeo", audio: "Chamada de Áudio" },
+      noCamera: "Câmera Indisponível", noCameraShort: "Sem Câmera",
+      time: ({ h, m }) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      date: (iso) => {
+        const [y, mo, d] = iso.split("-").map(Number);
+        return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`;
+      },
+    },
+  };
+  let lang = "en";
+  function applyLang() {
+    const t = I18N[lang];
+    document.getElementById("sheetTitle").textContent = t.title;
+    document.getElementById("toLabel").textContent = t.to;
+    document.getElementById("suggestedTitle").textContent = t.suggested;
+    document.getElementById("createLinkBtn").textContent = t.createLink;
+    document.getElementById("cancelBtn").textContent = t.cancel;
+    document.getElementById("sideCreateLinkLabel").textContent = t.sideLink;
+    document.getElementById("sideNewLabel").textContent = t.sideNew;
+    document.getElementById("fallback").textContent = t.noCamera;
+    document.querySelector(".pip-fallback").textContent = t.noCameraShort;
+    document.querySelectorAll("#langToggle button").forEach(b =>
+      b.classList.toggle("active", b.dataset.lang === lang));
+    if (typeof renderCalls === "function") renderCalls();
+  }
+  document.getElementById("langToggle").addEventListener("click", (e) => {
+    if (e.target.dataset.lang) { lang = e.target.dataset.lang; applyLang(); }
+  });
+
+  // ---- recents sidebar ----
+  const camIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="13" height="12" rx="3"/><path d="M16.5 10.5 21 7.5a.8.8 0 0 1 1.2.7v7.6a.8.8 0 0 1-1.2.7l-4.5-3z"/></svg>`;
+  const missedIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.13.96.36 1.9.7 2.8a2 2 0 0 1-.45 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.45c.9.34 1.84.57 2.8.7a2 2 0 0 1 1.7 2.05z"/><path d="m16 3 5 5m0-5-5 5"/></svg>`;
+
+  let callsData = [];
+  function renderCalls() {
+    const t = I18N[lang];
+    const root = document.getElementById("calls");
+    root.innerHTML = "";
+    let section = null;
+    callsData.forEach((c) => {
+      if (c.section !== section) {
+        section = c.section;
+        const h = document.createElement("div");
+        h.className = "section-title";
+        h.textContent = t.sections[section] || section;
+        root.appendChild(h);
+      } else {
+        const sep = document.createElement("div");
+        sep.className = "call-sep";
+        root.appendChild(sep);
+      }
+      const row = document.createElement("div");
+      row.className = "call";
+      row.innerHTML = `
+        ${c.avatar ? `<img class="avatar-img" src="${c.avatar}" alt="" />` : `<div class="avatar"></div>`}
+        <div class="meta">
+          <div class="name${c.missed ? " missed" : ""}"></div>
+          <div class="sub">${c.missed ? missedIcon : camIcon}<span></span></div>
+        </div>`;
+      row.querySelector(".name").textContent = c.name;
+      const when = c.when.date ? t.date(c.when.date) : t.time(c.when);
+      row.querySelector(".sub span").textContent = `${t.kinds[c.kind]} · ${when}`;
+      root.appendChild(row);
+    });
+  }
+  fetch("/api/calls").then(r => r.json()).then(({ calls }) => {
+    callsData = calls;
+    renderCalls();
+  });
+  applyLang();
+
+  // ---- New Video Call sheet ----
+  const overlay = document.getElementById("overlay");
+  const toRow = document.getElementById("toRow");
+  const toInput = document.getElementById("toInput");
+  const goBtn = document.getElementById("goBtn");
+  const grid = document.getElementById("suggestGrid");
+  const selected = new Set();
+
+  GIRLFRIENDS.forEach((g) => {
+    const p = document.createElement("div");
+    p.className = "person";
+    p.dataset.id = g.id;
+    p.innerHTML = `<img src="${img(g.id)}" alt="" /><div class="p-name"></div>`;
+    p.querySelector(".p-name").textContent = g.name;
+    p.addEventListener("click", () => togglePerson(g.id));
+    grid.appendChild(p);
+  });
+
+  function togglePerson(id) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    renderSelection();
+  }
+  function renderSelection() {
+    toRow.querySelectorAll(".token").forEach(t => t.remove());
+    [...selected].forEach((id) => {
+      const g = GIRLFRIENDS.find(x => x.id === id);
+      const tok = document.createElement("span");
+      tok.className = "token";
+      tok.textContent = g.name;
+      tok.title = "remove";
+      tok.addEventListener("click", () => togglePerson(id));
+      toInput.before(tok);
+    });
+    grid.querySelectorAll(".person").forEach(p =>
+      p.classList.toggle("selected", selected.has(p.dataset.id)));
+    updateGo();
+  }
+  function updateGo() {
+    goBtn.classList.toggle("enabled", selected.size > 0 || toInput.value.trim().length > 0);
+  }
+  toInput.addEventListener("input", updateGo);
+  document.getElementById("plusBtn").addEventListener("click", () => toInput.focus());
+
+  function openSheet() {
+    overlay.classList.add("open");
+    applyLang();
+    toInput.value = "";
+    selected.clear();
+    renderSelection();
+    toInput.focus();
+  }
+  function closeSheet() { overlay.classList.remove("open"); }
+  document.querySelector(".btn.new").addEventListener("click", openSheet);
+  document.getElementById("cancelBtn").addEventListener("click", closeSheet);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeSheet(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+
+  // ---- fake group call ----
+  const callView = document.getElementById("callView");
+  const ringStatus = document.getElementById("ringStatus");
+  const pipVideo = document.getElementById("pipVideo");
+  let callTimers = [];
+  let speakTimer = null;
+  let ringAudio = null;
+
+  function startRingtone() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(ctx.destination);
+      const o1 = ctx.createOscillator(); o1.frequency.value = 440;
+      const o2 = ctx.createOscillator(); o2.frequency.value = 480;
+      o1.connect(gain); o2.connect(gain);
+      o1.start(); o2.start();
+      const beep = () => {
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0.06, t);
+        gain.gain.setValueAtTime(0, t + 1.2);
+      };
+      beep();
+      const iv = setInterval(beep, 3000);
+      ringAudio = { ctx, iv };
+    } catch { /* no audio */ }
+  }
+  function stopRingtone() {
+    if (!ringAudio) return;
+    clearInterval(ringAudio.iv);
+    ringAudio.ctx.close();
+    ringAudio = null;
+  }
+
+  function startCall(members) {
+    closeSheet();
+    // ringing screen: stacked avatars + names
+    const stack = document.getElementById("ringStack");
+    stack.innerHTML = "";
+    members.slice(0, 5).forEach((g) => {
+      const im = document.createElement("img");
+      im.src = img(g.id);
+      stack.appendChild(im);
+    });
+    const names = members.map(g => g.name.split(" ")[0]);
+    const displayName =
+      members.length > 3 ? `${names.slice(0, 3).join(", ")} & ${I18N[lang].people(members.length - 3)}` : names.join(", ");
+    document.getElementById("ringName").textContent = displayName;
+    document.getElementById("pillName").textContent = displayName;
+    document.getElementById("pillAvatar").src = img(members[0].id);
+    ringStatus.textContent = I18N[lang].ringing;
+    callView.classList.add("active", "ringing");
+    callView.classList.remove("connected");
+    startRingtone();
+
+    // build tiles (hidden until connected)
+    const tiles = document.getElementById("tiles");
+    tiles.innerHTML = "";
+    tiles.classList.toggle("solo", members.length === 1);
+    const cols = members.length === 1 ? 1 : members.length <= 4 ? 2 : members.length <= 9 ? 3 : 4;
+    tiles.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    members.forEach((g) => {
+      const t = document.createElement("div");
+      t.className = "tile";
+      t.innerHTML = `<img class="tile-bg" src="${img(g.id)}" alt="" /><img class="tile-avatar" src="${img(g.id)}" alt="" /><div class="tile-name"></div>`;
+      t.querySelector(".tile-name").textContent = g.name;
+      tiles.appendChild(t);
+    });
+
+    callTimers.push(setTimeout(() => { ringStatus.textContent = I18N[lang].connecting; }, 2200));
+    callTimers.push(setTimeout(() => {
+      stopRingtone();
+      callView.classList.remove("ringing");
+      callView.classList.add("connected");
+      if (video.srcObject) {
+        pipVideo.srcObject = video.srcObject;
+        pipVideo.hidden = false;
+      }
+      // members "join" one by one
+      [...tiles.children].forEach((t, i) => {
+        callTimers.push(setTimeout(() => t.classList.add("joined"), 200 + i * 350));
+      });
+      // random speaking highlight
+      speakTimer = setInterval(() => {
+        const kids = [...tiles.children];
+        kids.forEach(k => k.classList.remove("speaking"));
+        const joined = kids.filter(k => k.classList.contains("joined"));
+        if (joined.length) joined[Math.floor(Math.random() * joined.length)].classList.add("speaking");
+      }, 1800);
+    }, 4000));
+  }
+
+  function endCall() {
+    callTimers.forEach(clearTimeout);
+    callTimers = [];
+    clearInterval(speakTimer);
+    stopRingtone();
+    callView.classList.remove("active", "ringing", "connected");
+  }
+  document.getElementById("endBtn").addEventListener("click", endCall);
+  document.getElementById("micBtn").addEventListener("click", (e) => e.currentTarget.classList.toggle("off"));
+  document.getElementById("camBtn").addEventListener("click", (e) => {
+    const off = e.currentTarget.classList.toggle("off");
+    pipVideo.style.visibility = off ? "hidden" : "visible";
+  });
+  goBtn.addEventListener("click", () => {
+    const members = GIRLFRIENDS.filter(g => selected.has(g.id));
+    startCall(members.length ? members : [GIRLFRIENDS[0]]);
+  });
+
+  // ---- deep link: ?call=<id|name> starts that call on load ----
+  const callParam = new URLSearchParams(location.search).get("call");
+  if (callParam) {
+    const q = callParam.toLowerCase();
+    const target = GIRLFRIENDS.find(g => g.id === q || g.name.toLowerCase().startsWith(q));
+    if (target) setTimeout(() => startCall([target]), 500);
+  }
+
+  // ---- idle camera ----
+  const video = document.getElementById("preview");
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+        video.hidden = false;
+        document.getElementById("fallback").style.display = "none";
+      })
+      .catch(() => {});
+  }
+</script>
+</body>
+</html>

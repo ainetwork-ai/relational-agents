@@ -36,7 +36,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { type: "file", label: "File", keywords: "file attachment upload", hint: "Upload any file" , category: "media", glyph: "📎" },
   { type: "ai_prompt", label: "Ask AI", keywords: "ai ask write draft assistant gpt gemma", hint: "Draft content with the local AI" , category: "ai", glyph: "✨" },
   { type: "equation", label: "Block equation", keywords: "equation math tex latex katex", hint: "Display a TeX equation" , category: "basic", md: "$$", glyph: "Σ" },
-  { type: "button", label: "Button", keywords: "button click action automation trigger facetime", hint: "Run actions on click" , category: "advanced", glyph: "▶" },
+  { type: "button", label: "Button", keywords: "button click action automation trigger videocall", hint: "Run actions on click" , category: "advanced", glyph: "▶" },
   { type: "template_button", label: "Template button", keywords: "template button repeat duplicate", hint: "Insert preset blocks on click" , category: "advanced", glyph: "＋" },
   { type: "code", label: "Code", keywords: "code snippet monospace", hint: "Code with syntax" , category: "basic", md: "```", glyph: "</>" },
   { type: "callout", label: "Callout", keywords: "callout info banner note", hint: "Make it stand out" , category: "basic", glyph: "💡" },

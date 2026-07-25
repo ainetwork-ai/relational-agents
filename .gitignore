@@ -23,8 +23,8 @@ app/public/avatars/
 dashboard/public/avatars/
 dashboard/public/date/
 dashboard/public/source/
-facetime/public/gf.png
-facetime/public/gfs/
+videocall/public/gf.png
+videocall/public/gfs/
 dashboard/.uploads-cache.json
 .claude/scheduled_tasks.lock
 memory-data/content/Relationship doc*/

@@ -1,4 +1,4 @@
-// Add per-card action buttons to Relationship Records: "Call" (FaceTime
+// Add per-card action buttons to Relationship Records: "Call" (video call
 // deep-link, port-relative) and "Message" (placeholder → the record document
 // until the messenger ships). Gallery cards render visible url properties as
 // footer buttons, so this is pure data + view config.
@@ -7,7 +7,7 @@
 
 const BASE = (process.env.MEMORY_BASE_URL || "http://localhost:36625").replace(/\/$/, "");
 const DASH = (process.env.DASH_URL || "http://localhost:3110").replace(/\/$/, "");
-const FACETIME = (process.env.FACETIME_URL ?? ":3111").replace(/\/$/, "");
+const VIDEOCALL = (process.env.VIDEOCALL_URL ?? ":3111").replace(/\/$/, "");
 
 let cookie = null;
 async function login() {
@@ -49,7 +49,7 @@ for (const rel of dash.relationships) {
   const first = rel.name.split(" ")[0].toLowerCase();
   await api("PATCH", `/api/databases/${dbId}/rows/${row.id}`, {
     values: {
-      [prop("Call").id]: `${FACETIME}/?call=${encodeURIComponent(first)}`,
+      [prop("Call").id]: `${VIDEOCALL}/?call=${encodeURIComponent(first)}`,
       // messenger is still in development — route to the record doc for now
       [prop("Message").id]: `/p/${rel.rowId}`,
     },
