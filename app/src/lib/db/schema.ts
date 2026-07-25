@@ -607,6 +607,24 @@ export const chatRooms = pgTable("chat_rooms", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 관계 에이전트 계약 — "두 사람이 서명해야 에이전트가 태어난다"의 서명 원본.
+// 방 멤버 각자가 지갑(EIP-191 personal_sign)으로 계약문에 서명하면 한 행씩 쌓이고,
+// 전원 서명 시 chat_rooms.consentAt이 찍힌다. 계약문/서명을 그대로 보존해
+// 사후 재검증이 가능하다.
+export const relationContracts = pgTable(
+  "relation_contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    address: text("address").notNull(), // 서명 당시 지갑 주소 (소문자)
+    message: text("message").notNull(), // 서명한 계약문 원문
+    signature: text("signature").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("relation_contracts_room_user").on(t.roomId, t.userId)]
+);
+
 // DM 멤버십 + 읽음 상태. (roomId,userId) 복합 유니크 — id 컬럼 없음(workspace_members 패턴).
 export const chatRoomMembers = pgTable(
   "chat_room_members",
