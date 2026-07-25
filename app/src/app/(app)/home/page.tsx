@@ -124,13 +124,13 @@ function WorkspaceSections() {
               disabled={switching !== null}
               className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800/60"
             >
-              <div className="flex h-36 items-center justify-center overflow-hidden border-b border-neutral-100 bg-neutral-50/80 dark:border-neutral-700/60 dark:bg-neutral-800">
+              <div className="flex h-52 items-center justify-center overflow-hidden border-b border-neutral-100 bg-neutral-50/80 dark:border-neutral-700/60 dark:bg-neutral-800">
                 {w.iconUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={w.iconUrl}
                     alt={w.name}
-                    className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.03]"
+                    className="h-full w-full object-cover object-[center_30%] transition-transform group-hover:scale-[1.03]"
                   />
                 ) : (
                   <WsTile w={w} />
@@ -212,13 +212,16 @@ function Section({
   );
 }
 
+const DEFAULT_COVER = "/covers/home-cover.png";
+
 /** Home: greeting + workspace picker (visited / all, workspace-unit — pages
  *  only appear via Favorites, which are deliberate pins). */
 export default function HomePage() {
   const pages = usePagesStore((s) => s.pages);
   const load = usePagesStore((s) => s.load);
   const [now] = useState(() => new Date());
-  const [me, setMe] = useState<string | null>(null);
+  const [me, setMe] = useState<{ name: string | null; homeCoverUrl: string | null } | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
 
   useEffect(() => {
     void load();
@@ -228,11 +231,42 @@ export default function HomePage() {
     let alive = true;
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((d) => alive && setMe(d?.user?.displayName ?? null));
+      .then(
+        (d) =>
+          alive &&
+          setMe({ name: d?.user?.displayName ?? null, homeCoverUrl: d?.user?.homeCoverUrl ?? null })
+      );
     return () => {
       alive = false;
     };
   }, []);
+
+ // the cover is a per-user DB setting (users.home_cover_url): upload → PATCH
+  async function saveCover(homeCoverUrl: string) {
+    const res = await fetch("/api/auth/me", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ homeCoverUrl }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setMe((m) => (m ? { ...m, homeCoverUrl: d?.user?.homeCoverUrl ?? null } : m));
+    }
+  }
+
+  async function uploadCover(file: File) {
+    setCoverBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) return;
+      const { url } = await res.json();
+      if (typeof url === "string") await saveCover(url);
+    } finally {
+      setCoverBusy(false);
+    }
+  }
 
   const all = useMemo(() => Object.values(pages).filter((p) => !p.isArchived), [pages]);
   const favorites = all.filter((p) => p.isFavorite).slice(0, 8);
@@ -242,11 +276,58 @@ export default function HomePage() {
     hour < 6 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <div data-testid="home-dashboard" className="mx-auto max-w-4xl px-8 pb-16 pt-[18vh]">
+    <div data-testid="home-dashboard" className="pb-16">
+      {/* dashboard cover — per-user (users.home_cover_url; demo Chanho ships
+          with the azulejo one), falling back to the default generated banner.
+          Rendered only once /api/auth/me resolves, so a custom cover never
+          flashes the default first. */}
+      <div data-testid="home-cover" className="group/cover relative h-44 w-full overflow-hidden sm:h-56">
+        {me && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={me.homeCoverUrl || DEFAULT_COVER}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/60 dark:to-[#191919]/80" />
+        {me && (
+          <div className="absolute right-4 top-3 flex gap-1.5 opacity-0 transition-opacity group-hover/cover:opacity-100">
+            <label
+              data-testid="home-cover-change"
+              className={`cursor-pointer rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800 ${coverBusy ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {coverBusy ? "Uploading…" : "Change cover"}
+              <input
+                data-testid="home-cover-input"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void uploadCover(f);
+                }}
+              />
+            </label>
+            {me.homeCoverUrl && (
+              <button
+                data-testid="home-cover-reset"
+                onClick={() => void saveCover("")}
+                disabled={coverBusy}
+                className="rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white disabled:opacity-60 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="mx-auto max-w-4xl px-8 pt-10">
       <div className="mb-10">
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           {greeting}
-          {me ? `, ${me}!` : ""}
+          {me?.name ? `, ${me.name}!` : ""}
         </h1>
         <p className="mt-1 text-2xl font-bold text-neutral-300 dark:text-neutral-600">
           Ready to pick a workspace?
@@ -254,6 +335,7 @@ export default function HomePage() {
       </div>
       <WorkspaceSections />
       <Section icon={<Star size={12} />} title="Favorites" items={favorites} prefix="home-fav" />
+      </div>
     </div>
   );
 }
