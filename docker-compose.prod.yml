@@ -1,0 +1,57 @@
+# Production stack for memory.ainetwork.ai.
+#
+# Deliberately a separate file and a separate compose project from
+# docker-compose.yml: `docker compose up` during development must never touch
+# what is live. Run it explicitly:
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+name: memory-live
+
+services:
+  app:
+    image: memory-live-app:${APP_TAG:-latest}
+    build:
+      context: ./app
+      args:
+        NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS: ${NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS}
+        NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID: ${NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - /mnt/newdata/deploy/memory-live.env
+    environment:
+      # Inside the compose network the DB is a service name, not a host port.
+      POSTGRES_URL: postgresql://memory_live:${POSTGRES_PASSWORD}@postgres:5432/memory_live
+      OKF_ROOT: /data/okf
+      MD_MIRROR_ROOT: /data/md-mirror
+    volumes:
+      # The OKF tree IS the content database and the app writes to it, so it is
+      # a bind mount — inspectable from the host, and recoverable into git.
+      - /mnt/newdata/deploy/memory-live-content:/data/okf
+      - memory_live_mdmirror:/data/md-mirror
+    ports:
+      # Loopback only; nginx terminates TLS and proxies here.
+      - "127.0.0.1:3120:3000"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: memory_live
+      POSTGRES_USER: memory_live
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - memory_live_pgdata:/var/lib/postgresql/data
+    # No published port: dev tooling cannot reach this database by accident.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memory_live -d memory_live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  memory_live_pgdata:
+  memory_live_mdmirror:

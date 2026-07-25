@@ -1,0 +1,14 @@
+# The build context is app/ only — the 2.7GB backup/ tree and the sibling
+# services (dashboard, videocall, sui) never reach the daemon at all.
+node_modules
+.next
+.next-*
+.env
+.env.*
+!.env.example
+e2e
+test-results
+playwright-report
+.omc
+okf-fs
+*.log
