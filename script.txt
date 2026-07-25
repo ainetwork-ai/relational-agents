@@ -19,3 +19,5 @@ The agent that remembers Hannah's night in Lisbon isn't in this room.
 A relationship ends the way it began — by consent. One person leaves and signs; only when the other signs too does the room close. The record and the agent remain, sealed.
 
 And this is Chanho's home — he is successfully managing ten different women, each with her own relational agent, tracking the dating progress with every one of them.
+
+We made this demo for fun — but the idea is serious. We didn't build an agent that replaces humans. We built one that lives inside a relationship, holding its memory where it belongs — so agents and humans keep company together, and there is less to misunderstand, less to fight about, between human and human. You see me, therefore I am.
