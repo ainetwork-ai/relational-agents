@@ -19,7 +19,6 @@ md-mirror/
 # personal/runtime data — caches, raw originals, generated content.
 # 앱이 런타임에 참조하는 이미지(app/public/uploads, dashboard avatars,
 # date/web, facetime gf*)는 커밋한다 — 리모트 없는 repo라 git이 유일한 백업.
-relation-agent/
 dashboard/.uploads-cache.json
 dashboard/public/date/*.heic
 dashboard/public/source/
