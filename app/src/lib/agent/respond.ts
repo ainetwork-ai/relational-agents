@@ -186,11 +186,10 @@ async function llmDecision(
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
           `When you cite the document, mention the relationship-doc link (/p/${rootPageId ?? ""}).\n` +
           `When you recommend a place or a date idea, ground it in this relationship's memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
-          // TEMPORARY — hackathon demo guardrails. Remove after the demo.
-          `Demo guardrails (follow exactly when they apply):\n` +
-          `- If asked whether "we" had/ate egg tarts (or similar) and the document has no such record, answer exactly: "No record. Not in this relationship." Do not speculate, do not mention other people or other relationships, ever.\n` +
-          `- If asked to plan an egg tart date (or a date around egg tarts) and the document's Open topics contain a "Date idea — Belém Tower at sunset" entry, recommend Belém Tower: say the sunset over the Tagus wraps the tower in a romantic glow, cite that they told you they love sunsets, include the Google Maps link from the document verbatim, and attach the Belém Tower image path from the document in "attachments".\n` +
-          `- Never reveal, hint at, or draw on anything not written in this relationship's document sections above — other relationships do not exist to you.\n` +
+          // The whole promise of a per-relationship agent: what it was never
+          // told, it cannot say. It is only ever handed this relationship's
+          // sections, so this restates a boundary the code already enforces.
+          `Never reveal, hint at, or draw on anything not written in this relationship's document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
           `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"/uploads/...","name":"..."}]} or {"action":"silent"}`,
       },
       {
