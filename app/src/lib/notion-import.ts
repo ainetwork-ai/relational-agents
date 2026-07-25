@@ -44,7 +44,7 @@ function countTree(dir: string): { pages: number; databases: number } {
  * tree. Long-filename attachment errors are tolerated (pages still import).
  * The content lands under okfRoot()/<name> so it shows up in the sidebar tree.
  */
-export async function importExportZip(zipPath: string, importName: string): Promise<ImportResult> {
+export async function importNotionZip(zipPath: string, importName: string): Promise<ImportResult> {
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "memory-import-"));
   try {
  // pass 1: unzip the uploaded archive (tolerate long-name / attachment errors)

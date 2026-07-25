@@ -3,7 +3,7 @@ import { writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { requireAuth } from "@/lib/auth/middleware";
-import { importExportZip } from "@/lib/memory-import";
+import { importNotionZip } from "@/lib/notion-import";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   await writeFile(tmpZip, Buffer.from(await file.arrayBuffer()));
 
   try {
-    const result = await importExportZip(tmpZip, file.name);
+    const result = await importNotionZip(tmpZip, file.name);
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json(

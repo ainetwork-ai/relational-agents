@@ -27,6 +27,6 @@ facetime/public/gf.png
 facetime/public/gfs/
 dashboard/.uploads-cache.json
 .claude/scheduled_tasks.lock
-notion-data/content/Relationship doc*/
-notion-data/content/Relationships.csv
-notion-data/content/demo.md
+memory-data/content/Relationship doc*/
+memory-data/content/Relationships.csv
+memory-data/content/demo.md

@@ -339,7 +339,7 @@ t(
   { path: z.string().describe("local file path"), kind: z.string().optional() },
   async (a) => api("POST", "/upload", { form: await formFromFile(a.path, a.kind ? { kind: a.kind } : {}) })
 );
-t("import_export_zip", "Import a workspace export .zip into the OKF content root", { path: z.string() }, async (a) =>
+t("import_notion_zip", "Import a Notion export .zip into the OKF content root", { path: z.string() }, async (a) =>
   api("POST", "/import", { form: await formFromFile(a.path) })
 );
 t("notifications_list", "List notifications", {}, () => api("GET", "/notifications"));
