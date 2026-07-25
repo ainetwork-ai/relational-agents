@@ -533,11 +533,15 @@ export function DmView({ roomId }: { roomId: string }) {
       {/* Header — leave room on the left so the fixed mobile hamburger (MobileNavToggle) does not overlap */}
       <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
         <div className="flex -space-x-2" data-testid="dm-members" aria-label="Room members">
-          {members.slice(0, 4).map((m) => (
-            <span key={m.id} className="rounded-full ring-2 ring-white dark:ring-neutral-950">
-              <DmAvatar user={m} size={28} />
-            </span>
-          ))}
+          {/* humans lead the stack; the agent tags along at the end */}
+          {[...members]
+            .sort((a, b) => Number(a.isAgent) - Number(b.isAgent))
+            .slice(0, 4)
+            .map((m) => (
+              <span key={m.id} className="rounded-full ring-2 ring-white dark:ring-neutral-950">
+                <DmAvatar user={m} size={28} />
+              </span>
+            ))}
         </div>
 
         {renaming ? (
@@ -729,7 +733,9 @@ export function DmView({ roomId }: { roomId: string }) {
                   className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   {!mine && (
-                    <span className="w-7 shrink-0">
+                    // top-aligned so the face sits beside the sender name,
+                    // not dangling at the bubble's bottom edge
+                    <span className="w-7 shrink-0 self-start">
                       {!grouped && author && <DmAvatar user={author} size={26} />}
                     </span>
                   )}
