@@ -6,7 +6,7 @@ import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useSpeechTranscript } from "@/hooks/use-speech-transcript";
-import { CallChatPanel } from "@/components/call/call-chat-panel";
+import { DmView } from "@/app/(app)/dm/[roomId]/dm-view";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import type { DmUser } from "@/stores/dm-rooms";
 
@@ -63,8 +63,12 @@ export function CallView({ roomId }: { roomId: string }) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const offerDoneRef = useRef(false); // caller: offer posted / callee: offer answered
-  const answerDoneRef = useRef(false); // caller: answer applied
+  const offerPostedRef = useRef(false); // caller: my offer went out
+  // idempotency by CONTENT, not a boolean: joining a leftover call means the
+  // stored SDP can be replaced mid-flight (a fresh caller re-offers), and a
+  // boolean would refuse to answer the new offer — stuck on "Connecting…"
+  const answeredOfferRef = useRef<string | null>(null); // callee: offer sdp I answered
+  const appliedAnswerRef = useRef<string | null>(null); // caller: answer sdp I applied
   const syncingRef = useRef(false);
   const endedRef = useRef(false);
 
@@ -101,9 +105,15 @@ export function CallView({ roomId }: { roomId: string }) {
 
   const ensurePc = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
-    // STUN so srflx candidates exist — host-only works same-machine, but a
-    // two-device demo needs at least a reflexive path
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    // STUN for a reflexive path (different routers), TURN as the relay of
+    // last resort (symmetric NATs) — free openrelay tier, demo-grade only
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+      ],
+    });
     const stream = await ensureLocalStream();
     for (const track of stream.getTracks()) pc.addTrack(track, stream);
     pc.ontrack = (ev) => {
@@ -169,8 +179,8 @@ export function CallView({ roomId }: { roomId: string }) {
       // active
       setStatus("active");
       if (iAmCaller) {
-        if (!offerDoneRef.current) {
-          offerDoneRef.current = true;
+        if (!offerPostedRef.current) {
+          offerPostedRef.current = true;
           const pc = await ensurePc();
           await pc.setLocalDescription(await pc.createOffer());
           await waitIceComplete(pc);
@@ -180,13 +190,13 @@ export function CallView({ roomId }: { roomId: string }) {
             body: JSON.stringify({ action: "offer", sdp: pc.localDescription }),
           });
         }
-        if (call.answer && !answerDoneRef.current) {
-          answerDoneRef.current = true;
+        if (call.answer && appliedAnswerRef.current !== call.answer.sdp) {
+          appliedAnswerRef.current = call.answer.sdp;
           const pc = await ensurePc();
           await pc.setRemoteDescription(call.answer as RTCSessionDescriptionInit);
         }
-      } else if (call.offer && !offerDoneRef.current) {
-        offerDoneRef.current = true;
+      } else if (call.offer && answeredOfferRef.current !== call.offer.sdp) {
+        answeredOfferRef.current = call.offer.sdp;
         const pc = await ensurePc();
         await pc.setRemoteDescription(call.offer as RTCSessionDescriptionInit);
         await pc.setLocalDescription(await pc.createAnswer());
@@ -255,9 +265,35 @@ export function CallView({ roomId }: { roomId: string }) {
     };
   }, [roomId, clientId, teardown]);
 
+  // an unanswered outgoing ring gives up like a real phone (the callee's
+  // incoming card auto-dismisses at 30s too); ending mid-ring records Missed
+  useEffect(() => {
+    if (status !== "ringing-out") return;
+    const t = setTimeout(() => leave("room"), 30_000);
+    return () => clearTimeout(t);
+  }, [status, leave]);
+
+  // a page that dies mid-call (refresh/close) must not leave a ghost call —
+  // the next ring would silently 409-join it and sit on stale SDP forever
+  useEffect(() => {
+    const onHide = () => {
+      if (endedRef.current) return;
+      navigator.sendBeacon(
+        `/api/calls/${roomId}`,
+        new Blob([JSON.stringify({ action: "end" })], { type: "application/json" })
+      );
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [roomId]);
+
   // ---- STT: my mic → the agent's ear (never the transcript) ----
-  const { interim, supported: sttSupported } = useSpeechTranscript({
-    enabled: status === "active" && micOn,
+  // Off by default: Web Speech re-opens the mic on every silence-restart, so
+  // the capture indicator blinks through the whole call. Flip the env to demo
+  // the agent-whisper flow until the external STT feed replaces this engine.
+  const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH === "1";
+  const { supported: sttSupported } = useSpeechTranscript({
+    enabled: webSpeechOn && status === "active" && micOn,
     onFinal: (text) => {
       // Not a chat message: a call speaks a line every few seconds and those
       // would bury what the two of them actually typed. The agent reads these
@@ -349,13 +385,20 @@ export function CallView({ roomId }: { roomId: string }) {
             <PhoneOff size={18} />
           </button>
         </div>
-        {!sttSupported && status === "active" && (
+        {webSpeechOn && !sttSupported && status === "active" && (
           <div className="absolute left-4 top-4 rounded-md bg-black/60 px-2 py-1 text-xs text-white/80">
             STT unavailable
           </div>
         )}
       </div>
-      <CallChatPanel roomId={roomId} meId={meId} members={members} interim={interim} />
+      {/* the room's real chat rides along — same composer, same bubbles,
+          @agent included; only the width changes */}
+      <aside
+        data-testid="call-chat-panel"
+        className="w-[380px] flex-none border-l border-neutral-200 bg-white dark:border-neutral-800 dark:bg-[#191919]"
+      >
+        <DmView roomId={roomId} variant="call" />
+      </aside>
     </div>
   );
 }
