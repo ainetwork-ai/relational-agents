@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관계 에이전트 런타임 지도</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body, h1, h2, h3, p, dl, dd, ul, table { margin: 0; padding: 0; }
+  ul { padding-left: 1.1em; }
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --sunk: #eceef1;
+    --ink: #14181d;
+    --muted: #626b76;
+    --line: #dbdfe4;
+    --code: #2f5d8f;      /* 코드가 결정 */
+    --code-soft: #e3ecf5;
+    --llm: #a2660f;       /* 모델이 판단 */
+    --llm-soft: #f6ead6;
+    --stop: #9a3b3b;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --panel: #1a1e24; --sunk: #14181d; --ink: #e6e9ed; --muted: #939ba6;
+      --line: #2b3138; --code: #7fb0e0; --code-soft: #1c2a37;
+      --llm: #dda65a; --llm-soft: #33280f; --stop: #d98282;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151a; --panel: #1a1e24; --sunk: #14181d; --ink: #e6e9ed; --muted: #939ba6;
+    --line: #2b3138; --code: #7fb0e0; --code-soft: #1c2a37;
+    --llm: #dda65a; --llm-soft: #33280f; --stop: #d98282;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f5f7; --panel: #ffffff; --sunk: #eceef1; --ink: #14181d; --muted: #626b76;
+    --line: #dbdfe4; --code: #2f5d8f; --code-soft: #e3ecf5;
+    --llm: #a2660f; --llm-soft: #f6ead6; --stop: #9a3b3b;
+  }
+
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; padding: 40px 20px 100px; }
+  .wrap { max-width: 74rem; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 18px; }
+  h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 68ch; }
+
+  h2 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
+  h2 .n { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+  h3 { font-size: 0.95rem; font-weight: 700; }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  p { max-width: 74ch; }
+
+  code, .m { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--sunk); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.04em;
+    border-radius: 2px; padding: 3px 9px; border: 1px solid currentColor;
+  }
+  .chip.code { color: var(--code); background: var(--code-soft); }
+  .chip.llm { color: var(--llm); background: var(--llm-soft); }
+  .chip.stop { color: var(--stop); }
+
+  .scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+  th, td { border-bottom: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  thead th { background: var(--sunk); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.m, th.m { font-family: var(--mono); font-size: 0.78rem; white-space: nowrap; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--llm);
+    border-radius: 5px; display: flex; flex-direction: column;
+  }
+  .card > .head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--llm-soft);
+  }
+  .head .where { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+  .head .what { font-weight: 700; }
+  .card dl { display: grid; grid-template-columns: 8.5rem 1fr; }
+  .card dt {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+  }
+  .card dd { padding: 10px 16px; border-bottom: 1px solid var(--line); min-width: 0; }
+  .card dl > dt:last-of-type, .card dl > dd:last-of-type { border-bottom: none; }
+  .card ul { padding-left: 1.1em; }
+  .card li { margin: 2px 0; }
+  .card dd.tight { font-size: 0.9rem; }
+
+  .diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 18px; overflow-x: auto; }
+  pre.mermaid { min-width: 640px; }
+
+  .note {
+    background: var(--sunk); border: 1px solid var(--line); border-left: 3px solid var(--stop);
+    border-radius: 4px; padding: 12px 16px; font-size: 0.9rem;
+  }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 14px; }
+  .muted { color: var(--muted); }
+  footer { color: var(--muted); font-size: 0.82rem; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>관계 에이전트 런타임 지도</h1>
+  <p class="lede">
+    무엇이 파이프라인을 깨우고, 파이프라인이 무엇을 하고, LLM이 정확히 어느 지점에서
+    어떤 프롬프트와 어떤 컨텍스트로 불리는지. 컨텍스트의 출처까지 따라갑니다.
+    코드베이스 기준: <code>app/src/lib/agent/*</code>, 2026-07-25.
+  </p>
+  <div class="legend">
+    <span class="chip code">■ 코드가 결정</span>
+    <span class="chip llm">■ 모델이 판단</span>
+    <span class="chip stop">■ 차단·안전장치</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="n">01</span> 전체 흐름</h2>
+  <p>
+    진입점은 셋뿐입니다 — <strong>메시지 POST</strong>, <strong>통화 API</strong>, <strong>초안 검사 요청</strong>.
+    나머지는 전부 이 셋에서 뻗어 나갑니다. 주황이 LLM 호출 지점입니다.
+  </p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  subgraph IN["진입점"]
+    M["POST /api/dm/rooms/:id/messages"]
+    C["POST /api/calls/:id  invite·accept·end"]
+    U["POST /api/calls/:id/utterance"]
+    G["POST /api/agent/rooms/:id/guard"]
+  end
+
+  M --> AR["maybeAutoRun<br/>triggers.ts"]
+  M --> DP["dispatchToRoomBots<br/>dispatch.ts"]
+  C -->|"📞 버블을 채팅에 저장하면"| AR
+  C -->|"end: claim 먼저"| CL["claimCallUtterances"]
+  CL --> RC{{"writeCallRecap<br/>통화 요약"}}
+  U --> WU{{"watchUtterance<br/>발화 판단"}}
+  G --> GD{{"checkDraft<br/>모순 검사"}}
+
+  AR -->|"dm 1건 즉시 · 그 외 10건 · 유휴 120초"| PL{{"runPipeline<br/>문서 편집"}}
+  DP -->|"인앱 에이전트"| RS{{"respondToMessage<br/>답장 결정"}}
+  DP -->|"외부 봇"| EX["A2A SendMessage POST"]
+  RS --> PL
+
+  WU -->|"질문이거나 기록에 있는 화제"| WH["멤버에게 비밀 속삭임"]
+  RC --> DOC[("OKF 파일<br/>Timeline · Decisions …")]
+  BUB["📞 버블 클릭"] -->|"#call-{callId} 역검색"| REC["GET /api/calls/:id/record"]
+  REC --> DOC
+  PL --> DOC
+  GD --> V["allow / decline"]
+
+  classDef llm fill:#f6ead6,stroke:#a2660f,color:#3d2a08,stroke-width:2px;
+  classDef code fill:#e3ecf5,stroke:#2f5d8f,color:#14232f;
+  classDef store fill:#e8e4f0,stroke:#5c4d7d,color:#241d33;
+  class RC,WU,GD,PL,RS llm;
+  class M,C,U,G,AR,DP,CL,EX,WH,V,BUB,REC code;
+  class DOC store;
+</pre>
+  </div>
+  <div class="note">
+    <strong>루프가 없습니다.</strong> 위 다이어그램의 주황 노드는 전부 <code>aiChat()</code> <em>한 번</em>입니다.
+    모델이 도구를 고르거나, 결과를 보고 다시 호출하거나, 스스로 다음 행동을 정하는 경로는 존재하지 않습니다.
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">02</span> 트리거 — 무엇이 언제 깨우나</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>트리거</th><th class="m">위치</th><th>조건</th><th>깨우는 것</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>메시지 저장 직후</td><td class="m">triggers.ts:32</td>
+          <td>미처리 메시지 ≥ <strong>1건</strong>(dm방) / <strong>10건</strong>(agent-lab). <code>consentAt</code> 이후 것만 셈</td>
+          <td>즉시 <code>runPipeline</code></td>
+        </tr>
+        <tr>
+          <td>유휴 디바운스</td><td class="m">triggers.ts:17</td>
+          <td>임계 미달이면 마지막 메시지로부터 <strong>120초</strong> 뒤 (방별 타이머, <span class="muted">프로세스 메모리</span>)</td>
+          <td><code>runPipeline</code></td>
+        </tr>
+        <tr>
+          <td>메시지 배달</td><td class="m">dispatch.ts:63</td>
+          <td>방에 임포트된 봇 전원에게. <span class="chip stop">봇이 쓴 메시지는 배달 안 함</span></td>
+          <td>인앱 → <code>respondToMessage</code> / 외부 → A2A POST</td>
+        </tr>
+        <tr>
+          <td>발화 도착</td><td class="m">utterance/route.ts:47</td>
+          <td>통화 <code>active</code>일 때만. 응답을 기다리지 않고 백그라운드</td>
+          <td><code>watchUtterance</code></td>
+        </tr>
+        <tr>
+          <td>통화 종료</td><td class="m">calls/route.ts:141</td>
+          <td>발화 선점(await) → 삭제 → 버블 → 요약(백그라운드). 발화 <strong>2줄 미만이면 요약 생략</strong></td>
+          <td><code>writeCallRecap</code></td>
+        </tr>
+        <tr>
+          <td>보내기 전 검사</td><td class="m">guard/route.ts:31</td>
+          <td>사용자가 초안을 입력했을 때 UI가 호출</td>
+          <td><code>checkDraft</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">03</span> LLM 호출 지점 6곳</h2>
+  <p>
+    에이전트가 모델을 부르는 곳은 정확히 여섯 군데입니다. 각각 프롬프트가 하드코딩돼 있고,
+    <strong>도구는 붙어 있지 않습니다</strong> — 모델은 JSON 텍스트를 반환하고, 그걸 해석해 파일을 쓰는 건 전부 코드입니다.
+  </p>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">① 문서 편집안 만들기</span>
+      <span class="where">pipeline.ts:143 · llmEdits()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">새 메시지 묶음을 읽고 관계 문서에 <em>덧붙일</em> 편집안을 낸다</dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        "record-keeper" 역할 지정 + 출력 스키마 <code>[{section, markdown, sourceMessageIds, event?}]</code> +
+        Timeline 이벤트 분류 규칙(<code>date</code>/<code>first-met</code>) + "오늘 날짜는 X, <strong>말한 날이 아니라 일어난 날로</strong> 적어라" +
+        "이미 문서에 있는 사실은 반복 금지" + 사진 임베드 형식 + "<code>- </code> 앞에 붙이면 사진이 안 뜬다" +
+        "midnight natas는 사람 이름이 아니다 — 애매하면 철자보다 사진을 믿어라"
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd>
+        <ul>
+          <li><strong>문서 현재 상태</strong> — 5개 섹션 전문을 JSON으로 통째 (<span class="muted">상한 없음</span>)</li>
+          <li><strong>새 메시지 배치</strong> — <code>[id] (작성자8자) 본문 [attached: …]</code> 형식</li>
+          <li><strong>실제 사진</strong> — 업로드 이미지를 data URL로 인라인 (비전 입력)</li>
+        </ul>
+      </dd>
+      <dt>출처</dt>
+      <dd>
+        문서 → OKF 파일 <code>readOkfSectionTexts()</code> · 메시지 → Postgres <code>chat_messages</code>
+        (미처리 + <code>consentAt</code> 이후) + <code>call_utterances</code>(끝난 통화만) ·
+        사진 → 디스크 <code>public/uploads/*</code>
+      </dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 1500 · temperature 0.2</dd>
+      <dt>출력 후처리</dt>
+      <dd>
+        <ul>
+          <li>섹션 키 정규화 — 모델이 <code>Overview</code>라고 써도 <code>overview</code>로 (parse-edits.ts:32)</li>
+          <li>출처 위조 차단 — 이번 배치에 실제로 없는 id는 버림 (pipeline.ts:378)</li>
+          <li>산문에 섞인 <code>[uuid]</code>, 모델이 만든 <code>Sources:</code>, 앞머리 날짜 제거</li>
+          <li><span class="chip stop">하드룰</span> 인용 메시지에 사진이 있으면 <strong>모델 판단과 무관하게</strong> date 이벤트로 승격</li>
+          <li>파일에는 <strong>append만</strong> — 기존 줄 수정·삭제 경로 없음</li>
+        </ul>
+      </dd>
+      <dt>실패 시</dt>
+      <dd class="tight">호출 실패·파싱 실패 → <code>fakeEdits()</code>로 결정적 기록(메시지를 Timeline에 그대로). 기록은 반드시 남는다</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">② 답장할지 / 뭐라고 할지</span>
+      <span class="where">respond.ts:152 · llmDecision()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">새 메시지 하나에 대해 <code>{"action":"reply"|"silent"}</code> 결정과 답변 문안</dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        페르소나(<code>agentConfig.persona.name</code>) + 방 이름 + 사용자 지정 <code>systemPrompt</code> 덧붙임 +
+        "멘션되면 <strong>항상</strong> 답하라, 아니면 <code>proactive</code> 설정에 따라 꼭 알아야 할 때만 짧게 / 아니면 침묵" +
+        "문서에서 답하라, 부분적 기억도 답이다" + "추천할 땐 근거가 된 기억을 말하고 그 사진을 첨부하라" +
+        "문서에 없는 선호는 존재하지 않는다" + "이미 아는 걸 open topic으로 미루지 마라" + 출력 JSON 스키마
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd>
+        <ul>
+          <li><strong>관계 문서 5개 섹션 전문</strong> (섹션당 상한 없음)</li>
+          <li><strong>최근 대화 20건</strong> — <code>(작성자8자) 본문</code>, 시간 역순을 뒤집어 정순으로</li>
+          <li><strong>새 메시지</strong> + <code>mentioned</code> 불리언</li>
+          <li>문서 루트 링크 <code>/p/{rootPageId}</code></li>
+        </ul>
+      </dd>
+      <dt>출처</dt>
+      <dd>문서 → OKF 파일 · 대화 → <code>chat_messages</code> 최근 20 · 페르소나 → <code>users.agentConfig</code> · 링크 → <code>agent_room_states</code></dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 600 · temperature 0.4</dd>
+      <dt>코드가 미리 정함</dt>
+      <dd>
+        <ul>
+          <li><span class="chip code">멘션 판정</span> <code>@agent</code> 또는 <code>@{표시이름}</code> 문자열 포함 (respond.ts:98)</li>
+          <li><span class="chip code">비밀 메시지</span>는 무조건 멘션으로 취급 — 주소 자체가 지목이라 <code>@</code>를 또 쓸 필요가 없다</li>
+          <li>답장의 공개 범위도 코드: 비밀 질문에 대한 답은 그 멤버에게만</li>
+        </ul>
+      </dd>
+      <dt>출력 후처리</dt>
+      <dd>
+        첨부는 <code>/uploads/</code>로 시작하고 <code>..</code> 없는 것만, 최대 4장.
+        모델이 첨부를 빠뜨리거나 URL을 지어내면 <strong>단어 겹침 점수 ≥2</strong>로 문서에서 사진을 직접 고름 (respond.ts:83).
+        JSON 파싱 실패 → 멘션이면 원문 그대로, 아니면 침묵
+      </dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">③ 초안이 기록과 모순되나 (decline)</span>
+      <span class="where">guard.ts:132 · checkDraft()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">사람이 <em>보내기 전</em> 초안을 관계 기록과 대조. 최종 결정권은 사람에게 — 강제 전송 허용이 계약</dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        "fact-checker" 역할 + <strong>AND 조건</strong>: <code>contradicts</code>(기록된 사실과 직접 모순) <em>그리고</em>
+        <code>harmful</code>(그대로 보내면 상대가 상처받거나 관계가 상함)일 때만 차단 +
+        "<strong>기록에 없다는 이유로는 절대 차단하지 마라</strong>" + "모순이면 문서에서 <strong>문장을 그대로 복사</strong>해 evidence에 넣어라(요약·의역 금지)"
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd>비어있지 않은 섹션들만 <code>### 제목 + 본문</code>으로, <strong>6,000자 상한</strong> + 초안 본문</dd>
+      <dt>출처</dt>
+      <dd>OKF 파일 (<code>agent_room_states</code>에 경로가 없으면 문서 없음으로 보고 즉시 통과)</dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 500 · temperature 0.1</dd>
+      <dt>LLM 앞 프리필터</dt>
+      <dd>
+        초안과 문서의 <strong>문자 바이그램 교집합이 0이면 모델을 아예 호출하지 않음</strong> (한국어 형태소 없이 관련성 추정).
+        임계값이 1인 이유가 주석에 남아 있음 — 올렸더니 "속초" 하나 겹치는 초안이 미검사로 새어나갔다
+      </dd>
+      <dt>출력 후처리</dt>
+      <dd>
+        <ul>
+          <li><span class="chip stop">증거 대조</span> 모델이 인용한 문장이 문서에 <strong>실제로 있는지</strong> 확인. 없으면 decline 취소 (guard.ts:168)</li>
+          <li>둘 중 하나라도 false → allow</li>
+          <li>LLM 장애 → 무조건 allow. "가드 장애가 전송을 막아선 안 된다"</li>
+        </ul>
+      </dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">④ 통화 팩트시트 (통화당 1회)</span>
+      <span class="where">call-watch.ts:70 · factSheet()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">통화 시작 시 관계 기록을 <em>조회용 시트</em>로 압축. 이후 모든 발화는 문서 대신 이 시트와 대조 — 발화 한 줄 판단에 문서 읽기 비용이 0</dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        "places / tastes / foods / events / people 줄로 압축. <strong>기록이 말하는 것만</strong>, 그 표현 그대로 + 명백한 동의어.
+        기록이 침묵하는 줄은 <code>(nothing recorded)</code> — <strong>그 부재가 의미를 갖는다</strong>. 산문·제목 금지"
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd>비어있지 않은 섹션 전부, <strong>8,000자 상한</strong></dd>
+      <dt>출처</dt>
+      <dd>OKF 파일 (<code>okfDocTreeFromState</code> — 읽기 전용, 문서가 없으면 만들지 않음)</dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 300 · temperature 0 · <code>callId</code>별 프로세스 메모리 캐시</dd>
+      <dt>실패 시</dt>
+      <dd class="tight">전 줄 <code>(nothing recorded)</code>로 진행 — 통화는 계속된다</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">⑤ 이 발화는 무엇에 관한 것인가</span>
+      <span class="where">call-watch.ts:216 · readLine()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">발화 한 줄 → <code>{topic, known}</code>. <strong>속삭일지 말지는 모델이 정하지 않는다</strong></dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        팩트시트를 통째로 얹고 → "이 말이 무엇에 관한 것인지, 그리고 이 관계가 그걸 기록에 갖고 있는지 말하라.
+        대명사를 해소하라(that place, back then, it). <code>(nothing recorded)</code>는 그런 종류가 아무것도 없다는 뜻이다.
+        딱히 무엇에 관한 것도 아니면 — 잡담·반응·날씨·기분 — <code>{topic:null, known:false}</code>"
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd>④가 만든 팩트시트 + 발화 텍스트 <strong>단 한 줄</strong> (대화 이력 없음)</dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 60 · temperature 0</dd>
+      <dt>코드가 결정</dt>
+      <dd>
+        <span class="chip code">worth = asks || (topic &amp;&amp; known)</span>
+        <code>asks</code>는 정규식 — <code>?</code> 포함 또는 do/did/what/where/how… 로 시작 (call-watch.ts:39).
+        <strong>내 멤버에게 온 질문은 언제나 속삭일 값어치가 있고</strong>(답이 기록에 있거나, 없다는 사실이 눈에 띄거나),
+        평서문은 기록에 닿을 때만. 이걸 모델에 물었더니 "egg tarts 좋아해?"와 "좋아하는 디저트가 뭐야?"가 갈렸다는 게 주석에 남아 있음
+      </dd>
+      <dt>전달</dt>
+      <dd class="tight">말한 사람을 <strong>뺀</strong> 멤버에게 <code>privateToUserId</code> 메시지로. 통화 옆 채팅 패널에 뜨고 상대에겐 안 보임</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="what">⑥ 통화 요약 (미팅노트)</span>
+      <span class="where">call-watch.ts:175 · writeCallRecap()</span>
+    </div>
+    <dl>
+      <dt>역할</dt>
+      <dd class="tight">끝난 통화 하나 = Timeline 항목 하나. "회의는 회의록을 남기지 속기록을 남기지 않는다".
+        여기에 더해 통화가 <em>낳은 것</em>(결정·미결·사람 메모)은 제 섹션으로 간다</dd>
+      <dt>시스템 프롬프트</dt>
+      <dd class="tight">
+        <code>summary</code>: "이 통화가 무엇에 관한 것이었는지 두 사람의 공동 기록용으로 써라. <strong>2–3문장, 과거형</strong>,
+        무엇을 했고 정했고 하려는지 이름을 대라. <strong>실제로 말한 것만</strong> — 조언 금지, 지어내기 금지. 평문, 제목·불릿 금지"<br>
+        <code>entries</code>: "제 섹션이 있는 것만 <code>{section, markdown}</code>으로.
+        <strong>둘이 정한 계획은 결정, 남겨둔 질문은 미결, 사람에 대해 알게 된 건 사람 메모.</strong>
+        통화는 이미 요약으로 타임라인에 간다 — 거기엔 절대 넣지 마라. 해당 없으면 빈 목록"
+      </dd>
+      <dt>컨텍스트</dt>
+      <dd><code>표시이름: 발화</code> 대본, <strong>8,000자 상한</strong>. 문서 내용은 들어가지 않음</dd>
+      <dt>출처</dt>
+      <dd>Postgres <code>call_utterances</code> — 이 <code>callId</code>의 미처리 행 (이름은 <code>users.displayName</code> 조인)</dd>
+      <dt>파라미터</dt>
+      <dd class="tight m">maxTokens 400 · temperature 0.2 · <code>parseRecap</code>은 던지지 않음(JSON 아니면 본문 전체를 요약으로)</dd>
+      <dt>쓰는 위치</dt>
+      <dd class="tight">
+        <code>Timeline.md</code>에 📞 callout 1개, entries는 각자의 섹션 파일에 불릿 1줄.
+        모두 <code>Sources: /dm/{roomId}#call-{callId}</code>를 단다 — 메시지 앵커가 없으니
+        <strong>통화를 출처로 인용</strong>하고, 그 앵커가 다시 <strong>버블 → 기록</strong>을 잇는 조인 키가 된다
+        (<code>GET /api/calls/{roomId}/record</code>). 되돌아오는 건 문서에 남은 줄뿐, <strong>발화 원문은 아니다</strong>
+      </dd>
+      <dt>순서 계약</dt>
+      <dd>
+        <span class="chip code">선점 먼저</span> 통화가 <em>살아있는 동안</em> 발화를 큐에서 빼앗는다(UPDATE 한 방).
+        안 그러면 "📞 통화 종료" 메시지가 파이프라인을 깨우고, 파이프라인은 이제 건너뛸 라이브 콜이 없어서
+        같은 발화를 한 줄씩 흩뿌린다
+      </dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">04</span> 컨텍스트는 어디서 오나</h2>
+  <p>저장소는 셋입니다. <strong>관계 문서만 파일</strong>이고, 런타임 상태는 Postgres, 통화 진행 상태는 프로세스 메모리입니다.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph FS["OKF 파일 — 문서 정본"]
+    T["Timeline.md"]
+    O["Overview.md"]
+    D["Decisions.md"]
+    P["People notes.md"]
+    Q["Open topics.md"]
+  end
+  subgraph PG["Postgres — 런타임 상태"]
+    CM["chat_messages"]
+    CU["call_utterances"]
+    ARS["agent_room_states<br/>문서 경로 + 체크포인트"]
+    US["users.agentConfig<br/>페르소나"]
+    ACL["okf_acl<br/>경로별 참여자 권한"]
+  end
+  subgraph MEM["프로세스 메모리"]
+    CS["call-store<br/>통화 진행 상태"]
+    FC["factSheet 캐시"]
+    RUN["runPipeline 뮤텍스<br/>+ 유휴 타이머"]
+  end
+
+  FS --> L1["① 문서 편집"]
+  CM --> L1
+  CU --> L1
+  IMG[("public/uploads/*")] --> L1
+  FS --> L2["② 답장"]
+  CM --> L2
+  US --> L2
+  FS --> L3["③ 모순 검사"]
+  FS --> L4["④ 팩트시트"]
+  L4 --> L5["⑤ 발화 판단"]
+  CU --> L6["⑥ 통화 요약"]
+  ARS -.->|"문서 경로 해석"| FS
+  ACL -.->|"읽기 게이트"| FS
+  CS -.->|"진행 중 통화는 건너뜀"| L1
+
+  classDef llm fill:#f6ead6,stroke:#a2660f,color:#3d2a08,stroke-width:2px;
+  class L1,L2,L3,L4,L5,L6 llm;
+</pre>
+  </div>
+
+  <div class="grid2">
+    <div class="note">
+      <strong>권한</strong> — OKF 트리에는 파일시스템 권한이 없습니다. <code>okf_acl</code>이 문서 루트 경로를
+      <em>참여자 전용</em>으로 등록하고, 그 경로와 하위 전체를 <code>okfGateFor(userId)</code>가
+      <code>/p/[pageId]</code>·<code>api/pages</code>·<code>api/okf/*</code>·<code>api/search</code>·<code>api/mcp</code>에서 막습니다.
+      등록은 파이프라인과 통화 요약, 두 경로 모두에서 합니다. <strong>게이트는 라우트마다 각자 물어야 합니다</strong> — 페이지 id 가 경로의 base64url 이라 방 이름만 알면 주소가 만들어지고, 묻지 않던 세 라우트(<code>pages/[id]</code>, <code>pages/[id]/blocks</code>, <code>okf/db</code>)로 문서가 읽히고 지워졌습니다. 회귀는 <code>e2e/okf-acl.check.mjs</code> 가 지킵니다.
+    </div>
+    <div class="note">
+      <strong>체크포인트</strong> — <code>processedAt</code>이 "에이전트가 읽었다"의 표시입니다.
+      파일 쓰기가 끝난 <em>뒤에야</em> 트랜잭션으로 전진합니다. 파일은 DB 트랜잭션에 참여할 수 없어서,
+      파일 성공 후 DB 실패 시 다음 런이 같은 배치를 재적용합니다 — 파일 정본 모델의 알려진 트레이드오프입니다.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">05</span> 기록에서 제외되는 것</h2>
+  <p>체크포인트는 전진하지만 <em>기억이 되지는 않는</em> 것들 — 전부 코드 필터입니다.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>제외 대상</th><th class="m">위치</th><th>이유</th></tr></thead>
+      <tbody>
+        <tr><td>에이전트 자신의 발언</td><td class="m">pipeline.ts:327</td><td>인사·공지가 기록되자 Timeline이 봇의 독백 기록이 됐다</td></tr>
+        <tr><td>비밀 <code>@agent</code> 대화</td><td class="m">pipeline.ts:327</td><td>기록은 둘의 공동 소유 — 한 사람 것은 들어가지 않는다</td></tr>
+        <tr><td><code>📞 </code> 통화 버블</td><td class="m">pipeline.ts:327</td><td>UI 표시물이지 누가 한 말이 아니다. 요약이 있으니 두 번 적힌다</td></tr>
+        <tr><td>진행 중 통화의 발화</td><td class="m">pipeline.ts:286</td><td>끝날 때 한 항목으로 쓰인다 — 지금 접으면 타임라인에 흩어진다</td></tr>
+        <tr><td>다른 봇의 메시지</td><td class="m">dispatch.ts:71</td><td>봇↔봇 루프 차단 (데모 정책)</td></tr>
+        <tr><td><code>consentAt</code> 이전 메시지</td><td class="m">triggers.ts:34</td><td>계약 서명 전 대화는 에이전트의 것이 아니다</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">06</span> 요약: 모델이 하는 일 / 코드가 하는 일</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>지점</th><th>모델이 채우는 빈칸</th><th>코드가 이미 정해둔 것</th></tr></thead>
+      <tbody>
+        <tr><td>① 문서 편집</td><td>어느 섹션에 무슨 문장을</td><td>언제 돌지, 무엇을 먹일지, 어디에 append할지, 사진이면 date 이벤트</td></tr>
+        <tr><td>② 답장</td><td>답할지 + 문안</td><td>멘션 판정, 비밀=멘션, 공개 범위, 사진 선택 폴백</td></tr>
+        <tr><td>③ 모순 검사</td><td>모순인가 / 해로운가</td><td>호출 여부(바이그램), AND 조건, 증거 실재 확인, 장애 시 통과</td></tr>
+        <tr><td>④ 팩트시트</td><td>기록의 압축</td><td>언제 만들지, 캐시 수명, 글자 상한</td></tr>
+        <tr><td>⑤ 발화 판단</td><td>무엇에 관한 말인가</td><td><strong>속삭일지 말지</strong>, 누구에게, 문구 형식</td></tr>
+        <tr><td>⑥ 통화 요약</td><td>2–3문장 요약</td><td>선점 시점, 2줄 미만 생략, 쓸 위치, 출처 앵커</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    여섯 곳 모두 <strong>행동 결정은 코드</strong>이고 모델은 내용만 채웁니다. 계산 가능한 판단을 모델에 넘기면
+    같은 입력에 다른 답이 나오기 때문이고, 그 결정이 코드 주석에 근거와 함께 남아 있습니다.
+    자율 툴 루프가 값을 하는 곳은 <strong>① 문서 편집</strong> 하나입니다 — 지금은 append만 가능해서
+    기존 줄 수정·중복 병합·모순 정리를 구조적으로 못 합니다.
+  </p>
+</section>
+
+<footer>
+  근거 파일: <span class="m">lib/agent/{pipeline,respond,guard,call-watch,triggers,dispatch,parse-edits,okf-docs}.ts</span>,
+  <span class="m">lib/okf-acl.ts</span>, <span class="m">api/calls/[roomId]/{route,utterance/route}.ts</span>,
+  <span class="m">api/dm/rooms/[roomId]/messages/route.ts</span>, <span class="m">api/a2a/[agentUserId]/route.ts</span>.
+  줄 번호는 2026-07-25 <span class="m">85e82c6</span> 기준.
+</footer>
+
+</div>
+
+<script type="module">
+  // Diagrams render client-side. Offline? The <pre> blocks stay readable as
+  // mermaid source — the document does not depend on them.
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try {
+    const { default: mermaid } = await import(
+      "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+    );
+    mermaid.initialize({
+      // Not startOnLoad: this module runs after DOMContentLoaded has fired, so
+      // the auto-hook never triggers — run() is called explicitly below.
+      startOnLoad: false,
+      theme: dark ? "dark" : "neutral",
+      flowchart: { curve: "basis", padding: 12 },
+      securityLevel: "loose",
+    });
+    await mermaid.run({ querySelector: "pre.mermaid" });
+  } catch {
+    for (const el of document.querySelectorAll("pre.mermaid")) {
+      el.style.whiteSpace = "pre";
+      el.style.fontFamily = "var(--mono)";
+      el.style.fontSize = "0.78rem";
+      el.style.color = "var(--muted)";
+    }
+  }
+</script>
+</body>
+</html>
