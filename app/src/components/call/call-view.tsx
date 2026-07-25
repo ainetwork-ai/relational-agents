@@ -133,6 +133,7 @@ export function CallView({ roomId }: { roomId: string }) {
   const iAmCallerRef = useRef(false); // sync() keeps this current for the ICE handler
   const lastRestartRef = useRef(0);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mockIdxRef = useRef(0); // cycles the mock-utterance lines
   const offerPostedRef = useRef(false); // caller: my offer went out
   const acceptPostedRef = useRef(false); // callee-on-/call: auto-accept sent once
   // idempotency by CONTENT, not a boolean: joining a leftover call means the
@@ -577,6 +578,30 @@ export function CallView({ roomId }: { roomId: string }) {
                   ? `🎙 ${sttInterim}`
                   : "STT listening"}
           </div>
+        )}
+        {/* demo/test: one click = one canned utterance through the REAL
+            pipeline (POST /utterance → agent whisper/summary) — no speech
+            needed to exercise the flow */}
+        {status === "active" && (
+          <button
+            data-testid="call-mock-utterance"
+            onClick={() => {
+              const MOCKS = [
+                "Do you remember our anniversary? It is on October tenth.",
+                "We first met at the university library, do you remember?",
+                "Let's plan a weekend date by the river, maybe watch the sunset.",
+              ];
+              const text = MOCKS[mockIdxRef.current++ % MOCKS.length];
+              void fetch(`/api/calls/${roomId}/utterance`, {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-client-id": clientId },
+                body: JSON.stringify({ text }),
+              });
+            }}
+            className="absolute left-4 top-12 rounded-md bg-black/60 px-2 py-1 text-xs text-white/80 transition-colors hover:bg-black/80"
+          >
+            Send mock utterance
+          </button>
         )}
       </div>
       {/* the room's real chat rides along — same composer, same bubbles,
