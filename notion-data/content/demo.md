@@ -33,14 +33,15 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 **VO**:
 > "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both say yes**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
-## 0:15–0:33 · Opening — an invitation, not a page
+## 0:15–0:33 · Opening — first login lands on the dashboard
 
 **Screen actions**:
-1. Sidebar, **Chats** tab. In the **Direct messages** section, click the **+**. The **New direct message** modal opens with the member list.
-2. Pick **Isla Montgomery** and send the first hello. A pending invite appears — "waiting for Isla."
+1. First login (MetaMask sign-in). The main page opens on the **Relationships dashboard** — the dashboard view over the Relationships database: ten ❤️ relationships at a glance, upcoming dates highlighted. Hold one beat (~2s) so the viewer orients.
+2. Sidebar, **Chats** tab. In the **Direct messages** section, click the **+**. The **New direct message** modal opens with the member list.
+3. Pick **Isla Montgomery** and send the first hello. A pending invite appears — "waiting for Isla."
 
 **VO**:
-> "This doesn't start with a page. It starts with an invitation. Chanho reaches out to Isla — one message, and the door is open."
+> "Sign in, and you land on your relationships — all of them, one dashboard. But this story doesn't start with a page. It starts with an invitation. Chanho reaches out to Isla — one message, and the door is open."
 
 ## 0:33–1:00 · Mutual consent → the relationship is born
 
@@ -102,7 +103,7 @@ Global rules:
 
 Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-app transition of its own):
 
-1. **Pre-roll → Invite (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s onto a near-empty Chats sidebar; the cursor moves straight to the **+**. No table yet — the first gesture is reaching out.
+1. **Pre-roll → Login (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s onto the login screen; the MetaMask signature lands and the **Relationships dashboard** fills the main page (hold ~2s). From home base, the cursor moves to the Chats **+** — the first gesture is reaching out.
 2. **Invite → Consent (0:33)** — on Isla's *accept* the New-DM modal doesn't just close; its avatar **match-cuts into the freshly-created sidebar row** **Chanho ❤️ Isla Montgomery** (0.4s). The page is born from the invitation.
 3. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
 4. **Consent → Manage (1:00)** — **match cut** on the agent avatar: chat bubble avatar aligns to the same position as the briefing card avatar. 0.4s crossfade.
