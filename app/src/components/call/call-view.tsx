@@ -441,11 +441,13 @@ export function CallView({ roomId }: { roomId: string }) {
 
   // the offer/answer dance is SSE-notification driven and a missed
   // dm-call-signal used to park "Connecting…" until the next reconnect —
-  // poll as a backup while the handshake is still open
+  // poll as a backup while the handshake is still open. 500ms: the timeline
+  // showed the callee routinely missing the offer notification right after
+  // navigation and paying a full poll tick, so the tick must be cheap.
   useEffect(() => {
     if (remoteLive) return;
     if (status !== "active" && status !== "loading" && status !== "ringing-out") return;
-    const iv = setInterval(() => void sync(), 2_000);
+    const iv = setInterval(() => void sync(), 500);
     return () => clearInterval(iv);
   }, [status, remoteLive, sync]);
 
