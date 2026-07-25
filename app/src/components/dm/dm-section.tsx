@@ -80,7 +80,8 @@ export function DmSection() {
       ) : (
         rooms.map((room) => {
           const others = room.members.filter((m) => m.id !== meId);
-          const face = others[0] ?? room.members[0];
+          // a human fronts the row; the agent still counts as a member below
+          const face = others.find((m) => !m.isAgent) ?? others[0] ?? room.members[0];
           return (
             <div
               key={room.id}
@@ -94,9 +95,9 @@ export function DmSection() {
               >
                 <span className="relative shrink-0">
                   {face && <DmAvatar user={face} size={28} />}
-                  {others.length > 1 && (
+                  {room.members.length > 2 && (
                     <span className="absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-500 px-0.5 text-[9px] font-semibold text-white ring-2 ring-white dark:bg-neutral-500 dark:ring-neutral-900">
-                      {others.length}
+                      {room.members.length}
                     </span>
                   )}
                 </span>
