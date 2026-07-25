@@ -9,15 +9,26 @@ notion 앱 플랜(4-태스크: send/receive/layout/STT→record)과 videocall �
 const { interim, supported, error } = useSpeechTranscript({
   enabled: boolean,          // 콜이 active일 때만 true
   lang?: string,             // 기본 "en-US" (파일 상단 STT_LANG 상수)
-  onFinal: (text: string) => void,  // 확정 발화 (≥2자, trim됨) — "🎙 " 접두는 호출측에서
+  onFinal: (text: string) => void,  // 확정 발화 (≥2자, trim됨)
 });
 // interim: 현재 부분 가설 (이탤릭 표시용, 확정되면 "")
 // supported: 엔진 사용 가능 여부 (Azure: env 키 존재 여부)
 // error: 마지막 에러 메시지 | null
 ```
 
+onFinal의 목적지는 채팅이 아니다: 발화는 `POST /api/calls/{roomId}/utterance`로
+통화 전용 저장소에 쌓이고 **에이전트만 읽는다** (통화 중 귀띔 + 종료 후 한 항목 요약).
+🎙 채팅 메시지 시절의 접두 규약은 폐기되었다.
+
 Web Speech 버전(`use-speech-transcript.ts`)을 이 시그니처로 작성해 주면, Azure 버전
 (`videocall/web/use-azure-transcript.ts`)과 **import 한 줄 교체**로 스왑 가능하다.
+
+**현재 엔진 상태 (2026-07-25)**: Web Speech, 단 **기본 비활성** —
+`NEXT_PUBLIC_CALL_WEB_SPEECH=1`일 때만 캡처한다. Web Speech는 무음마다 인식을
+끊고 재시작하는데 그때마다 마이크 캡처가 놓였다 잡혀 **브라우저 마이크 표시등이
+통화 내내 깜빡이기 때문**이다 (Azure는 continuous 유지라 이 문제가 없다).
+엔진 결정: Azure 키 미보유로 당분간 Web Speech(플래그 활성 시)로 가고, 추후
+외부 STT 전달 API가 오면 그쪽으로 교체한다 — 키 확보 시 Azure 스왑도 무방.
 
 ## 2. Azure 버전 사용법 (notion 쪽 작업 2줄 + env)
 
@@ -56,7 +67,10 @@ Chrome 프로필 2개로 `http://localhost:3111/test.html` 열고:
 
 ## 5. 데모 촬영 체크리스트
 
-- [ ] 양쪽 모두 **헤드폰 착용** (에코가 STT 최대 리스크)
+- [ ] 양쪽 모두 **헤드폰 착용 — 녹화 필수 조건.** 음질이 아니라 **화자 귀속 정확성**
+      문제다: 각자 자기 마이크만 전사하므로 발화자 = 세션 사용자로 확정하는데,
+      헤드폰 없이 상대 목소리가 내 마이크에 잡히면 내가 말한 것으로 기록된다 →
+      귀띔이 엉뚱한 사람에게 가고 관계 문서의 화자도 틀린다
 - [ ] 발신자 얼굴이 풀샷, 내 얼굴은 우하단 PiP
 - [ ] 수신 탭(B)은 촬영 전 한 번 클릭 (AudioContext suspended → 링톤 무음 방지)
 - [ ] `.env.local`에 `AI_URL` 없음 확인 (fakeEdits 결정적 append 경로 유지)
