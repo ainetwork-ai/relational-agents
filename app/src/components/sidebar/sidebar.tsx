@@ -16,6 +16,7 @@ import {
   MessageCircle,
   SquarePen,
 } from "lucide-react";
+import { ProfileSettings } from "@/components/profile-settings";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { usePagesStore } from "@/stores/pages";
 import { useUiStore } from "@/stores/ui";
@@ -469,9 +470,7 @@ export function Sidebar({
         <ImportButton />
 
         <div className="mt-1 flex items-center justify-between rounded-md px-2 py-1.5">
-          <span className="truncate text-xs text-neutral-400">
-            Signed in as {displayName}
-          </span>
+          <ProfileSettings initialName={displayName} />
           <DarkModeToggle />
           <button
             data-testid="logout-button"
