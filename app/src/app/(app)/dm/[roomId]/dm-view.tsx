@@ -86,6 +86,10 @@ export function DmView({ roomId }: { roomId: string }) {
 
   const [room, setRoom] = useState<DmRoomDetail | null>(null);
   const [members, setMembers] = useState<DmUser[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [authors, setAuthors] = useState<DmUser[]>([]);
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
@@ -352,8 +356,56 @@ export function DmView({ roomId }: { roomId: string }) {
     }
   }
 
+  /** Candidates for the "@" menu — the agent first, since mentioning it is how
+   *  you ask the relationship a question, and nothing on screen says so. */
+  const mentionCandidates = useMemo(() => {
+    const list = members.filter((m) => m.id !== meId);
+    return [...list].sort((a, b) => Number(b.isAgent) - Number(a.isAgent));
+  }, [members, meId]);
+
+  const mentionItems = useMemo(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    if (!q) return mentionCandidates.slice(0, 6);
+    return mentionCandidates
+      .filter(
+        (m) =>
+          m.displayName.toLowerCase().includes(q) || (m.isAgent && "agent".includes(q))
+      )
+      .slice(0, 6);
+  }, [mentionCandidates, mentionQuery]);
+
+  /** Replace the "@query" under the caret with the picked handle. */
+  function pickMention(user: DmUser) {
+    if (mentionStart === null) return;
+    const handle = user.isAgent ? "agent" : user.displayName.split(/\s+/)[0];
+    const caret = composerRef.current?.selectionStart ?? input.length;
+    const next = `${input.slice(0, mentionStart)}@${handle} ${input.slice(caret)}`;
+    setInput(next);
+    setMentionOpen(false);
+    setMentionStart(null);
+    const pos = mentionStart + handle.length + 2;
+    requestAnimationFrame(() => {
+      composerRef.current?.setSelectionRange(pos, pos);
+      composerRef.current?.focus();
+    });
+  }
+
   function onInputChange(v: string) {
     setInput(v);
+    // "@" at a word boundary opens the menu; whitespace in the query closes it.
+    const caret = composerRef.current?.selectionStart ?? v.length;
+    const upto = v.slice(0, caret);
+    const at = upto.lastIndexOf("@");
+    const before = at > 0 ? upto[at - 1] : "";
+    if (at === -1 || /\s/.test(upto.slice(at + 1)) || (before && !/\s/.test(before))) {
+      setMentionOpen(false);
+      setMentionStart(null);
+    } else {
+      setMentionQuery(upto.slice(at + 1));
+      setMentionStart(at);
+      setMentionIndex(0);
+      setMentionOpen(true);
+    }
     const now = Date.now();
     if (now - lastTypingSentRef.current > TYPING_PING_MS) {
       lastTypingSentRef.current = now;
@@ -870,8 +922,52 @@ export function DmView({ roomId }: { roomId: string }) {
           e.preventDefault();
           void send();
         }}
-        className="flex items-end gap-2 border-t border-neutral-200/80 py-3 dark:border-neutral-800"
+        className="relative flex items-end gap-2 border-t border-neutral-200/80 py-3 dark:border-neutral-800"
       >
+        {mentionOpen && mentionItems.length > 0 && (
+          <div
+            data-testid="dm-mention-menu"
+            role="listbox"
+            className="absolute bottom-full left-11 z-30 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+          >
+            {mentionItems.map((u, i) => (
+              <button
+                key={u.id}
+                type="button"
+                role="option"
+                aria-selected={i === mentionIndex}
+                data-testid={`dm-mention-item-${u.id}`}
+                onMouseEnter={() => setMentionIndex(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickMention(u);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left ${
+                  i === mentionIndex
+                    ? "bg-neutral-100 dark:bg-neutral-800"
+                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+                }`}
+              >
+                <DmAvatar user={u} size={24} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-neutral-800 dark:text-neutral-200">
+                    @{u.isAgent ? "agent" : u.displayName.split(/\s+/)[0]}
+                  </span>
+                  {u.isAgent && (
+                    <span className="block truncate text-[11px] text-neutral-400">
+                      Ask your relationship — answers from your record
+                    </span>
+                  )}
+                </span>
+                {u.isAgent && (
+                  <span className="shrink-0 rounded bg-purple-100 px-1 text-[10px] text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
+                    AGENT
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         <input
           ref={fileRef}
           data-testid="dm-attach-input"
@@ -902,6 +998,29 @@ export function DmView({ roomId }: { roomId: string }) {
           onCompositionStart={() => (isComposingRef.current = true)}
           onCompositionEnd={() => (isComposingRef.current = false)}
           onKeyDown={(e) => {
+            // the mention menu owns the arrows/Enter/Esc while it is open
+            if (mentionOpen && mentionItems.length) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setMentionIndex((i) => (i + 1) % mentionItems.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setMentionIndex((i) => (i - 1 + mentionItems.length) % mentionItems.length);
+                return;
+              }
+              if ((e.key === "Enter" || e.key === "Tab") && !isComposingRef.current) {
+                e.preventDefault();
+                pickMention(mentionItems[mentionIndex]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMentionOpen(false);
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
               e.preventDefault();
               void send();
