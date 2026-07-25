@@ -572,7 +572,7 @@ export function DmView({ roomId }: { roomId: string }) {
     // quotes one, and it is only useful if you can open it on the explorer.
     const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64})/g);
     if (parts.length === 1) return text;
-    const linkClass = `underline underline-offset-2 ${mine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"}`;
+    const linkClass = "underline underline-offset-2 text-[#2383e2] dark:text-blue-400";
     return parts.map((part, i) => {
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
       if (!isTx && !/^https?:\/\//.test(part)) return part;
@@ -825,11 +825,13 @@ export function DmView({ roomId }: { roomId: string }) {
                         {author?.displayName ?? "Unknown"}
                       </p>
                     )}
+                    {/* Notion keeps surfaces neutral and reserves colour for
+                        meaning, so neither side gets a saturated bubble. */}
                     <div
-                      className={`px-3.5 py-2 text-[13.5px] leading-relaxed shadow-sm ${
+                      className={`rounded-lg px-3 py-2 text-[14px] leading-relaxed ${
                         mine
-                          ? "rounded-2xl rounded-br-md bg-blue-500 text-white"
-                          : "rounded-2xl rounded-bl-md bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100"
+                          ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+                          : "bg-neutral-50 text-neutral-800 ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:text-neutral-100 dark:ring-neutral-700/60"
                       }`}
                     >
                       {m.attachments?.length > 0 && (
@@ -855,9 +857,7 @@ export function DmView({ roomId }: { roomId: string }) {
                       {m.privateToUserId && (
                         <p
                           data-testid="dm-msg-private"
-                          className={`mt-1 flex items-center gap-1 text-[10px] ${
-                            mine ? "text-blue-100/90" : "text-neutral-400"
-                          }`}
+                          className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
                         >
                           <Lock size={10} />
                           Only you and the agent — not in your shared record
