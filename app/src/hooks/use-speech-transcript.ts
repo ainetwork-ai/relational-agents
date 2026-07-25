@@ -90,6 +90,12 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
       setInterim(pending.trim());
     };
     rec.onerror = (ev) => {
+      // 'aborted' is lifecycle noise (our own stop/restart — StrictMode
+      // replays the effect and the dying instance fires it) and 'no-speech'
+      // is just silence; neither means the engine is broken, and both were
+      // painting a sticky "STT error" badge that only a successful result
+      // could clear.
+      if (ev.error === "aborted" || ev.error === "no-speech") return;
       setError(ev.error);
       if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
         dead = true;
@@ -116,7 +122,10 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
     }
     return () => {
       active = false;
+      // a dying instance must not keep writing state — the replacement owns it
       rec.onend = null;
+      rec.onerror = null;
+      rec.onresult = null;
       try {
         rec.stop();
       } catch {}
