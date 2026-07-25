@@ -108,19 +108,16 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
   return summaries;
 }
 
-/** 활성 워크스페이스에서 내가 멤버인 dm 방 rows. */
-async function myDmRooms(meId: string, workspaceId: string): Promise<ChatRoom[]> {
+/** Every dm room I'm a member of — deliberately NOT workspace-scoped.
+ *  Relationships travel with the person, not the workspace: your partner must
+ *  see the room (and its contract banner) without ever entering your
+ *  workspace. */
+async function myDmRooms(meId: string): Promise<ChatRoom[]> {
   const rows = await db
     .select({ room: chatRooms })
     .from(chatRoomMembers)
     .innerJoin(chatRooms, eq(chatRooms.id, chatRoomMembers.roomId))
-    .where(
-      and(
-        eq(chatRoomMembers.userId, meId),
-        eq(chatRooms.kind, "dm"),
-        eq(chatRooms.workspaceId, workspaceId)
-      )
-    );
+    .where(and(eq(chatRoomMembers.userId, meId), eq(chatRooms.kind, "dm")));
   return rows.map((r) => r.room);
 }
 
@@ -128,9 +125,7 @@ async function myDmRooms(meId: string, workspaceId: string): Promise<ChatRoom[]>
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
-  const rooms = await myDmRooms(auth.user.id, workspaceId);
+  const rooms = await myDmRooms(auth.user.id);
   return NextResponse.json({ rooms: await buildSummaries(auth.user.id, rooms) });
 }
 
@@ -195,16 +190,23 @@ export async function POST(req: NextRequest) {
   // 멤버(데모 계정 등)가 섞인 방만 기존 간소화(즉시 동의)를 유지한다.
   const allMemberIds = [meId, ...memberIds];
   const memberRows = await db
-    .select({ address: users.ainAddress })
+    .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })
     .from(users)
     .where(inArray(users.id, allMemberIds));
   const allWallets =
     memberRows.length === allMemberIds.length &&
     memberRows.every((r) => /^0x[0-9a-f]{40}$/i.test(r.address));
+  // relationship rooms are named after their people: "{me} ❤️ {partner}"
+  const byId = new Map(memberRows.map((r) => [r.id, r.displayName]));
+  const roomName =
+    name ||
+    (directKey
+      ? `${byId.get(meId) ?? "Me"} ❤️ ${byId.get(memberIds[0]) ?? "Partner"}`
+      : "");
   const [room] = await db
     .insert(chatRooms)
     .values({
-      name,
+      name: roomName,
       kind: "dm",
       workspaceId,
       createdBy: meId,

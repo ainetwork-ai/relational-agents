@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { workspaces, workspaceMembers } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
-/** GET → { workspaces: [...], activeId } — every workspace the caller belongs to. */
+/** GET → { workspaces: [...], activeId } — the caller's workspaces. Guest
+ *  memberships (DM-partner plumbing) are hidden: a relationship must not put
+ *  someone else's workspace in your switcher. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -23,7 +25,7 @@ export async function GET() {
     })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
-    .where(eq(workspaceMembers.userId, auth.user.id))
+    .where(and(eq(workspaceMembers.userId, auth.user.id), ne(workspaceMembers.role, "guest")))
     .orderBy(workspaceMembers.joinedAt);
 
   const activeId = await getDefaultWorkspaceId(auth.user.id);
