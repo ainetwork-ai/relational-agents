@@ -75,11 +75,12 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   }, [open]);
 
   // After switching/creating, reload the (workspace-scoped) page tree and
-  // navigate to "/" so the URL leaves the old workspace's page and re-resolves
-  // to the new workspace's first page (or empty home).
+  // navigate straight to the new workspace's first page (/p/<id>) so the URL
+  // is that workspace's own page, not a shared home. Empty workspace → /home.
   async function refreshWorkspace() {
     await usePagesStore.getState().load();
-    router.push("/");
+    const roots = usePagesStore.getState().roots;
+    router.push(roots.length ? `/p/${roots[0].id}` : "/home");
     router.refresh();
   }
 
