@@ -280,7 +280,9 @@ function rewriteAssetBlocks(blocks: ParsedBlock[], baseDir: string): ParsedBlock
   return blocks.map((b) => {
     if (b.type !== "image") return b;
     const url = typeof b.content.url === "string" ? b.content.url : "";
-    if (!url || /^(https?:|data:|blob:|\/api\/)/i.test(url)) return b;
+    // /uploads/* is served by the app itself (chat attachments the agent folded
+    // into a doc) — resolving it against the page dir would point outside the tree.
+    if (!url || /^(https?:|data:|blob:|\/api\/|\/uploads\/)/i.test(url)) return b;
     let decoded: string;
     try {
       decoded = decodeURIComponent(url);

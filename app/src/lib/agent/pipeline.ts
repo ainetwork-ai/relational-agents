@@ -1,4 +1,6 @@
 import "server-only";
+import fs from "node:fs";
+import path from "node:path";
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -8,7 +10,7 @@ import {
   chatRooms,
   type ChatMessage,
 } from "@/lib/db/schema";
-import { aiChat } from "@/lib/ai";
+import { aiChat, type AiContentPart } from "@/lib/ai";
 import { setOkfAcl } from "@/lib/okf-acl";
 import {
   appendOkfLines,
@@ -66,13 +68,63 @@ function fakeEdits(batch: ChatMessage[]): DocEdit[] {
   ];
 }
 
+// Photos shared in chat are part of the record, so the model is shown the actual
+// pixels (gemma-4-31B-it reads images) instead of just a filename. Bounded: the
+// batch is capped and each file is size-checked before it is inlined.
+const MAX_VISION_IMAGES = 4;
+const MAX_VISION_BYTES = 4 * 1024 * 1024;
+const UPLOAD_URL = /^\/uploads\/([A-Za-z0-9._-]+)$/; // anchored — no path traversal
+const VISION_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+
+/** Read an uploaded image off disk as a data URL. null = not a readable image
+ *  the model can use (heic, oversized, missing, or an off-tree url). */
+function imageDataUrl(url: string): string | null {
+  const m = UPLOAD_URL.exec(url);
+  if (!m) return null;
+  const mime = VISION_MIME[(m[1].split(".").pop() ?? "").toLowerCase()];
+  if (!mime) return null;
+  const abs = path.join(process.cwd(), "public", "uploads", m[1]);
+  try {
+    if (fs.statSync(abs).size > MAX_VISION_BYTES) return null;
+    return `data:${mime};base64,${fs.readFileSync(abs).toString("base64")}`;
+  } catch {
+    return null; // file gone — the transcript line still carries the link
+  }
+}
+
 async function llmEdits(
   batch: ChatMessage[],
   current: Record<string, string>,
   roomName: string
 ): Promise<DocEdit[]> {
   const sectionList = SECTIONS.map((s) => `${s.key} (${s.title})`).join(", ");
-  const messages = batch.map((m) => `[${m.id}] (${m.authorId.slice(0, 8)}) ${m.text}`).join("\n");
+  const messages = batch
+    .map((m) => {
+      const who = `[${m.id}] (${m.authorId.slice(0, 8)})`;
+      const files = (m.attachments ?? [])
+        .map((a) => `${IMG_EXT.test(a.url) ? "photo" : "file"} "${a.name || "untitled"}" → ${a.url}`)
+        .join(" | ");
+      return files ? `${who} ${m.text}${m.text ? " " : ""}[attached: ${files}]` : `${who} ${m.text}`;
+    })
+    .join("\n");
+
+  // Inline the actual photos so the model can write what is in them.
+  const photos: AiContentPart[] = [];
+  for (const m of batch) {
+    for (const a of m.attachments ?? []) {
+      if (photos.length >= MAX_VISION_IMAGES * 2) break;
+      const dataUrl = imageDataUrl(a.url);
+      if (!dataUrl) continue;
+      photos.push({ type: "text", text: `Photo from message ${m.id} (${a.url}):` });
+      photos.push({ type: "image_url", image_url: { url: dataUrl } });
+    }
+  }
   const raw = await aiChat(
     [
       {
@@ -80,11 +132,19 @@ async function llmEdits(
         content:
           `You are the record-keeper for the "${roomName}" relationship. Read the new batch of messages and incrementally update the relationship document.\n` +
           `Output a JSON array only: [{"section": <one key of ${sectionList}>, "markdown": "<markdown to append>", "sourceMessageIds": ["<supporting message id>"]}].\n` +
-          `Do not repeat facts already in the document — only what is newly learned. Every entry must carry its supporting message ids.`,
+          `Do not repeat facts already in the document — only what is newly learned. Every entry must carry its supporting message ids.\n` +
+          `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the /uploads/... url exactly as given). ` +
+          `The image must sit on its own line with nothing before it — a leading "- " turns it into a bullet and the photo stops rendering.`,
       },
       {
         role: "user",
-        content: `## Current document state\n${JSON.stringify(current, null, 2)}\n\n## New message batch\n${messages}`,
+        content: [
+          {
+            type: "text",
+            text: `## Current document state\n${JSON.stringify(current, null, 2)}\n\n## New message batch\n${messages}`,
+          },
+          ...photos,
+        ],
       },
     ],
     { maxTokens: 1500, temperature: 0.2 }
@@ -164,10 +224,16 @@ async function runOnce(roomId: string): Promise<RunResult> {
     const lines: NewLine[] = edit.markdown
       .split("\n")
       .filter((l) => l.trim())
-      .map((l) => ({
-        type: l.startsWith("- ") ? ("bulleted_list" as const) : ("paragraph" as const),
-        text: l.replace(/^- /, ""),
-      }));
+      .map((l) => {
+        // ![caption](url) becomes a real image block — as a paragraph the photo
+        // would sit in the doc as literal markdown text and never render.
+        const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(l.trim());
+        if (img) return { type: "image" as const, text: img[1], url: img[2] };
+        return {
+          type: l.startsWith("- ") ? ("bulleted_list" as const) : ("paragraph" as const),
+          text: l.replace(/^- /, ""),
+        };
+      });
     if (edit.sourceMessageIds.length) {
       const links = edit.sourceMessageIds
         .map((id) => `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`)
