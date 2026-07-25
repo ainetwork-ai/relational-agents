@@ -15,6 +15,9 @@ export interface CallSdp {
 
 export interface CallState {
   roomId: string;
+  /** Stable id for this call. Signaling state is ephemeral, but transcribed
+   *  utterances outlive it — the record cites the call they came from. */
+  callId: string;
   callerId: string;
   calleeId?: string;
   status: "ringing" | "active";

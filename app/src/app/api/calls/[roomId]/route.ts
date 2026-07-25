@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
+import { randomUUID } from "node:crypto";
 import { deleteCall, getCall, setCall, RING_STALE_MS, type CallSdp } from "@/lib/call-store";
 import type { PageEvent } from "@/lib/realtime";
 
@@ -59,7 +60,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       // a ringing call nobody answered goes stale; an active call blocks
       if (call && !(call.status === "ringing" && Date.now() - call.startedAt > RING_STALE_MS))
         return NextResponse.json({ error: "Call already in progress" }, { status: 409 });
-      setCall({ roomId, callerId: me, status: "ringing", startedAt: Date.now() });
+      setCall({
+        roomId,
+        callId: randomUUID(),
+        callerId: me,
+        status: "ringing",
+        startedAt: Date.now(),
+      });
       await notify("dm-call-ring", true);
       break;
     }

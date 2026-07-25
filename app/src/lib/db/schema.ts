@@ -689,6 +689,35 @@ export const chatMessages = pgTable(
   (t) => [index("chat_messages_room_created_idx").on(t.roomId, t.createdAt)]
 );
 
+/**
+ * What was said out loud during a video call, transcribed.
+ *
+ * Deliberately NOT chat_messages. A call produces an utterance every few
+ * seconds; as messages they would bury the conversation the two people can
+ * actually read, and speech is not something either of them chose to write
+ * down. The agent still reads these — it keeps the relationship record current
+ * and decides when to speak up — so a memory can come from a call, but the
+ * transcript stays what was typed. Separate tables make that guarantee
+ * structural instead of a filter someone can forget.
+ */
+export const callUtterances = pgTable(
+  "call_utterances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+ // groups one call; the record cites it in place of a message anchor
+    callId: text("call_id").notNull(),
+    speakerId: uuid("speaker_id").notNull(),
+    text: text("text").notNull(),
+ // same checkpoint contract as chat_messages — null = the agent has not read it
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("call_utterances_room_call_idx").on(t.roomId, t.callId, t.createdAt)]
+);
+
+export type CallUtterance = typeof callUtterances.$inferSelect;
+
 export const agentRoomStates = pgTable("agent_room_states", {
   roomId: uuid("room_id").primaryKey(),
   rootPageId: uuid("root_page_id"),

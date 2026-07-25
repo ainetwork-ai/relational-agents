@@ -255,14 +255,17 @@ export function CallView({ roomId }: { roomId: string }) {
     };
   }, [roomId, clientId, teardown]);
 
-  // ---- STT: my mic → "🎙" messages in the room (recorded by the pipeline) ----
+  // ---- STT: my mic → the agent's ear (never the transcript) ----
   const { interim, supported: sttSupported } = useSpeechTranscript({
     enabled: status === "active" && micOn,
     onFinal: (text) => {
-      void fetch(`/api/dm/rooms/${roomId}/messages`, {
+      // Not a chat message: a call speaks a line every few seconds and those
+      // would bury what the two of them actually typed. The agent reads these
+      // to keep the record current and to decide when to speak up.
+      void fetch(`/api/calls/${roomId}/utterance`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-client-id": clientId },
-        body: JSON.stringify({ text: `🎙 ${text}` }),
+        body: JSON.stringify({ text }),
       });
     },
   });
