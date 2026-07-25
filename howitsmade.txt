@@ -8,4 +8,4 @@ ERC-8004: RelationalAgentRegistry.sol is a dependency-free, ERC-8004 (Trustless 
 
 Hacky-but-notable: agent replies are LLM-emitted JSON that can attach images — whitelisted to local /uploads/* paths cited in the relationship doc, so the model can "show" a memory but never exfiltrate an arbitrary URL.
 
-Stack: Next.js 16 · Postgres/Drizzle · Solidity · viem · MetaMask · local LLM
+Stack: Next.js 16 · Postgres/Drizzle · Solidity · viem · MetaMask · local LLM (gemma-4)
