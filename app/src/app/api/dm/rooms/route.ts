@@ -14,6 +14,7 @@ import {
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { toPublicUser, type PublicUser } from "@/lib/auth/public-user";
 import { membersByRoom, publishToRoomMembers, UUID_RE } from "@/lib/chat-room-access";
+import { relationshipRoomName } from "@/lib/auth/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -232,7 +233,7 @@ export async function POST(req: NextRequest) {
   const roomName =
     name ||
     (directKey
-      ? `${byId.get(meId) ?? "Me"} ❤️ ${byId.get(memberIds[0]) ?? "Partner"}`
+      ? relationshipRoomName(byId.get(meId) ?? "Me", byId.get(memberIds[0]) ?? "Partner")
       : "");
   const [room] = await db
     .insert(chatRooms)
