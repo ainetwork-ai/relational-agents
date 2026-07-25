@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Phone, PhoneMissed, Send, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -82,8 +82,18 @@ function dateLabel(iso: string): string {
 
 /** Human↔human DM room view — realtime receive (SSE inbox), photo
  * attachments, invite/rename/leave, and the agent's "AI organize"
- * (relationship-doc creation), all in one screen. */
-export function DmView({ roomId }: { roomId: string }) {
+ * (relationship-doc creation), all in one screen.
+ *
+ * variant="call" embeds this same chat (same composer, same bubbles,
+ * @agent included) as the in-call side panel: the room header and banners
+ * drop away and the parent decides the width. */
+export function DmView({
+  roomId,
+  variant = "page",
+}: {
+  roomId: string;
+  variant?: "page" | "call";
+}) {
   const router = useRouter();
   const show = useToastStore((s) => s.show);
   const markReadLocal = useDmRoomsStore((s) => s.markReadLocal);
@@ -626,8 +636,13 @@ export function DmView({ roomId }: { roomId: string }) {
   return (
     // min-h-0: without it the transcript can outgrow this column, the shared
     // <main> scrolls instead of the list, and the composer rides away with it.
-    <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col overflow-hidden px-3 sm:px-6">
+    <div
+      className={`flex h-full min-h-0 flex-col overflow-hidden ${
+        variant === "call" ? "px-3" : "mx-auto max-w-3xl px-3 sm:px-6"
+      }`}
+    >
       {/* Header — leave room on the left so the fixed mobile hamburger (MobileNavToggle) does not overlap */}
+      {variant !== "call" && (
       <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
         <div className="flex -space-x-2" data-testid="dm-members" aria-label="Room members">
           {/* humans lead the stack; the agent tags along at the end */}
@@ -798,9 +813,14 @@ export function DmView({ roomId }: { roomId: string }) {
           </div>
         </div>
       </header>
+      )}
 
-      <ConsentBanner roomId={roomId} />
-      <DissolveBanner roomId={roomId} />
+      {variant !== "call" && (
+        <>
+          <ConsentBanner roomId={roomId} />
+          <DissolveBanner roomId={roomId} />
+        </>
+      )}
 
       {/* Message list */}
       <div
@@ -829,6 +849,15 @@ export function DmView({ roomId }: { roomId: string }) {
             const grouped =
               !newDay && prev?.authorId === m.authorId &&
               new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
+            // "📞 " prefix = a call record the calls route inserted — rendered
+            // as a KakaoTalk-style event bubble instead of a text bubble
+            const callEvent =
+              !m.privateToUserId && (m.attachments?.length ?? 0) === 0 && m.text.startsWith("📞 ")
+                ? (() => {
+                    const [label, duration] = m.text.slice(3).split(" · ");
+                    return { label, duration, missed: label.startsWith("Missed") };
+                  })()
+                : null;
             return (
               <div key={m.id}>
                 {newDay && (
@@ -855,8 +884,31 @@ export function DmView({ roomId }: { roomId: string }) {
                         {author?.displayName ?? "Unknown"}
                       </p>
                     )}
-                    {/* Notion keeps surfaces neutral and reserves colour for
-                        meaning, so neither side gets a saturated bubble. */}
+                    {callEvent ? (
+                      <div
+                        data-testid="dm-msg-call"
+                        className="flex min-w-[176px] items-center gap-2.5 rounded-lg bg-neutral-50 px-3 py-2.5 text-[14px] ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:ring-neutral-700/60"
+                      >
+                        {callEvent.missed ? (
+                          <PhoneMissed size={16} className="shrink-0 text-orange-500" />
+                        ) : (
+                          <Phone
+                            size={16}
+                            className={`shrink-0 ${
+                              callEvent.duration
+                                ? "text-neutral-500 dark:text-neutral-300"
+                                : "text-green-600"
+                            }`}
+                          />
+                        )}
+                        <div className="flex-1 text-right">
+                          <p className="text-[13px] font-medium">{callEvent.label}</p>
+                          {callEvent.duration && (
+                            <p className="text-[12px] text-neutral-500">{callEvent.duration}</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
                     <div
                       className={`rounded-lg px-3 py-2 text-[14px] leading-relaxed ${
                         mine
@@ -904,6 +956,7 @@ export function DmView({ roomId }: { roomId: string }) {
                         </p>
                       )}
                     </div>
+                    )}
                   </div>
                   <span className={`shrink-0 pb-0.5 text-[10px] text-neutral-400 ${mine ? "order-first" : ""}`}>
                     {timeLabel(m.createdAt)}
