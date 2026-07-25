@@ -597,11 +597,20 @@ export function DmView({
   function linkify(text: string, mine: boolean) {
     // urls, plus bare 32-byte tx hashes — the on-chain registration notice
     // quotes one, and it is only useful if you can open it on the explorer.
-    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64})/g);
+    // ...plus /p/<page-id> — the agent cites the relationship doc that way,
+    // and a citation you cannot open is just noise.
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[0-9a-fA-F-]{8,36})/g);
     if (parts.length === 1) return text;
     const linkClass = "underline underline-offset-2 text-[#2383e2] dark:text-blue-400";
     return parts.map((part, i) => {
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
+      if (/^\/p\//.test(part)) {
+        return (
+          <a key={i} href={part} className={linkClass} title={part}>
+            📄 relationship doc
+          </a>
+        );
+      }
       if (!isTx && !/^https?:\/\//.test(part)) return part;
       return (
         <a
