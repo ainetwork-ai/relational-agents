@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { writeDbCell, writeDbAddRow } from "@/lib/okf-store";
+import { okfGateFor } from "@/lib/okf-acl";
 
 export const dynamic = "force-dynamic";
+
+/** Same gate every other OKF route applies: a restricted path (and its whole
+ * subtree) belongs to its participants. A database under one is no exception. */
+async function denied(relPath: string, userId: string): Promise<boolean> {
+  const gate = await okfGateFor(userId);
+  return !gate.canRead(relPath);
+}
 
 /** PATCH { path, rowId, propId, value } → write one CSV cell (display string). */
 export async function PATCH(req: NextRequest) {
@@ -13,6 +21,8 @@ export async function PATCH(req: NextRequest) {
   if (typeof relPath !== "string" || typeof rowId !== "string" || typeof propId !== "string") {
     return NextResponse.json({ error: "bad input" }, { status: 400 });
   }
+  if (await denied(relPath, auth.user.id))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     writeDbCell(relPath, rowId, propId, String(value ?? ""));
     return NextResponse.json({ ok: true });
@@ -28,6 +38,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const relPath = body?.path;
   if (typeof relPath !== "string") return NextResponse.json({ error: "bad input" }, { status: 400 });
+  if (await denied(relPath, auth.user.id))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     return NextResponse.json({ rowId: writeDbAddRow(relPath) }, { status: 201 });
   } catch {

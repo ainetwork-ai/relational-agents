@@ -15,6 +15,7 @@ import {
   okfIcon,
 } from "@/lib/okf-store";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { okfGateFor } from "@/lib/okf-acl";
 import {
   validateShareToken,
   hasPermission,
@@ -26,6 +27,15 @@ import {
 export const dynamic = "force-dynamic";
 
 /** Build the synthetic Page for an OKF node (mirrors GET /api/pages). */
+/** okf_acl is the only thing making a relationship doc participant-only — the
+ * page id is just base64url of the path, so every OKF branch below (read,
+ * rename, delete) has to ask before it touches the file. Denied reads 404 so
+ * the id cannot be used to probe for a doc's existence. */
+async function okfDenied(pageId: string, userId: string): Promise<boolean> {
+  const gate = await okfGateFor(userId);
+  return !gate.canReadId(pageId);
+}
+
 async function okfPageFor(pageId: string, userId: string, icon?: string | null) {
   const node = readNode(decodeId(pageId));
   if (!node) return null;
@@ -85,6 +95,8 @@ export async function GET(
   const { pageId } = await params;
 
   if (isOkfId(pageId)) {
+    if (await okfDenied(pageId, auth.user.id))
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     try {
       const page = await okfPageFor(pageId, auth.user.id);
       if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -115,6 +127,8 @@ export async function PATCH(
  // OKF pages require session auth (no share-token path for file-backed pages)
   if (isOkfId(pageId)) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (await okfDenied(pageId, userId))
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     try {
       const body = await req.json().catch(() => ({}));
       const node = readNode(decodeId(pageId));
@@ -210,6 +224,8 @@ export async function DELETE(
   const { pageId } = await params;
 
   if (isOkfId(pageId)) {
+    if (await okfDenied(pageId, auth.user.id))
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     const permanent = new URL(req.url).searchParams.get("permanent") === "1";
     try {
       const node = readNode(decodeId(pageId));

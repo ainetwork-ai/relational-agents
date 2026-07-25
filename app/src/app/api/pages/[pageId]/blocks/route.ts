@@ -24,6 +24,7 @@ import {
   getPagePermission,
   requirePagePermission,
 } from "@/lib/auth/share-token";
+import { okfGateFor } from "@/lib/okf-acl";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,12 @@ async function resolveAccess(req: NextRequest, pageId: string) {
   const auth = await requireAuth();
   if (!("error" in auth)) {
     if (isOkfId(pageId)) {
+   // OKF paths carry no filesystem permission of their own — okf_acl is the
+   // whole guarantee that a relationship doc is participant-only, and a page
+   // id is just base64url of the path, so anyone who can guess the room name
+   // can address it. Gate here, where every verb below passes through.
+      const gate = await okfGateFor(auth.user.id);
+      if (!gate.canReadId(pageId)) return { authed: false as const };
       return { authed: true as const, userId: auth.user.id, share: null };
     }
     const page = await loadAccessiblePage(pageId, auth.user.id);
