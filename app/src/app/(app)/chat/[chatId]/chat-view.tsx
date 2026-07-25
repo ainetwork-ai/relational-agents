@@ -666,7 +666,7 @@ export function ChatView({ chatId }: { chatId: string }) {
         role="log"
         aria-live="polite"
         aria-label="Conversation"
-        className="flex-1 space-y-4 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-4"
       >
         {hasMoreMessages && (
           <div className="flex justify-center pb-2">
@@ -690,7 +690,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className={`group flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 ${
+              className={`min-w-0 max-w-[85%] rounded-lg px-3 py-2 ${
                 m.role === "user"
                   ? "bg-blue-50 text-neutral-900 dark:bg-blue-900/30 dark:text-neutral-100"
                   : "bg-neutral-50 dark:bg-neutral-800/60"
@@ -699,7 +699,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               {m.role === "user" ? (
                 <>
                   <div className="flex items-start gap-1">
-                    <p className="whitespace-pre-wrap text-sm text-neutral-800 dark:text-neutral-200">
+                    <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-neutral-800 dark:text-neutral-200">
                       {m.content}
                     </p>
                     {i === lastUserIndex && (
@@ -730,7 +730,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 </>
               ) : (
                 <>
-                  <div data-testid="chat-msg-content">
+                  <div data-testid="chat-msg-content" className="min-w-0">
                     <MarkdownContent content={m.content} />
                   </div>
                   {m.sources && m.sources.length > 0 && (
@@ -865,8 +865,8 @@ export function ChatView({ chatId }: { chatId: string }) {
             data-testid="chat-msg-assistant"
             className="flex justify-start"
           >
-            <div className="max-w-[85%] rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/60">
-              <div data-testid="chat-msg-content">
+            <div className="min-w-0 max-w-[85%] rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/60">
+              <div data-testid="chat-msg-content" className="min-w-0">
                 <MarkdownContent content={streamingText} />
               </div>
               <span
