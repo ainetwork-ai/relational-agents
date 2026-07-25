@@ -30,3 +30,6 @@ dashboard/.uploads-cache.json
 memory-data/content/Relationship doc*/
 memory-data/content/Relationships.csv
 memory-data/content/demo.md
+
+# local backups (not source)
+/backup/
