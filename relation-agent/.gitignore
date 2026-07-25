@@ -14,3 +14,4 @@ var/
 # 런타임 생성 대화 기록(update) — 시드 아님
 mock/relations/*/memories/turn-*.md
 .output/
+mock/**/*.md
