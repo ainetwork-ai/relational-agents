@@ -10,7 +10,13 @@ icon: 🎬
 Total runtime 3:00 · 1440×900 · light mode.
 Concept: a relationship-management workspace. The star is the relational agent — born only by mutual consent, it manages and remembers your relationships. All scenes below use the REAL data in this workspace: the **Relationships** database (Relationships.csv) and the **Relationship Records** pages — every record titled **"Chanho ❤️ {name}"** (Chanho ❤️ Isla Montgomery, Chanho ❤️ Hannah Brooks, Chanho ❤️ Sophie Miller, and seven more).
 
-Setup: logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
+## Setup — three wallets, two consents (off camera)
+
+1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
+2. **Wire the triangle**: from Chanho, invite **Hannah** → switch to Hannah's profile, accept → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. Consent is anchored to each side's wallet identity: the accept can only happen inside a session that wallet signed into.
+3. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
+
+The pre-roll and the 2:12 finale lean on these two pre-wired relationships (the Lisbon egg tart lives with Hannah, and only there). On camera, the tenth relationship — Isla — is born fresh.
 
 ---
 
