@@ -14,6 +14,17 @@ import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { signTypedDataWithWallet } from "@/lib/wallet/sign";
 import { WalletSignatureError } from "@/lib/wallet/provider";
 
+/** Block explorer for the chain the relation registry is deployed on. */
+const EXPLORER_BY_CHAIN: Record<string, string> = {
+  "1": "https://etherscan.io",
+  "11155111": "https://sepolia.etherscan.io",
+  "8453": "https://basescan.org",
+  "84532": "https://sepolia.basescan.org",
+};
+const EXPLORER_BASE =
+  EXPLORER_BY_CHAIN[process.env.NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID ?? "11155111"] ??
+  "https://sepolia.etherscan.io";
+
 interface GuardResult {
   verdict: "allow" | "decline";
   checked: boolean;
@@ -494,23 +505,27 @@ export function DmView({ roomId }: { roomId: string }) {
 
   /** Make bare URLs in a message clickable (agent recs carry Google Maps links). */
   function linkify(text: string, mine: boolean) {
-    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+)/g);
+    // urls, plus bare 32-byte tx hashes — the on-chain registration notice
+    // quotes one, and it is only useful if you can open it on the explorer.
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64})/g);
     if (parts.length === 1) return text;
-    return parts.map((part, i) =>
-      /^https?:\/\//.test(part) ? (
+    const linkClass = `underline underline-offset-2 ${mine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"}`;
+    return parts.map((part, i) => {
+      const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
+      if (!isTx && !/^https?:\/\//.test(part)) return part;
+      return (
         <a
           key={i}
-          href={part}
+          href={isTx ? `${EXPLORER_BASE}/tx/${part}` : part}
           target="_blank"
           rel="noreferrer"
-          className={`underline underline-offset-2 ${mine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"}`}
+          className={linkClass}
+          title={isTx ? part : undefined}
         >
-          {part}
+          {isTx ? `${part.slice(0, 10)}…${part.slice(-8)}` : part}
         </a>
-      ) : (
-        part
-      )
-    );
+      );
+    });
   }
 
   if (error) {
