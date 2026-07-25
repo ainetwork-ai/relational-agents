@@ -14,7 +14,7 @@ Concept: a relationship-management workspace. The star is the relational agent �
 
 Two title cards before the product appears. No UI yet — this is the thesis, and everything after it is the proof. Every scene below is timed to absorb this pre-roll, so the total stays at 3:00.
 
-**Card 1 — 😈 the problem** (7s). Show `docs/img/agent.png`: one agent per human, one shared memory store holding "Egg tart with Hannah". **Ava** asks *"Remember the egg tart?"* — the red leak arrow lands, screen shake 0.2s, BGM drops.
+**Card 1 — 😈 the problem** (7s). Show `docs/img/agent.png`: one agent per human, one shared memory store holding "Egg tart with Hannah". **Ava** asks *"Chanho, do you like egg tarts?"* — the agent answers *"Yes — Chanho used to love egg tarts, especially with Hannah."* The red leak arrow lands, screen shake 0.2s, BGM drops.
 
 ![One agent per human — Ava's question leaks Hannah's memory](../../docs/img/agent.png)
 
@@ -27,7 +27,7 @@ Caption: **"Nobody hacked anything. It was being helpful."**
 Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
 
 **VO**:
-> "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+> "Ava asked Chanho's agent, 'Do you like egg tarts?' — and it answered, 'especially with Hannah,' from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
 ## Setup — three wallets, two consents (live, right after the pre-roll)
 
