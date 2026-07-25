@@ -639,8 +639,9 @@ export function DmView({
     // urls, plus bare 32-byte tx hashes — the on-chain registration notice
     // quotes one, and it is only useful if you can open it on the explorer.
     // ...plus /p/<page-id> — the agent cites the relationship doc that way,
-    // and a citation you cannot open is just noise.
-    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[0-9a-fA-F-]{8,36})/g);
+    // and a citation you cannot open is just noise. Page ids are base64url
+    // (the OKF path encoded), not uuids, so the token class has to be wide.
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[A-Za-z0-9_-]{8,})/g);
     if (parts.length === 1) return text;
     const linkClass = "underline underline-offset-2 text-[#2383e2] dark:text-blue-400";
     return parts.map((part, i) => {
