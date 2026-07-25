@@ -392,6 +392,10 @@
     padding: 4px;
   }
   .call-view.connected .tiles { display: grid; }
+  /* real (notion-bridged) call: the remote peer's video replaces the tiles */
+  .notion-remote { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; display: none; }
+  .call-view.notion-live .notion-remote { display: block; }
+  .call-view.notion-live .tiles { display: none; }
   .tiles.solo { padding: 0; gap: 0; }
   .tiles.solo .tile { border-radius: 0; }
   .tiles.solo .tile .tile-name { display: none; }
@@ -590,6 +594,7 @@
         <div class="ring-status" id="ringStatus">Calling…</div>
       </div>
       <div class="tiles" id="tiles"></div>
+      <video class="notion-remote" id="notionRemote" autoplay playsinline></video>
       <div class="pip">
         <div class="pip-fallback">No Camera</div>
         <video id="pipVideo" autoplay playsinline muted hidden></video>
@@ -804,6 +809,8 @@
   let callTimers = [];
   let ringAudio = null;
   let notionPoll = null;
+  let notionPc = null;
+  let notionStream = null;
 
   function startRingtone() {
     try {
@@ -869,33 +876,77 @@
     });
   }
 
-  // A real call into the notion app: the bridge rings DemoUser's DM room
-  // with a headless caller; this view mirrors ringing/active/ended state.
-  function startNotionCall(g) {
+  // A real call into the notion app. THIS tab is the caller endpoint — its
+  // camera/mic feed the WebRTC leg (both tabs live on the same machine, so
+  // host ICE candidates connect; the app's pc has no STUN/TURN). The bridge
+  // only lends us the caller identity: it rings the room and proxies SDP.
+  // Same non-trickle dance as the app's CallView: accept → offer → answer.
+  function waitIce(pc, capMs = 2000) {
+    if (pc.iceGatheringState === "complete") return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => { pc.removeEventListener("icegatheringstatechange", check); clearTimeout(cap); resolve(); };
+      const check = () => { if (pc.iceGatheringState === "complete") done(); };
+      const cap = setTimeout(done, capMs);
+      pc.addEventListener("icegatheringstatechange", check);
+    });
+  }
+
+  async function startNotionCall(g) {
     showRinging([g]);
-    fetch("/api/notion-call", { method: "POST" })
-      .then((r) => { if (!r.ok) throw new Error(`bridge ${r.status}`); })
-      .catch((e) => {
-        ringStatus.textContent = String(e.message || e).slice(0, 60);
-        callTimers.push(setTimeout(endCall, 2500));
-      });
-    let sawCall = false;
+    const bail = (msg) => {
+      ringStatus.textContent = msg;
+      callTimers.push(setTimeout(endCall, 2500));
+    };
+    try {
+      const r = await (await fetch("/api/notion-call", { method: "POST" })).json();
+      if (!r.ok) throw new Error(r.error || "bridge error");
+    } catch (e) {
+      return bail(String(e.message || e).slice(0, 60));
+    }
+    try {
+      // the idle preview is video-only; a call needs the mic too
+      notionStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } catch {
+      fetch("/api/notion-call/end", { method: "POST" }).catch(() => {});
+      return bail(I18N[lang].noCamera);
+    }
+    const pc = new RTCPeerConnection();
+    notionPc = pc;
+    notionStream.getTracks().forEach((t) => pc.addTrack(t, notionStream));
+    pc.ontrack = (e) => { document.getElementById("notionRemote").srcObject = e.streams[0]; };
+
+    let offered = false, answered = false, sawCall = false, empty = 0;
     notionPoll = setInterval(async () => {
       try {
-        const { running, call } = await (await fetch("/api/notion-call")).json();
-        if (call) sawCall = true;
-        if (call && call.status !== "ringing") {
-          // accepted — media flows between the headless caller and DemoUser
+        const { call } = await (await fetch("/api/notion-call")).json();
+        if (!call) {
+          // declined / cancelled / hung up — or the ring never registered
+          if (sawCall || ++empty > 12) endCall();
+          return;
+        }
+        sawCall = true;
+        if (call.status !== "active") return;
+        if (!offered) {
+          offered = true;
+          await pc.setLocalDescription(await pc.createOffer());
+          await waitIce(pc);
+          await fetch("/api/notion-call/signal", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "offer", sdp: pc.localDescription }),
+          });
+        }
+        if (call.answer && !answered) {
+          answered = true;
+          await pc.setRemoteDescription(call.answer);
           stopRingtone();
           callView.classList.remove("ringing");
-          callView.classList.add("connected");
-          if (video.srcObject) { pipVideo.srcObject = video.srcObject; pipVideo.hidden = false; }
-          document.querySelectorAll("#tiles .tile").forEach(t => t.classList.add("joined"));
-        } else if (!running || (sawCall && !call)) {
-          endCall(); // declined / cancelled / hung up / caller died
+          callView.classList.add("connected", "notion-live");
+          pipVideo.srcObject = notionStream;
+          pipVideo.hidden = false;
         }
-      } catch { /* bridge hiccup — keep polling */ }
-    }, 1500);
+      } catch { /* transient — next tick */ }
+    }, 1000);
   }
 
   function startCall(members) {
@@ -915,19 +966,26 @@
     callTimers.forEach(clearTimeout);
     callTimers = [];
     stopRingtone();
-    callView.classList.remove("active", "ringing", "connected");
+    callView.classList.remove("active", "ringing", "connected", "notion-live");
     if (notionPoll) {
       clearInterval(notionPoll);
       notionPoll = null;
       // hanging up from this UI ends the bridged call too (no-op if over)
       fetch("/api/notion-call/end", { method: "POST" }).catch(() => {});
     }
+    if (notionPc) { try { notionPc.close(); } catch { /* already closed */ } notionPc = null; }
+    if (notionStream) { notionStream.getTracks().forEach((t) => t.stop()); notionStream = null; }
+    document.getElementById("notionRemote").srcObject = null;
   }
   document.getElementById("endBtn").addEventListener("click", endCall);
-  document.getElementById("micBtn").addEventListener("click", (e) => e.currentTarget.classList.toggle("off"));
+  document.getElementById("micBtn").addEventListener("click", (e) => {
+    const off = e.currentTarget.classList.toggle("off");
+    if (notionStream) notionStream.getAudioTracks().forEach((t) => (t.enabled = !off));
+  });
   document.getElementById("camBtn").addEventListener("click", (e) => {
     const off = e.currentTarget.classList.toggle("off");
     pipVideo.style.visibility = off ? "hidden" : "visible";
+    if (notionStream) notionStream.getVideoTracks().forEach((t) => (t.enabled = !off));
   });
   goBtn.addEventListener("click", () => {
     const members = GIRLFRIENDS.filter(g => selected.has(g.id));

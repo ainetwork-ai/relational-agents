@@ -1,8 +1,9 @@
-// Headless caller behind the videocall-UI bridge (videocall/server.mjs
-// POST /api/notion-call): logs into the notion app as a demo account, finds
-// (or provisions) its 1:1 DM room with DemoUser, clicks the header call
-// button and stays parked on /call — the fake camera/mic feed the WebRTC
-// leg — until the call ends on either side.
+// Standalone headless caller for testing the in-app call without a second
+// human: logs into the notion app as a demo account, finds (or provisions)
+// its 1:1 DM room with DemoUser, clicks the header call button and stays
+// parked on /call — fake camera/mic feed the WebRTC leg — until the call
+// ends on either side. (The videocall UI used to ring through this; it now
+// places calls directly as the caller endpoint, so this is test-only.)
 //
 //   [BASE_URL=http://localhost:3220] [VC_CALLER=Ava] \
 //   [CALL_TIMEOUT_MS=600000] node e2e/demo-caller.mjs
