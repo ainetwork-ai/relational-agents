@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Phone, PhoneOff } from "lucide-react";
 import { useDmEvents } from "@/hooks/use-dm-events";
+import { prewarmCallMedia, discardCallMedia } from "@/lib/call-prewarm";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import type { DmUser } from "@/stores/dm-rooms";
 
@@ -92,7 +93,13 @@ export function IncomingCallHost() {
   useEffect(() => {
     if (!ringing) return;
     stopRingRef.current = startRingtone();
-    timerRef.current = setTimeout(() => setRinging(null), RING_TIMEOUT_MS);
+    // camera/mic warm up while the phone rings — accept then hands the live
+    // stream to the call view instead of paying getUserMedia on the spot
+    void prewarmCallMedia(ringing.roomId);
+    timerRef.current = setTimeout(() => {
+      discardCallMedia();
+      setRinging(null);
+    }, RING_TIMEOUT_MS);
     return () => {
       stopRingRef.current?.();
       stopRingRef.current = null;
@@ -132,8 +139,10 @@ export function IncomingCallHost() {
         event.type === "dm-call-decline" ||
         event.type === "dm-call-end") &&
       ringing?.roomId === event.roomId
-    )
+    ) {
+      discardCallMedia(); // the ring resolved elsewhere — release the devices
       clear();
+    }
   },
   // SSE hello = the inbox (re)connected — any ring that fired during the gap
   // was lost for good, so sweep for calls still ringing for me
@@ -156,12 +165,17 @@ export function IncomingCallHost() {
     if (!ringing) return;
     const { roomId } = ringing;
     clear();
-    await fetch(`/api/calls/${roomId}`, {
+    if (action === "decline") discardCallMedia();
+    const post = fetch(`/api/calls/${roomId}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
     }).catch(() => {});
+    // navigate in parallel with the POST — the call view starts hydrating
+    // immediately and adopts the pre-warmed camera (glare auto-accept covers
+    // the race where the page syncs before the accept lands)
     if (action === "accept") router.push(`/call/${roomId}`);
+    await post;
   }
 
   if (!ringing) return null;

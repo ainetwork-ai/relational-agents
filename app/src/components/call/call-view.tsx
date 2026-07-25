@@ -6,6 +6,7 @@ import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useSpeechTranscript } from "@/hooks/use-speech-transcript";
+import { adoptCallMedia, CALL_MEDIA_CONSTRAINTS } from "@/lib/call-prewarm";
 import { DmView } from "@/app/(app)/dm/[roomId]/dm-view";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import type { DmUser } from "@/stores/dm-rooms";
@@ -177,11 +178,16 @@ export function CallView({ roomId }: { roomId: string }) {
   // ---- media ----
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
+    // the incoming-call card warms the camera while the phone rings —
+    // adopting it skips the ~1s device acquisition on the connect path
+    const warm = adoptCallMedia(roomId);
+    if (warm) {
+      localStreamRef.current = warm;
+      if (localVideoRef.current) localVideoRef.current.srcObject = warm;
+      return warm;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(CALL_MEDIA_CONSTRAINTS);
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       return stream;
@@ -191,7 +197,7 @@ export function CallView({ roomId }: { roomId: string }) {
       setMediaError(true);
       throw err;
     }
-  }, []);
+  }, [roomId]);
 
   // A mid-call network blip used to freeze the video forever — nobody
   // listened to the ICE state. The CALLER drives recovery (re-offer with
