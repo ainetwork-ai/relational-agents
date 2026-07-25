@@ -129,6 +129,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       break;
     }
     case "end": {
+      // recap first: it claims the call's utterances while the call still
+      // counts as live, so the write pipeline leaves them to the summary
+      if (call)
+        void recapCall(roomId, call.callId).catch((err) =>
+          console.error("call recap failed:", err)
+        );
       deleteCall(roomId);
       await notify("dm-call-end");
       if (call) {
@@ -138,11 +144,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
             ? `📞 Video Call ended · ${mmss(Date.now() - call.acceptedAt)}`
             : "📞 Missed call";
         void postCallEvent(access.room, call.callerId, text).catch(console.error);
-        // The call is one thing that happened, so it is written up as one entry
-        // — out of band, since hanging up should not wait on a summary.
-        void recapCall(roomId, call.callId).catch((err) =>
-          console.error("call recap failed:", err)
-        );
       }
       break;
     }

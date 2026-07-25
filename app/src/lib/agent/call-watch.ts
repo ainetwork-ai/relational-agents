@@ -115,6 +115,15 @@ export async function recapCall(roomId: string, callId: string): Promise<{ recor
     return { recorded: false };
   }
 
+  // Claim them before the slow part. Ending a call also posts a chat message,
+  // which wakes the write pipeline; with the call already deleted it no longer
+  // skips these, and whoever got there first won — the call ended up scattered
+  // line by line instead of summarised.
+  await db
+    .update(callUtterances)
+    .set({ processedAt: new Date() })
+    .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
   if (!room) return { recorded: false };
@@ -166,10 +175,6 @@ export async function recapCall(roomId: string, callId: string): Promise<{ recor
       okfDocMeta(roomId, "timeline")
     );
   }
-  await db
-    .update(callUtterances)
-    .set({ processedAt: new Date() })
-    .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
   return { recorded: true };
 }
 
