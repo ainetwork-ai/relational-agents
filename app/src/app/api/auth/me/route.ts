@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
+import { normalizeDisplayName, setUserDisplayName } from "@/lib/auth/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -15,20 +16,26 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const patch: { displayName?: string; avatarUrl?: string | null } = {};
+  const patch: { avatarUrl?: string | null } = {};
+  let renamed: Awaited<ReturnType<typeof setUserDisplayName>> = null;
 
   if (typeof body?.displayName === "string") {
-    const name = body.displayName.trim().slice(0, 80);
+    const name = normalizeDisplayName(body.displayName);
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
-    patch.displayName = name;
+ // one global name — also refreshes the copies frozen into room titles,
+ // agent names and the personal workspace
+    renamed = await setUserDisplayName(session.userId, name);
+    if (!renamed) return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
   if (typeof body?.avatarUrl === "string") {
     if (body.avatarUrl !== "" && !/^\/uploads\/[\w.-]+$/.test(body.avatarUrl))
       return NextResponse.json({ error: "avatarUrl must be an /uploads/ path" }, { status: 400 });
     patch.avatarUrl = body.avatarUrl === "" ? null : body.avatarUrl;
   }
-  if (Object.keys(patch).length === 0)
+  if (Object.keys(patch).length === 0) {
+    if (renamed) return NextResponse.json({ user: toPublicUser(renamed) });
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
 
   const [user] = await db
     .update(users)
