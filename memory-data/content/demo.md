@@ -34,21 +34,11 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 Nothing is pre-wired — both relationships are formed on camera.
 
 1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
-2. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
+2. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away; the two invitations (**Hannah**, **Ava**) already sent so both rooms exist. Warm up the local LLM once before recording.
 
 Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks over a video call — and whose agent has nothing to leak.
 
-## 0:15–0:33 · Opening — first login lands on the dashboard
-
-**Screen actions**:
-1. First login (MetaMask sign-in). The main page opens on the **Relationships dashboard** — the dashboard view over the Relationships database: your ❤️ relationships at a glance, upcoming dates highlighted. Hold one beat (~2s) so the viewer orients.
-2. Sidebar, **Chats** tab. In the **Relationships** section, click the **+**. The **New relationship** modal opens with the member list.
-3. Pick **Hannah Brooks**, then **Ava Thorne** — two invitations go out. Pending rows appear: "waiting for Hannah," "waiting for Ava."
-
-**VO**:
-> "Sign in, and you land on your relationships — one dashboard. But this story doesn't start with a page. It starts with an invitation. Chanho reaches out to Hannah and Ava — one message each, and the door is open."
-
-## 0:33–1:00 · Mutual consent → two relationships are born
+## 0:15–1:00 · Mutual consent → two relationships are born
 
 **Screen actions**:
 1. **Chanho ❤️ Hannah first.** Hannah opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields (relation id + both parties) and she signs. Cut to Chanho signing too — the banner ticks **1/2 → 2/2 signed**.
@@ -61,7 +51,7 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 ## 1:00–2:12 · It remembers (upload → memory)
 
 **Screen actions**:
-1. In **Chanho ❤️ Hannah Brooks**, drop the egg tart photo (`dashboard/public/date/web/IMG_2569.jpg`) **into the agent chat**: "@agent midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
+1. In **Chanho ❤️ Hannah Brooks**, drop the egg tart photo (`docs/img/egg-tart.jpg`) **into the agent chat**: "@agent midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
 2. Ask the agent: "What did we eat that night in Lisbon?" → it answers from the record it just wrote, photo attached, with a link to the **Chanho ❤️ Hannah** page.
 
 **VO**:
@@ -108,17 +98,16 @@ Global rules:
 
 Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-app transition of its own):
 
-1. **Pre-roll → Login (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s onto the login screen; the MetaMask signature lands and the **Relationships dashboard** fills the main page (hold ~2s). From home base, the cursor moves to the Chats **+** — the first gesture is reaching out.
-2. **Invite → Consent (0:33)** — on Hannah's *accept* the New-DM modal doesn't just close; its avatar **match-cuts into the freshly-created sidebar row** **Chanho ❤️ Hannah Brooks** (0.4s). The page is born from the invitation.
-3. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
-4. **Consent → Remember (1:00)** — **match cut** on the agent avatar: the chat bubble avatar aligns to the same position across the cut into **Chanho ❤️ Hannah Brooks**. 0.4s crossfade.
-5. **Inside Remember** — as the agent files the natas photo, **push-zoom 110%** onto the Timeline line it just wrote for 1s, then settle.
-6. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
-7. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
-8. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
-9. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
+1. **Pre-roll → Consent (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s straight onto Hannah's room with the contract banner. The first in-app gesture is a signature, not a tour.
+2. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
+3. **Consent → Remember (1:00)** — **match cut** on the agent avatar: the chat bubble avatar aligns to the same position across the cut into **Chanho ❤️ Hannah Brooks**. 0.4s crossfade.
+4. **Inside Remember** — as the agent files the natas photo, **push-zoom 110%** onto the Timeline line it just wrote for 1s, then settle.
+5. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
+6. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
+7. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
+8. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 
-Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 6–7 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
+Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 5–6 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
 
 ---
 
