@@ -8,8 +8,10 @@ import {
   users,
   type AgentConfig,
   type ChatMessage,
+  type User,
 } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
+import { toPublicUser } from "@/lib/auth/public-user";
 import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
 import { SECTIONS } from "./parse-edits";
@@ -102,6 +104,28 @@ export function isMentioned(text: string, agentName: string): boolean {
     t.includes("@agent") ||
     (agentName.trim().length > 0 && t.includes(`@${agentName.toLowerCase()}`))
   );
+}
+
+/** A decision that actually says something. */
+function isAnswer(d: RespondResult): boolean {
+  return d.action === "reply" && Boolean(d.text?.trim());
+}
+
+const TYPING_BEAT_MS = 2_000;
+
+/** Typing dots while the agent works, scoped like the answer itself: a quiet
+ *  question is between the asker and the agent, so the partner must not even
+ *  see that someone is being answered. Returns the stop function. */
+function showAgentTyping(roomId: string, agent: User, onlyFor: string | null): () => void {
+  const beat = () =>
+    void publishToRoomMembers(
+      roomId,
+      { type: "dm-typing", clientId: `agent:${agent.id}`, user: toPublicUser(agent) },
+      onlyFor ? [onlyFor] : undefined
+    ).catch(() => {});
+  beat();
+  const timer = setInterval(beat, TYPING_BEAT_MS);
+  return () => clearInterval(timer);
 }
 
 /** Offline/test path: deterministic reply on mention, silence otherwise. */
@@ -212,35 +236,55 @@ export async function respondToMessage(
   const mentioned =
     Boolean(message.privateToUserId) || isMentioned(message.text, agent.displayName);
 
+ // The answer is on its way — say so on screen. Only when the agent is
+ // addressed: a chime-in is decided after the fact, and dots that resolve into
+ // silence are a lie.
+  const stopTyping = mentioned
+    ? showAgentTyping(roomId, agent, message.privateToUserId ?? null)
+    : null;
+
   let decision: RespondResult;
-  if (process.env.AGENT_FAKE_LLM === "1") {
-    decision = fakeDecision(message, mentioned);
-  } else {
-    const [state] = await db
-      .select()
-      .from(agentRoomStates)
-      .where(eq(agentRoomStates.roomId, roomId));
- // the relationship doc is OKF-file-canonical — answer evidence reads from files too
-    const tree = ensureOkfDocTree(roomId, room.name, {
-      rootPath: state?.rootOkfPath,
-      sectionPaths: state?.sectionOkfPaths,
-    });
-    const sections = readOkfSectionTexts(tree);
-    const recent = await db
-      .select()
-      .from(chatMessages)
-      .where(and(eq(chatMessages.roomId, roomId)))
-      .orderBy(desc(chatMessages.createdAt))
-      .limit(20);
-    decision = await llmDecision(
-      message,
-      mentioned,
-      room.name,
-      config,
-      sections,
-      recent,
-      docPageIdOf(state)
-    );
+  try {
+    if (process.env.AGENT_FAKE_LLM === "1") {
+      decision = fakeDecision(message, mentioned);
+    } else {
+      const [state] = await db
+        .select()
+        .from(agentRoomStates)
+        .where(eq(agentRoomStates.roomId, roomId));
+   // the relationship doc is OKF-file-canonical — answer evidence reads from files too
+      const tree = ensureOkfDocTree(roomId, room.name, {
+        rootPath: state?.rootOkfPath,
+        sectionPaths: state?.sectionOkfPaths,
+      });
+      const sections = readOkfSectionTexts(tree);
+      const recent = await db
+        .select()
+        .from(chatMessages)
+        .where(and(eq(chatMessages.roomId, roomId)))
+        .orderBy(desc(chatMessages.createdAt))
+        .limit(20);
+      const ask = (nudge: string) =>
+        llmDecision(
+          nudge ? { ...message, text: `${message.text}\n\n${nudge}` } : message,
+          mentioned,
+          room.name,
+          config,
+          sections,
+          recent,
+          docPageIdOf(state)
+        );
+      decision = await ask("");
+   // Being asked and saying nothing is not an outcome this can ship with: the
+   // model sometimes answers a direct question with {"action":"silent"}, which
+   // reads on screen as a broken agent. Ask once more, spelling out the rule.
+      if (mentioned && !isAnswer(decision))
+        decision = await ask("(You were addressed directly. Reply — silence is not an option here.)");
+    }
+    if (mentioned && !isAnswer(decision))
+      decision = { action: "reply", text: "I couldn't put that together just now — ask me once more?" };
+  } finally {
+    stopTyping?.();
   }
 
   if (decision.action === "reply" && decision.text) {
