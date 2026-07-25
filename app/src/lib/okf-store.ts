@@ -129,7 +129,9 @@ function rel(abs: string): string {
 }
 
 function buildDir(absDir: string): TreeNode[] {
-  const entries = fs.readdirSync(absDir, { withFileTypes: true });
+  // Dot-entries are tooling state (.omc, .git, .obsidian…), not user content —
+  // without this they show up in the sidebar as pages/folders.
+  const entries = fs.readdirSync(absDir, { withFileTypes: true }).filter((e) => !e.name.startsWith("."));
   const nodes: TreeNode[] = [];
   const dirs = entries.filter((e) => e.isDirectory());
   const files = entries.filter((e) => e.isFile());
