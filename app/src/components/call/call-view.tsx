@@ -41,6 +41,33 @@ function waitIceComplete(pc: RTCPeerConnection, capMs = 2000): Promise<void> {
   });
 }
 
+/** ICE config: STUN always; TURN from env when provided (self-hosted coturn
+ * runs on the dev box but the router blocks 3478 from outside — flip the env
+ * once the port is forwarded), else the demo-grade openrelay free tier. */
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  ...(process.env.NEXT_PUBLIC_TURN_URL
+    ? [
+        {
+          urls: process.env.NEXT_PUBLIC_TURN_URL,
+          username: process.env.NEXT_PUBLIC_TURN_USERNAME ?? "",
+          credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL ?? "",
+        },
+      ]
+    : [
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+        {
+          urls: "turn:openrelay.metered.ca:443?transport=tcp",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+      ]),
+];
+
 /** Outgoing ringback — the ONE state that sounds is "Calling…". WebAudio
  * dual-tone like the incoming ringtone, slower cadence. Returns the stop
  * function; the caller manages it from an effect so cleanup is the single,
@@ -178,15 +205,7 @@ export function CallView({ roomId }: { roomId: string }) {
 
   const ensurePc = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
-    // STUN for a reflexive path (different routers), TURN as the relay of
-    // last resort (symmetric NATs) — free openrelay tier, demo-grade only
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-      ],
-    });
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const stream = await ensureLocalStream();
     for (const track of stream.getTracks()) pc.addTrack(track, stream);
     pc.ontrack = (ev) => {
