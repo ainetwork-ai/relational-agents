@@ -362,6 +362,20 @@ export function DmView({ roomId }: { roomId: string }) {
 
   const agentMember = useMemo(() => members.find((m) => m.isAgent) ?? null, [members]);
 
+  /** "saved 3m ago" — proof the agent is doing its job without it saying so. */
+  const lastRecordedLabel = useMemo(() => {
+    const stamps = messages
+      .filter((m) => m.recordedAt)
+      .map((m) => new Date(m.recordedAt as string).getTime())
+      .filter((n) => Number.isFinite(n));
+    if (!stamps.length) return null;
+    const mins = Math.floor((Date.now() - Math.max(...stamps)) / 60_000);
+    if (mins < 1) return "saved just now";
+    if (mins < 60) return `saved ${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    return hrs < 24 ? `saved ${hrs}h ago` : `saved ${Math.floor(hrs / 24)}d ago`;
+  }, [messages]);
+
   /** Mirrors the server's mention test — the draft decides which mode you send in. */
   const draftIsPrivate = useMemo(() => {
     if (!agentMember) return false;
@@ -663,14 +677,23 @@ export function DmView({ roomId }: { roomId: string }) {
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          {/* One chip for the agent: that it is here, when it last wrote, and
+              the way into the record. It reads as presence, not as a feature. */}
           {room?.rootPageId && (
             <Link
               data-testid="dm-doc-link"
               href={`/p/${room.rootPageId}`}
               aria-label="Open relationship doc"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 sm:px-2.5 dark:text-blue-400 dark:hover:bg-blue-950/40"
+              data-tip="Everything the two of you have recorded"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 sm:px-2.5 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
-              <FileText size={14} /> <span className="hidden sm:inline">Relationship doc</span>
+              <FileText size={14} />
+              <span className="hidden font-medium text-neutral-700 sm:inline dark:text-neutral-200">
+                Record
+              </span>
+              {lastRecordedLabel && (
+                <span className="hidden text-neutral-400 sm:inline">· {lastRecordedLabel}</span>
+              )}
             </Link>
           )}
           {hasAgent === false && (
@@ -679,20 +702,23 @@ export function DmView({ roomId }: { roomId: string }) {
               onClick={() => void inviteAgent()}
               disabled={inviting}
               data-tip="Invite an agent that remembers this relationship"
-              className="flex items-center gap-1.5 rounded-md border border-purple-200/70 bg-purple-50/60 px-2 py-1.5 text-xs font-medium text-purple-600 transition-colors hover:bg-purple-100/70 disabled:opacity-50 sm:px-2.5 dark:border-purple-900/50 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/50"
+              className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 sm:px-2.5 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               <Bot size={14} />{" "}
               <span className="hidden sm:inline">{inviting ? "Inviting…" : "Invite agent"}</span>
             </button>
           )}
+          {/* Filing happens on its own; this is the manual nudge, so it earns an
+              icon rather than a coloured button competing with the room title. */}
           <button
             data-testid="dm-organize"
             onClick={() => void organize()}
             disabled={organizing}
-            data-tip="The agent organizes this conversation into a doc"
-            className="flex items-center gap-1.5 rounded-md border border-purple-200/70 bg-purple-50/60 px-2 py-1.5 text-xs font-medium text-purple-600 transition-colors hover:bg-purple-100/70 disabled:opacity-50 sm:px-2.5 dark:border-purple-900/50 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/50"
+            aria-label="Ask the agent to file the conversation now"
+            data-tip={organizing ? "Filing…" : "File the conversation now"}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
           >
-            <Sparkles size={14} /> <span className="hidden sm:inline">{organizing ? "Organizing…" : "AI organize"}</span>
+            <Sparkles size={14} className={organizing ? "animate-pulse" : ""} />
           </button>
 
           <div className="relative">
