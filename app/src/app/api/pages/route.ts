@@ -30,11 +30,23 @@ export async function GET(req: NextRequest) {
 
   // 접근 제한 페이지(DM 관계 문서 등)는 명시 권한 있는 멤버에게만 노출.
   // owner/admin은 관리상 전체 열람(getPagePermission과 동일). 기본 페이지는 그대로.
+  // guest는 Notion처럼 반대가 기본: 명시적으로 공유받은 페이지 외엔 아무것도
+  // 못 본다 — DM 상대로만 초대된 사람이 워크스페이스를 브라우징하지 못하게.
   let visible = rows;
-  const restrictedIds = rows.filter((r) => r.restricted).map((r) => r.id);
-  if (restrictedIds.length) {
-    const role = await getWorkspaceRole(workspaceId, auth.user.id);
-    if (role !== "owner" && role !== "admin") {
+  const role = await getWorkspaceRole(workspaceId, auth.user.id);
+  if (role === "guest") {
+    const ids = rows.map((r) => r.id);
+    const grants = ids.length
+      ? await db
+          .select({ pageId: pageMembers.pageId })
+          .from(pageMembers)
+          .where(and(eq(pageMembers.userId, auth.user.id), inArray(pageMembers.pageId, ids)))
+      : [];
+    const granted = new Set(grants.map((g) => g.pageId));
+    visible = rows.filter((r) => granted.has(r.id));
+  } else {
+    const restrictedIds = rows.filter((r) => r.restricted).map((r) => r.id);
+    if (restrictedIds.length && role !== "owner" && role !== "admin") {
       const grants = await db
         .select({ pageId: pageMembers.pageId })
         .from(pageMembers)

@@ -6,10 +6,14 @@ import {
   agentAccessTokens,
   chatRoomBots,
   chatRoomMembers,
+  pages,
   users,
+  workspaceMembers,
+  workspaces,
   type AgentConfig,
   type ChatRoom,
 } from "@/lib/db/schema";
+import { inArray } from "drizzle-orm";
 
 /** 외부 노출용 A2A 베이스 — env로 배포 주소 지정 (스펙 v2 §3). */
 export function a2aBaseUrl(): string {
@@ -106,7 +110,61 @@ export async function provisionRoomAgent(
     memberTokens[userId] = token;
   }
 
+  await ensureRelationshipWorkspace(room, agent.id);
+
   return { agentUserId: agent.id, memberTokens, alreadyExisted: false };
+}
+
+/**
+ * The relationship gets its own workspace, born with the agent: named
+ * "{A} ❤️ {B}" after its human members (creator first), humans as owners,
+ * the agent as a member. Idempotent — the unique name is the key.
+ */
+async function ensureRelationshipWorkspace(room: ChatRoom, agentUserId: string) {
+  const memberRows = await db
+    .select({ userId: chatRoomMembers.userId })
+    .from(chatRoomMembers)
+    .where(eq(chatRoomMembers.roomId, room.id));
+  const ids = memberRows.map((m) => m.userId).filter((id) => id !== agentUserId);
+  if (ids.length < 2) return;
+  const humans = (
+    await db
+      .select({ id: users.id, displayName: users.displayName, isAgent: users.isAgent })
+      .from(users)
+      .where(inArray(users.id, ids))
+  ).filter((u) => !u.isAgent);
+  if (humans.length < 2) return;
+  humans.sort((a, b) =>
+    a.id === room.createdBy ? -1 : b.id === room.createdBy ? 1 : a.displayName.localeCompare(b.displayName)
+  );
+  const name = humans.map((h) => h.displayName).join(" ❤️ ");
+
+  const [existing] = await db.select().from(workspaces).where(eq(workspaces.name, name)).limit(1);
+  let wsId = existing?.id;
+  if (!wsId) {
+    const [ws] = await db
+      .insert(workspaces)
+      .values({ name, iconText: "❤️", createdBy: room.createdBy })
+      .onConflictDoNothing()
+      .returning();
+    if (!ws) return; // raced — another provision made it
+    wsId = ws.id;
+    // seed page so the workspace never opens onto nothing
+    await db.insert(pages).values({
+      workspaceId: wsId,
+      title: name,
+      icon: "❤️",
+      createdBy: room.createdBy,
+      position: 1,
+    });
+  }
+  await db
+    .insert(workspaceMembers)
+    .values([
+      ...humans.map((h) => ({ workspaceId: wsId!, userId: h.id, role: "owner" as const })),
+      { workspaceId: wsId!, userId: agentUserId, role: "member" as const },
+    ])
+    .onConflictDoNothing();
 }
 
 /** A2A 에이전트 카드 (스펙: /.well-known/agent-card.json 형식, Direct Configuration 배포). */
