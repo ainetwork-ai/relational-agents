@@ -24,6 +24,8 @@ export interface CallState {
   offer?: CallSdp;
   answer?: CallSdp;
   startedAt: number;
+  /** when the callee accepted — the call-duration clock (chat bubble) */
+  acceptedAt?: number;
 }
 
 const KEY = Symbol.for("app.calls");

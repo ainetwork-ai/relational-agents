@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
 import { randomUUID } from "node:crypto";
-import { recapCall } from "@/lib/agent/call-watch";
 import { db } from "@/lib/db";
 import { chatMessages, type ChatRoom } from "@/lib/db/schema";
 import { maybeAutoRun } from "@/lib/agent/triggers";
@@ -124,17 +123,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       const sdp = body?.sdp;
       if (!sdp || typeof sdp.type !== "string" || typeof sdp.sdp !== "string")
         return NextResponse.json({ error: "Bad sdp" }, { status: 400 });
-      setCall({ ...call, [action]: sdp });
+      // a fresh offer voids any earlier answer — otherwise a page that joins
+      // a leftover call applies the STALE answer to its new pc and the media
+      // never connects ("Connecting…" forever)
+      setCall(
+        action === "offer" ? { ...call, offer: sdp, answer: undefined } : { ...call, answer: sdp }
+      );
       await notify("dm-call-signal");
       break;
     }
     case "end": {
-      // recap first: it claims the call's utterances while the call still
-      // counts as live, so the write pipeline leaves them to the summary
-      if (call)
-        void recapCall(roomId, call.callId).catch((err) =>
-          console.error("call recap failed:", err)
-        );
       deleteCall(roomId);
       await notify("dm-call-end");
       if (call) {
