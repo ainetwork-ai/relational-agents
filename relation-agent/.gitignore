@@ -11,7 +11,7 @@ indexes/
 .omc/
 var/
 
-# 런타임 생성 대화 기록(update) — 시드 아님
+# runtime-generated conversation logs (update) — not seed data
 mock/relations/*/memories/turn-*.md
 .output/
 mock/**/*.md

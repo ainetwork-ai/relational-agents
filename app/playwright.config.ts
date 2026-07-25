@@ -38,7 +38,7 @@ export default defineConfig({
     env: {
       NOTION_FS_ROOT: OKF_FIXTURE,
       AGENT_FAKE_LLM: "1",
-      // AI 채팅 e2e도 실 LLM 없이 결정론적으로 (src/lib/ai-chat.ts fakeReply)
+      // AI-chat e2e is deterministic without a real LLM too (src/lib/ai-chat.ts fakeReply)
       AI_FAKE_LLM: process.env.AI_FAKE_LLM ?? "1",
     },
   },
