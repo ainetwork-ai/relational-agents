@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * notion-mcp — MCP server wrapping the notion clone's REST API.
+ * relational-memory-mcp — MCP server wrapping the notion clone's REST API.
  *
  * Env:
- *   NOTION_BASE_URL      base URL of the running clone (default http://localhost:3000)
- *   NOTION_PRIVATE_KEY   AIN private key → /api/auth/key-login (omit → demo-login)
- *   NOTION_DISPLAY_NAME  display name used with key-login
+ *   MEMORY_BASE_URL      base URL of the running clone (default http://localhost:3000)
+ *   MEMORY_PRIVATE_KEY   AIN private key → /api/auth/key-login (omit → demo-login)
+ *   MEMORY_DISPLAY_NAME  display name used with key-login
  *
  * Auth: the clone uses an iron-session cookie ("notion-session"). This server
  * logs in lazily on the first call, keeps the cookie in memory, and re-logs-in
@@ -19,14 +19,14 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-const BASE_URL = (process.env.NOTION_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const BASE_URL = (process.env.MEMORY_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const MAX_TEXT = 200_000; // cap tool output size
 
 let cookie: string | null = null;
 
 async function login(privateKey?: string, displayName?: string) {
-  const key = privateKey ?? process.env.NOTION_PRIVATE_KEY;
-  const name = displayName ?? process.env.NOTION_DISPLAY_NAME;
+  const key = privateKey ?? process.env.MEMORY_PRIVATE_KEY;
+  const name = displayName ?? process.env.MEMORY_DISPLAY_NAME;
   const res = key
     ? await fetch(`${BASE_URL}/api/auth/key-login`, {
         method: "POST",
@@ -94,7 +94,7 @@ async function api(method: string, apiPath: string, opts: ApiOpts = {}): Promise
   const buf = Buffer.from(await res.arrayBuffer());
   if (!res.ok) throw new Error(`HTTP ${res.status} ${method} /api${apiPath} (${buf.length} bytes)`);
   const ext = ct.includes("pdf") ? "pdf" : ct.includes("zip") ? "zip" : "bin";
-  const file = path.join(tmpdir(), `notion-mcp-${randomUUID()}.${ext}`);
+  const file = path.join(tmpdir(), `relational-memory-mcp-${randomUUID()}.${ext}`);
   await writeFile(file, buf);
   return { savedTo: file, bytes: buf.length, contentType: ct };
 }
@@ -422,4 +422,4 @@ t(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`notion-mcp ready — wrapping ${BASE_URL} (login: ${process.env.NOTION_PRIVATE_KEY ? "key" : "demo"})`);
+console.error(`relational-memory-mcp ready — wrapping ${BASE_URL} (login: ${process.env.MEMORY_PRIVATE_KEY ? "key" : "demo"})`);

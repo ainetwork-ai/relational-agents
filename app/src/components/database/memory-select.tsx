@@ -24,7 +24,7 @@ export const TYPE_ICON: Record<string, string> = {
 /** Notion-style dropdown replacing native <select>: its own popover menu with
  *  a search box (when long), type icons and colored tags (R039 / scienario 4).
  *  Menu rows carry `data-testid={testid}-opt-{value}`. */
-export function NotionSelect({
+export function MemorySelect({
   testid,
   value,
   options,

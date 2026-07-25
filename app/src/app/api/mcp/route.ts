@@ -22,7 +22,7 @@ import {
   decodeId,
   isOkfId,
 } from "@/lib/okf-store";
-import { parseMarkdown, blocksToMarkdown, type Frontmatter } from "@/lib/notion-parse";
+import { parseMarkdown, blocksToMarkdown, type Frontmatter } from "@/lib/memory-parse";
 import { okfGateFor, type OkfGate } from "@/lib/okf-acl";
 import { getSession } from "@/lib/auth/session";
 import { getDefaultWorkspaceId } from "@/lib/workspace";

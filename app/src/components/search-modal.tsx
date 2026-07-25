@@ -8,7 +8,7 @@ import { useDebounced } from "@/hooks/use-debounced";
 import { useRecentsStore } from "@/stores/recents";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
-import { NotionSelect } from "@/components/database/notion-select";
+import { MemorySelect } from "@/components/database/memory-select";
 
 interface SearchResult {
   id: string;
@@ -180,7 +180,7 @@ export function SearchModal() {
         </div>
         {/* result filters (Notion: type / date / person chips) */}
         <div className="flex items-center gap-1.5 border-b border-neutral-100 px-4 py-1.5 text-xs dark:border-neutral-700">
-          <NotionSelect
+          <MemorySelect
             testid="search-filter-type"
             value={fType}
             searchable={false}
@@ -194,7 +194,7 @@ export function SearchModal() {
               runSearch.call(query, v, fEdited, fMe);
             }}
           />
-          <NotionSelect
+          <MemorySelect
             testid="search-filter-date"
             value={fEdited}
             searchable={false}

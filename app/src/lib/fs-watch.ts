@@ -7,7 +7,7 @@ import { publish } from "@/lib/realtime"; // fs → SSE bridge
 /**
  * The folder IS the backend — so edits made directly on disk (editor, git
  * pull, scripts) must reach open clients just like API edits do. Watches
- * NOTION_FS_ROOT recursively and broadcasts a realtime event on the OKF
+ * OKF_ROOT recursively and broadcasts a realtime event on the OKF
  * page channel (base64url of the relative path), which makes any open
  * BlockEditor refetch via its normal applyRemote path.
  *
@@ -20,7 +20,7 @@ const KEY = Symbol.for("notion.fswatch.started");
 export function ensureFsWatcher(): void {
   const g = globalThis as unknown as Record<symbol, boolean>;
   if (g[KEY]) return;
-  const root = process.env.NOTION_FS_ROOT;
+  const root = process.env.OKF_ROOT;
   if (!root || !existsSync(root)) return;
   g[KEY] = true;
 

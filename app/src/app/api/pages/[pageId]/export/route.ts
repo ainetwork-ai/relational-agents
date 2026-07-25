@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
 import { asc, eq } from "drizzle-orm";
-import { blocksToMarkdown, type ParsedBlock } from "@/lib/notion-parse";
+import { blocksToMarkdown, type ParsedBlock } from "@/lib/memory-parse";
 import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 
 export const dynamic = "force-dynamic";

@@ -67,7 +67,7 @@ a folder of Markdown (Overview, Timeline, People notes, Decisions, Open topics).
 *writes* memories by appending to those files, and *answers* by reading them back with source
 links. Because a bundle is one folder gated by [`okf_acl`](app/src/lib/okf-acl.ts), the
 isolation the diagrams promise is a filesystem boundary: the Chanho–Ava agent literally cannot
-open the Chanho–Hannah folder. The [`notion-mcp`](notion-mcp/) server exposes that same OKF
+open the Chanho–Hannah folder. The [`relational-memory-mcp`](relational-memory-mcp/) server exposes that same OKF
 surface as MCP tools, so an external agent reads and writes the exact bundle the in-app agent does.
 
 One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.
@@ -76,7 +76,7 @@ One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.
 
 A workspace is a **team**. Relationships form between its members — BD ⇄ Dev,
 Marketing ⇄ Dev, any pair that agrees. Each relationship, once both members sign the
-contract, gets its own A2A agent; the agent reaches its memory through `notion-mcp` into a
+contract, gets its own A2A agent; the agent reaches its memory through `relational-memory-mcp` into a
 single OKF bundle — and the `okf_acl` gate makes every other bundle unreachable. (The
 couples demo above is just one instance of the same model.)
 
@@ -101,8 +101,8 @@ flowchart TB
     MK -->|"EIP-712<br/>contract"| REL2
     DV --> REL2
 
-    A1 -->|"MCP tools"| M1["🔌 notion-mcp"] -->|"okf_acl gated"| O1["📁 OKF bundle<br/>BD–Dev"]
-    A2 -->|"MCP tools"| M2["🔌 notion-mcp"] -->|"okf_acl gated"| O2["📁 OKF bundle<br/>Marketing–Dev"]
+    A1 -->|"MCP tools"| M1["🔌 relational-memory-mcp"] -->|"okf_acl gated"| O1["📁 OKF bundle<br/>BD–Dev"]
+    A2 -->|"MCP tools"| M2["🔌 relational-memory-mcp"] -->|"okf_acl gated"| O2["📁 OKF bundle<br/>Marketing–Dev"]
 
     A1 -. "⛔ no path" .-x O2
     A2 -. "⛔ no path" .-x O1

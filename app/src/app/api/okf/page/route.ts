@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { writePage } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
-import type { ParsedBlock, Frontmatter } from "@/lib/notion-parse";
+import type { ParsedBlock, Frontmatter } from "@/lib/memory-parse";
 
 export const dynamic = "force-dynamic";
 

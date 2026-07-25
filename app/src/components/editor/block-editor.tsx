@@ -21,7 +21,7 @@ import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
 import { htmlToMarkdownish } from "@/lib/editor/html-paste";
 import { newId } from "@/lib/compat";
 import { sanitizeInline } from "@/lib/rich-text";
-import { parseMarkdown } from "@/lib/notion-parse";
+import { parseMarkdown } from "@/lib/memory-parse";
 import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
 import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";

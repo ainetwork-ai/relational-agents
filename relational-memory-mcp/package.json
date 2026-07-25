@@ -1,10 +1,12 @@
 {
-  "name": "notion-mcp",
+  "name": "relational-memory-mcp",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "MCP server wrapping the notion clone's full REST API (pages, databases, blocks, comments, uploads, OKF, ...)",
-  "bin": { "notion-mcp": "dist/index.js" },
+  "bin": {
+    "notion-mcp": "dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",

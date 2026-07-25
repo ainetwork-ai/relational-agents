@@ -7,7 +7,7 @@ import { applyView, computeCalc } from "@/lib/db-values";
 import { fetchDatabaseSnapshot } from "@/lib/db-relation";
 import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
-import { TYPE_ICON } from "./notion-select";
+import { TYPE_ICON } from "./memory-select";
 
 const NO_GROUP = "__nogroup__";
 

@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
 import { asc, eq } from "drizzle-orm";
-import type { ParsedBlock } from "@/lib/notion-parse";
+import type { ParsedBlock } from "@/lib/memory-parse";
 import { blocksToHtml, type ExportBlock } from "@/lib/export-html";
 import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 

@@ -3,7 +3,7 @@ import { writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { requireAuth } from "@/lib/auth/middleware";
-import { importNotionZip } from "@/lib/notion-import";
+import { importNotionZip } from "@/lib/memory-import";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

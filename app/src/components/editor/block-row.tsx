@@ -20,7 +20,7 @@ import { useCommentsStore } from "@/stores/comments";
 import { useCommentUi } from "@/stores/comment-ui";
 import { PageIcon } from "@/components/page-icon";
 import { ensureKatex, renderTex, renderTexInline } from "@/lib/katex-loader";
-import { NotionSelect } from "@/components/database/notion-select";
+import { MemorySelect } from "@/components/database/memory-select";
 
 export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   const editor = useEditor();
@@ -504,7 +504,7 @@ function CodeBlock({ block }: { block: EBlock }) {
   return (
     <div className="my-1 w-full overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-800/80">
       <div className="flex items-center justify-between border-b border-neutral-200/70 px-3 py-1 dark:border-neutral-700/60">
-        <NotionSelect
+        <MemorySelect
           testid={`code-lang-${block.id}`}
           value={language}
           options={CODE_LANGUAGES.map((l) => ({ value: l, label: l }))}

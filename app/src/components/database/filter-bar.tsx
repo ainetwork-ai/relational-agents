@@ -15,7 +15,7 @@ import {
   filterIsActive,
 } from "@/lib/db-values";
 import { useDb } from "./database-block";
-import { NotionSelect, TYPE_ICON } from "./notion-select";
+import { MemorySelect, TYPE_ICON } from "./memory-select";
 
 const selectCls =
   "rounded border border-neutral-200 bg-white px-1.5 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200";
@@ -362,7 +362,7 @@ export function FilterBar() {
             const ops = prop ? opsForType(prop.type) : [];
             return (
               <div key={i} className="mb-1 flex flex-wrap items-start gap-1">
-                <NotionSelect
+                <MemorySelect
                   testid={`db-filter-prop-${i}`}
                   value={prop ? f.propertyId : undefined}
                   placeholder="(deleted property)"
@@ -372,7 +372,7 @@ export function FilterBar() {
                     update(i, { propertyId: np.id, op: opsForType(np.type)[0], value: undefined });
                   }}
                 />
-                <NotionSelect
+                <MemorySelect
                   testid={`db-filter-op-${i}`}
                   value={f.op}
                   options={opOptions(ops)}
@@ -432,7 +432,7 @@ export function FilterBar() {
                 const ops = prop ? opsForType(prop.type) : [];
                 return (
                   <div key={ri} className="mb-1 flex flex-wrap items-start gap-1">
-                    <NotionSelect
+                    <MemorySelect
                       testid={`db-fgroup-prop-${gi}-${ri}`}
                       value={prop ? f.propertyId : undefined}
                       placeholder="(deleted property)"
@@ -446,7 +446,7 @@ export function FilterBar() {
                         });
                       }}
                     />
-                    <NotionSelect
+                    <MemorySelect
                       testid={`db-fgroup-op-${gi}-${ri}`}
                       value={f.op}
                       options={opOptions(ops)}
@@ -759,7 +759,7 @@ function ChipEditor({
   return (
     <div className="popover-anim absolute left-0 top-7 z-40 w-64 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
       <div className="mb-1.5 flex items-center gap-1">
-        <NotionSelect
+        <MemorySelect
           testid={`db-fchip-prop-${i}`}
           value={f.propertyId}
           options={propOptions(db.properties)}
@@ -768,7 +768,7 @@ function ChipEditor({
             update(i, { propertyId: np.id, op: opsForType(np.type)[0], value: undefined });
           }}
         />
-        <NotionSelect
+        <MemorySelect
           testid={`db-fchip-op-${i}`}
           value={f.op}
           options={opOptions(ops)}

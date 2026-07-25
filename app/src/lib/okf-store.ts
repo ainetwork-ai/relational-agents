@@ -21,7 +21,7 @@ import {
   type FsRow,
   optionIdFor,
   optionColorFor,
-} from "@/lib/notion-parse";
+} from "@/lib/memory-parse";
 import type {
   Block,
   Page,
@@ -36,14 +36,14 @@ import type {
 } from "@/lib/db/schema";
 
 // ===========================================================================
-// OKF store: the folder tree at NOTION_FS_ROOT *is* the content database.
+// OKF store: the folder tree at OKF_ROOT *is* the content database.
 // Path = identity. .md = a page (YAML frontmatter + body). A folder with an
 // index.md is a page with children. .csv = a database (schema + rows).
 // No SQL — reads/writes the files directly.
 // ===========================================================================
 
 export function okfRoot(): string {
-  return process.env.NOTION_FS_ROOT || path.join(process.cwd(), "notion-fs");
+  return process.env.OKF_ROOT || path.join(process.cwd(), "notion-fs");
 }
 
 // Opaque, single-segment page id = base64url of the posix relative path. Lets

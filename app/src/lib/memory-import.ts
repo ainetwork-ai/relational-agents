@@ -45,7 +45,7 @@ function countTree(dir: string): { pages: number; databases: number } {
  * The content lands under okfRoot()/<name> so it shows up in the sidebar tree.
  */
 export async function importNotionZip(zipPath: string, importName: string): Promise<ImportResult> {
-  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "notion-import-"));
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "memory-import-"));
   try {
     // pass 1: unzip the uploaded archive (tolerate long-name / attachment errors)
     await run("unzip", ["-o", "-q", zipPath, "-d", tmp]).catch(() => {});

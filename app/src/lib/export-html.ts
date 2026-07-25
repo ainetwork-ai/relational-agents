@@ -1,4 +1,4 @@
-import type { ParsedBlock } from "@/lib/notion-parse";
+import type { ParsedBlock } from "@/lib/memory-parse";
 
 /** Export accepts flat OKF blocks and nested Postgres blocks alike. */
 export type ExportBlock = ParsedBlock & { parentBlockId?: string | null };
