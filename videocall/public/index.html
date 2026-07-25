@@ -613,7 +613,10 @@
 
 <script>
   // ---- data ----
+  // notion: true → the call is real: /api/notion-call bridges into the notion
+  // app (a headless caller rings DemoUser's DM room there).
   const GIRLFRIENDS = [
+    { id: "demouser", name: "DemoUser", notion: true },
     { id: "emma", name: "Emma" },
     { id: "sophia", name: "Sophia" },
     { id: "luna", name: "Luna" },
@@ -625,14 +628,17 @@
     { id: "zoe", name: "Zoe Harrison" },
     { id: "sophie", name: "Sophie Miller" },
   ];
-  const img = (id) => `/gfs/${id}.png`;
+  // DemoUser has no /gfs asset — notion-style initial avatar as a data URI
+  const DEMOUSER_AVATAR = "data:image/svg+xml," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="16" fill="#37352f"/><text x="40" y="53" font-family="-apple-system,sans-serif" font-size="36" fill="#fff" text-anchor="middle">D</text></svg>`);
+  const img = (id) => (id === "demouser" ? DEMOUSER_AVATAR : `/gfs/${id}.png`);
 
   // ---- i18n (real macOS strings) ----
   const I18N = {
     en: {
       title: "New Video Call", to: "To:", suggested: "Suggested",
       createLink: "Create Link", cancel: "Cancel",
-      ringing: "Calling…", connecting: "Connecting…",
+      ringing: "Calling…", connecting: "Connecting…", noAnswer: "No Answer",
       sideLink: "Create Link", sideNew: "New Video Call",
       people: (n) => `${n} people`,
       sections: { today: "Today", yesterday: "Yesterday", lastWeek: "Last Week" },
@@ -651,7 +657,7 @@
     pt: {
       title: "Nova Chamada", to: "Para:", suggested: "Sugestões",
       createLink: "Criar Link", cancel: "Cancelar",
-      ringing: "Calling…", connecting: "Conectando…",
+      ringing: "Calling…", connecting: "Conectando…", noAnswer: "Não Atendida",
       sideLink: "Criar Link", sideNew: "Nova Chamada",
       people: (n) => `${n} pessoas`,
       sections: { today: "Hoje", yesterday: "Ontem", lastWeek: "Semana Passada" },
@@ -708,8 +714,11 @@
       }
       const row = document.createElement("div");
       row.className = "call";
+      // rows are dialable: the matching contact (by name) gets called on click
+      const contact = GIRLFRIENDS.find((x) => x.name === c.name);
+      const avatar = c.avatar || (contact && img(contact.id));
       row.innerHTML = `
-        ${c.avatar ? `<img class="avatar-img" src="${c.avatar}" alt="" />` : `<div class="avatar"></div>`}
+        ${avatar ? `<img class="avatar-img" src="${avatar}" alt="" />` : `<div class="avatar"></div>`}
         <div class="meta">
           <div class="name${c.missed ? " missed" : ""}"></div>
           <div class="sub">${c.missed ? missedIcon : camIcon}<span></span></div>
@@ -717,6 +726,10 @@
       row.querySelector(".name").textContent = c.name;
       const when = c.when.date ? t.date(c.when.date) : t.time(c.when);
       row.querySelector(".sub span").textContent = `${t.kinds[c.kind]} · ${when}`;
+      if (contact) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", () => startCall([contact]));
+      }
       root.appendChild(row);
     });
   }
@@ -789,8 +802,8 @@
   const ringStatus = document.getElementById("ringStatus");
   const pipVideo = document.getElementById("pipVideo");
   let callTimers = [];
-  let speakTimer = null;
   let ringAudio = null;
+  let notionPoll = null;
 
   function startRingtone() {
     try {
@@ -819,7 +832,8 @@
     ringAudio = null;
   }
 
-  function startCall(members) {
+  // ring screen + tiles, shared by the fake group call and the notion bridge
+  function showRinging(members) {
     closeSheet();
     // ringing screen: stacked avatars + names
     const stack = document.getElementById("ringStack");
@@ -853,36 +867,61 @@
       t.querySelector(".tile-name").textContent = g.name;
       tiles.appendChild(t);
     });
+  }
 
-    callTimers.push(setTimeout(() => { ringStatus.textContent = I18N[lang].connecting; }, 2200));
+  // A real call into the notion app: the bridge rings DemoUser's DM room
+  // with a headless caller; this view mirrors ringing/active/ended state.
+  function startNotionCall(g) {
+    showRinging([g]);
+    fetch("/api/notion-call", { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`bridge ${r.status}`); })
+      .catch((e) => {
+        ringStatus.textContent = String(e.message || e).slice(0, 60);
+        callTimers.push(setTimeout(endCall, 2500));
+      });
+    let sawCall = false;
+    notionPoll = setInterval(async () => {
+      try {
+        const { running, call } = await (await fetch("/api/notion-call")).json();
+        if (call) sawCall = true;
+        if (call && call.status !== "ringing") {
+          // accepted — media flows between the headless caller and DemoUser
+          stopRingtone();
+          callView.classList.remove("ringing");
+          callView.classList.add("connected");
+          if (video.srcObject) { pipVideo.srcObject = video.srcObject; pipVideo.hidden = false; }
+          document.querySelectorAll("#tiles .tile").forEach(t => t.classList.add("joined"));
+        } else if (!running || (sawCall && !call)) {
+          endCall(); // declined / cancelled / hung up / caller died
+        }
+      } catch { /* bridge hiccup — keep polling */ }
+    }, 1500);
+  }
+
+  function startCall(members) {
+    if (members.length === 1 && members[0].notion) return startNotionCall(members[0]);
+    showRinging(members);
+
+    // mock contacts: the signal goes out but nobody real is behind them —
+    // ring like an unanswered call and give up. Only DemoUser truly connects.
     callTimers.push(setTimeout(() => {
       stopRingtone();
-      callView.classList.remove("ringing");
-      callView.classList.add("connected");
-      if (video.srcObject) {
-        pipVideo.srcObject = video.srcObject;
-        pipVideo.hidden = false;
-      }
-      // members "join" one by one
-      [...tiles.children].forEach((t, i) => {
-        callTimers.push(setTimeout(() => t.classList.add("joined"), 200 + i * 350));
-      });
-      // random speaking highlight
-      speakTimer = setInterval(() => {
-        const kids = [...tiles.children];
-        kids.forEach(k => k.classList.remove("speaking"));
-        const joined = kids.filter(k => k.classList.contains("joined"));
-        if (joined.length) joined[Math.floor(Math.random() * joined.length)].classList.add("speaking");
-      }, 1800);
-    }, 4000));
+      ringStatus.textContent = I18N[lang].noAnswer;
+      callTimers.push(setTimeout(endCall, 1800));
+    }, 25000));
   }
 
   function endCall() {
     callTimers.forEach(clearTimeout);
     callTimers = [];
-    clearInterval(speakTimer);
     stopRingtone();
     callView.classList.remove("active", "ringing", "connected");
+    if (notionPoll) {
+      clearInterval(notionPoll);
+      notionPoll = null;
+      // hanging up from this UI ends the bridged call too (no-op if over)
+      fetch("/api/notion-call/end", { method: "POST" }).catch(() => {});
+    }
   }
   document.getElementById("endBtn").addEventListener("click", endCall);
   document.getElementById("micBtn").addEventListener("click", (e) => e.currentTarget.classList.toggle("off"));

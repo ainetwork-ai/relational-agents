@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -24,7 +25,9 @@ const MIME = {
 };
 
 // section/kind/when are locale-neutral keys; the client renders them in EN/PT.
+// DemoUser is the one REAL contact — clicking the row rings the notion app.
 const CALLS = [
+  { section: "today", name: "DemoUser", avatar: null, missed: false, kind: "video", when: { h: 14, m: 30 } },
   { section: "today", name: "Emma", avatar: "/gfs/emma.png", missed: false, kind: "video", when: { h: 10, m: 36 } },
   { section: "today", name: "Sophia", avatar: "/gfs/sophia.png", missed: true, kind: "video", when: { h: 9, m: 12 } },
   { section: "today", name: "Luna", avatar: "/gfs/luna.png", missed: false, kind: "audio", when: { h: 3, m: 43 } },
@@ -36,6 +39,109 @@ const CALLS = [
   { section: "lastWeek", name: "Zoe Harrison", avatar: "/gfs/zoe.png", missed: false, kind: "video", when: { date: "2026-07-29" } },
   { section: "lastWeek", name: "Sophie Miller", avatar: "/gfs/sophie.png", missed: false, kind: "video", when: { date: "2026-07-28" } },
 ];
+
+// ---- notion-call bridge ----
+// The UI's "DemoUser" contact places a REAL in-app call into the notion app:
+// POST /api/notion-call spawns a headless caller (app/e2e/demo-caller.mjs,
+// fake camera/mic) that logs in as the demo caller account and rings
+// DemoUser's 1:1 room — the incoming card pops wherever DemoUser is logged
+// in. The caller must live outside this browser: the videocall tab shares
+// its Chrome profile (= notion session cookie) with DemoUser's tab, so
+// logging in as the caller here would log DemoUser out.
+//   POST   /api/notion-call        -> start ringing {ok, already?}
+//   GET    /api/notion-call        -> {running, roomId, call} for UI polling
+//   POST   /api/notion-call/end    -> cancel/end from the videocall UI
+const NOTION_BASE = process.env.NOTION_BASE || "http://localhost:3220";
+const NOTION_CALLER = process.env.NOTION_CALLER || "Emma";
+const CALLER_SCRIPT = path.join(HERE, "..", "app", "e2e", "demo-caller.mjs");
+let callerChild = null;
+let bridgeRoom = null;
+let callerCookie = null;
+
+function cookieFrom(res) {
+  const raw = res.headers.getSetCookie
+    ? res.headers.getSetCookie()
+    : [res.headers.get("set-cookie")].filter(Boolean);
+  return raw.map((c) => c.split(";")[0]).join("; ");
+}
+
+/** Session cookie for the caller account — lets this server proxy call
+ *  state (same user as the headless caller, so cancel is permitted). */
+async function callerLogin() {
+  const res = await fetch(`${NOTION_BASE}/api/auth/demo-login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ as: NOTION_CALLER }),
+  });
+  if (!res.ok) throw new Error(`demo-login ${NOTION_CALLER}: ${res.status}`);
+  callerCookie = cookieFrom(res);
+  return callerCookie;
+}
+
+async function notionCallState() {
+  if (!bridgeRoom) return null;
+  const get = () =>
+    fetch(`${NOTION_BASE}/api/calls/${bridgeRoom}`, { headers: { cookie: callerCookie || "" } });
+  let res = await get();
+  if (res.status === 401) { await callerLogin(); res = await get(); }
+  if (!res.ok) return null;
+  return (await res.json()).call ?? null;
+}
+
+function startCaller() {
+  const child = spawn(process.execPath, [CALLER_SCRIPT], {
+    cwd: path.join(HERE, "..", "app"),
+    env: { ...process.env, BASE_URL: NOTION_BASE, VC_CALLER: NOTION_CALLER },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.on("data", (d) => {
+    const line = String(d).trim();
+    console.log(`[caller] ${line}`);
+    const m = line.match(/^ROOM ([\w-]+)$/m);
+    if (m) bridgeRoom = m[1];
+  });
+  child.stderr.on("data", (d) => console.error(`[caller] ${String(d).trim()}`));
+  child.on("exit", (code) => {
+    console.log(`[caller] exited (${code})`);
+    if (callerChild === child) callerChild = null;
+  });
+  callerChild = child;
+}
+
+async function handleNotionCall(req, res, url) {
+  res.setHeader("Content-Type", MIME[".json"]);
+  try {
+    if (url.pathname === "/api/notion-call" && req.method === "POST") {
+      if (callerChild) {
+        res.end(JSON.stringify({ ok: true, already: true }));
+        return;
+      }
+      startCaller();
+      res.end(JSON.stringify({ ok: true }));
+    } else if (url.pathname === "/api/notion-call" && req.method === "GET") {
+      const call = callerChild ? await notionCallState() : null;
+      res.end(JSON.stringify({ running: !!callerChild, roomId: bridgeRoom, call }));
+    } else if (url.pathname === "/api/notion-call/end" && req.method === "POST") {
+      // ringing → only the caller may "cancel"; live → either side may "end".
+      const call = await notionCallState();
+      if (call && bridgeRoom) {
+        const action = call.status === "ringing" ? "cancel" : "end";
+        await fetch(`${NOTION_BASE}/api/calls/${bridgeRoom}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: callerCookie || "" },
+          body: JSON.stringify({ action }),
+        });
+      }
+      res.end(JSON.stringify({ ok: true }));
+    } else {
+      res.writeHead(405);
+      res.end(JSON.stringify({ error: "method not allowed" }));
+    }
+  } catch (e) {
+    res.writeHead(502);
+    res.end(JSON.stringify({ error: String(e).slice(0, 200) }));
+  }
+}
 
 // In-memory WebRTC signaling for the test harness (public/test.html).
 // Non-trickle: each side posts one complete SDP blob, the other side polls.
@@ -57,6 +163,10 @@ function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   console.log(`[req-log] ${new Date().toISOString()} ${req.socket.remoteAddress} ${req.method} ${req.url}`);
+  if (url.pathname.startsWith("/api/notion-call")) {
+    await handleNotionCall(req, res, url);
+    return;
+  }
   const rtcMatch = url.pathname.match(/^\/api\/rtc\/([\w-]+)$/);
   if (rtcMatch) {
     const room = rtcMatch[1];
