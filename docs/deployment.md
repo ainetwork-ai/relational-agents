@@ -35,7 +35,17 @@ APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml up -d app
 APP_TAG=<이전-SHA> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
 docker images memory-live-app   # 되돌릴 수 있는 후보 목록
+
+# 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
+# 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
+cd app && npx playwright test -c playwright.prod.config.ts
 ```
+
+`app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 데모가 세계를
+소유한 계정(`Chanho`)으로 열리는지, 방이 대화를 그리는지, OKF 트리가 비어 있지
+않은지, 커버 에셋이 뜨는지. **기존 `playwright.config.ts`를 프로덕션에 겨누면 안
+된다** — 그건 자체 dev 서버를 띄우고 공유 DB를 쓰며, 스펙 중에 관계를 실제로
+해소하는 것들이 있다.
 
 ## 3. 결정된 것과 그 이유
 
