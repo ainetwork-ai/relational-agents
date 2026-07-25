@@ -5,7 +5,6 @@ import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access"
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { chatMessages, type ChatRoom } from "@/lib/db/schema";
-import { maybeAutoRun } from "@/lib/agent/triggers";
 import {
   deleteCall,
   getCall,
@@ -59,15 +58,16 @@ const mmss = (ms: number) => {
 };
 
 /** KakaoTalk-style call record in the chat: a regular room message (author =
- * the caller) whose "📞 " prefix the DM view renders as a call bubble. Same
- * insert → publish → harvest dance as messages POST, so the bubble reaches
- * open panels live and the agent records that the call happened. */
+ * the caller) whose "📞 " prefix the DM view renders as a call bubble.
+ * processedAt is pre-stamped — the bubble is UI chrome, not memory. The
+ * agent's own call summary (call-watch) is the single record of the call;
+ * letting the pipeline harvest the bubble too wrote every call into the
+ * Timeline twice. */
 async function postCallEvent(room: ChatRoom, authorId: string, text: string) {
-  await db.insert(chatMessages).values({ roomId: room.id, authorId, text });
+  await db
+    .insert(chatMessages)
+    .values({ roomId: room.id, authorId, text, processedAt: new Date() });
   await publishToRoomMembers(room.id, { type: "dm-message", clientId: null });
-  const autoRun = await maybeAutoRun(room);
-  if (autoRun && autoRun.edits > 0)
-    await publishToRoomMembers(room.id, { type: "dm-message", clientId: null });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
