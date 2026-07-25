@@ -178,9 +178,11 @@ export function CallView({ roomId }: { roomId: string }) {
   // ---- media ----
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
-    // the incoming-call card warms the camera while the phone rings —
-    // adopting it skips the ~1s device acquisition on the connect path
-    const warm = adoptCallMedia(roomId);
+    // both sides warm the camera before this view exists — the callee's
+    // incoming card while the phone rings, the caller's button on the click
+    // that starts the call — so adopting skips the ~1s device acquisition on
+    // the connect path. Awaits when the warm is still in flight.
+    const warm = await adoptCallMedia(roomId);
     if (warm) {
       localStreamRef.current = warm;
       if (localVideoRef.current) localVideoRef.current.srcObject = warm;

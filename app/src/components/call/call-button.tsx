@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Video } from "lucide-react";
 import { useToastStore } from "@/stores/toast";
+import { discardCallMedia, prewarmCallMedia } from "@/lib/call-prewarm";
 
 /**
  * Starts a video call for a DM room. Two placements:
@@ -21,6 +22,12 @@ export function CallButton({ roomId }: { roomId: string }) {
 
   async function startCall() {
     setBusy(true);
+    // The callee warms its camera while the phone rings; the caller had no
+    // equivalent and paid the ~1s device acquisition after navigation, with
+    // the offer waiting behind it. The click is the earliest moment we know a
+    // call is coming — and it is a user gesture, so the permission prompt
+    // belongs here rather than after a route change.
+    void prewarmCallMedia(roomId);
     try {
       const res = await fetch(`/api/calls/${roomId}`, {
         method: "POST",
@@ -28,11 +35,15 @@ export function CallButton({ roomId }: { roomId: string }) {
         body: JSON.stringify({ action: "invite" }),
       });
       if (!res.ok && res.status !== 409) {
+        discardCallMedia(); // no call to hand the camera to
         show("Could not start the call");
         return;
       }
       // 409 = a call is already live in this room — join it instead of ringing
       router.push(`/call/${roomId}`);
+    } catch {
+      discardCallMedia();
+      show("Could not start the call");
     } finally {
       setBusy(false);
     }
