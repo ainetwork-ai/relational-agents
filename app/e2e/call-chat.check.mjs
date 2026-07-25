@@ -84,11 +84,17 @@ try {
   const started = await panel(pageA).getByTestId("dm-msg-call").filter({ hasText: "Video Call" }).count();
   check("bubble: 'Video Call' start bubble in the panel", started > 0);
 
-  // ---- @agent from inside the call = private side-channel ----
-  await composerA.fill(`@agent what do you remember? ${Date.now()}`);
+  // ---- @agent from inside the call — the agent answers in the room
+  // (quiet mode became an explicit composer switch, not a mention side effect)
+  const beforeAsk = await panel(pageA).getByTestId("dm-msg-other").count();
+  await composerA.fill(`@agent when is our anniversary? ${Date.now()}`);
   await composerA.press("Enter");
-  await panel(pageA).getByTestId("dm-msg-private").first().waitFor({ timeout: 10000 });
-  check("panel: @agent question is private (quiet marker)", true);
+  let answered = false;
+  for (let i = 0; i < 30 && !answered; i++) {
+    await pageA.waitForTimeout(1000);
+    answered = (await panel(pageA).getByTestId("dm-msg-other").count()) > beforeAsk;
+  }
+  check("panel: @agent answers in-call (within 30s)", answered);
 
   // ---- hang up → ended · duration bubble ----
   await pageA.waitForTimeout(1200); // give the call a measurable duration
