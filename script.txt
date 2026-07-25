@@ -6,7 +6,7 @@ One agent per relationship closes that door. The Chanho-and-Hannah agent holds t
 
 Let's take a look at Chanho's relational memory. He signs in with his wallet — MetaMask is the identity here, one account, one person. He has two exclusive workspaces — one for Hannah, one for Ava. In each private workspace, he can create a relational agent for that relationship.
 
-Chanho signs the contract first — the relational agent is born when both of you see each other, and sign. Then Hannah checks it out: her room shows one of two signatures, waiting for hers. She signs with her own wallet — and the agent is born, minted on-chain into an E-R-C eight-zero-zero-four registry on Sepolia. There's the transaction: a birth certificate two people signed. Neither paid gas.
+Chanho signs the contract first — the relational agent is born when both of you see each other, and sign. Then Hannah checks it out: her room shows one of two signatures, waiting for hers. She signs with her own wallet — and the agent is born, minted on-chain into an E-R-C eight-zero-zero-four registry on Sepolia. There's the transaction: a birth certificate two people signed.
 
 Now Chanho and Ava, the same way. A second agent, a second mint. Chanho now sees two workspaces; Hannah and Ava each see just one — and each agent greets its own two people, and only them.
 
@@ -18,4 +18,4 @@ The agent that remembers Hannah's night in Lisbon isn't in this room.
 
 A relationship ends the way it began — by consent. One person leaves and signs; only when the other signs too does the room close. The record and the agent remain, sealed.
 
-This is Chanho's home — every person, every promise, remembered. Human to human. You see me, therefore I am.
+And this is Chanho's home — he is successfully managing ten different women, each with her own relational agent, tracking the dating progress with every one of them.
