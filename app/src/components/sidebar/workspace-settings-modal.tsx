@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Download } from "lucide-react";
+import { X, Download, ImagePlus } from "lucide-react";
 import type { ActiveWorkspace } from "./workspace-switcher";
 
 interface SavedPatch {
   name: string;
   iconText: string;
+  iconUrl: string | null;
   description: string | null;
 }
 
@@ -23,6 +24,8 @@ export function WorkspaceSettingsModal({
 }) {
   const [name, setName] = useState(workspace.name);
   const [iconText, setIconText] = useState(workspace.iconText);
+  const [iconUrl, setIconUrl] = useState<string | null>(workspace.iconUrl ?? null);
+  const [uploading, setUploading] = useState(false);
   const [description, setDescription] = useState(workspace.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,6 +63,23 @@ export function WorkspaceSettingsModal({
     }
   }
 
+  async function uploadIcon(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      if (d?.url) setIconUrl(d.url as string);
+    } catch {
+      setError("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function save() {
     if (saving) return;
     const trimmed = name.trim();
@@ -72,7 +92,7 @@ export function WorkspaceSettingsModal({
     const res = await fetch("/api/workspace", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: trimmed, iconText, description }),
+      body: JSON.stringify({ name: trimmed, iconText, iconUrl: iconUrl ?? "", description }),
     });
     setSaving(false);
     if (res.ok) {
@@ -81,6 +101,7 @@ export function WorkspaceSettingsModal({
       onSaved({
         name: w?.name ?? trimmed,
         iconText: w?.iconText ?? iconText,
+        iconUrl: w?.iconUrl ?? iconUrl,
         description: w?.description ?? (description || null),
       });
       onClose();
@@ -147,6 +168,44 @@ export function WorkspaceSettingsModal({
                 className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900"
               />
             </label>
+          </div>
+
+          {/* icon IMAGE overrides the emoji everywhere (home card, switcher);
+              clearing it falls back to the emoji tile */}
+          <div className="flex items-center gap-2">
+            {iconUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={iconUrl} alt="Workspace icon" className="h-10 w-10 rounded-lg object-cover ring-1 ring-neutral-200 dark:ring-neutral-600" />
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-100 text-lg dark:bg-neutral-700">
+                {iconText || "WS"}
+              </span>
+            )}
+            <label className="cursor-pointer">
+              <input
+                data-testid="workspace-icon-file"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadIcon(f);
+                  e.target.value = "";
+                }}
+              />
+              <span className="flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700">
+                <ImagePlus size={13} /> {uploading ? "Uploading…" : "Icon image"}
+              </span>
+            </label>
+            {iconUrl && (
+              <button
+                data-testid="workspace-icon-clear"
+                onClick={() => setIconUrl(null)}
+                className="text-xs text-neutral-400 underline-offset-2 hover:text-neutral-600 hover:underline dark:hover:text-neutral-300"
+              >
+                Remove — use emoji
+              </button>
+            )}
           </div>
 
           <label className="block">

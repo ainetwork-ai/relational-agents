@@ -14,6 +14,7 @@ export interface ActiveWorkspace {
   id: string;
   name: string;
   iconText: string;
+  iconUrl?: string | null;
   description: string | null;
 }
 
@@ -21,6 +22,7 @@ interface WorkspaceRow {
   id: string;
   name: string;
   iconText: string;
+  iconUrl?: string | null;
   description: string | null;
   role?: string;
 }
@@ -145,9 +147,18 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
         onClick={() => setOpen((v) => !v)}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-neutral-200/60 dark:hover:bg-neutral-700"
       >
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
-          {(display.iconText || display.name).slice(0, 1).toUpperCase()}
-        </div>
+        {display.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={display.iconUrl}
+            alt=""
+            className="h-5 w-5 shrink-0 rounded object-cover"
+          />
+        ) : (
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
+            {(display.iconText || display.name).slice(0, 1).toUpperCase()}
+          </div>
+        )}
         <span className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">
           {display.name}
         </span>
@@ -165,9 +176,14 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
                 onClick={() => switchTo(w.id)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-200 text-[10px] font-bold text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
-                  {(w.iconText || w.name).slice(0, 1).toUpperCase()}
-                </span>
+                {w.iconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={w.iconUrl} alt="" className="h-5 w-5 shrink-0 rounded object-cover" />
+                ) : (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-200 text-[10px] font-bold text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
+                    {(w.iconText || w.name).slice(0, 1).toUpperCase()}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate">{w.name}</span>
                 {w.id === display.id && (
                   <Check size={13} className="shrink-0 text-blue-500" />

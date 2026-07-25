@@ -20,6 +20,7 @@ export async function GET() {
       id: workspaces.id,
       name: workspaces.name,
       iconText: workspaces.iconText,
+      iconUrl: workspaces.iconUrl,
       description: workspaces.description,
       role: workspaceMembers.role,
     })

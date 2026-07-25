@@ -12,6 +12,7 @@ interface WorkspaceCard {
   id: string;
   name: string;
   iconText: string | null;
+  iconUrl: string | null;
   description: string | null;
   lastEditedAt: string | null;
 }
@@ -122,8 +123,17 @@ function WorkspaceSections() {
               disabled={switching !== null}
               className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800/60"
             >
-              <div className="flex h-28 items-center justify-center border-b border-neutral-100 bg-neutral-50/80 dark:border-neutral-700/60 dark:bg-neutral-800">
-                <WsTile w={w} />
+              <div className="flex h-36 items-center justify-center overflow-hidden border-b border-neutral-100 bg-neutral-50/80 dark:border-neutral-700/60 dark:bg-neutral-800">
+                {w.iconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={w.iconUrl}
+                    alt={w.name}
+                    className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <WsTile w={w} />
+                )}
               </div>
               <div className="px-4 py-3">
                 <div className="flex items-center gap-1.5">

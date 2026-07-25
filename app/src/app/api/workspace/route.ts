@@ -34,7 +34,7 @@ export async function GET() {
   return NextResponse.json({ workspace: workspace ? publicWorkspace(workspace) : null });
 }
 
-/** PATCH { name?, iconText?, description? } → update the active workspace. */
+/** PATCH { name?, iconText?, iconUrl?, description? } → update the active workspace. */
 export async function PATCH(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -50,6 +50,8 @@ export async function PATCH(req: NextRequest) {
   const update: Partial<typeof workspaces.$inferInsert> = {};
   if (typeof body.name === "string" && body.name.trim()) update.name = body.name.trim();
   if (typeof body.iconText === "string") update.iconText = body.iconText.trim() || "WS";
+  // image overrides the emoji tile; empty string clears back to the emoji
+  if (typeof body.iconUrl === "string") update.iconUrl = body.iconUrl.trim() || null;
   if (typeof body.description === "string") update.description = body.description;
 
   if (Object.keys(update).length === 0) {
