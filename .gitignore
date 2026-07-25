@@ -20,9 +20,12 @@ md-mirror/
 # user uploads are runtime data, not source
 app/public/uploads/
 app/public/avatars/
-dashboard/.uploads-cache.json
-dashboard/public/date/*.heic
+dashboard/public/avatars/
+dashboard/public/date/
 dashboard/public/source/
+facetime/public/gf.png
+facetime/public/gfs/
+dashboard/.uploads-cache.json
 .claude/scheduled_tasks.lock
 notion-data/content/Relationship doc*/
 notion-data/content/Relationships.csv

@@ -108,16 +108,21 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
   return summaries;
 }
 
-/** Every dm room I'm a member of — deliberately NOT workspace-scoped.
- *  Relationships travel with the person, not the workspace: your partner must
- *  see the room (and its contract banner) without ever entering your
- *  workspace. */
-async function myDmRooms(meId: string): Promise<ChatRoom[]> {
+/** My dm rooms in the active workspace. Each relationship lives in its own
+ *  "{me} ❤️ {partner}" workspace, so scoping by workspace shows one room per
+ *  relationship in the space that relationship belongs to. */
+async function myDmRooms(meId: string, workspaceId: string): Promise<ChatRoom[]> {
   const rows = await db
     .select({ room: chatRooms })
     .from(chatRoomMembers)
     .innerJoin(chatRooms, eq(chatRooms.id, chatRoomMembers.roomId))
-    .where(and(eq(chatRoomMembers.userId, meId), eq(chatRooms.kind, "dm")));
+    .where(
+      and(
+        eq(chatRoomMembers.userId, meId),
+        eq(chatRooms.kind, "dm"),
+        eq(chatRooms.workspaceId, workspaceId)
+      )
+    );
   return rows.map((r) => r.room);
 }
 
@@ -125,7 +130,9 @@ async function myDmRooms(meId: string): Promise<ChatRoom[]> {
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  const rooms = await myDmRooms(auth.user.id);
+  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  const rooms = await myDmRooms(auth.user.id, workspaceId);
   return NextResponse.json({ rooms: await buildSummaries(auth.user.id, rooms) });
 }
 

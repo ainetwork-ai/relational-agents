@@ -48,3 +48,22 @@ registerRelationalAgent(bytes32 relationId, address[] parties, string agentURI, 
 
 Live on Sepolia: [`0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba`](https://sepolia.etherscan.io/address/0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba)
 ([deployment record](contracts/deployments/sepolia.json))
+
+## The agent — A2A wire, OKF memory
+
+Once born, the agent is a first-class [A2A](https://a2a-protocol.org) participant, not an
+in-app special case. It publishes an **agent card** at `/.well-known/agent-card.json` and
+speaks **JSON-RPC `SendMessage`** over A2A ([`/api/a2a/[agentUserId]`](app/src/app/api/a2a/%5BagentUserId%5D/route.ts)),
+so any A2A client — our own dispatcher, a Kakao bot, an external
+[eve](relation-agent/) agent — talks to it the same way. Membership is authorized by a
+per-member Bearer token; a third party who only knows the URL is refused.
+
+Its memory is **OKF** — the folder tree *is* the database. Each relationship gets one bundle:
+a folder of Markdown (Overview, Timeline, People notes, Decisions, Open topics). The agent
+*writes* memories by appending to those files, and *answers* by reading them back with source
+links. Because a bundle is one folder gated by [`okf_acl`](app/src/lib/okf-acl.ts), the
+isolation the diagrams promise is a filesystem boundary: the Chanho–Ava agent literally cannot
+open the Chanho–Hannah folder. The [`notion-mcp`](notion-mcp/) server exposes that same OKF
+surface as MCP tools, so an external agent reads and writes the exact bundle the in-app agent does.
+
+One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.

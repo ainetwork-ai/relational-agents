@@ -378,12 +378,10 @@ t("okf_asset", "Fetch an OKF asset (binary → temp file path)", { query: z.reco
 );
 
 // --- chat (relationship-agent data layer) -------------------------------------------
-// 에이전트(NOTION_PRIVATE_KEY로 로그인, 방 멤버)가 대화를 듣고 말하는 통로.
-// 다른 플랫폼 에이전트(카카오톡 봇 등)도 이 툴로 노션을 공유 메모리로 쓴다.
 t("chat_rooms_list", "List my chat rooms (DM + agent rooms)", {}, () => api("GET", "/dm/rooms"));
 t(
   "chat_messages_list",
-  "List a room's messages in order. sinceMessageId를 주면 그 메시지 이후만 반환 (폴링 회수용, 멱등 처리는 호출자 책임).",
+  "List a room's messages in order. With sinceMessageId, returns only messages after it (for polling; the caller handles idempotency).",
   { roomId: z.string(), sinceMessageId: z.string().optional() },
   async (a) => {
     const data = (await api("GET", `/dm/rooms/${a.roomId}/messages`)) as {
@@ -396,13 +394,13 @@ t(
 );
 t(
   "chat_message_send",
-  "Send a message to a room as the logged-in identity (agent가 방에 발언할 때 사용)",
+  "Send a message to a room as the logged-in identity (used when an agent speaks in a room)",
   { roomId: z.string(), text: z.string() },
   (a) => api("POST", `/dm/rooms/${a.roomId}/messages`, { body: { text: a.text } })
 );
 t(
   "agent_config_get",
-  "Get an agent's config + room docs pointer (에이전트 설정·관계 문서 위치)",
+  "Get an agent's config + room docs pointer",
   { roomId: z.string() },
   (a) => api("GET", `/dm/rooms/${a.roomId}/agent`)
 );
