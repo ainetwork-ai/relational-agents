@@ -427,7 +427,9 @@ const handler = createMcpHandler(
         } else if (find !== undefined) {
           const md = blocksToMarkdown(newTitle, blocks);
           const swapped = md.split(find).join(replace ?? "");
-          blocks = parseMarkdown(swapped, "b", { noTitle: true }).blocks;
+          // blocksToMarkdown prepends "# <title>", so consume it as the title
+          // again (noTitle would duplicate it as a heading block in the body)
+          blocks = parseMarkdown(swapped, "b").blocks;
         }
         writePage(rel, newTitle, meta, blocks);
         return json({ updated: { id: encodeId(rel), title: newTitle } });
@@ -442,6 +444,9 @@ const handler = createMcpHandler(
       async ({ ids, new_parent_id }) => {
         requireUser();
         const gate = await gateFor();
+        if (new_parent_id && !gate.canReadId(new_parent_id)) {
+          return err(`Parent not accessible: ${new_parent_id}`);
+        }
         const parentRel = new_parent_id ? relOf(new_parent_id) : "";
         const moved: { from: string; to: string }[] = [];
         for (const id of ids) {

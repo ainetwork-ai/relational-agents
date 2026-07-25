@@ -79,9 +79,12 @@ export async function importNotionZip(zipPath: string, importName: string): Prom
     await fsp.mkdir(root, { recursive: true });
     const dest = path.join(root, safeName);
     await fsp.rm(dest, { recursive: true, force: true });
-    await fsp.cp(placeFrom, dest, { recursive: true, force: true }).catch(() => {});
+    await fsp.cp(placeFrom, dest, { recursive: true, force: true });
 
     const { pages, databases } = countTree(dest);
+    if (pages === 0 && databases === 0) {
+      throw new Error("nothing to import — the zip did not contain a Notion export (md/csv)");
+    }
     return { name: safeName, pages, databases, dest };
   } finally {
     await fsp.rm(tmp, { recursive: true, force: true }).catch(() => {});
