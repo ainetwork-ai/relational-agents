@@ -452,8 +452,13 @@ export function CallView({ roomId }: { roomId: string }) {
   // silence-restart, so the capture indicator blinks. Set the env to "0" to
   // silence the engine entirely.
   const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH !== "0";
-  const { supported: sttSupported } = useSpeechTranscript({
+  const {
+    interim: sttInterim,
+    error: sttError,
+    supported: sttSupported,
+  } = useSpeechTranscript({
     enabled: webSpeechOn && status === "active" && micOn,
+    lang: process.env.NEXT_PUBLIC_STT_LANG, // default en-US (contract) — set ko-KR for Korean demos
     onFinal: (text) => {
       // Not a chat message: a call speaks a line every few seconds and those
       // would bury what the two of them actually typed. The agent reads these
@@ -557,9 +562,20 @@ export function CallView({ roomId }: { roomId: string }) {
             <PhoneOff size={18} />
           </button>
         </div>
-        {webSpeechOn && !sttSupported && status === "active" && (
-          <div className="absolute left-4 top-4 rounded-md bg-black/60 px-2 py-1 text-xs text-white/80">
-            STT unavailable
+        {/* STT truth panel — silent failure made "is speech even running?"
+            unanswerable; now the engine reports its state on the stage */}
+        {webSpeechOn && status === "active" && (
+          <div
+            data-testid="call-stt-state"
+            className="absolute left-4 top-4 max-w-[50%] truncate rounded-md bg-black/60 px-2 py-1 text-xs text-white/80"
+          >
+            {!sttSupported
+              ? "STT unavailable"
+              : sttError
+                ? `STT error: ${sttError}`
+                : sttInterim
+                  ? `🎙 ${sttInterim}`
+                  : "STT listening"}
           </div>
         )}
       </div>
