@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "demo:cast": "tsx scripts/demo-cast.mts"
+    "demo:cast": "tsx scripts/demo-cast.mts",
+    "demo:seed": "tsx --tsconfig scripts/tsconfig.json scripts/seed-demo-room.mts",
+    "demo:ask": "tsx --tsconfig scripts/tsconfig.json scripts/demo-ask.mts"
   },
   "dependencies": {
     "@ainblockchain/ain-js": "^1.15.0",
