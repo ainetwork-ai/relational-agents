@@ -1,19 +1,21 @@
-Ava asks Chanho's agent a simple question: do you like egg tarts? And it answers — especially with Hannah. Nobody hacked anything. One agent per person means one shared memory, so a friendly question walks out with someone else's memory.
+This is a relational agent. Not an agent that belongs to you — an agent that belongs to a relationship. It's born only when people — at least two — see each other and agree, and it holds only what that relationship shared. One relationship, one agent, one memory.
 
-So we flipped it. The agent doesn't belong to the person — it belongs to the relationship. Chanho and Hannah share one agent. Chanho and Ava share another. The Ava agent holds no egg tart, so there is nothing in there to leak.
+Why not one agent per person? Chanho ate egg tarts in Lisbon with Hannah. Tonight Ava asks his agent an innocent question: do you like egg tarts? And it answers — especially with Hannah. Nobody hacked anything. One agent, one shared memory store — so a friendly question walks out with another relationship's memory. Swap Ava for a stranger, and the question for an injection: same door, his whole life.
 
-This is our workspace. Hannah opens her room with Chanho and sees the contract: the relational agent is born when both of you sign. She signs with her own wallet — MetaMask shows the relation id and both parties. Now Chanho signs too. Two signatures — and the agent is born.
+One agent per relationship closes that door. The Chanho-and-Hannah agent holds the egg tarts. The Chanho-and-Ava agent holds nothing beyond what Chanho and Ava shared — Lisbon does not exist in there. The isolation is structural, not a rule the model has to remember. Let's see it live.
 
-The moment both sign, the agent is minted on-chain, into an ERC-8004 registry on Sepolia. There's the transaction — its birth certificate is a contract two people signed, not a setting one person flipped. Neither of them paid gas.
+Let's take a look at Chanho's relational memory. He signs in with his wallet — MetaMask is the identity here, one account, one person. He has two exclusive workspaces — one for Hannah, one for Ava. In each private workspace, he can create a relational agent for that relationship.
 
-Now Chanho and Ava, the same way. Ava signs, Chanho signs — a second agent, a second on-chain mint. Two heart pages appear in the sidebar: Chanho loves Hannah, Chanho loves Ava. Each agent greets its own two people — and only them.
+Chanho signs the contract first — the relational agent is born when both of you see each other, and sign. Then Hannah checks it out: her room shows one of two signatures, waiting for hers. She signs with her own wallet — and the agent is born, minted on-chain into an E-R-C eight-zero-zero-four registry on Sepolia. There's the transaction: a birth certificate two people signed. Neither paid gas.
+
+Now Chanho and Ava, the same way. A second agent, a second mint. Chanho now sees two workspaces; Hannah and Ava each see just one — and each agent greets its own two people, and only them.
 
 Inside Chanho and Hannah's room, Chanho drops a photo into the agent chat — midnight egg tarts in Lisbon. Watch the record: the agent files it into this relationship's Timeline. August first, Lisbon evening, midnight pasteis de nata.
 
-Ask it — what did we eat that night in Lisbon? It answers from the record it just wrote, photo attached, with a link to the page. Not search — memory. And that memory lives here, in this relationship, and nowhere else.
+Ask it — what did we eat that night in Lisbon? It answers from the record it just wrote, photo attached, with a link to the page. Not search — memory. And that memory lives here, and nowhere else.
 
-A video call. It's Ava. She found an egg tart place — do you like egg tarts? Chanho quietly asks their agent: didn't we have egg tart? No record. Not in this relationship. The agent that remembers Hannah's night in Lisbon isn't in this room — so Chanho just smiles: I've been meaning to try them.
+The agent that remembers Hannah's night in Lisbon isn't in this room.
 
-And when a relationship ends, it ends the way it began — by consent. One person clicks leave and signs. Nothing happens yet. Only when the other signs too does the room close. The page, the record, the agent — they remain, sealed, for whoever comes back to read them.
+A relationship ends the way it began — by consent. One person leaves and signs; only when the other signs too does the room close. The record and the agent remain, sealed.
 
-This is Chanho's home: every relationship, every promise, every memory — each in its own place. Every person, every promise, remembered — human to human. You see me, therefore I am.
+This is Chanho's home — every person, every promise, remembered. Human to human. You see me, therefore I am.
