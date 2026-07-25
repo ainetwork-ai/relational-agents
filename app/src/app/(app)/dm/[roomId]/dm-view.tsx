@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Phone, PhoneMissed, Send, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Phone, PhoneMissed, Send, ShoppingBag, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
+
+/** The human-backed registry is what makes "did two people prove they are
+ * real?" an answerable question, so the agent's spend button only exists when
+ * one is configured. Inlined at build time, like every NEXT_PUBLIC_ value. */
+const HUMAN_BACKED_ON = Boolean(process.env.NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS);
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
@@ -127,6 +132,7 @@ export function DmView({
   const [renameDraft, setRenameDraft] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [organizing, setOrganizing] = useState(false);
+  const [spending, setSpending] = useState(false);
  // relationship agent: whether it's invited + invite in flight
   const [hasAgent, setHasAgent] = useState<boolean | null>(null);
   const [inviting, setInviting] = useState(false);
@@ -586,6 +592,29 @@ export function DmView({
     }
   }
 
+  /** The agent buys from Tarts&Co with its own wallet. The seller only serves
+   * agents the chain says two verified humans stand behind, so the outcome —
+   * tarts or refusal — is the human-backed claim being tested for real. The
+   * agent posts it into the room itself; here we only surface the verdict. */
+  async function buyTarts() {
+    if (spending || !agentMember) return;
+    setSpending(true);
+    try {
+      const res = await fetch(`/api/agent/${agentMember.id}/spend`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+ // 200 = the seller served us, 402 = it took the payment question seriously and
+ // said no. Both are the feature working; anything else is the feature broken.
+      if (res.ok) show("Tarts&Co served the agent — two verified humans, one agent 🥮");
+      else if (res.status === 402)
+        show(`Tarts&Co refused: ${data?.seller?.body?.error ?? "not human-backed"}`);
+      else show(`Purchase failed: ${data?.error ?? res.status}`);
+    } catch (err) {
+      show(`Purchase failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSpending(false);
+    }
+  }
+
   async function organize() {
     if (organizing) return;
     setOrganizing(true);
@@ -744,6 +773,20 @@ export function DmView({
             >
               <Bot size={14} />{" "}
               <span className="hidden sm:inline">{inviting ? "Inviting…" : "Invite agent"}</span>
+            </button>
+          )}
+          {/* Only where the claim can actually be tested: an agent to spend, and
+              a registry that records who stands behind it. */}
+          {agentMember && HUMAN_BACKED_ON && (
+            <button
+              data-testid="dm-agent-spend"
+              onClick={() => void buyTarts()}
+              disabled={spending}
+              aria-label="Ask the agent to buy egg tarts"
+              data-tip={spending ? "Paying Tarts&Co…" : "Agent buys egg tarts (Tarts&Co checks two humans)"}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 dark:hover:bg-amber-950/40 dark:hover:text-amber-400"
+            >
+              <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
             </button>
           )}
           {/* Filing happens on its own; this is the manual nudge, so it earns an
