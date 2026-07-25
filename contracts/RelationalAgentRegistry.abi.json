@@ -1,484 +1,675 @@
-{
- "abi": [
+[
   {
-   "inputs": [],
-   "stateMutability": "nonpayable",
-   "type": "constructor"
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
   },
   {
-   "anonymous": false,
-   "inputs": [
-    {
-     "indexed": true,
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "indexed": true,
-     "internalType": "string",
-     "name": "indexedMetadataKey",
-     "type": "string"
-    },
-    {
-     "indexed": false,
-     "internalType": "string",
-     "name": "metadataKey",
-     "type": "string"
-    },
-    {
-     "indexed": false,
-     "internalType": "bytes",
-     "name": "metadataValue",
-     "type": "bytes"
-    }
-   ],
-   "name": "MetadataSet",
-   "type": "event"
-  },
-  {
-   "anonymous": false,
-   "inputs": [
-    {
-     "indexed": true,
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "indexed": false,
-     "internalType": "string",
-     "name": "agentURI",
-     "type": "string"
-    },
-    {
-     "indexed": true,
-     "internalType": "address",
-     "name": "owner",
-     "type": "address"
-    }
-   ],
-   "name": "Registered",
-   "type": "event"
-  },
-  {
-   "anonymous": false,
-   "inputs": [
-    {
-     "indexed": true,
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "indexed": true,
-     "internalType": "bytes32",
-     "name": "relationId",
-     "type": "bytes32"
-    },
-    {
-     "indexed": false,
-     "internalType": "address[]",
-     "name": "parties",
-     "type": "address[]"
-    }
-   ],
-   "name": "RelationalAgentRegistered",
-   "type": "event"
-  },
-  {
-   "anonymous": false,
-   "inputs": [
-    {
-     "indexed": true,
-     "internalType": "address",
-     "name": "from",
-     "type": "address"
-    },
-    {
-     "indexed": true,
-     "internalType": "address",
-     "name": "to",
-     "type": "address"
-    },
-    {
-     "indexed": true,
-     "internalType": "uint256",
-     "name": "tokenId",
-     "type": "uint256"
-    }
-   ],
-   "name": "Transfer",
-   "type": "event"
-  },
-  {
-   "anonymous": false,
-   "inputs": [
-    {
-     "indexed": true,
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "indexed": false,
-     "internalType": "string",
-     "name": "newURI",
-     "type": "string"
-    },
-    {
-     "indexed": true,
-     "internalType": "address",
-     "name": "updatedBy",
-     "type": "address"
-    }
-   ],
-   "name": "URIUpdated",
-   "type": "event"
-  },
-  {
-   "inputs": [],
-   "name": "DOMAIN_SEPARATOR",
-   "outputs": [
-    {
-     "internalType": "bytes32",
-     "name": "",
-     "type": "bytes32"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "bytes32",
-     "name": "",
-     "type": "bytes32"
-    }
-   ],
-   "name": "agentOfRelation",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "address",
-     "name": "",
-     "type": "address"
-    }
-   ],
-   "name": "balanceOf",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "bytes32",
-     "name": "relationId",
-     "type": "bytes32"
-    },
-    {
-     "internalType": "address[]",
-     "name": "parties",
-     "type": "address[]"
-    }
-   ],
-   "name": "consentDigest",
-   "outputs": [
-    {
-     "internalType": "bytes32",
-     "name": "",
-     "type": "bytes32"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "name": "getAgentWallet",
-   "outputs": [
-    {
-     "internalType": "address",
-     "name": "",
-     "type": "address"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "internalType": "string",
-     "name": "metadataKey",
-     "type": "string"
-    }
-   ],
-   "name": "getMetadata",
-   "outputs": [
-    {
-     "internalType": "bytes",
-     "name": "",
-     "type": "bytes"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [],
-   "name": "name",
-   "outputs": [
-    {
-     "internalType": "string",
-     "name": "",
-     "type": "string"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "name": "ownerOf",
-   "outputs": [
-    {
-     "internalType": "address",
-     "name": "",
-     "type": "address"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "bytes32",
-     "name": "relationId",
-     "type": "bytes32"
-    }
-   ],
-   "name": "partiesOfRelation",
-   "outputs": [
-    {
-     "internalType": "address[]",
-     "name": "",
-     "type": "address[]"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
-  },
-  {
-   "inputs": [],
-   "name": "register",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "nonpayable",
-   "type": "function"
-  },
-  {
-   "inputs": [
-    {
-     "internalType": "string",
-     "name": "agentURI_",
-     "type": "string"
-    },
-    {
-     "components": [
+    "anonymous": false,
+    "inputs": [
       {
-       "internalType": "string",
-       "name": "metadataKey",
-       "type": "string"
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
       },
       {
-       "internalType": "bytes",
-       "name": "metadataValue",
-       "type": "bytes"
+        "indexed": true,
+        "internalType": "string",
+        "name": "indexedMetadataKey",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "metadataKey",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "metadataValue",
+        "type": "bytes"
       }
-     ],
-     "internalType": "struct RelationalAgentRegistry.MetadataEntry[]",
-     "name": "metadata",
-     "type": "tuple[]"
-    }
-   ],
-   "name": "register",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "nonpayable",
-   "type": "function"
+    ],
+    "name": "MetadataSet",
+    "type": "event"
   },
   {
-   "inputs": [
-    {
-     "internalType": "string",
-     "name": "agentURI_",
-     "type": "string"
-    }
-   ],
-   "name": "register",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "nonpayable",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "party",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "nullifierHash",
+        "type": "uint256"
+      }
+    ],
+    "name": "PersonhoodBound",
+    "type": "event"
   },
   {
-   "inputs": [
-    {
-     "internalType": "bytes32",
-     "name": "relationId",
-     "type": "bytes32"
-    },
-    {
-     "internalType": "address[]",
-     "name": "parties",
-     "type": "address[]"
-    },
-    {
-     "internalType": "string",
-     "name": "agentURI_",
-     "type": "string"
-    },
-    {
-     "internalType": "bytes[]",
-     "name": "sigs",
-     "type": "bytes[]"
-    }
-   ],
-   "name": "registerRelationalAgent",
-   "outputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "stateMutability": "nonpayable",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "agentURI",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "Registered",
+    "type": "event"
   },
   {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "internalType": "string",
-     "name": "newURI",
-     "type": "string"
-    }
-   ],
-   "name": "setAgentURI",
-   "outputs": [],
-   "stateMutability": "nonpayable",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      }
+    ],
+    "name": "RelationalAgentDissolved",
+    "type": "event"
   },
   {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    },
-    {
-     "internalType": "string",
-     "name": "metadataKey",
-     "type": "string"
-    },
-    {
-     "internalType": "bytes",
-     "name": "metadataValue",
-     "type": "bytes"
-    }
-   ],
-   "name": "setMetadata",
-   "outputs": [],
-   "stateMutability": "nonpayable",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      }
+    ],
+    "name": "RelationalAgentRegistered",
+    "type": "event"
   },
   {
-   "inputs": [],
-   "name": "symbol",
-   "outputs": [
-    {
-     "internalType": "string",
-     "name": "",
-     "type": "string"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "Transfer",
+    "type": "event"
   },
   {
-   "inputs": [
-    {
-     "internalType": "uint256",
-     "name": "agentId",
-     "type": "uint256"
-    }
-   ],
-   "name": "tokenURI",
-   "outputs": [
-    {
-     "internalType": "string",
-     "name": "",
-     "type": "string"
-    }
-   ],
-   "stateMutability": "view",
-   "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "newURI",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "updatedBy",
+        "type": "address"
+      }
+    ],
+    "name": "URIUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "DOMAIN_SEPARATOR",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "agentOfRelation",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "balanceOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      }
+    ],
+    "name": "consentDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      }
+    ],
+    "name": "dissolveDigest",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "sigs",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "dissolveRelationalAgent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "dissolvedAt",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getAgentWallet",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataKey",
+        "type": "string"
+      }
+    ],
+    "name": "getMetadata",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isHumanBacked",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "nullifierOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ownerOf",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "partiesOfRelation",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "register",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "agentURI_",
+        "type": "string"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "metadataKey",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "metadataValue",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct RelationalAgentRegistry.MetadataEntry[]",
+        "name": "metadata",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "register",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "agentURI_",
+        "type": "string"
+      }
+    ],
+    "name": "register",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      },
+      {
+        "internalType": "string",
+        "name": "agentURI_",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "sigs",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "nullifiers",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "registerHumanBackedAgent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "relationId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "parties",
+        "type": "address[]"
+      },
+      {
+        "internalType": "string",
+        "name": "agentURI_",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "sigs",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "registerRelationalAgent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "newURI",
+        "type": "string"
+      }
+    ],
+    "name": "setAgentURI",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataKey",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes",
+        "name": "metadataValue",
+        "type": "bytes"
+      }
+    ],
+    "name": "setMetadata",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      }
+    ],
+    "name": "tokenURI",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
- ]
-}
+]

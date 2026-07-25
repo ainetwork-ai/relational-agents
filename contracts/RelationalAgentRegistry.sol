@@ -178,6 +178,15 @@ contract RelationalAgentRegistry {
         string calldata agentURI_,
         bytes[] calldata sigs
     ) external returns (uint256 agentId) {
+        return _registerRelational(relationId, parties, agentURI_, sigs);
+    }
+
+    function _registerRelational(
+        bytes32 relationId,
+        address[] calldata parties,
+        string calldata agentURI_,
+        bytes[] calldata sigs
+    ) internal returns (uint256 agentId) {
         require(parties.length >= 2, "need at least two parties");
         require(sigs.length == parties.length, "one signature per party");
         require(agentOfRelation[relationId] == 0, "relation already has an agent");
@@ -195,6 +204,54 @@ contract RelationalAgentRegistry {
         _setMetadata(agentId, "relationId", abi.encodePacked(relationId));
         _setMetadata(agentId, "parties", abi.encodePacked(parties));
         emit RelationalAgentRegistered(agentId, relationId, parties);
+    }
+
+    // ── Personhood: an agent backed by proof that its parties are humans ────
+    /**
+     * A relational agent says "two accounts agreed". A HUMAN-BACKED relational
+     * agent says "two distinct real people agreed" — each party carries a World
+     * ID nullifier hash, the anonymous per-action identifier of one unique
+     * human. Bound here, one nullifier per party, a service can ask the chain
+     * a question no reputation score can answer: is there a person behind each
+     * side of this agent?
+     *
+     * Uniqueness is scoped to the relation, not global: the point is that the
+     * two sides are DIFFERENT humans, and a human may legitimately stand
+     * behind more than one relationship.
+     */
+    mapping(bytes32 => mapping(address => uint256)) public nullifierOf;
+    mapping(bytes32 => bool) private _humanBacked;
+
+    event PersonhoodBound(bytes32 indexed relationId, address indexed party, uint256 nullifierHash);
+
+    function registerHumanBackedAgent(
+        bytes32 relationId,
+        address[] calldata parties,
+        string calldata agentURI_,
+        bytes[] calldata sigs,
+        uint256[] calldata nullifiers
+    ) external returns (uint256 agentId) {
+        require(nullifiers.length == parties.length, "one nullifier per party");
+        agentId = _registerRelational(relationId, parties, agentURI_, sigs);
+
+        for (uint256 i = 0; i < parties.length; i++) {
+            uint256 n = nullifiers[i];
+            require(n != 0, "missing personhood");
+ // Sybil guard, per relation: the same human cannot hold two sides
+            for (uint256 j = 0; j < i; j++) {
+                require(nullifiers[j] != n, "duplicate personhood");
+            }
+            nullifierOf[relationId][parties[i]] = n;
+            emit PersonhoodBound(relationId, parties[i], n);
+        }
+
+        _humanBacked[relationId] = true;
+        _setMetadata(agentId, "nullifiers", abi.encodePacked(nullifiers));
+    }
+
+    /// True while every party's personhood is bound and the relationship lives.
+    function isHumanBacked(bytes32 relationId) external view returns (bool) {
+        return _humanBacked[relationId] && dissolvedAt[relationId] == 0;
     }
 
     // ── Dissolution: it takes everyone to close what everyone opened ───────

@@ -1,0 +1,12 @@
+{
+ "network": "sepolia",
+ "chainId": 11155111,
+ "address": "0xe51d3754d17b16e06d6d528629884996b54385dd",
+ "deployTx": "0xd926b3c11bc092d6185003a525d34247fdb8f137b5265a5c041a8e21c776f799",
+ "deployer": "0x466e00d1Dd650987Cc173E620Fa933aDEaABCB86",
+ "gasUsed": 2013091,
+ "compiler": "solc 0.8.28, optimizer runs=200",
+ "note": "Adds World ID personhood binding: registerHumanBackedAgent(relationId, parties, agentURI, sigs, nullifiers[]), nullifierOf, PersonhoodBound, isHumanBacked. Legacy registerRelationalAgent kept intact.",
+ "supersedes": "0xf1dc0686c8b22a1afe8941c2613f7efa4e439256",
+ "deployedAt": "2026-07-25"
+}

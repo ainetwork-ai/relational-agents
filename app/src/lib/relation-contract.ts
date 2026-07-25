@@ -17,6 +17,26 @@ export const RELATION_CONSENT_TYPES = {
   ],
 } as const;
 
+/** The human-backed registry — the deployment that also binds a World ID
+ * nullifier per party. Setting it turns personhood on: consent requires a
+ * proof, and the relay registers through registerHumanBackedAgent. Unset, the
+ * app runs the original registry unchanged. */
+export function humanBackedRegistryAddress(): `0x${string}` | null {
+  const a = process.env.NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS;
+  return a && /^0x[0-9a-fA-F]{40}$/.test(a) && !/^0x0+$/.test(a) ? (a as `0x${string}`) : null;
+}
+
+/** The registry the signatures anchor to — the human-backed deployment when
+ * configured, else the legacy one. Both compute their EIP-712 domain from
+ * their own address, so this choice must be identical on client and server. */
+export function relationRegistryAddress(): `0x${string}` {
+  return (
+    humanBackedRegistryAddress() ??
+    ((process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS ??
+      "0x0000000000000000000000000000000000000000") as `0x${string}`)
+  );
+}
+
 /** Must mirror the constructor of RelationalAgentRegistry.sol. Until the
  * registry is deployed the zero address stands in; signatures then anchor to
  * the future deployment's domain via env. */
@@ -25,8 +45,7 @@ export function relationConsentDomain() {
     name: "RelationalAgentRegistry",
     version: "1",
     chainId: Number(process.env.NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID ?? 11155111),
-    verifyingContract: (process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS ??
-      "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    verifyingContract: relationRegistryAddress(),
   } as const;
 }
 

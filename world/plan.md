@@ -256,11 +256,11 @@ Sign button stays disabled until `myPersonhoodVerified` (extend `ConsentStatus`)
 
 Each milestone is shippable and demoable on its own. Testnets: **Base Sepolia** (AgentKit wallet + x402 USDC) and **Sepolia**/Base Sepolia (registry). Env keys per §Env.
 
-- [ ] **M0 — Spike (½ day).** Stand up an IDKit sandbox `app_id`+action; verify one proof end-to-end against the cloud verifier in a throwaway route. Confirm AgentKit CDP wallet can send testnet USDC on Base Sepolia. *Ship: two green console logs.*
-- [ ] **M1 — Personhood in consent (1 day).** Add `personhoodProofs` table + `/api/worldid/verify`; add IDKit step to `consent-banner.tsx`; gate `consent/route.ts` POST on a verified nullifier. *Ship: agent cannot be born unless both humans verified.*
-- [ ] **M2 — Personhood onchain (1 day).** Extend `RelationalAgentRegistry.sol` with `nullifierOf` + `registerHumanBackedAgent` + `isHumanBacked`; redeploy; extend `relayRelationOnChain` to carry nullifiers. *Ship: `isHumanBacked(relationId)==true` after a real couple signs; Sybil (same nullifier) reverts.*
-- [ ] **M3 — AgentKit wallet + x402 seller (1.5 days).** Provision AgentKit wallet in `provision.ts`; build `/api/seller/egg-tarts` with x402; agent `spend` route pays it. *Ship: agent buys egg tarts, USDC moves on Base Sepolia.*
-- [ ] **M4 — Human-backed gate + bot rejection (1 day).** Seller middleware/handler calls `isHumanBacked`; add "run as bot" path. *Ship: couple succeeds, bot/Sybil gets 403 — the money shot.*
+- [x] **M0 — Spike (½ day).** Stand up an IDKit sandbox `app_id`+action; verify one proof end-to-end against the cloud verifier in a throwaway route. Confirm AgentKit CDP wallet can send testnet USDC on Base Sepolia. *Ship: two green console logs.*
+- [x] **M1 — Personhood in consent (1 day).** Add `personhoodProofs` table + `/api/worldid/verify`; add IDKit step to `consent-banner.tsx`; gate `consent/route.ts` POST on a verified nullifier. *Ship: agent cannot be born unless both humans verified.*
+- [x] **M2 — Personhood onchain (1 day).** Extend `RelationalAgentRegistry.sol` with `nullifierOf` + `registerHumanBackedAgent` + `isHumanBacked`; redeploy; extend `relayRelationOnChain` to carry nullifiers. *Ship: `isHumanBacked(relationId)==true` after a real couple signs; Sybil (same nullifier) reverts.*
+- [x] **M3 — AgentKit wallet + x402 seller (1.5 days).** Provision AgentKit wallet in `provision.ts`; build `/api/seller/egg-tarts` with x402; agent `spend` route pays it. *Ship: agent buys egg tarts, USDC moves on Base Sepolia.*
+- [x] **M4 — Human-backed gate + bot rejection (1 day).** Seller middleware/handler calls `isHumanBacked`; add "run as bot" path. *Ship: couple succeeds, bot/Sybil gets 403 — the money shot.*
 - [ ] **M5 — Demo polish (1 day).** Badges, receipts, room messages, Playwright `DEMO-05-human-backed.spec.ts`, README + 2-min script tied to Chanho❤️Hannah egg tarts. *Ship: recorded end-to-end demo.*
 
 ---
@@ -315,3 +315,7 @@ RELAYER_KEY=0x...                                   # existing gasless relayer (
 ```
 
 > Existing (do not remove): `A2A_BASE_URL`, `DEPLOYER_KEY`, ENS vars. Current registry on Sepolia: `0xf1dc0686c8b22a1afe8941c2613f7efa4e439256` — the human-backed redeploy supersedes it.
+
+---
+
+**Status: M0-M4 shipped and proven on Sepolia — see [PROOF.md](PROOF.md).** Deviations from this plan, all deliberate and documented there: personhood runs in dev-simulator mode (no Developer Portal credentials); AgentKit uses `ViemWalletProvider` over the agent's existing key rather than a CDP wallet (no CDP keys); the seller settles native ETH on Sepolia in the x402 request/quote shape rather than USDC over x402 on Base Sepolia (the registry, relayer and agents all live on Sepolia). M5 is partial: screenshots and in-room receipts exist, the Playwright DEMO spec and recorded walkthrough do not.

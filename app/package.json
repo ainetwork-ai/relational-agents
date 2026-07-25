@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "@ainblockchain/ain-js": "^1.15.0",
+    "@coinbase/agentkit": "^0.10.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@worldcoin/idkit": "^4.2.1",
+    "@worldcoin/idkit-core": "^4.2.2",
     "drizzle-orm": "^0.45.2",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.23.0",

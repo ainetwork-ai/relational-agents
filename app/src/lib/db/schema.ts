@@ -646,6 +646,25 @@ export const relationDissolves = pgTable(
   (t) => [uniqueIndex("relation_dissolves_room_user").on(t.roomId, t.userId)]
 );
 
+// Proof-of-personhood behind a signature. A World ID nullifier hash is the
+// anonymous, per-action fingerprint of one unique human — it says "a real
+// person, and not the same person twice" without saying who. One row per
+// (room, member): the signer must prove they are human before their consent
+// counts, and the pair of nullifiers is what the registry binds on-chain.
+export const personhoodProofs = pgTable(
+  "personhood_proofs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    nullifierHash: text("nullifier_hash").notNull(),
+ // "orb" | "device" from the proof, or "dev-simulator" when no portal app_id
+    verificationLevel: text("verification_level"),
+    verifiedAt: timestamp("verified_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("personhood_proofs_room_user").on(t.roomId, t.userId)]
+);
+
 // DM membership + read state. (roomId,userId) composite unique — no id column (workspace_members pattern).
 export const chatRoomMembers = pgTable(
   "chat_room_members",

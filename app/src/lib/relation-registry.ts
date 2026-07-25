@@ -2,7 +2,11 @@ import "server-only";
 import { createWalletClient, createPublicClient, http, keccak256, stringToBytes, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import { relationIdFromRoom } from "@/lib/relation-contract";
+import {
+  humanBackedRegistryAddress,
+  relationIdFromRoom,
+  relationRegistryAddress,
+} from "@/lib/relation-contract";
 
 /**
  * Relay a completed set of RelationConsent signatures to
@@ -47,7 +51,39 @@ const ABI = [
     inputs: [{ name: "", type: "bytes32" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "registerHumanBackedAgent",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "relationId", type: "bytes32" },
+      { name: "parties", type: "address[]" },
+      { name: "agentURI", type: "string" },
+      { name: "sigs", type: "bytes[]" },
+      { name: "nullifiers", type: "uint256[]" },
+    ],
+    outputs: [{ name: "agentId", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "isHumanBacked",
+    stateMutability: "view",
+    inputs: [{ name: "relationId", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "nullifierOf",
+    stateMutability: "view",
+    inputs: [
+      { name: "", type: "bytes32" },
+      { name: "", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
 ] as const;
+
+export const RELATION_REGISTRY_ABI = ABI;
 
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
@@ -60,12 +96,23 @@ export interface RelayInput {
   roomId: string;
   /** { addressLowercase: signatureHex } for every signer. */
   signaturesByAddress: Record<string, string>;
+  /** { addressLowercase: nullifierHashHex } — one proof-of-personhood per
+   * signer. Present + a human-backed registry configured = the agent is born
+   * with both humans bound on-chain. */
+  nullifiersByAddress?: Record<string, string>;
   agentUri: string;
 }
 
+export interface RelayResult {
+  txHash: string;
+  agentId: string;
+  /** true when the registration bound a nullifier per party on-chain. */
+  humanBacked?: boolean;
+}
+
 /** Registers the relationship agent on-chain. Returns { txHash, agentId } or null. */
-export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash: string; agentId: string } | null> {
-  const address = process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS as Hex | undefined;
+export async function relayRelationOnChain(input: RelayInput): Promise<RelayResult | null> {
+  const address = relationRegistryAddress() as Hex;
   const key = relayerKey();
   if (!address || address === "0x0000000000000000000000000000000000000000" || !key) return null;
 
@@ -77,6 +124,14 @@ export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash:
   const sigs = parties.map((p) => input.signaturesByAddress[p] as Hex);
   const relationId = relationIdFromRoom(input.roomId) as Hex;
 
+ // Personhood is bound only if every party has a proof AND the deployment we
+ // are writing to understands nullifiers. A partial set falls back to the
+ // legacy path rather than registering a half-human-backed agent.
+  const nulls = input.nullifiersByAddress ?? {};
+  const humanBacked =
+    humanBackedRegistryAddress() !== null && parties.every((p) => Boolean(nulls[p]));
+  const nullifiers = humanBacked ? parties.map((p) => BigInt(nulls[p])) : [];
+
   try {
     const account = privateKeyToAccount(key);
     const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
@@ -84,23 +139,40 @@ export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash:
     const existing = (await pub.readContract({
       address, abi: ABI, functionName: "agentOfRelation", args: [relationId],
     })) as bigint;
-    if (existing > BigInt(0)) return { txHash: "", agentId: existing.toString() };
+    if (existing > BigInt(0)) return { txHash: "", agentId: existing.toString(), humanBacked };
 
     const wallet = createWalletClient({ account, chain: sepolia, transport: http(RPC) });
-    const txHash = await wallet.writeContract({
-      address, abi: ABI, functionName: "registerRelationalAgent",
-      args: [relationId, parties, input.agentUri, sigs],
-    });
+    const txHash = humanBacked
+      ? await wallet.writeContract({
+          address, abi: ABI, functionName: "registerHumanBackedAgent",
+          args: [relationId, parties, input.agentUri, sigs, nullifiers],
+        })
+      : await wallet.writeContract({
+          address, abi: ABI, functionName: "registerRelationalAgent",
+          args: [relationId, parties, input.agentUri, sigs],
+        });
     const receipt = await pub.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
     if (receipt.status !== "success") return null;
     const agentId = (await pub.readContract({
       address, abi: ABI, functionName: "agentOfRelation", args: [relationId],
     })) as bigint;
-    return { txHash, agentId: agentId.toString() };
+    return { txHash, agentId: agentId.toString(), humanBacked };
   } catch (err) {
     console.error("on-chain relay failed:", err);
     return null;
   }
+}
+
+/** Asks the chain whether a relationship has a proven human on each side.
+ * This is the question a seller asks before it trusts an agent's money. */
+export async function readIsHumanBacked(roomId: string): Promise<boolean> {
+  const address = humanBackedRegistryAddress();
+  if (!address) return false;
+  const relationId = relationIdFromRoom(roomId) as Hex;
+  const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
+  return (await pub.readContract({
+    address, abi: ABI, functionName: "isHumanBacked", args: [relationId],
+  })) as boolean;
 }
 
 /** Relays a completed RelationDissolve set to dissolveRelationalAgent().
@@ -110,7 +182,7 @@ export async function relayDissolveOnChain(input: {
   roomId: string;
   signaturesByAddress: Record<string, string>;
 }): Promise<{ txHash: string; agentId: string } | null> {
-  const address = process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS as Hex | undefined;
+  const address = relationRegistryAddress() as Hex;
   const key = relayerKey();
   if (!address || address === "0x0000000000000000000000000000000000000000" || !key) return null;
 
