@@ -1,10 +1,25 @@
 import "server-only";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { agentRoomStates, chatMessages, chatRoomBots, chatRoomMembers } from "@/lib/db/schema";
+import {
+  agentRoomStates,
+  callUtterances,
+  chatMessages,
+  chatRoomBots,
+  chatRoomMembers,
+  chatRooms,
+  users,
+} from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { aiChat } from "@/lib/ai";
-import { okfDocTreeFromState, readOkfSectionTexts } from "./okf-docs";
+import {
+  appendOkfLines,
+  ensureOkfDocTree,
+  okfDocMeta,
+  okfDocTreeFromState,
+  readOkfSectionTexts,
+} from "./okf-docs";
+import { CHAT_ROUTE_PREFIX } from "./pipeline";
 
 /**
  * The agent listening in on a call.
@@ -73,6 +88,89 @@ async function factSheet(roomId: string, callId: string): Promise<string> {
 
 export function forgetCallFacts(callId: string): void {
   cache().delete(callId);
+}
+
+/**
+ * Write the call up once it is over.
+ *
+ * Folding utterances in one by one would leave a call scattered across a dozen
+ * timeline entries, none of which reads like anything happened. A finished call
+ * is one thing that happened, so it gets one entry — the way a meeting gets
+ * notes, not a transcript.
+ */
+export async function recapCall(roomId: string, callId: string): Promise<{ recorded: boolean }> {
+  const spoken = await db
+    .select()
+    .from(callUtterances)
+    .where(and(eq(callUtterances.callId, callId), isNull(callUtterances.processedAt)))
+    .orderBy(asc(callUtterances.createdAt));
+  forgetCallFacts(callId);
+  if (spoken.length < 2) {
+    // too little was said to be worth a memory; drop it from the queue anyway
+    if (spoken.length)
+      await db
+        .update(callUtterances)
+        .set({ processedAt: new Date() })
+        .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+    return { recorded: false };
+  }
+
+  const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
+  const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
+  if (!room) return { recorded: false };
+  const tree = ensureOkfDocTree(roomId, room.name, {
+    rootPath: state?.rootOkfPath,
+    sectionPaths: state?.sectionOkfPaths,
+  });
+
+  const names = new Map<string, string>();
+  const people = await db
+    .select({ id: users.id, displayName: users.displayName })
+    .from(users)
+    .where(inArray(users.id, [...new Set(spoken.map((u) => u.speakerId))]));
+  for (const p of people) names.set(p.id, p.displayName);
+  const script = spoken
+    .map((u) => `${names.get(u.speakerId) ?? "someone"}: ${u.text}`)
+    .join("\n")
+    .slice(0, 8_000);
+
+  let summary = "";
+  try {
+    summary = await aiChat(
+      [
+        {
+          role: "system",
+          content:
+            "Write what this call was about for the couple's shared record. Two or three sentences, past tense, naming what they did, decided, or plan to do. " +
+            "Only what was actually said — no advice, no invented detail. Plain prose, no heading, no bullet list.",
+        },
+        { role: "user", content: script },
+      ],
+      { maxTokens: 250, temperature: 0.2 }
+    );
+  } catch (err) {
+    console.error("call recap failed:", err);
+    return { recorded: false };
+  }
+  if (!summary.trim()) return { recorded: false };
+
+  const rel = tree.sectionPaths.timeline;
+  if (rel) {
+    appendOkfLines(
+      rel,
+      "Timeline",
+      [
+        { type: "callout", text: summary.trim(), icon: "📞" },
+        { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
+      ],
+      okfDocMeta(roomId, "timeline")
+    );
+  }
+  await db
+    .update(callUtterances)
+    .set({ processedAt: new Date() })
+    .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+  return { recorded: true };
 }
 
 interface Read {

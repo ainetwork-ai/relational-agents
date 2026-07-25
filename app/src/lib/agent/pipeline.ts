@@ -14,6 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { aiChat, type AiContentPart } from "@/lib/ai";
 import { setOkfAcl } from "@/lib/okf-acl";
+import { getCall } from "@/lib/call-store";
 import {
   appendOkfLines,
   ensureOkfDocTree,
@@ -279,7 +280,12 @@ async function runOnce(roomId: string): Promise<RunResult> {
     .orderBy(asc(callUtterances.createdAt))
     .limit(200);
 
-  if (!batch.length && !spoken.length)
+ // A call in progress belongs to the recap, which writes it up as one entry
+ // when it ends — folding its lines in now would scatter it across the timeline.
+  const live = getCall(roomId);
+  const settled = live ? spoken.filter((u) => u.callId !== live.callId) : spoken;
+
+  if (!batch.length && !settled.length)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no new messages" };
 
  // participants = room members + creator. The OKF tree has no permissions,
@@ -316,10 +322,10 @@ async function runOnce(roomId: string): Promise<RunResult> {
   const typed = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
  // Spoken lines join the same stream, tagged so the model knows they were said
  // out loud and so provenance can cite the call instead of a message anchor.
-  const callOf = new Map(spoken.map((u) => [u.id, u.callId]));
+  const callOf = new Map(settled.map((u) => [u.id, u.callId]));
   const source = [
     ...typed,
-    ...spoken.map((u) => ({
+    ...settled.map((u) => ({
       id: u.id,
       roomId: u.roomId,
       authorId: u.speakerId,
@@ -396,7 +402,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
       const links = edit.sourceMessageIds
         .map((id) => {
           const callId = callOf.get(id);
-          // a spoken line has no message to jump to — cite the call it came from
+          // a settled line has no message to jump to — cite the call it came from
           return callId
             ? `${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}`
             : `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`;
@@ -422,11 +428,11 @@ async function runOnce(roomId: string): Promise<RunResult> {
         .update(chatMessages)
         .set({ processedAt: now })
         .where(inArray(chatMessages.id, batch.map((m) => m.id)));
-    if (spoken.length)
+    if (settled.length)
       await tx
         .update(callUtterances)
         .set({ processedAt: now })
-        .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+        .where(inArray(callUtterances.id, settled.map((u) => u.id)));
     if (recordedIds.length) {
       await tx
         .update(chatMessages)
@@ -454,7 +460,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   });
 
   return {
-    processed: batch.length + spoken.length,
+    processed: batch.length + settled.length,
     edits: edits.length,
     rootPageId: okfDocPageId(tree.rootPath),
   };

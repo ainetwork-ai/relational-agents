@@ -3,6 +3,10 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
 import { randomUUID } from "node:crypto";
+import { recapCall } from "@/lib/agent/call-watch";
+import { db } from "@/lib/db";
+import { chatMessages, type ChatRoom } from "@/lib/db/schema";
+import { maybeAutoRun } from "@/lib/agent/triggers";
 import { deleteCall, getCall, setCall, RING_STALE_MS, type CallSdp } from "@/lib/call-store";
 import type { PageEvent } from "@/lib/realtime";
 
@@ -33,6 +37,23 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 interface CallActionBody {
   action?: "invite" | "cancel" | "accept" | "decline" | "offer" | "answer" | "end";
   sdp?: CallSdp;
+}
+
+const mmss = (ms: number) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** KakaoTalk-style call record in the chat: a regular room message (author =
+ * the caller) whose "📞 " prefix the DM view renders as a call bubble. Same
+ * insert → publish → harvest dance as messages POST, so the bubble reaches
+ * open panels live and the agent records that the call happened. */
+async function postCallEvent(room: ChatRoom, authorId: string, text: string) {
+  await db.insert(chatMessages).values({ roomId: room.id, authorId, text });
+  await publishToRoomMembers(room.id, { type: "dm-message", clientId: null });
+  const autoRun = await maybeAutoRun(room);
+  if (autoRun && autoRun.edits > 0)
+    await publishToRoomMembers(room.id, { type: "dm-message", clientId: null });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
@@ -75,6 +96,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "Only the caller can cancel" }, { status: 403 });
       deleteCall(roomId);
       await notify("dm-call-cancel");
+      if (call) void postCallEvent(access.room, call.callerId, "📞 Missed call").catch(console.error);
       break;
     }
     case "accept": {
@@ -82,8 +104,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "No ringing call" }, { status: 409 });
       if (call.callerId === me)
         return NextResponse.json({ error: "Caller cannot accept" }, { status: 403 });
-      setCall({ ...call, calleeId: me, status: "active" });
+      setCall({ ...call, calleeId: me, status: "active", acceptedAt: Date.now() });
       await notify("dm-call-accept");
+      void postCallEvent(access.room, call.callerId, "📞 Video Call").catch(console.error);
       break;
     }
     case "decline": {
@@ -91,6 +114,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "No call to decline" }, { status: 409 });
       deleteCall(roomId);
       await notify("dm-call-decline");
+      void postCallEvent(access.room, call.callerId, "📞 Missed call").catch(console.error);
       break;
     }
     case "offer":
@@ -107,6 +131,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     case "end": {
       deleteCall(roomId);
       await notify("dm-call-end");
+      if (call) {
+        // ended mid-ring == the caller gave up — that's a missed call
+        const text =
+          call.status === "active" && call.acceptedAt
+            ? `📞 Video Call ended · ${mmss(Date.now() - call.acceptedAt)}`
+            : "📞 Missed call";
+        void postCallEvent(access.room, call.callerId, text).catch(console.error);
+        // The call is one thing that happened, so it is written up as one entry
+        // — out of band, since hanging up should not wait on a summary.
+        void recapCall(roomId, call.callId).catch((err) =>
+          console.error("call recap failed:", err)
+        );
+      }
       break;
     }
     default:
