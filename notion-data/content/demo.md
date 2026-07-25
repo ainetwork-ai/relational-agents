@@ -3,9 +3,9 @@ title: Demo — 3-Minute Video Script & Transition Design
 icon: 🎬
 ---
 
-# I relate, therefore I am.
+# You see me, therefore I am.
 
-**An agent is born only when two people agree.**
+**An agent is born only when two people see each other.**
 
 Total runtime 3:00 · 1440×900 · light mode.
 Concept: a relationship-management workspace. The star is the relational agent — born only by mutual consent, it manages and remembers your relationships. All scenes below use the REAL data in this workspace: the **Relationships** database (Relationships.csv) and the **Relationship Records** pages — every record titled **"Chanho ❤️ {name}"** (Chanho ❤️ Isla Montgomery, Chanho ❤️ Hannah Brooks, Chanho ❤️ Sophie Miller, and seven more).
@@ -37,7 +37,7 @@ Caption: **"Nobody hacked anything. It was being helpful."**
 Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
 
 **VO**:
-> "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both say yes**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+> "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
 
 ## 0:15–0:33 · Opening — first login lands on the dashboard
 

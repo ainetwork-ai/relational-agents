@@ -1,10 +1,10 @@
-# I relate, therefore I am.
+# You see me, therefore I am.
 
 <p align="center">
   <img src="https://miro.medium.com/v2/resize:fit:1100/format:webp/1*8BgszdbJ7G507507tPH2AQ.gif" alt="Relational agents" width="720">
 </p>
 
-**An agent is born only when two people agree.**
+**An agent is born only when two people see each other.**
 
 Every relationship gets its own agent, holding only what that relationship shared.
 One relationship = one agent = one memory bundle.
