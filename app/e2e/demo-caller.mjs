@@ -4,7 +4,7 @@
 // button and stays parked on /call — the fake camera/mic feed the WebRTC
 // leg — until the call ends on either side.
 //
-//   [BASE_URL=http://localhost:3220] [VC_CALLER=Emma] \
+//   [BASE_URL=http://localhost:3220] [VC_CALLER=Ava] \
 //   [CALL_TIMEOUT_MS=600000] node e2e/demo-caller.mjs
 //
 // Prints "ROOM <id>" once the room is known — the bridge parses this line
@@ -12,7 +12,7 @@
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3220";
-const CALLER = process.env.VC_CALLER ?? "Emma";
+const CALLER = process.env.VC_CALLER ?? "Ava";
 const TIMEOUT_MS = Number(process.env.CALL_TIMEOUT_MS ?? 10 * 60 * 1000);
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);

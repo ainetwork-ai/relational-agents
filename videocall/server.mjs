@@ -52,7 +52,7 @@ const CALLS = [
 //   GET    /api/notion-call        -> {running, roomId, call} for UI polling
 //   POST   /api/notion-call/end    -> cancel/end from the videocall UI
 const NOTION_BASE = process.env.NOTION_BASE || "http://localhost:3220";
-const NOTION_CALLER = process.env.NOTION_CALLER || "Emma";
+const NOTION_CALLER = process.env.NOTION_CALLER || "Ava";
 const CALLER_SCRIPT = path.join(HERE, "..", "app", "e2e", "demo-caller.mjs");
 let callerChild = null;
 let bridgeRoom = null;
