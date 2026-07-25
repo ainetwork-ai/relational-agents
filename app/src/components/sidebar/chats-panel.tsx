@@ -22,7 +22,7 @@ import { IconPicker } from "@/components/page/icon-picker";
 import { PageIcon } from "@/components/page-icon";
 import { DmSection } from "@/components/dm/dm-section";
 import { RelationshipsStrip } from "@/components/dm/relationships-strip";
-import { AgentsSection } from "@/components/sidebar/agents-section";
+import { RelationAgentsSection } from "@/components/sidebar/relation-agents-section";
 import { ChatsToolbar } from "@/components/sidebar/chats-toolbar";
 
 export function ChatsPanel() {
@@ -325,7 +325,7 @@ export function ChatsPanel() {
 
       <DmSection />
 
-      <AgentsSection />
+      <RelationAgentsSection />
 
       <div className="mt-1 flex items-center justify-between px-2 pb-1 pt-2">
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">

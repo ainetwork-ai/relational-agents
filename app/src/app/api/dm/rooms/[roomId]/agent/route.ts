@@ -72,3 +72,32 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   }
   return NextResponse.json({ agents });
 }
+
+/** PATCH { name } → rename this room's relationship agent (any member). */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { roomId } = await ctx.params;
+  const access = await requireRoomAccess(roomId, auth.user.id);
+  if ("error" in access) return access.error;
+
+  const body = await req.json().catch(() => ({}));
+  const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
+  if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+
+  const { chatRoomBots } = await import("@/lib/db/schema");
+  const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
+  if (!bot) return NextResponse.json({ error: "No agent" }, { status: 404 });
+
+  const [agent] = await db
+    .update(users)
+    .set({ displayName: name })
+    .where(eq(users.id, bot.agentUserId))
+    .returning();
+  await publishToRoomMembers(
+    roomId,
+    { type: "dm-room", clientId: req.headers.get("x-client-id") },
+    await roomMemberIds(roomId)
+  );
+  return NextResponse.json({ agentUserId: agent.id, displayName: agent.displayName });
+}
