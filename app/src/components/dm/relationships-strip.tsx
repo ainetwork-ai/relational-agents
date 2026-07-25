@@ -120,6 +120,14 @@ export function RelationshipsStrip() {
           .then((r) => (r.ok ? r.json() : null))
           .then((d) => d?.user?.displayName ?? null)
           .catch(() => null);
+        // the workspace's member roster — a relation belongs in THIS
+        // workspace only when the partner is one of its members
+        const memberNames = new Set<string>(
+          await fetch("/api/workspace/members")
+            .then((r) => (r.ok ? r.json() : { members: [] }))
+            .then((d) => (d.members ?? []).map((m: { displayName: string }) => nameKey(m.displayName ?? "")))
+            .catch(() => [])
+        );
 
         // faces come from two shapes of relationship doc:
         // 1) children of a "Relationship Records" index page (seeded records)
@@ -216,6 +224,9 @@ export function RelationshipsStrip() {
         }
         for (const d of okfDocs) {
           const name = partnerOf(d.title, myName);
+          // OKF docs are workspace-agnostic files; only surface the ones whose
+          // partner is a member of the current workspace
+          if (memberNames.size > 0 && !memberNames.has(nameKey(name))) continue;
           const key = name.toLowerCase();
           const prev = byPartner.get(key);
           byPartner.set(key, {
