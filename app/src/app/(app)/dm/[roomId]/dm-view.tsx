@@ -64,6 +64,16 @@ interface DmMessage {
   privateToUserId?: string | null;
   /** set once the agent folded this message into the shared record */
   recordedAt?: string | null;
+  /** set on 📞 call bubbles — the key to what that call left in the record */
+  callId?: string | null;
+}
+
+/** What a call left in the relationship document. Never the transcript: what
+ *  was said out loud belongs to the agent, not to the chat. */
+interface CallRecord {
+  utteranceCount: number;
+  entries: { section: string; sectionTitle: string; text: string; pageId: string }[];
+  docPageId: string | null;
 }
 
 const TYPING_TTL_MS = 3_500;
@@ -83,6 +93,62 @@ function dateLabel(iso: string): string {
     day: "numeric",
     weekday: "short",
   });
+}
+
+/**
+ * What a call left in the relationship document, under its bubble.
+ *
+ * A call is visible in the chat but its meaning lives in the document, and the
+ * two were not connected — the bubble was a dead end. What it never shows is
+ * the transcript: what was said out loud feeds the agent, not the chat.
+ */
+function CallRecordPanel({ record }: { record: CallRecord | null }) {
+  if (!record) {
+    return (
+      <p className="px-3 py-2 text-[12px] text-neutral-400" data-testid="dm-call-record-loading">
+        Looking it up…
+      </p>
+    );
+  }
+  const { entries, utteranceCount, docPageId } = record;
+  return (
+    <div
+      data-testid="dm-call-record"
+      className="flex w-[19rem] max-w-full flex-col gap-2 rounded-lg bg-neutral-50/70 px-3 py-2.5 text-[13px] ring-1 ring-neutral-200/70 dark:bg-neutral-800/30 dark:ring-neutral-700/60"
+    >
+      {entries.length > 0 ? (
+        <>
+          <p className="text-[11px] uppercase tracking-wide text-neutral-400">In your record</p>
+          {entries.map((e, i) => (
+            <Link
+              key={`${e.pageId}-${i}`}
+              href={`/p/${e.pageId}`}
+              className="group flex flex-col gap-0.5 rounded px-1 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800/60"
+            >
+              <span className="text-[11px] text-neutral-400">{e.sectionTitle}</span>
+              <span className="leading-snug text-neutral-700 group-hover:underline dark:text-neutral-200">
+                {e.text}
+              </span>
+            </Link>
+          ))}
+        </>
+      ) : (
+        <p className="text-neutral-500">
+          {utteranceCount > 0
+            ? "Nothing from this call made it into the record."
+            : "Nothing was said out loud on this call."}
+        </p>
+      )}
+      {docPageId && (
+        <Link
+          href={`/p/${docPageId}`}
+          className="self-start text-[12px] text-neutral-500 underline-offset-2 hover:underline"
+        >
+          Open the relationship document →
+        </Link>
+      )}
+    </div>
+  );
 }
 
 /** Human↔human DM room view — realtime receive (SSE inbox), photo
@@ -126,6 +192,9 @@ export function DmView({
   const [uploading, setUploading] = useState(false);
 
   const [typing, setTyping] = useState<Record<string, { name: string; until: number }>>({});
+  // 열린 통화 버블(있다면) → 그 통화가 문서에 남긴 것. null = 로딩 중
+  const [openCall, setOpenCall] = useState<string | null>(null);
+  const [callRecord, setCallRecord] = useState<Record<string, CallRecord | null>>({});
   const [inviteOpen, setInviteOpen] = useState(false);
   const [candidates, setCandidates] = useState<DmUser[] | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -213,6 +282,28 @@ export function DmView({
  // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAll();
   }, [loadAll]);
+
+  /** Open a call bubble: what did this call leave in the record? Fetched on
+   *  demand — most bubbles are never opened — and kept once fetched, since a
+   *  finished call's record only changes if someone edits the document. */
+  const toggleCall = useCallback(
+    // keyed by message, not call: the opening and closing bubble share a
+    // callId, and keying by call expanded both at once
+    async (messageId: string, callId: string) => {
+      if (openCall === messageId) {
+        setOpenCall(null);
+        return;
+      }
+      setOpenCall(messageId);
+      if (callRecord[callId] !== undefined) return;
+      setCallRecord((r) => ({ ...r, [callId]: null }));
+      const res = await fetch(`/api/calls/${roomId}/record?callId=${encodeURIComponent(callId)}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as CallRecord;
+      setCallRecord((r) => ({ ...r, [callId]: data }));
+    },
+    [openCall, callRecord, roomId]
+  );
 
   useEffect(() => {
  // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -953,9 +1044,18 @@ export function DmView({
                       </p>
                     )}
                     {callEvent ? (
-                      <div
+                      <div className={`flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
+                      <button
+                        type="button"
                         data-testid="dm-msg-call"
-                        className="flex min-w-[176px] items-center gap-2.5 rounded-lg bg-neutral-50 px-3 py-2.5 text-[14px] ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:ring-neutral-700/60"
+                        disabled={!m.callId}
+                        onClick={() => m.callId && void toggleCall(m.id, m.callId)}
+                        aria-expanded={Boolean(m.callId && openCall === m.id)}
+                        className={`flex min-w-[176px] items-center gap-2.5 rounded-lg bg-neutral-50 px-3 py-2.5 text-[14px] ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:ring-neutral-700/60 ${
+                          m.callId
+                            ? "cursor-pointer transition hover:ring-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:hover:ring-neutral-600"
+                            : "cursor-default"
+                        }`}
                       >
                         {callEvent.missed ? (
                           <PhoneMissed size={16} className="shrink-0 text-orange-500" />
@@ -975,6 +1075,10 @@ export function DmView({
                             <p className="text-[12px] text-neutral-500">{callEvent.duration}</p>
                           )}
                         </div>
+                      </button>
+                      {m.callId && openCall === m.id && (
+                        <CallRecordPanel record={callRecord[m.callId] ?? null} />
+                      )}
                       </div>
                     ) : (
                     <div

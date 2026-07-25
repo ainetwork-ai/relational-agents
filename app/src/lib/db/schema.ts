@@ -705,6 +705,11 @@ export const chatMessages = pgTable(
  // was cited as a source of an applied edit). Drives the quiet "added to your
  // record" marker, so the agent no longer announces itself in the transcript.
     recordedAt: timestamp("recorded_at"),
+ // Set on the "📞 …" call bubbles, so the bubble in the chat can lead back to
+ // what that call left in the record. The recap cites the call the same way
+ // (#call-{callId}), and this is the other half of that link — without it a
+ // bubble is a dead end, since its own message id appears nowhere in the doc.
+    callId: text("call_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("chat_messages_room_created_idx").on(t.roomId, t.createdAt)]

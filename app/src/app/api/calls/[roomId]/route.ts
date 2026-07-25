@@ -64,10 +64,10 @@ const mmss = (ms: number) => {
  * agent's own call summary (call-watch) is the single record of the call;
  * letting the pipeline harvest the bubble too wrote every call into the
  * Timeline twice. */
-async function postCallEvent(room: ChatRoom, authorId: string, text: string) {
+async function postCallEvent(room: ChatRoom, authorId: string, text: string, callId?: string) {
   await db
     .insert(chatMessages)
-    .values({ roomId: room.id, authorId, text, processedAt: new Date() });
+    .values({ roomId: room.id, authorId, text, processedAt: new Date(), callId: callId ?? null });
   await publishToRoomMembers(room.id, { type: "dm-message", clientId: null });
 }
 
@@ -128,7 +128,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "Only the caller can cancel" }, { status: 403 });
       deleteCall(roomId);
       await notify("dm-call-cancel");
-      if (call) void postCallEvent(access.room, call.callerId, "📞 Missed call").catch(console.error);
+      if (call)
+        void postCallEvent(access.room, call.callerId, "📞 Missed call", call.callId).catch(console.error);
       break;
     }
     case "accept": {
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "Caller cannot accept" }, { status: 403 });
       setCall({ ...call, calleeId: me, status: "active", acceptedAt: Date.now() });
       await notify("dm-call-accept");
-      void postCallEvent(access.room, call.callerId, "📞 Video Call").catch(console.error);
+      void postCallEvent(access.room, call.callerId, "📞 Video Call", call.callId).catch(console.error);
       break;
     }
     case "decline": {
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         return NextResponse.json({ error: "No call to decline" }, { status: 409 });
       deleteCall(roomId);
       await notify("dm-call-decline");
-      void postCallEvent(access.room, call.callerId, "📞 Missed call").catch(console.error);
+      void postCallEvent(access.room, call.callerId, "📞 Missed call", call.callId).catch(console.error);
       break;
     }
     case "offer":
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           call.status === "active" && call.acceptedAt
             ? `📞 Video Call ended · ${mmss(Date.now() - call.acceptedAt)}`
             : "📞 Missed call";
-        void postCallEvent(access.room, call.callerId, text).catch(console.error);
+        void postCallEvent(access.room, call.callerId, text, call.callId).catch(console.error);
         // one entry for the whole call, the way a meeting gets notes
         if (spoken.length)
           void writeCallRecap(roomId, call.callId, spoken).catch((err) =>
