@@ -64,6 +64,16 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     let user = existing;
+    // Returning user typed a (different) name → honor it. Login is the only
+    // place the form offers a name, so this is how you rename yourself.
+    if (user && typeof displayName === "string" && displayName.trim() && displayName.trim() !== user.displayName) {
+      const [renamed] = await db
+        .update(users)
+        .set({ displayName: displayName.trim() })
+        .where(eq(users.id, user.id))
+        .returning();
+      user = renamed;
+    }
     if (!user) {
       const [created] = await db
         .insert(users)

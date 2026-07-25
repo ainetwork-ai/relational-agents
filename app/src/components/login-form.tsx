@@ -144,6 +144,15 @@ export function LoginForm() {
           {busy === "demo" ? "Signing in…" : "Try the demo"}
         </button>
 
+        <input
+          data-testid="display-name-input"
+          type="text"
+          placeholder="Display name (optional)"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="mt-2.5 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+        />
+
         <button
           data-testid="metamask-login-button"
           onClick={loginWithMetamask}
@@ -167,14 +176,6 @@ export function LoginForm() {
             placeholder="Private key (hex)"
             value={privateKey}
             onChange={(e) => setPrivateKey(e.target.value)}
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          />
-          <input
-            data-testid="display-name-input"
-            type="text"
-            placeholder="Display name (optional)"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
           <button
