@@ -43,6 +43,19 @@ if (!Array.isArray(cur.blocks) || !cur.blocks.length) {
   console.error(`FAIL  setup — ${MEMBER} cannot read ${relPage}; is OKF_DOC right?`);
   process.exit(2);
 }
+// title + frontmatter as the file holds them now, so the write probes below
+// can hand them straight back
+const node = await (
+  await fetch(`${BASE}/api/okf/node?path=${encodeURIComponent(relPage)}`, {
+    headers: { cookie: member },
+  })
+).json().then((j) => j.node ?? j);
+// timestamp is restamped on every write by design — compare the rest
+const stable = (m) => {
+  const { timestamp, ...rest } = m ?? {};
+  return JSON.stringify(rest);
+};
+const metaBefore = stable(node.meta);
 
 const probes = [
   ["GET  /api/pages/{id}", (c) => fetch(`${BASE}/api/pages/${id(relPage)}`, { headers: { cookie: c } })],
@@ -62,12 +75,15 @@ const probes = [
       }),
   ],
   [
+    // meta is echoed back deliberately: this route merges over the file's
+    // frontmatter, and a probe that dropped it would strip the contract
+    // fields (type/relationId/roomId) the reading side requires
     "PUT  /api/okf/page",
     (c) =>
       fetch(`${BASE}/api/okf/page`, {
         method: "PUT",
         headers: { "content-type": "application/json", cookie: c },
-        body: JSON.stringify({ path: relPage, title: "Timeline", blocks: cur.blocks }),
+        body: JSON.stringify({ path: relPage, title: node.title, meta: node.meta, blocks: cur.blocks }),
       }),
   ],
   [
@@ -119,6 +135,18 @@ const same =
   JSON.stringify((after.blocks ?? []).map((b) => b.content)) ===
   JSON.stringify(cur.blocks.map((b) => b.content));
 row("문서 무손상 확인", cur.blocks.length, (after.blocks ?? []).length, false, same);
+
+// A write path that keeps the blocks but drops the frontmatter still destroys
+// the document: relation-agent refuses one with no `type`.
+const nodeAfter = await (
+  await fetch(`${BASE}/api/okf/node?path=${encodeURIComponent(relPage)}`, {
+    headers: { cookie: member },
+  })
+).json().then((j) => j.node ?? j);
+const meta = nodeAfter.meta ?? {};
+const contractKept =
+  stable(meta) === metaBefore && meta.type === "Memory" && Boolean(meta.relationId);
+row("계약 프론트매터 보존", meta.type ?? "없음", meta.relationId ? "relationId ✓" : "없음", false, contractKept);
 
 console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");
 process.exit(failed ? 1 : 0);

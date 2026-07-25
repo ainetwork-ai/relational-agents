@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
-import { writePage } from "@/lib/okf-store";
+import { nodeExists, readNode, writePage } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
 import type { ParsedBlock, Frontmatter } from "@/lib/memory-parse";
 
@@ -19,7 +19,13 @@ export async function PUT(req: NextRequest) {
   const gate = await okfGateFor(auth.user.id);
   if (!gate.canRead(relPath)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
-    writePage(relPath, title, (meta ?? {}) as Frontmatter, blocks as ParsedBlock[]);
+   // Merge over what the file already carries. Replacing wholesale meant a
+   // caller that just wanted to save blocks (meta omitted) silently dropped
+   // the contract fields — type/relationId/roomId — and the reading side
+   // rejects a document with no `type` at all.
+    const existing = nodeExists(relPath) ? readNode(relPath) : null;
+    const prev = (existing && existing.kind === "page" ? existing.meta : {}) as Frontmatter;
+    writePage(relPath, title, { ...prev, ...((meta ?? {}) as Frontmatter) }, blocks as ParsedBlock[]);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "write failed" }, { status: 400 });
