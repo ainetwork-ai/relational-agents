@@ -36,15 +36,29 @@ interface PageRow {
 const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
-/** Record pages are titled "<me> ❤️ <partner>" (or just "❤️ <partner>") —
- * the face belongs to the partner, i.e. the last emoji-separated segment. */
-const partnerOf = (title: string) => {
-  const segs = title
-    .split(/[^\p{L}\p{N} ]+/u)
-    .map((s) => s.trim())
+const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥)+/u;
+
+/** Doc titles read "<me> ❤️ <partner>" ("Relationship doc — A ❤️ B", …) —
+ * the face belongs to whichever side isn't the viewer. Split on the heart
+ * (not on every symbol: names like "User-0x876c61" carry hyphens), prefer
+ * the side that differs from `myName`, else the last one. */
+const partnerOf = (title: string, myName?: string | null) => {
+  const sides = title
+    .split(HEART_SPLIT)
+    .map((s) => s.replace(/^.*—/, "").trim())
     .filter(Boolean);
-  return segs.length ? segs[segs.length - 1] : title.trim();
+  if (sides.length === 0) return title.trim();
+  if (myName) {
+    const other = sides.find((s) => nameKey(s) !== nameKey(myName));
+    if (other && sides.some((s) => nameKey(s) === nameKey(myName))) return other;
+  }
+  return sides[sides.length - 1];
 };
+
+/** File-primary relationship docs are OKF root folders titled
+ * "Relationship doc — <A> ❤️ <B>" (관계 문서 — …). */
+const isRelationshipDoc = (title: string) =>
+  /^(relationship doc|관계 문서)\s*—/i.test(title.trim());
 
 function HeartBadge({ level }: { level: number }) {
   const fill = LEVEL_FILL[Math.max(0, Math.min(level, LEVEL_FILL.length - 1))] ?? LEVEL_FILL[0];
@@ -84,10 +98,11 @@ function Face({ person }: { person: Person }) {
   );
 }
 
-/** Sidebar Chats tab, horizontal people strip:
- * round faces with a level heart badge, sourced from the "Relationship
- * Records" index page's children; levels come from the "Relationships"
- * database when one exists. Hidden entirely when the index page is absent. */
+/** Sidebar Chats tab, horizontal people strip: round faces with a level
+ * heart badge. Faces come from "Relationship Records" children (seeded
+ * records) AND file-primary OKF docs titled "Relationship doc — A ❤️ B"
+ * (agent-maintained; okf_acl scopes them to participants). Hidden when
+ * neither shape exists in the viewer's page list. */
 export function RelationshipsStrip() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
@@ -99,14 +114,23 @@ export function RelationshipsStrip() {
         const pagesRes = await fetch("/api/pages");
         if (!pagesRes.ok) return;
         const { pages }: { pages: PageRow[] } = await pagesRes.json();
+        const myName: string | null = await fetch("/api/auth/me")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => d?.user?.displayName ?? null)
+          .catch(() => null);
+
+        // faces come from two shapes of relationship doc:
+        // 1) children of a "Relationship Records" index page (seeded records)
+        // 2) file-primary OKF docs — root pages titled "Relationship doc — A ❤️ B"
+        //    (the agent-maintained ones; okf_acl already scoped them to us)
         const indexIds = new Set(
           pages.filter((p) => p.title === INDEX_TITLE && !p.isArchived).map((p) => p.id)
         );
-        if (indexIds.size === 0) return;
         const kids = pages.filter(
           (p) => p.parentPageId && indexIds.has(p.parentPageId) && !p.isArchived
         );
-        if (kids.length === 0) return;
+        const okfDocs = pages.filter((p) => !p.isArchived && isRelationshipDoc(p.title));
+        if (kids.length === 0 && okfDocs.length === 0) return;
 
  // 1:1 DM rooms by the other member's name — the card should open the
  // agent's living relationship doc when one exists, so map each person
@@ -158,17 +182,32 @@ export function RelationshipsStrip() {
  // DB lookup is best-effort — faces render without badges
         }
 
-        const list = kids.map((k) => {
-          const name = partnerOf(k.title); // the other person, never "me"
+        // dedup by partner: the living OKF doc wins over a seeded record
+        const byPartner = new Map<string, Person>();
+        for (const k of kids) {
+          const name = partnerOf(k.title, myName); // the other person, never "me"
           const key = name.toLowerCase();
-          return {
+          byPartner.set(key, {
             key,
             name,
             level: levels.get(key) ?? -1,
             pageId: k.id,
             roomId: roomByName.get(key) ?? null,
-          };
-        });
+          });
+        }
+        for (const d of okfDocs) {
+          const name = partnerOf(d.title, myName);
+          const key = name.toLowerCase();
+          const prev = byPartner.get(key);
+          byPartner.set(key, {
+            key,
+            name,
+            level: prev?.level ?? levels.get(key) ?? -1,
+            pageId: d.id, // the doc itself IS the destination
+            roomId: prev?.roomId ?? roomByName.get(key) ?? null,
+          });
+        }
+        const list = [...byPartner.values()];
         list.sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
         if (alive) setPeople(list);
       } catch {
