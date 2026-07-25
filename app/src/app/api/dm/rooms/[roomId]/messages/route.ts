@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatMessages, chatRoomMembers } from "@/lib/db/schema";
@@ -42,10 +42,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const { roomId } = await ctx.params;
   const access = await requireRoomAccess(roomId, auth.user.id);
   if ("error" in access) return access.error;
+ // Private agent exchanges are visible only to the member they belong to.
   const messages = await db
     .select()
     .from(chatMessages)
-    .where(eq(chatMessages.roomId, roomId))
+    .where(
+      and(
+        eq(chatMessages.roomId, roomId),
+        or(
+          isNull(chatMessages.privateToUserId),
+          eq(chatMessages.privateToUserId, auth.user.id)
+        )
+      )
+    )
     .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
   return NextResponse.json({ messages });
 }
@@ -70,10 +79,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (text.length > MAX_TEXT)
     return NextResponse.json({ error: `Text too long (max ${MAX_TEXT})` }, { status: 400 });
 
+ // Mentioning the agent opens a side-channel: the question and its answer stay
+ // between the asker and the agent, and never reach the shared record.
+  const { chatRoomBots: bots, users: usersTable } = await import("@/lib/db/schema");
+  const { isMentioned } = await import("@/lib/agent/respond");
+  const [roomBot] = await db.select().from(bots).where(eq(bots.roomId, roomId));
+  let privateToUserId: string | null = null;
+  if (roomBot) {
+    const [agentUser] = await db
+      .select({ displayName: usersTable.displayName })
+      .from(usersTable)
+      .where(eq(usersTable.id, roomBot.agentUserId));
+    if (agentUser && isMentioned(text, agentUser.displayName)) privateToUserId = auth.user.id;
+  }
+
  // authorId is always the session user — never client-supplied (no spoofing)
   const [message] = await db
     .insert(chatMessages)
-    .values({ roomId, authorId: auth.user.id, text, attachments })
+    .values({ roomId, authorId: auth.user.id, text, attachments, privateToUserId })
     .returning();
 
  // the sender has read their own message — advance the unread baseline

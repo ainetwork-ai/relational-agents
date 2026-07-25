@@ -166,6 +166,8 @@ export async function respondToMessage(
         authorId: agentUserId,
         text: decision.text,
         attachments: decision.attachments ?? [],
+        // an answer to a private question stays in that member's side-channel
+        privateToUserId: message.privateToUserId ?? null,
       })
       .returning();
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: `agent:${agentUserId}` });

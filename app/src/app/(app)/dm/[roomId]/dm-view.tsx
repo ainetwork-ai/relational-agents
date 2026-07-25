@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, LogOut, Pencil, Send, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -54,6 +54,8 @@ interface DmMessage {
   text: string;
   attachments: DmAttachment[];
   createdAt: string;
+  /** set on a private exchange with the agent — only this member ever sees it */
+  privateToUserId?: string | null;
 }
 
 const TYPING_TTL_MS = 3_500;
@@ -837,6 +839,17 @@ export function DmView({ roomId }: { roomId: string }) {
                       {m.text && (
                         <p className="whitespace-pre-wrap break-words" data-testid="dm-msg-text">
                           {linkify(m.text, mine)}
+                        </p>
+                      )}
+                      {m.privateToUserId && (
+                        <p
+                          data-testid="dm-msg-private"
+                          className={`mt-1 flex items-center gap-1 text-[10px] ${
+                            mine ? "text-blue-100/90" : "text-neutral-400"
+                          }`}
+                        >
+                          <Lock size={10} />
+                          Only you and the agent — not in your shared record
                         </p>
                       )}
                     </div>

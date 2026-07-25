@@ -671,6 +671,11 @@ export const chatMessages = pgTable(
       .$type<{ url: string; name: string }[]>()
       .default([])
       .notNull(),
+ // Side-channel with the agent: set to the human party of a private exchange
+ // (@agent question and the agent's answer). Visible only to that user and the
+ // message author; never collected into the shared relationship document.
+ // NULL = an ordinary room message everyone sees.
+    privateToUserId: uuid("private_to_user_id"),
  // when the write pipeline processed it — null = not yet collected. A
  // checkpoint that stays safe under createdAt ties, replacing
  // lastProcessedMessageId comparisons.

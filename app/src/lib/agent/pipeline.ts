@@ -211,7 +211,9 @@ async function runOnce(roomId: string): Promise<RunResult> {
         .where(and(inArray(users.id, authorIds), eq(users.isAgent, true)))
     ).map((u) => u.id)
   );
-  const source = batch.filter((m) => !agentIds.has(m.authorId));
+ // Private @agent exchanges belong to one member; the record is shared by both,
+ // so they never become memories (they stay in `batch` to advance the checkpoint).
+  const source = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
 
   const current = readOkfSectionTexts(tree);
  // Deterministic path when the LLM is off or unreachable — the memory still
