@@ -1,4 +1,4 @@
-# ENS Prize — How we use the protocol & why we qualify
+# ENS — Best ENS Integration for AI Agents
 
 ## How we use ENS
 
