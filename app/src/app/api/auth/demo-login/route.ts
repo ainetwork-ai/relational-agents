@@ -21,12 +21,12 @@ export const dynamic = "force-dynamic";
 const FALLBACK_DEMO_KEY =
   "b796e8971f2c5c909a2178fb3fc1970f317adb1e9237d950d8fcdd5f5e1d7e42";
 
-async function loginUser(ainAddress: string, displayName: string) {
+async function loginUser(ainAddress: string, displayName: string, homeCoverUrl?: string) {
   let [user] = await db.select().from(users).where(eq(users.ainAddress, ainAddress)).limit(1);
   if (!user) {
     const [created] = await db
       .insert(users)
-      .values({ ainAddress, displayName, status: "online" })
+      .values({ ainAddress, displayName, status: "online", homeCoverUrl })
       .returning();
     user = created;
   }
@@ -58,6 +58,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ user: toPublicUser(user) });
     }
 
+   // The demo world hangs off one specific account (Chanho — owner of the
+   // girlfriend workspaces, DM rooms and agents). DEMO_LOGIN_ADDRESS points
+   // "Try the demo" straight at that account so the demo opens with its
+   // workspaces instead of a fresh empty one. Without it, fall back to the
+   // shared demo-key account.
+    const configured = process.env.DEMO_LOGIN_ADDRESS;
+    if (configured && /^0x[0-9a-f]{40}$/i.test(configured)) {
+      const user = await loginUser(
+        configured.toLowerCase(),
+        "Chanho",
+        "/covers/home-cover-chanho.png"
+      );
+      return NextResponse.json({ user: toPublicUser(user) });
+    }
+
     const privateKey = process.env.DEMO_PRIVATE_KEY || FALLBACK_DEMO_KEY;
 
     let address: string;
@@ -73,7 +88,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await loginUser(address.toLowerCase(), "DemoUser");
+   // the shared demo account (Chanho) ships with its own azulejo home cover —
+   // seeded only at creation, so a user-picked cover is never overwritten
+    const user = await loginUser(address.toLowerCase(), "DemoUser", "/covers/home-cover-chanho.png");
     return NextResponse.json({ user: toPublicUser(user) });
   } catch (err) {
     return NextResponse.json(

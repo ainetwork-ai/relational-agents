@@ -8,6 +8,7 @@ export function toPublicUser(user: User) {
     ainAddress: user.ainAddress,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    homeCoverUrl: user.homeCoverUrl,
     status: user.status,
     isAgent: user.isAgent,
     timezone: user.timezone,

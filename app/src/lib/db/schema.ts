@@ -32,6 +32,8 @@ export const users = pgTable("users", {
   ainAddress: text("ain_address").unique().notNull(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
+ // /home dashboard cover the user picked (uploaded or built-in); null = default
+  homeCoverUrl: text("home_cover_url"),
   status: text("status").default("offline").notNull(),
   statusMessage: text("status_message"),
   statusEmoji: text("status_emoji"),

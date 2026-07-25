@@ -8,15 +8,17 @@ import { normalizeDisplayName, setUserDisplayName } from "@/lib/auth/display-nam
 
 export const dynamic = "force-dynamic";
 
-/** PATCH { displayName?, avatarUrl? } → { user }. avatarUrl must be an
- * /uploads/* path (from POST /api/upload) or "" to clear the photo. */
+/** PATCH { displayName?, avatarUrl?, homeCoverUrl? } → { user }. avatarUrl
+ * must be an /uploads/* path (from POST /api/upload) or "" to clear the photo;
+ * homeCoverUrl additionally accepts built-in /covers/* and "" resets to the
+ * default cover. */
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session.userId)
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const patch: { avatarUrl?: string | null } = {};
+  const patch: { avatarUrl?: string | null; homeCoverUrl?: string | null } = {};
   let renamed: Awaited<ReturnType<typeof setUserDisplayName>> = null;
 
   if (typeof body?.displayName === "string") {
@@ -31,6 +33,14 @@ export async function PATCH(req: Request) {
     if (body.avatarUrl !== "" && !/^\/uploads\/[\w.-]+$/.test(body.avatarUrl))
       return NextResponse.json({ error: "avatarUrl must be an /uploads/ path" }, { status: 400 });
     patch.avatarUrl = body.avatarUrl === "" ? null : body.avatarUrl;
+  }
+  if (typeof body?.homeCoverUrl === "string") {
+    if (body.homeCoverUrl !== "" && !/^\/(uploads|covers)\/[\w.-]+$/.test(body.homeCoverUrl))
+      return NextResponse.json(
+        { error: "homeCoverUrl must be an /uploads/ or /covers/ path" },
+        { status: 400 }
+      );
+    patch.homeCoverUrl = body.homeCoverUrl === "" ? null : body.homeCoverUrl;
   }
   if (Object.keys(patch).length === 0) {
     if (renamed) return NextResponse.json({ user: toPublicUser(renamed) });
