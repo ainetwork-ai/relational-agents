@@ -42,7 +42,7 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 
 **Screen actions**:
 1. First login (MetaMask sign-in). The main page opens on the **Relationships dashboard** — the dashboard view over the Relationships database: your ❤️ relationships at a glance, upcoming dates highlighted. Hold one beat (~2s) so the viewer orients.
-2. Sidebar, **Chats** tab. In the **Direct messages** section, click the **+**. The **New direct message** modal opens with the member list.
+2. Sidebar, **Chats** tab. In the **Relationships** section, click the **+**. The **New relationship** modal opens with the member list.
 3. Pick **Hannah Brooks**, then **Ava Thorne** — two invitations go out. Pending rows appear: "waiting for Hannah," "waiting for Ava."
 
 **VO**:
@@ -58,17 +58,7 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 **VO**:
 > "The record isn't created by one person — it's *agreed into existence*. Both sign, and the agent is minted into an on-chain registry — its birth certificate is a contract two people signed, not a setting one person flipped. Two relationships, two agents, born the same way."
 
-## 1:00–1:40 · It manages (real data on screen)
-
-**Screen actions**:
-1. Agent briefing over the Relationships table: highlight **Olivia — friend's wedding, Aug 2** and **Emma — Jeju trip, Aug 7**. Agent: "Two events, five days apart. Shall I draft separate gift ideas so nothing gets mixed up?"
-2. Open **Sophie Miller**'s page — her chat log is on screen ("…it's been 16 days since we actually went out"). Agent flags it: "Sophie mentioned 16 days without a proper date. Friday looks open."
-3. Quick pass over the graph view — ten people, their places, their events, connected.
-
-**VO**:
-> "It reads the calendar you actually keep: a wedding on the 2nd, Jeju on the 7th — and makes sure nothing collides. It even catches what Sophie said in passing: sixteen days since a real date."
-
-## 1:40–2:12 · It remembers (upload → memory)
+## 1:00–2:12 · It remembers (upload → memory)
 
 **Screen actions**:
 1. In **Chanho ❤️ Hannah Brooks**, drop the egg tart photo (`dashboard/public/date/web/IMG_2569.jpg`) **into the agent chat**: "@agent midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
@@ -82,7 +72,7 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 **Screen actions**:
 1. **A video call rings** — the call UI, **Ava** calling. Chanho answers; her video fills the screen.
 2. Ava, casually: *"Do you like egg tarts? I found a place."* Beat — the audience knows where the egg tarts live.
-3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Do we have anything about egg tarts?"* → agent: **"No record. Not in this relationship."**
+3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Didn't we have egg tart?"* → agent: **"No record. Not in this relationship."**
 4. Chanho, back on camera, perfectly calm: *"…I've been meaning to try them."* The agent that remembers Hannah's natas says nothing here — it isn't in this room.
 
 **VO**: none — screen and captions carry it.
@@ -121,36 +111,21 @@ Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-a
 1. **Pre-roll → Login (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s onto the login screen; the MetaMask signature lands and the **Relationships dashboard** fills the main page (hold ~2s). From home base, the cursor moves to the Chats **+** — the first gesture is reaching out.
 2. **Invite → Consent (0:33)** — on Hannah's *accept* the New-DM modal doesn't just close; its avatar **match-cuts into the freshly-created sidebar row** **Chanho ❤️ Hannah Brooks** (0.4s). The page is born from the invitation.
 3. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
-4. **Consent → Manage (1:00)** — **match cut** on the agent avatar: chat bubble avatar aligns to the same position as the briefing card avatar. 0.4s crossfade.
-5. **Inside Manage** — when the briefing highlights Olivia Aug 2 / Emma Aug 7, draw a thin underline animation across the two Event Date cells (0.3s each, staggered) — the data itself is the graphic.
-6. **Manage → Remember (1:40)** — **whip pan** from Sophie's page to the agent chat (0.25s, motion blur): "turning to ask."
-7. **Inside Remember** — as the agent quotes Hannah, **push-zoom 110%** onto the quoted chat lines in her record for 1s, then settle.
-8. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
-9. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
-10. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
-11. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
+4. **Consent → Remember (1:00)** — **match cut** on the agent avatar: the chat bubble avatar aligns to the same position across the cut into **Chanho ❤️ Hannah Brooks**. 0.4s crossfade.
+5. **Inside Remember** — as the agent files the natas photo, **push-zoom 110%** onto the Timeline line it just wrote for 1s, then settle.
+6. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
+7. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
+8. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
+9. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 
-Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 8–9 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
+Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 6–7 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
 
 ---
 
-# Final remarks
+# Closing tagline (video close)
 
-We didn't want to build an agent that **replaces** humans. We wanted one that makes
-**human-to-human** stronger.
-
-Most agents today stand in for you — they answer for you, decide for you, and slowly
-push the other person out of the loop. That's how misunderstanding creeps in: the agent
-speaks, but the relationship doesn't. So I flipped it. Here the agent has no self of its
-own; it exists only *between* two people, born the moment both of them say yes. It can't
-act until the relationship does. It remembers only what the two of them made together —
-and forgets nothing to anyone else.
-
-An agent like that doesn't compete with the human bond. It **holds** it — carries the
-small things we forget, keeps each relationship's memory where it belongs, and never
-leaks one person's story into another's. Our hope is a world where agents and humans
-coexist so quietly that there's **less to fight about, less to misunderstand, less to
-lose** — because none of us stands alone. We exist by leaning on one another, and the
-agent is just one more thing two people hold **together**.
+Not an agent that replaces us. One that keeps us close.
 
 **You see me, therefore I am.**
+
+*(Fade to black on the tagline — end of video.)*

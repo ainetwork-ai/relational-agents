@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -49,7 +50,10 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return (
+  // Portal to <body> so the overlay centers on the whole viewport — rendering
+  // inside the sidebar would trap `fixed` under an ancestor transform/overflow.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
@@ -57,13 +61,13 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="New direct message"
+        aria-label="New relationship"
         data-testid="dm-new-modal"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-4 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
       >
         <h2 className="mb-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-          New direct message
+          New relationship
         </h2>
 
         {!members ? (
@@ -136,6 +140,7 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

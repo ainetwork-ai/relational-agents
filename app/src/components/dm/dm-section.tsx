@@ -15,7 +15,7 @@ function preview(room: DmRoomSummary): string {
   return "";
 }
 
-/** Sidebar Chats tab, "Direct messages" section — sits above the AI chat list. */
+/** Sidebar Chats tab, "Relationships" section — sits above the AI chat list. */
 export function DmSection() {
   const router = useRouter();
   const rooms = useDmRoomsStore((s) => s.rooms);
@@ -45,13 +45,13 @@ export function DmSection() {
     <div data-testid="dm-section" className="pb-2">
       <div className="flex items-center justify-between px-2 pb-1 pt-1">
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Direct messages
+          Relationships
         </h3>
         <button
           data-testid="dm-new"
           onClick={() => setShowModal(true)}
-          aria-label="New direct message"
-          data-tip="New direct message"
+          aria-label="New relationship"
+          data-tip="New relationship"
           className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-200/70 hover:text-neutral-700 active:scale-90 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
         >
           <Plus size={17} strokeWidth={2.2} />
