@@ -8,6 +8,7 @@ import {
   chatMessages,
   chatRoomMembers,
   chatRooms,
+  callUtterances,
   users,
   type ChatMessage,
 } from "@/lib/db/schema";
@@ -262,7 +263,23 @@ async function runOnce(roomId: string): Promise<RunResult> {
     )
     .orderBy(asc(chatMessages.createdAt))
     .limit(200); // caps LLM prompt blowup — the excess waits for the next run (idempotent)
-  if (!batch.length)
+
+ // What was said aloud on a call counts as much as what was typed, so the
+ // record keeps up with a conversation that never touched the keyboard.
+  const spoken = await db
+    .select()
+    .from(callUtterances)
+    .where(
+      and(
+        eq(callUtterances.roomId, roomId),
+        isNull(callUtterances.processedAt),
+        gt(callUtterances.createdAt, room.consentAt)
+      )
+    )
+    .orderBy(asc(callUtterances.createdAt))
+    .limit(200);
+
+  if (!batch.length && !spoken.length)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no new messages" };
 
  // participants = room members + creator. The OKF tree has no permissions,
@@ -296,7 +313,24 @@ async function runOnce(roomId: string): Promise<RunResult> {
   );
  // Private @agent exchanges belong to one member; the record is shared by both,
  // so they never become memories (they stay in `batch` to advance the checkpoint).
-  const source = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
+  const typed = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
+ // Spoken lines join the same stream, tagged so the model knows they were said
+ // out loud and so provenance can cite the call instead of a message anchor.
+  const callOf = new Map(spoken.map((u) => [u.id, u.callId]));
+  const source = [
+    ...typed,
+    ...spoken.map((u) => ({
+      id: u.id,
+      roomId: u.roomId,
+      authorId: u.speakerId,
+      text: u.text,
+      attachments: [],
+      privateToUserId: null,
+      processedAt: null,
+      recordedAt: null,
+      createdAt: u.createdAt,
+    })),
+  ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) as ChatMessage[];
 
   const current = readOkfSectionTexts(tree);
  // Deterministic path when the LLM is off or unreachable — the memory still
@@ -322,6 +356,10 @@ async function runOnce(roomId: string): Promise<RunResult> {
   const batchIds = new Set(source.map((m) => m.id));
   const edits = rawEdits.map((e) => ({
     ...e,
+    // the batch is fed to the model as "[id] (author) text", and it copies that
+    // shape back into prose — provenance already rides in Sources, so a raw
+    // uuid in the record is noise the reader should never see
+    markdown: e.markdown.replace(/\s*\[[0-9a-f]{8}-[0-9a-f-]{27}\]/gi, "").trimEnd(),
     sourceMessageIds: e.sourceMessageIds.filter((id) => batchIds.has(id)),
   }));
 
@@ -356,7 +394,13 @@ async function runOnce(roomId: string): Promise<RunResult> {
             });
     if (edit.sourceMessageIds.length) {
       const links = edit.sourceMessageIds
-        .map((id) => `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`)
+        .map((id) => {
+          const callId = callOf.get(id);
+          // a spoken line has no message to jump to — cite the call it came from
+          return callId
+            ? `${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}`
+            : `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`;
+        })
         .join(" · ");
       lines.push({ type: "paragraph", text: `Sources: ${links}` });
     }
@@ -373,10 +417,16 @@ async function runOnce(roomId: string): Promise<RunResult> {
  // of the agent posting "saved it!" into the middle of the conversation.
   const recordedIds = [...new Set(edits.flatMap((e) => e.sourceMessageIds))];
   await db.transaction(async (tx) => {
-    await tx
-      .update(chatMessages)
-      .set({ processedAt: now })
-      .where(inArray(chatMessages.id, batch.map((m) => m.id)));
+    if (batch.length)
+      await tx
+        .update(chatMessages)
+        .set({ processedAt: now })
+        .where(inArray(chatMessages.id, batch.map((m) => m.id)));
+    if (spoken.length)
+      await tx
+        .update(callUtterances)
+        .set({ processedAt: now })
+        .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
     if (recordedIds.length) {
       await tx
         .update(chatMessages)
@@ -404,7 +454,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   });
 
   return {
-    processed: batch.length,
+    processed: batch.length + spoken.length,
     edits: edits.length,
     rootPageId: okfDocPageId(tree.rootPath),
   };
