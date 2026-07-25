@@ -107,6 +107,7 @@ export function CallView({ roomId }: { roomId: string }) {
   const lastRestartRef = useRef(0);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const offerPostedRef = useRef(false); // caller: my offer went out
+  const acceptPostedRef = useRef(false); // callee-on-/call: auto-accept sent once
   // idempotency by CONTENT, not a boolean: joining a leftover call means the
   // stored SDP can be replaced mid-flight (a fresh caller re-offers), and a
   // boolean would refuse to answer the new offer — stuck on "Connecting…"
@@ -266,6 +267,19 @@ export function CallView({ roomId }: { roomId: string }) {
       iAmCallerRef.current = iAmCaller;
       if (call.status === "ringing") {
         void ensureLocalStream().catch(() => {});
+        if (!iAmCaller && meId !== null && !acceptPostedRef.current) {
+          // I'm standing on the call page while the other side rings me:
+          // either we both dialed at once (glare — my invite lost the race
+          // and 409-joined theirs) or I navigated straight in. Both mean yes
+          // — auto-accept and the two calls merge into one.
+          acceptPostedRef.current = true;
+          await fetch(`/api/calls/${roomId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-client-id": clientId },
+            body: JSON.stringify({ action: "accept" }),
+          });
+          return; // the accept event re-syncs into the active branch
+        }
         setStatus(iAmCaller ? "ringing-out" : "loading");
         return;
       }
