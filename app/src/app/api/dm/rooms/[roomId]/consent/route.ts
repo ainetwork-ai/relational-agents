@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyTypedData } from "viem";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { chatRooms, chatRoomMembers, relationContracts, users } from "@/lib/db/schema";
+import { chatMessages, chatRooms, chatRoomMembers, relationContracts, users } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
 import { buildRelationConsentTypedData } from "@/lib/relation-contract";
+import { provisionRoomAgent } from "@/lib/agent/provision";
 
 export const dynamic = "force-dynamic";
 
@@ -122,10 +123,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (complete && !consentAt) {
     consentAt = new Date();
     await db.update(chatRooms).set({ consentAt }).where(eq(chatRooms.id, roomId));
+    // The agent is born the moment consent completes — no extra button. Provision
+    // it and greet the room so both people see it come alive.
+    try {
+      const room = { ...access.room, consentAt };
+      const memberIds = parties.map((p) => p.id);
+      const { agentUserId, alreadyExisted } = await provisionRoomAgent(
+        room,
+        memberIds,
+        auth.user.id
+      );
+      if (!alreadyExisted) {
+        await db.insert(chatMessages).values({
+          roomId,
+          authorId: agentUserId,
+          text: `Hi ${parties.map((p) => p.displayName).join(" & ")} 💞 I'm your relationship agent, born from both your signatures. I'll remember only what the two of you share here — nothing leaves this relationship. Nice to meet you both!`,
+        });
+      }
+    } catch (err) {
+      console.error("agent auto-provision failed:", err);
+    }
   }
   await publishToRoomMembers(
     roomId,
-    { type: "dm-room", clientId: req.headers.get("x-client-id") },
+    { type: "dm-message", clientId: req.headers.get("x-client-id") },
     parties.map((p) => p.id)
   );
 
