@@ -137,7 +137,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   let dissolvedAt: Date | null = access.room.dissolvedAt;
   if (complete && !dissolvedAt) {
     dissolvedAt = new Date();
-    await db.update(chatRooms).set({ dissolvedAt }).where(eq(chatRooms.id, roomId));
+ // free the 1:1 dedup key: the sealed room keeps its record, and the same two
+ // people can start over — a NEW room, a NEW consent, a NEW agent.
+    await db
+      .update(chatRooms)
+      .set({ dissolvedAt, directKey: null })
+      .where(eq(chatRooms.id, roomId));
     try {
       // the agent's last words — the record outlives the relationship
       const partyIds = parties.map((p) => p.userId);
