@@ -132,7 +132,6 @@ export function RelationshipsStrip() {
           (p) => p.parentPageId && indexIds.has(p.parentPageId) && !p.isArchived
         );
         const okfDocs = pages.filter((p) => !p.isArchived && isRelationshipDoc(p.title));
-        if (kids.length === 0 && okfDocs.length === 0) return;
 
  // 1:1 DM rooms by the other member's name — the card should open the
  // agent's living relationship doc when one exists, so map each person
@@ -227,6 +226,8 @@ export function RelationshipsStrip() {
             roomId: prev?.roomId ?? roomByName.get(key) ?? null,
           });
         }
+        if (kids.length === 0 && okfDocs.length === 0 && roomRelations.length === 0) return;
+
         for (const r of roomRelations) {
           const key = r.name.toLowerCase();
           const prev = byPartner.get(key);
