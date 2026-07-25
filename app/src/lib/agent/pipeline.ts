@@ -86,7 +86,10 @@ function fakeEdits(batch: ChatMessage[]): DocEdit[] {
 // Photos shared in chat are part of the record, so the model is shown the actual
 // pixels (gemma-4-31B-it reads images) instead of just a filename. Bounded: the
 // batch is capped and each file is size-checked before it is inlined.
-const MAX_VISION_IMAGES = 4;
+// Servers disagree on how many images one prompt may carry — the local vLLM
+// takes exactly one. Too high and the whole batch 400s, taking the memory with
+// it, so the ceiling is configurable and the call below also degrades on its own.
+const MAX_VISION_IMAGES = Math.max(0, Number(process.env.AI_MAX_IMAGES ?? 1) || 0);
 const MAX_VISION_BYTES = 4 * 1024 * 1024;
 const UPLOAD_URL = /^\/uploads\/([A-Za-z0-9._-]+)$/; // anchored — no path traversal
 const VISION_MIME: Record<string, string> = {
@@ -140,10 +143,9 @@ async function llmEdits(
       photos.push({ type: "image_url", image_url: { url: dataUrl } });
     }
   }
-  const raw = await aiChat(
-    [
+  const prompt = (pixels: AiContentPart[]) => [
       {
-        role: "system",
+        role: "system" as const,
         content:
           `You are the record-keeper for the "${roomName}" relationship. Read the new batch of messages and incrementally update the relationship document.\n` +
           `Output a JSON array only: [{"section": <one key of ${sectionList}>, "markdown": "<markdown to append>", "sourceMessageIds": ["<supporting message id>"]}].\n` +
@@ -158,19 +160,27 @@ async function llmEdits(
           `Casual or misspelled wording is not a proper noun — "midnight natas" is a late-night pastel de nata, not a person called Natas. When a word is ambiguous, trust the photo over the spelling.`,
       },
       {
-        role: "user",
+        role: "user" as const,
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `## Current document state\n${JSON.stringify(current, null, 2)}\n\n## New message batch\n${messages}`,
           },
-          ...photos,
+          ...pixels,
         ],
       },
-    ],
-    { maxTokens: 1500, temperature: 0.2 }
-  );
-  return parseEdits(raw);
+    ];
+
+  const opts = { maxTokens: 1500, temperature: 0.2 };
+  try {
+    return parseEdits(await aiChat(prompt(photos), opts));
+  } catch (err) {
+    // A server that refuses this many images refuses the whole batch. Dropping
+    // the pixels costs photo captions; dropping the batch costs the memory.
+    if (!photos.length || !/image/i.test(String(err))) throw err;
+    console.warn("vision rejected, re-reading the batch as text:", String(err));
+    return parseEdits(await aiChat(prompt([]), opts));
+  }
 }
 
 const IMG_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
