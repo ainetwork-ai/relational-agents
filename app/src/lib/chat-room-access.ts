@@ -1,8 +1,8 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { chatRoomMembers, chatRooms, type ChatRoom } from "@/lib/db/schema";
+import { chatMessages, chatRoomMembers, chatRooms, type ChatRoom } from "@/lib/db/schema";
 import { publish, type PageEvent } from "@/lib/realtime";
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,4 +80,29 @@ export async function membersByRoom(roomIds: string[]) {
     map.set(r.roomId, list);
   }
   return map;
+}
+
+/**
+ * A room's messages as `userId` is allowed to see them: shared messages plus
+ * only that user's own quiet exchanges with the agent.
+ *
+ * Lives here because two routes serve messages — the room detail GET and the
+ * messages GET. When only one of them filtered, quiet messages appeared on
+ * refresh and vanished on the next realtime refetch, leaking them to the
+ * partner in between.
+ */
+export async function visibleRoomMessages(roomId: string, userId: string) {
+  return db
+    .select()
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.roomId, roomId),
+        or(
+          isNull(chatMessages.privateToUserId),
+          eq(chatMessages.privateToUserId, userId)
+        )
+      )
+    )
+    .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
 }

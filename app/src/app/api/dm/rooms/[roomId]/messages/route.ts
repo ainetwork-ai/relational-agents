@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq, isNull, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatMessages, chatRoomMembers } from "@/lib/db/schema";
-import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
+import {
+  publishToRoomMembers,
+  requireRoomAccess,
+  visibleRoomMessages,
+} from "@/lib/chat-room-access";
 import { maybeAutoRun } from "@/lib/agent/triggers";
 import { dispatchToRoomBots } from "@/lib/agent/dispatch";
 
@@ -43,23 +47,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const access = await requireRoomAccess(roomId, auth.user.id);
   if ("error" in access) return access.error;
  // Private agent exchanges are visible only to the member they belong to.
-  const messages = await db
-    .select()
-    .from(chatMessages)
-    .where(
-      and(
-        eq(chatMessages.roomId, roomId),
-        or(
-          isNull(chatMessages.privateToUserId),
-          eq(chatMessages.privateToUserId, auth.user.id)
-        )
-      )
-    )
-    .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
+  const messages = await visibleRoomMessages(roomId, auth.user.id);
   return NextResponse.json({ messages });
 }
 
-/** POST { text?, attachments?: [{url,name}] } → { message, autoRun? }.
+/** POST { text?, attachments?: [{url,name}], quiet? } → { message, autoRun? }.
  * Sending marks read and publishes a dm-message notice (no body) to member inboxes. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
@@ -79,19 +71,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (text.length > MAX_TEXT)
     return NextResponse.json({ error: `Text too long (max ${MAX_TEXT})` }, { status: 400 });
 
- // Mentioning the agent opens a side-channel: the question and its answer stay
- // between the asker and the agent, and never reach the shared record.
-  const { chatRoomBots: bots, users: usersTable } = await import("@/lib/db/schema");
-  const { isMentioned } = await import("@/lib/agent/respond");
+ // Asking quietly is a mode the sender picks, not something we infer from the
+ // wording. Mentioning the agent is an ordinary mention — it answers in the
+ // room, where both of them see it. A quiet message and its answer stay with
+ // the asker and never reach the shared record, so the switch that does that
+ // has to be one the sender can see themselves holding.
+  const { chatRoomBots: bots } = await import("@/lib/db/schema");
   const [roomBot] = await db.select().from(bots).where(eq(bots.roomId, roomId));
-  let privateToUserId: string | null = null;
-  if (roomBot) {
-    const [agentUser] = await db
-      .select({ displayName: usersTable.displayName })
-      .from(usersTable)
-      .where(eq(usersTable.id, roomBot.agentUserId));
-    if (agentUser && isMentioned(text, agentUser.displayName)) privateToUserId = auth.user.id;
-  }
+ // no agent in the room means there is nobody to be quiet with
+  const privateToUserId = body?.quiet === true && roomBot ? auth.user.id : null;
 
  // authorId is always the session user — never client-supplied (no spoofing)
   const [message] = await db

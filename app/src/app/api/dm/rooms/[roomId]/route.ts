@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import {
   agentRoomStates,
-  chatMessages,
   chatRoomMembers,
   chatRooms,
   users,
@@ -12,7 +11,11 @@ import {
 } from "@/lib/db/schema";
 import { docPageIdOf } from "@/lib/agent/pipeline";
 import { toPublicUser, type PublicUser } from "@/lib/auth/public-user";
-import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
+import {
+  publishToRoomMembers,
+  requireRoomAccess,
+  visibleRoomMessages,
+} from "@/lib/chat-room-access";
 
 export const dynamic = "force-dynamic";
 const MAX_NAME = 200;
@@ -63,11 +66,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     .select({ userId: chatRoomMembers.userId, lastReadAt: chatRoomMembers.lastReadAt })
     .from(chatRoomMembers)
     .where(eq(chatRoomMembers.roomId, roomId));
-  const messages = await db
-    .select()
-    .from(chatMessages)
-    .where(eq(chatMessages.roomId, roomId))
-    .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
+  // same visibility rule as GET .../messages — quiet exchanges belong to their
+  // asker only (shared helper so the two loaders can never diverge again)
+  const messages = await visibleRoomMessages(roomId, auth.user.id);
 
  // include every author so past messages from departed members still render names/avatars
   const memberIds = memberRows.map((m) => m.userId);
