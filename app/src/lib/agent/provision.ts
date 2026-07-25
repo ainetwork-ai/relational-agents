@@ -11,7 +11,7 @@ import {
   type ChatRoom,
 } from "@/lib/db/schema";
 
-/** 외부 노출용 A2A 베이스 — env로 배포 주소 지정 (스펙 v2 §3). */
+/** Externally visible A2A base — deployment address set via env (spec v2 §3). */
 export function a2aBaseUrl(): string {
   return (process.env.A2A_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
@@ -26,8 +26,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   behavior: { proactive: true },
 };
 
-/** 에이전트 전용 AIN 키 생성 → 주소 유도. 키는 encryptedPrivateKey에 보관
- *  (데모: 평문 hex — 실서비스는 KMS 암호화 자리). */
+/** Generate the agent's own AIN key → derive its address. The key sits in
+ *  encryptedPrivateKey (demo: plain hex — production would KMS-encrypt). */
 async function generateAgentKey(): Promise<{ address: string; privateKey: string }> {
   const privateKey = randomBytes(32).toString("hex");
   const Ain = (await import("@ainblockchain/ain-js")).default;
@@ -43,18 +43,18 @@ export interface ProvisionResult {
 }
 
 /**
- * 상호 동의 완료 시 관계 에이전트 프로비저닝 (스펙 v2 §7-2).
- * 멱등: 방에 이미 관계 에이전트 봇이 있으면 그대로 반환.
- * - users에 isAgent 사용자 생성 (전용 AIN 키, a2aUrl, 기본 config, ownerId=생성자)
- * - chat_room_bots(임포트) + chat_room_members(멤버 — MCP/DM API 접근 근거)
- * - 방 멤버별 외부 임포트용 Bearer 토큰 발급
+ * Provisions the relationship agent once consent completes (spec v2 §7-2).
+ * Idempotent: an existing relationship-agent bot in the room is returned as-is.
+ * - creates an isAgent user (own AIN key, a2aUrl, default config, ownerId=creator)
+ * - chat_room_bots (import) + chat_room_members (membership — the basis for MCP/DM API access)
+ * - mints per-member Bearer tokens for external imports
  */
 export async function provisionRoomAgent(
   room: ChatRoom,
   memberIds: string[],
   importedBy: string
 ): Promise<ProvisionResult> {
-  // 멱등 검사: 이 방에 이미 임포트된 "우리" 에이전트(ownerId=방 생성자)가 있나
+  // idempotency check: is "our" agent (ownerId = room creator) already imported here
   const bots = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, room.id));
   for (const b of bots) {
     const [u] = await db.select().from(users).where(eq(users.id, b.agentUserId));
@@ -86,7 +86,7 @@ export async function provisionRoomAgent(
     })
     .returning();
 
-  // a2aUrl은 id 확정 후 채운다 + 카드 JSON도 저장
+  // a2aUrl is filled once the id exists; the card JSON is stored too
   const a2aUrl = agentA2aUrl(agent.id);
   await db
     .update(users)
@@ -109,7 +109,7 @@ export async function provisionRoomAgent(
   return { agentUserId: agent.id, memberTokens, alreadyExisted: false };
 }
 
-/** A2A 에이전트 카드 (스펙: /.well-known/agent-card.json 형식, Direct Configuration 배포). */
+/** A2A agent card (spec: /.well-known/agent-card.json shape, Direct Configuration deployment). */
 export function buildAgentCard(agentUserId: string, roomName: string) {
   const url = agentA2aUrl(agentUserId);
   return {

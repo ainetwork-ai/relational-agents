@@ -8,7 +8,7 @@ import { respondToMessage } from "./respond";
 
 const PUSH_TIMEOUT_MS = 30_000;
 
-/** 외부 A2A 봇에게 SendMessage JSON-RPC push (스펙 v2 §5). 실패 시 1회 재시도. */
+/** SendMessage JSON-RPC push to an external A2A bot (spec v2 §5). One retry on failure. */
 async function pushExternal(
   a2aUrl: string,
   room: ChatRoom,
@@ -24,7 +24,7 @@ async function pushExternal(
         role: "user",
         messageId: message.id,
         parts: [{ kind: "text", text: message.text }],
-        // A2A 표준 Message.metadata — 방/화자 컨텍스트 (스펙 v2 §5)
+        // standard A2A Message.metadata — room/speaker context (spec v2 §5)
         metadata: {
           roomId: room.id,
           roomName: room.name,
@@ -53,21 +53,22 @@ async function pushExternal(
 }
 
 /**
- * 방에 임포트된 모든 봇에게 새 메시지를 배달한다 (스펙 v2 §5 디스패처).
- * - 봇이 쓴 메시지는 배달하지 않는다 (봇 간 무한 루프 방지 — 데모 정책)
- * - 우리 인앱 관계 에이전트(a2aUrl이 self)는 HTTP 왕복 없이 in-process 실행
- * - 외부 봇은 A2A SendMessage POST
- * fire-and-forget으로 호출하는 것을 전제로, 개별 실패는 로그만 남긴다.
+ * Delivers a new message to every bot imported into the room (spec v2 §5
+ * dispatcher).
+ * - Bot-authored messages are never delivered (no bot↔bot loops — demo policy)
+ * - Our in-app relationship agent (self a2aUrl) runs in-process, no HTTP hop
+ * - External bots get an A2A SendMessage POST
+ * Meant to be called fire-and-forget; individual failures only log.
  */
 export async function dispatchToRoomBots(room: ChatRoom, message: ChatMessage): Promise<void> {
   const bots = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, room.id));
   if (!bots.length) return;
   const agentIds = bots.map((b) => b.agentUserId);
-  if (agentIds.includes(message.authorId)) return; // 봇 자신의 발언
+  if (agentIds.includes(message.authorId)) return; // the bot's own message
 
   const agents = await db.select().from(users).where(inArray(users.id, agentIds));
   const [author] = await db.select().from(users).where(eq(users.id, message.authorId));
-  if (author?.isAgent) return; // 다른 봇의 발언도 배달 안 함 (루프 방지)
+  if (author?.isAgent) return; // other bots' messages aren't delivered either (loop prevention)
 
   const self = a2aBaseUrl();
   await Promise.allSettled(

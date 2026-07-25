@@ -9,9 +9,8 @@ import { provisionRoomAgent } from "@/lib/agent/provision";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/dm/rooms/{roomId}/agent — 상호 동의 완료 → 관계 에이전트 생성·임포트.
- * (실제 동의 수집 플로우는 타 담당 — 여기서는 완료 이벤트로 취급해 consentAt을
- * 찍고 프로비저닝한다. 멱등.)
+ * POST /api/dm/rooms/{roomId}/agent — consent complete → create & import the
+ * relationship agent. Requires the signed contract (consentAt). Idempotent.
  * → { agentUserId, memberTokens: { [userId]: token }, a2aUrl }
  */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
@@ -48,7 +47,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: s
   );
 }
 
-/** GET — 이 방의 에이전트 정보 (없으면 404) */
+/** GET — this room's agent info (404 if none) */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

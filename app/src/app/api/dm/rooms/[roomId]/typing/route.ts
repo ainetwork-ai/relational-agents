@@ -6,7 +6,7 @@ import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access"
 export const dynamic = "force-dynamic";
 
 /** POST /api/dm/rooms/{roomId}/typing → { ok }.
- *  "입력 중" 신호 — 저장하지 않고 멤버 인박스로만 브로드캐스트. */
+ *  "typing" signal — never stored, broadcast to member inboxes only. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

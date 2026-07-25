@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest) {
   if (typeof relPath !== "string" || typeof title !== "string" || !Array.isArray(blocks)) {
     return NextResponse.json({ error: "bad input" }, { status: 400 });
   }
-  // 참여자 전용 경로는 멤버만 쓸 수 있다 (읽기와 같은 게이트)
+  // participant-only paths are member-writable only (same gate as reads)
   const gate = await okfGateFor(auth.user.id);
   if (!gate.canRead(relPath)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {

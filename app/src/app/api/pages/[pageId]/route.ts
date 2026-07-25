@@ -54,8 +54,9 @@ async function loadOwnedPage(pageId: string, userId: string) {
     )
     .limit(1);
   if (!membership) return null;
-  // 접근 제한 페이지는 워크스페이스 멤버십만으론 부족 — 명시 권한(pageMembers)
-  // 또는 owner/admin이어야 열람. DM 관계 문서를 비참여 멤버로부터 보호한다.
+  // workspace membership alone isn't enough for restricted pages — reading
+  // takes an explicit grant (pageMembers) or owner/admin. Shields DM
+  // relationship docs from non-participant members.
   if (page.restricted && !(await getPagePermission(pageId, userId))) return null;
   return page;
 }
@@ -174,7 +175,7 @@ export async function PATCH(
   }
   update.updatedAt = new Date();
 
-  // Archiving / restoring cascades to the whole subtree (S019).
+  // Archiving / restoring cascades to the whole subtree.
   if ("isArchived" in update) {
     const ids = await collectSubtreeIds(pageId);
     await db

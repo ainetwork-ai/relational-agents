@@ -21,17 +21,16 @@ export interface RespondResult {
   messageId?: string;
 }
 
-/** 멘션 감지: @에이전트 / @{displayName} / @agent (대소문자 무시). */
+/** Mention detection: @agent / @{displayName} (case-insensitive). */
 export function isMentioned(text: string, agentName: string): boolean {
   const t = text.toLowerCase();
   return (
-    t.includes("@agent") ||
     t.includes("@agent") ||
     (agentName.trim().length > 0 && t.includes(`@${agentName.toLowerCase()}`))
   );
 }
 
-/** 오프라인/테스트 경로: 멘션이면 결정적 응답, 아니면 침묵. */
+/** Offline/test path: deterministic reply on mention, silence otherwise. */
 function fakeDecision(message: ChatMessage, mentioned: boolean): RespondResult {
   if (!mentioned) return { action: "silent" };
   return { action: "reply", text: `[fake-agent] Reply to "${message.text.slice(0, 60)}".` };
@@ -80,14 +79,14 @@ async function llmDecision(
       return { action: "reply", text: parsed.text.trim() };
     return { action: "silent" };
   } catch {
-    // 판별 실패 → 멘션이면 원문 그대로 응답(모델이 JSON을 어긴 경우), 아니면 침묵
+    // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
     return mentioned ? { action: "reply", text: raw.trim().slice(0, 2000) } : { action: "silent" };
   }
 }
 
 /**
- * 인앱 에이전트 read 경로 (스펙 v2 §5): 새 메시지 1건에 대해
- * ① write 파이프라인(비동기, 멱등) ② 응답 판단 → 방에 게시.
+ * In-app agent read path (spec v2 §5): for one new message, run
+ * ① the write pipeline (async, idempotent) ② the reply decision → post to the room.
  */
 export async function respondToMessage(
   agentUserId: string,
@@ -98,7 +97,7 @@ export async function respondToMessage(
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   if (!agent?.isAgent || !room) return { action: "silent" };
 
-  // write 경로: 관찰 → 문서 갱신 (실패해도 응답은 계속)
+  // write path: observe → update the doc (replies continue even if it fails)
   const writeDone = runPipeline(roomId).catch((err) =>
     console.error("agent write failed:", err)
   );
@@ -114,7 +113,7 @@ export async function respondToMessage(
       .select()
       .from(agentRoomStates)
       .where(eq(agentRoomStates.roomId, roomId));
-    // 관계 문서는 OKF 파일이 원본 — 답변 근거도 파일에서 읽는다
+    // the relationship doc is OKF-file-canonical — answer evidence reads from files too
     const tree = ensureOkfDocTree(roomId, room.name, {
       rootPath: state?.rootOkfPath,
       sectionPaths: state?.sectionOkfPaths,

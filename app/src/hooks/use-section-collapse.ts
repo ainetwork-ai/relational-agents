@@ -12,7 +12,7 @@ function readAll(): Record<string, boolean> {
   }
 }
 
-/** Collapsible sidebar sections with remembered state (UIUX #13). */
+/** Collapsible sidebar sections with remembered state. */
 export function useSectionCollapse(name: string): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {

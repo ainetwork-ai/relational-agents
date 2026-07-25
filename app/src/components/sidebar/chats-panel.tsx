@@ -58,11 +58,12 @@ export function ChatsPanel() {
     : afterUnread;
   const pinnedChats = visibleChats.filter((c) => c.isPinned);
   const unpinnedChats = visibleChats.filter((c) => !c.isPinned);
-  // 키보드 내비게이션 순서: 화면에 보이는 순서(고정 섹션 먼저) 그대로.
+  // keyboard-nav order mirrors the visual order (pinned section first).
   const navChats = [...pinnedChats, ...unpinnedChats];
 
-  // 방향키로 활성 항목 이동, Enter로 열기. 컨테이너 자신이 포커스일 때만 동작시켜
-  // 이름변경 입력창/메뉴 버튼 등 하위 요소의 키 입력과 충돌하지 않게 한다.
+  // arrows move the active item, Enter opens it. Active only while the
+  // container itself has focus, so rename inputs / menu buttons keep their
+  // own key handling.
   function handleListKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || navChats.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -92,7 +93,7 @@ export function ChatsPanel() {
     router.push(`/chat/${chat.id}`);
   }
 
-  // 새 채팅 단축키: Cmd/Ctrl+J
+  // new-chat shortcut: Cmd/Ctrl+J
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
@@ -130,7 +131,7 @@ export function ChatsPanel() {
     show("Chat deleted");
   }
 
-  // 고정/전체 두 섹션이 같은 행 마크업을 공유하므로 헬퍼로 뺀다 (JSX 중복 방지).
+  // pinned/all share the same row markup — extracted to a helper (no JSX duplication).
   function renderChatRow(c: AiChat) {
     const muted = mutedChatIds.has(c.id);
     const navIndex = navChats.indexOf(c);

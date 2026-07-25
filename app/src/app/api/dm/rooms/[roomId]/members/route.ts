@@ -8,7 +8,7 @@ import { publishToRoomMembers, requireRoomAccess, roomMemberIds, UUID_RE } from 
 
 export const dynamic = "force-dynamic";
 
-/** 이미 만들어진 관계 문서(restricted)가 있으면 새 멤버에게도 열람 권한을 부여. */
+/** If a (restricted) relationship doc already exists, grant the new member read access too. */
 async function grantDocAccess(roomId: string, userId: string) {
   const [state] = await db
     .select({ rootPageId: agentRoomStates.rootPageId, sectionPageIds: agentRoomStates.sectionPageIds })
@@ -22,7 +22,7 @@ async function grantDocAccess(roomId: string, userId: string) {
     .onConflictDoNothing();
 }
 
-/** POST /api/dm/rooms/{roomId}/members { userId } → { member } (같은 워크스페이스 멤버 초대) */
+/** POST /api/dm/rooms/{roomId}/members { userId } → { member } (invite a same-workspace member) */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (!room.workspaceId)
     return NextResponse.json({ error: "Room has no workspace" }, { status: 400 });
 
-  // 초대 대상은 방의 워크스페이스 구성원이어야 한다
+  // invitees must belong to the room's workspace
   const [ws] = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   await grantDocAccess(roomId, userId);
 
   const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  // 새 멤버 포함 전원에게 방 갱신 알림 (새 멤버의 사이드바에도 방이 떠야 한다)
+  // notify everyone including the new member (their sidebar must show the room too)
   await publishToRoomMembers(roomId, {
     type: "dm-room",
     clientId: req.headers.get("x-client-id"),
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 /** DELETE /api/dm/rooms/{roomId}/members?userId= → { ok }.
- *  본인 나가기는 누구나, 타인 제거는 방 생성자만. */
+ *  Anyone may leave; only the room creator removes others. */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -76,7 +76,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ roomId: 
   if (target !== auth.user.id && room.createdBy !== auth.user.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // 나가는 사람도 알림을 받아야 사이드바에서 방이 사라진다 — 삭제 전에 멤버 목록 확보
+  // the leaver needs the event too so the room vanishes from their sidebar — capture members before deleting
   const ids = await roomMemberIds(roomId);
   await db
     .delete(chatRoomMembers)

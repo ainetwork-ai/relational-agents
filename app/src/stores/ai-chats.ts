@@ -8,16 +8,16 @@ interface AiChatsState {
   chats: AiChat[];
   loaded: boolean;
   activeTab: "pages" | "chats";
-  /** 미읽음만 보기 필터 (chats-unread-filter) */
+  /** unread-only filter (chats-unread-filter) */
   unreadOnly: boolean;
-  /** 음소거된 채팅 id 집합 — ai_chat_mutes 미러 */
+  /** muted chat id set — mirrors ai_chat_mutes */
   mutedChatIds: Set<string>;
-  /** 서버에 비고정 채팅이 더 있는지 (GET /api/ai/chats의 hasMore) */
+  /** whether more unpinned chats exist server-side (hasMore from GET /api/ai/chats) */
   hasMore: boolean;
   setTab: (tab: "pages" | "chats") => void;
   toggleUnreadOnly: () => void;
   load: () => Promise<void>;
-  /** 다음 페이지(비고정 채팅)를 불러와 목록 뒤에 이어붙인다 (chats-load-more). */
+  /** load the next page (unpinned chats) and append it (chats-load-more). */
   loadMore: () => Promise<void>;
   create: (opts?: { title?: string; agentName?: string }) => Promise<AiChat>;
   patch: (
@@ -28,13 +28,13 @@ interface AiChatsState {
   /** local: mark a chat read (clears the blue dot without a refetch) */
   markReadLocal: (id: string) => void;
   bump: (id: string) => void;
-  /** 모든 채팅 hasUnread=false (POST /api/ai/chats/read-all) */
+  /** hasUnread=false across all chats (POST /api/ai/chats/read-all) */
   markAllRead: () => Promise<void>;
-  /** per-chat 음소거 토글 (POST/DELETE /api/ai/chats/[id]/mute) */
+  /** per-chat mute toggle (POST/DELETE /api/ai/chats/[id]/mute) */
   setMuted: (id: string, muted: boolean) => Promise<void>;
 }
 
-/** 고정 먼저, 그다음 updatedAt desc — 목록/패널 렌더에서 공용으로 쓰는 정렬. */
+/** Pinned first, then updatedAt desc — the sort shared by list/panel renders. */
 export function sortChats(chats: AiChat[]): AiChat[] {
   return [...chats].sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
@@ -42,7 +42,7 @@ export function sortChats(chats: AiChat[]): AiChat[] {
   });
 }
 
-/** 미읽음 채팅 수 — 사이드바 Chats 탭 뱃지(chats-tab-unread-badge)용 셀렉터. */
+/** Unread chat count — selector for the sidebar Chats tab badge (chats-tab-unread-badge). */
 export function unreadChatCount(chats: AiChat[]): number {
   return chats.filter((c) => c.hasUnread).length;
 }
@@ -50,8 +50,9 @@ export function unreadChatCount(chats: AiChat[]): number {
 const DEFAULT_PAGE_SIZE = 30;
 
 /**
- * GET /api/ai/chats의 limit — 기본 30. e2e 테스트가 결정론적으로 load-more를
- * 트리거할 수 있도록 `localStorage['ai-chats-page-size']`가 있으면 그 값을 쓴다.
+ * The limit for GET /api/ai/chats — default 30. Honors
+ * `localStorage['ai-chats-page-size']` so e2e can trigger load-more
+ * deterministically.
  */
 function getPageSize(): number {
   try {

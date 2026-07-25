@@ -136,8 +136,8 @@ function escapeHtml(s: string): string {
 }
 
 /** Heuristic: does pasted plain text carry block-level markdown structure?
- *  Multi-line paste (each line → a block) or a single clear markdown marker
- *  routes through the parser; a single plain line keeps inline paste. */
+ * Multi-line paste (each line → a block) or a single clear markdown marker
+ * routes through the parser; a single plain line keeps inline paste. */
 function looksLikeMarkdown(text: string): boolean {
   const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim() !== "");
   if (lines.length > 1) return true;
@@ -190,7 +190,7 @@ export const BlockEditor = forwardRef<
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);
-  // URL paste → "keep link / bookmark" chooser (UIUX #49)
+  // URL paste → "keep link / bookmark" chooser
   const [pasteLink, setPasteLink] = useState<{
     blockId: string;
     url: string;
@@ -501,7 +501,7 @@ export const BlockEditor = forwardRef<
     const { blocks: rows } = (await res.json()) as { blocks: Block[] };
     // ids the server held BEFORE this sync: a local block in that set that is
     // now missing from `rows` was deleted remotely — keeping it would turn it
-    // into a "new" block on the next save and resurrect it (S450)
+    // into a "new" block on the next save and resurrect it
     const prevServerIds = serverIdsRef.current;
     serverIdsRef.current = new Set(rows.map((r) => r.id));
 
@@ -2248,7 +2248,7 @@ export const BlockEditor = forwardRef<
 });
 
 /** Built-in page templates offered on a fresh, empty page (Notion's template
- *  picker). Content is plain markdown fed through the md paste pipeline. */
+ * picker). Content is plain markdown fed through the md paste pipeline. */
 const PAGE_TEMPLATES = [
   {
     key: "meeting",

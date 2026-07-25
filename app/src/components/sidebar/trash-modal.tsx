@@ -8,7 +8,7 @@ import { useUiStore } from "@/stores/ui";
 import { PageIcon } from "@/components/page-icon";
 
 /** Notion puts Trash in a floating panel anchored next to the sidebar
- *  (with its own search box), not a centered modal (#20). */
+ * (with its own search box), not a centered modal. */
 export function TrashModal() {
   const open = useUiStore((s) => s.trashOpen);
   const setOpen = useUiStore((s) => s.setTrashOpen);
@@ -17,7 +17,7 @@ export function TrashModal() {
   const restorePage = usePagesStore((s) => s.restorePage);
   const deleteForever = usePagesStore((s) => s.deleteForever);
   const [q, setQ] = useState("");
-  // two-step confirm for the irreversible delete (#81)
+  // two-step confirm for the irreversible delete
   const [armed, setArmed] = useState<string | null>(null);
   const [left, setLeft] = useState(248);
   const ref = useRef<HTMLDivElement>(null);

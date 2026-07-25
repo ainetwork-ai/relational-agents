@@ -7,14 +7,15 @@ import { publish, type PageEvent } from "@/lib/realtime";
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** DM 인박스 SSE 채널 키 — 사용자당 하나, /api/dm/events 가 세션에서 유도한다. */
+/** DM inbox SSE channel key — one per user, derived from the session by /api/dm/events. */
 export function dmInboxChannel(userId: string): string {
   return `dm-inbox:${userId}`;
 }
 
 /**
- * 방 접근 권한. dm 방 = 멤버만(생성자도 나가면 접근 상실),
- * agent 스텁 방 = 생성자 또는 멤버(기존 생성자-전용 모델의 하위호환 확장).
+ * Room access. DM rooms = members only (even the creator loses access on
+ * leaving); agent stub rooms = creator or member (a backwards-compatible
+ * widening of the old creator-only model).
  */
 export async function requireRoomAccess(
   roomId: string,
@@ -34,7 +35,7 @@ export async function requireRoomAccess(
   return { room };
 }
 
-/** 방의 현재 멤버 userId 목록. */
+/** Current member userIds of a room. */
 export async function roomMemberIds(roomId: string): Promise<string[]> {
   const rows = await db
     .select({ userId: chatRoomMembers.userId })
@@ -44,9 +45,10 @@ export async function roomMemberIds(roomId: string): Promise<string[]> {
 }
 
 /**
- * 방 멤버 전원의 DM 인박스 채널로 알림 이벤트를 발행.
- * 메시지 본문은 절대 싣지 않는다(알림 전용) — 채널 구독 인가는 세션 기반이지만
- * 이벤트 자체가 내용을 담지 않아야 유출 표면이 없다. 수신자는 refetch.
+ * Publishes a notification event to every room member's DM inbox channel.
+ * Never carries message bodies (notification-only) — channel subscription is
+ * session-authorized, but the events themselves carrying no content is what
+ * leaves zero leak surface. Receivers refetch.
  */
 export async function publishToRoomMembers(
   roomId: string,
@@ -60,7 +62,7 @@ export async function publishToRoomMembers(
   }
 }
 
-/** 여러 방의 멤버를 한 번에 조회 — 목록 API의 N+1 방지용. */
+/** Fetch members for many rooms at once — kills the list API's N+1. */
 export async function membersByRoom(roomIds: string[]) {
   if (roomIds.length === 0) return new Map<string, { userId: string; lastReadAt: Date | null }[]>();
   const rows = await db

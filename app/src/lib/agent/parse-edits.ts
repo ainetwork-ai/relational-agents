@@ -1,4 +1,4 @@
-/** 관계 SSOT 문서 골격 (스펙 §5) — read 챗봇과의 내용 계약. */
+/** Relationship SSOT doc skeleton — the content contract with the read chatbot. */
 export const SECTIONS = [
   { key: "overview", title: "Overview" },
   { key: "timeline", title: "Timeline" },
@@ -15,8 +15,9 @@ export interface DocEdit {
   sourceMessageIds: string[];
 }
 
-// LLM들이 key 대신 표시 제목("Overview")이나 다른 대소문자를 내는 일이 잦다 —
-// key와 제목 모두 소문자로 정규화해 key로 받아준다 (모르는 값만 reject).
+// LLMs often emit the display title ("Overview") or odd casing instead of the
+// key — normalize both keys and titles to lowercase and accept them as keys
+// (only unknown values are rejected).
 const KEY_BY_ALIAS = new Map<string, SectionKey>(
   SECTIONS.flatMap((s) => [
     [s.key.toLowerCase(), s.key],
@@ -24,7 +25,7 @@ const KEY_BY_ALIAS = new Map<string, SectionKey>(
   ])
 );
 
-/** LLM 응답(JSON 배열, ```json 펜스 허용) → 검증된 DocEdit[]. 불량 입력은 throw. */
+/** LLM response (JSON array, ```json fences allowed) → validated DocEdit[]. Bad input throws. */
 export function parseEdits(raw: string): DocEdit[] {
   const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
   const body = (fenced ? fenced[1] : raw).trim();
@@ -42,7 +43,7 @@ export function parseEdits(raw: string): DocEdit[] {
       typeof e?.section === "string" ? KEY_BY_ALIAS.get(e.section.trim().toLowerCase()) : undefined;
     if (!section) throw new Error(`agent: unknown section ${String(e?.section)}`);
     if (typeof e.markdown !== "string") throw new Error("agent: markdown must be string");
-    if (!e.markdown.trim()) continue; // 빈 편집은 무시
+    if (!e.markdown.trim()) continue; // ignore empty edits
     const ids = Array.isArray(e.sourceMessageIds)
       ? e.sourceMessageIds.filter((x): x is string => typeof x === "string")
       : [];

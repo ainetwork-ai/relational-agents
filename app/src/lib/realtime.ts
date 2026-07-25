@@ -20,7 +20,7 @@ export interface CursorInfo {
 
 export interface PageEvent {
   type: "blocks" | "page" | "cursor" | "presence" | "dm-message" | "dm-room" | "dm-typing";
-  /** 채널 키 — 페이지 id, 데이터베이스 id, 또는 DM 인박스 키(`dm-inbox:<userId>`) */
+  /** channel key — page id, database id, or DM inbox key (`dm-inbox:<userId>`) */
   pageId: string;
   /** originating editor instance — clients ignore their own echo */
   clientId: string | null;
@@ -28,7 +28,7 @@ export interface PageEvent {
   /** presence/cursor events carry the actor + their cursor */
   user?: PublicUser;
   cursor?: CursorInfo;
-  /** dm-* 이벤트의 대상 방. 본문은 싣지 않는다 — 수신자는 refetch (알림 전용) */
+  /** target room of dm-* events. No bodies — receivers refetch (notification-only) */
   roomId?: string;
 }
 

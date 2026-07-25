@@ -28,8 +28,9 @@ interface ScopePage {
   icon: string | null;
 }
 
-/** 사이드바 Chats 탭 상단의 Custom Agents 섹션. 저장된 지침(instructions)으로
- *  새 AI 채팅을 시작하는 프리셋 — 목록/생성/이름변경/아이콘/즐겨찾기/복제/공유/삭제. */
+/** Custom Agents section atop the sidebar Chats tab. Presets that start a new
+ *  AI chat from saved instructions — list/create/rename/icon/favorite/
+ *  duplicate/share/delete. */
 export function AgentsSection() {
   const router = useRouter();
   const agents = useAiAgentsStore((s) => s.agents);
@@ -106,7 +107,7 @@ export function AgentsSection() {
     setEditFor(null);
   }
 
-  /** 지식 범위 "페이지 추가" 드롭다운 토글 — 처음 열 때만 /api/pages를 불러온다. */
+  /** Knowledge-scope "add page" dropdown toggle — /api/pages loads on first open only. */
   async function openScopeMenu(id: string) {
     if (scopeMenuFor === id) {
       setScopeMenuFor(null);
@@ -145,8 +146,8 @@ export function AgentsSection() {
     show("Agent deleted");
   }
 
-  // 최근 사용한 에이전트(lastUsedAt 있는 것) 최대 3개를 상단 "최근" 서브섹션에,
-  // 나머지는 기존 목록에 그대로 둔다.
+  // up to 3 recently used agents (those with lastUsedAt) go in a "recent"
+  // subsection on top; the rest stay in the normal list.
   const recentAgents = [...agents]
     .filter((a) => a.lastUsedAt)
     .sort((a, b) => new Date(b.lastUsedAt as unknown as string).getTime() - new Date(a.lastUsedAt as unknown as string).getTime())

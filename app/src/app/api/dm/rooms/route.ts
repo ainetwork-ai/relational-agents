@@ -35,7 +35,7 @@ export interface DmRoomSummary {
   unreadCount: number;
 }
 
-/** 내가 멤버인 dm 방들을 요약(멤버·마지막 메시지·미읽음 수)으로 조립. */
+/** Assemble my DM rooms into summaries (members, last message, unread count). */
 async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSummary[]> {
   const roomIds = rooms.map((r) => r.id);
   if (roomIds.length === 0) return [];
@@ -54,9 +54,9 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
     .orderBy(chatMessages.roomId, desc(chatMessages.createdAt), desc(chatMessages.id));
   const lastByRoom = new Map(lastMessages.map((m) => [m.roomId, m]));
 
-  // 미읽음 = 내가 이 방에 합류(joinedAt)한 이후 + 내 마지막 읽음(lastReadAt) 이후에
-  // 남이 쓴 메시지. GREATEST가 NULL을 무시하므로 lastReadAt=NULL(아직 안 읽음)이면
-  // joinedAt이 기준선이 된다 — 초대 전 과거 대화가 통째로 미읽음으로 잡히지 않는다.
+  // unread = others' messages after I joined (joinedAt) AND after my last
+  // read (lastReadAt). GREATEST ignores NULLs, so lastReadAt=NULL (never
+  // read) baselines at joinedAt — pre-invite history doesn't all count as unread.
   const unreadRows = await db
     .select({ roomId: chatMessages.roomId, count: sql<number>`count(*)::int` })
     .from(chatMessages)
@@ -99,7 +99,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
       unreadCount: unreadByRoom.get(room.id) ?? 0,
     };
   });
-  // 최근 대화 순 (메시지 없는 방은 생성 시각)
+  // most recent conversation first (rooms without messages sort by creation)
   summaries.sort((a, b) => {
     const ta = (a.lastMessage?.createdAt ?? a.createdAt).getTime();
     const tb = (b.lastMessage?.createdAt ?? b.createdAt).getTime();
@@ -121,7 +121,7 @@ async function myDmRooms(meId: string): Promise<ChatRoom[]> {
   return rows.map((r) => r.room);
 }
 
-/** GET /api/dm/rooms → { rooms: DmRoomSummary[] } (최근 대화 순) */
+/** GET /api/dm/rooms → { rooms: DmRoomSummary[] } (most recent first) */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -130,7 +130,7 @@ export async function GET() {
 }
 
 /** POST /api/dm/rooms { memberIds: string[], name? } → { room: DmRoomSummary }.
- *  1:1(상대 1명)은 기존 방이 있으면 재사용(200), 없으면 생성(201). */
+ *  1:1 (single partner) reuses an existing room (200), else creates (201). */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -152,11 +152,11 @@ export async function POST(req: NextRequest) {
   const name =
     typeof body?.name === "string" ? body.name.trim().slice(0, MAX_NAME) : "";
 
-  // 1:1 방의 불변 정체성 키 — 멤버십이 변해도 안 바뀐다(그룹/agent 방은 null)
+  // immutable identity key for 1:1 rooms — survives membership changes (group/agent rooms: null)
   const directKey =
     memberIds.length === 1 ? [meId, memberIds[0]].sort().join("|") : null;
 
-  // 초대 대상은 전원 같은 워크스페이스 멤버여야 한다 (워크스페이스 밖 사용자 노출 금지)
+  // every invitee must belong to the same workspace (no exposure of outside users)
   const wsRows = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
   if (wsRows.length !== memberIds.length)
     return NextResponse.json({ error: "All members must be in your workspace" }, { status: 400 });
 
-  // 1:1 중복 방지 — directKey로 조회(불변 키라 과거 그룹방이 새 1:1을 가로채지 못한다)
+  // 1:1 dedup — looked up by directKey (immutable, so old group rooms can't hijack a fresh 1:1)
   if (directKey) {
     const [existing] = await db
       .select()
@@ -185,9 +185,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 관계 방은 계약 서명제 — 멤버 전원(커플이든 그룹이든)이 지갑으로 계약
-  // (/consent)에 서명해야 consentAt이 찍히고 에이전트가 태어난다. 지갑 없는
-  // 멤버(데모 계정 등)가 섞인 방만 기존 간소화(즉시 동의)를 유지한다.
+  // relationship rooms run on the signed contract — every member (couple or
+  // group) signs via wallet (/consent) before consentAt stamps and the agent
+  // is born. Only rooms with wallet-less members (demo accounts) keep the
+  // legacy instant consent.
   const allMemberIds = [meId, ...memberIds];
   const memberRows = await db
     .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })

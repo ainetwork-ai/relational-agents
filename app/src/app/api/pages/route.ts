@@ -12,8 +12,8 @@ import { okfGateFor } from "@/lib/okf-acl";
 export const dynamic = "force-dynamic";
 
 /** GET /api/pages?archived=1 → { pages: Page[] } (flat list; tree is client-side).
- *  OKF file-backed pages (the folder tree = the content backend) are merged in
- *  so the ONE sidebar lists them alongside any Postgres pages. */
+ * OKF file-backed pages (the folder tree = the content backend) are merged in
+ * so the ONE sidebar lists them alongside any Postgres pages. */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -28,10 +28,11 @@ export async function GET(req: NextRequest) {
     .where(and(eq(pages.workspaceId, workspaceId), eq(pages.isArchived, archived)))
     .orderBy(pages.position);
 
-  // 접근 제한 페이지(DM 관계 문서 등)는 명시 권한 있는 멤버에게만 노출.
-  // owner/admin은 관리상 전체 열람(getPagePermission과 동일). 기본 페이지는 그대로.
-  // guest는 Notion처럼 반대가 기본: 명시적으로 공유받은 페이지 외엔 아무것도
-  // 못 본다 — DM 상대로만 초대된 사람이 워크스페이스를 브라우징하지 못하게.
+  // Restricted pages (DM relationship docs etc.) show only to explicitly
+  // granted members; owner/admin read everything for administration (same as
+  // getPagePermission). Ordinary pages are unchanged. Guests get the Notion
+  // inverse default: nothing but explicitly shared pages — being someone's DM
+  // partner must not let you browse their workspace.
   let visible = rows;
   const role = await getWorkspaceRole(workspaceId, auth.user.id);
   if (role === "guest") {
@@ -61,8 +62,9 @@ export async function GET(req: NextRequest) {
   if (archived) return NextResponse.json({ pages: visible });
 
   // merge in the file-backed OKF pages (folder tree = the content backend).
-  // 참여자 전용 OKF 경로(관계 문서)는 멤버가 아니면 제외 — 파일 트리에는
-  // 권한 개념이 없으므로 okf_acl 게이트가 그 역할을 한다.
+  // participant-only OKF paths (relationship docs) are excluded for
+  // non-members — the file tree has no permissions of its own, so the
+  // okf_acl gate plays that role.
   let okf: (typeof rows)[number][] = [];
   try {
     const gate = await okfGateFor(auth.user.id);
@@ -123,7 +125,7 @@ export async function POST(req: NextRequest) {
 
   // Seed one empty paragraph server-side. If clients fabricated the first
   // block locally, two editors opening an empty page would each create their
-  // own — duplicate blocks under concurrent editing (found by S114).
+  // own — duplicate blocks under concurrent editing.
   await db.insert(blocks).values({
     pageId: page.id,
     type: "paragraph",

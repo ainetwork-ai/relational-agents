@@ -57,8 +57,9 @@ async function loadAccessiblePage(pageId: string, userId: string) {
     )
     .limit(1);
   if (!membership) return null;
-  // 접근 제한 페이지는 명시 권한(pageMembers) 또는 owner/admin만 — DM 관계 문서
-  // 본문(메시지 내용)을 비참여 워크스페이스 멤버로부터 보호한다.
+  // restricted pages need an explicit grant (pageMembers) or owner/admin —
+  // shields DM relationship-doc bodies (message content) from non-participant
+  // workspace members.
   if (page.restricted && !(await getPagePermission(pageId, userId))) return null;
   return page;
 }

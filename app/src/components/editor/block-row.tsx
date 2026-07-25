@@ -66,7 +66,7 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
       onDragOver={(e) => editor.onDragOverRow(e, block.id)}
       onDrop={(e) => editor.onDropRow(e, block.id)}
       onContextMenu={(e) => {
-        // right-click on a block opens the full block action menu (#39);
+        // right-click on a block opens the full block action menu;
         // plain inputs keep the native menu, as does Ctrl/Cmd-click
         if (e.ctrlKey || e.metaKey) return;
         const t = e.target as HTMLElement;
@@ -131,8 +131,8 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
 }
 
 /** R016 — anchors a block's comment thread inline: a block with unresolved
- *  comments keeps a highlight and a right-margin marker (count). Clicking the
- *  marker opens that block's thread in the side panel (Notion behaviour). */
+ * comments keeps a highlight and a right-margin marker (count). Clicking the
+ * marker opens that block's thread in the side panel (Notion behaviour). */
 function BlockCommentAnchor({
   blockId,
   children,
@@ -486,9 +486,9 @@ const CODE_TYPE_CLASS =
   "whitespace-pre-wrap break-words px-3 py-2 font-mono text-[13px] leading-6";
 
 /** Code block: language select + copy button + caption + a dependency-free
- *  syntax-highlight overlay painted behind a transparent-text editor.
- *  The <Editable> is untouched (full editing/caret model); we only read its
- *  text to paint colors behind it. */
+ * syntax-highlight overlay painted behind a transparent-text editor.
+ * The <Editable> is untouched (full editing/caret model); we only read its
+ * text to paint colors behind it. */
 function CodeBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [copied, setCopied] = useState(false);
@@ -575,7 +575,7 @@ const calloutBg = (color?: string) =>
   (CALLOUT_COLORS.find((c) => c.name === color) ?? CALLOUT_COLORS[0]).bg;
 
 /** Callout: a pickable emoji icon (any emoji, via the full IconPicker) + a
- *  background color, matching Notion (was a hardcoded 💡 on neutral). */
+ * background color, matching Notion (was a hardcoded 💡 on neutral). */
 function CalloutBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [colorOpen, setColorOpen] = useState(false);
@@ -1241,9 +1241,9 @@ function Editable({
 }
 
 /** Button block (notion.com/help/buttons): a labelled pill that runs its
- *  configured ACTION CHAIN on click — open URL/page, insert blocks, add a
- *  database page, show a confirmation, send an inbox reminder. Actions run
- *  in order; a rejected confirmation stops the chain. */
+ * configured ACTION CHAIN on click — open URL/page, insert blocks, add a
+ * database page, show a confirmation, send an inbox reminder. Actions run
+ * in order; a rejected confirmation stops the chain. */
 const BUTTON_ACTIONS: { type: ButtonAction["type"]; label: string; placeholder: string }[] = [
   { type: "open_url", label: "Open URL", placeholder: "https://…" },
   { type: "open_page", label: "Open page", placeholder: "page id" },
@@ -1434,7 +1434,7 @@ function ButtonBlock({ block }: { block: EBlock }) {
 }
 
 /** Template button (Notion's button block): click inserts its markdown
- *  template as fresh blocks right below; ⚙ configures label + template. */
+ * template as fresh blocks right below; ⚙ configures label + template. */
 function TemplateButtonBody({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [configOpen, setConfigOpen] = useState(false);
@@ -1558,8 +1558,8 @@ function EquationBody({ block }: { block: EBlock }) {
 }
 
 /** Ask AI (scienario 44): a transient prompt box; the local model's markdown
- *  answer is inserted as ORDINARY blocks (same pipeline as pasted markdown)
- *  and the prompt block removes itself. */
+ * answer is inserted as ORDINARY blocks (same pipeline as pasted markdown)
+ * and the prompt block removes itself. */
 function AiPromptBody({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [prompt, setPrompt] = useState("");

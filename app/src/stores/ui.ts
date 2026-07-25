@@ -15,7 +15,7 @@ interface UiState {
   setSearchOpen: (open: boolean) => void;
   mobileNavOpen: boolean;
   setMobileNavOpen: (open: boolean) => void;
-  /** live drop preview while dragging a sidebar page (UIUX #21) */
+  /** live drop preview while dragging a sidebar page */
   dropHint: { targetId: string; zone: "before" | "inside" | "after" } | null;
   setDropHint: (hint: { targetId: string; zone: "before" | "inside" | "after" } | null) => void;
 }

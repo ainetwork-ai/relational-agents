@@ -1,9 +1,9 @@
 import sanitize from "sanitize-html";
 
 /**
- * Inline rich-text layer (F6). Blocks store BOTH representations:
- *   content.text — plain text (search, markdown shortcuts, caret math)
- *   content.html — sanitized inline HTML (b/i/u/s/code/a only)
+ * Inline rich-text layer. Blocks store BOTH representations:
+ * content.text — plain text (search, markdown shortcuts, caret math)
+ * content.html — sanitized inline HTML (b/i/u/s/code/a only)
  * Every write path MUST pass through sanitizeInline — the editor renders
  * content.html with innerHTML.
  */

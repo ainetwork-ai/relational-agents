@@ -7,9 +7,10 @@ import { runPipeline, type RunResult } from "@/lib/agent/pipeline";
 const BATCH_SIZE = Number(process.env.AGENT_BATCH_SIZE ?? 10);
 const IDLE_MS = Number(process.env.AGENT_IDLE_MS ?? 120_000);
 
-// 유휴 트리거 (스펙 §4-2): 방별 디바운스 — 마지막 메시지 후 IDLE_MS 지나면 실행.
-// 서버 프로세스 메모리 기반(데모 규모). 재시작으로 소실돼도 다음 메시지/수동
-// 트리거가 미처리분을 회수한다(파이프라인이 멱등이므로 안전).
+// Idle trigger: per-room debounce — runs IDLE_MS after the last
+// message. Lives in server-process memory (demo scale). Lost on restart, but
+// the next message / manual trigger recovers the backlog (safe because the
+// pipeline is idempotent).
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function scheduleIdleRun(roomId: string) {
@@ -24,8 +25,9 @@ function scheduleIdleRun(roomId: string) {
 }
 
 /**
- * 메시지 저장 직후 호출 — 미수집 누적이 K건이면 즉시 파이프라인 실행,
- * 아니면 유휴 실행 예약. agent 방과 dm 방이 같은 수확 경로를 공유한다.
+ * Called right after a message is stored — runs the pipeline immediately at
+ * K+ uncollected messages, else schedules an idle run. Agent rooms and DM
+ * rooms share the same harvesting path.
  */
 export async function maybeAutoRun(room: ChatRoom): Promise<RunResult | undefined> {
   const pending = room.consentAt

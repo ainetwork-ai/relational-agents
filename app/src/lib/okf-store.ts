@@ -111,10 +111,10 @@ function isCsv(n: string) {
 }
 
 /** A Notion export of a database with a filtered view writes `<db>.csv` (just
- *  the view's rows — Status subset, empty columns) AND `<db>_all.csv` (EVERY
- *  row and value). The view file stays the node's IDENTITY (tree/sidebar/meta
- *  key), but the full file is the real data backend: all reads and writes
- *  target `_all.csv` when it exists. */
+ * the view's rows — Status subset, empty columns) AND `<db>_all.csv` (EVERY
+ * row and value). The view file stays the node's IDENTITY (tree/sidebar/meta
+ * key), but the full file is the real data backend: all reads and writes
+ * target `_all.csv` when it exists. */
 function dataCsvRel(rel: string): string {
   const allRel = rel.replace(/\.csv$/i, "_all.csv");
   try {
@@ -161,7 +161,7 @@ export function listTree(): TreeNode[] {
 }
 
 /** Flat, Postgres-Page-shaped list (encoded ids + parent links) for the
- *  sidebar store. The migration swaps /api/pages to return this. */
+ * sidebar store. The migration swaps /api/pages to return this. */
 export interface PageLike {
   id: string;
   parentPageId: string | null;
@@ -211,8 +211,8 @@ export interface DatabaseNode {
   rows: FsRow[];
   totalRows: number;
 }
-/** A CSV row rendered as its own page (R019): its property values + an
- *  editable body (sidecar md). */
+/** A CSV row rendered as its own page: its property values + an
+ * editable body (sidecar md). */
 export interface RowPageNode {
   kind: "row";
   id: string;
@@ -229,11 +229,11 @@ const DB_ROW_LIMIT = 500;
 export type ContentNode = PageNode | DatabaseNode | RowPageNode;
 
 /** A Notion export writes a DB row's page .md with the row's PROPERTIES as
- *  leading "Key: Value" paragraphs right after the title — but the app already
- *  renders properties from the CSV (peek panel / table), so those lines would
- *  show twice. If this .md sits in a row-page folder (parent folder named after
- *  a sibling CSV), drop the leading run of paragraphs whose key matches a CSV
- *  header. Non-row pages are untouched. */
+ * leading "Key: Value" paragraphs right after the title — but the app already
+ * renders properties from the CSV (peek panel / table), so those lines would
+ * show twice. If this .md sits in a row-page folder (parent folder named after
+ * a sibling CSV), drop the leading run of paragraphs whose key matches a CSV
+ * header. Non-row pages are untouched. */
 function stripExportPropertyBlock(relPath: string, blocks: ParsedBlock[]): ParsedBlock[] {
   const dir = path.posix.dirname(relPath);
   if (!dir || dir === ".") return blocks;
@@ -270,10 +270,10 @@ function stripExportPropertyBlock(relPath: string, blocks: ParsedBlock[]): Parse
 }
 
 /** Rewrite an OKF page's relative asset URLs (image/video blocks) to the
- *  asset-serving endpoint. An exported Notion page references its files as
- *  local, URL-encoded paths relative to the .md (`folder/img.png`); the browser
- *  can't fetch those, so resolve each against the page's directory and point it
- *  at /api/okf/asset with the encoded OKF path. Leaves http(s)/data/api URLs. */
+ * asset-serving endpoint. An exported Notion page references its files as
+ * local, URL-encoded paths relative to the .md (`folder/img.png`); the browser
+ * can't fetch those, so resolve each against the page's directory and point it
+ * at /api/okf/asset with the encoded OKF path. Leaves http(s)/data/api URLs. */
 function rewriteAssetBlocks(blocks: ParsedBlock[], baseDir: string): ParsedBlock[] {
   return blocks.map((b) => {
     if (b.type !== "image") return b;
@@ -375,7 +375,7 @@ export function readNode(relPath: string): ContentNode | null {
 }
 
 /** Create an OKF folder (mkdir -p, inside the root). writePage never creates
- *  directories, so a caller building a new page tree calls this first. */
+ * directories, so a caller building a new page tree calls this first. */
 export function ensureFolder(relPath: string): void {
   fs.mkdirSync(resolveSafe(relPath), { recursive: true });
 }
@@ -391,7 +391,7 @@ export function nodeExists(relPath: string): boolean {
 
 // ---- write-back: editing the app writes the OKF files ----------------------
 export function writePage(relPath: string, title: string, meta: Frontmatter, blocks: ParsedBlock[]): void {
-  // Row-as-page body persists to a sidecar md beside the CSV (R019).
+  // Row-as-page body persists to a sidecar md beside the CSV.
   const rp = parseRowPageRel(relPath);
   if (rp) {
     const sidecarAbs = resolveSafe(rowSidecarRel(rp.csvRelPath, rp.rowId));
@@ -407,7 +407,7 @@ export function writePage(relPath: string, title: string, meta: Frontmatter, blo
 }
 
 /** Delete an OKF node. A row-page deletes only its sidecar body (the CSV row
- *  stays); a file/folder is removed recursively. */
+ * stays); a file/folder is removed recursively. */
 export function deleteNode(relPath: string): void {
   const rp = parseRowPageRel(relPath);
   if (rp) {
@@ -428,7 +428,7 @@ export interface IncomingBlock {
 }
 
 /** ParsedBlock[] (file blocks) → Block[] (the shape /api/pages/[id]/blocks and
- *  the editor use). Synthetic timestamps; parentBlockId is flat (null). */
+ * the editor use). Synthetic timestamps; parentBlockId is flat (null). */
 export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
   const now = new Date();
   return blocks.map((b, i) => ({
@@ -454,7 +454,7 @@ export function blocksToParsed(incoming: IncomingBlock[]): ParsedBlock[] {
 }
 
 /** A Postgres-Page-shaped object for an OKF node, so PageView renders it like
- *  any page (the id is the OKF base64url id, not a UUID). */
+ * any page (the id is the OKF base64url id, not a UUID). */
 export function okfSyntheticPage(p: {
   id: string;
   workspaceId: string;
@@ -491,11 +491,11 @@ export function okfIcon(kind: string): string {
 }
 
 /** Index a database's per-row page files by their INTERNAL title. A Notion
- *  export puts them in a sibling folder named after the database
- *  (`<db title>/<row> <hash>.md`). We key by the file's `# ` heading, not the
- *  filename, because exported filenames can be charset-mangled (Korean →
- *  mojibake) while the file *content* stays correct UTF-8. Returns
- *  Map<internalTitle, relPath>. */
+ * export puts them in a sibling folder named after the database
+ * (`<db title>/<row> <hash>.md`). We key by the file's `# ` heading, not the
+ * filename, because exported filenames can be charset-mangled (Korean →
+ * mojibake) while the file *content* stays correct UTF-8. Returns
+ * Map<internalTitle, relPath>. */
 function indexRowPageFiles(csvRelPath: string): Map<string, string> {
   const m = new Map<string, string>();
   try {
@@ -516,8 +516,8 @@ function indexRowPageFiles(csvRelPath: string): Map<string, string> {
 }
 
 /** Shape a file-backed .csv database into the SAME { database, properties,
- *  rows, views } snapshot the Postgres database engine returns, so the one
- *  database view renders it (files are the backend, no parallel view). */
+ * rows, views } snapshot the Postgres database engine returns, so the one
+ * database view renders it (files are the backend, no parallel view). */
 export async function okfDatabaseSnapshot(
   databaseId: string,
   relPath: string
@@ -819,9 +819,9 @@ export async function writeDbRenameColumn(
 }
 
 /** Delete a column from every row (and its overlay annotation). Positional
- *  `col{N}` ids SHIFT on splice, so every saved view config is remapped —
- *  otherwise a filter/sort/group-by on "col3" silently retargets the column
- *  that used to be col4. Rules on the deleted column itself are dropped. */
+ * `col{N}` ids SHIFT on splice, so every saved view config is remapped —
+ * otherwise a filter/sort/group-by on "col3" silently retargets the column
+ * that used to be col4. Rules on the deleted column itself are dropped. */
 export async function writeDbDeleteColumn(rel: string, propId: string): Promise<void> {
   const grid = readGrid(rel);
   const ci = colIndex(propId);
@@ -905,8 +905,8 @@ export async function okfSetPropMeta(
 }
 
 /** Move a CSV row to a fractional 1-based position ("between floor and ceil",
- *  the same ±0.5 convention as column reorder). Physical row order IS the
- *  manual sort order; row ids shift, so clients refetch afterwards. */
+ * the same ±0.5 convention as column reorder). Physical row order IS the
+ * manual sort order; row ids shift, so clients refetch afterwards. */
 export function writeDbMoveRow(rel: string, rowId: string, newPos: number): void {
   const grid = readGrid(rel);
   const ri = Number(rowId.replace(/^row/, ""));
@@ -937,7 +937,7 @@ const OKF_DEFAULT_VIEW: DbMetaView = {
 };
 
 /** Add a view. The first authored view materializes the default table first so
- *  the original table stays a tab. */
+ * the original table stays a tab. */
 export async function okfAddView(
   rel: string,
   v: { name?: string; type: string; config?: ViewConfig }
@@ -983,8 +983,8 @@ export async function okfPatchView(
 }
 
 /** If this OKF page is a database ROW's page — a sidecar (`csv#rowN`) or an
- *  exported `<db title>/<row title> <hash>.md` — return its db + row so the
- *  full-page view can render the row's editable properties (Notion). */
+ * exported `<db title>/<row title> <hash>.md` — return its db + row so the
+ * full-page view can render the row's editable properties (Notion). */
 export async function okfRowRefForPage(
   rel: string
 ): Promise<{ databaseId: string; rowId: string } | null> {
@@ -1015,7 +1015,7 @@ export async function okfRowRefForPage(
 // ---- structural ops used by the MCP surface: move / duplicate / create-db --
 
 /** Move a page/database/folder node under a new parent folder (root = ""). A
- *  database ROW page (`csv#rowN`) has no movable file. Returns the new rel id. */
+ * database ROW page (`csv#rowN`) has no movable file. Returns the new rel id. */
 export function moveNode(relPath: string, newParentRel: string): string {
   if (parseRowPageRel(relPath)) throw new Error("cannot move a database row page");
   const abs = resolveSafe(relPath);
@@ -1050,7 +1050,7 @@ export function duplicateNode(relPath: string): string {
 }
 
 /** Create a new CSV database (columns[0] = title). Declared non-text types and
- *  select options persist to the okf_db_meta overlay. Returns the new rel path. */
+ * select options persist to the okf_db_meta overlay. Returns the new rel path. */
 export async function createDatabase(
   parentRel: string,
   title: string,

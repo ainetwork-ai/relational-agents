@@ -45,7 +45,7 @@ export const users = pgTable("users", {
   agentCategory: text("agent_category"),
   agentTags: jsonb("agent_tags").$type<string[]>().default([]),
   encryptedPrivateKey: text("encrypted_private_key"),
-  // 방별 관계 에이전트 설정 (소유자 편집) — AgentConfig 타입, isAgent 사용자에만 의미
+  // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
   timezone: text("timezone"),
@@ -109,8 +109,9 @@ export const pages = pgTable(
     // page options menu (Notion "..."): wide body / edits blocked
     fullWidth: boolean("full_width").default(false).notNull(),
     isLocked: boolean("is_locked").default(false).notNull(),
-    // 접근 제한 페이지: 일반 멤버는 pageMembers 명시 권한 없으면 못 봄(기본 workspace-wide
-    // 열람에서 제외). DM 관계 문서처럼 참여자 전용 페이지에 쓴다. 기본 false = 기존 동작.
+    // restricted page: ordinary members can't see it without an explicit
+    // pageMembers grant (excluded from workspace-wide reads). Used for
+    // participant-only pages like DM relationship docs. Default false = legacy behavior.
     restricted: boolean("restricted").default(false).notNull(),
     position: doublePrecision("position").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
@@ -151,7 +152,7 @@ export type BlockType =
   | "ai_prompt";
 
 /** Simple-table payload (Notion "table" block). cells[row][col]; the header
- *  flags mirror Notion's "header row / header column" toggles. */
+ * flags mirror Notion's "header row / header column" toggles. */
 export interface TableData {
   cells: string[][];
   headerRow?: boolean;
@@ -159,7 +160,7 @@ export interface TableData {
 }
 
 /** One step of a "button" block's action chain (notion.com/help/buttons).
- *  Actions run in order; a rejected confirm stops the chain. */
+ * Actions run in order; a rejected confirm stops the chain. */
 export type ButtonAction =
   | { type: "open_url"; url: string }
   | { type: "open_page"; pageId: string }
@@ -277,12 +278,12 @@ export interface RollupConfig {
 export interface PropertyConfig {
   options?: SelectOption[]; // select / status
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
-   *  the row out on its month/day in EVERY year, ignoring the stored year */
+   * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";
   /** relation: the target database whose rows this links to */
   relationDatabaseId?: string;
   /** relation: this prop is a COMPUTED mirror of a relation on another db
-   *  (two-way relation) — its value is derived, never stored */
+   * (two-way relation) — its value is derived, never stored */
   mirrorOf?: { databaseId: string; propId: string };
   /** relation: id of the mirror property created on the target db */
   twoWayPropId?: string;
@@ -320,8 +321,8 @@ export type FilterOp =
   | "unchecked";
 
 /** A view filter. `value` may be a scalar, an ARRAY (select/status/person
- *  "is any of"), a "YYYY-MM-DD" date, or a relative date token (`@today`,
- *  `past_week`, …) resolved at match time. */
+ * "is any of"), a "YYYY-MM-DD" date, or a relative date token (`@today`,
+ * `past_week`, …) resolved at match time. */
 export interface ViewFilter {
   propertyId: string;
   op: FilterOp;
@@ -332,7 +333,7 @@ export interface ViewSort {
   dir: "asc" | "desc";
 }
 /** Notion advanced filters: a GROUP of conditions with its own AND/OR,
- *  combined with the top-level rules via filterConjunction (2-level nesting). */
+ * combined with the top-level rules via filterConjunction (2-level nesting). */
 export interface ViewFilterGroup {
   conjunction?: "and" | "or";
   filters: ViewFilter[];
@@ -356,15 +357,15 @@ export interface ViewConfig {
   /** a linked database view embedded inside another page */
   embedded?: boolean;
   /** per-property column-footer aggregation (Notion "Calculate"):
-   *  { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
+   * { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
   calcs?: Record<string, string>;
   /** dashboard view: its widget layout (notion.com/help/dashboards — up to 12
-   *  widgets, up to 4 per row; each widget carries its own data config) */
+   * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];
 }
 
 /** One dashboard-view widget. `width` is in quarters of the row (Notion:
- *  max 4 widgets per row); rows wrap in reading order. */
+ * max 4 widgets per row); rows wrap in reading order. */
 export interface DashWidget {
   id: string;
   kind: "counter" | "bar" | "donut" | "table" | "board" | "list";
@@ -386,7 +387,7 @@ export const databases = pgTable("databases", {
     .references(() => workspaces.id, { onDelete: "cascade" })
     .notNull(),
   title: text("title").default("Untitled Database").notNull(),
-  // editable text under the DB title (Notion parity)
+  // editable text under the DB title
   description: text("description").default("").notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -505,8 +506,8 @@ export const pageInvites = pgTable(
 // blockId/parentId are plain uuids — no FK, so churning autosave block ids and
 // self-references never dangle a cascade.
 /** Point-in-time page versions for Page history / restore. pageId is text
- *  with no FK — OKF (file) page ids are base64url strings (comments precedent).
- *  Blocks are stored as a raw jsonb array of {id,type,content,position,parentBlockId}. */
+ * with no FK — OKF (file) page ids are base64url strings (comments precedent).
+ * Blocks are stored as a raw jsonb array of {id,type,content,position,parentBlockId}. */
 export interface SnapshotBlock {
   id: string;
   type: BlockType;
@@ -588,50 +589,51 @@ export const okfDbMeta = pgTable(
 
 // ---------------------------------------------------------------------------
 // Relationship agent (hackathon) — stub chat + write-pipeline state.
-// chat_rooms/chat_messages는 채팅 담당이 실구현으로 대체할 스텁 계약(스펙 §3).
+// chat_rooms/chat_messages started as the stub contract the chat owner replaces with the real implementation.
 // ---------------------------------------------------------------------------
 
 export const chatRooms = pgTable("chat_rooms", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  // "agent" = Agent Lab 관계 방(생성자 전용), "dm" = 사람↔사람 DM(멤버십 기반)
+  // "agent" = Agent Lab relationship room (creator-only), "dm" = human↔human DM (membership-based)
   kind: text("kind").$type<"agent" | "dm">().default("agent").notNull(),
-  // DM 방의 스코프 — 멤버 초대는 같은 워크스페이스 구성원만 (agent 스텁 방은 null)
+  // DM room scope — members can only be invited from the same workspace (agent stub rooms: null)
   workspaceId: uuid("workspace_id"),
-  // 1:1 DM 중복 방지 키 = 정렬된 "userA|userB" (그룹/agent 방은 null). 멤버십이
-  // 바뀌어도 불변이라, 과거 그룹방이 새 1:1을 가로채는 문제를 막는다.
+  // 1:1 DM dedup key = sorted "userA|userB" (group/agent rooms: null).
+  // Immutable across membership changes, so an old group room can never
+  // hijack a fresh 1:1.
   directKey: text("direct_key"),
-  // 전원 동의 완료 시각 — 이 시각 이전 메시지는 수집하지 않는다 (스펙 §2)
+  // when everyone consented — messages before this are never collected
   consentAt: timestamp("consent_at"),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// 관계 에이전트 계약 — "두 사람이 서명해야 에이전트가 태어난다"의 서명 원본.
-// 방 멤버 각자가 지갑(EIP-191 personal_sign)으로 계약문에 서명하면 한 행씩 쌓이고,
-// 전원 서명 시 chat_rooms.consentAt이 찍힌다. 계약문/서명을 그대로 보존해
-// 사후 재검증이 가능하다.
+// The relational agent contract — the signature record behind "an agent is
+// born only when everyone signs". Each room member's wallet signature adds a
+// row; when the set completes, chat_rooms.consentAt is stamped. The signed
+// payload and signature are preserved verbatim for later re-verification.
 export const relationContracts = pgTable(
   "relation_contracts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     roomId: uuid("room_id").notNull(),
     userId: uuid("user_id").notNull(),
-    address: text("address").notNull(), // 서명 당시 지갑 주소 (소문자)
-    message: text("message").notNull(), // 서명한 계약문 원문
+    address: text("address").notNull(), // wallet address at signing time (lowercase)
+    message: text("message").notNull(), // the signed contract payload, verbatim
     signature: text("signature").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [uniqueIndex("relation_contracts_room_user").on(t.roomId, t.userId)]
 );
 
-// DM 멤버십 + 읽음 상태. (roomId,userId) 복합 유니크 — id 컬럼 없음(workspace_members 패턴).
+// DM membership + read state. (roomId,userId) composite unique — no id column (workspace_members pattern).
 export const chatRoomMembers = pgTable(
   "chat_room_members",
   {
     roomId: uuid("room_id").notNull(),
     userId: uuid("user_id").notNull(),
-    // 이 시각 이후 + 타인이 쓴 메시지 수 = 미읽음 배지
+    // unread badge = count of others' messages after this timestamp
     lastReadAt: timestamp("last_read_at"),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
   },
@@ -645,13 +647,14 @@ export const chatMessages = pgTable(
     roomId: uuid("room_id").notNull(),
     authorId: uuid("author_id").notNull(),
     text: text("text").notNull(),
-    // DM 첨부 (업로드된 이미지/파일) — [{url,name}], url은 /uploads/* 만 허용
+    // DM attachments (uploaded images/files) — [{url,name}], urls restricted to /uploads/*
     attachments: jsonb("attachments")
       .$type<{ url: string; name: string }[]>()
       .default([])
       .notNull(),
-    // write 파이프라인이 처리한 시각 — null이면 미수집. createdAt 동률 tie에도
-    // 안전한 체크포인트 표현이라 lastProcessedMessageId 비교를 대체한다.
+    // when the write pipeline processed it — null = not yet collected. A
+    // checkpoint that stays safe under createdAt ties, replacing
+    // lastProcessedMessageId comparisons.
     processedAt: timestamp("processed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -661,24 +664,26 @@ export const chatMessages = pgTable(
 export const agentRoomStates = pgTable("agent_room_states", {
   roomId: uuid("room_id").primaryKey(),
   rootPageId: uuid("root_page_id"),
-  // 섹션 key → pageId 매핑 (제목 rename에 안전)
+  // section key → pageId map (safe across title renames)
   sectionPageIds: jsonb("section_page_ids").$type<Record<string, string>>().default({}).notNull(),
-  // OKF 저장(현행): 관계 문서는 파일이 원본이다. 루트 폴더의 OKF 상대 경로와
-  // 섹션 key → .md 상대 경로 매핑. 위 rootPageId/sectionPageIds는 Postgres에
-  // 문서를 두던 시절의 레거시(기존 방 열람용으로만 남긴다).
+  // OKF storage (current): the relationship doc lives as files. OKF-relative
+  // path of the root folder plus section key → .md path map. rootPageId /
+  // sectionPageIds above are legacy from the Postgres-resident era (kept only
+  // so old rooms stay readable).
   rootOkfPath: text("root_okf_path"),
   sectionOkfPaths: jsonb("section_okf_paths").$type<Record<string, string>>().default({}).notNull(),
   lastRunAt: timestamp("last_run_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// OKF 파일 트리에는 원래 접근 제어가 없다(폴더=워크스페이스 공유 콘텐츠).
-// 관계 문서처럼 "참여자만" 볼 수 있어야 하는 콘텐츠를 파일로 두기 위한 경로
-// 단위 ACL. 등록된 경로와 그 하위 전체는 memberIds에게만 노출된다.
+// The OKF file tree has no access control of its own (folders = workspace-
+// shared content). This is the per-path ACL that lets participant-only
+// content like relationship docs live as files: a registered path and its
+// whole subtree are visible to memberIds only.
 export const okfAcl = pgTable("okf_acl", {
-  // OKF 루트 기준 상대 경로 (보통 문서 루트 폴더)
+  // path relative to the OKF root (usually the doc's root folder)
   path: text("path").primaryKey(),
-  // 출처 방 (관계 문서면 그 방) — 감사/정리용
+  // originating room (for relationship docs) — audit/cleanup
   roomId: uuid("room_id"),
   memberIds: jsonb("member_ids").$type<string[]>().default([]).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -686,8 +691,9 @@ export const okfAcl = pgTable("okf_acl", {
 
 export type OkfAcl = typeof okfAcl.$inferSelect;
 
-// 레이어 2 — 방↔챗봇 임포트. 어떤 프로바이더의 A2A 봇이든 방 단위로 초대된다.
-// 우리 관계 에이전트도 이 테이블을 통해 임포트되는 일반 봇일 뿐이다 (스펙 v2 §2).
+// Layer 2 — room↔chatbot imports. Any provider's A2A bot is invited per
+// room; our own relationship agent is just another bot imported through this
+// table.
 export const chatRoomBots = pgTable(
   "chat_room_bots",
   {
@@ -699,8 +705,9 @@ export const chatRoomBots = pgTable(
   (t) => [uniqueIndex("chat_room_bots_pk").on(t.roomId, t.agentUserId)]
 );
 
-// 외부 플랫폼에서 우리 에이전트를 임포트할 때 쓰는 멤버별 Bearer 토큰 (스펙 v2 §6).
-// URL만 아는 제3자(C)는 토큰이 없어 거부된다. 화자 식별 = 토큰 소유자.
+// Per-member Bearer tokens for importing our agent into external platforms
+//. A third party who only knows the URL has no token and is
+// refused. Speaker identity = token owner.
 export const agentAccessTokens = pgTable(
   "agent_access_tokens",
   {
@@ -712,12 +719,12 @@ export const agentAccessTokens = pgTable(
   (t) => [index("agent_access_tokens_agent_idx").on(t.agentUserId)]
 );
 
-/** 소유자가 편집하는 방별 에이전트 설정 (users.agentConfig) — 스펙 v2 §4-3. */
+/** Owner-edited per-room agent config (users.agentConfig) — spec v2 §4-3. */
 export interface AgentConfig {
-  /** 사용자 정의 시스템 프롬프트 (기본 프롬프트 뒤에 이어붙음) */
+  /** custom system prompt (appended after the base prompt) */
   systemPrompt?: string;
   persona?: { name?: string; tone?: string };
-  /** 활성 스킬 키 목록 (제공 슈퍼셋 중 선택) */
+  /** active skill keys (a selection from the offered superset) */
   skills?: string[];
   behavior?: { proactive?: boolean };
   [key: string]: unknown;
@@ -730,8 +737,9 @@ export type ChatRoomMember = typeof chatRoomMembers.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 
 // ---------------------------------------------------------------------------
-// Notion AI 채팅 (사이드바 Chats 탭). 사람↔사람 DM이 아니라 AI 대화 스레드다.
-// 위 chat_rooms(관계-에이전트 스텁)와 의미가 달라 별도 테이블로 둔다.
+// Notion AI chats (sidebar Chats tab). AI conversation threads, not
+// human↔human DMs — semantically distinct from chat_rooms above
+// (relationship-agent rooms), hence a separate table.
 // ---------------------------------------------------------------------------
 export const aiChats = pgTable(
   "ai_chats",
@@ -740,14 +748,14 @@ export const aiChats = pgTable(
     workspaceId: uuid("workspace_id").notNull(),
     userId: uuid("user_id").notNull(),
     title: text("title").default("New chat").notNull(),
-    icon: text("icon"), // emoji, null → 기본 아이콘
-    agentName: text("agent_name"), // Custom Agent로 시작한 채팅이면 그 이름
+    icon: text("icon"), // emoji, null → default icon
+    agentName: text("agent_name"), // if the chat started from a Custom Agent, its name
     isFavorite: boolean("is_favorite").default(false).notNull(),
-    // 목록 최상단 고정 (chats-pinned-section)
+    // pinned to the top of the list (chats-pinned-section)
     isPinned: boolean("is_pinned").default(false).notNull(),
-    // 미읽음 파란 점: 백그라운드에서 assistant 응답이 도착했고 아직 안 열어봄
+    // unread blue dot: an assistant reply arrived in the background, not yet opened
     hasUnread: boolean("has_unread").default(false).notNull(),
-    // 읽기전용 공유 토큰 (null → 비공개)
+    // read-only share token (null → private)
     shareToken: text("share_token").unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -764,7 +772,7 @@ export const aiChatMessages = pgTable(
       .notNull(),
     role: text("role").$type<"user" | "assistant">().notNull(),
     content: text("content").notNull(),
-    // 응답이 참조한 노션 페이지들 [{id,title}] (출처 표시용)
+    // Notion pages the reply cited, [{id,title}] (for source display)
     sources: jsonb("sources").$type<{ id: string; title: string }[]>().default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -772,11 +780,12 @@ export const aiChatMessages = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Custom Agents (사이드바 Chats 탭 위 Agents 섹션). 저장된 지침(instructions)으로
-// 새 ai_chats 스레드를 시작하는 프리셋 — agentName이 그 채팅에 남는다.
+// Custom Agents (Agents section above the sidebar Chats tab). Presets that
+// start a new ai_chats thread from saved instructions — agentName sticks to
+// that chat.
 // ---------------------------------------------------------------------------
-/** 에이전트가 참고할 지식 범위 — 명시 지정된 페이지 목록. pageIds가 비어있으면
- *  제한 없음(기존 동작과 동일). */
+/** Knowledge scope the agent may consult — an explicit page list. Empty
+ * pageIds = unrestricted (legacy behavior). */
 export interface AgentKnowledgeScope {
   pageIds?: string[];
 }
@@ -788,12 +797,12 @@ export const aiAgents = pgTable(
     workspaceId: uuid("workspace_id").notNull(),
     userId: uuid("user_id").notNull(),
     name: text("name").default("New agent").notNull(),
-    icon: text("icon"), // emoji, null → 기본 아이콘
+    icon: text("icon"), // emoji, null → default icon
     instructions: text("instructions").default("").notNull(),
     isFavorite: boolean("is_favorite").default(false).notNull(),
-    // 워크스페이스 구성원 전체에게 공유 (Notion: shared custom agents)
+    // shared with the whole workspace (Notion: shared custom agents)
     isShared: boolean("is_shared").default(false).notNull(),
-    // 이 에이전트가 참고할 페이지 범위 (지식 범위 섹션에서 편집)
+    // page scope this agent consults (edited in the knowledge-scope section)
     knowledgeScope: jsonb("knowledge_scope").$type<AgentKnowledgeScope>().default({}).notNull(),
     lastUsedAt: timestamp("last_used_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -803,8 +812,9 @@ export const aiAgents = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// AI 채팅 부가 기능 목(mock) — 커넥터/플랜 게이팅/알림 설정. 실제 OAuth·결제·푸시
-// 없이 결정론적 in-app 상태만 재현한다 (클론이므로 mock이 적절).
+// AI-chat auxiliary mocks — connectors / plan gating / notification prefs.
+// Deterministic in-app state only, no real OAuth, billing, or push (a clone,
+// so mocks are the right shape).
 // ---------------------------------------------------------------------------
 
 export type AiConnectorProvider = "slack" | "teams" | "drive";
@@ -825,7 +835,7 @@ export const aiConnectors = pgTable(
   (t) => [uniqueIndex("ai_connectors_user_provider_idx").on(t.userId, t.provider)]
 );
 
-// 워크스페이스 단위 AI 사용량/플랜 게이팅 목. workspaceId가 곧 PK (1행/워크스페이스).
+// per-workspace AI usage / plan-gating mock. workspaceId IS the PK (one row per workspace).
 export const aiUsage = pgTable("ai_usage", {
   workspaceId: uuid("workspace_id").primaryKey(),
   plan: text("plan").default("free").notNull(),
@@ -835,7 +845,7 @@ export const aiUsage = pgTable("ai_usage", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// 사용자 단위 알림 설정 목. userId가 곧 PK.
+// per-user notification prefs mock. userId IS the PK.
 export const aiNotifPrefs = pgTable("ai_notif_prefs", {
   userId: uuid("user_id").primaryKey(),
   enabled: boolean("enabled").default(true).notNull(),
@@ -844,7 +854,7 @@ export const aiNotifPrefs = pgTable("ai_notif_prefs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// per-chat 음소거: (userId, chatId) 존재 = 그 채팅 알림 음소거됨.
+// per-chat mute: a (userId, chatId) row = that chat's notifications are muted.
 export const aiChatMutes = pgTable(
   "ai_chat_mutes",
   {

@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     session.userId = user.id;
     session.ainAddress = user.ainAddress;
     session.challenge = undefined;
-    // 계정을 바꿔 로그인하면 이전 계정의 활성 워크스페이스는 무효 (demo-login과 동일)
+    // switching accounts invalidates the previous account's active workspace (same as demo-login)
     session.activeWorkspaceId = undefined;
     await session.save();
 

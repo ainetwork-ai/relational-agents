@@ -7,7 +7,7 @@ import { requireRoomAccess } from "@/lib/chat-room-access";
 
 export const dynamic = "force-dynamic";
 
-/** POST /api/dm/rooms/{roomId}/read → { ok } (내 읽음 시각을 지금으로) */
+/** POST /api/dm/rooms/{roomId}/read → { ok } (set my read marker to now) */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

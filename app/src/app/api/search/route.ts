@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
   if (!editedCutoff && fCreator !== "me") {
     try {
       const ql = q.toLowerCase();
-      // 참여자 전용 경로는 제목조차 노출하지 않는다 (관계 문서 프라이버시)
+      // participant-only paths leak nothing, not even titles (relationship-doc privacy)
       const gate = await okfGateFor(auth.user.id);
       for (const p of listPages()) {
         if (!gate.canReadId(p.id)) continue;

@@ -122,7 +122,7 @@ export async function getPagePermission(
 
   // No explicit grant: guests/non-members get none.
   if (!role || role === "guest") return null;
-  // Restricted pages (e.g. DM 관계 문서) default-DENY plain members without a
+  // Restricted pages (e.g. DM relationship docs) default-DENY plain members without a
   // grant — the whole point is participant-only privacy. Non-restricted pages
   // keep the workspace-wide default (backwards compatible).
   if (page.restricted) return null;

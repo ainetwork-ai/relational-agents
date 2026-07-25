@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /** Bottom-left undo toasts (Notion's "Moved to Trash — Undo"): every
- *  destructive action gets a 5s window to take it back (UIUX #88). */
+ * destructive action gets a 5s window to take it back. */
 export interface Toast {
   id: number;
   message: string;

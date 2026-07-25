@@ -1,4 +1,4 @@
-/** Page-load skeleton (UIUX #10): title + block bars while /p/[id] streams. */
+/** Page-load skeleton: title + block bars while /p/[id] streams. */
 export default function Loading() {
   return (
     <div data-testid="page-skeleton" className="mx-auto max-w-[708px] px-16 pt-24">

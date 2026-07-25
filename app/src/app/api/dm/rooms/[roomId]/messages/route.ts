@@ -18,7 +18,7 @@ interface Attachment {
   name: string;
 }
 
-/** 업로드 API가 돌려준 같은 오리진 /uploads/* 경로만 허용 (외부/스킴 주입 차단). */
+/** Only same-origin /uploads/* paths from the upload API are allowed (blocks external/scheme injection). */
 function parseAttachments(raw: unknown): Attachment[] | null {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) return null;
@@ -35,7 +35,7 @@ function parseAttachments(raw: unknown): Attachment[] | null {
   return out;
 }
 
-/** GET /api/dm/rooms/{roomId}/messages → { messages } (오름차순) */
+/** GET /api/dm/rooms/{roomId}/messages → { messages } (ascending) */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -51,7 +51,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 /** POST { text?, attachments?: [{url,name}] } → { message, autoRun? }.
- *  전송 = 읽음 처리, 멤버 인박스로 dm-message 알림(본문 미포함) 발행. */
+ *  Sending marks read and publishes a dm-message notice (no body) to member inboxes. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -70,13 +70,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (text.length > MAX_TEXT)
     return NextResponse.json({ error: `Text too long (max ${MAX_TEXT})` }, { status: 400 });
 
-  // authorId는 항상 세션 사용자 — 클라이언트 지정 금지(위조 방지)
+  // authorId is always the session user — never client-supplied (no spoofing)
   const [message] = await db
     .insert(chatMessages)
     .values({ roomId, authorId: auth.user.id, text, attachments })
     .returning();
 
-  // 보낸 사람은 자기 메시지를 읽은 것 — 미읽음 계산 기준선 갱신
+  // the sender has read their own message — advance the unread baseline
   await db
     .update(chatRoomMembers)
     .set({ lastReadAt: new Date() })
@@ -87,10 +87,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     clientId: req.headers.get("x-client-id"),
   });
 
-  // dm 방도 agent 방과 같은 수확 트리거를 공유 — K건 누적 즉시 / 유휴 예약
+  // DM rooms share the agent rooms' harvest trigger — K+ pending now / idle scheduling
   const autoRun = await maybeAutoRun(room);
 
-  // 방에 임포트된 봇들에게 A2A 배달 (스펙 v2 §5) — 응답을 막지 않는 fire-and-forget
+  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response
   void dispatchToRoomBots(room, message).catch((err) =>
     console.error("bot dispatch failed:", err)
   );

@@ -44,7 +44,7 @@ interface DmMessage {
 
 const TYPING_TTL_MS = 3_500;
 const TYPING_PING_MS = 2_000;
-/** 타이핑이 멈춘 뒤 초안 검증을 부르기까지의 대기 (전송은 이와 무관하게 즉시). */
+/** Delay before guarding the draft after typing stops (sending is instant regardless). */
 const GUARD_DEBOUNCE_MS = 800;
 const MAX_ATTACHMENTS = 8;
 
@@ -61,8 +61,9 @@ function dateLabel(iso: string): string {
   });
 }
 
-/** 사람↔사람 DM 방 뷰 — 실시간 수신(SSE 인박스), 사진 첨부, 초대/이름변경/나가기,
- *  에이전트 "AI 정리"(관계 문서 생성)까지 한 화면. */
+/** Human↔human DM room view — realtime receive (SSE inbox), photo
+ *  attachments, invite/rename/leave, and the agent's "AI organize"
+ *  (relationship-doc creation), all in one screen. */
 export function DmView({ roomId }: { roomId: string }) {
   const router = useRouter();
   const show = useToastStore((s) => s.show);
@@ -89,14 +90,14 @@ export function DmView({ roomId }: { roomId: string }) {
   const [renameDraft, setRenameDraft] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [organizing, setOrganizing] = useState(false);
-  // 관계 에이전트: 방에 초대됐는지 + 초대 진행중
+  // relationship agent: whether it's invited + invite in flight
   const [hasAgent, setHasAgent] = useState<boolean | null>(null);
   const [inviting, setInviting] = useState(false);
-  // 발송 전 사실검증(decline). 전송 경로는 건드리지 않는다 — 타이핑 중 병렬 확인만.
+  // pre-send fact check (decline). The send path is untouched — parallel checking while typing only.
   const [guard, setGuard] = useState<GuardResult | null>(null);
   const [guardedText, setGuardedText] = useState("");
 
-  // 탭 단위 클라이언트 id — 자기 SSE echo 무시용 (x-client-id 헤더로 동봉)
+  // per-tab client id — for ignoring our own SSE echo (sent as x-client-id)
   const clientId = useMemo(() => newId(), []);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -105,7 +106,7 @@ export function DmView({ roomId }: { roomId: string }) {
   const lastTypingSentRef = useRef(0);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  // 탭이 실제로 보일 때만 읽음 처리 — 백그라운드에서 도착한 메시지는 배지를 유지.
+  // mark read only while the tab is actually visible — background arrivals keep their badge.
   const pendingReadRef = useRef(false);
   const markRead = useCallback(async () => {
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
@@ -118,7 +119,7 @@ export function DmView({ roomId }: { roomId: string }) {
   }, [roomId, markReadLocal]);
 
   const loadedRef = useRef(false);
-  /** 이 방에 관계 에이전트가 초대돼 있는지 확인 (헤더 버튼 노출 판단). */
+  /** Check whether this room has the relationship agent (drives the header button). */
   const loadAgent = useCallback(async () => {
     const res = await fetch(`/api/dm/rooms/${roomId}/agent`);
     setHasAgent(res.ok);
@@ -140,7 +141,7 @@ export function DmView({ roomId }: { roomId: string }) {
         messages: DmMessage[];
       };
       loadedRef.current = true;
-      // meId를 room/messages와 원자적으로 세팅 → 버블 좌우/타이핑 판정 레이스 제거
+      // set meId atomically with room/messages → no races in bubble sides / typing judgments
       setMeId(data.meId);
       setRoom(data.room);
       setMembers(data.members);
@@ -150,7 +151,7 @@ export function DmView({ roomId }: { roomId: string }) {
       setLoading(false);
       void markRead();
     } catch {
-      // 일시 네트워크 오류: 첫 로드면 에러 표시, 이미 표시 중이면 유지(SSE hello가 재시도)
+      // transient network error: show it on first load, keep the view if already shown (SSE hello retries)
       setLoading(false);
       if (!loadedRef.current) setError("Could not load the conversation.");
     }
@@ -165,7 +166,7 @@ export function DmView({ roomId }: { roomId: string }) {
   }, [roomId, markRead]);
 
   useEffect(() => {
-    // fetch-on-mount: meId는 이 GET 응답에 실려 오므로 별도 /api/auth/me 레이스가 없다
+    // fetch-on-mount: meId rides in this GET, so no separate /api/auth/me race
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAll();
   }, [loadAll]);
@@ -175,8 +176,9 @@ export function DmView({ roomId }: { roomId: string }) {
     void loadAgent();
   }, [loadAgent]);
 
-  // 타이핑이 멈추면 초안을 검증한다. **전송 경로는 건드리지 않는다** — 검증은 병렬이고,
-  // 결과가 늦어도 발송은 지연되지 않는다. 텍스트가 바뀌면 이전 판정은 무효(버전 가드).
+  // guard the draft once typing stops. **The send path is untouched** — the
+  // check runs in parallel and a late result never delays sending. A text
+  // change invalidates the old verdict (version guard).
   useEffect(() => {
     if (!input.trim()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -195,17 +197,17 @@ export function DmView({ roomId }: { roomId: string }) {
         setGuard((await res.json()) as GuardResult);
         setGuardedText(draft);
       } catch {
-        /* 검증 실패는 조용히 무시 — 발송을 막지 않는다 */
+        /* guard failures are silently ignored — sending is never blocked */
       }
     }, GUARD_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [input, roomId]);
 
-  /** 지금 초안에 대한 유효한 차단 판정인가 (텍스트가 바뀌면 무효) */
+  /** is the decline verdict still valid for this draft (text change invalidates) */
   const declined =
     guard?.verdict === "decline" && guard.checked && guardedText === input && input.trim().length > 0;
 
-  // 탭이 다시 보이면 밀린 읽음 처리를 반영 (백그라운드 도착분의 배지를 끈다)
+  // when the tab becomes visible again, flush pending read marks (clears badges for background arrivals)
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && pendingReadRef.current) void markRead();
@@ -214,12 +216,12 @@ export function DmView({ roomId }: { roomId: string }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [markRead]);
 
-  // 로드 후 컴포저 자동 포커스
+  // auto-focus the composer after load
   useEffect(() => {
     if (!loading && !error) composerRef.current?.focus();
   }, [loading, error]);
 
-  // 새 메시지/타이핑 변화 시 맨 아래로
+  // scroll to bottom on new messages / typing changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, typing]);
@@ -228,7 +230,7 @@ export function DmView({ roomId }: { roomId: string }) {
     if (renaming) renameRef.current?.focus();
   }, [renaming]);
 
-  // 만료된 타이핑 표시 제거
+  // drop expired typing indicators
   useEffect(() => {
     const t = setInterval(() => {
       setTyping((prev) => {
@@ -244,7 +246,7 @@ export function DmView({ roomId }: { roomId: string }) {
     (event) => {
       if (event.roomId !== roomId) return;
       if (event.type === "dm-typing") {
-        // 자기 탭 echo(clientId) + 자기 다른 탭(user.id) 모두 무시
+        // ignore both this tab's echo (clientId) and my other tabs (user.id)
         if (event.clientId && event.clientId === clientId) return;
         if (!event.user || event.user.id === meId) return;
         const u = event.user;
@@ -255,14 +257,14 @@ export function DmView({ roomId }: { roomId: string }) {
         return;
       }
       if (event.type === "dm-message") {
-        if (event.clientId && event.clientId === clientId) return; // 내 echo — POST 응답에서 이미 반영
+        if (event.clientId && event.clientId === clientId) return; // my echo — already applied from the POST response
         void refetchMessages();
         return;
       }
-      // dm-room: 이름/멤버 변경 (내가 제거된 경우 403/404 → error 표시)
+      // dm-room: name/member changes (if I was removed, 403/404 → show error)
       void loadAll();
     },
-    // SSE (재)연결 — 끊긴 사이의 메시지를 복구
+    // SSE (re)connect — recover messages missed while down
     () => void loadAll()
   );
 
@@ -279,7 +281,7 @@ export function DmView({ roomId }: { roomId: string }) {
   async function send(force = false) {
     const text = input.trim();
     if ((!text && pendingAtt.length === 0) || sending) return;
-    // 기록과 어긋나는 초안은 한 번 멈춰 세운다. 강제발송(force)은 사람이 결정.
+    // a draft contradicting the record gets stopped once. Force-send is the human's call.
     if (declined && !force) return;
     setSending(true);
     try {
@@ -293,8 +295,8 @@ export function DmView({ roomId }: { roomId: string }) {
         show(`Failed to send: ${data?.error ?? res.status}`);
         return;
       }
-      // id로 중복 제거 — 상대 메시지가 POST와 레이스해 refetch가 먼저 이 메시지를
-      // 실어와도 이중 버블(및 React key 충돌)이 나지 않게 한다
+      // dedupe by id — if the partner's refetch races the POST and delivers
+      // this message first, no double bubble (or React key clash)
       setMessages((prev) => {
         const msg = data.message as DmMessage;
         return prev.some((m) => m.id === msg.id) ? prev : [...prev, msg];
@@ -305,7 +307,7 @@ export function DmView({ roomId }: { roomId: string }) {
       if (data.autoRun?.rootPageId) {
         setRoom((r) => (r ? { ...r, rootPageId: data.autoRun.rootPageId } : r));
       }
-      void loadRooms(); // 사이드바 미리보기/순서 갱신
+      void loadRooms(); // refresh sidebar previews/order
     } finally {
       setSending(false);
       composerRef.current?.focus();
@@ -400,8 +402,8 @@ export function DmView({ roomId }: { roomId: string }) {
     router.push("/");
   }
 
-  /** 관계 에이전트 초대 = 상호 동의 완료 처리 + 에이전트 생성(전용 키·A2A URL·멤버 토큰).
-   *  (원안은 멤버별 서명 — 데모에서는 버튼 1회 클릭을 동의로 본다) */
+  /** Inviting the relationship agent = provisioning it (own key, A2A URL,
+   *  member tokens). Requires the signed contract (consentAt) upstream. */
   async function inviteAgent() {
     if (inviting) return;
     setInviting(true);

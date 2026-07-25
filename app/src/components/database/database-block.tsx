@@ -532,7 +532,7 @@ export function DatabaseBlock({
                   groupByPropertyId: (
                     propsRef.current.find((p) => p.type === "status") ??
                     propsRef.current.find(
-                      (p) => p.type === "select" && /status|상태|state/i.test(p.name)
+                      (p) => p.type === "select" && /status|state/i.test(p.name)
                     ) ??
                     propsRef.current.find((p) => p.type === "select")
                   )?.id,

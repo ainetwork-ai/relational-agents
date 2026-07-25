@@ -4,9 +4,9 @@ import { CheckCheck, Filter } from "lucide-react";
 import { useAiChatsStore } from "@/stores/ai-chats";
 
 /**
- * Chats 패널 상단 툴바: 미읽음만 보기 토글 + 모두 읽음.
- * chats-panel.tsx는 다른 세션도 편집 중일 수 있어 별도 컴포넌트로 분리하고,
- * 패널에는 삽입 한 줄만 남긴다.
+ * Toolbar atop the Chats panel: unread-only toggle + mark-all-read.
+ * chats-panel.tsx may be edited by other sessions too, so this lives as its
+ * own component — the panel keeps a single insertion line.
  */
 export function ChatsToolbar() {
   const unreadOnly = useAiChatsStore((s) => s.unreadOnly);

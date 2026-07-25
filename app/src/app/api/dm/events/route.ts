@@ -5,10 +5,11 @@ import { dmInboxChannel } from "@/lib/chat-room-access";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/dm/events — 내 DM 인박스 SSE 스트림.
- * 채널 키는 세션에서 유도(dm-inbox:<userId>)하므로 남의 인박스는 구독 불가.
- * 이벤트: data: {"type":"dm-message"|"dm-room"|"dm-typing","roomId","clientId","at",("user")}
- * — 메시지 본문은 싣지 않는다(알림 전용); 수신자는 refetch. 25초 하트비트.
+ * GET /api/dm/events — my DM inbox SSE stream.
+ * The channel key derives from the session (dm-inbox:<userId>), so nobody can
+ * subscribe to someone else's inbox.
+ * Events: data: {"type":"dm-message"|"dm-room"|"dm-typing","roomId","clientId","at",("user")}
+ * — no message bodies (notification-only); receivers refetch. 25s heartbeat.
  */
 export async function GET(req: Request) {
   const auth = await requireAuth();

@@ -40,10 +40,10 @@ export async function GET(
 ) {
   const { pageId } = await params;
 
-  // 실시간 버스는 페이지·DB·DM 인박스가 하나의 문자열 키스페이스를 공유한다.
-  // 페이지 이벤트 키(uuid)·OKF id(base64url)는 콜론을 담지 않지만 DM 인박스 키는
-  // `dm-inbox:<userId>` 라 콜론을 포함한다 → 콜론이 있는 키 구독을 거절해, 남의
-  // DM 인박스를 이 라우트로 도청하는 것을 원천 차단한다.
+  // The realtime bus shares one string keyspace across pages, DBs, and DM
+  // inboxes. Page keys (uuid) and OKF ids (base64url) never contain a colon;
+  // DM inbox keys (`dm-inbox:<userId>`) do → refusing colon keys here makes
+  // eavesdropping on someone's DM inbox via this route structurally impossible.
   if (pageId.includes(":")) return new Response("Not found", { status: 404 });
 
   ensureFsWatcher(); // disk edits must sync live too — the folder is the backend

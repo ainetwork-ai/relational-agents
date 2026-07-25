@@ -3,11 +3,12 @@
 import { create } from "zustand";
 import { newId } from "@/lib/compat";
 
-// 이 탭의 클라이언트 id — 뮤테이션 fetch에 x-client-id로 실어 자기 SSE echo를
-// 서버·수신자가 구분하게 한다 (dm-view/사이드바 브릿지와 동일한 규약).
+// this tab's client id — sent as x-client-id on mutation fetches so server
+// and receivers can tell our own SSE echo apart (same convention as the
+// dm-view/sidebar bridge).
 const TAB_CLIENT_ID = newId();
 
-/** API가 내려주는 PublicUser의 클라이언트 표현 (날짜는 JSON 직렬화로 문자열). */
+/** Client shape of the API's PublicUser (dates arrive JSON-serialized as strings). */
 export interface DmUser {
   id: string;
   displayName: string;
@@ -33,8 +34,9 @@ export interface DmRoomSummary {
   unreadCount: number;
 }
 
-/** 방 표시 이름: 지정 이름 > 나를 뺀 멤버 이름들 > 상대 없음 표시.
- *  self-DM 기능은 없으므로 "others 0명"은 상대가 모두 나간 방 → 중립 라벨. */
+/** Room display name: explicit name > other members' names > no-partner
+ *  label. There is no self-DM, so "zero others" means everyone left → a
+ *  neutral label. */
 export function dmRoomLabel(room: DmRoomSummary, meId: string | null): string {
   if (room.name) return room.name;
   const others = room.members.filter((m) => m.id !== meId);
@@ -47,7 +49,7 @@ interface DmRoomsState {
   loaded: boolean;
   load: () => Promise<void>;
   create: (memberIds: string[], name?: string) => Promise<DmRoomSummary>;
-  /** local: 미읽음 배지 즉시 제거 (서버 read POST와 별개) */
+  /** local: clear the unread badge immediately (independent of the server read POST) */
   markReadLocal: (roomId: string) => void;
 }
 
@@ -83,7 +85,7 @@ export const useDmRoomsStore = create<DmRoomsState>()((set) => ({
     })),
 }));
 
-/** 전체 미읽음 합 — 사이드바 Chats 탭 배지용 셀렉터. */
+/** Total unread — selector for the sidebar Chats tab badge. */
 export function totalDmUnread(rooms: DmRoomSummary[]): number {
   return rooms.reduce((n, r) => n + r.unreadCount, 0);
 }

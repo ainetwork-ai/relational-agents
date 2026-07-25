@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 // NB: no global `title` — /p/[pageId] owns its <title> via a React 19 title
 // element that live-updates while typing; a layout-level metadata title would
-// sit first in <head> and win over it (parity R009).
+// sit first in <head> and win over it.
 export const metadata: Metadata = {
   description: "Think it. Write it. All in one place.",
 };

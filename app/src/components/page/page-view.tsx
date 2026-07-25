@@ -44,7 +44,7 @@ export function PageView({
   }, [initialPage.id, recordRecent]);
 
   // Remember and restore the scroll position per page, so navigating back
-  // returns to where the reader left off (#30). Restore retries briefly
+  // returns to where the reader left off. Restore retries briefly
   // because block content can grow the scroll height after mount.
   useEffect(() => {
     const main = document.querySelector('main[aria-label="Page content"]');
@@ -95,7 +95,7 @@ export function PageView({
   return (
     <div className="min-h-full pb-32">
       {/* React 19 hoists this and keeps ownership — direct document.title
-          writes get reverted to the layout metadata on re-commits (R009) */}
+          writes get reverted to the layout metadata on re-commits */}
       <title>{title.trim() ? title : "Untitled"}</title>
       <div className="sticky top-0 z-30 flex items-center justify-between gap-1 bg-white px-3 py-1.5 dark:bg-[#191919]">
         <Breadcrumbs pageId={initialPage.id} />
@@ -240,7 +240,7 @@ export function PageView({
   );
 }
 
-/** Page cover: add/change/remove a cover image by URL (Notion parity). */
+/** Page cover: add/change/remove a cover image by URL. */
 function CoverControls({
   coverUrl,
   onSet,
@@ -253,7 +253,7 @@ function CoverControls({
   const [repositioning, setRepositioning] = useState(false);
   const [pos, setPos] = useState(50);
 
-  // subtle parallax: the cover image trails the page scroll a little (#7)
+  // subtle parallax: the cover image trails the page scroll a little
   useEffect(() => {
     if (!coverUrl) return;
     const main = document.querySelector('main[aria-label="Page content"]');
@@ -346,7 +346,7 @@ function CoverControls({
             alt=""
             style={{ objectPosition: `50% ${repositioning ? pos : savedPos}%` }}
             onPointerDown={(e) => {
-              // Notion: while repositioning, drag the image itself (#7)
+              // Notion: while repositioning, drag the image itself
               if (!repositioning) return;
               e.preventDefault();
               const startY = e.clientY;
@@ -468,7 +468,7 @@ const GRADIENTS: Record<string, string> = {
 }
 
 /** "Copy link": copies this page's own URL (always available, unlike the
- *  public-share link which only exists after publishing). Notion behavior. */
+ * public-share link which only exists after publishing). Notion behavior. */
 function CopyLinkButton({ pageId }: { pageId: string }) {
   const [copied, setCopied] = useState(false);
   return (

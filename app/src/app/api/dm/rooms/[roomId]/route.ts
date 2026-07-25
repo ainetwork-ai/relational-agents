@@ -17,7 +17,7 @@ import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access"
 export const dynamic = "force-dynamic";
 const MAX_NAME = 200;
 
-/** GET/PATCH 공통 방 표현 — 두 응답의 shape가 갈라지지 않게 한 곳에서 만든다. */
+/** Shared room shape for GET/PATCH — built in one place so the two responses never diverge. */
 function toDmRoom(room: ChatRoom, rootPageId: string | null) {
   return {
     id: room.id,
@@ -37,11 +37,11 @@ async function roomRootPageId(roomId: string): Promise<string | null> {
     })
     .from(agentRoomStates)
     .where(eq(agentRoomStates.roomId, roomId));
-  // 관계 문서는 OKF 파일이 원본 — 인코딩된 OKF id를 우선 (레거시 방은 uuid)
+  // relationship docs are OKF-file-canonical — prefer the encoded OKF id (legacy rooms: uuid)
   return docPageIdOf(state);
 }
 
-/** dm 방 전용 접근: 멤버가 아니거나 dm 방이 아니면 거절. */
+/** DM-room access: refuse non-members and non-DM rooms. */
 async function requireDmRoom(roomId: string, userId: string) {
   const access = await requireRoomAccess(roomId, userId);
   if ("error" in access) return access;
@@ -69,7 +69,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     .where(eq(chatMessages.roomId, roomId))
     .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
 
-  // 나간 멤버의 과거 메시지도 이름/아바타를 그리기 위해 작성자 전원을 함께 내려준다
+  // include every author so past messages from departed members still render names/avatars
   const memberIds = memberRows.map((m) => m.userId);
   const authorIds = [...new Set(messages.map((m) => m.authorId))];
   const allIds = [...new Set([...memberIds, ...authorIds])];
@@ -79,7 +79,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const publicById = new Map(userRows.map((u) => [u.id, toPublicUser(u)]));
 
   return NextResponse.json({
-    // meId를 한 응답에 포함 → 클라이언트가 별도 /api/auth/me 를 레이스로 부르지 않는다
+    // meId rides along → the client never races a separate /api/auth/me call
     meId: auth.user.id,
     room: toDmRoom(room, await roomRootPageId(roomId)),
     members: memberIds
@@ -93,7 +93,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   });
 }
 
-/** PATCH /api/dm/rooms/{roomId} { name } → { room } (방 이름 변경) */
+/** PATCH /api/dm/rooms/{roomId} { name } → { room } (rename) */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

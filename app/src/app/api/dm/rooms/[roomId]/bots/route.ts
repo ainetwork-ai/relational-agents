@@ -8,10 +8,11 @@ import { requireRoomAccess } from "@/lib/chat-room-access";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/dm/rooms/{roomId}/bots { a2aUrl } — 임의 A2A 봇 임포트 (스펙 v2 §7-1).
- * 카드(fetch: a2aUrl 자체 GET → 실패 시 /.well-known/agent-card.json)를 읽어
- * users(isAgent)로 등록하고 방에 임포트한다. 프로바이더 무관 — 우리 관계
- * 에이전트와 동일한 chat_room_bots 경로를 쓴다.
+ * POST /api/dm/rooms/{roomId}/bots { a2aUrl } — import any A2A bot (spec v2
+ * §7-1). Reads the card (fetch: GET the a2aUrl itself → fall back to
+ * /.well-known/agent-card.json), registers it as an isAgent user, and imports
+ * it into the room. Provider-agnostic — same chat_room_bots path as our own
+ * relationship agent.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (!/^https?:\/\//.test(a2aUrl))
     return NextResponse.json({ error: "a2aUrl must be http(s)" }, { status: 400 });
 
-  // 카드 발견: ① URL 직접(Direct Configuration) ② 도메인 well-known
+  // card discovery: ① the URL directly (Direct Configuration) ② the domain's well-known
   let card: Record<string, unknown> | null = null;
   for (const cardUrl of [
     a2aUrl,
@@ -49,13 +50,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   }
   if (!card) return NextResponse.json({ error: "Agent card not found at URL" }, { status: 422 });
 
-  // 같은 a2aUrl의 봇이 이미 등록돼 있으면 재사용
+  // a bot already registered under this a2aUrl is reused
   let [agent] = await db.select().from(users).where(eq(users.a2aUrl, a2aUrl));
   if (!agent) {
     [agent] = await db
       .insert(users)
       .values({
-        ainAddress: `a2a:${a2aUrl}`.slice(0, 120), // 외부 봇 — 지갑 없음, 유니크 식별자
+        ainAddress: `a2a:${a2aUrl}`.slice(0, 120), // external bot — no wallet, unique identifier
         displayName: String(card.name).slice(0, 80),
         isAgent: true,
         a2aUrl,

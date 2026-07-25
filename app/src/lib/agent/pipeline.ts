@@ -20,7 +20,7 @@ import {
 } from "./okf-docs";
 import { parseEdits, SECTIONS, type DocEdit } from "./parse-edits";
 
-/** 채팅 라우트 확정 시 여기만 교체 (스펙 §6 — 출처 딥링크 프리픽스). */
+/** Swap only this when the chat route settles (source deep-link prefix). */
 export const CHAT_ROUTE_PREFIX = "/agent-lab";
 
 export interface RunResult {
@@ -30,23 +30,23 @@ export interface RunResult {
   skipped?: string;
 }
 
-/** 방별 실행 뮤텍스 — 수동/누적/유휴 트리거가 겹쳐도 동시 이중 적용 방지.
- *  단일 next-server 프로세스 전제(데모 규모). */
+/** Per-room run mutex — manual/threshold/idle triggers can overlap without
+ * double-applying. Assumes a single next-server process (demo scale). */
 const running = new Map<string, Promise<RunResult>>();
 
-/** 관계 문서는 전역 OKF 파일 루트에 쓰므로 워크스페이스 인자가 필요 없다. */
+/** Relationship docs write to the global OKF file root — no workspace argument needed. */
 export function runPipeline(roomId: string): Promise<RunResult> {
   const prev = running.get(roomId) ?? Promise.resolve(undefined as unknown as RunResult);
   const next = prev.catch(() => undefined).then(() => runOnce(roomId));
   running.set(roomId, next);
-  // cleanup은 파생 promise를 만들되 reject를 삼켜 unhandledRejection을 막는다
+  // cleanup derives a promise but swallows the reject, preventing unhandledRejection
   next.catch(() => {}).finally(() => {
     if (running.get(roomId) === next) running.delete(roomId);
   });
   return next;
 }
 
-/** 오프라인/테스트 경로(AGENT_FAKE_LLM=1): 배치를 결정적으로 반영. */
+/** Offline/test path (AGENT_FAKE_LLM=1): applies the batch deterministically. */
 function fakeEdits(batch: ChatMessage[]): DocEdit[] {
   const ids = batch.map((m) => m.id);
   return [
@@ -85,8 +85,9 @@ async function llmEdits(
   return parseEdits(raw);
 }
 
-/** 스펙 §4: 수집→문서 보장→편집 생성→적용(+출처)→체크포인트. 적용과 처리
- *  마킹은 한 트랜잭션(부분 적용→중복 재수집 방지). 멱등. */
+/** Spec §4: collect → ensure doc → generate edits → apply (+sources) →
+ * checkpoint. Apply and mark-processed share one transaction (partial apply
+ * → no duplicate re-collection). Idempotent. */
 async function runOnce(roomId: string): Promise<RunResult> {
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   if (!room) throw new Error(`agent: room ${roomId} not found`);
@@ -94,7 +95,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   if (!room.consentAt)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no consent yet" };
 
-  // 미처리(processedAt IS NULL) + 동의 이후 메시지만 (스펙 §2·§4-1)
+  // unprocessed (processedAt IS NULL) + post-consent messages only
   const batch = await db
     .select()
     .from(chatMessages)
@@ -106,12 +107,12 @@ async function runOnce(roomId: string): Promise<RunResult> {
       )
     )
     .orderBy(asc(chatMessages.createdAt))
-    .limit(200); // LLM 프롬프트 폭주 방지 — 초과분은 다음 실행에서 처리(멱등)
+    .limit(200); // caps LLM prompt blowup — the excess waits for the next run (idempotent)
   if (!batch.length)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no new messages" };
 
-  // 참여자 = 방 멤버 + 생성자. OKF 파일 트리엔 권한이 없으므로 okf_acl이
-  // 이 목록으로 문서(폴더 이하 전체)를 참여자 전용으로 만든다.
+  // participants = room members + creator. The OKF tree has no permissions,
+  // so okf_acl uses this list to make the doc (folder and below) participant-only.
   const memberIds = (
     await db
       .select({ userId: chatRoomMembers.userId })
@@ -120,7 +121,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   ).map((m) => m.userId);
   const participants = [...new Set([room.createdBy, ...memberIds])];
 
-  // 관계 문서는 OKF 파일이 원본이다 (CLAUDE.md: 폴더=콘텐츠 DB).
+  // the relationship doc is OKF-file-canonical (CLAUDE.md: folder = content DB).
   const tree = ensureOkfDocTree(roomId, room.name, {
     rootPath: state0?.rootOkfPath,
     sectionPaths: state0?.sectionOkfPaths,
@@ -130,14 +131,14 @@ async function runOnce(roomId: string): Promise<RunResult> {
   const current = readOkfSectionTexts(tree);
   const rawEdits =
     process.env.AGENT_FAKE_LLM === "1" ? fakeEdits(batch) : await llmEdits(batch, current, room.name);
-  // 출처 위조 방지: sourceMessageIds는 이번 배치에 실존하는 id만 인정
+  // source forgery prevention: sourceMessageIds only count if they exist in this batch
   const batchIds = new Set(batch.map((m) => m.id));
   const edits = rawEdits.map((e) => ({
     ...e,
     sourceMessageIds: e.sourceMessageIds.filter((id) => batchIds.has(id)),
   }));
 
-  // 파일에 적용 — 섹션 .md 끝에 덧붙인다(통째 덮어쓰기 금지, 기존 정리 보존).
+  // apply to files — append at the section .md's end (never overwrite wholesale; keeps prior curation).
   for (const edit of edits) {
     const rel = tree.sectionPaths[edit.section];
     if (!rel) continue;
@@ -158,9 +159,10 @@ async function runOnce(roomId: string): Promise<RunResult> {
     appendOkfLines(rel, title, lines, okfDocMeta(roomId, edit.section));
   }
 
-  // 파일 쓰기가 끝난 뒤에만 체크포인트를 전진시킨다. 파일은 DB 트랜잭션에
-  // 참여할 수 없으므로, 쓰기 성공 후 DB가 실패하면 다음 실행이 같은 배치를
-  // 다시 반영한다(중복 라인) — 파일-원본 모델의 알려진 트레이드오프.
+  // the checkpoint advances only after file writes finish. Files can't join
+  // the DB transaction, so if the DB fails after a successful write the next
+  // run re-applies the same batch (duplicate lines) — a known trade-off of
+  // the file-canonical model.
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx
@@ -194,8 +196,8 @@ async function runOnce(roomId: string): Promise<RunResult> {
   };
 }
 
-/** 방 상태 → 문서 루트를 열 수 있는 페이지 id. OKF(현행)를 우선하고,
- *  Postgres에 문서를 두던 시절의 방은 레거시 uuid를 그대로 돌려준다. */
+/** Room state → a page id that opens the doc root. Prefers OKF (current);
+ * rooms from the Postgres-doc era return their legacy uuid unchanged. */
 export function docPageIdOf(
   state: { rootOkfPath?: string | null; rootPageId?: string | null } | undefined
 ): string | null {

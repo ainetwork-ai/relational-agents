@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   } catch {
     return new Response("bad id", { status: 400 });
   }
-  // 참여자 전용 경로의 첨부는 멤버에게만 (본문과 같은 게이트)
+  // attachments under participant-only paths are member-only (same gate as bodies)
   const gate = await okfGateFor(auth.user.id);
   if (!gate.canRead(rel)) return new Response("not found", { status: 404 });
   const root = okfRoot();

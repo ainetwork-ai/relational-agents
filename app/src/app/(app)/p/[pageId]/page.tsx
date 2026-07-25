@@ -33,7 +33,7 @@ export default async function PageRoute({
   // page whose body is the single database view (a synthetic `database` block
   // that reads /api/databases/{id}, served from the CSV). No parallel view.
   if (isOkfId(pageId)) {
-    // 참여자 전용 OKF 경로(관계 문서)는 멤버가 아니면 존재를 숨긴다
+    // participant-only OKF paths (relationship docs) hide their existence from non-members
     const gate = await okfGateFor(session.userId);
     if (!gate.canReadId(pageId)) notFound();
     let node = null;

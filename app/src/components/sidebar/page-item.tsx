@@ -77,7 +77,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   function onGripPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
-    // live three-zone preview (above / inside / below) while dragging (#21)
+    // live three-zone preview (above / inside / below) while dragging
     const onMove = (ev: PointerEvent) => {
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
       const row = el?.closest('[data-testid^="page-tree-item-"]') as HTMLElement | null;
@@ -162,7 +162,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
           aria-label={expanded ? "Collapse" : "Expand"}
         >
-          {/* Notion swaps the page icon for the chevron on row hover (#16) */}
+          {/* Notion swaps the page icon for the chevron on row hover */}
           <span className="text-[15px] leading-none group-hover:hidden">
             <PageIcon icon={page.icon} fallback="📄" />
           </span>

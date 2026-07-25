@@ -2,7 +2,7 @@
 
 import type { DmUser } from "@/stores/dm-rooms";
 
-/** DM용 아바타: avatarUrl 있으면 이미지, 없으면 이름 첫 글자 (members-modal 관례). */
+/** DM avatar: image when avatarUrl exists, else the name's first letter (members-modal convention). */
 export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.max(10, size * 0.45) };
   if (user.avatarUrl) {

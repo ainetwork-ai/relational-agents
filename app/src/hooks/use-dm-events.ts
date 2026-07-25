@@ -9,14 +9,15 @@ export interface DmEvent {
   roomId?: string;
   clientId: string | null;
   at: number;
-  /** dm-typing이 입력 중인 사용자를 싣는다 */
+  /** dm-typing carries the user who is typing */
   user?: DmUser;
 }
 
 /**
- * 내 DM 인박스(/api/dm/events) 구독. 스트림은 subscribeSse 풀로 공유되므로
- * 사이드바·DM 뷰가 동시에 써도 EventSource는 탭당 1개다.
- * hello(=초기 연결/재연결)는 onHello로 — 끊긴 사이 이벤트는 refetch로 복구.
+ * Subscribes to my DM inbox (/api/dm/events). The stream is shared through
+ * the subscribeSse pool, so sidebar + DM view together still cost one
+ * EventSource per tab. hello (= initial connect/reconnect) goes to onHello —
+ * events missed while down are recovered by refetch.
  */
 export function useDmEvents(onEvent: (event: DmEvent) => void, onHello?: () => void) {
   const onEventRef = useRef(onEvent);

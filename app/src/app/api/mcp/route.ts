@@ -51,9 +51,10 @@ export const dynamic = "force-dynamic";
  * Tool names follow Notion's `notion-*` convention and content flows as
  * Notion-flavored Markdown, matching the official server's agent-first design.
  *
- * 인증(필수): OKF 파일에는 참여자 전용 콘텐츠가 있으므로 이 표면도 okf_acl 게이트를
- * 통과한다. 세 신원: (1) Bearer <agent token> = 그 에이전트, (2) Bearer
- * <MCP_SERVICE_TOKEN> = 서비스(공개 읽기 전용), (3) 세션 쿠키 = 그 사용자.
+ * Auth (required): OKF files hold participant-only content, so this surface
+ * passes the okf_acl gate too. Three identities: (1) Bearer <agent token> =
+ * that agent, (2) Bearer <MCP_SERVICE_TOKEN> = service (public read-only),
+ * (3) session cookie = that user.
  */
 
 // ── request-scoped identity (handler is built once → AsyncLocalStorage) ──────

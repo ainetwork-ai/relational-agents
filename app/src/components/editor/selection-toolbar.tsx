@@ -45,7 +45,7 @@ function exec(
 }
 
 /**
- * Floating inline-format toolbar (Notion parity R005). Appears above a
+ * Floating inline-format toolbar. Appears above a
  * non-collapsed selection inside the block editor; applies formats with
  * execCommand so the browser handles range splitting.
  */
@@ -110,7 +110,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
 
   // Cmd/Ctrl+E → inline code, Cmd/Ctrl+K with a selection → link.
   // Selection is computed LIVE — depending on `state` races the keystroke
-  // that follows Ctrl+A before React commits the toolbar (S122).
+  // that follows Ctrl+A before React commits the toolbar.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;

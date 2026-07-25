@@ -5,8 +5,8 @@ import { requireAuth } from "@/lib/auth/middleware";
 
 export const runtime = "nodejs";
 
-// image/svg+xml은 제외 — SVG는 같은 오리진에서 열면 스크립트를 실행할 수 있어
-// (stored XSS) 이미지 첨부로 받지 않는다.
+// image/svg+xml is excluded — an SVG opened same-origin can run scripts
+// (stored XSS), so it is not accepted as an image attachment.
 const ALLOWED = new Set([
   "image/png",
   "image/jpeg",

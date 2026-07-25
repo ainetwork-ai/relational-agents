@@ -48,7 +48,7 @@ export async function POST(
     .values({ workspaceId: invite.workspaceId, userId: auth.user.id, role: "member" })
     .onConflictDoNothing();
 
-  // 수락 즉시 그 워크스페이스로 전환 — 합류했는데 자기 워크스페이스에 남는 혼란 방지
+  // switch to that workspace on accept — avoids joining yet staying in your own workspace
   const session = await getSession();
   session.activeWorkspaceId = invite.workspaceId;
   await session.save();

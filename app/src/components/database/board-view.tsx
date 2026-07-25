@@ -25,7 +25,7 @@ export function BoardView({ view }: { view: DbView }) {
   const titleProp = db.properties.find((p) => p.type === "title");
   const personProp = db.properties.find((p) => p.type === "person");
   const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
-  // card cover: the first url/files property's value (Notion parity, like gallery)
+  // card cover: the first url/files property's value (like gallery)
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
     if (!coverProp) return null;
@@ -36,7 +36,7 @@ export function BoardView({ view }: { view: DbView }) {
 
   // Notion lets you (re)pick the board's grouping property — without this a
   // board whose db has no status-typed column was a dead end.
-  // group picker moved into ViewOptions (UIUX #54)
+  // group picker moved into ViewOptions
 
   if (!groupProp) {
     return (

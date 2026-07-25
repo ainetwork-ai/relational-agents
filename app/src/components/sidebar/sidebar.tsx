@@ -58,13 +58,14 @@ export function Sidebar({
   const aiChatsList = useAiChatsStore((s) => s.chats);
   const loadAiChats = useAiChatsStore((s) => s.load);
   const aiChatsUnread = unreadChatCount(aiChatsList);
-  // Chats 탭 미읽음 뱃지는 탭을 열기 전에도 보여야 하므로 사이드바 마운트 시 즉시 로드.
+  // the Chats tab's unread badge must show before the tab opens — load on sidebar mount.
   useEffect(() => {
     loadAiChats();
   }, [loadAiChats]);
 
-  // DM 실시간 브릿지 — 사이드바는 항상 마운트되므로 여기서 인박스를 구독해
-  // 방 목록/미읽음 배지를 탭 상태와 무관하게 갱신한다 (스트림은 풀로 공유).
+  // DM realtime bridge — the sidebar is always mounted, so subscribe to the
+  // inbox here and keep room list / unread badges fresh regardless of tab
+  // state (the stream is pool-shared).
   const dmRooms = useDmRoomsStore((s) => s.rooms);
   const loadDmRooms = useDmRoomsStore((s) => s.load);
   const dmUnread = totalDmUnread(dmRooms);
@@ -72,21 +73,21 @@ export function Sidebar({
   useDmEvents(
     (event) => {
       if (event.type === "dm-typing") return;
-      // 연속 이벤트 버스트를 하나의 refetch로 합친다
+      // coalesce event bursts into a single refetch
       if (dmReloadTimer.current) clearTimeout(dmReloadTimer.current);
       dmReloadTimer.current = setTimeout(() => void loadDmRooms(), 250);
     },
-    // hello = 초기 연결/재연결 — 끊긴 사이의 변경을 refetch로 복구
+    // hello = initial connect/reconnect — refetch recovers changes missed while down
     () => void loadDmRooms()
   );
-  // 언마운트(로그아웃 등) 시 예약된 refetch를 취소 — 죽은 컴포넌트에서 fetch 방지
+  // cancel the scheduled refetch on unmount (logout etc.) — no fetches from dead components
   useEffect(() => {
     return () => {
       if (dmReloadTimer.current) clearTimeout(dmReloadTimer.current);
     };
   }, []);
   // collapsed-state hover peek: Notion slides the sidebar in as a temporary
-  // overlay when the pointer rests on the left edge (#23)
+  // overlay when the pointer rests on the left edge
   const [peek, setPeek] = useState(false);
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
@@ -98,7 +99,7 @@ export function Sidebar({
   const roots = usePagesStore((s) => s.roots);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
-  // UIUX #14: draggable width, remembered
+  // draggable width, remembered
   const [sbWidth, setSbWidth] = useState(240);
   useEffect(() => {
     // deferred so no setState runs synchronously in the effect body

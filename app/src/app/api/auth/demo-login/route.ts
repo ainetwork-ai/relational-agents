@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
  * Logs the caller in as the shared "DemoUser" (same public demo key as
  * slack-a2a) so visitors can try the app without a wallet.
  *
- * `as`가 오면 그 이름의 보조 데모 계정(주소 `demo:<slug>`)으로 로그인/생성 —
- * 한 브라우저 2계정이 필요한 DM 데모·e2e용. 지갑 주소는 0x… 형식이라
- * `demo:` 네임스페이스와 충돌하지 않는다.
+ * With `as`, logs into (or creates) a named secondary demo account (address
+ * `demo:<slug>`) — for DM demos/e2e needing two accounts in one browser.
+ * Wallet addresses are 0x…-shaped, so the `demo:` namespace can't collide.
  */
 const FALLBACK_DEMO_KEY =
   "b796e8971f2c5c909a2178fb3fc1970f317adb1e9237d950d8fcdd5f5e1d7e42";
@@ -35,7 +35,7 @@ async function loginUser(ainAddress: string, displayName: string) {
   session.userId = user.id;
   session.ainAddress = user.ainAddress;
   session.challenge = undefined;
-  // 계정을 바꿔 로그인하면 이전 계정의 활성 워크스페이스는 무효
+  // switching accounts invalidates the previous account's active workspace
   session.activeWorkspaceId = undefined;
   await session.save();
   return user;
@@ -43,8 +43,9 @@ async function loginUser(ainAddress: string, displayName: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    // 데모 로그인은 자격증명 없이 계정에 붙는다(공유 데모 키 + `as` 결정적 계정).
-    // 프로덕션에서는 명시적으로 켜지 않는 한 비활성 — 계정 탈취 표면을 없앤다.
+    // Demo login attaches to accounts without credentials (shared demo key +
+    // deterministic `as` accounts). Disabled in production unless explicitly
+    // enabled — removes the account-takeover surface.
     if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO_LOGIN !== "1")
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 

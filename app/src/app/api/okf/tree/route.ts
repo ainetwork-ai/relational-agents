@@ -5,7 +5,7 @@ import { okfGateFor, type OkfGate } from "@/lib/okf-acl";
 
 export const dynamic = "force-dynamic";
 
-/** 참여자 전용 노드(와 그 하위)를 트리에서 제거. */
+/** Strip participant-only nodes (and their subtrees) from the tree. */
 function prune(nodes: TreeNode[], gate: OkfGate): TreeNode[] {
   return nodes
     .filter((n) => gate.canRead(n.id))

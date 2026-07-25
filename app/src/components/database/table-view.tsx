@@ -19,7 +19,7 @@ export function TableView({ view }: { view: DbView }) {
   const cols = db.properties.filter((p) => !hidden.includes(p.id));
   // sub-item collapse state (rows in this set have their children hidden)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // row multi-select (UIUX #60/#61): hover checkboxes + a bulk action bar
+  // row multi-select: hover checkboxes + a bulk action bar
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggleChecked = (id: string) =>
     setChecked((s) => {
@@ -74,7 +74,7 @@ export function TableView({ view }: { view: DbView }) {
   }
 
   // General group-by: any select/status property can partition the rows into
-  // labelled sections (Notion parity — was board-only). null = flat.
+  // labelled sections. null = flat.
   const groupProp = db.properties.find(
     (p) => p.id === view.config.groupByPropertyId && (p.type === "select" || p.type === "status")
   );
@@ -184,7 +184,7 @@ export function TableView({ view }: { view: DbView }) {
 }
 
 /** Notion places "add a property" as a "+" header cell at the right end of
- *  the table, not in the toolbar (#63). */
+ * the table, not in the toolbar. */
 function AddPropertyHeader() {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -276,8 +276,8 @@ function CalcCell({ view, prop, rows }: { view: DbView; prop: DbProperty; rows: 
   );
 }
 
-/** Arrow/Tab navigation between table cells (#74). Only fires when the cell
- *  wrapper itself is focused — keys inside cell editors are untouched. */
+/** Arrow/Tab navigation between table cells. Only fires when the cell
+ * wrapper itself is focused — keys inside cell editors are untouched. */
 function onCellNavKey(e: React.KeyboardEvent<HTMLDivElement>) {
   if (e.target !== e.currentTarget) return;
   const cell = e.currentTarget;
@@ -444,7 +444,7 @@ function RowLine({
       {cols.map((p) =>
         p.type === "title" ? (
           // Title cell: hovering it reveals an "OPEN" button at the right edge
-          // (Notion parity) that opens the row's page (its full mapped content).
+          // opens the row's page (its full mapped content).
           <div
             key={p.id}
             style={{ width: widths?.[p.id] ?? 176 }}
@@ -488,7 +488,7 @@ function RowLine({
 function ColumnHeader({ prop, view }: { prop: DbProperty; view: DbView }) {
   const db = useDb();
   const [open, setOpen] = useState(false);
-  // two-step confirm before the irreversible property delete (#81)
+  // two-step confirm before the irreversible property delete
   const [delArmed, setDelArmed] = useState(false);
   const [renaming, setRenaming] = useState(false);
   // disarm whenever the menu closes (render-time adjustment, not an effect)
@@ -672,7 +672,7 @@ const TYPE_CHOICES: PropertyType[] = [
 ];
 
 /** Change a column's type in place (Notion "Edit property → Type"). Values are
- *  re-interpreted under the new type; a file-backed db re-derives from the CSV. */
+ * re-interpreted under the new type; a file-backed db re-derives from the CSV. */
 function PropTypeEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const choices = TYPE_CHOICES.includes(prop.type) ? TYPE_CHOICES : [prop.type, ...TYPE_CHOICES];
@@ -696,7 +696,7 @@ function PropTypeEditor({ prop }: { prop: DbProperty }) {
 }
 
 /** Date column config: yearly recurrence (birthdays / anniversaries) — the
- *  calendar view then matches on month/day across every year. */
+ * calendar view then matches on month/day across every year. */
 function DateConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const cfg = prop.config;
@@ -720,7 +720,7 @@ function DateConfigEditor({ prop }: { prop: DbProperty }) {
   );
 }
 
-/** Number column config: value format + number/bar display (Notion parity). */
+/** Number column config: value format + number/bar display. */
 function NumberConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const cfg = prop.config;
@@ -753,7 +753,7 @@ function NumberConfigEditor({ prop }: { prop: DbProperty }) {
 }
 
 /** The per-type configuration UI that appears inside an open column-header menu
- *  for relation / formula / rollup properties. */
+ * for relation / formula / rollup properties. */
 function PropConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const config = prop.config;
@@ -789,7 +789,7 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
 }
 
 /** Relation target picker. Fetches the workspace's databases FRESH when opened
- *  so a database created after this view mounted is still selectable. */
+ * so a database created after this view mounted is still selectable. */
 function RelationConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const config = prop.config;
@@ -1009,8 +1009,8 @@ function MenuItem({
 const AUTOFILLABLE: PropertyType[] = ["text", "select", "status", "number", "email", "phone", "url"];
 
 /** Notion AI database autofill: fill EMPTY cells of a column from each row's
- *  other primitive values via the local model; persists through the normal
- *  row PATCH path (OKF + Postgres identical). Caps at 10 rows per click. */
+ * other primitive values via the local model; persists through the normal
+ * row PATCH path (OKF + Postgres identical). Caps at 10 rows per click. */
 async function aiAutofill(db: ReturnType<typeof useDb>, prop: DbProperty) {
   const optionByName = new Map(
     (prop.config.options ?? []).map((o) => [o.name.toLowerCase(), o.id])
