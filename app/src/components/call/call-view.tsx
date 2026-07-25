@@ -482,6 +482,12 @@ export function CallView({ roomId }: { roomId: string }) {
       : new URLSearchParams(window.location.search).get("stt") ??
         process.env.NEXT_PUBLIC_STT_LANG
   );
+  // diagnostics live behind ?debug=1 — the demo stage stays clean
+  const [debugOn] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("debug") === "1"
+  );
   const {
     interim: sttInterim,
     error: sttError,
@@ -597,7 +603,9 @@ export function CallView({ roomId }: { roomId: string }) {
         </div>
         {/* STT truth panel — silent failure made "is speech even running?"
             unanswerable; now the engine reports its state on the stage */}
-        {webSpeechOn && status === "active" && (
+        {/* hidden on the clean stage; ?debug=1 brings it back — real engine
+            failures still surface regardless */}
+        {webSpeechOn && status === "active" && (debugOn || !sttSupported || sttError) && (
           <div
             data-testid="call-stt-state"
             className="absolute left-4 top-4 max-w-[50%] truncate rounded-md bg-black/60 px-2 py-1 text-xs text-white/80"
@@ -622,7 +630,7 @@ export function CallView({ roomId }: { roomId: string }) {
         {/* demo/test: one click = one canned utterance through the REAL
             pipeline (POST /utterance → agent whisper/summary) — no speech
             needed to exercise the flow */}
-        {status === "active" && (
+        {status === "active" && debugOn && (
           <button
             data-testid="call-mock-utterance"
             onClick={() => {
