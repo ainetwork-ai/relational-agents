@@ -7,6 +7,7 @@ import type { Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { listRecentWorkspaces, recordWorkspaceVisit } from "@/lib/recent-workspaces";
+import { initial } from "@/lib/glyph";
 
 interface WorkspaceCard {
   id: string;
@@ -45,7 +46,7 @@ async function enterWorkspace(id: string) {
 function WsTile({ w }: { w: WorkspaceCard }) {
   return (
     <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-neutral-700 shadow-sm ring-1 ring-neutral-200 transition-transform group-hover:scale-105 dark:bg-neutral-700 dark:text-neutral-100 dark:ring-neutral-600">
-      {(w.iconText || w.name.slice(0, 1)).toUpperCase()}
+      {initial(w.iconText || w.name)}
     </span>
   );
 }

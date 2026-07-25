@@ -9,6 +9,7 @@ import { recordWorkspaceVisit } from "@/lib/recent-workspaces";
 import { WorkspaceSettingsModal } from "./workspace-settings-modal";
 import { MembersModal } from "@/components/workspace/members-modal";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
+import { initial } from "@/lib/glyph";
 
 export interface ActiveWorkspace {
   id: string;
@@ -156,7 +157,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
           />
         ) : (
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
-            {(display.iconText || display.name).slice(0, 1).toUpperCase()}
+            {initial(display.iconText || display.name)}
           </div>
         )}
         <span className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">
@@ -181,7 +182,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
                   <img src={w.iconUrl} alt="" className="h-5 w-5 shrink-0 rounded object-cover" />
                 ) : (
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-200 text-[10px] font-bold text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
-                    {(w.iconText || w.name).slice(0, 1).toUpperCase()}
+                    {initial(w.iconText || w.name)}
                   </span>
                 )}
                 <span className="min-w-0 flex-1 truncate">{w.name}</span>

@@ -32,6 +32,7 @@ import { ImportButton } from "@/components/import/import-button";
 import { NotificationsInbox, InboxPanel } from "@/components/notifications/inbox";
 import { PageIcon } from "@/components/page-icon";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
+import { initial } from "@/lib/glyph";
 
 export function Sidebar({
   workspace,
@@ -230,7 +231,7 @@ export function Sidebar({
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
-              {workspaceName.slice(0, 1).toUpperCase()}
+              {initial(workspaceName)}
             </div>
             <span className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">
               {workspaceName}
