@@ -358,6 +358,15 @@ export function DmView({ roomId }: { roomId: string }) {
     }
   }
 
+  const agentMember = useMemo(() => members.find((m) => m.isAgent) ?? null, [members]);
+
+  /** Mirrors the server's mention test — the draft decides which mode you send in. */
+  const draftIsPrivate = useMemo(() => {
+    if (!agentMember) return false;
+    const t = input.toLowerCase();
+    return t.includes("@agent") || t.includes(`@${agentMember.displayName.toLowerCase()}`);
+  }, [input, agentMember]);
+
   /** Candidates for the "@" menu — the agent first, since mentioning it is how
    *  you ask the relationship a question, and nothing on screen says so. */
   const mentionCandidates = useMemo(() => {
@@ -598,7 +607,9 @@ export function DmView({ roomId }: { roomId: string }) {
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col px-3 sm:px-6">
+    // min-h-0: without it the transcript can outgrow this column, the shared
+    // <main> scrolls instead of the list, and the composer rides away with it.
+    <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col overflow-hidden px-3 sm:px-6">
       {/* Header — leave room on the left so the fixed mobile hamburger (MobileNavToggle) does not overlap */}
       <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
         <div className="flex -space-x-2" data-testid="dm-members" aria-label="Room members">
@@ -766,7 +777,7 @@ export function DmView({ roomId }: { roomId: string }) {
         data-testid="dm-messages"
         role="log"
         aria-live="polite"
-        className="flex-1 space-y-1 overflow-y-auto py-4"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto py-4"
       >
         {loading ? (
           <div className="space-y-2">
@@ -935,7 +946,7 @@ export function DmView({ roomId }: { roomId: string }) {
           e.preventDefault();
           void send();
         }}
-        className="relative flex items-end gap-2 border-t border-neutral-200/80 py-3 dark:border-neutral-800"
+        className="relative flex items-end gap-2 border-t border-neutral-200/80 pb-3 pt-7 dark:border-neutral-800"
       >
         {mentionOpen && mentionItems.length > 0 && (
           <div
@@ -981,6 +992,26 @@ export function DmView({ roomId }: { roomId: string }) {
             ))}
           </div>
         )}
+        {/* Which mode this draft will send in. The rule is invisible otherwise:
+            a mention makes it private, anything else is on the shared record. */}
+        <div
+          data-testid="dm-compose-mode"
+          className="pointer-events-none absolute -top-0.5 left-11 flex items-center gap-1.5 text-[11px] text-neutral-400"
+        >
+          {draftIsPrivate ? (
+            <>
+              <Lock size={11} className="text-neutral-500 dark:text-neutral-400" />
+              <span className="text-neutral-500 dark:text-neutral-400">
+                Private — only you and the agent
+              </span>
+            </>
+          ) : (
+            <span>
+              {others.length === 1 ? `Shared with ${others[0].displayName.split(/\s+/)[0]}` : "Shared with the room"}
+              {agentMember ? " · the agent may add it to your record" : ""}
+            </span>
+          )}
+        </div>
         <input
           ref={fileRef}
           data-testid="dm-attach-input"
@@ -1041,14 +1072,14 @@ export function DmView({ roomId }: { roomId: string }) {
               e.currentTarget.blur();
             }
           }}
-          className="max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-xl border border-neutral-200/90 bg-neutral-50 px-3.5 py-2 text-[13.5px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-500/15 dark:border-neutral-700 dark:bg-neutral-800/60 dark:focus:bg-neutral-900"
+          className="max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-lg border border-neutral-200 bg-white px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
         />
         <button
           type="submit"
           data-testid="dm-send"
           aria-label="Send message"
           disabled={sending || uploading || (!input.trim() && pendingAtt.length === 0)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white shadow-sm transition-all hover:bg-blue-600 active:scale-90 disabled:opacity-40 disabled:shadow-none"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 disabled:opacity-40"
         >
           <Send size={16} />
         </button>
