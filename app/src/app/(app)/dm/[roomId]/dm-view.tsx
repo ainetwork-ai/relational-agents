@@ -114,7 +114,9 @@ export function DmView({
   const [input, setInput] = useState("");
   const [pendingAtt, setPendingAtt] = useState<DmAttachment[]>([]);
  // asking the agent without the room hearing it — held until you send
-  const [quiet, setQuiet] = useState(false);
+  // null = let the draft decide (mentioning the agent implies quiet);
+  // true/false = the user pressed the toggle and meant it
+  const [quietOverride, setQuietOverride] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -338,7 +340,7 @@ export function DmView({
       });
       setInput("");
       setPendingAtt([]);
-      setQuiet(false); // one quiet question at a time — you opt in per message
+      setQuietOverride(null); // next draft decides again — a fresh @agent is quiet
       setGuard(null);
       if (data.autoRun?.rootPageId) {
         setRoom((r) => (r ? { ...r, rootPageId: data.autoRun.rootPageId } : r));
@@ -390,10 +392,16 @@ export function DmView({
     return hrs < 24 ? `saved ${hrs}h ago` : `saved ${Math.floor(hrs / 24)}d ago`;
   }, [messages]);
 
-  /** Mentioning the agent is an ordinary mention — it answers in the room, in
-   *  front of both of them. Quiet is a separate thing you choose by holding the
-   *  toggle down, never something the wording puts you in. */
-  const draftIsPrivate = quiet && Boolean(agentMember);
+  /** Addressing the agent by name IS asking it, so a draft that mentions it is
+   *  quiet by default — you can't forget the toggle mid-demo. The toggle still
+   *  wins when you press it: turn it off to ask in front of your partner. */
+  const mentionsAgent = useMemo(() => {
+    if (!agentMember) return false;
+    const t = input.toLowerCase();
+    return t.includes("@agent") || t.includes(`@${agentMember.displayName.toLowerCase()}`);
+  }, [input, agentMember]);
+  const quietOn = quietOverride ?? mentionsAgent;
+  const draftIsPrivate = quietOn && Boolean(agentMember);
   /** Overlays above the composer line up with the text field, which starts one
    *  button further right once the quiet toggle is there. */
   const composerInset = agentMember ? "left-[5.5rem]" : "left-11";
@@ -1138,14 +1146,14 @@ export function DmView({
             type="button"
             data-testid="dm-quiet-toggle"
             aria-label="Ask the agent quietly"
-            aria-pressed={quiet}
-            data-tip={quiet ? "Quiet — only you and the agent" : "Ask the agent quietly"}
+            aria-pressed={quietOn}
+            data-tip={quietOn ? "Quiet — only you and the agent" : "Ask the agent quietly"}
             onClick={() => {
-              setQuiet((q) => !q);
+              setQuietOverride(!quietOn);
               composerRef.current?.focus();
             }}
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all active:scale-90 ${
-              quiet
+              quietOn
                 ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300"
                 : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             }`}
