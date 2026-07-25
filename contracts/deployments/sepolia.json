@@ -1,0 +1,11 @@
+{
+ "network": "sepolia",
+ "chainId": 11155111,
+ "address": "0xe9bd861d6d9f79098fa2251ae2ac55b5faaf8bba",
+ "deployTx": "0xb7137940cbdf10760c192c815baea6f4739f8725b2b9c466de98343a249c1a54",
+ "deployer": "0x466e00d1Dd650987Cc173E620Fa933aDEaABCB86",
+ "gasUsed": 1551551,
+ "compiler": "solc 0.8.28, optimizer runs=200",
+ "domainSeparator": "0x1ebc3ed5359cc921505994ea9a2e874402ecdbbc9ed47d19bf71a12f538ec42a",
+ "deployedAt": "2026-07-25"
+}
