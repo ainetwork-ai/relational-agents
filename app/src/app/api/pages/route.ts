@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { blocks, pageMembers, pages } from "@/lib/db/schema";
-import { and, eq, inArray, max } from "drizzle-orm";
+import { blocks, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
+import { and, eq, inArray, max, isNotNull } from "drizzle-orm";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 import { scheduleMirror } from "@/lib/md-mirror";
@@ -68,8 +68,48 @@ export async function GET(req: NextRequest) {
   let okf: (typeof rows)[number][] = [];
   try {
     const gate = await okfGateFor(auth.user.id);
+    // Relationship docs live as files (workspace-agnostic), but each doc's
+    // ROOM has a home workspace — surface a doc only in that workspace, so
+    // e.g. Hannah's space doesn't list every other partner's doc. Docs whose
+    // room we can't place keep the old everywhere-behavior.
+    const docHomes = await db
+      .select({ path: agentRoomStates.rootOkfPath, wsId: chatRooms.workspaceId })
+      .from(agentRoomStates)
+      .innerJoin(chatRooms, eq(chatRooms.id, agentRoomStates.roomId))
+      .where(isNotNull(agentRoomStates.rootOkfPath));
+    const homeByPrefix = docHomes.filter((d) => d.path) as { path: string; wsId: string }[];
+    const memberRows = await db
+      .select({ name: users.displayName })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+    const memberNamesLower = new Set(
+      memberRows.map((r) => (r.name ?? "").replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase())
+    );
+    const inThisWorkspace = (okfId: string) => {
+      let rel: string;
+      try {
+        rel = Buffer.from(okfId, "base64url").toString("utf8");
+      } catch {
+        return true;
+      }
+      for (const d of homeByPrefix) {
+        if (rel === d.path || rel.startsWith(d.path + "/")) return d.wsId === workspaceId;
+      }
+      // room mapping missing (resets can drop rooms): fall back to the
+      // membership rule — a relationship doc belongs where its partner is a
+      // member. Docs that don't parse as "… — <partner>" stay visible.
+      const base = rel.split("/")[0];
+      const m = base.match(/^(?:relationship doc|관계 문서)\s*—\s*(.+?)(?:-[0-9a-f]{6})?$/iu);
+      if (!m) return true;
+      const sides = m[1].split(/(?:❤️|❤|♥|💛|🧡|🩷|💘|💝)+/u).map((x) => x.trim()).filter(Boolean);
+      const partner = sides[sides.length - 1];
+      if (!partner) return true;
+      const norm = (t: string) => t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
+      return memberNamesLower.has(norm(partner));
+    };
     okf = listPages()
-      .filter((p) => gate.canReadId(p.id))
+      .filter((p) => gate.canReadId(p.id) && inThisWorkspace(p.id))
       .map((p) =>
       okfSyntheticPage({
         id: p.id,
