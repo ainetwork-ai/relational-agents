@@ -1,6 +1,6 @@
-This is a relational agent. Not an agent that belongs to you — an agent that belongs to a relationship. It's born only when people — at least two — see each other and agree, and it holds only what that relationship shared. One relationship, one agent, one memory.
+People used to think an agent should represent a human, or a role. We think the relationship is the fundamental unit. So we are proposing the relational agent — born only when people — at least two — see each other and agree, holding only what that relationship shared. One relationship, one agent, one memory.
 
-Why not one agent per person? Chanho ate egg tarts in Lisbon with Hannah. Tonight Ava asks his agent an innocent question: do you like egg tarts? And it answers — especially with Hannah. Nobody hacked anything. One agent, one shared memory store — so a friendly question walks out with another relationship's memory. Swap Ava for a stranger, and the question for an injection: same door, his whole life.
+Let me explain why this change of perspective matters for memory management. Chanho ate egg tarts in Lisbon with Hannah. Tonight Ava asks his agent an innocent question: do you like egg tarts? And it answers — especially with Hannah. Nobody hacked anything. One agent, one shared memory store — so a friendly question walks out with another relationship's memory. Swap Ava for a stranger, and the question for an injection: same door, his whole life.
 
 One agent per relationship closes that door. The Chanho-and-Hannah agent holds the egg tarts. The Chanho-and-Ava agent holds nothing beyond what Chanho and Ava shared — Lisbon does not exist in there. The isolation is structural, not a rule the model has to remember. Let's see it live.
 
