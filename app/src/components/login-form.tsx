@@ -3,9 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-// `window.ethereum`'s type now lives in @/lib/wallet/provider (single global
-// augmentation for the whole app) — this flow still talks to the provider
-// directly, see the note in that module about migrating it to viem.
+import { getInjectedProvider } from "@/lib/wallet/provider";
+
+// Provider selection lives in @/lib/wallet/provider — it prefers the real
+// MetaMask via EIP-6963, since Coinbase Wallet and friends fight over
+// `window.ethereum`. This flow still calls `request` by hand; see the note in
+// that module about migrating it to viem.
 
 /** utf8 → 0x-hex, the message encoding MetaMask's personal_sign expects. */
 function toHexMessage(message: string): string {
@@ -28,7 +31,7 @@ export function LoginForm() {
     setBusy("metamask");
     setError(null);
     try {
-      const ethereum = window.ethereum;
+      const ethereum = getInjectedProvider();
       if (!ethereum) {
         setError("MetaMask not detected. Please install the extension.");
         return;

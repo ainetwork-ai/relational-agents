@@ -17,6 +17,9 @@ export interface InjectedEthereumProvider {
   on?(event: string, handler: (...args: unknown[]) => void): void;
   removeListener?(event: string, handler: (...args: unknown[]) => void): void;
   isMetaMask?: boolean;
+  isCoinbaseWallet?: boolean;
+  /** Legacy multi-wallet shim: some extensions expose every injected provider here. */
+  providers?: InjectedEthereumProvider[];
 }
 
 declare global {
@@ -47,9 +50,49 @@ export class WalletSignatureError extends Error {
   }
 }
 
+/** EIP-6963 announcement payload (the parts we read). */
+interface Eip6963Detail {
+  info?: { rdns?: string };
+  provider?: InjectedEthereumProvider;
+}
+
+/** Collect EIP-6963 providers. Wallets answer `requestProvider` synchronously
+ *  within the dispatch, so this is safe to call from a click handler. */
+function discoverEip6963(): Eip6963Detail[] {
+  const found: Eip6963Detail[] = [];
+  const onAnnounce = (e: Event) => {
+    const d = (e as CustomEvent<Eip6963Detail>).detail;
+    if (d?.provider) found.push(d);
+  };
+  window.addEventListener("eip6963:announceProvider", onAnnounce);
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  window.removeEventListener("eip6963:announceProvider", onAnnounce);
+  return found;
+}
+
+/** True only for the real MetaMask — Coinbase Wallet also sets `isMetaMask`. */
+const isRealMetaMask = (p: InjectedEthereumProvider | undefined) =>
+  !!p?.isMetaMask && !p.isCoinbaseWallet;
+
+/**
+ * Find the wallet the "Sign in with MetaMask" button should talk to.
+ *
+ * With several extensions installed, whichever injected last owns
+ * `window.ethereum` (Coinbase is aggressive about this), so preferring
+ * MetaMask needs explicit discovery: EIP-6963 by rdns first, then the legacy
+ * `providers` array, then `window.ethereum` itself. Falls back to any injected
+ * provider so single-wallet non-MetaMask users can still sign in.
+ */
 export function getInjectedProvider(): InjectedEthereumProvider | null {
   if (typeof window === "undefined") return null;
-  return window.ethereum ?? null;
+  const announced = discoverEip6963();
+  const byRdns = announced.find((d) => d.info?.rdns === "io.metamask")?.provider;
+  if (byRdns) return byRdns;
+  const eth = window.ethereum;
+  const legacyMm = eth?.providers?.find(isRealMetaMask);
+  if (legacyMm) return legacyMm;
+  if (eth && isRealMetaMask(eth)) return eth;
+  return announced[0]?.provider ?? eth ?? null;
 }
 
 export function isWalletAvailable(): boolean {
