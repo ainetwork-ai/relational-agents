@@ -7,6 +7,7 @@ import { eq, inArray } from "drizzle-orm";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
 import { buildRelationConsentTypedData } from "@/lib/relation-contract";
 import { provisionRoomAgent } from "@/lib/agent/provision";
+import { notifyConsent } from "@/lib/notifications";
 import { relayRelationOnChain } from "@/lib/relation-registry";
 
 export const dynamic = "force-dynamic";
@@ -120,10 +121,35 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   const signed = new Set(signedRows.map((r) => r.userId));
   const complete = parties.length >= 2 && parties.every((p) => signed.has(p.id));
 
+  // inbox alerts — best-effort: a failed notification must never void a
+  // valid signature
+  try {
+    if (!complete) {
+      await notifyConsent({
+        recipientIds: parties.filter((p) => !signed.has(p.id)).map((p) => p.id),
+        actorId: auth.user.id,
+        roomId,
+        body: `${auth.user.displayName} signed the relationship contract (${signed.size}/${parties.length}) — your signature brings the agent to life`,
+      });
+    }
+  } catch (err) {
+    console.error("consent notification failed:", err);
+  }
+
   let consentAt = access.room.consentAt;
   if (complete && !consentAt) {
     consentAt = new Date();
     await db.update(chatRooms).set({ consentAt }).where(eq(chatRooms.id, roomId));
+    try {
+      await notifyConsent({
+        recipientIds: parties.filter((p) => p.id !== auth.user.id).map((p) => p.id),
+        actorId: auth.user.id,
+        roomId,
+        body: "both signatures are in — your relationship agent is born 🤝",
+      });
+    } catch (err) {
+      console.error("consent notification failed:", err);
+    }
  // The agent is born the moment consent completes — no extra button. Provision
  // it and greet the room so both people see it come alive.
     try {

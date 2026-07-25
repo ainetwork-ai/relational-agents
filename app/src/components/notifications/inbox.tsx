@@ -9,6 +9,7 @@ const TYPE_LABEL: Record<string, string> = {
   mention: "mentioned you",
   comment: "commented",
   invite: "invited you",
+  consent: "relationship contract",
 };
 
 function summarize(n: InboxNotification): string {
@@ -35,7 +36,9 @@ export function InboxPanel({ onClose }: { onClose: () => void }) {
 
   function openNotification(n: InboxNotification) {
     void markRead(n.id);
-    if (n.pageId) router.push(`/p/${n.pageId}`);
+    if (!n.pageId) return;
+    // consent notifications carry the DM room id — land on the consent banner
+    router.push(n.type === "consent" ? `/dm/${n.pageId}` : `/p/${n.pageId}`);
   }
 
   return (
@@ -129,7 +132,8 @@ export function NotificationsInbox({
   function openNotification(n: InboxNotification) {
     void markRead(n.id);
     setOpen(false);
-    if (n.pageId) router.push(`/p/${n.pageId}`);
+    if (!n.pageId) return;
+    router.push(n.type === "consent" ? `/dm/${n.pageId}` : `/p/${n.pageId}`);
   }
 
   return (

@@ -105,3 +105,41 @@ export async function notifyPageComment(opts: {
     });
   }
 }
+
+/**
+ * Consent-flow inbox alert. `pageId` carries the DM ROOM id — the inbox
+ * routes `consent` notifications to /dm/<roomId> (not /p/…). An identical
+ * UNREAD row (recipient + room + body) is not duplicated, so a re-submitted
+ * signature never spams the partner's inbox.
+ */
+export async function notifyConsent(opts: {
+  recipientIds: string[];
+  actorId: string;
+  roomId: string;
+  body: string;
+}) {
+  for (const userId of opts.recipientIds) {
+    if (userId === opts.actorId) continue;
+    const [dupe] = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.type, "consent"),
+          eq(notifications.pageId, opts.roomId),
+          eq(notifications.body, opts.body),
+          eq(notifications.read, false)
+        )
+      )
+      .limit(1);
+    if (dupe) continue;
+    await db.insert(notifications).values({
+      userId,
+      type: "consent",
+      actorId: opts.actorId,
+      pageId: opts.roomId,
+      body: opts.body,
+    });
+  }
+}
