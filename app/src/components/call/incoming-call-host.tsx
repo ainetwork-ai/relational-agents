@@ -134,6 +134,19 @@ export function IncomingCallHost() {
       ringing?.roomId === event.roomId
     )
       clear();
+  },
+  // SSE hello = the inbox (re)connected — any ring that fired during the gap
+  // was lost for good, so sweep for calls still ringing for me
+  () => {
+    if (pathname.startsWith("/call/")) return;
+    void fetch("/api/calls")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const hit = d?.ringing?.[0];
+        if (!hit?.caller || hit.caller.id === meId) return;
+        setRinging((cur) => cur ?? { roomId: hit.roomId, caller: hit.caller });
+      })
+      .catch(() => {});
   });
 
   // ringtone/timer must not leak across route unmounts

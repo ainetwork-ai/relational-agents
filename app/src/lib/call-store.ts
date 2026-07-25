@@ -49,6 +49,12 @@ export function getCall(roomId: string): CallState | null {
   return calls().get(roomId) ?? null;
 }
 
+/** Every live call — the ring-recovery sweep filters it down to "ringing
+ *  for me" (a handful of entries at demo scale). */
+export function listCalls(): CallState[] {
+  return [...calls().values()];
+}
+
 export function setCall(state: CallState): void {
   calls().set(state.roomId, state);
 }
