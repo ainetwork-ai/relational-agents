@@ -155,9 +155,16 @@ export function parseMarkdown(
     }
     if (/^[-*]\s/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s/, "")) }); i++; continue; }
     if (/^\d+\.\s/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s/, "")) }); i++; continue; }
-    if (t.startsWith("> ")) { push("quote", { text: stripLinks(t.slice(2)) }); i++; continue; }
-    const img = t.match(/^!\[[^\]]*\]\(([^)]+)\)/);
-    if (img) { push("image", { url: img[1], text: "" }); i++; continue; }
+    if (t.startsWith("> ")) {
+      // `> 💡 text` is the serialized form of a callout — an emoji right after
+      // the marker brings it back as one (plain `> text` stays a quote)
+      const co = t.slice(2).match(/^(\p{Extended_Pictographic}[️‍]*)\s+([\s\S]*)$/u);
+      if (co) push("callout", { icon: co[1], text: stripLinks(co[2]) });
+      else push("quote", { text: stripLinks(t.slice(2)) });
+      i++; continue;
+    }
+    const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+    if (img) { push("image", { url: img[2], text: "", ...(img[1] ? { caption: img[1] } : {}) }); i++; continue; }
     push("paragraph", { text: stripLinks(t) });
     i++;
   }
@@ -180,7 +187,7 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
       case "numbered_list": out.push(`${num}. ${text}`); break;
       case "todo": out.push(`- [${b.content.checked ? "x" : " "}] ${text}`); break;
       case "quote": out.push(`> ${text}`); break;
-      case "callout": out.push(`> 💡 ${text}`); break;
+      case "callout": out.push(`> ${b.content.icon || "💡"} ${text}`); break;
       case "divider": out.push("---"); break;
       case "toc": break; // outline is derived, not content
       case "link_to_page": if (b.content.childPageId) out.push(`[page](/p/${b.content.childPageId})`); break;
@@ -189,7 +196,7 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
       case "ai_prompt": break; // transient prompt UI, never persists content
       case "equation": if (b.content.text) out.push(`$$\n${b.content.text}\n$$`); break;
       case "code": out.push("```" + (b.content.language ?? ""), text, "```"); break;
-      case "image": if (b.content.url) out.push(`![](${b.content.url})`); break;
+      case "image": if (b.content.url) out.push(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {

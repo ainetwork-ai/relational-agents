@@ -9,10 +9,22 @@ export const SECTIONS = [
 
 export type SectionKey = (typeof SECTIONS)[number]["key"];
 
+/** Timeline entries carry an event classification so the writer can lay them
+ *  out in the formal template (date h1 → title h2 → callout → timed photos).
+ *  "date" = a shared outing/date; "first-met" = how the two met. */
+export interface TimelineEvent {
+  kind: "date" | "first-met";
+  /** YYYY-MM-DD; when absent the writer falls back to the message date. */
+  date?: string;
+  /** short event title, e.g. "Belém day — natas at the source" */
+  title?: string;
+}
+
 export interface DocEdit {
   section: SectionKey;
   markdown: string;
   sourceMessageIds: string[];
+  event?: TimelineEvent;
 }
 
 // LLMs often emit the display title ("Overview") or odd casing instead of the
@@ -47,7 +59,20 @@ export function parseEdits(raw: string): DocEdit[] {
     const ids = Array.isArray(e.sourceMessageIds)
       ? e.sourceMessageIds.filter((x): x is string => typeof x === "string")
       : [];
-    edits.push({ section, markdown: e.markdown, sourceMessageIds: ids });
+    // event is best-effort: a malformed one degrades to a plain edit, never throws
+    let event: TimelineEvent | undefined;
+    const ev = e.event as Record<string, unknown> | null | undefined;
+    if (ev && typeof ev === "object") {
+      const kind = typeof ev.kind === "string" ? ev.kind.trim().toLowerCase() : "";
+      if (kind === "date" || kind === "first-met") {
+        event = { kind };
+        if (typeof ev.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ev.date.trim()))
+          event.date = ev.date.trim();
+        if (typeof ev.title === "string" && ev.title.trim())
+          event.title = ev.title.trim().slice(0, 120);
+      }
+    }
+    edits.push({ section, markdown: e.markdown, sourceMessageIds: ids, ...(event ? { event } : {}) });
   }
   return edits;
 }

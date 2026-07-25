@@ -21,7 +21,7 @@ import {
   readOkfSectionTexts,
   type NewLine,
 } from "./okf-docs";
-import { parseEdits, SECTIONS, type DocEdit } from "./parse-edits";
+import { parseEdits, SECTIONS, type DocEdit, type TimelineEvent } from "./parse-edits";
 
 /** Source deep-link prefix. Rooms live at /dm/[roomId]; /agent-lab has no
  *  per-room route, so provenance links pointed at a 404. */
@@ -64,8 +64,19 @@ function fakeEdits(batch: ChatMessage[]): DocEdit[] {
       else lines.push(`- 📎 [${a.name || "file"}](${a.url})`);
     }
   }
+  // a batch with shared photos is a date event — the deterministic path keeps
+  // the same formal template the LLM path writes (date h1 / title h2 / callout / timed photos)
+  const hasPhotos = batch.some((m) => (m.attachments ?? []).some((a) => IMG_EXT.test(a.url)));
+  const last = batch[batch.length - 1]!;
   return [
-    { section: "timeline", markdown: lines.join("\n"), sourceMessageIds: ids },
+    {
+      section: "timeline",
+      markdown: lines.join("\n"),
+      sourceMessageIds: ids,
+      ...(hasPhotos
+        ? { event: { kind: "date" as const, date: isoDay(last.createdAt), title: "Moments together" } }
+        : {}),
+    },
     { section: "overview", markdown: `Captured ${batch.length} recent messages.`, sourceMessageIds: ids },
   ];
 }
@@ -134,6 +145,10 @@ async function llmEdits(
         content:
           `You are the record-keeper for the "${roomName}" relationship. Read the new batch of messages and incrementally update the relationship document.\n` +
           `Output a JSON array only: [{"section": <one key of ${sectionList}>, "markdown": "<markdown to append>", "sourceMessageIds": ["<supporting message id>"]}].\n` +
+          `Timeline entries additionally classify the moment with an "event" field: a shared outing/date/meetup (especially one with photos) gets ` +
+          `"event": {"kind": "date", "date": "YYYY-MM-DD", "title": "<short evocative event title>"}; the story of how the two FIRST MET gets ` +
+          `"event": {"kind": "first-met", "date": "<the met date if stated>"}. Ordinary chatter gets no event field. ` +
+          `Today is ${isoDay(batch[batch.length - 1]!.createdAt)} — date the event by when it happened, not when it was told.\n` +
           `Do not repeat facts already in the document — only what is newly learned. Every entry must carry its supporting message ids.\n` +
           `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the /uploads/... url exactly as given). ` +
           `The image must sit on its own line with nothing before it — a leading "- " turns it into a bullet and the photo stops rendering.\n` +
@@ -154,6 +169,74 @@ async function llmEdits(
     { maxTokens: 1500, temperature: 0.2 }
   );
   return parseEdits(raw);
+}
+
+const IMG_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+const hhmm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+/**
+ * The formal Timeline template — the agent writes events in it directly:
+ *
+ *   # 2026-08-04                ← event date (h1)
+ *   ## Belém day — natas …      ← short title (h2, date events only)
+ *   > 💕 detail plain text      ← callout (💘 for first-met)
+ *   ### 14:02 ~                 ← per shared photo: message time (h3)
+ *   [image]                     ←   then the photo, LLM caption preserved
+ *
+ * Detail text = the edit's markdown minus its photo lines (those become the
+ * timed image blocks, timed by their message's createdAt).
+ */
+function timelineEventLines(
+  edit: DocEdit,
+  event: TimelineEvent,
+  source: ChatMessage[]
+): NewLine[] {
+  const cited = source.filter((m) => edit.sourceMessageIds.includes(m.id));
+  const anchor = cited[cited.length - 1] ?? source[source.length - 1];
+  const day = event.date ?? isoDay(anchor?.createdAt ?? new Date());
+
+  const captionByUrl = new Map<string, string>();
+  const detail: string[] = [];
+  for (const raw of edit.markdown.split("\n")) {
+    const l = raw.trim();
+    if (!l) continue;
+    const img = IMG_LINE.exec(l);
+    if (img) {
+      captionByUrl.set(img[2], img[1]);
+      continue;
+    }
+    // LLM noise that must not become prose: bare date lines, self-made Sources
+    const cleaned = l.replace(/^- /, "").replace(/^\d{4}-\d{2}-\d{2}[.:]?\s*/, "");
+    if (!cleaned || /^Sources:/i.test(cleaned)) continue;
+    detail.push(cleaned);
+  }
+
+  const firstMet = event.kind === "first-met";
+  // real-time writes arrive one message at a time, so the LLM rarely names the
+  // event — with several detail sentences the first stands in as the summary
+  // heading; a lone sentence lives in the callout only (no verbatim-echo h2)
+  const calloutText = detail.join(" ") || event.title || "A moment together";
+  const title =
+    event.title ?? (detail.length >= 2 ? detail[0].slice(0, 80) : undefined);
+  const lines: NewLine[] = [{ type: "heading1", text: day }];
+  if (!firstMet && title && !calloutText.startsWith(title))
+    lines.push({ type: "heading2", text: title });
+  lines.push({ type: "callout", text: calloutText, icon: firstMet ? "💘" : "💕" });
+  // first-met is date + callout only; date events carry their timed photos
+  if (!firstMet) {
+    for (const m of cited) {
+      for (const a of m.attachments ?? []) {
+        if (!IMG_EXT.test(a.url)) continue;
+        lines.push({ type: "heading3", text: `${hhmm(m.createdAt)} ~` });
+        lines.push({ type: "image", text: captionByUrl.get(a.url) || a.name || "", url: a.url });
+      }
+    }
+  }
+  return lines;
 }
 
 /** Spec §4: collect → ensure doc → generate edits → apply (+sources) →
@@ -246,19 +329,31 @@ async function runOnce(roomId: string): Promise<RunResult> {
   for (const edit of edits) {
     const rel = tree.sectionPaths[edit.section];
     if (!rel) continue;
-    const lines: NewLine[] = edit.markdown
-      .split("\n")
-      .filter((l) => l.trim())
-      .map((l) => {
-        // ![caption](url) becomes a real image block — as a paragraph the photo
-        // would sit in the doc as literal markdown text and never render.
-        const img = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(l.trim());
-        if (img) return { type: "image" as const, text: img[1], url: img[2] };
-        return {
-          type: l.startsWith("- ") ? ("bulleted_list" as const) : ("paragraph" as const),
-          text: l.replace(/^- /, ""),
-        };
-      });
+    // "photos shared = a date event" is a hard rule, not an LLM judgement call:
+    // real-time single-message batches rarely get classified, but a moment with
+    // pictures must still land in the formal template.
+    let event = edit.section === "timeline" ? edit.event : undefined;
+    if (edit.section === "timeline" && !event) {
+      const cited = source.filter((m) => edit.sourceMessageIds.includes(m.id));
+      if (cited.some((m) => (m.attachments ?? []).some((a) => IMG_EXT.test(a.url))))
+        event = { kind: "date" };
+    }
+    const lines: NewLine[] =
+      edit.section === "timeline" && event
+        ? timelineEventLines(edit, event, source)
+        : edit.markdown
+            .split("\n")
+            .filter((l) => l.trim())
+            .map((l) => {
+              // ![caption](url) becomes a real image block — as a paragraph the photo
+              // would sit in the doc as literal markdown text and never render.
+              const img = IMG_LINE.exec(l.trim());
+              if (img) return { type: "image" as const, text: img[1], url: img[2] };
+              return {
+                type: l.startsWith("- ") ? ("bulleted_list" as const) : ("paragraph" as const),
+                text: l.replace(/^- /, ""),
+              };
+            });
     if (edit.sourceMessageIds.length) {
       const links = edit.sourceMessageIds
         .map((id) => `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`)
