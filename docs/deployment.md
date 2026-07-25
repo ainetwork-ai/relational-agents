@@ -138,6 +138,43 @@ dev와 **일치**시키는 선택이지 이탈이 아니다. `--config.strictDep
 기본 `.next`를 덮어써 빌드를 날린다. Docker로 옮기면서 해소됐지만, 호스트에서 직접
 빌드해야 할 일이 있으면 `NEXT_DIST_DIR=.next-prodcheck`로 격리할 것.
 
+### 4.7 컨테이너에서 쓰는 경로는 전부 볼륨이어야 한다
+
+이미지 안에 굽힌 런타임 쓰기 경로는 두 번 문제를 일으킨다. `COPY`가 root 소유로
+넣으므로 uid 1001이 못 쓰고(EACCES), 설령 쓰더라도 재배포 때 통째로 사라진다.
+`/api/upload`가 이걸로 500을 뱉었다. 현재 볼륨: OKF(`/data/okf`),
+uploads·avatars(`/app/public/*`), md-mirror(`/data/md-mirror`).
+
+`process.env.X ?? path.join(process.cwd(), ...)` 형태의 fallback이 세 곳
+(`okf-store.ts`, `md-mirror.ts`, `workspace/export/route.ts`) 남아 있다.
+env가 빠지면 컨테이너 안 존재하지 않는 경로로 조용히 흘러가고, md-mirror는
+실패를 `catch`로 삼킨다. compose가 env를 넣고 있어 지금은 안전하지만,
+**추적되지 않는 `docker-compose.yml`에는 `MD_MIRROR_ROOT`가 없다** — 그 파일로
+배포하면 즉시 이 함정에 빠진다.
+
+### 4.8 컨테이너의 `localhost`는 호스트가 아니다
+
+`AI_URL` 기본값 `localhost:8100`이 컨테이너 안에서는 자기 자신을 가리켜 모든 LLM
+호출이 `ECONNREFUSED`로 죽었다. 로그에만 남고 결정론적 폴백으로 조용히 넘어가서
+겉으로는 멀쩡해 보인다. `host.docker.internal` + `extra_hosts: host-gateway`로 해결.
+
+### 4.9 `NEXT_PUBLIC_*`는 빌드타임, 서버는 런타임 — 반쪽만 켜면 침묵한다
+
+Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다. 나머지 5개는
+브라우저 번들에서 영원히 `undefined`인데 **서버는 같은 이름을 런타임에 읽는다.**
+그래서 `.env.prod`에만 `NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS`를 넣고 재시작하면
+서버는 personhood 게이트를 켜고 브라우저는 World ID app id가 없어 nullifier를 못
+만든다 → **consent가 영구 불가, 로그 한 줄 없음.** 지금은 7개 전부 전달한다.
+값을 바꾸려면 재시작이 아니라 `build` + 새 `APP_TAG`가 필요하다.
+
+### 4.10 한 번 저장된 값은 env를 바꿔도 따라오지 않는다
+
+에이전트의 `a2a_url`과 `agent_card_json.url`은 provision 시점에 DB에 굳는다.
+`A2A_BASE_URL`을 프로덕션 주소로 바꿔도 기존 8개 에이전트는 dev LAN 주소
+(`http://192.168.1.193:36625/...`)를 계속 광고했다. 인앱 호출은 `dispatch.ts`의
+느슨한 `url.includes("/api/a2a/")` 매칭 덕에 우연히 살아 있어서 더 안 보인다.
+일회성 UPDATE로 정정했으나, **ENS 텍스트 레코드는 아직 옛 주소**다(§6).
+
 ## 5. dev ↔ prod 격리 현황
 
 | 자원 | 상태 |
@@ -163,3 +200,16 @@ dev와 **일치**시키는 선택이지 이탈이 아니다. `--config.strictDep
    origin/main의 내용상 상위 집합(+ call 작업 10개)이라 `push --force-with-lease` 한 번이면
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
 5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
+   (`deploy/backups/`에 수동 스냅샷만 있다.)
+6. **ENS 레코드가 옛 A2A 주소를 가리킨다.** DB는 §4.10에서 정정했지만 온체인
+   `agent-endpoint[a2a]` 텍스트 레코드는 아직 `192.168.1.193:36625`다.
+   8개 에이전트에 대해 재발행이 필요하고, 가스와 키가 든다.
+7. **통화 STT가 꺼져 있다.** `NEXT_PUBLIC_CALL_WEB_SPEECH` 미설정이라 브라우저
+   음성 인식이 항상 off고, 에이전트는 통화를 듣지 못한다(리캡은 100% 발화 기반).
+   dev도 동일하므로 회귀는 아니지만, 데모에서 "에이전트가 통화를 듣는다"를
+   보여줄 거라면 build arg로 `1`을 넘기고 재빌드해야 한다. 끌 거라면
+   `call-view.tsx`의 "STT unavailable" 안내를 항상 노출하도록 바꿔야 한다.
+8. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
+   양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
+   `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
+   (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.
