@@ -131,6 +131,8 @@ export async function propagateDisplayName(
   if (!rooms.length) return result;
 
   const roomIds = rooms.map((r) => r.id);
+  // Humans only: the room's agent is a chat_room_members row too (provision.ts
+  // adds it), and picking it as "the partner" would break the title rebuild.
   const memberRows = await db
     .select({
       roomId: chatRoomMembers.roomId,
@@ -139,7 +141,7 @@ export async function propagateDisplayName(
     })
     .from(chatRoomMembers)
     .innerJoin(users, eq(users.id, chatRoomMembers.userId))
-    .where(inArray(chatRoomMembers.roomId, roomIds));
+    .where(and(inArray(chatRoomMembers.roomId, roomIds), eq(users.isAgent, false)));
   const byRoom = new Map<string, { userId: string; displayName: string }[]>();
   for (const row of memberRows) {
     const list = byRoom.get(row.roomId) ?? [];
