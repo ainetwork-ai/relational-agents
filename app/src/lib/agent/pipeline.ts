@@ -129,8 +129,20 @@ async function runOnce(roomId: string): Promise<RunResult> {
   await setOkfAcl(tree.rootPath, roomId, participants);
 
   const current = readOkfSectionTexts(tree);
-  const rawEdits =
-    process.env.AGENT_FAKE_LLM === "1" ? fakeEdits(batch) : await llmEdits(batch, current, room.name);
+  // Deterministic path when the LLM is off or unreachable — the memory still
+  // gets written (fakeEdits appends each message to the Timeline), so the
+  // agent always records even without an AI endpoint configured.
+  let rawEdits: DocEdit[];
+  if (process.env.AGENT_FAKE_LLM === "1" || !process.env.AI_URL) {
+    rawEdits = fakeEdits(batch);
+  } else {
+    try {
+      rawEdits = await llmEdits(batch, current, room.name);
+    } catch (err) {
+      console.error("llm edits failed, recording deterministically:", err);
+      rawEdits = fakeEdits(batch);
+    }
+  }
   // source forgery prevention: sourceMessageIds only count if they exist in this batch
   const batchIds = new Set(batch.map((m) => m.id));
   const edits = rawEdits.map((e) => ({

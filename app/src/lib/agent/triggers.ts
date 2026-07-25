@@ -42,7 +42,10 @@ export async function maybeAutoRun(room: ChatRoom): Promise<RunResult | undefine
           )
         )
     : [];
-  if (pending.length >= BATCH_SIZE) {
+  // Relationship DM rooms are human-paced and low-volume — record each message
+  // right away so the memory shows up immediately. Agent-lab rooms keep the batch.
+  const threshold = room.kind === "dm" ? 1 : BATCH_SIZE;
+  if (pending.length >= threshold) {
     clearTimeout(idleTimers.get(room.id));
     idleTimers.delete(room.id);
     try {
