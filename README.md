@@ -125,3 +125,26 @@ flowchart TB
 bundle each.** Dev is in two relationships and gets two separate agents — what BD shared
 with Dev never reaches the Marketing ⇄ Dev bundle. The crossed-out paths are the point:
 isolation isn't a policy the model follows, it's a boundary in the filesystem and the contract.
+
+---
+
+## Final remarks
+
+We didn't want to build an agent that **replaces** humans. We wanted one that makes
+**human-to-human** stronger.
+
+Most agents today stand in for you — they answer for you, decide for you, and slowly
+push the other person out of the loop. That's how misunderstanding creeps in: the agent
+speaks, but the relationship doesn't. So I flipped it. Here the agent has no self of its
+own; it exists only *between* two people, born the moment both of them say yes. It can't
+act until the relationship does. It remembers only what the two of them made together —
+and forgets nothing to anyone else.
+
+An agent like that doesn't compete with the human bond. It **holds** it — carries the
+small things we forget, keeps each relationship's memory where it belongs, and never
+leaks one person's story into another's. Our hope is a world where agents and humans
+coexist so quietly that there's **less to fight about, less to misunderstand, less to
+lose** — because none of us stands alone. We exist by leaning on one another, and the
+agent is just one more thing two people hold **together**.
+
+**You see me, therefore I am.**
