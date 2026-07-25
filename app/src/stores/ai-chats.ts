@@ -119,7 +119,7 @@ export const useAiChatsStore = create<AiChatsState>()(
       },
 
       patch: async (id, patch) => {
-        // optimistic
+ // optimistic
         set((s) => ({
           chats: s.chats.map((c) =>
             c.id === id
@@ -176,6 +176,6 @@ export const useAiChatsStore = create<AiChatsState>()(
         await fetch(`/api/ai/chats/${id}/mute`, { method: muted ? "POST" : "DELETE" });
       },
     }),
-    { name: "notion-ai-chats", partialize: (s) => ({ activeTab: s.activeTab }) }
+    { name: "ai-chats", partialize: (s) => ({ activeTab: s.activeTab }) }
   )
 );

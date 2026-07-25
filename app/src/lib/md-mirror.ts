@@ -13,11 +13,11 @@ import { inlineHtmlToMd } from "@/lib/rich-text";
  * DB stays the write model; the mirror is re-exported (debounced, atomically
  * via tmp-dir swap) after every mutation.
  *
- *   md-mirror/<workspace-slug>-<id6>/
- *     Getting-Started-a1b2c3.md            ← leaf page
- *     Projects-d4e5f6/                     ← page with children
- *       _page.md                           ←   its own content
- *       Roadmap-778899.md                  ←   child page
+ * md-mirror/<workspace-slug>-<id6>/
+ * Getting-Started-a1b2c3.md ← leaf page
+ * Projects-d4e5f6/ ← page with children
+ * _page.md ← its own content
+ * Roadmap-778899.md ← child page
  */
 
 const MIRROR_ROOT =
@@ -88,7 +88,7 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
           const width = Math.max(...t.cells.map((row) => row.length));
           const pad = (row: string[]) =>
             Array.from({ length: width }, (_, i) => esc(row[i] ?? ""));
-          // GFM tables require a header row; use the first row as header.
+ // GFM tables require a header row; use the first row as header.
           out.push(`${indent}| ${pad(t.cells[0]).join(" | ")} |`);
           out.push(`${indent}| ${Array(width).fill("---").join(" | ")} |`);
           for (let i = 1; i < t.cells.length; i++) {
@@ -172,7 +172,7 @@ export async function mirrorWorkspace(workspaceId: string): Promise<void> {
 
 // -- debounced scheduling (survives dev HMR via globalThis) -----------------
 
-const TIMER_KEY = Symbol.for("notion.mdmirror.timers");
+const TIMER_KEY = Symbol.for("app.mdmirror.timers");
 
 function timers(): Map<string, ReturnType<typeof setTimeout>> {
   const g = globalThis as unknown as Record<

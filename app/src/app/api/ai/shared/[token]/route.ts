@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     .from(aiChatMessages)
     .where(eq(aiChatMessages.chatId, chat.id))
     .orderBy(asc(aiChatMessages.createdAt));
-  // the shared view exposes only title/icon/messages (owner identifiers stay hidden)
+ // the shared view exposes only title/icon/messages (owner identifiers stay hidden)
   return NextResponse.json({
     chat: { title: chat.title, icon: chat.icon },
     messages: messages.map((m) => ({

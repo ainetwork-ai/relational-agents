@@ -13,13 +13,13 @@ import { okfDocTreeFromState, readOkfSectionTexts } from "./okf-docs";
  * (OKF files). Concept rules inherited from the relation-agent design —
  * strict, because false positives kill the feature:
  *
- *   1. AND condition     — decline only when [contradicts the record] AND
- *                          [risks damaging the relationship]
- *   2. absent ≠ false    — new topics not in the record are never blocked
- *   3. prefilter         — no related memory → the LLM isn't called at all
- *                          (checked:false)
- *   4. evidence required — no quote actually found in the doc → never
- *                          escalate to decline (filters invented evidence)
+ * 1. AND condition — decline only when [contradicts the record] AND
+ * [risks damaging the relationship]
+ * 2. absent ≠ false — new topics not in the record are never blocked
+ * 3. prefilter — no related memory → the LLM isn't called at all
+ * (checked:false)
+ * 4. evidence required — no quote actually found in the doc → never
+ * escalate to decline (filters invented evidence)
  *
  * The human decides — callers must allow force-send even on decline.
  */
@@ -117,11 +117,11 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
   const docText = bySection.map((s) => `### ${s.title}\n${s.body}`).join("\n\n");
   if (!docText.trim()) return ALLOW_UNCHECKED;
 
-  // Prefilter: pass as "no related memory" only when draft and doc share
-  // **nothing**. Raising the threshold lets drafts that share just one key
-  // noun (e.g. mentioning the doc's "Sokcho") slip through unchecked — we saw
-  // that leak, so it sits at 1. False positives aren't fought here: the AND
-  // condition + evidence check do that.
+ // Prefilter: pass as "no related memory" only when draft and doc share
+ // **nothing**. Raising the threshold lets drafts that share just one key
+ // noun (e.g. mentioning the doc's "Sokcho") slip through unchecked — we saw
+ // that leak, so it sits at 1. False positives aren't fought here: the AND
+ // condition + evidence check do that.
   if (overlap(bigrams(text), bigrams(docText)) === 0) return ALLOW_UNCHECKED;
 
   if (process.env.AGENT_FAKE_LLM === "1") return fakeCheck(text, docText);
@@ -151,7 +151,7 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
       { maxTokens: 500, temperature: 0.1 }
     );
   } catch (e) {
-    // a guard outage must never block sending — pass, log the reason
+ // a guard outage must never block sending — pass, log the reason
     console.error("guard: llm failed:", e);
     return ALLOW_UNCHECKED;
   }
@@ -160,7 +160,7 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
   if (!v) return { verdict: "allow", checked: true };
   if (!(v.contradicts === true && v.harmful === true)) return { verdict: "allow", checked: true };
 
-  // evidence check: only quotes actually present in the doc count (drops invented evidence)
+ // evidence check: only quotes actually present in the doc count (drops invented evidence)
   const evidence: GuardEvidence[] = [];
   for (const e of v.evidence ?? []) {
     const q = (e?.quote ?? "").trim();
@@ -168,7 +168,7 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
     const hit = bySection.find((s) => norm(s.body).includes(norm(q)));
     if (hit) evidence.push({ section: hit.title, quote: q });
   }
-  // rule 4 — no verifiable evidence, no block (false-positive prevention)
+ // rule 4 — no verifiable evidence, no block (false-positive prevention)
   if (!evidence.length) return { verdict: "allow", checked: true };
 
   return {

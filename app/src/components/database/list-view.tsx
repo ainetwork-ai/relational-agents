@@ -7,7 +7,7 @@ import { useDb } from "./database-block";
 import { PropertyValue } from "./property-value";
 
 /** Compact list: title line + inline chips for the non-title properties.
- *  Supports the shared group-by (select/status → labelled sections). */
+ * Supports the shared group-by (select/status → labelled sections). */
 export function ListView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);

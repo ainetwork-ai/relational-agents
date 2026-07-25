@@ -117,10 +117,10 @@ export interface BlockEditorHandle {
 }
 
 function normalize(el: HTMLElement): string {
-  // rich contentEditable encodes trailing spaces as &nbsp; — markdown
-  // shortcut matching ("# " etc.) needs plain spaces
-  // Inline equation chips read as their `$tex$` source, not the KaTeX
-  // markup's text soup.
+ // rich contentEditable encodes trailing spaces as &nbsp; — markdown
+ // shortcut matching ("# " etc.) needs plain spaces
+ // Inline equation chips read as their `$tex$` source, not the KaTeX
+ // markup's text soup.
   let root: HTMLElement = el;
   if (el.querySelector("span.eq")) {
     root = el.cloneNode(true) as HTMLElement;
@@ -190,14 +190,14 @@ export const BlockEditor = forwardRef<
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);
-  // URL paste → "keep link / bookmark" chooser
+ // URL paste → "keep link / bookmark" chooser
   const [pasteLink, setPasteLink] = useState<{
     blockId: string;
     url: string;
     anchor: { x: number; y: number };
   } | null>(null);
   const mentionItemsRef = useRef<MentionItem[]>([]);
-  // block-level multi-selection (Esc to select, Shift+Arrow / Shift+Click to extend)
+ // block-level multi-selection (Esc to select, Shift+Arrow / Shift+Click to extend)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectedIdsRef = useRef<Set<string>>(selectedIds);
   const selAnchorRef = useRef<string | null>(null);
@@ -205,8 +205,8 @@ export const BlockEditor = forwardRef<
   useEffect(() => {
     selectedIdsRef.current = selectedIds;
   }, [selectedIds]);
-  // deep link: /p/<page>#b-<blockId> ("Copy link to block") scrolls to and
-  // briefly rings the target block — on mount AND on same-document hash nav
+ // deep link: /p/<page>#b-<blockId> ("Copy link to block") scrolls to and
+ // briefly rings the target block — on mount AND on same-document hash nav
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | null = null;
     const flash = () => {
@@ -215,8 +215,8 @@ export const BlockEditor = forwardRef<
       const el = document.querySelector(`[data-testid="block-${m[1]}"]`);
       if (!el) return;
       el.scrollIntoView({ block: "center" });
-      // data attribute, not classList — React re-renders reset className but
-      // leave unmanaged attributes alone (styled via globals.css)
+ // data attribute, not classList — React re-renders reset className but
+ // leave unmanaged attributes alone (styled via globals.css)
       el.setAttribute("data-flash", "1");
       if (t) clearTimeout(t);
       t = setTimeout(() => el.removeAttribute("data-flash"), 2500);
@@ -229,8 +229,8 @@ export const BlockEditor = forwardRef<
     };
   }, []);
 
-  // stable per-mount identity — the server echoes it so we can ignore our own
-  // SSE events (aindrive's origin-tag pattern)
+ // stable per-mount identity — the server echoes it so we can ignore our own
+ // SSE events (aindrive's origin-tag pattern)
   const [clientId] = useState(() => newId());
   const [dropTarget, setDropTarget] = useState<{ id: string; before: boolean; side?: "left" | "right" } | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "offline">("idle");
@@ -239,14 +239,14 @@ export const BlockEditor = forwardRef<
   const deletedIds = useRef(new Set<string>());
   const pendingFocus = useRef<{ id: string; pos: number | "start" | "end" } | null>(null);
   const draggingId = useRef<string | null>(null);
-  // Snapshot merges must never clobber unsaved local edits: while dirty,
-  // remote refreshes are deferred until our save commits (then reconciled).
+ // Snapshot merges must never clobber unsaved local edits: while dirty,
+ // remote refreshes are deferred until our save commits (then reconciled).
   const dirtyRef = useRef(false);
   const seqRef = useRef(0);
   const needResyncRef = useRef(false);
   const applyRemoteRef = useRef<() => Promise<void>>(async () => {});
-  // Block-level undo/redo. Native contentEditable undo fights our state model
-  // and DESTROYS content (parity review R008) — we own the history instead.
+ // Block-level undo/redo. Native contentEditable undo fights our state model
+ // and DESTROYS content (parity review R008) — we own the history instead.
   const historyRef = useRef<{ past: EBlock[][]; future: EBlock[][] }>({
     past: [],
     future: [],
@@ -259,18 +259,18 @@ export const BlockEditor = forwardRef<
   const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Ids the SERVER is known to hold (mount snapshot, refreshed on remote sync
-  // and successful saves). Anything else in our list was created locally and
-  // is declared via `newIds` so the server can tell a fresh insert apart from
-  // a stale block someone else already deleted.
+ // Ids the SERVER is known to hold (mount snapshot, refreshed on remote sync
+ // and successful saves). Anything else in our list was created locally and
+ // is declared via `newIds` so the server can tell a fresh insert apart from
+ // a stale block someone else already deleted.
   const serverIdsRef = useRef<Set<string>>(new Set(initialBlocks.map((b) => b.id)));
 
-  const draftKey = `notion-draft-${pageId}`;
+  const draftKey = `draft-${pageId}`;
   const save = useDebounced(async (payload: EBlock[]) => {
     setSaveState("saving");
     const seq = seqRef.current;
     const payloadIds = new Set(payload.map((b) => b.id));
-    // delete→undo before the flush: the block is alive again — don't delete it
+ // delete→undo before the flush: the block is alive again — don't delete it
     for (const id of [...deletedIds.current]) {
       if (payloadIds.has(id)) deletedIds.current.delete(id);
     }
@@ -293,12 +293,12 @@ export const BlockEditor = forwardRef<
         method: "PUT",
         headers: { "content-type": "application/json", "x-client-id": clientId },
         body,
-        // survive page reload/navigation mid-flush (small payloads only —
-        // keepalive caps the body at ~64KB)
+ // survive page reload/navigation mid-flush (small payloads only —
+ // keepalive caps the body at ~64KB)
         keepalive: body.length < 60_000,
       });
     } catch {
-      // network down — keep the edits locally and resync when back online
+ // network down — keep the edits locally and resync when back online
     }
     if (res?.ok) {
       for (const d of dels) {
@@ -313,8 +313,8 @@ export const BlockEditor = forwardRef<
       for (const b of payload) {
         if (!droppedSet.has(b.id)) serverIdsRef.current.add(b.id);
       }
-      // some of our blocks were deleted elsewhere while we were stale —
-      // reconcile with the authoritative list (runs below once not dirty)
+ // some of our blocks were deleted elsewhere while we were stale —
+ // reconcile with the authoritative list (runs below once not dirty)
       if (dropped.length) needResyncRef.current = true;
       if (seqRef.current === seq) dirtyRef.current = false;
       setSaveState("saved");
@@ -328,7 +328,7 @@ export const BlockEditor = forwardRef<
     } else if (res) {
       setSaveState("idle");
     } else {
-      // offline: persist a local draft so nothing is lost even across a crash
+ // offline: persist a local draft so nothing is lost even across a crash
       setSaveState("offline");
       try {
         localStorage.setItem(
@@ -339,8 +339,8 @@ export const BlockEditor = forwardRef<
     }
   }, 500);
 
-  // resync the moment the browser reports connectivity again (plus a slow
-  // safety poll — some proxies never fire the online event)
+ // resync the moment the browser reports connectivity again (plus a slow
+ // safety poll — some proxies never fire the online event)
   useEffect(() => {
     const retry = () => {
       if (dirtyRef.current) save.call(blocksRef.current);
@@ -353,13 +353,13 @@ export const BlockEditor = forwardRef<
       window.removeEventListener("online", retry);
       clearInterval(iv);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // crash recovery: a local draft newer than this mount means edits never
-  // reached the server (tab closed while offline) — restore and resave it
+ // crash recovery: a local draft newer than this mount means edits never
+ // reached the server (tab closed while offline) — restore and resave it
   useEffect(() => {
-    // deferred (async IIFE) so no setState runs synchronously in the effect body
+ // deferred (async IIFE) so no setState runs synchronously in the effect body
     void (async () => {
       try {
         const raw = localStorage.getItem(draftKey);
@@ -371,13 +371,13 @@ export const BlockEditor = forwardRef<
         }
         for (const d of draft.deletedIds ?? []) deletedIds.current.add(d);
         dirtyRef.current = true;
-        // bump versions so Editable repaints over the server-rendered DOM
+ // bump versions so Editable repaints over the server-rendered DOM
         const restored = draft.blocks.map((b) => ({ ...b, version: (b.version ?? 0) + 1 }));
         setBlocks(restored);
         save.call(restored);
       } catch {}
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const mutate = useCallback(
@@ -386,7 +386,7 @@ export const BlockEditor = forwardRef<
       seqRef.current++;
       const now = Date.now();
       const h = historyRef.current;
-      // plain typing coalesces into one undo frame; structural ops never do
+ // plain typing coalesces into one undo frame; structural ops never do
       if (!(opts?.coalesce && now - lastPushRef.current < 1000)) {
         h.past.push(blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })));
         if (h.past.length > 200) h.past.shift();
@@ -440,8 +440,8 @@ export const BlockEditor = forwardRef<
     restoreSnapshot(snap);
   }, [restoreSnapshot]);
 
-  // Window-level so undo still works when the focused block was just removed.
-  // Title/inputs keep their native undo.
+ // Window-level so undo still works when the focused block was just removed.
+ // Title/inputs keep their native undo.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -461,23 +461,23 @@ export const BlockEditor = forwardRef<
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  // Signal hydration completion (the e2e harness waits on this before typing —
-  // keystrokes before handler attachment would be silently lost). The first
-  // paragraph of a new page is seeded SERVER-side; the local fallback in
-  // useState is only for legacy empty pages and is persisted on first edit.
+ // Signal hydration completion (the e2e harness waits on this before typing —
+ // keystrokes before handler attachment would be silently lost). The first
+ // paragraph of a new page is seeded SERVER-side; the local fallback in
+ // useState is only for legacy empty pages and is persisted on first edit.
   useEffect(() => {
-    // page-scoped: a stale flag from the previous page's editor must not
-    // satisfy a readiness check for this one (S020 navigation race)
-    (window as unknown as Record<string, unknown>).__notionEditorReady = pageId;
+ // page-scoped: a stale flag from the previous page's editor must not
+ // satisfy a readiness check for this one (S020 navigation race)
+    (window as unknown as Record<string, unknown>).__editorReady = pageId;
     return () => {
-      (window as unknown as Record<string, unknown>).__notionEditorReady = null;
+      (window as unknown as Record<string, unknown>).__editorReady = null;
     };
   }, [pageId]);
 
-  // Apply pending caret placement after React commits block changes.
-  // useLayoutEffect (not useEffect): during fast typing the NEXT keydown can
-  // arrive before a passive effect runs, landing keystrokes in the pre-split
-  // block ("row-6row-7" merges, S032) — layout effects run before that.
+ // Apply pending caret placement after React commits block changes.
+ // useLayoutEffect (not useEffect): during fast typing the NEXT keydown can
+ // arrive before a passive effect runs, landing keystrokes in the pre-split
+ // block ("row-6row-7" merges, S032) — layout effects run before that.
   useLayoutEffect(() => {
     const pf = pendingFocus.current;
     if (!pf) return;
@@ -488,8 +488,8 @@ export const BlockEditor = forwardRef<
     }
   }, [blocks]);
 
-  // Remote changes (other clients): refetch and merge, block-level LWW.
-  // The locally-focused block always wins; unsaved local blocks are kept.
+ // Remote changes (other clients): refetch and merge, block-level LWW.
+ // The locally-focused block always wins; unsaved local blocks are kept.
   const applyRemote = useCallback(async () => {
     if (dirtyRef.current) {
       needResyncRef.current = true; // reconcile after our own save lands
@@ -499,16 +499,16 @@ export const BlockEditor = forwardRef<
     const res = await fetch(`/api/pages/${pageId}/blocks`).catch(() => null);
     if (!res?.ok) return;
     const { blocks: rows } = (await res.json()) as { blocks: Block[] };
-    // ids the server held BEFORE this sync: a local block in that set that is
-    // now missing from `rows` was deleted remotely — keeping it would turn it
-    // into a "new" block on the next save and resurrect it
+ // ids the server held BEFORE this sync: a local block in that set that is
+ // now missing from `rows` was deleted remotely — keeping it would turn it
+ // into a "new" block on the next save and resurrect it
     const prevServerIds = serverIdsRef.current;
     serverIdsRef.current = new Set(rows.map((r) => r.id));
 
-    // Local edits raced this fetch — the snapshot is stale relative to what
-    // the user just typed. Merging it would clobber those keystrokes (found
-    // by S032: seed block emptied when the mount-sync response landed right
-    // after the first Enter). Defer to the post-save resync instead.
+ // Local edits raced this fetch — the snapshot is stale relative to what
+ // the user just typed. Merging it would clobber those keystrokes (found
+ // by S032: seed block emptied when the mount-sync response landed right
+ // after the first Enter). Defer to the post-save resync instead.
     if (seqRef.current !== seqAtStart || dirtyRef.current) {
       needResyncRef.current = true;
       return;
@@ -545,8 +545,8 @@ export const BlockEditor = forwardRef<
       const rowIds = new Set(rows.map((r) => r.id));
       for (const b of prev) {
         if (rowIds.has(b.id)) continue;
-        // deleted remotely (the server used to hold it) — drop it, unless the
-        // caret is inside: never yank content out from under the user
+ // deleted remotely (the server used to hold it) — drop it, unless the
+ // caret is inside: never yank content out from under the user
         if (prevServerIds.has(b.id) && b.id !== focusedId) continue;
         next.push(b); // created locally, save pending (or focused survivor)
       }
@@ -558,9 +558,9 @@ export const BlockEditor = forwardRef<
     applyRemoteRef.current = applyRemote;
   }, [applyRemote]);
 
-  // Mount sync: browser-back can hydrate from a stale router-cache RSC
-  // snapshot (blocks added since that visit would be missing). Reconcile with
-  // the server once; applyRemote's dirty/seq/focus guards keep S032 safe.
+ // Mount sync: browser-back can hydrate from a stale router-cache RSC
+ // snapshot (blocks added since that visit would be missing). Reconcile with
+ // the server once; applyRemote's dirty/seq/focus guards keep S032 safe.
   useEffect(() => {
     void applyRemoteRef.current();
   }, []);
@@ -625,9 +625,9 @@ export const BlockEditor = forwardRef<
       const { blockId, offset, query } = slash;
       setSlash(null);
 
-      // A database block must provision a collection server-side, so it can't
-      // be done in the synchronous mutate path. Convert now, create async,
-      // then stamp the databaseId when it lands.
+ // A database block must provision a collection server-side, so it can't
+ // be done in the synchronous mutate path. Convert now, create async,
+ // then stamp the databaseId when it lands.
       if (type === "database") {
         mutate((prev) =>
           prev.map((b) =>
@@ -655,8 +655,8 @@ export const BlockEditor = forwardRef<
         return;
       }
 
-      // A sub-page block links to a real page. Create it (so it appears in the
-      // sidebar tree + breadcrumbs), then stamp its id when it lands.
+ // A sub-page block links to a real page. Create it (so it appears in the
+ // sidebar tree + breadcrumbs), then stamp its id when it lands.
       if (type === "child_page") {
         mutate((prev) =>
           prev.map((b) =>
@@ -678,8 +678,8 @@ export const BlockEditor = forwardRef<
         return;
       }
 
-      // A columns layout: turn this block into a column_list holding two empty
-      // columns (each a block whose children stack vertically).
+ // A columns layout: turn this block into a column_list holding two empty
+ // columns (each a block whose children stack vertically).
       if (type === "column_list") {
         mutate((prev) => {
           const next = prev.map((b) => ({ ...b }));
@@ -721,8 +721,8 @@ export const BlockEditor = forwardRef<
         }
 
         cur.type = type;
-        // conversions restart from plain text — stale html would resurrect
-        // the "/command" string through the html-first DOM sync
+ // conversions restart from plain text — stale html would resurrect
+ // the "/command" string through the html-first DOM sync
         cur.content = { ...cur.content, text: stripped, html: undefined };
         if (type === "code") cur.content.language = cur.content.language ?? "plain";
         if (type === "todo") cur.content.checked = cur.content.checked ?? false;
@@ -735,7 +735,7 @@ export const BlockEditor = forwardRef<
           };
         if (preset) Object.assign(cur.content, preset);
         cur.version++;
-        // image/table manage their own focus targets, not a text caret
+ // image/table manage their own focus targets, not a text caret
         if (type !== "image" && type !== "table") {
           pendingFocus.current = { id: cur.id, pos: Math.max(offset - 1, 0) };
         }
@@ -756,19 +756,19 @@ export const BlockEditor = forwardRef<
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
-      // delete the "@" + query typed right before the caret (single text node)
+ // delete the "@" + query typed right before the caret (single text node)
       const back = 1 + query.length;
       try {
         range.setStart(range.startContainer, Math.max(0, range.startOffset - back));
       } catch {
-        // caret spans nodes — skip the delete, just insert at the caret
+ // caret spans nodes — skip the delete, just insert at the caret
       }
       sel.removeAllRanges();
       sel.addRange(range);
-      // insertHTML replaces the selection with the chip, preserving the rest of
-      // the block's inline formatting (the standard rich-editor technique).
+ // insertHTML replaces the selection with the chip, preserving the rest of
+ // the block's inline formatting (the standard rich-editor technique).
       document.execCommand("insertHTML", false, mentionChipHtml(item, escapeHtml) + " ");
-      // persist without bumping version so the DOM (and caret) isn't resynced
+ // persist without bumping version so the DOM (and caret) isn't resynced
       const html = sanitizeInline(el.innerHTML);
       const text = normalize(el);
       mutate((prev) =>
@@ -789,12 +789,12 @@ export const BlockEditor = forwardRef<
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
-      // delete the ":" + query typed right before the caret (single text node)
+ // delete the ":" + query typed right before the caret (single text node)
       const back = 1 + query.length;
       try {
         range.setStart(range.startContainer, Math.max(0, range.startOffset - back));
       } catch {
-        // caret spans nodes — skip the delete, just insert at the caret
+ // caret spans nodes — skip the delete, just insert at the caret
       }
       sel.removeAllRanges();
       sel.addRange(range);
@@ -815,8 +815,8 @@ export const BlockEditor = forwardRef<
       const before = text.slice(0, off);
       const after = text.slice(off);
 
-      // Extract the DOM after the caret so inline formatting survives the
-      // split (plain-text slicing would drop b/i/code/a marks).
+ // Extract the DOM after the caret so inline formatting survives the
+ // split (plain-text slicing would drop b/i/code/a marks).
       let beforeHtml = "";
       let afterHtml = "";
       const sel = window.getSelection();
@@ -835,7 +835,7 @@ export const BlockEditor = forwardRef<
         const cur = next.find((b) => b.id === id);
         if (!cur) return prev;
 
-        // Enter on an empty continuing block exits the list instead of adding.
+ // Enter on an empty continuing block exits the list instead of adding.
         if (CONTINUING.includes(cur.type) && text === "") {
           cur.type = "paragraph";
           cur.version++;
@@ -869,7 +869,7 @@ export const BlockEditor = forwardRef<
       const block = blocks.find((b) => b.id === id);
       if (!block) return false;
 
-      // Styled block → demote to paragraph first (Notion behavior).
+ // Styled block → demote to paragraph first.
       if (block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
         mutate((prev) =>
           prev.map((b) =>
@@ -884,14 +884,14 @@ export const BlockEditor = forwardRef<
       const prevSib = sibs[idx - 1];
       if (!prevSib) return false;
 
-      // Previous block is non-text (divider/image) → remove it instead.
+ // Previous block is non-text (divider/image) → remove it instead.
       if (!TEXT_TYPES.includes(prevSib.type) && prevSib.type !== "code") {
         deletedIds.current.add(prevSib.id);
         mutate((prev) => prev.filter((b) => b.id !== prevSib.id));
         return true;
       }
 
-      // Merge into the previous text block (rich HTML concat keeps marks).
+ // Merge into the previous text block (rich HTML concat keeps marks).
       const prevLen = (prevSib.content.text ?? "").length;
       const curHtml = block.content.html ?? escapeHtml(text);
       deletedIds.current.add(id);
@@ -946,15 +946,15 @@ export const BlockEditor = forwardRef<
 
   const onInput = useCallback(
     (id: string, el: HTMLElement) => {
-      // inline markdown (**bold** etc.) / :emoji: autoformat — rewrites the
-      // DOM in place; normalize() below re-reads it either way
+ // inline markdown (**bold** etc.) / :emoji: autoformat — rewrites the
+ // DOM in place; normalize() below re-reads it either way
       if (el.closest("[data-block-type]")?.getAttribute("data-block-type") !== "code")
         tryInlineAutoformat();
       const text = normalize(el);
 
       if (pasteLink && pasteLink.blockId === id) setPasteLink(null);
 
-      // :emoji live query (closes on removed ':' or a space)
+ // :emoji live query (closes on removed ':' or a space)
       if (emojiSug && emojiSug.blockId === id) {
         if (text.length < emojiSug.offset || text[emojiSug.offset - 1] !== ":") {
           setEmojiSug(null);
@@ -965,7 +965,7 @@ export const BlockEditor = forwardRef<
         }
       }
 
-      // @-mention live query (closes on removed '@' or a space)
+ // @-mention live query (closes on removed '@' or a space)
       if (mention && mention.blockId === id) {
         if (text.length < mention.offset || text[mention.offset - 1] !== "@") {
           setMention(null);
@@ -976,7 +976,7 @@ export const BlockEditor = forwardRef<
         }
       }
 
-      // slash-menu live query
+ // slash-menu live query
       if (slash && slash.blockId === id) {
         if (text.length < slash.offset || text[slash.offset - 1] !== "/") {
           setSlash(null);
@@ -985,10 +985,10 @@ export const BlockEditor = forwardRef<
           setSlash({ ...slash, query, selected: 0 });
         }
       } else {
-        // markdown shortcuts only on plain paragraphs
+ // markdown shortcuts only on plain paragraphs
         const block = blocks.find((b) => b.id === id);
         if (block?.type === "paragraph") {
-          // Notion converts on the third backtick immediately, no space needed
+ // we convert on the third backtick immediately, no space needed
           if (text === "```") {
             mutate((prev) =>
               prev.map((b) =>
@@ -1045,22 +1045,22 @@ export const BlockEditor = forwardRef<
     [slash, mention, emojiSug, pasteLink, blocks, mutate]
   );
 
-  // Smart paste: clipboard image → upload + image block; markdown/multi-line
-  // text → parse into MULTIPLE blocks split at the caret; single plain line →
-  // the original inline paste. Code blocks always paste literally.
+ // Smart paste: clipboard image → upload + image block; markdown/multi-line
+ // text → parse into MULTIPLE blocks split at the caret; single plain line →
+ // the original inline paste. Code blocks always paste literally.
   const onPaste = useCallback(
     (id: string, e: React.ClipboardEvent, el: HTMLElement) => {
       const cd = e.clipboardData;
       const block = blocks.find((b) => b.id === id);
 
-      // Code blocks take clipboard content verbatim (never linkify / parse).
+ // Code blocks take clipboard content verbatim (never linkify / parse).
       if (block?.type === "code") {
         e.preventDefault();
         document.execCommand("insertText", false, cd.getData("text/plain"));
         return;
       }
 
-      // 1) An image on the clipboard → upload it and insert an image block.
+ // 1) An image on the clipboard → upload it and insert an image block.
       const files = cd.files ? Array.from(cd.files) : [];
       const items = cd.items ? Array.from(cd.items) : [];
       const imageFile =
@@ -1093,8 +1093,8 @@ export const BlockEditor = forwardRef<
       }
 
       let text = cd.getData("text/plain");
-      // 1.5) rich HTML from outside (web / Google Docs): convert the block
-      // structure to markdown and reuse the markdown pipeline below
+ // 1.5) rich HTML from outside (web / Google Docs): convert the block
+ // structure to markdown and reuse the markdown pipeline below
       const htmlClip = cd.getData("text/html");
       if (htmlClip) {
         const md = htmlToMarkdownish(htmlClip);
@@ -1102,7 +1102,7 @@ export const BlockEditor = forwardRef<
       }
       if (!text) return; // nothing pasteable — let the browser default run
 
-      // 2) Markdown / multi-line text → parse and split the current block.
+ // 2) Markdown / multi-line text → parse and split the current block.
       if (looksLikeMarkdown(text)) {
         const parsed = parseMarkdown(text, "p", { noTitle: true }).blocks;
         const multiBlock =
@@ -1120,7 +1120,7 @@ export const BlockEditor = forwardRef<
             const parentId = cur.parentBlockId ?? null;
             let anchor: EBlock = cur;
             let startIdx = 0;
-            // An empty target block becomes the first parsed block (no blank lead).
+ // An empty target block becomes the first parsed block (no blank lead).
             if (before.trim() === "" && after.trim() === "" && cur.type === "paragraph") {
               cur.type = parsed[0].type;
               cur.content = { ...parsed[0].content };
@@ -1158,8 +1158,8 @@ export const BlockEditor = forwardRef<
         }
       }
 
-      // 3) Single plain line → the original inline paste behavior. A bare
-      // URL becomes a link and offers "keep / bookmark" (Notion's chooser).
+ // 3) Single plain line → the original inline paste behavior. A bare
+ // URL becomes a link and offers "keep / bookmark".
       e.preventDefault();
       const urlish = /^https?:\/\/\S+$/i.test(text.trim());
       if (urlish) {
@@ -1208,7 +1208,7 @@ export const BlockEditor = forwardRef<
     [visualOrder]
   );
 
-  // --- block-level multi-selection ------------------------------------------
+ // --- block-level multi-selection ------------------------------------------
   const clearSelection = useCallback(() => {
     selAnchorRef.current = null;
     selFocusRef.current = null;
@@ -1290,7 +1290,7 @@ export const BlockEditor = forwardRef<
     clearSelection();
   }, [mutate, positionAfter, visualOrder, clearSelection]);
 
-  // In selection mode the caret is blurred, so keys are handled at the window.
+ // In selection mode the caret is blurred, so keys are handled at the window.
   useEffect(() => {
     if (selectedIds.size === 0) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1478,7 +1478,7 @@ export const BlockEditor = forwardRef<
         return; // let the '@' character insert
       }
 
-      // Escape (nothing else open) → select the whole block (block-selection mode)
+ // Escape (nothing else open) → select the whole block (block-selection mode)
       if (e.key === "Escape") {
         e.preventDefault();
         el.blur();
@@ -1516,7 +1516,7 @@ export const BlockEditor = forwardRef<
         return;
       }
 
-      // Cross-block caret navigation at the block's edges.
+ // Cross-block caret navigation at the block's edges.
       if (e.key === "ArrowUp" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         const sel = window.getSelection();
         if (sel?.isCollapsed && caretOffset(el) === 0 && focusNeighbour(id, -1)) {
@@ -1574,7 +1574,7 @@ export const BlockEditor = forwardRef<
     [mutate]
   );
 
-  // Append a new column to a column_list (N-way columns, not just 2).
+ // Append a new column to a column_list (N-way columns, not just 2).
   const addColumn = useCallback(
     (columnListId: string) => {
       mutate((prev) => {
@@ -1678,9 +1678,9 @@ export const BlockEditor = forwardRef<
 
   const updateTable = useCallback(
     (id: string, table: TableData) => {
-      // structural table changes (add/remove row/col) bump version so the
-      // component resyncs; cell-text edits coalesce into one undo frame and
-      // do NOT bump version (avoids clobbering the focused cell's DOM).
+ // structural table changes (add/remove row/col) bump version so the
+ // component resyncs; cell-text edits coalesce into one undo frame and
+ // do NOT bump version (avoids clobbering the focused cell's DOM).
       mutate(
         (prev) =>
           prev.map((b) =>
@@ -1694,8 +1694,8 @@ export const BlockEditor = forwardRef<
 
   const insertBelow = useCallback(
     (id: string) => {
-      // Notion behavior: + inserts a block AND opens the type menu — a silent
-      // empty block reads as "nothing happened".
+ // standard behavior: + inserts a block AND opens the type menu — a silent
+ // empty block reads as "nothing happened".
       const nb = freshParagraph(null, 0);
       nb.content.text = "/";
       mutate((prev) => {
@@ -1708,8 +1708,8 @@ export const BlockEditor = forwardRef<
         return next;
       });
       pendingFocus.current = { id: nb.id, pos: "end" };
-      // The new block's editable may take more than one frame to mount on
-      // slow renders — retry briefly instead of silently leaving a bare "/".
+ // The new block's editable may take more than one frame to mount on
+ // slow renders — retry briefly instead of silently leaving a bare "/".
       const openMenu = (attempt: number) => {
         const el = editables.current.get(nb.id);
         if (!el) {
@@ -1795,7 +1795,7 @@ export const BlockEditor = forwardRef<
     if (!draggingId.current || draggingId.current === id) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    // near the left/right edge → side-drop creates columns; otherwise reorder.
+ // near the left/right edge → side-drop creates columns; otherwise reorder.
     const relX = (e.clientX - rect.left) / rect.width;
     const side = relX < 0.25 ? "left" : relX > 0.75 ? "right" : undefined;
     const before = e.clientY < rect.top + rect.height / 2;
@@ -1818,8 +1818,8 @@ export const BlockEditor = forwardRef<
         const target = next.find((b) => b.id === targetId);
         if (!drag || !target) return prev;
 
-        // side-drop: wrap the target + dragged block into a NEW column_list that
-        // takes the target's slot (Notion's "create columns by side-drop").
+ // side-drop: wrap the target + dragged block into a NEW column_list that
+ // takes the target's slot.
         if (side && target.type !== "column" && target.type !== "column_list") {
           const cl: EBlock = {
             id: newId(), type: "column_list", content: {},
@@ -2041,13 +2041,13 @@ export const BlockEditor = forwardRef<
         data-save-state={saveState}
         className="relative mt-2 min-h-[40vh] pb-8"
         onDragOver={(e) => {
-          // OS file drag → allow dropping (else the browser navigates away)
+ // OS file drag → allow dropping (else the browser navigates away)
           if (e.dataTransfer.types.includes("Files")) e.preventDefault();
         }}
         onClick={(e) => {
-          // Links live inside contentEditable, where the browser won't follow
-          // them on its own — delegate here (inline links AND page mention
-          // chips): internal hrefs SPA-navigate, external open a new tab.
+ // Links live inside contentEditable, where the browser won't follow
+ // them on its own — delegate here (inline links AND page mention
+ // chips): internal hrefs SPA-navigate, external open a new tab.
           const anchor = (e.target as HTMLElement).closest?.("a[href]");
           if (anchor && rootRef.current?.contains(anchor)) {
             e.preventDefault();
@@ -2057,7 +2057,7 @@ export const BlockEditor = forwardRef<
               window.open(href, "_blank", "noopener,noreferrer");
             return;
           }
-          // clicking bare canvas (below the last block) focuses the tail line
+ // clicking bare canvas (below the last block) focuses the tail line
           if (e.target !== e.currentTarget) return;
           const order = visualOrder();
           const last = order[order.length - 1];
@@ -2128,7 +2128,7 @@ export const BlockEditor = forwardRef<
             </button>
           </div>
         )}
-        {/* saving is silent (Notion) — data-save-state still drives tests;
+        {/* saving is silent — data-save-state still drives tests;
             only the OFFLINE state surfaces a badge */}
         {saveState === "offline" && (
           <span
@@ -2194,7 +2194,7 @@ export const BlockEditor = forwardRef<
                   const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
                   const cur = next.find((b) => b.id === blockId);
                   if (!cur) return prev;
-                  // strip the just-pasted link text from the block…
+ // strip the just-pasted link text from the block…
                   const el2 = editables.current.get(blockId);
                   if (el2) {
                     el2.querySelectorAll("a").forEach((a) => {
@@ -2204,7 +2204,7 @@ export const BlockEditor = forwardRef<
                     cur.content.html = sanitizeInline(el2.innerHTML);
                     cur.version++;
                   }
-                  // …and add a bookmark block right below
+ // …and add a bookmark block right below
                   const nb: EBlock = {
                     id: newId(),
                     type: "bookmark",
@@ -2247,7 +2247,7 @@ export const BlockEditor = forwardRef<
   );
 });
 
-/** Built-in page templates offered on a fresh, empty page (Notion's template
+/** Built-in page templates offered on a fresh, empty page (template
  * picker). Content is plain markdown fed through the md paste pipeline. */
 const PAGE_TEMPLATES = [
   {

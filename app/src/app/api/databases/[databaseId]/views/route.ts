@@ -23,7 +23,7 @@ export async function POST(
   const type = (body?.type ?? "table") as DbView["type"];
   const name = body?.name || defaultName(type);
 
-  // file-backed database: views live in the .dbmeta.json sidecar
+ // file-backed database: views live in the .dbmeta.json sidecar
   if (isOkfId(databaseId)) {
     try {
       const view = await okfAddView(decodeId(databaseId), { name, type, config: body?.config });

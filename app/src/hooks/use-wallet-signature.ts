@@ -44,7 +44,7 @@ export interface UseWalletSignature {
   signature: SignedMessage | SignedTypedData | null;
   connect: () => Promise<Address | null>;
   /** Signs `message` (EIP-191). Returns null on rejection/failure — read
-   *  `error` for the reason. */
+ * `error` for the reason. */
   signMessage: (message: string) => Promise<SignedMessage | null>;
   /** Signs an EIP-712 payload. Returns null on rejection/failure. */
   signTypedData: (
@@ -61,9 +61,9 @@ function subscribeToInjection(onChange: () => void): () => void {
 }
 
 export function useWalletSignature(): UseWalletSignature {
-  // Read through useSyncExternalStore rather than state-in-effect: the server
-  // snapshot is `false`, so hydration matches, and the value flips as soon as
-  // the client has a provider.
+ // Read through useSyncExternalStore rather than state-in-effect: the server
+ // snapshot is `false`, so hydration matches, and the value flips as soon as
+ // the client has a provider.
   const available = useSyncExternalStore(
     subscribeToInjection,
     isWalletAvailable,
@@ -81,12 +81,12 @@ export function useWalletSignature(): UseWalletSignature {
     if (!available) return;
     let alive = true;
 
-    // Silent — no popup. Tells us whether the user already authorised us.
+ // Silent — no popup. Tells us whether the user already authorised us.
     getConnectedAddress().then((a) => {
       if (alive) setAddress(a);
     });
 
-    // Wallet-side account switching / disconnect.
+ // Wallet-side account switching / disconnect.
     const provider = window.ethereum;
     const onAccountsChanged = (...args: unknown[]) => {
       const accounts = (args[0] as string[] | undefined) ?? [];

@@ -53,8 +53,8 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   reply: async (pageId, parentId, body) => {
-    // A reply inherits its parent's block anchor so the whole thread stays
-    // pinned to the same block (Notion behaviour).
+ // A reply inherits its parent's block anchor so the whole thread stays
+ // pinned to the same block.
     const parent = (get().byPage[pageId] ?? []).find((c) => c.id === parentId);
     const res = await fetch(`/api/pages/${pageId}/comments`, {
       method: "POST",
@@ -73,7 +73,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   setResolved: async (pageId, commentId, resolved) => {
-    // optimistic
+ // optimistic
     set((s) => ({
       byPage: {
         ...s.byPage,

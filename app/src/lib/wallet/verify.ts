@@ -46,7 +46,7 @@ export async function verifySignedMessage({
 }
 
 /** Address that signed `message`, or null if the signature is malformed.
- *  Use when the flow doesn't know the address up front (address-as-identity). */
+ * Use when the flow doesn't know the address up front (address-as-identity). */
 export async function recoverSigner(
   message: string,
   signature: string
@@ -109,8 +109,8 @@ export function normalizeAddress(address: string): string | null {
 }
 
 function isHexSignature(signature: string): signature is Hex {
-  // 65 bytes (r + s + v) → 130 hex chars, which is what MetaMask emits. The
-  // floor is 128 so EIP-2098 compact signatures still get through to viem;
-  // this guard only rejects what is definitely not a signature.
+ // 65 bytes (r + s + v) → 130 hex chars, which is what MetaMask emits. The
+ // floor is 128 so EIP-2098 compact signatures still get through to viem;
+ // this guard only rejects what is definitely not a signature.
   return /^0x[0-9a-fA-F]{128,}$/.test(signature);
 }

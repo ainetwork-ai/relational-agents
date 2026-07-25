@@ -14,7 +14,7 @@ function inline(b: ExportBlock): string {
 }
 
 /** Render blocks to print-ready HTML for the PDF exporter. Children are
- *  nested by parentBlockId (toggles/columns flattened — print is linear). */
+ * nested by parentBlockId (toggles/columns flattened — print is linear). */
 export function blocksToHtml(title: string, blocksIn: ExportBlock[]): string {
   const byParent = new Map<string | null, ExportBlock[]>();
   for (const b of blocksIn) {

@@ -22,8 +22,8 @@ async function getBrowser() {
   return browserPromise;
 }
 
-/** GET → the page as a real PDF (Notion: ... → Export → PDF). Rendered by a
- *  server-side headless chromium from self-contained HTML (no app auth). */
+/** GET → the page as a real PDF. Rendered by a
+ * server-side headless chromium from self-contained HTML (no app auth). */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }

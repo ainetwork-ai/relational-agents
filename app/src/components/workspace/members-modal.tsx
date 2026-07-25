@@ -131,7 +131,7 @@ export function MembersModal() {
 
         <div className="max-h-[45vh] overflow-y-auto p-2">
           {members.map(({ user, role }) => {
-            // an admin+ can manage everyone except the owner and themselves
+ // an admin+ can manage everyone except the owner and themselves
             const editable = canManage && role !== "owner" && user.id !== meId;
             return (
               <div

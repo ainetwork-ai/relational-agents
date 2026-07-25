@@ -25,7 +25,7 @@ export function BoardView({ view }: { view: DbView }) {
   const titleProp = db.properties.find((p) => p.type === "title");
   const personProp = db.properties.find((p) => p.type === "person");
   const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
-  // card cover: the first url/files property's value (like gallery)
+ // card cover: the first url/files property's value (like gallery)
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
     if (!coverProp) return null;
@@ -34,9 +34,9 @@ export function BoardView({ view }: { view: DbView }) {
     return typeof url === "string" && url ? url : null;
   };
 
-  // Notion lets you (re)pick the board's grouping property — without this a
-  // board whose db has no status-typed column was a dead end.
-  // group picker moved into ViewOptions
+ // lets you (re)pick the board's grouping property — without this a
+ // board whose db has no status-typed column was a dead end.
+ // group picker moved into ViewOptions
 
   if (!groupProp) {
     return (
@@ -49,7 +49,7 @@ export function BoardView({ view }: { view: DbView }) {
   }
 
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
-  // for a status property, order columns by their option group band (Notion).
+ // for a status property, order columns by their option group band.
   const ordered =
     groupProp.type === "status"
       ? [...(groupProp.config.options ?? [])].sort(
@@ -126,7 +126,7 @@ export function BoardView({ view }: { view: DbView }) {
                     style={{ touchAction: "none" }}
                   >
                     {coverOf(r.values) && (
-                      // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
                       <img
                         data-testid={`db-board-cover-${r.id}`}
                         src={coverOf(r.values)!}

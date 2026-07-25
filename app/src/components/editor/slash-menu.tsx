@@ -17,7 +17,7 @@ export function filterSlashItems(query: string) {
   const base = q
     ? SLASH_ITEMS.filter((i) => i.keywords.includes(q) || i.label.toLowerCase().includes(q))
     : SLASH_ITEMS;
-  // stable category grouping (menu renders one section header per group)
+ // stable category grouping (menu renders one section header per group)
   return [...base].sort(
     (a, b) =>
       (CATEGORY_ORDER[a.category ?? "basic"] ?? 0) - (CATEGORY_ORDER[b.category ?? "basic"] ?? 0)
@@ -27,7 +27,7 @@ export function filterSlashItems(query: string) {
 /** Named SVG icons for items whose tile outgrows a text glyph. */
 function ItemIcon({ name }: { name: "dashboard" }) {
   if (name === "dashboard") {
-    // panel grid — a generic dashboard (any subject, not domain-specific)
+ // panel grid — a generic dashboard (any subject, not domain-specific)
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="3" y="3" width="8" height="10" rx="1.5" />
@@ -54,9 +54,9 @@ export function SlashMenu({
   const items = filterSlashItems(query);
   const listRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  // Flip above the caret when the menu would clip past the bottom of the
-  // viewport (and there is room above). Measured after render so the flip
-  // tracks the filtered item count.
+ // Flip above the caret when the menu would clip past the bottom of the
+ // viewport (and there is room above). Measured after render so the flip
+ // tracks the filtered item count.
   const [flip, setFlip] = useState(false);
   useLayoutEffect(() => {
     const h = menuRef.current?.offsetHeight ?? 0;
@@ -108,7 +108,7 @@ export function SlashMenu({
           <button
             data-testid={`slash-menu-item-${item.id ?? item.type}`}
             onMouseDown={(e) => {
-              // mousedown (not click) so the editable keeps focus/selection
+ // mousedown (not click) so the editable keeps focus/selection
               e.preventDefault();
               onPick(item.type, item.preset);
             }}

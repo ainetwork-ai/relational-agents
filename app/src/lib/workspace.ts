@@ -4,8 +4,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 
 /** The caller's ACTIVE workspace: the session's active workspace when the user
- *  is still a member of it, otherwise their first membership. This makes every
- *  workspace-scoped route (pages, members, invite, …) follow the switcher. */
+ * is still a member of it, otherwise their first membership. This makes every
+ * workspace-scoped route (pages, members, invite, …) follow the switcher. */
 export async function getDefaultWorkspaceId(userId: string): Promise<string | null> {
   const session = await getSession();
   const active = session.activeWorkspaceId;
@@ -17,8 +17,8 @@ export async function getDefaultWorkspaceId(userId: string): Promise<string | nu
       .limit(1);
     if (m) return active;
   }
-  // No pinned workspace → land on the one you own, not one you're guesting
-  // in. Guest memberships (DM-partner invites) must never become the default.
+ // No pinned workspace → land on the one you own, not one you're guesting
+ // in. Guest memberships (DM-partner invites) must never become the default.
   const [membership] = await db
     .select({ workspaceId: workspaceMembers.workspaceId })
     .from(workspaceMembers)

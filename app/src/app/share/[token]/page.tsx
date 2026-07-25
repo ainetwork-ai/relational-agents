@@ -28,10 +28,10 @@ export default async function SharedPage({
     .limit(1);
   if (!share) notFound();
 
-  // expired links are dead links
+ // expired links are dead links
   if (linkExpired(share.expiresAt)) notFound();
 
-  // password gate: the unlock cookie must carry the current hash
+ // password gate: the unlock cookie must carry the current hash
   if (share.passwordHash) {
     const jar = await cookies();
     if (jar.get(`share_pw_${token}`)?.value !== share.passwordHash) {
@@ -54,7 +54,7 @@ export default async function SharedPage({
 
   const permission = (share.permission ?? "view") as Permission;
 
-  // For edit, comment, or full: render the interactive client component
+ // For edit, comment, or full: render the interactive client component
   if (permission !== "view") {
     return (
       <main className="min-h-screen bg-white dark:bg-[#191919]">
@@ -69,12 +69,12 @@ export default async function SharedPage({
     );
   }
 
-  // View-only: static read-only render (original behavior)
+ // View-only: static read-only render (original behavior)
   return (
     <main className="min-h-screen bg-white pb-32 dark:bg-[#191919]">
       {share.allowDuplicate && <ShareDuplicateButton token={token} />}
       {page.coverUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
         <img src={page.coverUrl} alt="" className="h-48 w-full object-cover" />
       )}
       <div className="mx-auto max-w-[708px] px-6">
@@ -88,7 +88,7 @@ export default async function SharedPage({
           <ReadOnlyBlocks blocks={blockRows} />
         </div>
         <p className="mt-16 border-t border-neutral-100 pt-4 text-xs text-neutral-400 dark:border-neutral-800">
-          Shared read-only · Built with Notion clone
+          Shared read-only · Built with Relational Memory
         </p>
       </div>
     </main>

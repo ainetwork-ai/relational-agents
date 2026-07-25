@@ -15,7 +15,7 @@ export function PresenceBar({
   self: PresenceSelf;
   others: PresentClient[];
 }) {
-  // dedupe by userId — one avatar per person even across multiple tabs
+ // dedupe by userId — one avatar per person even across multiple tabs
   const byUser = new Map<string, { user: PublicUser; color: string }>();
   if (self.user) byUser.set(self.user.id, { user: self.user, color: self.color });
   for (const o of others) {

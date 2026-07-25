@@ -25,8 +25,8 @@ import { MemorySelect } from "@/components/database/memory-select";
 export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   const editor = useEditor();
 
-  // A columns layout renders its column children side-by-side; each column
-  // stacks its own children vertically.
+ // A columns layout renders its column children side-by-side; each column
+ // stacks its own children vertically.
   if (block.type === "column_list") {
     const columns = editor.childrenOf(block.id);
     return (
@@ -53,8 +53,8 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   }
 
   const isDrop = editor.dropTarget?.id === block.id;
-  // Toggle manages its own children (gated by expand); every other block
-  // renders its indented children here so Tab-nesting works for all types.
+ // Toggle manages its own children (gated by expand); every other block
+ // renders its indented children here so Tab-nesting works for all types.
   const nestedChildren =
     block.type === "toggle" ? [] : editor.childrenOf(block.id);
 
@@ -66,8 +66,8 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
       onDragOver={(e) => editor.onDragOverRow(e, block.id)}
       onDrop={(e) => editor.onDropRow(e, block.id)}
       onContextMenu={(e) => {
-        // right-click on a block opens the full block action menu;
-        // plain inputs keep the native menu, as does Ctrl/Cmd-click
+ // right-click on a block opens the full block action menu;
+ // plain inputs keep the native menu, as does Ctrl/Cmd-click
         if (e.ctrlKey || e.metaKey) return;
         const t = e.target as HTMLElement;
         if (t.closest?.("input, textarea")) return;
@@ -97,7 +97,7 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
         }`}
         style={{ paddingLeft: depth * 24 }}
       >
-        <div className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/block:opacity-100" style={{ left: depth * 24 - 40 }} /* hug the block (Notion ~8px gap) */>
+        <div className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/block:opacity-100" style={{ left: depth * 24 - 40 }} /* hug the block */>
           <button
             tabIndex={-1}
             data-testid={`block-add-below-${block.id}`}
@@ -132,7 +132,7 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
 
 /** R016 — anchors a block's comment thread inline: a block with unresolved
  * comments keeps a highlight and a right-margin marker (count). Clicking the
- * marker opens that block's thread in the side panel (Notion behaviour). */
+ * marker opens that block's thread in the side panel. */
 function BlockCommentAnchor({
   blockId,
   children,
@@ -145,8 +145,8 @@ function BlockCommentAnchor({
   const list = useCommentsStore((s) => (pageId ? s.byPage[pageId] : undefined));
   const openThread = useCommentUi((s) => s.open);
 
-  // only UNRESOLVED threads anchor to the block; resolving clears the
-  // highlight + marker (Notion moves resolved comments out of the inline view).
+ // only UNRESOLVED threads anchor to the block; resolving clears the
+ // highlight + marker.
   const unresolved = (list ?? []).filter(
     (c) => c.blockId === blockId && c.parentId === null && !c.resolved
   ).length;
@@ -337,7 +337,7 @@ function BlockHandle({ block }: { block: EBlock }) {
     setDraft("");
     setCommentOpen(false);
     await addComment(pageId, body, block.id);
-    // open the freshly-created thread beside the block (Notion behaviour)
+ // open the freshly-created thread beside the block
     openThread(block.id);
   }
 
@@ -348,7 +348,7 @@ function BlockHandle({ block }: { block: EBlock }) {
         data-testid={`block-handle-${block.id}`}
         draggable
         onDragStart={(e) => {
-          // Notion-style ghost: the actual block rendered as the drag image
+ // ghost: the actual block rendered as the drag image
           const el = document.querySelector(`[data-testid="block-${block.id}"]`);
           if (el instanceof HTMLElement && e.dataTransfer) {
             e.dataTransfer.setDragImage(el, 8, 8);
@@ -495,10 +495,10 @@ function CodeBlock({ block }: { block: EBlock }) {
   const caption = (block.content.caption as string) ?? "";
   const text = (block.content.text as string) ?? "";
   const language = block.content.language ?? "plain";
-  // The overlay is rendered from the stored text (source of truth on
-  // mount/reload/remote/version bump). During active typing the editor's DOM
-  // leads React state, so we ALSO repaint the overlay imperatively on input —
-  // no extra React state, no effect (keeps the editor's model untouched).
+ // The overlay is rendered from the stored text (source of truth on
+ // mount/reload/remote/version bump). During active typing the editor's DOM
+ // leads React state, so we ALSO repaint the overlay imperatively on input —
+ // no extra React state, no effect (keeps the editor's model untouched).
   const overlayRef = useRef<HTMLPreElement>(null);
 
   return (
@@ -558,7 +558,7 @@ function CodeBlock({ block }: { block: EBlock }) {
   );
 }
 
-// Notion callout background palette (name → light / dark bg classes).
+// Callout background palette (name → light / dark bg classes).
 const CALLOUT_COLORS: { name: string; bg: string }[] = [
   { name: "default", bg: "bg-neutral-100 dark:bg-neutral-800/80" },
   { name: "gray", bg: "bg-neutral-200/70 dark:bg-neutral-700/50" },
@@ -575,7 +575,7 @@ const calloutBg = (color?: string) =>
   (CALLOUT_COLORS.find((c) => c.name === color) ?? CALLOUT_COLORS[0]).bg;
 
 /** Callout: a pickable emoji icon (any emoji, via the full IconPicker) + a
- * background color, matching Notion (was a hardcoded 💡 on neutral). */
+ * background color (was a hardcoded 💡 on neutral). */
 function CalloutBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [colorOpen, setColorOpen] = useState(false);
@@ -686,7 +686,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
       );
 
     case "toc": {
-      // live outline of the page's headings; entries scroll to their block
+ // live outline of the page's headings; entries scroll to their block
       const heads = editor.blocks.filter((b) =>
         ["heading1", "heading2", "heading3"].includes(b.type)
       );
@@ -742,8 +742,8 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
       return <AiPromptBody block={block} />;
 
     case "link_to_page":
-      // link to an EXISTING page: picker until a target is chosen, then the
-      // same link chip as a child page
+ // link to an EXISTING page: picker until a target is chosen, then the
+ // same link chip as a child page
       return block.content.childPageId ? (
         <ChildPageBody block={block} />
       ) : (
@@ -803,7 +803,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
               className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               aria-label={expanded ? "Collapse" : "Expand"}
             >
-              {/* Notion: a filled triangle in text ink, not a stroke chevron (R2#7) */}
+              {/* a filled triangle in text ink, not a stroke chevron (R2#7) */}
               <span
                 aria-hidden="true"
                 className={`text-[10px] leading-none text-neutral-800 transition-transform duration-150 dark:text-neutral-200 ${
@@ -985,7 +985,7 @@ function EmbedBody({ block, kind }: { block: EBlock; kind: "bookmark" | "video" 
   return (
     <div className="my-1 w-full" data-testid={`${kind}-frame-${block.id}`}>
       {isFile ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
+ // eslint-disable-next-line jsx-a11y/media-has-caption
         <video src={url} controls className="max-h-[420px] w-full rounded-md" />
       ) : (
         <iframe
@@ -1174,10 +1174,10 @@ function Editable({
   const editor = useEditor();
   const ref = useRef<HTMLDivElement>(null);
 
-  // Sync DOM from state on mount and whenever a programmatic change bumps
-  // the version (split/merge/type conversion/remote). Normal typing never
-  // re-renders — the DOM is the source during composition. Rich blocks sync
-  // via sanitized innerHTML, plain ones via innerText.
+ // Sync DOM from state on mount and whenever a programmatic change bumps
+ // the version (split/merge/type conversion/remote). Normal typing never
+ // re-renders — the DOM is the source during composition. Rich blocks sync
+ // via sanitized innerHTML, plain ones via innerText.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -1191,11 +1191,11 @@ function Editable({
         el.innerText = want;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [block.version]);
 
-  // inline equation chips: canonical html carries `$tex$` — upgrade each
-  // span.eq to live KaTeX in the DOM (sanitize collapses it back on save)
+ // inline equation chips: canonical html carries `$tex$` — upgrade each
+ // span.eq to live KaTeX in the DOM (sanitize collapses it back on save)
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -1240,7 +1240,7 @@ function Editable({
   );
 }
 
-/** Button block (notion.com/help/buttons): a labelled pill that runs its
+/** Button block (help/buttons): a labelled pill that runs its
  * configured ACTION CHAIN on click — open URL/page, insert blocks, add a
  * database page, show a confirmation, send an inbox reminder. Actions run
  * in order; a rejected confirmation stops the chain. */
@@ -1433,7 +1433,7 @@ function ButtonBlock({ block }: { block: EBlock }) {
   );
 }
 
-/** Template button (Notion's button block): click inserts its markdown
+/** Template button: click inserts its markdown
  * template as fresh blocks right below; ⚙ configures label + template. */
 function TemplateButtonBody({ block }: { block: EBlock }) {
   const editor = useEditor();
@@ -1522,7 +1522,7 @@ function EquationBody({ block }: { block: EBlock }) {
             <button
               data-testid={`equation-done-${block.id}`}
               onClick={() => {
-                // content.text is the TeX source (label maps to text)
+ // content.text is the TeX source (label maps to text)
                 editor.setTemplateData(block.id, { label: draft });
                 setEditing(false);
               }}
@@ -1570,7 +1570,7 @@ function AiPromptBody({ block }: { block: EBlock }) {
     if (!prompt.trim() || busy) return;
     setBusy(true);
     setError(false);
-    // nearby page text gives the model context (cheap: current blocks' text)
+ // nearby page text gives the model context (cheap: current blocks' text)
     const context = editor.blocks
       .map((b) => b.content.text ?? "")
       .filter(Boolean)

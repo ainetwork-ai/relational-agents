@@ -12,7 +12,7 @@ interface Snapshot {
 }
 
 /** Page history: list of saved versions with one-click restore. The current
- *  state is snapshotted server-side before a restore, so restores are undoable. */
+ * state is snapshotted server-side before a restore, so restores are undoable. */
 export function PageHistoryModal({
   pageId,
   onClose,
@@ -42,8 +42,8 @@ export function PageHistoryModal({
     setBusy(null);
   }
 
-  // portal: the sticky header's backdrop-blur creates a containing block
-  // that would trap position:fixed descendants
+ // portal: the sticky header's backdrop-blur creates a containing block
+ // that would trap position:fixed descendants
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <div

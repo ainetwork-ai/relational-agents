@@ -12,8 +12,8 @@ export function isImageIcon(icon: string | null | undefined): icon is string {
 }
 
 /** Renders a page icon inline: <img> for URL icons, the emoji text otherwise.
- *  No hooks — safe in both server and client components. `className` sizes the
- *  img; the default tracks the surrounding font size like an emoji would. */
+ * No hooks — safe in both server and client components. `className` sizes the
+ * img; the default tracks the surrounding font size like an emoji would. */
 export function PageIcon({
   icon,
   fallback = null,
@@ -24,7 +24,7 @@ export function PageIcon({
   className?: string;
 }) {
   if (isImageIcon(icon)) {
-    // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
     return <img src={icon} alt="" className={className} />;
   }
   return <>{icon ?? fallback}</>;

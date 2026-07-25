@@ -51,8 +51,8 @@ function Section({
   );
 }
 
-/** Home dashboard (Notion): greeting + recently visited + recently edited +
- *  favorites, each linking straight into the page. */
+/** Home dashboard: greeting + recently visited + recently edited +
+ * favorites, each linking straight into the page. */
 export default function HomePage() {
   const pages = usePagesStore((s) => s.pages);
   const load = usePagesStore((s) => s.load);
@@ -65,8 +65,8 @@ export default function HomePage() {
 
   const all = useMemo(() => Object.values(pages).filter((p) => !p.isArchived), [pages]);
   const favorites = all.filter((p) => p.isFavorite).slice(0, 8);
-  // OKF file nodes carry a FABRICATED updatedAt (fetch time) — only Postgres
-  // pages have a real edit timestamp, so only they qualify here
+ // OKF file nodes carry a FABRICATED updatedAt (fetch time) — only Postgres
+ // pages have a real edit timestamp, so only they qualify here
   const edited = useMemo(
     () =>
       [...all]

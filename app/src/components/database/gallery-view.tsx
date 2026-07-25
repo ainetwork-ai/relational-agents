@@ -8,20 +8,20 @@ import { useDb } from "./database-block";
 import { PropertyValue } from "./property-value";
 
 /** Card grid: each row is a card with its title and property values stacked.
- *  Supports the shared group-by (select/status → labelled sections). */
+ * Supports the shared group-by (select/status → labelled sections). */
 export function GalleryView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const titleProp = db.properties.find((p) => p.type === "title");
   const hidden = view.config.hiddenProperties ?? [];
   const shown = db.properties.filter((p) => p.type !== "title" && !hidden.includes(p.id));
-  // visible url properties become card ACTION BUTTONS (call / message / docs …)
-  // — except the one already consumed as the card cover
+ // visible url properties become card ACTION BUTTONS (call / message / docs …)
+ // — except the one already consumed as the card cover
   const rest = shown.filter((p) => p.type !== "url");
   const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
   const groups = groupRowsBy(visible, groupProp);
-  // card cover: the first url/files property's value (Notion's gallery cover).
+ // card cover: the first url/files property's value.
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
     if (!coverProp) return null;
@@ -38,7 +38,7 @@ export function GalleryView({ view }: { view: DbView }) {
       className="cursor-pointer overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow dark:border-neutral-700 dark:bg-neutral-800"
     >
       {coverOf(row.values) && (
-        // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
         <img
           data-testid={`db-gallery-cover-${row.id}`}
           src={coverOf(row.values)!}

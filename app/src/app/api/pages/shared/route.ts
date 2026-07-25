@@ -8,7 +8,7 @@ import { getDefaultWorkspaceId } from "@/lib/workspace";
 export const dynamic = "force-dynamic";
 
 /** GET → pages that are SHARED (have page members or pending invites) in the
- *  user's workspace — the sidebar "Shared" section. */
+ * user's workspace — the sidebar "Shared" section. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

@@ -10,8 +10,8 @@
 import { createWalletClient, custom, type EIP1193Provider } from "viem";
 
 /** Minimal EIP-1193 surface as injected by browser wallets. This is the single
- *  source of truth for `window.ethereum`'s type across the app — the global
- *  augmentation below is the only one; don't re-declare it elsewhere. */
+ * source of truth for `window.ethereum`'s type across the app — the global
+ * augmentation below is the only one; don't re-declare it elsewhere. */
 export interface InjectedEthereumProvider {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
   on?(event: string, handler: (...args: unknown[]) => void): void;
@@ -57,7 +57,7 @@ interface Eip6963Detail {
 }
 
 /** Collect EIP-6963 providers. Wallets answer `requestProvider` synchronously
- *  within the dispatch, so this is safe to call from a click handler. */
+ * within the dispatch, so this is safe to call from a click handler. */
 function discoverEip6963(): Eip6963Detail[] {
   const found: Eip6963Detail[] = [];
   const onAnnounce = (e: Event) => {
@@ -108,7 +108,7 @@ let cached: {
 } | null = null;
 
 /** viem WalletClient over the injected provider. Throws `no-provider` if
- *  there is no wallet to talk to. */
+ * there is no wallet to talk to. */
 export function getWalletClient() {
   const provider = getInjectedProvider();
   if (!provider) {
@@ -120,8 +120,8 @@ export function getWalletClient() {
   if (cached?.provider !== provider) {
     cached = {
       provider,
-      // viem's EIP1193Provider is a strictly-typed superset of the loose shape
-      // we declare for `window.ethereum`; only `request` is actually used.
+ // viem's EIP1193Provider is a strictly-typed superset of the loose shape
+ // we declare for `window.ethereum`; only `request` is actually used.
       client: createWalletClient({
         transport: custom(provider as unknown as EIP1193Provider),
       }),
@@ -134,7 +134,7 @@ export function getWalletClient() {
 export function toWalletError(err: unknown): WalletSignatureError {
   if (err instanceof WalletSignatureError) return err;
 
-  // EIP-1193 rejection is 4001; viem nests the original error, so walk `cause`.
+ // EIP-1193 rejection is 4001; viem nests the original error, so walk `cause`.
   if (hasRejectionCode(err)) {
     return new WalletSignatureError(
       "rejected",

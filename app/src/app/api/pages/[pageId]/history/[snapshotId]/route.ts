@@ -19,7 +19,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /** POST → restore this snapshot. The current state is snapshotted first so a
- *  restore is always undoable from the history list. */
+ * restore is always undoable from the history list. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ pageId: string; snapshotId: string }> }
@@ -68,8 +68,8 @@ export async function POST(
       },
       true
     );
-    // replace blocks wholesale, keeping snapshot block ids so block comments
-    // and anchors keep resolving
+ // replace blocks wholesale, keeping snapshot block ids so block comments
+ // and anchors keep resolving
     await db.delete(blocks).where(eq(blocks.pageId, pageId));
     for (const b of snap.blocks) {
       await db.insert(blocks).values({

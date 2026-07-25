@@ -28,10 +28,10 @@ export async function PATCH(
   const body = await req.json().catch(() => ({}));
   const patch = (body?.values ?? {}) as Record<string, unknown>;
 
-  // file-backed database: write each changed cell to the .csv. Values arrive
-  // in editor shape (option ids, id arrays, {start,end} dates) — serialize via
-  // the META-AWARE snapshot properties so authored option ids resolve to the
-  // display names the CSV stores. Synthetic keys (e.g. __page) are skipped.
+ // file-backed database: write each changed cell to the .csv. Values arrive
+ // in editor shape (option ids, id arrays, {start,end} dates) — serialize via
+ // the META-AWARE snapshot properties so authored option ids resolve to the
+ // display names the CSV stores. Synthetic keys (e.g. __page) are skipped.
   if (isOkfId(databaseId)) {
     try {
       const rel = decodeId(databaseId);
@@ -43,7 +43,7 @@ export async function PATCH(
         if (!prop) continue;
         writeDbCell(rel, rowId, propId, okfSerializeCell(prop, value));
       }
-      // manual reorder: physical CSV order is the order (ids shift → client refetches)
+ // manual reorder: physical CSV order is the order (ids shift → client refetches)
       if (typeof body?.position === "number") writeDbMoveRow(rel, rowId, body.position);
       const now = new Date();
       return NextResponse.json({
@@ -57,10 +57,10 @@ export async function PATCH(
   if (!(await loadDatabaseForUser(databaseId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Atomic jsonb merge at the SQL level. A read-modify-write here loses data
-  // under concurrent PATCHes (assignee + due edited near-simultaneously each
-  // read the same base and the later write clobbers the earlier) — caught by
-  // the CAP1 project-tracker journey. `values || set - delKey` is one statement.
+ // Atomic jsonb merge at the SQL level. A read-modify-write here loses data
+ // under concurrent PATCHes (assignee + due edited near-simultaneously each
+ // read the same base and the later write clobbers the earlier) — caught by
+ // the CAP1 project-tracker journey. `values || set - delKey` is one statement.
   const setKeys: Record<string, unknown> = {};
   const delKeys: string[] = [];
   for (const [k, v] of Object.entries(patch)) {
@@ -77,7 +77,7 @@ export async function PATCH(
       values: expr,
       updatedAt: new Date(),
       updatedBy: auth.user.id,
-      // manual reorder (drag a row handle): fractional position between neighbors
+ // manual reorder (drag a row handle): fractional position between neighbors
       ...(typeof body?.position === "number" ? { position: body.position } : {}),
     })
     .where(and(eq(dbRows.id, rowId), eq(dbRows.databaseId, databaseId)))
@@ -95,7 +95,7 @@ export async function DELETE(
   if ("error" in auth) return auth.error;
   const { databaseId, rowId } = await params;
 
-  // file-backed database: splice the CSV row (row ids shift — client refetches)
+ // file-backed database: splice the CSV row (row ids shift — client refetches)
   if (isOkfId(databaseId)) {
     try {
       writeDbDeleteRow(decodeId(databaseId), rowId);

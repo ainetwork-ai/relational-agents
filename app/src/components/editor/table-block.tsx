@@ -7,7 +7,7 @@ import type { TableData } from "@/lib/db/schema";
 import { useEditor, type EBlock } from "./block-editor";
 
 /** Inline page links in cells: `[Label](/p/<uuid>)` renders as a mention chip
- *  while the cell is unfocused; the raw source comes back while editing. */
+ * while the cell is unfocused; the raw source comes back while editing. */
 const CELL_LINK_RE = /\[([^\]]+)\]\((\/p\/[0-9a-fA-F-]{36})\)/g;
 
 const escapeHtml = (s: string) =>
@@ -24,7 +24,7 @@ function cellHtml(raw: string): string {
 const EMPTY: TableData = { cells: [["", ""], ["", ""]], headerRow: true };
 
 /**
- * Notion "simple table" block: a static grid of text cells with add/remove
+ * "simple table" block: a static grid of text cells with add/remove
  * row & column and an optional header row/column. Cells are plain-text
  * contentEditable; the whole grid persists in block.content.table.
  */
@@ -160,9 +160,9 @@ function Cell({
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Sync DOM from state only on structural changes (version bump) or when the
-  // value diverges while unfocused — never while the user is typing here.
-  // Unfocused cells render `[Label](/p/…)` page links as mention chips.
+ // Sync DOM from state only on structural changes (version bump) or when the
+ // value diverges while unfocused — never while the user is typing here.
+ // Unfocused cells render `[Label](/p/…)` page links as mention chips.
   useEffect(() => {
     const el = ref.current;
     if (!el || el === document.activeElement) return;
@@ -188,7 +188,7 @@ function Cell({
         spellCheck={false}
         data-testid={testid}
         onMouseDown={(e) => {
-          // navigate on page-link chips instead of entering edit mode
+ // navigate on page-link chips instead of entering edit mode
           const a = (e.target as HTMLElement).closest?.("a[href^='/p/']");
           if (a) {
             e.preventDefault();
@@ -196,13 +196,13 @@ function Cell({
           }
         }}
         onFocus={(e) => {
-          // edit the raw source, not the rendered chips
+ // edit the raw source, not the rendered chips
           const el = e.currentTarget as HTMLElement;
           const raw = el.dataset.raw ?? el.innerText.replace(/\n+$/, "");
           if (el.innerText.replace(/\n+$/, "") !== raw) el.innerText = raw;
         }}
         onBlur={(e) => {
-          // back to rendered chips
+ // back to rendered chips
           const el = e.currentTarget as HTMLElement;
           const raw = el.innerText.replace(/\n+$/, "");
           el.dataset.raw = raw;
@@ -215,7 +215,7 @@ function Cell({
           onChange(raw);
         }}
         onKeyDown={(e) => {
-          // keep table keys from bubbling to the block-level editor handlers
+ // keep table keys from bubbling to the block-level editor handlers
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();

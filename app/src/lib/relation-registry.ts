@@ -52,7 +52,7 @@ export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash:
   const key = relayerKey();
   if (!address || address === "0x0000000000000000000000000000000000000000" || !key) return null;
 
-  // parties sorted ascending (the order the contract requires + the domain used)
+ // parties sorted ascending (the order the contract requires + the domain used)
   const parties = Object.keys(input.signaturesByAddress)
     .map((a) => a.toLowerCase())
     .sort() as Hex[];
@@ -63,7 +63,7 @@ export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash:
   try {
     const account = privateKeyToAccount(key);
     const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
-    // idempotent: if this relation already has an agent on-chain, don't re-send
+ // idempotent: if this relation already has an agent on-chain, don't re-send
     const existing = (await pub.readContract({
       address, abi: ABI, functionName: "agentOfRelation", args: [relationId],
     })) as bigint;

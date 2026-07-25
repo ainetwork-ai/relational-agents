@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
   const workspaceId = await getDefaultWorkspaceId(auth.user.id);
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-  // Editing workspace settings requires admin (or owner).
+ // Editing workspace settings requires admin (or owner).
   const roleCheck = await requireWorkspaceRole(workspaceId, auth.user.id, "admin");
   if (roleCheck !== true) return roleCheck;
 
@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest) {
       .returning();
     return NextResponse.json({ workspace: publicWorkspace(updated) });
   } catch {
-    // workspaces.name is globally unique — a taken name collides.
+ // workspaces.name is globally unique — a taken name collides.
     return NextResponse.json({ error: "That workspace name is taken" }, { status: 409 });
   }
 }

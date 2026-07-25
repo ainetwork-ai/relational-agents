@@ -28,7 +28,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /** API callers (agents) often send content as a bare string, or table data
- *  without the `table` wrapper. Coerce into the shapes the editor renders. */
+ * without the `table` wrapper. Coerce into the shapes the editor renders. */
 function normalizeContent(type: BlockType, content: unknown): BlockContent {
   if (typeof content === "string") return { text: content };
   if (content && typeof content === "object") {
@@ -57,9 +57,9 @@ async function loadAccessiblePage(pageId: string, userId: string) {
     )
     .limit(1);
   if (!membership) return null;
-  // restricted pages need an explicit grant (pageMembers) or owner/admin —
-  // shields DM relationship-doc bodies (message content) from non-participant
-  // workspace members.
+ // restricted pages need an explicit grant (pageMembers) or owner/admin —
+ // shields DM relationship-doc bodies (message content) from non-participant
+ // workspace members.
   if (page.restricted && !(await getPagePermission(pageId, userId))) return null;
   return page;
 }
@@ -68,7 +68,7 @@ async function loadAccessiblePage(pageId: string, userId: string) {
  * Resolve access: try session auth first, then share-token fallback.
  */
 async function resolveAccess(req: NextRequest, pageId: string) {
-  // 1. Session auth (normal logged-in user)
+ // 1. Session auth (normal logged-in user)
   const auth = await requireAuth();
   if (!("error" in auth)) {
     if (isOkfId(pageId)) {
@@ -78,7 +78,7 @@ async function resolveAccess(req: NextRequest, pageId: string) {
     if (page) return { authed: true as const, userId: auth.user.id, page, share: null };
   }
 
-  // 2. Share-token fallback (public link)
+ // 2. Share-token fallback (public link)
   const share = await validateShareToken(req, pageId);
   if (share) return { authed: true as const, userId: null, page: null, share };
 
@@ -97,7 +97,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Share-token access: any permission level can read blocks
+ // Share-token access: any permission level can read blocks
   if (access.share) {
     const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
     if (!page || page.isArchived) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -109,13 +109,13 @@ export async function GET(
     return NextResponse.json({ blocks: rows });
   }
 
-  // Session auth: check page-level permission (view is sufficient for GET)
+ // Session auth: check page-level permission (view is sufficient for GET)
   if (access.userId && !isOkfId(pageId)) {
     const check = await requirePagePermission(pageId, access.userId, "view");
     if (check !== true) return check;
   }
 
-  // Normal session auth path
+ // Normal session auth path
   if (isOkfId(pageId)) {
     try {
       const node = readNode(decodeId(pageId));
@@ -147,12 +147,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Share-token: must have edit or full
+ // Share-token: must have edit or full
   if (access.share && !hasPermission(access.share.permission, "edit")) {
     return forbiddenResponse("edit");
   }
 
-  // Session auth: check page-level edit permission
+ // Session auth: check page-level edit permission
   if (access.userId && !isOkfId(pageId)) {
     const check = await requirePagePermission(pageId, access.userId, "edit");
     if (check !== true) return check;
@@ -164,7 +164,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const { type = "paragraph", parentBlockId = null } = body ?? {};
   const content = normalizeContent(type, body?.content ?? {});
-  // omitted position = append at the end (agents/API callers rarely track positions)
+ // omitted position = append at the end (agents/API callers rarely track positions)
   let position: number | undefined = body?.position;
   if (position === undefined || position === null) {
     const [{ maxPos }] = await db
@@ -199,7 +199,7 @@ interface UpsertBlock {
 
 /**
  * PUT → batch upsert for editor autosave.
- *   body: { blocks: UpsertBlock[], deletedIds?: string[] }
+ * body: { blocks: UpsertBlock[], deletedIds?: string[] }
  * Returns the full ordered block list after applying changes.
  */
 export async function PUT(
@@ -213,12 +213,12 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Share-token: must have edit or full
+ // Share-token: must have edit or full
   if (access.share && !hasPermission(access.share.permission, "edit")) {
     return forbiddenResponse("edit");
   }
 
-  // Session auth: check page-level edit permission
+ // Session auth: check page-level edit permission
   if (access.userId && !isOkfId(pageId)) {
     const check = await requirePagePermission(pageId, access.userId, "edit");
     if (check !== true) return check;
@@ -249,10 +249,10 @@ export async function PUT(
   const body = await req.json().catch(() => ({}));
   const upserts: UpsertBlock[] = Array.isArray(body?.blocks) ? body.blocks : [];
   const deletedIds: string[] = Array.isArray(body?.deletedIds) ? body.deletedIds : [];
-  // v2 autosave protocol: the client declares which ids IT created. An id that
-  // misses its UPDATE and is not declared new was deleted by someone else —
-  // re-inserting it would resurrect stale content (the duplicate-page bug).
-  // Callers that omit `newIds` (scripts, MCP) keep the legacy insert-fallback.
+ // v2 autosave protocol: the client declares which ids IT created. An id that
+ // misses its UPDATE and is not declared new was deleted by someone else —
+ // re-inserting it would resurrect stale content (the duplicate-page bug).
+ // Callers that omit `newIds` (scripts, MCP) keep the legacy insert-fallback.
   const declaredNew: string[] | null = Array.isArray(body?.newIds) ? body.newIds : null;
   const newIdSet = declaredNew ? new Set<string>(declaredNew) : null;
   const droppedIds: string[] = [];
@@ -322,7 +322,7 @@ export async function PUT(
     .where(eq(blocks.pageId, pageId))
     .orderBy(blocks.position);
 
-  // @-mention notifications only for authenticated users (not anonymous share)
+ // @-mention notifications only for authenticated users (not anonymous share)
   if (access.userId) {
     for (const b of upserts) {
       await notifyMentions({

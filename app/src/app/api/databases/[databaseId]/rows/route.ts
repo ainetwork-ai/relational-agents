@@ -26,8 +26,8 @@ export async function POST(
 
   const body = await req.json().catch(() => ({}));
 
-  // file-backed database: append a row to the .csv (+ any seed values, e.g. a
-  // board column's group value)
+ // file-backed database: append a row to the .csv (+ any seed values, e.g. a
+ // board column's group value)
   if (isOkfId(databaseId)) {
     try {
       const rel = decodeId(databaseId);

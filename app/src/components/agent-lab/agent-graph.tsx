@@ -28,7 +28,7 @@ const COLORS: Record<GNode["kind"], string> = {
 const RADIUS: Record<GNode["kind"], number> = { room: 10, root: 8, section: 5, page: 4 };
 
 /** Obsidian-style graph — canvas force-directed, zero external libraries.
- *  Node click: room → /agent-lab, page → /p/{id}. */
+ * Node click: room → /agent-lab, page → /p/{id}. */
 export function AgentGraph() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
@@ -82,7 +82,7 @@ export function AgentGraph() {
 
     function step() {
       const map = byId();
-      // repulsion
+ // repulsion
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
@@ -100,7 +100,7 @@ export function AgentGraph() {
           b.vy -= dy * f;
         }
       }
-      // springs (edges)
+ // springs (edges)
       for (const e of edges) {
         const a = map.get(e.source);
         const b = map.get(e.target);
@@ -115,7 +115,7 @@ export function AgentGraph() {
         b.vx -= (dx / d) * f;
         b.vy -= (dy / d) * f;
       }
-      // centering pull + damping + apply
+ // centering pull + damping + apply
       for (const n of nodes) {
         n.vx += (W() / 2 - n.x) * 0.002;
         n.vy += (H() / 2 - n.y) * 0.002;

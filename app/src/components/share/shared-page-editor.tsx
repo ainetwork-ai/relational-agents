@@ -15,10 +15,10 @@ type Permission = "view" | "comment" | "edit" | "full";
  * Shared page editor: renders the appropriate experience based on the
  * public link's permission level.
  *
- *   view    → ReadOnlyBlocks (static, no editing)
- *   comment → ReadOnlyBlocks + comment panel (can read comments)
- *   edit    → Full BlockEditor (can edit blocks)
- *   full    → Full BlockEditor (can edit blocks)
+ * view → ReadOnlyBlocks (static, no editing)
+ * comment → ReadOnlyBlocks + comment panel (can read comments)
+ * edit → Full BlockEditor (can edit blocks)
+ * full → Full BlockEditor (can edit blocks)
  *
  * For edit/full, the share token is injected into the global fetch so
  * the BlockEditor's API calls authenticate via x-share-token.
@@ -40,16 +40,16 @@ export function SharedPageEditor({
   const [title, setTitle] = useState(page.title);
   const openComments = useCommentUi((s) => s.open);
 
-  // Inject the share token into fetch for API calls from the editor.
-  // We monkey-patch window.fetch to add x-share-token for same-origin
-  // API requests. This is cleaned up on unmount.
+ // Inject the share token into fetch for API calls from the editor.
+ // We monkey-patch window.fetch to add x-share-token for same-origin
+ // API requests. This is cleaned up on unmount.
   useEffect(() => {
     if (!canEdit && !canComment) return;
 
     const originalFetch = window.fetch;
     window.fetch = function patchedFetch(input, init) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
-      // Only patch same-origin API calls
+ // Only patch same-origin API calls
       if (url.startsWith("/api/")) {
         const headers = new Headers(init?.headers);
         if (!headers.has("x-share-token")) {
@@ -65,7 +65,7 @@ export function SharedPageEditor({
     };
   }, [shareToken, canEdit, canComment]);
 
-  // For edit/full: render the full interactive editor
+ // For edit/full: render the full interactive editor
   if (canEdit) {
     return (
       <div className="min-h-full pb-32">
@@ -84,7 +84,7 @@ export function SharedPageEditor({
         </div>
 
         {page.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
           <img src={page.coverUrl} alt="" className="h-48 w-full object-cover" />
         )}
 
@@ -103,7 +103,7 @@ export function SharedPageEditor({
             onChange={(e) => {
               const v = e.target.value.replace(/\n/g, "");
               setTitle(v);
-              // Persist title change via the share-token-authed API
+ // Persist title change via the share-token-authed API
               void fetch(`/api/pages/${page.id}`, {
                 method: "PATCH",
                 headers: { "content-type": "application/json" },
@@ -131,7 +131,7 @@ export function SharedPageEditor({
     );
   }
 
-  // For comment: read-only blocks + comment panel
+ // For comment: read-only blocks + comment panel
   if (canComment) {
     return (
       <div className="min-h-full pb-32">
@@ -150,7 +150,7 @@ export function SharedPageEditor({
         </div>
 
         {page.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
           <img src={page.coverUrl} alt="" className="h-48 w-full object-cover" />
         )}
 
@@ -172,6 +172,6 @@ export function SharedPageEditor({
     );
   }
 
-  // Default: view — should not reach here (handled by the Server Component)
+ // Default: view — should not reach here (handled by the Server Component)
   return null;
 }

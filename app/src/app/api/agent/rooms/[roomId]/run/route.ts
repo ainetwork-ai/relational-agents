@@ -6,9 +6,9 @@ import { runPipeline } from "@/lib/agent/pipeline";
 export const dynamic = "force-dynamic";
 
 /** POST /api/agent/rooms/{roomId}/run → RunResult (manual "organize now").
- *  The doc is always created in the room creator's workspace (the pipeline
- *  resolves it) — the caller's workspace is never passed. Allowed: creator,
- *  or any room member (DM). */
+ * The doc is always created in the room creator's workspace (the pipeline
+ * resolves it) — the caller's workspace is never passed. Allowed: creator,
+ * or any room member (DM). */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

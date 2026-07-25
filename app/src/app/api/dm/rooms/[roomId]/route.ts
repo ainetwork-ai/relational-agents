@@ -37,7 +37,7 @@ async function roomRootPageId(roomId: string): Promise<string | null> {
     })
     .from(agentRoomStates)
     .where(eq(agentRoomStates.roomId, roomId));
-  // relationship docs are OKF-file-canonical — prefer the encoded OKF id (legacy rooms: uuid)
+ // relationship docs are OKF-file-canonical — prefer the encoded OKF id (legacy rooms: uuid)
   return docPageIdOf(state);
 }
 
@@ -69,7 +69,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     .where(eq(chatMessages.roomId, roomId))
     .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
 
-  // include every author so past messages from departed members still render names/avatars
+ // include every author so past messages from departed members still render names/avatars
   const memberIds = memberRows.map((m) => m.userId);
   const authorIds = [...new Set(messages.map((m) => m.authorId))];
   const allIds = [...new Set([...memberIds, ...authorIds])];
@@ -79,7 +79,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const publicById = new Map(userRows.map((u) => [u.id, toPublicUser(u)]));
 
   return NextResponse.json({
-    // meId rides along → the client never races a separate /api/auth/me call
+ // meId rides along → the client never races a separate /api/auth/me call
     meId: auth.user.id,
     room: toDmRoom(room, await roomRootPageId(roomId)),
     members: memberIds

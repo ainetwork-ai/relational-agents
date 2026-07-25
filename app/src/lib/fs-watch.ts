@@ -15,7 +15,7 @@ import { publish } from "@/lib/realtime"; // fs → SSE bridge
  * lib/realtime).
  */
 
-const KEY = Symbol.for("notion.fswatch.started");
+const KEY = Symbol.for("app.fswatch.started");
 
 export function ensureFsWatcher(): void {
   const g = globalThis as unknown as Record<symbol, boolean>;
@@ -29,11 +29,11 @@ export function ensureFsWatcher(): void {
     watch(root, { recursive: true }, (_event, filename) => {
       if (!filename) return;
       const rel = filename.split(path.sep).join("/");
-      // only content files; skip tempfiles and hidden dirs
+ // only content files; skip tempfiles and hidden dirs
       if (!/\.(md|csv)$/i.test(rel)) return;
       if (rel.includes(".tmp-") || rel.split("/").some((seg) => seg.startsWith("."))) return;
 
-      // debounce per file — editors fire several events per save
+ // debounce per file — editors fire several events per save
       const prev = pending.get(rel);
       if (prev) clearTimeout(prev);
       pending.set(
@@ -44,7 +44,7 @@ export function ensureFsWatcher(): void {
           const at = Date.now();
           publish({ type: "blocks", pageId, clientId: "fs-watch", at });
           publish({ type: "page", pageId, clientId: "fs-watch", at });
-          // folder index pages (dir/index.md) are addressed by the dir path too
+ // folder index pages (dir/index.md) are addressed by the dir path too
           if (rel.endsWith("/index.md")) {
             const dirId = Buffer.from(rel.slice(0, -"/index.md".length), "utf8").toString(
               "base64url"
@@ -55,7 +55,7 @@ export function ensureFsWatcher(): void {
       );
     });
   } catch {
-    // fs.watch recursive unavailable — degrade to no live file sync
+ // fs.watch recursive unavailable — degrade to no live file sync
     g[KEY] = false;
   }
 }

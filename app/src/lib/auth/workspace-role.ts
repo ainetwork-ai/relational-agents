@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { workspaceMembers } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 
-// Notion's workspace roles, ordered by privilege. A higher level implies every
+// workspace roles, ordered by privilege. A higher level implies every
 // capability of the levels below it.
 export type WorkspaceRole = "guest" | "member" | "admin" | "owner";
 export const ROLE_LEVEL: Record<WorkspaceRole, number> = {
@@ -15,7 +15,7 @@ export const ROLE_LEVEL: Record<WorkspaceRole, number> = {
 };
 
 /** Roles a role of `actor` is allowed to assign to others (never above self,
- *  never `owner`). */
+ * never `owner`). */
 export function assignableRoles(actor: WorkspaceRole): WorkspaceRole[] {
   return (["guest", "member", "admin"] as WorkspaceRole[]).filter(
     (r) => ROLE_LEVEL[r] <= ROLE_LEVEL[actor]
@@ -37,7 +37,7 @@ export async function getWorkspaceRole(
     )
     .limit(1);
   if (!m) return null;
-  // unknown/legacy role strings fall back to the least-privileged real role
+ // unknown/legacy role strings fall back to the least-privileged real role
   return (ROLE_LEVEL[m.role as WorkspaceRole] !== undefined
     ? (m.role as WorkspaceRole)
     : "guest") as WorkspaceRole;

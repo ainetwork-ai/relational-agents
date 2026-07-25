@@ -17,7 +17,7 @@ interface SearchResult {
   snippet: string | null;
   /** OKF node kind, when the result comes from the file store */
   kind?: string;
-  /** parent page title — breadcrumb context under the result (Notion) */
+  /** parent page title — breadcrumb context under the result */
   path?: string | null;
 }
 
@@ -54,7 +54,7 @@ export function SearchModal() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState(0);
-  // Notion-style result filters (type / edited window / created by me)
+ // result filters (type / edited window / created by me)
   const [fType, setFType] = useState("");
   const [fEdited, setFEdited] = useState("");
   const [fMe, setFMe] = useState(false);
@@ -63,11 +63,11 @@ export function SearchModal() {
   const pages = usePagesStore((s) => s.pages);
   const recents = recentIds.map((id) => pages[id]).filter(Boolean).slice(0, 8);
 
-  // global Cmd/Ctrl+K
+ // global Cmd/Ctrl+K
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        // with text selected in the editor, Cmd+K means "add link" instead
+ // with text selected in the editor, Cmd+K means "add link" instead
         const sel = window.getSelection();
         const anchor =
           sel?.anchorNode instanceof Element
@@ -111,7 +111,7 @@ export function SearchModal() {
   function rememberQuery(q: string) {
     if (!q.trim()) return;
     try {
-      const key = "notion-recent-searches";
+      const key = "recent-searches";
       const cur: string[] = JSON.parse(localStorage.getItem(key) ?? "[]");
       const next = [q.trim(), ...cur.filter((x) => x !== q.trim())].slice(0, 5);
       localStorage.setItem(key, JSON.stringify(next));
@@ -119,7 +119,7 @@ export function SearchModal() {
   }
   function recentQueries(): string[] {
     try {
-      return JSON.parse(localStorage.getItem("notion-recent-searches") ?? "[]");
+      return JSON.parse(localStorage.getItem("recent-searches") ?? "[]");
     } catch {
       return [];
     }
@@ -178,7 +178,7 @@ export function SearchModal() {
             ESC
           </kbd>
         </div>
-        {/* result filters (Notion: type / date / person chips) */}
+        {/* result filters */}
         <div className="flex items-center gap-1.5 border-b border-neutral-100 px-4 py-1.5 text-xs dark:border-neutral-700">
           <MemorySelect
             testid="search-filter-type"

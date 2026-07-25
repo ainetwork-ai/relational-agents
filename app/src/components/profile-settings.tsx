@@ -10,7 +10,7 @@ interface Me {
 }
 
 /** Sidebar-footer profile chip: avatar + name, click → edit both in place.
- *  Photo goes through POST /api/upload, then PATCH /api/auth/me. */
+ * Photo goes through POST /api/upload, then PATCH /api/auth/me. */
 export function ProfileSettings({ initialName }: { initialName: string }) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -73,7 +73,7 @@ export function ProfileSettings({ initialName }: { initialName: string }) {
   }
 
   const avatar = me?.avatarUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
     <img src={me.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
   ) : (
     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-300 text-[10px] font-medium text-neutral-700 dark:bg-neutral-600 dark:text-neutral-200">
@@ -97,7 +97,7 @@ export function ProfileSettings({ initialName }: { initialName: string }) {
         <div className="popover-anim absolute bottom-8 left-0 z-50 w-56 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-[#232323]">
           <div className="mb-2 flex items-center gap-2.5">
             {me?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
               <img src={me.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
             ) : (
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">

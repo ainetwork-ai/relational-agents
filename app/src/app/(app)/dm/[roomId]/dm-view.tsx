@@ -62,8 +62,8 @@ function dateLabel(iso: string): string {
 }
 
 /** Human↔human DM room view — realtime receive (SSE inbox), photo
- *  attachments, invite/rename/leave, and the agent's "AI organize"
- *  (relationship-doc creation), all in one screen. */
+ * attachments, invite/rename/leave, and the agent's "AI organize"
+ * (relationship-doc creation), all in one screen. */
 export function DmView({ roomId }: { roomId: string }) {
   const router = useRouter();
   const show = useToastStore((s) => s.show);
@@ -90,14 +90,14 @@ export function DmView({ roomId }: { roomId: string }) {
   const [renameDraft, setRenameDraft] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [organizing, setOrganizing] = useState(false);
-  // relationship agent: whether it's invited + invite in flight
+ // relationship agent: whether it's invited + invite in flight
   const [hasAgent, setHasAgent] = useState<boolean | null>(null);
   const [inviting, setInviting] = useState(false);
-  // pre-send fact check (decline). The send path is untouched — parallel checking while typing only.
+ // pre-send fact check (decline). The send path is untouched — parallel checking while typing only.
   const [guard, setGuard] = useState<GuardResult | null>(null);
   const [guardedText, setGuardedText] = useState("");
 
-  // per-tab client id — for ignoring our own SSE echo (sent as x-client-id)
+ // per-tab client id — for ignoring our own SSE echo (sent as x-client-id)
   const clientId = useMemo(() => newId(), []);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -106,7 +106,7 @@ export function DmView({ roomId }: { roomId: string }) {
   const lastTypingSentRef = useRef(0);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  // mark read only while the tab is actually visible — background arrivals keep their badge.
+ // mark read only while the tab is actually visible — background arrivals keep their badge.
   const pendingReadRef = useRef(false);
   const markRead = useCallback(async () => {
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
@@ -141,7 +141,7 @@ export function DmView({ roomId }: { roomId: string }) {
         messages: DmMessage[];
       };
       loadedRef.current = true;
-      // set meId atomically with room/messages → no races in bubble sides / typing judgments
+ // set meId atomically with room/messages → no races in bubble sides / typing judgments
       setMeId(data.meId);
       setRoom(data.room);
       setMembers(data.members);
@@ -151,7 +151,7 @@ export function DmView({ roomId }: { roomId: string }) {
       setLoading(false);
       void markRead();
     } catch {
-      // transient network error: show it on first load, keep the view if already shown (SSE hello retries)
+ // transient network error: show it on first load, keep the view if already shown (SSE hello retries)
       setLoading(false);
       if (!loadedRef.current) setError("Could not load the conversation.");
     }
@@ -166,22 +166,22 @@ export function DmView({ roomId }: { roomId: string }) {
   }, [roomId, markRead]);
 
   useEffect(() => {
-    // fetch-on-mount: meId rides in this GET, so no separate /api/auth/me race
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+ // fetch-on-mount: meId rides in this GET, so no separate /api/auth/me race
+ // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAll();
   }, [loadAll]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+ // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAgent();
   }, [loadAgent]);
 
-  // guard the draft once typing stops. **The send path is untouched** — the
-  // check runs in parallel and a late result never delays sending. A text
-  // change invalidates the old verdict (version guard).
+ // guard the draft once typing stops. **The send path is untouched** — the
+ // check runs in parallel and a late result never delays sending. A text
+ // change invalidates the old verdict (version guard).
   useEffect(() => {
     if (!input.trim()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+ // eslint-disable-next-line react-hooks/set-state-in-effect
       setGuard(null);
       return;
     }
@@ -207,7 +207,7 @@ export function DmView({ roomId }: { roomId: string }) {
   const declined =
     guard?.verdict === "decline" && guard.checked && guardedText === input && input.trim().length > 0;
 
-  // when the tab becomes visible again, flush pending read marks (clears badges for background arrivals)
+ // when the tab becomes visible again, flush pending read marks (clears badges for background arrivals)
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && pendingReadRef.current) void markRead();
@@ -216,12 +216,12 @@ export function DmView({ roomId }: { roomId: string }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [markRead]);
 
-  // auto-focus the composer after load
+ // auto-focus the composer after load
   useEffect(() => {
     if (!loading && !error) composerRef.current?.focus();
   }, [loading, error]);
 
-  // scroll to bottom on new messages / typing changes
+ // scroll to bottom on new messages / typing changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, typing]);
@@ -230,7 +230,7 @@ export function DmView({ roomId }: { roomId: string }) {
     if (renaming) renameRef.current?.focus();
   }, [renaming]);
 
-  // drop expired typing indicators
+ // drop expired typing indicators
   useEffect(() => {
     const t = setInterval(() => {
       setTyping((prev) => {
@@ -246,7 +246,7 @@ export function DmView({ roomId }: { roomId: string }) {
     (event) => {
       if (event.roomId !== roomId) return;
       if (event.type === "dm-typing") {
-        // ignore both this tab's echo (clientId) and my other tabs (user.id)
+ // ignore both this tab's echo (clientId) and my other tabs (user.id)
         if (event.clientId && event.clientId === clientId) return;
         if (!event.user || event.user.id === meId) return;
         const u = event.user;
@@ -261,10 +261,10 @@ export function DmView({ roomId }: { roomId: string }) {
         void refetchMessages();
         return;
       }
-      // dm-room: name/member changes (if I was removed, 403/404 → show error)
+ // dm-room: name/member changes (if I was removed, 403/404 → show error)
       void loadAll();
     },
-    // SSE (re)connect — recover messages missed while down
+ // SSE (re)connect — recover messages missed while down
     () => void loadAll()
   );
 
@@ -281,7 +281,7 @@ export function DmView({ roomId }: { roomId: string }) {
   async function send(force = false) {
     const text = input.trim();
     if ((!text && pendingAtt.length === 0) || sending) return;
-    // a draft contradicting the record gets stopped once. Force-send is the human's call.
+ // a draft contradicting the record gets stopped once. Force-send is the human's call.
     if (declined && !force) return;
     setSending(true);
     try {
@@ -295,8 +295,8 @@ export function DmView({ roomId }: { roomId: string }) {
         show(`Failed to send: ${data?.error ?? res.status}`);
         return;
       }
-      // dedupe by id — if the partner's refetch races the POST and delivers
-      // this message first, no double bubble (or React key clash)
+ // dedupe by id — if the partner's refetch races the POST and delivers
+ // this message first, no double bubble (or React key clash)
       setMessages((prev) => {
         const msg = data.message as DmMessage;
         return prev.some((m) => m.id === msg.id) ? prev : [...prev, msg];
@@ -403,7 +403,7 @@ export function DmView({ roomId }: { roomId: string }) {
   }
 
   /** Inviting the relationship agent = provisioning it (own key, A2A URL,
-   *  member tokens). Requires the signed contract (consentAt) upstream. */
+ * member tokens). Requires the signed contract (consentAt) upstream. */
   async function inviteAgent() {
     if (inviting) return;
     setInviting(true);

@@ -42,7 +42,7 @@ export interface OkfGate {
   /** Can this user read the OKF-relative path. */
   canRead(relPath: string): boolean;
   /** Can this user read the page id (encoded OKF id or UUID). UUIDs are
-   *  always true (Postgres pages go through restricted/pageMembers instead). */
+ * always true (Postgres pages go through restricted/pageMembers instead). */
   canReadId(pageId: string): boolean;
 }
 

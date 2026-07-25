@@ -36,12 +36,12 @@ export function LoginForm() {
         setError("MetaMask not detected. Please install the extension.");
         return;
       }
-      // Force the account picker every sign-in. eth_requestAccounts reuses
-      // whatever this origin already authorized, so switching accounts inside
-      // MetaMask changes nothing on its own. Revoking the permission first
-      // (MetaMask ≥ 12.2) guarantees the next request runs the full connect
-      // flow; older wallets fall back to wallet_requestPermissions. 4001 (user
-      // closed the picker) propagates to the rejection handler below.
+ // Force the account picker every sign-in. eth_requestAccounts reuses
+ // whatever this origin already authorized, so switching accounts inside
+ // MetaMask changes nothing on its own. Revoking the permission first
+ // (MetaMask ≥ 12.2) guarantees the next request runs the full connect
+ // flow; older wallets fall back to wallet_requestPermissions. 4001 (user
+ // closed the picker) propagates to the rejection handler below.
       try {
         await ethereum.request({
           method: "wallet_revokePermissions",
@@ -91,7 +91,7 @@ export function LoginForm() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      // 4001 = user rejected the MetaMask prompt
+ // 4001 = user rejected the MetaMask prompt
       const code = (err as { code?: number })?.code;
       setError(code === 4001 ? "Signature request rejected." : "MetaMask login failed");
     } finally {
@@ -128,7 +128,7 @@ export function LoginForm() {
         <div className="mb-10 text-center">
           <div className="mb-3 text-4xl">📝</div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Notion
+            Relational Memory
           </h1>
           <p className="mt-1.5 text-sm text-neutral-500">
             Think it. Write it. All in one place.

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (!room.workspaceId)
     return NextResponse.json({ error: "Room has no workspace" }, { status: 400 });
 
-  // invitees must belong to the room's workspace
+ // invitees must belong to the room's workspace
   const [ws] = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   await grantDocAccess(roomId, userId);
 
   const [target] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  // notify everyone including the new member (their sidebar must show the room too)
+ // notify everyone including the new member (their sidebar must show the room too)
   await publishToRoomMembers(roomId, {
     type: "dm-room",
     clientId: req.headers.get("x-client-id"),
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 /** DELETE /api/dm/rooms/{roomId}/members?userId= → { ok }.
- *  Anyone may leave; only the room creator removes others. */
+ * Anyone may leave; only the room creator removes others. */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -76,7 +76,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ roomId: 
   if (target !== auth.user.id && room.createdBy !== auth.user.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // the leaver needs the event too so the room vanishes from their sidebar — capture members before deleting
+ // the leaver needs the event too so the room vanishes from their sidebar — capture members before deleting
   const ids = await roomMemberIds(roomId);
   await db
     .delete(chatRoomMembers)

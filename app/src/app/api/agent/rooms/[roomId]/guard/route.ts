@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   try {
     return NextResponse.json(await checkDraft(roomId, draft));
   } catch (err) {
-    // a guard outage must not block sending — answer allow (reason goes to the log)
+ // a guard outage must not block sending — answer allow (reason goes to the log)
     console.error("guard route failed:", err);
     return NextResponse.json({ verdict: "allow", checked: false });
   }

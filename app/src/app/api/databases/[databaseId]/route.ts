@@ -9,8 +9,8 @@ import { isOkfId, decodeId, okfDatabaseSnapshot, readDbMeta, writeDbMeta } from 
 export const dynamic = "force-dynamic";
 
 /** GET → full { database, properties, rows, views } snapshot. The SAME contract
- *  the single database view consumes; a .csv-file-backed (OKF) database is
- *  served here too — files are the backend, one view renders both. */
+ * the single database view consumes; a .csv-file-backed (OKF) database is
+ * served here too — files are the backend, one view renders both. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ databaseId: string }> }
@@ -47,8 +47,8 @@ export async function PATCH(
   const { databaseId } = await params;
   const body = await req.json().catch(() => ({}));
 
-  // file-backed database: description lives in the schema overlay (the title
-  // is the file name — renaming files is a separate op)
+ // file-backed database: description lives in the schema overlay (the title
+ // is the file name — renaming files is a separate op)
   if (isOkfId(databaseId)) {
     try {
       if (typeof body?.description === "string") {

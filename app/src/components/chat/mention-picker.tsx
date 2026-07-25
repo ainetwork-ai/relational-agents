@@ -15,9 +15,9 @@ export interface MentionChip {
 }
 
 /** "@" context picker: typing "@" in the composer opens a dropdown over the
- *  GET /api/pages list. Selecting clears the "@query" from the input and
- *  moves it into a mention chip (demo — merged into the body as "@title" at
- *  send time). */
+ * GET /api/pages list. Selecting clears the "@query" from the input and
+ * moves it into a mention chip (demo — merged into the body as "@title" at
+ * send time). */
 export function useMentionPicker(
   input: string,
   setInput: (value: string) => void,
@@ -71,7 +71,7 @@ export function useMentionPicker(
         setTriggerStart(null);
         return;
       }
-      // trigger only when "@" follows whitespace/start (avoids emails etc.)
+ // trigger only when "@" follows whitespace/start (avoids emails etc.)
       const before = at > 0 ? uptoCaret[at - 1] : "";
       if (before && !/\s/.test(before)) {
         setOpen(false);
@@ -108,7 +108,7 @@ export function useMentionPicker(
   }, []);
 
   /** Intercept arrows/Enter/ESC while the dropdown is open. Returning true
-   *  tells the caller to skip its own default (send/blur). */
+ * tells the caller to skip its own default (send/blur). */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
       if (!open) return false;

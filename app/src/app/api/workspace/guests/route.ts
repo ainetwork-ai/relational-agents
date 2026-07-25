@@ -13,8 +13,8 @@ import { toPublicUser } from "@/lib/auth/public-user";
 
 export const dynamic = "force-dynamic";
 
-/** GET → every page-level access grant in my workspace (Notion Settings →
- *  People → Guests): members with per-page access + pending email invites. */
+/** GET → every page-level access grant in my workspace ( Settings →
+ * People → Guests): members with per-page access + pending email invites. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

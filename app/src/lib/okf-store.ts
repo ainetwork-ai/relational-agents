@@ -43,7 +43,7 @@ import type {
 // ===========================================================================
 
 export function okfRoot(): string {
-  return process.env.OKF_ROOT || path.join(process.cwd(), "notion-fs");
+  return process.env.OKF_ROOT || path.join(process.cwd(), "okf-fs");
 }
 
 // Opaque, single-segment page id = base64url of the posix relative path. Lets
@@ -110,7 +110,7 @@ function isCsv(n: string) {
   return /\.csv$/i.test(n) && !/_all\.csv$/i.test(n);
 }
 
-/** A Notion export of a database with a filtered view writes `<db>.csv` (just
+/** A workspace export of a database with a filtered view writes `<db>.csv` (just
  * the view's rows — Status subset, empty columns) AND `<db>_all.csv` (EVERY
  * row and value). The view file stays the node's IDENTITY (tree/sidebar/meta
  * key), but the full file is the real data backend: all reads and writes
@@ -228,7 +228,7 @@ export interface RowPageNode {
 const DB_ROW_LIMIT = 500;
 export type ContentNode = PageNode | DatabaseNode | RowPageNode;
 
-/** A Notion export writes a DB row's page .md with the row's PROPERTIES as
+/** A workspace export writes a DB row's page .md with the row's PROPERTIES as
  * leading "Key: Value" paragraphs right after the title — but the app already
  * renders properties from the CSV (peek panel / table), so those lines would
  * show twice. If this .md sits in a row-page folder (parent folder named after
@@ -244,10 +244,10 @@ function stripExportPropertyBlock(relPath: string, blocks: ParsedBlock[]): Parse
     const parentAbs = resolveSafe(parentRel === "." ? "" : parentRel);
     for (const name of fs.readdirSync(parentAbs)) {
       if (!isCsv(name) || cleanTitle(name) !== folderName) continue;
-      // prefer the full-export file's headers (a filtered-view csv can lack columns)
+ // prefer the full-export file's headers (a filtered-view csv can lack columns)
       const allName = name.replace(/\.csv$/i, "_all.csv");
       const target = fs.existsSync(path.join(parentAbs, allName)) ? allName : name;
-      // header row only — row-page reads must not pay a full parse of a huge CSV
+ // header row only — row-page reads must not pay a full parse of a huge CSV
       const fd = fs.openSync(path.join(parentAbs, target), "r");
       const buf = Buffer.alloc(65536);
       const n = fs.readSync(fd, buf, 0, buf.length, 0);
@@ -270,7 +270,7 @@ function stripExportPropertyBlock(relPath: string, blocks: ParsedBlock[]): Parse
 }
 
 /** Rewrite an OKF page's relative asset URLs (image/video blocks) to the
- * asset-serving endpoint. An exported Notion page references its files as
+ * asset-serving endpoint. An exported page references its files as
  * local, URL-encoded paths relative to the .md (`folder/img.png`); the browser
  * can't fetch those, so resolve each against the page's directory and point it
  * at /api/okf/asset with the encoded OKF path. Leaves http(s)/data/api URLs. */
@@ -326,8 +326,8 @@ function readRowPage(csvRelPath: string, rowId: string): RowPageNode | null {
 }
 
 export function readNode(relPath: string): ContentNode | null {
-  // Row-as-page (`${csv}#${rowId}`) is resolved before resolveSafe — the `#`
-  // isn't a real path segment.
+ // Row-as-page (`${csv}#${rowId}`) is resolved before resolveSafe — the `#`
+ // isn't a real path segment.
   const rp = parseRowPageRel(relPath);
   if (rp) return readRowPage(rp.csvRelPath, rp.rowId);
 
@@ -344,13 +344,13 @@ export function readNode(relPath: string): ContentNode | null {
       id: relPath,
       title: title !== "Untitled" ? title : cleanTitle(path.basename(abs)),
       meta,
-      // index.md's assets are relative to the folder itself
+ // index.md's assets are relative to the folder itself
       blocks: rewriteAssetBlocks(blocks, relPath),
       children: buildDir(abs),
     };
   }
   if (isCsv(abs)) {
-    // full data from `_all.csv` when the export split view/full files
+ // full data from `_all.csv` when the export split view/full files
     const dataAbs = resolveSafe(dataCsvRel(relPath));
     const { properties, rows, totalRows } = parseCsvDatabase(fs.readFileSync(dataAbs, "utf8"), DB_ROW_LIMIT);
     return { kind: "database", id: relPath, title: cleanTitle(path.basename(abs)), properties, rows, totalRows };
@@ -362,8 +362,8 @@ export function readNode(relPath: string): ContentNode | null {
       id: relPath,
       title: title !== "Untitled" ? title : cleanTitle(path.basename(abs)),
       meta,
-      // a standalone .md's assets are relative to its own directory; a DB-row
-      // page's leading exported property lines are dropped (shown from the CSV)
+ // a standalone .md's assets are relative to its own directory; a DB-row
+ // page's leading exported property lines are dropped (shown from the CSV)
       blocks: rewriteAssetBlocks(
         stripExportPropertyBlock(relPath, blocks),
         path.posix.dirname(relPath)
@@ -391,7 +391,7 @@ export function nodeExists(relPath: string): boolean {
 
 // ---- write-back: editing the app writes the OKF files ----------------------
 export function writePage(relPath: string, title: string, meta: Frontmatter, blocks: ParsedBlock[]): void {
-  // Row-as-page body persists to a sidecar md beside the CSV.
+ // Row-as-page body persists to a sidecar md beside the CSV.
   const rp = parseRowPageRel(relPath);
   if (rp) {
     const sidecarAbs = resolveSafe(rowSidecarRel(rp.csvRelPath, rp.rowId));
@@ -479,8 +479,8 @@ export function okfSyntheticPage(p: {
     createdBy: null,
     createdAt: now,
     updatedAt: now,
-    // carry the OKF node kind so the unified sidebar can tell a file-backed
-    // database (.csv) from a page (.md) — the main /api/pages consumer needs it.
+ // carry the OKF node kind so the unified sidebar can tell a file-backed
+ // database (.csv) from a page (.md) — the main /api/pages consumer needs it.
     kind: p.kind,
   } as Page & { kind?: NodeKind };
 }
@@ -490,7 +490,7 @@ export function okfIcon(kind: string): string {
   return kind === "database" ? "🗂️" : "📄";
 }
 
-/** Index a database's per-row page files by their INTERNAL title. A Notion
+/** Index a database's per-row page files by their INTERNAL title. A 
  * export puts them in a sibling folder named after the database
  * (`<db title>/<row> <hash>.md`). We key by the file's `# ` heading, not the
  * filename, because exported filenames can be charset-mangled (Korean →
@@ -510,7 +510,7 @@ function indexRowPageFiles(csvRelPath: string): Map<string, string> {
       }
     }
   } catch {
-    // no sibling folder → rows fall back to a sidecar row-page
+ // no sibling folder → rows fall back to a sidecar row-page
   }
   return m;
 }
@@ -534,13 +534,13 @@ export async function okfDatabaseSnapshot(
     createdAt: now,
     updatedAt: now,
   } as Database;
-  // A Notion export gives each database row its own page FILE in a sibling
-  // folder named after the database: `<db title>/<row title> <hash>.md`. Link
-  // each row to that real page so "open row" shows the actual body, not just
-  // the CSV columns. The exported *view* CSV may not put the title column first
-  // (e.g. a person column like "TL" leads), so parseCsvDatabase mis-marks col0
-  // as the title. Detect the real title/link column = the property whose values
-  // best match the page files' titles. Fall back to col0.
+ // A workspace export gives each database row its own page FILE in a sibling
+ // folder named after the database: `<db title>/<row title> <hash>.md`. Link
+ // each row to that real page so "open row" shows the actual body, not just
+ // the CSV columns. The exported *view* CSV may not put the title column first
+ // (e.g. a person column like "TL" leads), so parseCsvDatabase mis-marks col0
+ // as the title. Detect the real title/link column = the property whose values
+ // best match the page files' titles. Fall back to col0.
   const pageByTitle = indexRowPageFiles(relPath);
   let linkPropId =
     (node.properties.find((p) => p.type === "title") ?? node.properties[0])?.id ?? "";
@@ -556,8 +556,8 @@ export async function okfDatabaseSnapshot(
       }
     }
   }
-  // Promote the detected column to the title (primary), demote the mis-detected
-  // one, and render the title first — like Notion.
+ // Promote the detected column to the title (primary), demote the mis-detected
+ // one, and render the title first — .
   const properties = node.properties.map((p) => ({
     id: p.id,
     databaseId,
@@ -586,10 +586,10 @@ export async function okfDatabaseSnapshot(
     };
   }) as DbRow[];
 
-  // ---- merge the Postgres schema overlay: declared types, authored options,
-  // positions. Overridden columns re-derive their row values from the RAW csv
-  // strings (name → authored option id, Number, date, …) so authored option
-  // ids — not the inference's positional ids — flow to the client.
+ // ---- merge the Postgres schema overlay: declared types, authored options,
+ // positions. Overridden columns re-derive their row values from the RAW csv
+ // strings (name → authored option id, Number, date, …) so authored option
+ // ids — not the inference's positional ids — flow to the client.
   const dbMeta = await readDbMeta(relPath);
   if (dbMeta.props && Object.keys(dbMeta.props).length) {
     let rawGrid: string[][] | null = null;
@@ -610,7 +610,7 @@ export async function okfDatabaseSnapshot(
         const optionFor = (nameStr: string): string => {
           let id = optIdByName.get(nameStr);
           if (!id) {
-            // name-derived id/color: stable across row insertions/deletions
+ // name-derived id/color: stable across row insertions/deletions
             id = optionIdFor(nameStr);
             options.push({ id, name: nameStr, color: optionColorFor(nameStr) });
             optIdByName.set(nameStr, id);
@@ -692,8 +692,8 @@ export function writeDbAddRow(relPath: string): string {
   const abs = resolveSafe(dataCsvRel(relPath));
   const grid = parseCsv(fs.readFileSync(abs, "utf8"));
   const cols = grid[0]?.length ?? 1;
-  // a CSV row *is* its cells — seed the title (col 0) so the row persists
-  // (a fully-empty row is indistinguishable from the trailing-newline artifact).
+ // a CSV row *is* its cells — seed the title (col 0) so the row persists
+ // (a fully-empty row is indistinguishable from the trailing-newline artifact).
   const newRow = Array(cols).fill("");
   newRow[0] = "Untitled";
   grid.push(newRow);
@@ -984,7 +984,7 @@ export async function okfPatchView(
 
 /** If this OKF page is a database ROW's page — a sidecar (`csv#rowN`) or an
  * exported `<db title>/<row title> <hash>.md` — return its db + row so the
- * full-page view can render the row's editable properties (Notion). */
+ * full-page view can render the row's editable properties. */
 export async function okfRowRefForPage(
   rel: string
 ): Promise<{ databaseId: string; rowId: string } | null> {
@@ -1069,7 +1069,7 @@ export async function createDatabase(
   if (parentRel) fs.mkdirSync(resolveSafe(parentRel), { recursive: true });
   if (fs.existsSync(resolveSafe(destRel))) throw new Error("a database with that name already exists");
   fs.writeFileSync(resolveSafe(destRel), toCsv([header]));
-  // overlay: declared types/options for the non-title columns
+ // overlay: declared types/options for the non-title columns
   const props: Record<string, DbMetaProp> = {};
   cols.forEach((c, i) => {
     if (i === 0) return; // col0 is the auto-detected title

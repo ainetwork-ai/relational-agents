@@ -3,7 +3,7 @@ import { workspaces, workspaceMembers, pages, blocks } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 
 const GETTING_STARTED = [
-  { type: "heading1" as const, text: "Welcome to Notion" },
+  { type: "heading1" as const, text: "Welcome" },
   { type: "paragraph" as const, text: "Type '/' for commands, or just start writing." },
   { type: "todo" as const, text: "Create your first page from the sidebar", checked: false },
   { type: "todo" as const, text: "Try markdown shortcuts like '# ' and '- '", checked: false },
@@ -25,7 +25,7 @@ async function seedGettingStarted(workspaceId: string, userId: string) {
 }
 
 /**
- * Notion equivalent of slack-a2a's channel auto-join: make sure the user has a
+ * Equivalent to slack-a2a's channel auto-join: make sure the user has a
  * workspace to land in. First login creates a personal workspace with a
  * seeded "Getting Started" page.
  */
@@ -37,8 +37,8 @@ export async function ensureWorkspace(userId: string, displayName: string) {
     .limit(1);
 
   if (membership) {
-    // self-heal: if the workspace was emptied, re-seed a Getting Started page
-    // so demo/login always lands somewhere (an empty workspace is a dead end).
+ // self-heal: if the workspace was emptied, re-seed a Getting Started page
+ // so demo/login always lands somewhere (an empty workspace is a dead end).
     const [anyPage] = await db
       .select({ id: pages.id })
       .from(pages)
@@ -48,8 +48,8 @@ export async function ensureWorkspace(userId: string, displayName: string) {
     return membership.workspaceId;
   }
 
-  // workspaces.name is globally unique (schema copied from slack-a2a), so
-  // suffix with a short id to avoid collisions between same-named users.
+ // workspaces.name is globally unique (schema copied from slack-a2a), so
+ // suffix with a short id to avoid collisions between same-named users.
   const base = `${displayName}'s Workspace`;
   let workspace;
   try {

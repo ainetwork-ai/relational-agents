@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const q = (sp.get("q") ?? "").trim();
   if (!q) return NextResponse.json({ results: [] });
-  // Notion-style result filters: type (page|database), edited window, creator
+ // result filters: type (page|database), edited window, creator
   const fType = sp.get("type") ?? "";
   const fEdited = sp.get("edited") ?? "";
   const fCreator = sp.get("creator") ?? "";
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const pattern = `%${q.replace(/[%_]/g, "\\$&")}%`;
 
-  // pages whose block text matches
+ // pages whose block text matches
   const blockHits = await db
     .select({
       pageId: blocks.pageId,
@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
     )
     .limit(20);
 
-  // center the snippet on the matched term (Notion shows context around it),
-  // not just the first 120 chars.
+ // center the snippet on the matched term,
+ // not just the first 120 chars.
   const snippetByPage = new Map<string, string>();
   for (const hit of blockHits) {
     if (!snippetByPage.has(hit.pageId) && hit.text) {
@@ -93,10 +93,10 @@ export async function GET(req: NextRequest) {
         )
       )
     )
-    .orderBy(sql`${pages.updatedAt} desc`) // most recently edited first (Notion)
+    .orderBy(sql`${pages.updatedAt} desc`) // most recently edited first
     .limit(20);
 
-  // breadcrumb context: the parent page's title under each result (Notion)
+ // breadcrumb context: the parent page's title under each result
   const parentIds = [...new Set(rows.map((r) => r.parentPageId).filter(Boolean))] as string[];
   const parentTitle = new Map<string, string>();
   if (parentIds.length) {
@@ -124,14 +124,14 @@ export async function GET(req: NextRequest) {
     path: r.parentPageId ? (parentTitle.get(r.parentPageId) ?? null) : null,
   }));
 
-  // also cover the OKF file store (the primary content backend) by title, so a
-  // Notion export's pages AND databases are findable in Quick Find.
-  // OKF file nodes carry no edited/creator metadata — they only appear when
-  // those filters are off.
+ // also cover the OKF file store (the primary content backend) by title, so a
+ // workspace export's pages AND databases are findable in Quick Find.
+ // OKF file nodes carry no edited/creator metadata — they only appear when
+ // those filters are off.
   if (!editedCutoff && fCreator !== "me") {
     try {
       const ql = q.toLowerCase();
-      // participant-only paths leak nothing, not even titles (relationship-doc privacy)
+ // participant-only paths leak nothing, not even titles (relationship-doc privacy)
       const gate = await okfGateFor(auth.user.id);
       for (const p of listPages()) {
         if (!gate.canReadId(p.id)) continue;
@@ -140,15 +140,15 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch {
-      // OKF root missing/malformed → Postgres results only
+ // OKF root missing/malformed → Postgres results only
     }
   }
 
   if (fType === "page") results = results.filter((r) => (r.kind ?? "page") === "page");
   else if (fType === "database") results = results.filter((r) => r.kind === "database");
 
-  // rank title matches above content-snippet matches — an exact-title hit
-  // must never sit below pages that merely mention the query in a block
+ // rank title matches above content-snippet matches — an exact-title hit
+ // must never sit below pages that merely mention the query in a block
   const ql2 = q.toLowerCase();
   const score = (r: { title: string | null }) => {
     const t = (r.title ?? "").toLowerCase();

@@ -5,10 +5,10 @@ import { MessageSquare, X, Check, CornerDownRight } from "lucide-react";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 
-/** R016–R018 — Notion-style comments. A thread opens in a side panel anchored
- *  to its block (or the page-level discussion), shows the root + threaded
- *  replies, and can be resolved (which clears the block highlight). Replaces
- *  the old flat bottom "Comments" list. */
+/** R016–R018 — comments. A thread opens in a side panel anchored
+ * to its block (or the page-level discussion), shows the root + threaded
+ * replies, and can be resolved (which clears the block highlight). Replaces
+ * the old flat bottom "Comments" list. */
 export function CommentThreadPanel({ pageId }: { pageId: string }) {
   const list = useCommentsStore((s) => s.byPage[pageId]);
   const load = useCommentsStore((s) => s.load);
@@ -23,7 +23,7 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
 
   const comments = list ?? [];
   const isPage = openAnchor === PAGE_ANCHOR;
-  // thread roots for the open anchor (page discussion vs a specific block)
+ // thread roots for the open anchor (page discussion vs a specific block)
   const roots = comments.filter(
     (c) =>
       c.parentId === null &&
@@ -131,7 +131,7 @@ function ThreadCard({
         </div>
       )}
 
-      {/* reply composer (Notion: reply within the thread) */}
+      {/* reply composer */}
       <div className="mt-2 flex items-center gap-1">
         <CornerDownRight size={13} className="shrink-0 text-neutral-300" />
         <input

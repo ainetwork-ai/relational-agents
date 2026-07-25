@@ -8,7 +8,7 @@ import { isOkfId } from "@/lib/okf-store";
 export const dynamic = "force-dynamic";
 
 /** A comment the user may touch = a comment on a page in a workspace they
- *  belong to. */
+ * belong to. */
 async function loadAccessibleComment(commentId: string, userId: string) {
   const [comment] = await db
     .select()
@@ -16,8 +16,8 @@ async function loadAccessibleComment(commentId: string, userId: string) {
     .where(eq(comments.id, commentId))
     .limit(1);
   if (!comment) return null;
-  // file-backed (OKF) page comment: text id, no pages row / per-page ACL —
-  // any authenticated member may touch it
+ // file-backed (OKF) page comment: text id, no pages row / per-page ACL —
+ // any authenticated member may touch it
   if (isOkfId(comment.pageId)) return comment;
   const [page] = await db
     .select()

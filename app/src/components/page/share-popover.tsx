@@ -63,7 +63,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    // deferred (async IIFE) so no setState runs synchronously in the effect body
+ // deferred (async IIFE) so no setState runs synchronously in the effect body
     void (async () => {
       const [share, people, ws] = await Promise.all([
         fetch(`/api/pages/${pageId}/share`).then((r) => (r.ok ? r.json() : { token: null })),
@@ -73,8 +73,8 @@ export function SharePopover({ pageId }: { pageId: string }) {
         fetch(`/api/workspace/members`).then((r) => (r.ok ? r.json() : { members: [] })),
       ]);
       if (!alive) return;
-      // don't let this async open-load clobber a token the user just published
-      // (the POST can land before this fetch resolves)
+ // don't let this async open-load clobber a token the user just published
+ // (the POST can land before this fetch resolves)
       setToken((prev) => share.token ?? prev);
       if (share.token) {
         setLinkPerm(PERMS.includes(share.permission) ? share.permission : "view");
@@ -132,7 +132,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
     await loadPeople();
   }
   async function setMemberPerm(userId: string, permission: string) {
-    // optimistic: keep the controlled <select> in sync before the round-trip
+ // optimistic: keep the controlled <select> in sync before the round-trip
     setMembers((ms) => ms.map((m) => (m.user.id === userId ? { ...m, permission } : m)));
     await fetch(`/api/pages/${pageId}/members`, {
       method: "POST",
@@ -180,7 +180,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
 
       {open && (
         <div className="popover-anim absolute right-0 top-9 z-40 w-96 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {/* ── Share / Publish tabs (Notion structure) ────────────── */}
+          {/* ── Share / Publish tabs (the export structure) ────────────── */}
           <div className="mb-3 flex items-center gap-4 border-b border-neutral-100 px-1 dark:border-neutral-700">
             <button
               data-testid="share-tab-share"

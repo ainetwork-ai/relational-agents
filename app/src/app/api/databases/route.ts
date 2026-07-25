@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 /** GET /api/databases → { databases: [{ id, title }] } for the user's workspace.
- *  Powers the relation property's target-database picker. */
+ * Powers the relation property's target-database picker. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

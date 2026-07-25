@@ -10,9 +10,9 @@ interface RowCtx {
 }
 
 /** POST { propertyName, propertyType, options?, rows: [{rowId, context}] }
- *  → { values: { [rowId]: string } } — Notion AI database autofill.
- *  The CLIENT persists values through the normal row PATCH path, so OKF and
- *  Postgres behave identically. Select-ish targets must pick an option name. */
+ * → { values: { [rowId]: string } } — AI database autofill.
+ * The CLIENT persists values through the normal row PATCH path, so OKF and
+ * Postgres behave identically. Select-ish targets must pick an option name. */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

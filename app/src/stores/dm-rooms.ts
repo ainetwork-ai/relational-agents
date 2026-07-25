@@ -35,8 +35,8 @@ export interface DmRoomSummary {
 }
 
 /** Room display name: explicit name > other members' names > no-partner
- *  label. There is no self-DM, so "zero others" means everyone left → a
- *  neutral label. */
+ * label. There is no self-DM, so "zero others" means everyone left → a
+ * neutral label. */
 export function dmRoomLabel(room: DmRoomSummary, meId: string | null): string {
   if (room.name) return room.name;
   const others = room.members.filter((m) => m.id !== meId);

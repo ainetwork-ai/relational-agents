@@ -19,7 +19,7 @@ import { PageHistoryModal } from "./page-history-modal";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The Notion page "..." menu: Full width, Lock, Duplicate, Move to, Export. */
+/** The  page "..." menu: Full width, Lock, Duplicate, Move to, Export. */
 export function PageOptionsMenu({ page }: { page: Page }) {
   const router = useRouter();
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -53,7 +53,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
     setQ("");
   }
 
-  // move-to candidates: any other page that isn't inside this page's subtree
+ // move-to candidates: any other page that isn't inside this page's subtree
   const candidates = Object.values(allPages)
     .filter((p) => p.id !== page.id && !p.isArchived)
     .filter((p) => {

@@ -38,19 +38,19 @@ function countTree(dir: string): { pages: number; databases: number } {
 }
 
 /**
- * Import a Notion export .zip into the OKF content root as pages/databases.
- * Handles Notion's nested wrapper: the outer .zip contains one or more
+ * Import a workspace export .zip into the OKF content root as pages/databases.
+ * Handles nested wrapper: the outer .zip contains one or more
  * `ExportBlock-<id>-Part-N.zip` archives which hold the actual md/csv/folder
  * tree. Long-filename attachment errors are tolerated (pages still import).
  * The content lands under okfRoot()/<name> so it shows up in the sidebar tree.
  */
-export async function importNotionZip(zipPath: string, importName: string): Promise<ImportResult> {
+export async function importExportZip(zipPath: string, importName: string): Promise<ImportResult> {
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "memory-import-"));
   try {
-    // pass 1: unzip the uploaded archive (tolerate long-name / attachment errors)
+ // pass 1: unzip the uploaded archive (tolerate long-name / attachment errors)
     await run("unzip", ["-o", "-q", zipPath, "-d", tmp]).catch(() => {});
 
-    // pass 2: Notion wraps everything in ExportBlock-*.zip (one per part)
+ // pass 2: The export wraps everything in ExportBlock-*.zip (one per part)
     const inner = fs
       .readdirSync(tmp)
       .filter((n) => /^ExportBlock-.*\.zip$/i.test(n));
@@ -64,7 +64,7 @@ export async function importNotionZip(zipPath: string, importName: string): Prom
       contentRoot = extracted;
     }
 
-    // If the export root is a single wrapper folder, unwrap it for a cleaner tree.
+ // If the export root is a single wrapper folder, unwrap it for a cleaner tree.
     let placeFrom = contentRoot;
     const top = fs.readdirSync(contentRoot, { withFileTypes: true });
     const topDirs = top.filter((e) => e.isDirectory());
@@ -83,7 +83,7 @@ export async function importNotionZip(zipPath: string, importName: string): Prom
 
     const { pages, databases } = countTree(dest);
     if (pages === 0 && databases === 0) {
-      throw new Error("nothing to import — the zip did not contain a Notion export (md/csv)");
+      throw new Error("nothing to import — the zip did not contain a workspace export (md/csv)");
     }
     return { name: safeName, pages, databases, dest };
   } finally {

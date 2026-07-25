@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /** GET /api/ai/agents → { agents } — mine + the current workspace's shared
- *  (isShared) agents, most recently used first (lastUsedAt desc, nulls last →
- *  updatedAt desc). */
+ * (isShared) agents, most recently used first (lastUsedAt desc, nulls last →
+ * updatedAt desc). */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

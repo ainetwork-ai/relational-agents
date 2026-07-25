@@ -8,7 +8,7 @@ import { toPublicUser } from "@/lib/auth/public-user";
 export const dynamic = "force-dynamic";
 
 /** PATCH { displayName?, avatarUrl? } → { user }. avatarUrl must be an
- *  /uploads/* path (from POST /api/upload) or "" to clear the photo. */
+ * /uploads/* path (from POST /api/upload) or "" to clear the photo. */
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session.userId)

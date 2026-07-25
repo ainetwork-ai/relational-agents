@@ -14,7 +14,7 @@ interface RelAgent {
 }
 
 /** Sidebar "Agents" section — the relationship agents born from your DM
- *  contracts. One per relationship; click to open its room, pencil to rename. */
+ * contracts. One per relationship; click to open its room, pencil to rename. */
 export function RelationAgentsSection() {
   const router = useRouter();
   const [agents, setAgents] = useState<RelAgent[]>([]);
@@ -29,7 +29,7 @@ export function RelationAgentsSection() {
   useEffect(() => {
     load();
   }, [load]);
-  // a new agent is born (consent) or renamed → a dm-room event fires
+ // a new agent is born (consent) or renamed → a dm-room event fires
   useDmEvents(
     (e) => {
       if (e.type === "dm-room") void load();
@@ -63,7 +63,7 @@ export function RelationAgentsSection() {
             className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
             {a.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
               <img src={a.avatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-cover" />
             ) : (
               <Bot size={14} className="shrink-0 text-purple-500" />

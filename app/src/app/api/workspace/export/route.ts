@@ -48,7 +48,7 @@ async function collectFiles(
 }
 
 /** Collect only .md / .csv documents from the OKF content tree (memory-safe —
- *  skips large media attachments). */
+ * skips large media attachments). */
 async function collectOkfDocs(
   dir: string,
   base: string
@@ -85,7 +85,7 @@ function buildZip(files: { path: string; data: Uint8Array }[]): Uint8Array {
     const nameBytes = new TextEncoder().encode(f.path.replace(/\\/g, "/"));
     const crc = crc32(f.data);
 
-    // Local file header (30 + name + data)
+ // Local file header (30 + name + data)
     const local = new Uint8Array(30 + nameBytes.length);
     const lv = new DataView(local.buffer);
     lv.setUint32(0, 0x04034b50, true); // signature
@@ -97,7 +97,7 @@ function buildZip(files: { path: string; data: Uint8Array }[]): Uint8Array {
     lv.setUint16(26, nameBytes.length, true);
     local.set(nameBytes, 30);
 
-    // Central directory header
+ // Central directory header
     const central = new Uint8Array(46 + nameBytes.length);
     const cv = new DataView(central.buffer);
     cv.setUint32(0, 0x02014b50, true);
@@ -116,7 +116,7 @@ function buildZip(files: { path: string; data: Uint8Array }[]): Uint8Array {
     offset += local.length + f.data.length;
   }
 
-  // End of central directory
+ // End of central directory
   const centralStart = offset;
   let centralSize = 0;
   for (const e of entries) {
@@ -175,15 +175,15 @@ export async function GET() {
   if (!ws)
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
-  // Ensure the mirror is up to date
+ // Ensure the mirror is up to date
   await mirrorWorkspace(workspaceId);
 
   const wsDir = path.join(MIRROR_ROOT, slug(ws.name, ws.id));
   const files = await collectFiles(wsDir, "");
 
-  // Also include the OKF content tree — the file-backed documents that ARE the
-  // primary content (md pages + csv databases). Documents only (skip large
-  // media) so the archive stays memory-safe.
+ // Also include the OKF content tree — the file-backed documents that ARE the
+ // primary content (md pages + csv databases). Documents only (skip large
+ // media) so the archive stays memory-safe.
   const okf = await collectOkfDocs(okfRoot(), "content");
   files.push(...okf);
 

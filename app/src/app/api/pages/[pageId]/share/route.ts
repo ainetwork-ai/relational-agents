@@ -68,7 +68,7 @@ export async function POST(
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Share management requires full access
+ // Share management requires full access
   const permCheck = await requirePagePermission(pageId, auth.user.id, "full");
   if (permCheck !== true) return permCheck;
 
@@ -104,7 +104,7 @@ export async function PATCH(
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Share management requires full access
+ // Share management requires full access
   const permCheck = await requirePagePermission(pageId, auth.user.id, "full");
   if (permCheck !== true) return permCheck;
 
@@ -160,7 +160,7 @@ export async function DELETE(
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Share management requires full access
+ // Share management requires full access
   const permCheck = await requirePagePermission(pageId, auth.user.id, "full");
   if (permCheck !== true) return permCheck;
 

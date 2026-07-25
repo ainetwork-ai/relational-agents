@@ -12,13 +12,13 @@ const MONTHS = [
 ];
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayIndex = (iso: string): number => {
-  // day-of-month (1-based) for a YYYY-MM-DD, else 0
+ // day-of-month (1-based) for a YYYY-MM-DD, else 0
   const m = iso.match(/^\d{4}-\d{2}-(\d{2})/);
   return m ? Number(m[1]) : 0;
 };
 
 /** Horizontal timeline (Gantt-style): each row is a bar on a month day-axis,
- *  positioned by its date property's start and spanning to its end (range). */
+ * positioned by its date property's start and spanning to its end (range). */
 export function TimelineView({ view }: { view: DbView }) {
   const db = useDb();
   const dateProps = db.properties.filter((p) => p.type === "date");

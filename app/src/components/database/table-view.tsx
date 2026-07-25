@@ -14,12 +14,12 @@ const NO_GROUP = "__nogroup__";
 export function TableView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
-  // per-view property visibility (ViewOptions → config.hiddenProperties)
+ // per-view property visibility (ViewOptions → config.hiddenProperties)
   const hidden = view.config.hiddenProperties ?? [];
   const cols = db.properties.filter((p) => !hidden.includes(p.id));
-  // sub-item collapse state (rows in this set have their children hidden)
+ // sub-item collapse state (rows in this set have their children hidden)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // row multi-select: hover checkboxes + a bulk action bar
+ // row multi-select: hover checkboxes + a bulk action bar
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggleChecked = (id: string) =>
     setChecked((s) => {
@@ -36,8 +36,8 @@ export function TableView({ view }: { view: DbView }) {
       return n;
     });
 
-  // Render a group's rows as a hierarchy: each top-level row (parentRowId null)
-  // followed by its (recursively) nested children when expanded.
+ // Render a group's rows as a hierarchy: each top-level row (parentRowId null)
+ // followed by its (recursively) nested children when expanded.
   function renderRows(rows: DbRow[]): ReactNode[] {
     const childrenOf = new Map<string, DbRow[]>();
     for (const r of rows)
@@ -66,15 +66,15 @@ export function TableView({ view }: { view: DbView }) {
       );
       if (!collapsed.has(row.id)) for (const k of kids) emit(k, depth + 1);
     };
-    // a sub-item whose parent is filtered OUT still shows, flattened to the
-    // top level (Notion) — it must not disappear with its parent
+ // a sub-item whose parent is filtered OUT still shows, flattened to the
+ // top level — it must not disappear with its parent
     const present = new Set(rows.map((r) => r.id));
     for (const r of rows) if (!r.parentRowId || !present.has(r.parentRowId)) emit(r, 0);
     return out;
   }
 
-  // General group-by: any select/status property can partition the rows into
-  // labelled sections. null = flat.
+ // General group-by: any select/status property can partition the rows into
+ // labelled sections. null = flat.
   const groupProp = db.properties.find(
     (p) => p.id === view.config.groupByPropertyId && (p.type === "select" || p.type === "status")
   );
@@ -170,7 +170,7 @@ export function TableView({ view }: { view: DbView }) {
           <Plus size={13} /> New
         </button>
 
-        {/* calculation footer — selects fade in on row hover (Notion); a
+        {/* calculation footer — selects fade in on row hover; a
             chosen calc stays visible */}
         <div className="group/calcrow flex border-t border-neutral-200 dark:border-neutral-700">
           <div className="w-24 shrink-0" />
@@ -183,7 +183,7 @@ export function TableView({ view }: { view: DbView }) {
   );
 }
 
-/** Notion places "add a property" as a "+" header cell at the right end of
+/**  places "add a property" as a "+" header cell at the right end of
  * the table, not in the toolbar. */
 function AddPropertyHeader() {
   const db = useDb();
@@ -443,8 +443,8 @@ function RowLine({
       </div>
       {cols.map((p) =>
         p.type === "title" ? (
-          // Title cell: hovering it reveals an "OPEN" button at the right edge
-          // opens the row's page (its full mapped content).
+ // Title cell: hovering it reveals an "OPEN" button at the right edge
+ // opens the row's page (its full mapped content).
           <div
             key={p.id}
             style={{ width: widths?.[p.id] ?? 176 }}
@@ -461,8 +461,8 @@ function RowLine({
               onClick={() => db.openRow(row.id)}
               aria-label="Open"
               title="Open"
-              // opacity-0 alone still intercepts clicks — disable pointer events
-              // until hover so the invisible button never swallows a title click
+ // opacity-0 alone still intercepts clicks — disable pointer events
+ // until hover so the invisible button never swallows a title click
               className="pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] font-medium text-neutral-500 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 hover:text-neutral-700 group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
               <Maximize2 size={10} /> OPEN
@@ -488,10 +488,10 @@ function RowLine({
 function ColumnHeader({ prop, view }: { prop: DbProperty; view: DbView }) {
   const db = useDb();
   const [open, setOpen] = useState(false);
-  // two-step confirm before the irreversible property delete
+ // two-step confirm before the irreversible property delete
   const [delArmed, setDelArmed] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  // disarm whenever the menu closes (render-time adjustment, not an effect)
+ // disarm whenever the menu closes (render-time adjustment, not an effect)
   if (!open && delArmed) setDelArmed(false);
   const [draft, setDraft] = useState(prop.name);
   const ref = useRef<HTMLDivElement>(null);
@@ -510,7 +510,7 @@ function ColumnHeader({ prop, view }: { prop: DbProperty; view: DbView }) {
     setOpen(false);
   }
 
-  // drag a column header onto another to reorder properties (persists position).
+ // drag a column header onto another to reorder properties (persists position).
   function onDragPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -671,7 +671,7 @@ const TYPE_CHOICES: PropertyType[] = [
   "files",
 ];
 
-/** Change a column's type in place (Notion "Edit property → Type"). Values are
+/** Change a column's type in place. Values are
  * re-interpreted under the new type; a file-backed db re-derives from the CSV. */
 function PropTypeEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
@@ -784,7 +784,7 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
     );
   }
 
-  // rollup
+ // rollup
   return <RollupConfigEditor prop={prop} />;
 }
 
@@ -793,8 +793,8 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
 function RelationConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
   const config = prop.config;
-  // optimistic two-way state: the checkbox must flip synchronously; the mirror
-  // property is created/removed in the background
+ // optimistic two-way state: the checkbox must flip synchronously; the mirror
+ // property is created/removed in the background
   const [twoWayLocal, setTwoWayLocal] = useState<boolean | null>(null);
   const [dbs, setDbs] = useState<{ id: string; title: string }[]>(db.allDatabases);
   useEffect(() => {
@@ -839,7 +839,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
               setTwoWayLocal(e.target.checked);
               void (async () => {
                 if (e.target.checked) {
-                  // create a computed mirror property on the target database
+ // create a computed mirror property on the target database
                   const myTitle =
                     db.allDatabases.find((d) => d.id === db.databaseId)?.title ?? "Related";
                   const res = await fetch(
@@ -893,8 +893,8 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
   const relProp = db.properties.find((p) => p.id === rollup.relationPropertyId);
   const relatedDbId = relProp?.config.relationDatabaseId;
 
-  // the target property list = properties of the RELATED db. When it's the
-  // current db (self-relation) db.properties already has them; otherwise fetch.
+ // the target property list = properties of the RELATED db. When it's the
+ // current db (self-relation) db.properties already has them; otherwise fetch.
   const [targetProps, setTargetProps] = useState<DbProperty[]>(db.properties);
   useEffect(() => {
     let alive = true;
@@ -911,8 +911,8 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
     };
   }, [relatedDbId, db.properties]);
 
-  // read the freshest config at call time (not the captured render closure) so
-  // three rapid select changes accumulate instead of clobbering each other.
+ // read the freshest config at call time (not the captured render closure) so
+ // three rapid select changes accumulate instead of clobbering each other.
   const patch = (next: Record<string, unknown>) => {
     const cur = db.properties.find((p) => p.id === prop.id)?.config ?? config;
     const curRollup = cur.rollup ?? {};
@@ -1008,7 +1008,7 @@ function MenuItem({
 
 const AUTOFILLABLE: PropertyType[] = ["text", "select", "status", "number", "email", "phone", "url"];
 
-/** Notion AI database autofill: fill EMPTY cells of a column from each row's
+/** AI database autofill: fill EMPTY cells of a column from each row's
  * other primitive values via the local model; persists through the normal
  * row PATCH path (OKF + Postgres identical). Caps at 10 rows per click. */
 async function aiAutofill(db: ReturnType<typeof useDb>, prop: DbProperty) {
@@ -1055,7 +1055,7 @@ async function aiAutofill(db: ReturnType<typeof useDb>, prop: DbProperty) {
   if (!res?.ok) return;
   const { values } = (await res.json()) as { values: Record<string, string> };
   for (const [rowId, raw] of Object.entries(values)) {
-    // select-ish values persist as OPTION IDS, everything else as the string
+ // select-ish values persist as OPTION IDS, everything else as the string
     const v = optionByName.size ? optionByName.get(raw.toLowerCase()) : raw;
     if (v === undefined) continue;
     db.updateRow(rowId, { [prop.id]: prop.type === "number" ? Number(v) || 0 : v });

@@ -15,7 +15,7 @@ function subscribe(cb: () => void) {
 
 function getMode(): Mode {
   try {
-    const v = localStorage.getItem("notion-theme");
+    const v = localStorage.getItem("app-theme");
     return v === "dark" || v === "light" ? v : "system";
   } catch {
     return "system";
@@ -31,7 +31,7 @@ function apply(mode: Mode) {
 
 export function setThemeMode(mode: Mode) {
   try {
-    localStorage.setItem("notion-theme", mode);
+    localStorage.setItem("app-theme", mode);
   } catch {}
   apply(mode);
   listeners.forEach((l) => l());
@@ -42,11 +42,11 @@ export function useThemeMode(): Mode {
   return useSyncExternalStore(subscribe, getMode, () => "system" as Mode);
 }
 
-/** Notion-style theme control: Light → Dark → System (follow the OS). */
+/** theme control: Light → Dark → System (follow the OS). */
 export function DarkModeToggle() {
   const mode = useThemeMode();
 
-  // in System mode, follow live OS theme changes
+ // in System mode, follow live OS theme changes
   useEffect(() => {
     if (mode !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -60,8 +60,8 @@ export function DarkModeToggle() {
       data-testid="dark-mode-toggle"
       data-theme-mode={mode}
       onClick={() => {
-        // from System, jump to the OPPOSITE of the effective theme so the
-        // click always produces a visible change; then Light→Dark→System
+ // from System, jump to the OPPOSITE of the effective theme so the
+ // click always produces a visible change; then Light→Dark→System
         const target: Mode =
           mode === "light"
             ? "dark"

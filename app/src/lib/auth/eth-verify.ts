@@ -7,8 +7,8 @@
  */
 
 /** The slice of ain-util (exposed as `Ain.utils`) this module relies on.
- *  ain-util is not a direct dependency, so its types aren't resolvable —
- *  declared locally instead. */
+ * ain-util is not a direct dependency, so its types aren't resolvable —
+ * declared locally instead. */
 interface AinUtil {
   keccak(input: unknown, bits?: number): Buffer;
   toBuffer(v: unknown): Buffer;
@@ -40,7 +40,7 @@ export function verifyEthSignature(
   address: string
 ): boolean {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+ // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Ain = require("@ainblockchain/ain-js").default;
     const utils = Ain.utils as AinUtil;
 

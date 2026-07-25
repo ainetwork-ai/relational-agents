@@ -7,7 +7,7 @@ export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.max(10, size * 0.45) };
   if (user.avatarUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
       <img
         src={user.avatarUrl}
         alt={user.displayName}

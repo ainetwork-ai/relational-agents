@@ -8,10 +8,10 @@ import { COLOR_CYCLE } from "@/lib/db-values";
 import { DbCtx, type DbApi } from "./database-block";
 import { PropertyCell } from "./property-cell";
 
-/** Full-page row properties (Notion: opening a database row shows title +
- *  EDITABLE properties + body). Self-hides when the page isn't a row's page.
- *  Provides a minimal DbApi so the real PropertyCell editors work here —
- *  never a second, diverging editor surface. */
+/** Full-page row properties (opening a database row shows title +
+ * EDITABLE properties + body). Self-hides when the page isn't a row's page.
+ * Provides a minimal DbApi so the real PropertyCell editors work here —
+ * never a second, diverging editor surface. */
 export function RowPropertiesPanel({ pageId }: { pageId: string }) {
   const [ref, setRef] = useState<{ databaseId: string; rowId: string } | null>(null);
   const [properties, setProperties] = useState<DbProperty[]>([]);

@@ -12,7 +12,7 @@ export function Breadcrumbs({ pageId }: { pageId: string }) {
   const pages = usePagesStore((s) => s.pages);
   const [expanded, setExpanded] = useState(false);
 
-  // walk up parentPageId to the root, guarding against cycles
+ // walk up parentPageId to the root, guarding against cycles
   const chain: { id: string; title: string; icon: string | null }[] = [];
   const seen = new Set<string>();
   let cur: Page | undefined = pages[pageId];

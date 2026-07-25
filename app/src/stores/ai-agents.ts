@@ -43,7 +43,7 @@ export const useAiAgentsStore = create<AiAgentsState>()((set) => ({
   },
 
   patch: async (id, patch) => {
-    // optimistic — lastUsedAt bumps the agent to the front (recently-used order)
+ // optimistic — lastUsedAt bumps the agent to the front (recently-used order)
     set((s) => {
       const updated = s.agents.map((a) =>
         a.id === id

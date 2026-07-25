@@ -34,7 +34,7 @@ export interface PageEvent {
 
 type Subscriber = (event: PageEvent) => void;
 
-const KEY = Symbol.for("notion.realtime.subscribers");
+const KEY = Symbol.for("app.realtime.subscribers");
 
 function subscribers(): Map<string, Set<Subscriber>> {
   const g = globalThis as unknown as Record<symbol, Map<string, Set<Subscriber>>>;

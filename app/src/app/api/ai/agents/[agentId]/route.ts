@@ -47,7 +47,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ agentId: s
 }
 
 /** PATCH { name?, icon?, instructions?, isFavorite?, isShared?, knowledgeScope?, lastUsedAt? }
- *  → { agent }. Owner-only edits — no access reads as 404. */
+ * → { agent }. Owner-only edits — no access reads as 404. */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ agentId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

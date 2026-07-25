@@ -18,7 +18,7 @@ export async function getOrCreateUsage(workspaceId: string) {
     .returning();
   if (created) return created;
 
-  // if concurrent requests raced the insert: re-read the row the other request just made.
+ // if concurrent requests raced the insert: re-read the row the other request just made.
   const [row] = await db
     .select()
     .from(aiUsage)

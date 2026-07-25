@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: AgentConfig = {
 };
 
 /** Generate the agent's own AIN key → derive its address. The key sits in
- *  encryptedPrivateKey (demo: plain hex — production would KMS-encrypt). */
+ * encryptedPrivateKey (demo: plain hex — production would KMS-encrypt). */
 async function generateAgentKey(): Promise<{ address: string; privateKey: string }> {
   const privateKey = randomBytes(32).toString("hex");
   const Ain = (await import("@ainblockchain/ain-js")).default;
@@ -54,7 +54,7 @@ export async function provisionRoomAgent(
   memberIds: string[],
   importedBy: string
 ): Promise<ProvisionResult> {
-  // idempotency check: is "our" agent (ownerId = room creator) already imported here
+ // idempotency check: is "our" agent (ownerId = room creator) already imported here
   const bots = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, room.id));
   for (const b of bots) {
     const [u] = await db.select().from(users).where(eq(users.id, b.agentUserId));
@@ -86,7 +86,7 @@ export async function provisionRoomAgent(
     })
     .returning();
 
-  // a2aUrl is filled once the id exists; the card JSON is stored too
+ // a2aUrl is filled once the id exists; the card JSON is stored too
   const a2aUrl = agentA2aUrl(agent.id);
   await db
     .update(users)
@@ -131,7 +131,7 @@ export function buildAgentCard(agentUserId: string, roomName: string) {
         id: "relationship-memory",
         name: "Relationship memory / Q&A",
         description: "Answers questions from the relationship document and folds new facts back into it",
-        tags: ["relationship", "memory", "notion"],
+        tags: ["relationship", "memory"],
       },
     ],
   };

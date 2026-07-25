@@ -40,7 +40,7 @@ export const useUiStore = create<UiState>()(
       setDropHint: (dropHint) => set({ dropHint }),
     }),
     {
-      name: "notion-ui",
+      name: "app-ui",
       partialize: (s) => ({
         expanded: s.expanded,
         sidebarCollapsed: s.sidebarCollapsed,

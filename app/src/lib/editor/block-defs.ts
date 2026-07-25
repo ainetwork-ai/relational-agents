@@ -5,7 +5,7 @@ export interface SlashItem {
   label: string;
   keywords: string;
   hint: string;
-  /** menu section (Notion groups: Suggested/Basic/Media/Database/Advanced/AI) */
+  /** menu section */
   category?: "basic" | "media" | "database" | "advanced" | "ai";
   /** markdown shortcut shown as a kbd hint on the right */
   md?: string;

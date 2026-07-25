@@ -45,7 +45,7 @@ export const users = pgTable("users", {
   agentCategory: text("agent_category"),
   agentTags: jsonb("agent_tags").$type<string[]>().default([]),
   encryptedPrivateKey: text("encrypted_private_key"),
-  // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
+ // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
   timezone: text("timezone"),
@@ -89,7 +89,7 @@ export const inviteTokens = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Notion-specific tables (plan.md schema)
+// Workspace tables (plan.md schema)
 // ---------------------------------------------------------------------------
 
 export const pages = pgTable(
@@ -106,12 +106,12 @@ export const pages = pgTable(
     coverUrl: text("cover_url"),
     isArchived: boolean("is_archived").default(false).notNull(),
     isFavorite: boolean("is_favorite").default(false).notNull(),
-    // page options menu (Notion "..."): wide body / edits blocked
+ // page options menu: wide body / edits blocked
     fullWidth: boolean("full_width").default(false).notNull(),
     isLocked: boolean("is_locked").default(false).notNull(),
-    // restricted page: ordinary members can't see it without an explicit
-    // pageMembers grant (excluded from workspace-wide reads). Used for
-    // participant-only pages like DM relationship docs. Default false = legacy behavior.
+ // restricted page: ordinary members can't see it without an explicit
+ // pageMembers grant (excluded from workspace-wide reads). Used for
+ // participant-only pages like DM relationship docs. Default false = legacy behavior.
     restricted: boolean("restricted").default(false).notNull(),
     position: doublePrecision("position").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
@@ -151,15 +151,15 @@ export type BlockType =
   | "equation"
   | "ai_prompt";
 
-/** Simple-table payload (Notion "table" block). cells[row][col]; the header
- * flags mirror Notion's "header row / header column" toggles. */
+/** Simple-table payload. cells[row][col]; the header
+ * flags mirror "header row / header column" toggles. */
 export interface TableData {
   cells: string[][];
   headerRow?: boolean;
   headerCol?: boolean;
 }
 
-/** One step of a "button" block's action chain (notion.com/help/buttons).
+/** One step of a "button" block's action chain (help/buttons).
  * Actions run in order; a rejected confirm stops the chain. */
 export type ButtonAction =
   | { type: "open_url"; url: string }
@@ -219,9 +219,9 @@ export const pageShares = pgTable(
       .references(() => pages.id, { onDelete: "cascade" })
       .primaryKey(),
     token: text("token").unique().notNull(),
-    // link permission for "anyone with the link": view | comment | edit | full
+ // link permission for "anyone with the link": view | comment | edit | full
     permission: text("permission").default("view").notNull(),
-    // link options (Notion: expiry / password / duplicate-as-template)
+ // link options
     expiresAt: timestamp("expires_at"),
     passwordHash: text("password_hash"),
     allowDuplicate: boolean("allow_duplicate").default(true).notNull(),
@@ -278,12 +278,12 @@ export interface RollupConfig {
 export interface PropertyConfig {
   options?: SelectOption[]; // select / status
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
-   * the row out on its month/day in EVERY year, ignoring the stored year */
+ * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";
   /** relation: the target database whose rows this links to */
   relationDatabaseId?: string;
   /** relation: this prop is a COMPUTED mirror of a relation on another db
-   * (two-way relation) — its value is derived, never stored */
+ * (two-way relation) — its value is derived, never stored */
   mirrorOf?: { databaseId: string; propId: string };
   /** relation: id of the mirror property created on the target db */
   twoWayPropId?: string;
@@ -332,7 +332,7 @@ export interface ViewSort {
   propertyId: string;
   dir: "asc" | "desc";
 }
-/** Notion advanced filters: a GROUP of conditions with its own AND/OR,
+/**  advanced filters: a GROUP of conditions with its own AND/OR,
  * combined with the top-level rules via filterConjunction (2-level nesting). */
 export interface ViewFilterGroup {
   conjunction?: "and" | "or";
@@ -343,7 +343,7 @@ export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "ti
 export interface ViewConfig {
   groupByPropertyId?: string; // board grouping
   filters?: ViewFilter[];
-  /** nested filter groups (Notion "+ Add filter group") */
+  /** nested filter groups */
   filterGroups?: ViewFilterGroup[];
   sorts?: ViewSort[];
   /** how multiple filters combine (default "and") */
@@ -356,15 +356,15 @@ export interface ViewConfig {
   calendarDatePropertyId?: string;
   /** a linked database view embedded inside another page */
   embedded?: boolean;
-  /** per-property column-footer aggregation (Notion "Calculate"):
-   * { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
+  /** per-property column-footer aggregation:
+ * { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
   calcs?: Record<string, string>;
-  /** dashboard view: its widget layout (notion.com/help/dashboards — up to 12
-   * widgets, up to 4 per row; each widget carries its own data config) */
+  /** dashboard view: its widget layout (.com/help/dashboards — up to 12
+ * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];
 }
 
-/** One dashboard-view widget. `width` is in quarters of the row (Notion:
+/** One dashboard-view widget. `width` is in quarters of the row (
  * max 4 widgets per row); rows wrap in reading order. */
 export interface DashWidget {
   id: string;
@@ -387,7 +387,7 @@ export const databases = pgTable("databases", {
     .references(() => workspaces.id, { onDelete: "cascade" })
     .notNull(),
   title: text("title").default("Untitled Database").notNull(),
-  // editable text under the DB title
+ // editable text under the DB title
   description: text("description").default("").notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -417,12 +417,12 @@ export const dbRows = pgTable(
     databaseId: uuid("database_id")
       .references(() => databases.id, { onDelete: "cascade" })
       .notNull(),
-    // { [propertyId]: value } — value shape depends on the property type
+ // { [propertyId]: value } — value shape depends on the property type
     values: jsonb("values").$type<Record<string, unknown>>().default({}).notNull(),
     position: doublePrecision("position").notNull(),
-    // sub-items: a row nested under another row (null = top-level)
+ // sub-items: a row nested under another row (null = top-level)
     parentRowId: uuid("parent_row_id"),
-    // audit columns backing created_by / last_edited_by property types
+ // audit columns backing created_by / last_edited_by property types
     createdBy: uuid("created_by").references(() => users.id),
     updatedBy: uuid("updated_by").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -481,7 +481,7 @@ export const pageMembers = pgTable(
 );
 
 // Pending page invites: a specific person invited to a page by email who has
-// not yet accepted (Notion's guest-by-email share). Resolved into a pageMembers
+// not yet accepted. Resolved into a pageMembers
 // row once the invitee signs in with a matching email; until then it shows in
 // the share dialog as a pending guest with its own permission level.
 export const pageInvites = pgTable(
@@ -531,8 +531,8 @@ export const comments = pgTable(
   "comments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // text + no FK: OKF (file) page/block ids are base64url strings, not
-    // uuids — same trade-off as notifications (no cascade on page delete)
+ // text + no FK: OKF (file) page/block ids are base64url strings, not
+ // uuids — same trade-off as notifications (no cascade on page delete)
     pageId: text("page_id").notNull(),
     blockId: text("block_id"),
     parentId: uuid("parent_id"),
@@ -558,8 +558,8 @@ export const notifications = pgTable(
       .notNull(),
     type: text("type").notNull(), // 'mention' | 'comment' | 'invite'
     actorId: uuid("actor_id").references(() => users.id),
-    // text, not uuid: OKF page ids are base64url path encodings (comments and
-    // page_snapshots already store them as text for the same reason)
+ // text, not uuid: OKF page ids are base64url path encodings (comments and
+ // page_snapshots already store them as text for the same reason)
     pageId: text("page_id"),
     commentId: uuid("comment_id"),
     body: text("body").default("").notNull(),
@@ -595,15 +595,15 @@ export const okfDbMeta = pgTable(
 export const chatRooms = pgTable("chat_rooms", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  // "agent" = Agent Lab relationship room (creator-only), "dm" = human↔human DM (membership-based)
+ // "agent" = Agent Lab relationship room (creator-only), "dm" = human↔human DM (membership-based)
   kind: text("kind").$type<"agent" | "dm">().default("agent").notNull(),
-  // DM room scope — members can only be invited from the same workspace (agent stub rooms: null)
+ // DM room scope — members can only be invited from the same workspace (agent stub rooms: null)
   workspaceId: uuid("workspace_id"),
-  // 1:1 DM dedup key = sorted "userA|userB" (group/agent rooms: null).
-  // Immutable across membership changes, so an old group room can never
-  // hijack a fresh 1:1.
+ // 1:1 DM dedup key = sorted "userA|userB" (group/agent rooms: null).
+ // Immutable across membership changes, so an old group room can never
+ // hijack a fresh 1:1.
   directKey: text("direct_key"),
-  // when everyone consented — messages before this are never collected
+ // when everyone consented — messages before this are never collected
   consentAt: timestamp("consent_at"),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -633,7 +633,7 @@ export const chatRoomMembers = pgTable(
   {
     roomId: uuid("room_id").notNull(),
     userId: uuid("user_id").notNull(),
-    // unread badge = count of others' messages after this timestamp
+ // unread badge = count of others' messages after this timestamp
     lastReadAt: timestamp("last_read_at"),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
   },
@@ -647,14 +647,14 @@ export const chatMessages = pgTable(
     roomId: uuid("room_id").notNull(),
     authorId: uuid("author_id").notNull(),
     text: text("text").notNull(),
-    // DM attachments (uploaded images/files) — [{url,name}], urls restricted to /uploads/*
+ // DM attachments (uploaded images/files) — [{url,name}], urls restricted to /uploads/*
     attachments: jsonb("attachments")
       .$type<{ url: string; name: string }[]>()
       .default([])
       .notNull(),
-    // when the write pipeline processed it — null = not yet collected. A
-    // checkpoint that stays safe under createdAt ties, replacing
-    // lastProcessedMessageId comparisons.
+ // when the write pipeline processed it — null = not yet collected. A
+ // checkpoint that stays safe under createdAt ties, replacing
+ // lastProcessedMessageId comparisons.
     processedAt: timestamp("processed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -664,12 +664,12 @@ export const chatMessages = pgTable(
 export const agentRoomStates = pgTable("agent_room_states", {
   roomId: uuid("room_id").primaryKey(),
   rootPageId: uuid("root_page_id"),
-  // section key → pageId map (safe across title renames)
+ // section key → pageId map (safe across title renames)
   sectionPageIds: jsonb("section_page_ids").$type<Record<string, string>>().default({}).notNull(),
-  // OKF storage (current): the relationship doc lives as files. OKF-relative
-  // path of the root folder plus section key → .md path map. rootPageId /
-  // sectionPageIds above are legacy from the Postgres-resident era (kept only
-  // so old rooms stay readable).
+ // OKF storage (current): the relationship doc lives as files. OKF-relative
+ // path of the root folder plus section key → .md path map. rootPageId /
+ // sectionPageIds above are legacy from the Postgres-resident era (kept only
+ // so old rooms stay readable).
   rootOkfPath: text("root_okf_path"),
   sectionOkfPaths: jsonb("section_okf_paths").$type<Record<string, string>>().default({}).notNull(),
   lastRunAt: timestamp("last_run_at"),
@@ -681,9 +681,9 @@ export const agentRoomStates = pgTable("agent_room_states", {
 // content like relationship docs live as files: a registered path and its
 // whole subtree are visible to memberIds only.
 export const okfAcl = pgTable("okf_acl", {
-  // path relative to the OKF root (usually the doc's root folder)
+ // path relative to the OKF root (usually the doc's root folder)
   path: text("path").primaryKey(),
-  // originating room (for relationship docs) — audit/cleanup
+ // originating room (for relationship docs) — audit/cleanup
   roomId: uuid("room_id"),
   memberIds: jsonb("member_ids").$type<string[]>().default([]).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -737,7 +737,7 @@ export type ChatRoomMember = typeof chatRoomMembers.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 
 // ---------------------------------------------------------------------------
-// Notion AI chats (sidebar Chats tab). AI conversation threads, not
+// the workspace AI chats (sidebar Chats tab). AI conversation threads, not
 // human↔human DMs — semantically distinct from chat_rooms above
 // (relationship-agent rooms), hence a separate table.
 // ---------------------------------------------------------------------------
@@ -751,11 +751,11 @@ export const aiChats = pgTable(
     icon: text("icon"), // emoji, null → default icon
     agentName: text("agent_name"), // if the chat started from a Custom Agent, its name
     isFavorite: boolean("is_favorite").default(false).notNull(),
-    // pinned to the top of the list (chats-pinned-section)
+ // pinned to the top of the list (chats-pinned-section)
     isPinned: boolean("is_pinned").default(false).notNull(),
-    // unread blue dot: an assistant reply arrived in the background, not yet opened
+ // unread blue dot: an assistant reply arrived in the background, not yet opened
     hasUnread: boolean("has_unread").default(false).notNull(),
-    // read-only share token (null → private)
+ // read-only share token (null → private)
     shareToken: text("share_token").unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -772,7 +772,7 @@ export const aiChatMessages = pgTable(
       .notNull(),
     role: text("role").$type<"user" | "assistant">().notNull(),
     content: text("content").notNull(),
-    // Notion pages the reply cited, [{id,title}] (for source display)
+ // pages the reply cited, [{id,title}] (for source display)
     sources: jsonb("sources").$type<{ id: string; title: string }[]>().default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -800,9 +800,9 @@ export const aiAgents = pgTable(
     icon: text("icon"), // emoji, null → default icon
     instructions: text("instructions").default("").notNull(),
     isFavorite: boolean("is_favorite").default(false).notNull(),
-    // shared with the whole workspace (Notion: shared custom agents)
+ // shared with the whole workspace
     isShared: boolean("is_shared").default(false).notNull(),
-    // page scope this agent consults (edited in the knowledge-scope section)
+ // page scope this agent consults (edited in the knowledge-scope section)
     knowledgeScope: jsonb("knowledge_scope").$type<AgentKnowledgeScope>().default({}).notNull(),
     lastUsedAt: timestamp("last_used_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -28,7 +28,7 @@ export function PageView({
 }: {
   initialPage: Page;
   initialBlocks: Block[];
-  /** database pages render near-full-width like Notion, not the 836px column */
+  /** database pages render near-full-width , not the 836px column */
   wide?: boolean;
 }) {
   const storePage = usePagesStore((s) => s.pages[initialPage.id]);
@@ -37,15 +37,15 @@ export function PageView({
   const page = storePage ?? initialPage;
   const { self, others } = usePresence(initialPage.id);
 
-  // record this visit for Quick Find's "recently opened" list
+ // record this visit for Quick Find's "recently opened" list
   const recordRecent = useRecentsStore((s) => s.record);
   useEffect(() => {
     recordRecent(initialPage.id);
   }, [initialPage.id, recordRecent]);
 
-  // Remember and restore the scroll position per page, so navigating back
-  // returns to where the reader left off. Restore retries briefly
-  // because block content can grow the scroll height after mount.
+ // Remember and restore the scroll position per page, so navigating back
+ // returns to where the reader left off. Restore retries briefly
+ // because block content can grow the scroll height after mount.
   useEffect(() => {
     const main = document.querySelector('main[aria-label="Page content"]');
     if (!(main instanceof HTMLElement)) return;
@@ -63,8 +63,8 @@ export function PageView({
     };
     raf = requestAnimationFrame(restore);
     const onScroll = () => {
-      // navigating away clamps main.scrollTop to 0 BEFORE this passive
-      // effect's cleanup runs — don't let that clobber the saved position
+ // navigating away clamps main.scrollTop to 0 BEFORE this passive
+ // effect's cleanup runs — don't let that clobber the saved position
       if (!location.pathname.includes(initialPage.id)) return;
       sessionStorage.setItem(key, String(Math.round(main.scrollTop)));
     };
@@ -75,8 +75,8 @@ export function PageView({
     };
   }, [initialPage.id]);
 
-  // Parent renders <PageView key={page.id}>, so navigation remounts and
-  // resets this state naturally.
+ // Parent renders <PageView key={page.id}>, so navigation remounts and
+ // resets this state naturally.
   const [title, setTitle] = useState(initialPage.title);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<BlockEditorHandle>(null);
@@ -112,8 +112,8 @@ export function PageView({
         {editedAgo(page.updatedAt) && (
           <span
             data-testid="page-edited-ago"
-            // Date.now()-relative text can cross a minute boundary between
-            // SSR and hydration — a mismatch here regenerates the whole tree
+ // Date.now()-relative text can cross a minute boundary between
+ // SSR and hydration — a mismatch here regenerates the whole tree
             suppressHydrationWarning
             className="mr-1 hidden text-xs text-neutral-400 sm:block"
           >
@@ -156,7 +156,7 @@ export function PageView({
       <div
         className={`group/pagehead mx-auto px-16 ${wide || page.fullWidth ? "max-w-[1500px]" : "max-w-[calc(708px+8rem)]"}`}
       >
-        {/* icon first so its -mt-9 really overlaps the cover (Notion),
+        {/* icon first so its -mt-9 really overlaps the cover,
             then the hover action row between icon and title (#2/#95) */}
         {page.icon && (
           <div className={page.coverUrl ? "-mt-9" : "pt-12"}>
@@ -167,7 +167,7 @@ export function PageView({
             />
           </div>
         )}
-        {/* hover action row (Notion): Add icon · Add cover · Add comment —
+        {/* hover action row: Add icon · Add cover · Add comment —
             revealed on header hover, never pinned to the viewport */}
         <div
           className={`flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/pagehead:opacity-100 ${
@@ -220,7 +220,7 @@ export function PageView({
         />
 
         {/* database-row pages show their EDITABLE properties above the body
-            (Notion); self-hides on ordinary pages. Locked page → read-only. */}
+            self-hides on ordinary pages. Locked page → read-only. */}
         <div className={page.isLocked ? "pointer-events-none opacity-90" : undefined}>
           <RowPropertiesPanel pageId={initialPage.id} />
         </div>
@@ -253,7 +253,7 @@ function CoverControls({
   const [repositioning, setRepositioning] = useState(false);
   const [pos, setPos] = useState(50);
 
-  // subtle parallax: the cover image trails the page scroll a little
+ // subtle parallax: the cover image trails the page scroll a little
   useEffect(() => {
     if (!coverUrl) return;
     const main = document.querySelector('main[aria-label="Page content"]');
@@ -267,8 +267,8 @@ function CoverControls({
     return () => main.removeEventListener("scroll", onScroll);
   }, [coverUrl]);
 
-  // cover value grammar: "gradient:<name>" (preset gallery) or a URL with an
-  // optional "#pos=NN" fragment (vertical object-position %, Reposition)
+ // cover value grammar: "gradient:<name>" (preset gallery) or a URL with an
+ // optional "#pos=NN" fragment (vertical object-position %, Reposition)
   const [base, posStr] = (coverUrl ?? "").split("#pos=");
   const savedPos = posStr ? Number(posStr) : 50;
   const gradient = base.startsWith("gradient:") ? GRADIENTS[base.slice(9)] : null;
@@ -295,7 +295,7 @@ function CoverControls({
           Save
         </button>
       </div>
-      {/* preset gallery (Notion: color & gradient covers) */}
+      {/* preset gallery */}
       <div className="flex flex-wrap gap-1">
         {Object.entries(GRADIENTS).map(([name, css]) => (
           <button
@@ -339,14 +339,14 @@ function CoverControls({
         {gradient ? (
           <div data-testid="page-cover-image" style={{ background: gradient }} className="h-full w-full" />
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
           <img
             data-testid="page-cover-image"
             src={base}
             alt=""
             style={{ objectPosition: `50% ${repositioning ? pos : savedPos}%` }}
             onPointerDown={(e) => {
-              // Notion: while repositioning, drag the image itself
+ // while repositioning, drag the image itself
               if (!repositioning) return;
               e.preventDefault();
               const startY = e.clientY;
@@ -436,8 +436,8 @@ function CoverControls({
       </div>
     );
   }
-  // no cover: a small inline trigger — page-view hosts it in the hover
-  // action row above the title (Notion), not pinned at the viewport top
+ // no cover: a small inline trigger — page-view hosts it in the hover
+ // action row above the title, not pinned at the viewport top
   return (
     <div className="relative inline-block">
       <button
@@ -455,7 +455,7 @@ function CoverControls({
   );
 }
 
-/** Preset cover gallery (Notion's color & gradient covers). */
+/** Preset cover gallery. */
 const GRADIENTS: Record<string, string> = {
   sunset: "linear-gradient(135deg,#f6d365,#fda085)",
   ocean: "linear-gradient(135deg,#89f7fe,#66a6ff)",
@@ -468,7 +468,7 @@ const GRADIENTS: Record<string, string> = {
 }
 
 /** "Copy link": copies this page's own URL (always available, unlike the
- * public-share link which only exists after publishing). Notion behavior. */
+ * public-share link which only exists after publishing). standard behavior. */
 function CopyLinkButton({ pageId }: { pageId: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -489,7 +489,7 @@ function CopyLinkButton({ pageId }: { pageId: string }) {
   );
 }
 
-/** "Edited 3h ago" — coarse relative time for the top bar (Notion). */
+/** "Edited 3h ago" — coarse relative time for the top bar. */
 function editedAgo(updatedAt: string | Date | null | undefined): string {
   if (!updatedAt) return "";
   const t = new Date(updatedAt).getTime();

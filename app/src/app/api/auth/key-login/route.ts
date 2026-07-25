@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/auth/key-login
- *   body: { privateKey: string, displayName?: string }
+ * body: { privateKey: string, displayName?: string }
  *
  * Same contract as slack-a2a: derives the AIN address from the supplied
  * private key and logs the user in. The key never persists.

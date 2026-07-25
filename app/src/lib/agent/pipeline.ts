@@ -39,7 +39,7 @@ export function runPipeline(roomId: string): Promise<RunResult> {
   const prev = running.get(roomId) ?? Promise.resolve(undefined as unknown as RunResult);
   const next = prev.catch(() => undefined).then(() => runOnce(roomId));
   running.set(roomId, next);
-  // cleanup derives a promise but swallows the reject, preventing unhandledRejection
+ // cleanup derives a promise but swallows the reject, preventing unhandledRejection
   next.catch(() => {}).finally(() => {
     if (running.get(roomId) === next) running.delete(roomId);
   });
@@ -95,7 +95,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   if (!room.consentAt)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no consent yet" };
 
-  // unprocessed (processedAt IS NULL) + post-consent messages only
+ // unprocessed (processedAt IS NULL) + post-consent messages only
   const batch = await db
     .select()
     .from(chatMessages)
@@ -111,8 +111,8 @@ async function runOnce(roomId: string): Promise<RunResult> {
   if (!batch.length)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no new messages" };
 
-  // participants = room members + creator. The OKF tree has no permissions,
-  // so okf_acl uses this list to make the doc (folder and below) participant-only.
+ // participants = room members + creator. The OKF tree has no permissions,
+ // so okf_acl uses this list to make the doc (folder and below) participant-only.
   const memberIds = (
     await db
       .select({ userId: chatRoomMembers.userId })
@@ -121,7 +121,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   ).map((m) => m.userId);
   const participants = [...new Set([room.createdBy, ...memberIds])];
 
-  // the relationship doc is OKF-file-canonical (CLAUDE.md: folder = content DB).
+ // the relationship doc is OKF-file-canonical (CLAUDE.md: folder = content DB).
   const tree = ensureOkfDocTree(roomId, room.name, {
     rootPath: state0?.rootOkfPath,
     sectionPaths: state0?.sectionOkfPaths,
@@ -129,9 +129,9 @@ async function runOnce(roomId: string): Promise<RunResult> {
   await setOkfAcl(tree.rootPath, roomId, participants);
 
   const current = readOkfSectionTexts(tree);
-  // Deterministic path when the LLM is off or unreachable — the memory still
-  // gets written (fakeEdits appends each message to the Timeline), so the
-  // agent always records even without an AI endpoint configured.
+ // Deterministic path when the LLM is off or unreachable — the memory still
+ // gets written (fakeEdits appends each message to the Timeline), so the
+ // agent always records even without an AI endpoint configured.
   let rawEdits: DocEdit[];
   if (process.env.AGENT_FAKE_LLM === "1" || !process.env.AI_URL) {
     rawEdits = fakeEdits(batch);
@@ -143,14 +143,14 @@ async function runOnce(roomId: string): Promise<RunResult> {
       rawEdits = fakeEdits(batch);
     }
   }
-  // source forgery prevention: sourceMessageIds only count if they exist in this batch
+ // source forgery prevention: sourceMessageIds only count if they exist in this batch
   const batchIds = new Set(batch.map((m) => m.id));
   const edits = rawEdits.map((e) => ({
     ...e,
     sourceMessageIds: e.sourceMessageIds.filter((id) => batchIds.has(id)),
   }));
 
-  // apply to files — append at the section .md's end (never overwrite wholesale; keeps prior curation).
+ // apply to files — append at the section .md's end (never overwrite wholesale; keeps prior curation).
   for (const edit of edits) {
     const rel = tree.sectionPaths[edit.section];
     if (!rel) continue;
@@ -171,10 +171,10 @@ async function runOnce(roomId: string): Promise<RunResult> {
     appendOkfLines(rel, title, lines, okfDocMeta(roomId, edit.section));
   }
 
-  // the checkpoint advances only after file writes finish. Files can't join
-  // the DB transaction, so if the DB fails after a successful write the next
-  // run re-applies the same batch (duplicate lines) — a known trade-off of
-  // the file-canonical model.
+ // the checkpoint advances only after file writes finish. Files can't join
+ // the DB transaction, so if the DB fails after a successful write the next
+ // run re-applies the same batch (duplicate lines) — a known trade-off of
+ // the file-canonical model.
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx

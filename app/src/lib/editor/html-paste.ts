@@ -45,7 +45,7 @@ function walk(el: Element, out: string[], listPrefix = ""): void {
     else if (tag === "PRE") out.push("```", node.textContent ?? "", "```");
     else if (tag === "HR") out.push("---");
     else if (tag === "P" || tag === "DIV" || tag === "SECTION" || tag === "ARTICLE") {
-      // containers with their own block children recurse; leaves emit a line
+ // containers with their own block children recurse; leaves emit a line
       if (node.querySelector("h1,h2,h3,ul,ol,p,blockquote,pre")) walk(node, out, listPrefix);
       else {
         const t = inline(node).trim();

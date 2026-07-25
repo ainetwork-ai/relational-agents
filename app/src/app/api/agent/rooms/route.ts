@@ -24,7 +24,7 @@ export async function GET() {
 }
 
 /** POST /api/agent/rooms { name } → { room }.
- *  Demo shortcut: consentAt=now at creation (the real mutual-consent flow lives elsewhere). */
+ * Demo shortcut: consentAt=now at creation (the real mutual-consent flow lives elsewhere). */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

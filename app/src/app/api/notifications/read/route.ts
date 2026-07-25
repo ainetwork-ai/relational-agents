@@ -7,7 +7,7 @@ import { and, count, eq } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 /** POST { id? } → mark one (id) or all of the caller's notifications read.
- *  Returns the caller's remaining unread count. */
+ * Returns the caller's remaining unread count. */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

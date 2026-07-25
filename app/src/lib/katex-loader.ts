@@ -1,5 +1,5 @@
 /** Lazy loader for the vendored KaTeX dist (public/katex — pnpm store is
- *  broken on this host, so the package is served as static assets). */
+ * broken on this host, so the package is served as static assets). */
 
 declare global {
   interface Window {

@@ -64,10 +64,10 @@ export function usePresence(pageId: string): {
   const [color] = useState(() => COLORS[Math.floor(Math.random() * COLORS.length)]);
   const [self, setSelf] = useState<PublicUser | null>(null);
   const [others, setOthers] = useState<Record<string, PresentClient>>({});
-  // bridges the interval sender to the caret-move listener without resubscribing
+ // bridges the interval sender to the caret-move listener without resubscribing
   const sendRef = useRef<() => void>(() => {});
 
-  // who am I (label for my caret + my face-pile avatar)
+ // who am I (label for my caret + my face-pile avatar)
   useEffect(() => {
     let alive = true;
     fetch("/api/auth/me")
@@ -81,7 +81,7 @@ export function usePresence(pageId: string): {
     };
   }, []);
 
-  // seed with whoever is already present
+ // seed with whoever is already present
   useEffect(() => {
     let alive = true;
     fetch(`/api/pages/${pageId}/presence`)
@@ -100,7 +100,7 @@ export function usePresence(pageId: string): {
     };
   }, [pageId, clientId]);
 
-  // heartbeat sender (starts once we know our label)
+ // heartbeat sender (starts once we know our label)
   useEffect(() => {
     if (!self) return;
     let cancelled = false;
@@ -145,10 +145,10 @@ export function usePresence(pageId: string): {
     };
   }, [pageId, clientId, color, self]);
 
-  // caret-move heartbeat — attach the listener ONLY while other clients are
-  // present. When alone there's nobody to render our caret, so we do ZERO
-  // per-keystroke work (the 4s interval above keeps the registry fresh). This
-  // keeps the editor's typing path clean in the common single-user case.
+ // caret-move heartbeat — attach the listener ONLY while other clients are
+ // present. When alone there's nobody to render our caret, so we do ZERO
+ // per-keystroke work (the 4s interval above keeps the registry fresh). This
+ // keeps the editor's typing path clean in the common single-user case.
   const hasOthers = Object.keys(others).length > 0;
   useEffect(() => {
     if (!hasOthers) return;
@@ -174,9 +174,9 @@ export function usePresence(pageId: string): {
     };
   }, [hasOthers]);
 
-  // collect others' presence/cursor events off the page SSE stream
-  // (shared pool — see sse-share.ts; a second EventSource per tab helped
-  // exhaust the browser's 6-per-host connection limit)
+ // collect others' presence/cursor events off the page SSE stream
+ // (shared pool — see sse-share.ts; a second EventSource per tab helped
+ // exhaust the browser's 6-per-host connection limit)
   useEffect(() => {
     return subscribeSse(`/api/pages/${pageId}/events`, (ev) => {
       try {
@@ -200,7 +200,7 @@ export function usePresence(pageId: string): {
     });
   }, [pageId, clientId]);
 
-  // prune stale peers
+ // prune stale peers
   useEffect(() => {
     const iv = setInterval(() => {
       setOthers((prev) => {

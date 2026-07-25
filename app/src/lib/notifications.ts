@@ -5,8 +5,8 @@ import { and, eq, isNull } from "drizzle-orm";
 
 /**
  * Inbox notification pipeline (server-side). Two collaboration signals feed it:
- *   - PERSON @-mentions inside saved block HTML or a comment body
- *   - a new comment on a page (its other participants get pinged)
+ * - PERSON @-mentions inside saved block HTML or a comment body
+ * - a new comment on a page (its other participants get pinged)
  *
  * A mention chip is inline HTML: <span|a … data-mention-type="person"
  * data-mention-id="<userId>">. We pull the recipient user id straight off the
@@ -17,7 +17,7 @@ import { and, eq, isNull } from "drizzle-orm";
 export function extractPersonMentionIds(html: string | undefined | null): string[] {
   if (!html) return [];
   const ids = new Set<string>();
-  // Look at each tag that carries any mention marker, then keep the person ones.
+ // Look at each tag that carries any mention marker, then keep the person ones.
   for (const tag of html.match(/<[^>]*data-mention[^>]*>/gi) ?? []) {
     if (!/data-mention-type="person"/i.test(tag)) continue;
     const m = tag.match(/data-mention-id="([^"]+)"/i);

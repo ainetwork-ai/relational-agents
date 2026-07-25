@@ -19,7 +19,7 @@ interface PresenceEntry {
 }
 
 // pageId → clientId → entry. Survives dev HMR duplication via globalThis.
-const KEY = Symbol.for("notion.presence.registry");
+const KEY = Symbol.for("app.presence.registry");
 function registry(): Map<string, Map<string, PresenceEntry>> {
   const g = globalThis as unknown as Record<symbol, Map<string, Map<string, PresenceEntry>>>;
   if (!g[KEY]) g[KEY] = new Map();
@@ -58,7 +58,7 @@ export async function GET(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { pageId } = await params;
-  // file-backed (OKF) pages have no SQL presence registry — report empty, not 404
+ // file-backed (OKF) pages have no SQL presence registry — report empty, not 404
   if (isOkfId(pageId)) return NextResponse.json({ presences: [] });
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -77,7 +77,7 @@ export async function POST(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { pageId } = await params;
-  // file-backed (OKF) pages: presence heartbeats are a no-op (no SQL registry)
+ // file-backed (OKF) pages: presence heartbeats are a no-op (no SQL registry)
   if (isOkfId(pageId)) return NextResponse.json({ ok: true });
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });

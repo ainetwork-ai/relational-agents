@@ -48,7 +48,7 @@ export async function POST(
     .values({ workspaceId: invite.workspaceId, userId: auth.user.id, role: "member" })
     .onConflictDoNothing();
 
-  // switch to that workspace on accept — avoids joining yet staying in your own workspace
+ // switch to that workspace on accept — avoids joining yet staying in your own workspace
   const session = await getSession();
   session.activeWorkspaceId = invite.workspaceId;
   await session.save();

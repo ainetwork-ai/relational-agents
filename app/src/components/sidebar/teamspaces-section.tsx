@@ -14,7 +14,7 @@ interface Teamspace {
 }
 
 /** Sidebar "Teamspaces" section: create a teamspace, list them, expand each to
- *  its pages. A page created here belongs to the teamspace (pages.teamspaceId). */
+ * its pages. A page created here belongs to the teamspace (pages.teamspaceId). */
 export function TeamspacesSection({ workspaceId }: { workspaceId: string | null }) {
   const router = useRouter();
   const [teamspaces, setTeamspaces] = useState<Teamspace[]>([]);
@@ -32,7 +32,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
     if (res.ok) setTeamspaces((await res.json()).teamspaces ?? []);
   }, []);
 
-  // Re-fetch when the active workspace changes (switch → server refresh → new prop).
+ // Re-fetch when the active workspace changes (switch → server refresh → new prop).
   useEffect(() => {
     let alive = true;
     void (async () => {

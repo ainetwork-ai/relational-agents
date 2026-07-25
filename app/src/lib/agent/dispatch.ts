@@ -24,7 +24,7 @@ async function pushExternal(
         role: "user",
         messageId: message.id,
         parts: [{ kind: "text", text: message.text }],
-        // standard A2A Message.metadata — room/speaker context (spec v2 §5)
+ // standard A2A Message.metadata — room/speaker context (spec v2 §5)
         metadata: {
           roomId: room.id,
           roomName: room.name,

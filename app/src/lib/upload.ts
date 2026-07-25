@@ -5,9 +5,9 @@ import { useToastStore } from "@/stores/toast";
 const MAX_BYTES = 10 * 1024 * 1024; // keep in sync with /api/upload
 
 /** Upload a blob to /api/upload. On ANY failure the user gets a toast that
- *  says why (silent failures read as "upload is broken" — user report
+ * says why (silent failures read as "upload is broken" — user report
  * oversized/HEIC files were rejected server-side with no UI
- *  feedback at all). Returns null on failure. */
+ * feedback at all). Returns null on failure. */
 export async function uploadBlob(
   file: File,
   kind?: "file"

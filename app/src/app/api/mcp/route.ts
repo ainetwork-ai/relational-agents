@@ -44,12 +44,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * MCP server exposed as a Next.js Route Handler over Streamable HTTP.
- * Endpoint: /api/mcp  (GET = server→client stream, POST = messages, DELETE = end session)
+ * Endpoint: /api/mcp (GET = server→client stream, POST = messages, DELETE = end session)
  *
- * GOAL: functional parity with the official hosted Notion MCP server
- * (mcp.notion.com), adapted to this app's canonical OKF file store (folder=DB).
- * Tool names follow Notion's `notion-*` convention and content flows as
- * Notion-flavored Markdown, matching the official server's agent-first design.
+ * GOAL: functional parity with the official hosted MCP server
+ * (mcp..com), adapted to this app's canonical OKF file store (folder=DB).
+ * Tool names follow `-*` convention and content flows as
+ * Markdown, matching the official server's agent-first design.
  *
  * Auth (required): OKF files hold participant-only content, so this surface
  * passes the okf_acl gate too. Three identities: (1) Bearer <agent token> =
@@ -65,7 +65,7 @@ const currentUserId = () => who().userId;
 const gateFor = (): Promise<OkfGate> => okfGateFor(currentUserId());
 
 /** Mutations and identity-bound reads need a real person/agent, not the public
- *  service token. Throw → surfaced as an MCP tool error. */
+ * service token. Throw → surfaced as an MCP tool error. */
 function requireUser(): string {
   const id = currentUserId();
   if (!id) throw new Error("This action requires a user or agent identity (not the public service token).");
@@ -93,7 +93,7 @@ const json = (v: unknown) => ok(JSON.stringify(v, null, 2));
 
 /** OKF id → rel path, validated. Throws for non-OKF ids. */
 function relOf(id: string): string {
-  if (!isOkfId(id)) throw new Error(`Not a valid Notion entity id: ${id}`);
+  if (!isOkfId(id)) throw new Error(`Not a valid entity id: ${id}`);
   return decodeId(id);
 }
 
@@ -166,7 +166,7 @@ function queryRows(
   return rows.slice(0, pageSize);
 }
 
-/** Render a database snapshot's rows as a Notion-flavored Markdown table. */
+/** Render a database snapshot's rows as a Markdown table. */
 function rowsToMarkdown(snap: Snapshot, rows: Snapshot["rows"], cols?: Snapshot["properties"]): string {
   const props = cols ?? snap.properties;
   const head = `| ${props.map((p) => p.name).join(" | ")} |`;
@@ -178,9 +178,9 @@ function rowsToMarkdown(snap: Snapshot, rows: Snapshot["rows"], cols?: Snapshot[
 }
 
 /** Parse a practical subset of SQL SELECT against a single data source:
- *  SELECT * | col[, col] ... [WHERE cond [AND|OR cond]...] [ORDER BY col [ASC|DESC]...] [LIMIT n]
- *  Conditions: col {= | != | <> | > | < | >= | <= | LIKE | NOT LIKE} 'value'|number.
- *  Column names are matched by display name or colN id (case-insensitive). */
+ * SELECT * | col[, col] ... [WHERE cond [AND|OR cond]...] [ORDER BY col [ASC|DESC]...] [LIMIT n]
+ * Conditions: col {= | != | <> | > | < | >= | <= | LIKE | NOT LIKE} 'value'|number.
+ * Column names are matched by display name or colN id (case-insensitive). */
 function parseSql(sql: string): {
   columns: string[] | "*";
   filters: { property: string; op: string; value: unknown }[];
@@ -238,7 +238,7 @@ function parseSql(sql: string): {
   return { columns, filters, conjunction, sorts, limit };
 }
 
-/** Render any OKF node as Notion-flavored Markdown (the `notion-fetch` shape). */
+/** Render any OKF node as Markdown (the `app-fetch` shape). */
 async function renderNode(id: string): Promise<string> {
   const node = readNode(relOf(id));
   if (!node) throw new Error(`Entity not found: ${id}`);
@@ -258,7 +258,7 @@ async function renderNode(id: string): Promise<string> {
       preview,
     ].join("\n");
   }
-  // page or row-as-page
+ // page or row-as-page
   const fm = node.meta && Object.keys(node.meta).length
     ? "> " + Object.entries(node.meta).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join(" · ") + "\n\n"
     : "";
@@ -274,11 +274,11 @@ function parentRelOf(parentId?: string): string {
   const rel = relOf(parentId);
   const node = readNode(rel);
   if (node?.kind === "database") throw new Error("cannot create a page inside a database; add a row instead");
-  // a leaf .md has no children dir → create the sibling in its containing folder
+ // a leaf .md has no children dir → create the sibling in its containing folder
   return /\.md$/i.test(rel) ? rel.replace(/\/[^/]+\.md$/i, "").replace(/[^/]+\.md$/i, "") : rel;
 }
 
-// ── async-task registry (parity with notion-get-async-task) ─────────────────
+// ── async-task registry (parity with get-async-task) ─────────────────
 type Task = { id: string; status: "completed" | "failed"; summary: string; resultId?: string; error?: string };
 const tasks = new Map<string, Task>();
 function completedTask(summary: string, resultId?: string): Task {
@@ -289,7 +289,7 @@ function completedTask(summary: string, resultId?: string): Task {
 
 const handler = createMcpHandler(
   (server) => {
-    // ── health ──────────────────────────────────────────────────────────
+ // ── health ──────────────────────────────────────────────────────────
     server.tool(
       "ping",
       "Health check — returns 'pong' plus an optional echo.",
@@ -297,9 +297,9 @@ const handler = createMcpHandler(
       async ({ message }) => ok(`pong${message ? ` ${message}` : ""}`)
     );
 
-    // ── notion-search ─────────────────────────────────────────────────────
+ // ── -search ─────────────────────────────────────────────────────
     server.tool(
-      "notion-search",
+      "memory-search",
       "Search pages and databases across the workspace by title and body text. Returns matching entities with id, title, kind and a snippet.",
       {
         query: z.string().describe("keywords to search for"),
@@ -335,10 +335,10 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-fetch ───────────────────────────────────────────────────────
+ // ── app-fetch ───────────────────────────────────────────────────────
     server.tool(
-      "notion-fetch",
-      "Retrieve a Notion entity (page, database, or row) by id as Notion-flavored Markdown. Pass id='self' for the current identity + workspace.",
+      "app-fetch",
+      "Retrieve an entity (page, database, or row) by id as Markdown. Pass id='self' for the current identity + workspace.",
       { id: z.string().describe("entity id from search/list, or 'self'") },
       async ({ id }) => {
         if (id === "self") {
@@ -361,9 +361,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-create-pages ─────────────────────────────────────────────────
+ // ── -create-pages ─────────────────────────────────────────────────
     server.tool(
-      "notion-create-pages",
+      "memory-create-pages",
       "Create one or more pages. Each page has a title, optional parent id, optional Markdown content, and optional icon (emoji).",
       {
         pages: z
@@ -371,7 +371,7 @@ const handler = createMcpHandler(
             z.object({
               title: z.string(),
               parent_id: z.string().optional().describe("parent page/folder id; omit for workspace root"),
-              content: z.string().optional().describe("Notion-flavored Markdown body"),
+              content: z.string().optional().describe("Markdown body"),
               icon: z.string().optional().describe("emoji icon"),
             })
           )
@@ -398,9 +398,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-update-page ──────────────────────────────────────────────────
+ // ── update-page ──────────────────────────────────────────────────
     server.tool(
-      "notion-update-page",
+      "update-page",
       "Update a page. mode='replace' overwrites the body with new Markdown; mode='find_replace' does a text substitution. Optionally change title or icon.",
       {
         id: z.string(),
@@ -428,8 +428,8 @@ const handler = createMcpHandler(
         } else if (find !== undefined) {
           const md = blocksToMarkdown(newTitle, blocks);
           const swapped = md.split(find).join(replace ?? "");
-          // blocksToMarkdown prepends "# <title>", so consume it as the title
-          // again (noTitle would duplicate it as a heading block in the body)
+ // blocksToMarkdown prepends "# <title>", so consume it as the title
+ // again (noTitle would duplicate it as a heading block in the body)
           blocks = parseMarkdown(swapped, "b").blocks;
         }
         writePage(rel, newTitle, meta, blocks);
@@ -437,9 +437,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-move-pages ───────────────────────────────────────────────────
+ // ── -move-pages ───────────────────────────────────────────────────
     server.tool(
-      "notion-move-pages",
+      "memory-move-pages",
       "Move one or more pages/databases to a new parent folder (omit new_parent_id for workspace root).",
       { ids: z.array(z.string()).min(1), new_parent_id: z.string().optional() },
       async ({ ids, new_parent_id }) => {
@@ -463,9 +463,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-duplicate-page (async in the official API; sync here) ─────────
+ // ── -duplicate-page (async in the official API; sync here) ─────────
     server.tool(
-      "notion-duplicate-page",
+      "memory-duplicate-page",
       "Duplicate a page or database within the workspace. Returns the new entity id and an async task record.",
       { id: z.string() },
       async ({ id }) => {
@@ -483,9 +483,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-create-database ──────────────────────────────────────────────
+ // ── -create-database ──────────────────────────────────────────────
     server.tool(
-      "notion-create-database",
+      "memory-create-database",
       "Create a new database with an initial schema. The first column is the title. Column types: text, number, select, multi_select, status, date, checkbox, person, url.",
       {
         title: z.string(),
@@ -509,9 +509,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-update-data-source ────────────────────────────────────────────
+ // ── update-data-source ────────────────────────────────────────────
     server.tool(
-      "notion-update-data-source",
+      "update-data-source",
       "Update a database's schema/description: set description, add columns, rename columns, or remove columns.",
       {
         database_id: z.string(),
@@ -554,9 +554,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-create-view ───────────────────────────────────────────────────
+ // ── -create-view ───────────────────────────────────────────────────
     server.tool(
-      "notion-create-view",
+      "memory-create-view",
       "Create a view on a database (table, board, list, calendar, timeline, gallery). Optional filters and sorts (property may be a name or column id).",
       {
         database_id: z.string(),
@@ -578,9 +578,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-update-view ────────────────────────────────────────────────────
+ // ── update-view ────────────────────────────────────────────────────
     server.tool(
-      "notion-update-view",
+      "update-view",
       "Update a view's name, filters, or sorts.",
       {
         database_id: z.string(),
@@ -605,9 +605,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-query-data-sources ─────────────────────────────────────────────
+ // ── -query-data-sources ─────────────────────────────────────────────
     server.tool(
-      "notion-query-data-sources",
+      "memory-query-data-sources",
       "Query a database's rows and return a Markdown table. Provide either `sql` " +
         "(SELECT * | cols FROM db [WHERE ...] [ORDER BY ...] [LIMIT n]) or structured `filters`+`sorts`.",
       {
@@ -654,9 +654,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-query-database-view ────────────────────────────────────────────
+ // ── -query-database-view ────────────────────────────────────────────
     server.tool(
-      "notion-query-database-view",
+      "memory-query-database-view",
       "Run an existing view's filters/sorts against its database and return the rows as a Markdown table.",
       { database_id: z.string(), view_id: z.string(), page_size: z.number().int().min(1).max(200).optional() },
       async ({ database_id, view_id, page_size }) => {
@@ -676,17 +676,17 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-query-meeting-notes (Notion AI only; no equivalent here) ────────
+ // ── -query-meeting-notes ────────
     server.tool(
-      "notion-query-meeting-notes",
-      "Query meeting notes. NOT SUPPORTED in this workspace (no Notion AI meeting-notes feature).",
+      "memory-query-meeting-notes",
+      "Query meeting notes. NOT SUPPORTED in this workspace (no the workspace AI meeting-notes feature).",
       { query: z.string().optional() },
-      async () => err("Meeting notes are a Notion AI feature and are not available in this workspace.")
+      async () => err("Meeting notes are a the workspace AI feature and are not available in this workspace.")
     );
 
-    // ── notion-create-comment ──────────────────────────────────────────────────
+ // ── -create-comment ──────────────────────────────────────────────────
     server.tool(
-      "notion-create-comment",
+      "memory-create-comment",
       "Add a comment to a page (page-level) or a specific block, or reply to a thread.",
       {
         page_id: z.string(),
@@ -706,9 +706,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-get-comments ─────────────────────────────────────────────────────
+ // ── -get-comments ─────────────────────────────────────────────────────
     server.tool(
-      "notion-get-comments",
+      "memory-get-comments",
       "List comments/discussions on a page.",
       { page_id: z.string() },
       async ({ page_id }) => {
@@ -732,9 +732,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-get-teams ─────────────────────────────────────────────────────────
+ // ── -get-teams ─────────────────────────────────────────────────────────
     server.tool(
-      "notion-get-teams",
+      "memory-get-teams",
       "List the teamspaces (teams) in the current workspace.",
       {},
       async () => {
@@ -749,9 +749,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-get-users ───────────────────────────────────────────────────────
+ // ── -get-users ───────────────────────────────────────────────────────
     server.tool(
-      "notion-get-users",
+      "memory-get-users",
       "List workspace members (and guests). Pass self=true for just the current user.",
       { self: z.boolean().optional() },
       async ({ self }) => {
@@ -771,9 +771,9 @@ const handler = createMcpHandler(
       }
     );
 
-    // ── notion-get-async-task ─────────────────────────────────────────────────────
+ // ── get-async-task ─────────────────────────────────────────────────────
     server.tool(
-      "notion-get-async-task",
+      "get-async-task",
       "Get the status of an async task started by another tool (e.g. duplicate).",
       { task_id: z.string() },
       async ({ task_id }) => {

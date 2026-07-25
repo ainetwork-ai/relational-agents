@@ -9,7 +9,7 @@ export interface EmojiCandidate {
 }
 
 /** Candidates for the `:query` popup — shortcodes first (their names are the
- *  ones people type), then keyword matches from the full emoji dataset. */
+ * ones people type), then keyword matches from the full emoji dataset. */
 export function emojiCandidates(query: string): EmojiCandidate[] {
   const q = query.toLowerCase();
   if (!q) return [];
@@ -35,7 +35,7 @@ export function emojiCandidates(query: string): EmojiCandidate[] {
   return out.slice(0, 12);
 }
 
-/** Notion-style emoji autocomplete popup shown while typing `:que…`. */
+/** emoji autocomplete popup shown while typing `:que…`. */
 export function EmojiSuggestMenu({
   anchor,
   query,

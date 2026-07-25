@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 /** Rose scale per emotion level (Lv.0 🩶 … Lv.7 💝) — matches the
- *  relationship dashboard's badge palette. */
+ * relationship dashboard's badge palette. */
 const LEVEL_FILL = [
   "#f4f4f5", "#ffe4e6", "#fecdd3", "#fda4af",
   "#fb7185", "#f43f5e", "#e11d48", "#be123c",
@@ -37,7 +37,7 @@ const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
 /** Record pages are titled "<me> ❤️ <partner>" (or just "❤️ <partner>") —
- *  the face belongs to the partner, i.e. the last emoji-separated segment. */
+ * the face belongs to the partner, i.e. the last emoji-separated segment. */
 const partnerOf = (title: string) => {
   const segs = title
     .split(/[^\p{L}\p{N} ]+/u)
@@ -67,7 +67,7 @@ function Face({ person }: { person: Person }) {
   return (
     <span className="relative flex h-11 w-11 items-center justify-center">
       {imgOk ? (
-        // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
         <img
           src={`/avatars/${person.key}.png`}
           alt={person.name}
@@ -84,10 +84,10 @@ function Face({ person }: { person: Person }) {
   );
 }
 
-/** Sidebar Chats tab, horizontal people strip (new-Notion agent-grid style):
- *  round faces with a level heart badge, sourced from the "Relationship
- *  Records" index page's children; levels come from the "Relationships"
- *  database when one exists. Hidden entirely when the index page is absent. */
+/** Sidebar Chats tab, horizontal people strip:
+ * round faces with a level heart badge, sourced from the "Relationship
+ * Records" index page's children; levels come from the "Relationships"
+ * database when one exists. Hidden entirely when the index page is absent. */
 export function RelationshipsStrip() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
@@ -108,10 +108,10 @@ export function RelationshipsStrip() {
         );
         if (kids.length === 0) return;
 
-        // 1:1 DM rooms by the other member's name — the card should open the
-        // agent's living relationship doc when one exists, so map each person
-        // to their room here and resolve the doc on click. Group rooms are
-        // out of scope (a room-level doc has no single person to attach to).
+ // 1:1 DM rooms by the other member's name — the card should open the
+ // agent's living relationship doc when one exists, so map each person
+ // to their room here and resolve the doc on click. Group rooms are
+ // out of scope (a room-level doc has no single person to attach to).
         const roomByName = new Map<string, string>();
         try {
           const { rooms }: { rooms: DmRoomRow[] } = await (await fetch("/api/dm/rooms")).json();
@@ -124,13 +124,13 @@ export function RelationshipsStrip() {
             }
           }
         } catch {
-          // room lookup is best-effort — cards fall back to the record page
+ // room lookup is best-effort — cards fall back to the record page
         }
 
-        // levels by person name, from databases embedded on the index pages
-        // (a "Level" select column). Discovered via the pages' own database
-        // blocks — /api/databases scopes to the default workspace, which can
-        // differ from the workspace these pages live in.
+ // levels by person name, from databases embedded on the index pages
+ // (a "Level" select column). Discovered via the pages' own database
+ // blocks — /api/databases scopes to the default workspace, which can
+ // differ from the workspace these pages live in.
         const levels = new Map<string, number>();
         try {
           const dbIds = new Set<string>();
@@ -155,7 +155,7 @@ export function RelationshipsStrip() {
             }
           }
         } catch {
-          // DB lookup is best-effort — faces render without badges
+ // DB lookup is best-effort — faces render without badges
         }
 
         const list = kids.map((k) => {
@@ -172,7 +172,7 @@ export function RelationshipsStrip() {
         list.sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
         if (alive) setPeople(list);
       } catch {
-        // sidebar strip is decorative — fail silent
+ // sidebar strip is decorative — fail silent
       }
     })();
     return () => {
@@ -181,8 +181,8 @@ export function RelationshipsStrip() {
   }, []);
 
   /** The relationship doc (agent-maintained, OKF) is the card's document;
-   *  the seeded record page is only the fallback for people without a room
-   *  or whose room has no doc yet (no consent / no messages processed). */
+ * the seeded record page is only the fallback for people without a room
+ * or whose room has no doc yet (no consent / no messages processed). */
   async function openPerson(person: Person) {
     if (person.roomId) {
       try {
@@ -195,7 +195,7 @@ export function RelationshipsStrip() {
           }
         }
       } catch {
-        // fall through to the record page
+ // fall through to the record page
       }
     }
     router.push(`/p/${person.pageId}`);

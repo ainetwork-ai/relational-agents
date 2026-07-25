@@ -5,8 +5,8 @@ import { Settings2, Eye, EyeOff } from "lucide-react";
 import { useDb } from "./database-block";
 
 /** Per-view property visibility: toggle any property shown/hidden in the
- *  active view. Persisted in ViewConfig.hiddenProperties; every view
- *  (table/board/list/gallery/calendar) respects it. */
+ * active view. Persisted in ViewConfig.hiddenProperties; every view
+ * (table/board/list/gallery/calendar) respects it. */
 export function ViewOptions() {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export function ViewOptions() {
       </button>
       {open && (
         <div className="popover-anim absolute right-0 top-8 z-40 w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {/* Group by lives in view options (Notion) — not a strip above the view */}
+          {/* Group by lives in view options — not a strip above the view */}
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
             Group by
           </span>

@@ -6,7 +6,7 @@ import { decodeId, okfRoot } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
 
 // Serve a file asset (image/video/pdf…) that lives in the OKF tree. Exported
-// Notion pages embed local files; parseMarkdown rewrites their relative URLs to
+// Pages embed local files; parseMarkdown rewrites their relative URLs to
 // `/api/okf/asset?p=<encoded OKF path>` so the browser can fetch them here.
 const MIME: Record<string, string> = {
   ".png": "image/png",
@@ -35,12 +35,12 @@ export async function GET(req: NextRequest) {
   } catch {
     return new Response("bad id", { status: 400 });
   }
-  // attachments under participant-only paths are member-only (same gate as bodies)
+ // attachments under participant-only paths are member-only (same gate as bodies)
   const gate = await okfGateFor(auth.user.id);
   if (!gate.canRead(rel)) return new Response("not found", { status: 404 });
   const root = okfRoot();
   const abs = path.resolve(root, rel);
-  // never serve outside the OKF root
+ // never serve outside the OKF root
   if (abs !== root && !abs.startsWith(root + path.sep)) {
     return new Response("forbidden", { status: 403 });
   }

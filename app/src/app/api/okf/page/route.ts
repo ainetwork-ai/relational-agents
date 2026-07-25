@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest) {
   if (typeof relPath !== "string" || typeof title !== "string" || !Array.isArray(blocks)) {
     return NextResponse.json({ error: "bad input" }, { status: 400 });
   }
-  // participant-only paths are member-writable only (same gate as reads)
+ // participant-only paths are member-writable only (same gate as reads)
   const gate = await okfGateFor(auth.user.id);
   if (!gate.canRead(relPath)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {

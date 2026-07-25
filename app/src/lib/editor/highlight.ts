@@ -51,8 +51,8 @@ export function highlightCode(code: string, language?: string): string {
   const kw = new Set(keywords);
   const hash = lineCommentStyle(lang) === "hash";
 
-  // One master scanner, ordered so comments/strings win over identifiers.
-  // Groups: 1 block comment, 2 line comment, 3 string, 4 number, 5 identifier.
+ // One master scanner, ordered so comments/strings win over identifiers.
+ // Groups: 1 block comment, 2 line comment, 3 string, 4 number, 5 identifier.
   const lineComment = hash ? "#[^\\n]*" : "//[^\\n]*";
   const re = new RegExp(
     `(/\\*[\\s\\S]*?\\*/)|(${lineComment})|("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)|(\\b\\d[\\d_.]*\\b)|([A-Za-z_$][A-Za-z0-9_$]*)`,

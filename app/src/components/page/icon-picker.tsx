@@ -24,7 +24,7 @@ export function IconPicker({
   triggerClassName?: string;
   placeholder?: React.ReactNode;
   allowRemove?: boolean;
-  /** page icons also accept uploaded/URL images (Notion's Upload & Link tabs) */
+  /** page icons also accept uploaded/URL images */
   allowImage?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -38,7 +38,7 @@ export function IconPicker({
 
   useEffect(() => {
     if (!open) return;
-    // Focus the search input when the picker opens
+ // Focus the search input when the picker opens
     requestAnimationFrame(() => searchRef.current?.focus());
     const close = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) {
@@ -58,11 +58,11 @@ export function IconPicker({
     );
   }, [query]);
 
-  // Skin tone (Notion: remembered tone applied to modifier-base emoji, #82)
+ // Skin tone
   const TONES = ["", "\u{1F3FB}", "\u{1F3FC}", "\u{1F3FD}", "\u{1F3FE}", "\u{1F3FF}"];
   const [skin, setSkin] = useState(() => {
     try {
-      return Number(localStorage.getItem("notion-emoji-skin") ?? 0) || 0;
+      return Number(localStorage.getItem("emoji-skin") ?? 0) || 0;
     } catch {
       return 0;
     }
@@ -78,7 +78,7 @@ export function IconPicker({
     const next = (skin + 1) % TONES.length;
     setSkin(next);
     try {
-      localStorage.setItem("notion-emoji-skin", String(next));
+      localStorage.setItem("emoji-skin", String(next));
     } catch {}
   }
 
@@ -91,7 +91,7 @@ export function IconPicker({
 
   function pick(emoji: string) {
     try {
-      const key = "notion-recent-emoji";
+      const key = "recent-emoji";
       const cur: string[] = JSON.parse(localStorage.getItem(key) ?? "[]");
       localStorage.setItem(
         key,
@@ -104,7 +104,7 @@ export function IconPicker({
   }
   function recentEmoji(): string[] {
     try {
-      return JSON.parse(localStorage.getItem("notion-recent-emoji") ?? "[]");
+      return JSON.parse(localStorage.getItem("recent-emoji") ?? "[]");
     } catch {
       return [];
     }
@@ -225,7 +225,7 @@ export function IconPicker({
             </button>
           </div>
 
-          {/* Recently used (Notion keeps a top row of recents) */}
+          {/* Recently used */}
           {!filtered && recentEmoji().length > 0 && (
             <div className="border-b border-neutral-100 px-2 py-1 dark:border-neutral-700">
               <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
@@ -253,7 +253,7 @@ export function IconPicker({
                   key={cat.name}
                   onClick={() => {
                     setActiveCategory(i);
-                    // Scroll the grid to top when switching categories
+ // Scroll the grid to top when switching categories
                     gridRef.current?.scrollTo(0, 0);
                   }}
                   aria-label={cat.name}
@@ -272,7 +272,7 @@ export function IconPicker({
           {/* Emoji grid */}
           <div ref={gridRef} className="max-h-56 overflow-y-auto p-1.5">
             {filtered ? (
-              // Search results
+ // Search results
               filtered.length === 0 ? (
                 <p className="py-4 text-center text-xs text-neutral-400">
                   No emoji found
@@ -291,7 +291,7 @@ export function IconPicker({
                 </div>
               )
             ) : (
-              // Category view
+ // Category view
               <>
                 <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
                   {EMOJI_CATEGORIES[activeCategory].name}

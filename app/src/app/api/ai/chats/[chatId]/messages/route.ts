@@ -95,34 +95,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
   const regenerate = body?.regenerate === true;
   let text = typeof body?.text === "string" ? body.text.trim() : "";
   const present = body?.present === true;
-  // e2e determinism hook: the e2e_fake_ai cookie/flag forces fake replies.
-  // Never active in real deployments — allowed only in dev or on servers with
-  // an explicit AI_E2E_HOOK=1 (set when running e2e against an isolated prod
-  // server).
+ // e2e determinism hook: the e2e_fake_ai cookie/flag forces fake replies.
+ // Never active in real deployments — allowed only in dev or on servers with
+ // an explicit AI_E2E_HOOK=1 (set when running e2e against an isolated prod
+ // server).
   const e2eHookAllowed =
     process.env.NODE_ENV !== "production" || process.env.AI_E2E_HOOK === "1";
   const forceFake =
     e2eHookAllowed &&
     (body?.fake === true || req.cookies.get("e2e_fake_ai")?.value === "1");
-  // failOnce hook: forceFake (e2e) only — force-fails the first attempt with
-  // an error event so the retry UI (chat-retry-btn) tests deterministically.
-  // No message is stored. body.failOnce === false is the explicit "don't fail
-  // this one" override (the retry path).
+ // failOnce hook: forceFake (e2e) only — force-fails the first attempt with
+ // an error event so the retry UI (chat-retry-btn) tests deterministically.
+ // No message is stored. body.failOnce === false is the explicit "don't fail
+ // this one" override (the retry path).
   const failRequested =
     forceFake &&
     body?.failOnce !== false &&
     (body?.failOnce === true || req.cookies.get("e2e_fail_next")?.value === "1");
-  // genuinely "once": fail only the first attempt per chat, then consume →
-  // the retry (chat-retry-btn) succeeds even with the cookie still set
-  // (deterministic retry-UI verification).
+ // genuinely "once": fail only the first attempt per chat, then consume →
+ // the retry (chat-retry-btn) succeeds even with the cookie still set
+ // (deterministic retry-UI verification).
   const failOnce = failRequested && !failedOnceChats.has(chatId);
   if (failRequested) {
     if (failOnce) failedOnceChats.add(chatId);
     else failedOnceChats.delete(chatId); // clear so it can re-arm after consumption
   }
-  // forces a distinguishable error kind via the e2e_error cookie /
-  // body.errorKind. Independent of failOnce — never consumed; fires on every
-  // forceFake request while the condition is set.
+ // forces a distinguishable error kind via the e2e_error cookie /
+ // body.errorKind. Independent of failOnce — never consumed; fires on every
+ // forceFake request while the condition is set.
   const requestedErrorKind: "ratelimit" | "server" | null =
     req.cookies.get("e2e_error")?.value === "ratelimit"
       ? "ratelimit"
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
             ? "server"
             : null;
   const errorKind = forceFake ? requestedErrorKind : null;
-  // load history (before storing the current message)
+ // load history (before storing the current message)
   let prior = await db
     .select()
     .from(aiChatMessages)
@@ -142,8 +142,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
     .orderBy(asc(aiChatMessages.createdAt));
 
   if (regenerate) {
-    // regenerate: without adding a new user message, delete the last
-    // assistant reply and answer the last user message again as the prompt.
+ // regenerate: without adding a new user message, delete the last
+ // assistant reply and answer the last user message again as the prompt.
     const last = prior[prior.length - 1];
     if (last?.role === "assistant") {
       await db.delete(aiChatMessages).where(eq(aiChatMessages.id, last.id));
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
     encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
   if (failOnce) {
-    // stream only the error event and finish — nothing is stored.
+ // stream only the error event and finish — nothing is stored.
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(send("error", { message: "A temporary error occurred (e2e failOnce)" }));
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
   }
 
   if (errorKind) {
-    // stream only the distinguishable error event and finish — nothing is stored.
+ // stream only the distinguishable error event and finish — nothing is stored.
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(send("error", { kind: errorKind, message: E2E_ERROR_MESSAGES[errorKind] }));
@@ -202,10 +202,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
     : prior.map((m) => ({ role: m.role, content: m.content }));
 
   if (!regenerate) {
-    // plan-gating mock: admin-off or an over-limit free plan blocks the send
-    // and counts it. e2e deterministic sends (forceFake) are excluded from
-    // gating/counting so they don't pile up in the shared demo workspace and
-    // block other tests (gating-UI tests set state directly via PATCH).
+ // plan-gating mock: admin-off or an over-limit free plan blocks the send
+ // and counts it. e2e deterministic sends (forceFake) are excluded from
+ // gating/counting so they don't pile up in the shared demo workspace and
+ // block other tests (gating-UI tests set state directly via PATCH).
     if (!forceFake) {
       const usage = await getOrCreateUsage(chat.workspaceId);
       if (usage.aiDisabledByAdmin)
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ chatId: st
         .where(eq(aiUsage.workspaceId, chat.workspaceId));
     }
 
-    // store the user message; first message auto-titles the chat
+ // store the user message; first message auto-titles the chat
     await db.insert(aiChatMessages).values({ chatId, role: "user", content: text });
     if (isFirst && (chat.title === "New chat" || !chat.title.trim())) {
       await db.update(aiChats).set({ title: deriveTitle(text) }).where(eq(aiChats.id, chatId));

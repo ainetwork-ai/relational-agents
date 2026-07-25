@@ -7,7 +7,7 @@ import { usePagesStore } from "@/stores/pages";
 import { useUiStore } from "@/stores/ui";
 import { PageIcon } from "@/components/page-icon";
 
-/** Notion puts Trash in a floating panel anchored next to the sidebar
+/**  puts Trash in a floating panel anchored next to the sidebar
  * (with its own search box), not a centered modal. */
 export function TrashModal() {
   const open = useUiStore((s) => s.trashOpen);
@@ -17,7 +17,7 @@ export function TrashModal() {
   const restorePage = usePagesStore((s) => s.restorePage);
   const deleteForever = usePagesStore((s) => s.deleteForever);
   const [q, setQ] = useState("");
-  // two-step confirm for the irreversible delete
+ // two-step confirm for the irreversible delete
   const [armed, setArmed] = useState<string | null>(null);
   const [left, setLeft] = useState(248);
   const ref = useRef<HTMLDivElement>(null);
@@ -25,7 +25,7 @@ export function TrashModal() {
   useEffect(() => {
     if (!open) return;
     loadArchived();
-    // deferred so no setState runs synchronously in the effect body
+ // deferred so no setState runs synchronously in the effect body
     void Promise.resolve().then(() => {
       setQ("");
       const aside = document.querySelector("aside");
@@ -40,7 +40,7 @@ export function TrashModal() {
     };
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      // the sidebar Trash button manages its own open state
+ // the sidebar Trash button manages its own open state
       if (t.closest?.('[data-testid="trash-button"]')) return;
       if (!ref.current?.contains(t)) setOpen(false);
     };

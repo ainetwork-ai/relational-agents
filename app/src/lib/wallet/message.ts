@@ -10,8 +10,8 @@
  */
 
 export interface SigningRequest {
-  /** What the user is approving, in plain language ("Sign in to Notion",
-   *  "Approve page publish"). Shown in the wallet popup. */
+  /** What the user is approving, in plain language ("Sign in to ",
+ * "Approve page publish"). Shown in the wallet popup. */
   purpose: string;
   /** Server-issued, single-use random value. Store it and delete on use. */
   nonce: string;

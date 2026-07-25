@@ -53,7 +53,7 @@ export async function GET(
 
   return NextResponse.json({
     members: rows.map((r) => ({ user: toPublicUser(r.user), permission: r.permission })),
-    // pending email invites (guests who have not accepted yet)
+ // pending email invites (guests who have not accepted yet)
     invites: invites.map((i) => ({ email: i.email, permission: i.permission, pending: true })),
   });
 }
@@ -69,7 +69,7 @@ export async function POST(
   const page = await assertAccess(pageId, auth.user.id);
   if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Managing page members requires full access
+ // Managing page members requires full access
   const permCheck = await requirePagePermission(pageId, auth.user.id, "full");
   if (permCheck !== true) return permCheck;
 
@@ -79,12 +79,12 @@ export async function POST(
     typeof body?.email === "string" ? body.email.trim().toLowerCase() : null;
   const permission = normalizePermission(body?.permission) ?? "edit";
 
-  // (a) invite by email — a specific person who may not be in the workspace yet.
-  //     Stored as a pending guest invite until they sign in with that email.
+ // (a) invite by email — a specific person who may not be in the workspace yet.
+ // Stored as a pending guest invite until they sign in with that email.
   if (email) {
     if (!EMAIL_RE.test(email))
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-    // If the email already resolves to a workspace member, grant directly.
+ // If the email already resolves to a workspace member, grant directly.
     const [existing] = await db
       .select({ user: users })
       .from(workspaceMembers)
@@ -122,7 +122,7 @@ export async function POST(
     );
   }
 
-  // (b) invite an existing workspace member by id.
+ // (b) invite an existing workspace member by id.
   if (!userId)
     return NextResponse.json({ error: "userId or email required" }, { status: 400 });
 
@@ -165,7 +165,7 @@ export async function DELETE(
   if (!(await assertAccess(pageId, auth.user.id)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Managing page members requires full access
+ // Managing page members requires full access
   const permCheck = await requirePagePermission(pageId, auth.user.id, "full");
   if (permCheck !== true) return permCheck;
 

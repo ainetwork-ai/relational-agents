@@ -1,7 +1,7 @@
 import type { User } from "@/lib/db/schema";
 
 /** Whitelist of user fields safe to send to the client (never the full row —
- *  users carries encryptedPrivateKey and other agent internals). */
+ * users carries encryptedPrivateKey and other agent internals). */
 export function toPublicUser(user: User) {
   return {
     id: user.id,

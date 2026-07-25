@@ -44,7 +44,7 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
   },
 
   markRead: async (id) => {
-    // optimistic
+ // optimistic
     set((s) => {
       const items = s.items.map((n) => (n.id === id ? { ...n, read: true } : n));
       return { items, unreadCount: items.filter((n) => !n.read).length };

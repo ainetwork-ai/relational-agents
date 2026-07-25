@@ -3,7 +3,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { sanitizeInline } from "@/lib/rich-text";
 
 /** Inline rich text for the public read-only view (sanitized twice: at write
- *  and again here at render). */
+ * and again here at render). */
 function Rich({ block, fallback }: { block: Block; fallback: string }) {
   if (block.content.html) {
     return (
@@ -161,8 +161,8 @@ function renderBlock(
       );
     }
     case "database":
-      // databases render live only in the editor; the public snapshot embeds
-      // just the block, so show a neutral marker rather than crash.
+ // databases render live only in the editor; the public snapshot embeds
+ // just the block, so show a neutral marker rather than crash.
       return (
         <div
           key={b.id}
@@ -173,7 +173,7 @@ function renderBlock(
       );
     case "image":
       return b.content.url ? (
-        // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
         <img
           key={b.id}
           src={b.content.url}

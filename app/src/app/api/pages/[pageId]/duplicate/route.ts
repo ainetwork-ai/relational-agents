@@ -9,7 +9,7 @@ import { isOkfId } from "@/lib/okf-store";
 export const dynamic = "force-dynamic";
 
 /** POST → deep-duplicate a page (blocks + child pages), "Title (copy)",
- *  positioned right after the original (Notion: ... → Duplicate). */
+ * positioned right after the original. */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }
@@ -42,7 +42,7 @@ export async function POST(
       position,
       createdBy: userId,
     });
-    // blocks: two passes so nested parentBlockId links remap to the new ids
+ // blocks: two passes so nested parentBlockId links remap to the new ids
     const rows = await db
       .select()
       .from(blocks)
@@ -61,7 +61,7 @@ export async function POST(
         }))
       );
     }
-    // child pages recurse (keep their own titles)
+ // child pages recurse (keep their own titles)
     const kids = await db
       .select()
       .from(pages)

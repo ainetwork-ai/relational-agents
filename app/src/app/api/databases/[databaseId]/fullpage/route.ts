@@ -7,8 +7,8 @@ import { loadDatabaseForUser } from "@/lib/db-access";
 export const dynamic = "force-dynamic";
 
 /** POST → spawn a page whose entire body IS this database, rendered full-width
- *  (Notion "Open as full page"). The page holds a single database block flagged
- *  fullPage. Returns { pageId }. */
+ *. The page holds a single database block flagged
+ * fullPage. Returns { pageId }. */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ databaseId: string }> }

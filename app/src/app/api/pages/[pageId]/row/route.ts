@@ -8,8 +8,8 @@ import { isOkfId, decodeId, okfRowRefForPage } from "@/lib/okf-store";
 export const dynamic = "force-dynamic";
 
 /** GET → { ref: { databaseId, rowId } | null } — is this page a database
- *  row's page? The full-page view uses it to render editable row properties
- *  above the body (Notion opens a row as title + properties + body). */
+ * row's page? The full-page view uses it to render editable row properties
+ * above the body. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }

@@ -3,7 +3,7 @@
 import { useToastStore } from "@/stores/toast";
 import { X } from "lucide-react";
 
-/** Renders the undo-toast stack bottom-left (Notion placement). */
+/** Renders the undo-toast stack bottom-left. */
 export function ToastHost() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   if (!workspaceId)
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-  // Minting workspace invite links requires admin (or owner).
+ // Minting workspace invite links requires admin (or owner).
   const roleCheck = await requireWorkspaceRole(workspaceId, auth.user.id, "admin");
   if (roleCheck !== true) return roleCheck;
 

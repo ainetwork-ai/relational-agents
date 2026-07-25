@@ -9,19 +9,19 @@ import sanitize from "sanitize-html";
  */
 
 const OPTIONS: sanitize.IOptions = {
-  // <span> is allowed ONLY to carry mention chips (class restricted below).
+ // <span> is allowed ONLY to carry mention chips (class restricted below).
   allowedTags: ["b", "strong", "i", "em", "u", "s", "strike", "del", "code", "a", "br", "span"],
-  // mention chips (@page / @person / @date) persist their type+id so they
-  // survive save→reload; class is constrained to "mention" via allowedClasses.
+ // mention chips (@page / @person / @date) persist their type+id so they
+ // survive save→reload; class is constrained to "mention" via allowedClasses.
   allowedAttributes: {
     a: ["href", "class", "data-mention-type", "data-mention-id"],
     span: ["class", "data-mention-type", "data-mention-id", "data-tex", "contenteditable"],
   },
-  // "mention" for chips, "comment-highlight" for inline range-comment anchors,
-  // "eq" for inline equations (KaTeX chips)
+ // "mention" for chips, "comment-highlight" for inline range-comment anchors,
+ // "eq" for inline equations (KaTeX chips)
   allowedClasses: { a: ["mention"], span: ["mention", "comment-highlight", "eq", "c-*", "hl-*"] },
-  // inline equation chips canonicalize to `$tex$` text — the KaTeX markup a
-  // live chip carries in the DOM must never reach storage
+ // inline equation chips canonicalize to `$tex$` text — the KaTeX markup a
+ // live chip carries in the DOM must never reach storage
   transformTags: {
     span: (tagName, attribs) => {
       if ((attribs.class ?? "").split(/\s+/).includes("eq") && attribs["data-tex"]) {
@@ -32,8 +32,8 @@ const OPTIONS: sanitize.IOptions = {
   },
   allowedSchemes: ["http", "https", "mailto"],
   disallowedTagsMode: "discard",
-  // Range splits leave empty tag shells (<a></a>) that break caret placement
-  // in the new block — drop any inline tag with no text (but keep <br>).
+ // Range splits leave empty tag shells (<a></a>) that break caret placement
+ // in the new block — drop any inline tag with no text (but keep <br>).
   exclusiveFilter: (frame) => frame.tag !== "br" && !frame.text.trim(),
 };
 

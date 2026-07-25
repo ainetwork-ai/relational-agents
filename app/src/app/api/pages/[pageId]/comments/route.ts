@@ -37,7 +37,7 @@ async function loadAccessiblePage(pageId: string, userId: string) {
  */
 async function resolveAccess(req: NextRequest, pageId: string) {
   const auth = await requireAuth();
-  // file-backed (OKF) pages have no per-page ACL — any authenticated member
+ // file-backed (OKF) pages have no per-page ACL — any authenticated member
   if (isOkfId(pageId)) {
     if ("error" in auth) return { authed: false as const };
     return { authed: true as const, user: auth.user, page: null, share: null };
@@ -59,7 +59,7 @@ async function resolveAccess(req: NextRequest, pageId: string) {
 }
 
 /** GET → { comments: [...] } for the whole page, oldest-first (newest-last),
- *  each with its author shaped via toPublicUser. */
+ * each with its author shaped via toPublicUser. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }
@@ -71,7 +71,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Any permission (view/comment/edit/full) can read comments
+ // Any permission (view/comment/edit/full) can read comments
   const rows = await db
     .select()
     .from(comments)
@@ -98,12 +98,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Share-token: must have comment, edit, or full
+ // Share-token: must have comment, edit, or full
   if (access.share && !hasPermission(access.share.permission, "comment")) {
     return forbiddenResponse("comment");
   }
 
-  // Anonymous share users cannot post comments (no author identity)
+ // Anonymous share users cannot post comments (no author identity)
   if (!access.user) {
     return NextResponse.json(
       { error: "Commenting requires authentication" },
@@ -111,7 +111,7 @@ export async function POST(
     );
   }
 
-  // Session auth: check page-level comment permission (OKF pages have none)
+ // Session auth: check page-level comment permission (OKF pages have none)
   if (!isOkfId(pageId)) {
     const check = await requirePagePermission(pageId, access.user.id, "comment");
     if (check !== true) return check;
@@ -127,7 +127,7 @@ export async function POST(
   const parentId = typeof raw?.parentId === "string" ? raw.parentId : null;
   if (!body) return NextResponse.json({ error: "Empty body" }, { status: 400 });
 
-  // Snapshot who has already commented (page participants) before we add ours.
+ // Snapshot who has already commented (page participants) before we add ours.
   const priorAuthors = await db
     .select({ authorId: comments.authorId })
     .from(comments)

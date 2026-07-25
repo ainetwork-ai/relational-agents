@@ -13,8 +13,8 @@ export interface ComposerAttachment {
 }
 
 /** Attachment state: file pick/paste → upload via the existing /api/upload
- *  (kind=file) → kept as a chip list. Reaches the server only merged into the
- *  message body string at send time (demo). */
+ * (kind=file) → kept as a chip list. Reaches the server only merged into the
+ * message body string at send time (demo). */
 export function useComposerAttachments() {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +153,7 @@ export function AttachmentsList({
               className="flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 py-1 pl-1.5 pr-1 text-xs dark:border-neutral-700 dark:bg-neutral-800"
             >
               {a.isImage && (
-                // eslint-disable-next-line @next/next/no-img-element
+ // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={a.url}
                   alt={a.name}

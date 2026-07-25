@@ -16,7 +16,7 @@ import { SignWithWalletButton } from "@/components/wallet/sign-with-wallet-butto
 import type { SignedMessage } from "@/lib/wallet/sign";
 
 export default function WalletSignDemoPage() {
-  const [purpose, setPurpose] = useState("Approve this action in Notion");
+  const [purpose, setPurpose] = useState("Approve this action");
   const [signed, setSigned] = useState<SignedMessage | null>(null);
   const [verdict, setVerdict] = useState<string | null>(null);
 
@@ -57,8 +57,8 @@ export default function WalletSignDemoPage() {
       <div className="mt-4">
         <SignWithWalletButton
           label="Sign message"
-          // Resolved at click time — a real flow fetches its nonce here instead
-          // of generating one client-side.
+ // Resolved at click time — a real flow fetches its nonce here instead
+ // of generating one client-side.
           message={() =>
             buildSigningMessage({
               purpose,

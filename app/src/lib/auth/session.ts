@@ -11,10 +11,10 @@ export interface SessionData {
 
 const sessionOptions: SessionOptions = {
   password: process.env.SESSION_SECRET || "dev-secret-change-in-production-32ch",
-  cookieName: "notion-session",
+  cookieName: "rm-session",
   cookieOptions: {
-    // INSECURE_COOKIES=1 lets the harness smoke-test a production build over
-    // plain http://127.0.0.1 (curl won't send Secure cookies over http).
+ // INSECURE_COOKIES=1 lets the harness smoke-test a production build over
+ // plain http://127.0.0.1 (curl won't send Secure cookies over http).
     secure:
       process.env.NODE_ENV === "production" &&
       process.env.INSECURE_COOKIES !== "1",

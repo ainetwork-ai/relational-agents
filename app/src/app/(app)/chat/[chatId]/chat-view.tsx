@@ -109,48 +109,48 @@ export function ChatView({ chatId }: { chatId: string }) {
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // B. distinguishable error kind (ratelimit/server) — the banner shows a matching badge.
+ // B. distinguishable error kind (ratelimit/server) — the banner shows a matching badge.
   const [errorKind, setErrorKind] = useState<"ratelimit" | "server" | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [showConnectors, setShowConnectors] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [usage, setUsage] = useState<UsageState | null>(null);
-  // per-message feedback (like/dislike/report) is local state only — survives no refresh (demo).
+ // per-message feedback (like/dislike/report) is local state only — survives no refresh (demo).
   const [feedback, setFeedback] = useState<Record<string, { vote?: "up" | "down"; reported?: boolean }>>(
     {}
   );
   const [reportToast, setReportToast] = useState(false);
-  // B. edit-resend: only tracks whether the last user message is being edited (simplified).
+ // B. edit-resend: only tracks whether the last user message is being edited (simplified).
   const [isEditing, setIsEditing] = useState(false);
-  // C. context-scope picker: no real search scoping needed — UI state only.
+ // C. context-scope picker: no real search scoping needed — UI state only.
   const [contextScope, setContextScope] = useState<"workspace" | "page">("workspace");
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
-  // A. long-chat pagination: whether to show "load earlier messages" when the server sent only the latest N.
+ // A. long-chat pagination: whether to show "load earlier messages" when the server sent only the latest N.
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const isComposingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
-  // A. skip one auto-scroll-to-bottom when prepending older messages (distinct from new arrivals).
+ // A. skip one auto-scroll-to-bottom when prepending older messages (distinct from new arrivals).
   const skipAutoScrollRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  // A. draft persistence: chatIdRef keeps the load/save effects from racing
-  // in the same commit and saving the old chat's text under the new chat's key.
+ // A. draft persistence: chatIdRef keeps the load/save effects from racing
+ // in the same commit and saving the old chat's text under the new chat's key.
   const chatIdRef = useRef(chatId);
   const attach = useComposerAttachments();
   const mention = useMentionPicker(input, setInput, composerRef);
 
-  // auto-focus the composer on entering a chat (Notion: type immediately)
+ // auto-focus the composer on entering a chat
   useEffect(() => {
     if (!loading) composerRef.current?.focus();
   }, [loading, chatId]);
 
-  // C. Cmd/Ctrl+K → focus the composer (chat view only). The sidebar's global
-  // search also grabs Cmd/Ctrl+K on window keydown (bubble phase), so we
-  // intercept in the capture phase and stopPropagation so global search never
-  // opens (regression guard).
+ // C. Cmd/Ctrl+K → focus the composer (chat view only). The sidebar's global
+ // search also grabs Cmd/Ctrl+K on window keydown (bubble phase), so we
+ // intercept in the capture phase and stopPropagation so global search never
+ // opens (regression guard).
   useEffect(() => {
     function onKeyDownCapture(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -163,9 +163,9 @@ export function ChatView({ chatId }: { chatId: string }) {
     return () => window.removeEventListener("keydown", onKeyDownCapture, true);
   }, []);
 
-  // A. draft persistence: switching chats restores that chat's saved draft
-  // (a successful send clears the input, and the save effect below clears the
-  // localStorage key at that moment).
+ // A. draft persistence: switching chats restores that chat's saved draft
+ // (a successful send clears the input, and the save effect below clears the
+ // localStorage key at that moment).
   useEffect(() => {
     chatIdRef.current = chatId;
     setIsEditing(false);
@@ -184,7 +184,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     } catch {}
   }, [input]);
 
-  // B. composer auto-grow: height follows content, capped by max-h-40 (CSS).
+ // B. composer auto-grow: height follows content, capped by max-h-40 (CSS).
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
@@ -194,10 +194,10 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   useEffect(() => {
     let alive = true;
-    // fetch-on-mount: subsequent setState only fires async after the fetch
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+ // fetch-on-mount: subsequent setState only fires async after the fetch
+ // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    // A. long chats: the initial load asks for only the latest N (default 50 — ordinary chats unaffected).
+ // A. long chats: the initial load asks for only the latest N (default 50 — ordinary chats unaffected).
     fetch(`/api/ai/chats/${chatId}?limit=${getMsgPageSize()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -224,7 +224,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   }, [chatId]);
 
   useEffect(() => {
-    // A. right after "load earlier messages" prepends history, skip the auto-scroll-to-bottom.
+ // A. right after "load earlier messages" prepends history, skip the auto-scroll-to-bottom.
     if (skipAutoScrollRef.current) {
       skipAutoScrollRef.current = false;
       return;
@@ -341,7 +341,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             ]);
             setStreamingText("");
             setStreaming(false);
-            // sync the sidebar list: the first message derives the title, so refresh header/store
+ // sync the sidebar list: the first message derives the title, so refresh header/store
             fetch(`/api/ai/chats/${chatId}`)
               .then((r) => (r.ok ? r.json() : null))
               .then((d) => {
@@ -375,9 +375,9 @@ export function ChatView({ chatId }: { chatId: string }) {
       setStreaming(false);
       setStreamingText("");
       abortRef.current = null;
-      // return focus to the composer when the reply completes (Notion: type the next message immediately)
+ // return focus to the composer when the reply completes
       composerRef.current?.focus();
-      // usage-gating mock: refresh the count on every send (success or not)
+ // usage-gating mock: refresh the count on every send (success or not)
       void loadUsage();
     }
   }
@@ -388,13 +388,13 @@ export function ChatView({ chatId }: { chatId: string }) {
   );
 
   async function handleSend() {
-    // attachments/mentions ship only merged into the body (send/stream logic untouched).
+ // attachments/mentions ship only merged into the body (send/stream logic untouched).
     const mentionText = mention.serialize();
     const text = [input.trim(), mentionText].filter(Boolean).join(" ") + attach.serialize();
     if (!text.trim() || streaming || composerDisabled) return;
     const wasEditing = isEditing;
     setMessages((prev) => {
-      // B. edit-resend: trim from the last user message on (it + the reply) and replace with a fresh turn.
+ // B. edit-resend: trim from the last user message on (it + the reply) and replace with a fresh turn.
       const lastUserIdx = prev.map((m) => m.role).lastIndexOf("user");
       const base = wasEditing && lastUserIdx !== -1 ? prev.slice(0, lastUserIdx) : prev;
       return [
@@ -414,13 +414,13 @@ export function ChatView({ chatId }: { chatId: string }) {
     if (streaming) return;
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
-    // retry explicitly disables the failure hook (no repeating the previous failure).
+ // retry explicitly disables the failure hook (no repeating the previous failure).
     await runStream({ text: lastUser.content, failOnce: false });
   }
 
   async function handleRegenerate() {
     if (streaming) return;
-    // remove the last assistant message from view and answer the same prompt again.
+ // remove the last assistant message from view and answer the same prompt again.
     setMessages((prev) => {
       const copy = [...prev];
       for (let i = copy.length - 1; i >= 0; i--) {
@@ -445,7 +445,7 @@ export function ChatView({ chatId }: { chatId: string }) {
       e.preventDefault();
       void handleSend();
     } else if (e.key === "Escape") {
-      // ESC: blur the input (Notion composer behavior)
+ // ESC: blur the input
       e.currentTarget.blur();
     }
   }
@@ -968,7 +968,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           <textarea
             ref={composerRef}
             data-testid="chat-composer-input"
-            aria-label="Send a message to Notion AI"
+            aria-label="Send a message to the workspace AI"
             value={input}
             onChange={(e) => mention.handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -979,7 +979,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             onCompositionEnd={() => {
               isComposingRef.current = false;
             }}
-            placeholder="Ask Notion AI"
+            placeholder="Ask the workspace AI"
             rows={1}
             disabled={composerDisabled}
             className="max-h-40 min-h-[40px] flex-1 resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-500"

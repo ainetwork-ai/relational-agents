@@ -40,8 +40,8 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
     setBusy(true);
     setError(null);
     try {
-      // EIP-712 — MetaMask renders the RelationConsent fields, and the same
-      // signature can later be relayed to RelationalAgentRegistry on-chain.
+ // EIP-712 — MetaMask renders the RelationConsent fields, and the same
+ // signature can later be relayed to RelationalAgentRegistry on-chain.
       const { signature } = await signTypedDataWithWallet(status.typedData);
       const res = await fetch(`/api/dm/rooms/${roomId}/consent`, {
         method: "POST",
@@ -55,7 +55,7 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
       if (err instanceof WalletSignatureError && err.reason === "rejected") {
         setError("Signature request was rejected.");
       } else {
-        // surface the real cause — wallet errors are otherwise swallowed
+ // surface the real cause — wallet errors are otherwise swallowed
         const msg = err instanceof Error ? err.message : String(err);
         setError(`Signing failed: ${msg.slice(0, 140)}`);
       }

@@ -25,7 +25,7 @@ interface WorkspaceRow {
 }
 
 /** Header workspace switcher: current workspace, dropdown to switch/create,
- *  and a gear that opens workspace settings. */
+ * and a gear that opens workspace settings. */
 export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -36,13 +36,13 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   const [settingsOpen, setSettingsOpen] = useState(false);
   const setMembersOpen = useWorkspaceUiStore((s) => s.setMembersOpen);
   const themeMode = useThemeMode();
-  // header reflects live edits/switches without waiting on the server refresh
+ // header reflects live edits/switches without waiting on the server refresh
   const [display, setDisplay] = useState<ActiveWorkspace>(workspace);
   const [syncedWorkspace, setSyncedWorkspace] = useState(workspace);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Re-sync from the server prop whenever it changes (router.refresh after a
-  // switch/rename) — render-time adjustment, not an effect.
+ // Re-sync from the server prop whenever it changes (router.refresh after a
+ // switch/rename) — render-time adjustment, not an effect.
   if (syncedWorkspace !== workspace) {
     setSyncedWorkspace(workspace);
     setDisplay(workspace);
@@ -74,9 +74,9 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
-  // After switching/creating, reload the (workspace-scoped) page tree and
-  // navigate straight to the new workspace's first page (/p/<id>) so the URL
-  // is that workspace's own page, not a shared home. Empty workspace → /home.
+ // After switching/creating, reload the (workspace-scoped) page tree and
+ // navigate straight to the new workspace's first page (/p/<id>) so the URL
+ // is that workspace's own page, not a shared home. Empty workspace → /home.
   async function refreshWorkspace() {
     await usePagesStore.getState().load();
     const roots = usePagesStore.getState().roots;

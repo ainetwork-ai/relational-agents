@@ -117,8 +117,8 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const [snap, setSnap] = useState<DbSnapshot | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const targetDbId = prop.config.relationDatabaseId;
-  // two-way mirror: value is COMPUTED from the source db's relation values
-  // (rows over there that link to this row), never stored on this row
+ // two-way mirror: value is COMPUTED from the source db's relation values
+ // (rows over there that link to this row), never stored on this row
   const mirror = prop.config.mirrorOf;
   const value = row.values[prop.id];
   const linked: string[] = mirror
@@ -132,15 +132,15 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
       ? (value as string[])
       : [];
 
-  // load the target db's rows so chips can show titles and the popover can
-  // list options. Refetch whenever the target database changes.
+ // load the target db's rows so chips can show titles and the popover can
+ // list options. Refetch whenever the target database changes.
   const load = useCallback(async () => {
     const next = targetDbId ? await fetchDatabaseSnapshot(targetDbId) : null;
     setSnap(next);
     return next;
   }, [targetDbId]);
 
-  // deferred (async IIFE) so no setState runs synchronously in the effect body
+ // deferred (async IIFE) so no setState runs synchronously in the effect body
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -163,7 +163,7 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
   function toggle(targetRowId: string) {
     if (mirror) {
-      // edit the OTHER side: add/remove this row in the source row's relation
+ // edit the OTHER side: add/remove this row in the source row's relation
       const srcRow = snap?.rows.find((r) => r.id === targetRowId);
       const cur = Array.isArray(srcRow?.values[mirror.propId])
         ? (srcRow!.values[mirror.propId] as string[])
@@ -237,8 +237,8 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
 function FormulaCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const db = useDb();
-  // recomputes on every render — reads the latest props/rows from context, so a
-  // dependency cell change re-renders the table and updates this value live.
+ // recomputes on every render — reads the latest props/rows from context, so a
+ // dependency cell change re-renders the table and updates this value live.
   const text = evalFormula(prop.config.formula, db.properties, row);
   return (
     <div
@@ -258,7 +258,7 @@ function RollupCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const relatedDbId = relProp?.config.relationDatabaseId;
   const linkedValue = relProp ? row.values[relProp.id] : undefined;
   const linkedIds: string[] = Array.isArray(linkedValue) ? (linkedValue as string[]) : [];
-  // stable dependency key so the effect refires when links or config change
+ // stable dependency key so the effect refires when links or config change
   const linkedKey = linkedIds.join(",");
 
   useEffect(() => {
@@ -276,7 +276,7 @@ function RollupCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relatedDbId, rollup?.targetPropertyId, rollup?.function, linkedKey]);
 
   return (
@@ -414,7 +414,7 @@ function TextCell({
 }
 
 /** A date value is either a plain "YYYY-MM-DD" string (legacy) or an object
- *  { start: "YYYY-MM-DD[THH:MM]", end?, includeTime? } for time-of-day/ranges. */
+ * { start: "YYYY-MM-DD[THH:MM]", end?, includeTime? } for time-of-day/ranges. */
 interface DateParts {
   date: string;
   time: string;
@@ -435,7 +435,7 @@ function parseDateValue(v: unknown): DateParts {
 function buildDateValue({ date, time, end }: DateParts): unknown {
   if (!date) return null;
   const start = time ? `${date}T${time}` : date;
-  // an end or a time makes it a structured value; a bare date stays a string.
+ // an end or a time makes it a structured value; a bare date stays a string.
   if (end || time) return { start, ...(end ? { end } : {}), includeTime: !!time };
   return start;
 }
@@ -445,8 +445,8 @@ function dateSummary({ date, time, end }: DateParts): string {
 }
 
 /** Date cell: start date + optional time-of-day + optional end-date range,
- *  matching Notion. Renders a "start [time] → end" summary. */
-/** Pretty cell label: "Mar 10, 2026 14:30 → Mar 12, 2026" (Notion look). */
+ *. Renders a "start [time] → end" summary. */
+/** Pretty cell label: "Mar 10, 2026 14:30 → Mar 12, 2026". */
 function dateLabel({ date, time, end }: DateParts): string {
   const fmt = (d: string) => {
     const [y, m, day] = d.split("-").map(Number);
@@ -461,7 +461,7 @@ function dateLabel({ date, time, end }: DateParts): string {
   return `${fmt(date)}${time ? ` ${time}` : ""}${end ? ` → ${fmt(end)}` : ""}`;
 }
 
-/** Month grid for the date popover (Notion's inline calendar). */
+/** Month grid for the date popover. */
 export function MonthGrid({
   idBase,
   selected,
@@ -570,7 +570,7 @@ function DateCell({
     };
   }, [open]);
 
-  // the CELL is plain text (Notion look); all editing lives in the popover
+ // the CELL is plain text; all editing lives in the popover
   return (
     <div ref={ref} className="relative">
       <button
@@ -651,7 +651,7 @@ function formatNumber(n: number, fmt?: string): string {
 }
 
 /** Number cell: a plain editable value, or a progress bar (display="bar") that
- *  fills 0..100% of the value. Format applies to the shown text. */
+ * fills 0..100% of the value. Format applies to the shown text. */
 function NumberCell({
   testid,
   prop,
@@ -701,8 +701,8 @@ function NumberCell({
   );
 }
 
-/** URL cell: renders a clickable link when not being edited (Notion behavior);
- *  click into the cell to edit the raw value. */
+/** URL cell: renders a clickable link when not being edited;
+ * click into the cell to edit the raw value. */
 function UrlCell({
   testid,
   value,
@@ -754,7 +754,7 @@ function UrlCell({
       >
         {value}
       </a>
-      {/* hover actions (Notion): open in new tab + copy */}
+      {/* hover actions: open in new tab + copy */}
       <button
         data-testid={`db-url-copy-${testid}`}
         onClick={async (e) => {
@@ -909,7 +909,7 @@ function SelectCell({
 }
 
 /** Files & media: an ordered list of URLs. Renders each as an opening link and
- *  offers an input to append another. Stored as a string[] in the row value. */
+ * offers an input to append another. Stored as a string[] in the row value. */
 function FilesCell({
   testid,
   value,

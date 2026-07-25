@@ -19,6 +19,6 @@ export const useRecentsStore = create<RecentsState>()(
       record: (id) =>
         set((s) => ({ ids: [id, ...s.ids.filter((x) => x !== id)].slice(0, CAP) })),
     }),
-    { name: "notion-recents" }
+    { name: "app-recents" }
   )
 );

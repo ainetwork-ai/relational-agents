@@ -1,7 +1,7 @@
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 
 /** Minimal snapshot shape the relation/rollup cells consume from
- *  GET /api/databases/{id}. */
+ * GET /api/databases/{id}. */
 export interface DbSnapshot {
   database: { id: string; title: string };
   properties: DbProperty[];
@@ -22,7 +22,7 @@ export async function fetchDatabaseSnapshot(
 }
 
 /** The human label for a target row = its title property value, falling back
- *  to a generic "Untitled" so a chip always shows text. */
+ * to a generic "Untitled" so a chip always shows text. */
 export function targetRowLabel(snap: DbSnapshot | null, rowId: string): string {
   if (!snap) return "";
   const titleProp = snap.properties.find((p) => p.type === "title");

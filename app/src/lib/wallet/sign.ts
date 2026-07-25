@@ -100,9 +100,9 @@ export async function signTypedDataWithWallet(
 ): Promise<SignedTypedData> {
   const client = getWalletClient();
   const address = opts.address ?? (await connectWallet());
-  // viem refuses to sign when the domain's chainId differs from the wallet's
-  // active chain. If the typed data pins a chain, switch to it first (adding
-  // it if the wallet doesn't know it), so the user isn't left to do it by hand.
+ // viem refuses to sign when the domain's chainId differs from the wallet's
+ // active chain. If the typed data pins a chain, switch to it first (adding
+ // it if the wallet doesn't know it), so the user isn't left to do it by hand.
   const wantChainId = Number(
     (typedData as { domain?: { chainId?: number | bigint } }).domain?.chainId ?? 0
   );
@@ -142,7 +142,7 @@ async function ensureChain(chainId: number): Promise<void> {
   try {
     await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
   } catch (err) {
-    // 4902 = chain unknown to the wallet → add it, then it's active
+ // 4902 = chain unknown to the wallet → add it, then it's active
     if ((err as { code?: number })?.code === 4902 && KNOWN_CHAINS[chainId]) {
       await provider.request({
         method: "wallet_addEthereumChain",
@@ -155,7 +155,7 @@ async function ensureChain(chainId: number): Promise<void> {
 }
 
 /** Chain the wallet is currently on. Only needed if a flow cares (EIP-712
- *  domains, on-chain follow-ups); plain message signing does not. */
+ * domains, on-chain follow-ups); plain message signing does not. */
 export async function getWalletChainId(): Promise<number> {
   try {
     return await getWalletClient().getChainId();

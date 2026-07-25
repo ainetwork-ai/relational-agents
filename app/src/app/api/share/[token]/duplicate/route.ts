@@ -8,7 +8,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 /** POST → copy the shared page into the visitor's own workspace ("Duplicate
- *  as template"). Requires login; gated by the link's allowDuplicate. */
+ * as template"). Requires login; gated by the link's allowDuplicate. */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -31,7 +31,7 @@ export async function POST(
   const [src] = await db.select().from(pages).where(eq(pages.id, share.pageId)).limit(1);
   if (!src || src.isArchived) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // land the copy in the visitor's first workspace
+ // land the copy in the visitor's first workspace
   const [membership] = await db
     .select()
     .from(workspaceMembers)
@@ -63,7 +63,7 @@ export async function POST(
     .from(blocks)
     .where(eq(blocks.pageId, src.id))
     .orderBy(blocks.position);
-  // remap ids so parentBlockId chains stay intact in the copy
+ // remap ids so parentBlockId chains stay intact in the copy
   const idMap = new Map<string, string>();
   for (const b of srcBlocks) idMap.set(b.id, randomUUID());
   for (const b of srcBlocks) {

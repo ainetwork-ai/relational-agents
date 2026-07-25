@@ -21,8 +21,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: s
   if ("error" in access) return access.error;
   const { room } = access;
 
-  // The agent is born only from a signed contract: /consent stamps consentAt
-  // once every member's wallet has signed. No signature, no agent.
+ // The agent is born only from a signed contract: /consent stamps consentAt
+ // once every member's wallet has signed. No signature, no agent.
   if (!room.consentAt) {
     return NextResponse.json(
       { error: "Relational agent contract not signed by all members yet" },

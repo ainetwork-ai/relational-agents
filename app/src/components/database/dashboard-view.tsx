@@ -8,7 +8,7 @@ import { useDb } from "./database-block";
 import { BoardView } from "./board-view";
 
 // ===========================================================================
-// Dashboard view — per notion.com/help/dashboards: a widget canvas over one
+// Dashboard view — per .com/help/dashboards: a widget canvas over one
 // database. Up to 12 widgets, up to 4 per row (width = quarters of a row);
 // each widget carries its own data config (group-by, aggregate, row cap).
 // EDIT mode arranges/configures widgets; VIEW mode is for reading and
@@ -70,8 +70,8 @@ export function DashboardView({ view }: { view: DbView }) {
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  // an unconfigured dashboard gets a sensible starter layout (not persisted
-  // until the user edits — Notion also auto-suggests the first arrangement)
+ // an unconfigured dashboard gets a sensible starter layout (not persisted
+ // until the user edits — also auto-suggests the first arrangement)
   const widgets: DashWidget[] =
     view.config.widgets ??
     ([
@@ -107,7 +107,7 @@ export function DashboardView({ view }: { view: DbView }) {
 
   const rowTitle = (r: DbRow) => (titleProp && (r.values[titleProp.id] as string)) || "Untitled";
 
-  // ---- per-kind bodies -------------------------------------------------------
+ // ---- per-kind bodies -------------------------------------------------------
 
   const renderCounter = (w: DashWidget) => {
     const value =

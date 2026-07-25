@@ -40,22 +40,22 @@ export async function GET(
 ) {
   const { pageId } = await params;
 
-  // The realtime bus shares one string keyspace across pages, DBs, and DM
-  // inboxes. Page keys (uuid) and OKF ids (base64url) never contain a colon;
-  // DM inbox keys (`dm-inbox:<userId>`) do → refusing colon keys here makes
-  // eavesdropping on someone's DM inbox via this route structurally impossible.
+ // The realtime bus shares one string keyspace across pages, DBs, and DM
+ // inboxes. Page keys (uuid) and OKF ids (base64url) never contain a colon;
+ // DM inbox keys (`dm-inbox:<userId>`) do → refusing colon keys here makes
+ // eavesdropping on someone's DM inbox via this route structurally impossible.
   if (pageId.includes(":")) return new Response("Not found", { status: 404 });
 
   ensureFsWatcher(); // disk edits must sync live too — the folder is the backend
 
-  // Try session auth first
+ // Try session auth first
   let authorized = false;
   const auth = await requireAuth();
   if (!("error" in auth)) {
     authorized = true;
   }
 
-  // Fallback: share-token from query param (EventSource can't set headers)
+ // Fallback: share-token from query param (EventSource can't set headers)
   if (!authorized) {
     const token = new URL(req.url).searchParams.get("token");
     if (token) {

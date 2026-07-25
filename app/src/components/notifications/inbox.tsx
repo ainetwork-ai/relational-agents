@@ -13,15 +13,15 @@ const TYPE_LABEL: Record<string, string> = {
 
 function summarize(n: InboxNotification): string {
   const where = n.pageTitle ? ` in ${n.pageTitle || "Untitled"}` : "";
-  // reminders are actorless (Notion date reminders / agent nudges)
+ // reminders are actorless
   if (n.type === "reminder") return `⏰ Reminder${where}`;
   const who = n.actor?.displayName ?? "Someone";
   const what = TYPE_LABEL[n.type] ?? "notified you";
   return `${who} ${what}${where}`;
 }
 
-/** Inline sidebar panel (Notion: Inbox replaces the sidebar content, not a
- *  popup). Rendered by the sidebar when its Inbox view is active. */
+/** Inline sidebar panel (Inbox replaces the sidebar content, not a
+ * popup). Rendered by the sidebar when its Inbox view is active. */
 export function InboxPanel({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const items = useNotificationsStore((s) => s.items);
@@ -99,8 +99,8 @@ export function InboxPanel({ onClose }: { onClose: () => void }) {
 }
 
 /** Sidebar inbox: a bell button with an unread badge. With `onOpen` the button
- *  is controlled by the sidebar (inline panel); without it, it opens the
- *  legacy popup listing the caller's notifications. */
+ * is controlled by the sidebar (inline panel); without it, it opens the
+ * legacy popup listing the caller's notifications. */
 export function NotificationsInbox({
   onOpen,
   active,
@@ -114,14 +114,14 @@ export function NotificationsInbox({
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAll = useNotificationsStore((s) => s.markAll);
 
-  // Load on mount + poll so the badge reflects new mentions/comments.
+ // Load on mount + poll so the badge reflects new mentions/comments.
   useEffect(() => {
     load();
     const t = setInterval(load, 15_000);
     return () => clearInterval(t);
   }, [load]);
 
-  // Refresh the list each time the panel is opened.
+ // Refresh the list each time the panel is opened.
   useEffect(() => {
     if (open) load();
   }, [open, load]);
@@ -134,7 +134,7 @@ export function NotificationsInbox({
 
   return (
     <>
-      {/* icon pill for the sidebar tool row (new-Notion): label only while
+      {/* icon pill for the sidebar tool row: label only while
           the inbox panel is open, unread count rides the icon's corner */}
       <button
         data-testid="inbox-button"

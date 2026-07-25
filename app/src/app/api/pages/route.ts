@@ -28,11 +28,11 @@ export async function GET(req: NextRequest) {
     .where(and(eq(pages.workspaceId, workspaceId), eq(pages.isArchived, archived)))
     .orderBy(pages.position);
 
-  // Restricted pages (DM relationship docs etc.) show only to explicitly
-  // granted members; owner/admin read everything for administration (same as
-  // getPagePermission). Ordinary pages are unchanged. Guests get the Notion
-  // inverse default: nothing but explicitly shared pages — being someone's DM
-  // partner must not let you browse their workspace.
+ // Restricted pages (DM relationship docs etc.) show only to explicitly
+ // granted members; owner/admin read everything for administration (same as
+ // getPagePermission). Ordinary pages are unchanged. Guests get the 
+ // inverse default: nothing but explicitly shared pages — being someone's DM
+ // partner must not let you browse their workspace.
   let visible = rows;
   const role = await getWorkspaceRole(workspaceId, auth.user.id);
   if (role === "guest") {
@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
 
   if (archived) return NextResponse.json({ pages: visible });
 
-  // merge in the file-backed OKF pages (folder tree = the content backend).
-  // participant-only OKF paths (relationship docs) are excluded for
-  // non-members — the file tree has no permissions of its own, so the
-  // okf_acl gate plays that role.
+ // merge in the file-backed OKF pages (folder tree = the content backend).
+ // participant-only OKF paths (relationship docs) are excluded for
+ // non-members — the file tree has no permissions of its own, so the
+ // okf_acl gate plays that role.
   let okf: (typeof rows)[number][] = [];
   try {
     const gate = await okfGateFor(auth.user.id);
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       })
     );
   } catch {
-    // OKF root missing/malformed → just the Postgres pages
+ // OKF root missing/malformed → just the Postgres pages
   }
   return NextResponse.json({ pages: [...visible, ...okf] });
 }
@@ -123,9 +123,9 @@ export async function POST(req: NextRequest) {
     })
     .returning();
 
-  // Seed one empty paragraph server-side. If clients fabricated the first
-  // block locally, two editors opening an empty page would each create their
-  // own — duplicate blocks under concurrent editing.
+ // Seed one empty paragraph server-side. If clients fabricated the first
+ // block locally, two editors opening an empty page would each create their
+ // own — duplicate blocks under concurrent editing.
   await db.insert(blocks).values({
     pageId: page.id,
     type: "paragraph",

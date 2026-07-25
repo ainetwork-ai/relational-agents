@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const { roomId } = await ctx.params;
   const access = await requireRoomAccess(roomId, auth.user.id);
   if ("error" in access) return access.error;
-  // agent rooms only — DM rooms use /api/dm/rooms/* (different body/read/realtime contracts)
+ // agent rooms only — DM rooms use /api/dm/rooms/* (different body/read/realtime contracts)
   if (access.room.kind !== "agent")
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   const messages = await db
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (text.length > MAX_TEXT)
     return NextResponse.json({ error: `Text too long (max ${MAX_TEXT})` }, { status: 400 });
 
-  // authorId is always the session user — never client-supplied (no spoofing)
+ // authorId is always the session user — never client-supplied (no spoofing)
   const [message] = await db
     .insert(chatMessages)
     .values({ roomId, authorId: auth.user.id, text })

@@ -53,19 +53,19 @@ export function Sidebar({
   const setCollapsed = useUiStore((s) => s.setSidebarCollapsed);
   const activeTab = useAiChatsStore((s) => s.activeTab);
   const setTab = useAiChatsStore((s) => s.setTab);
-  // Inbox swaps the sidebar content in place (Notion behavior), not a popup.
+ // Inbox swaps the sidebar content in place, not a popup.
   const [showInbox, setShowInbox] = useState(false);
   const aiChatsList = useAiChatsStore((s) => s.chats);
   const loadAiChats = useAiChatsStore((s) => s.load);
   const aiChatsUnread = unreadChatCount(aiChatsList);
-  // the Chats tab's unread badge must show before the tab opens — load on sidebar mount.
+ // the Chats tab's unread badge must show before the tab opens — load on sidebar mount.
   useEffect(() => {
     loadAiChats();
   }, [loadAiChats]);
 
-  // DM realtime bridge — the sidebar is always mounted, so subscribe to the
-  // inbox here and keep room list / unread badges fresh regardless of tab
-  // state (the stream is pool-shared).
+ // DM realtime bridge — the sidebar is always mounted, so subscribe to the
+ // inbox here and keep room list / unread badges fresh regardless of tab
+ // state (the stream is pool-shared).
   const dmRooms = useDmRoomsStore((s) => s.rooms);
   const loadDmRooms = useDmRoomsStore((s) => s.load);
   const dmUnread = totalDmUnread(dmRooms);
@@ -73,21 +73,21 @@ export function Sidebar({
   useDmEvents(
     (event) => {
       if (event.type === "dm-typing") return;
-      // coalesce event bursts into a single refetch
+ // coalesce event bursts into a single refetch
       if (dmReloadTimer.current) clearTimeout(dmReloadTimer.current);
       dmReloadTimer.current = setTimeout(() => void loadDmRooms(), 250);
     },
-    // hello = initial connect/reconnect — refetch recovers changes missed while down
+ // hello = initial connect/reconnect — refetch recovers changes missed while down
     () => void loadDmRooms()
   );
-  // cancel the scheduled refetch on unmount (logout etc.) — no fetches from dead components
+ // cancel the scheduled refetch on unmount (logout etc.) — no fetches from dead components
   useEffect(() => {
     return () => {
       if (dmReloadTimer.current) clearTimeout(dmReloadTimer.current);
     };
   }, []);
-  // collapsed-state hover peek: Notion slides the sidebar in as a temporary
-  // overlay when the pointer rests on the left edge
+ // collapsed-state hover peek: slide the sidebar in as a temporary
+ // overlay when the pointer rests on the left edge
   const [peek, setPeek] = useState(false);
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
@@ -99,17 +99,17 @@ export function Sidebar({
   const roots = usePagesStore((s) => s.roots);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
-  // draggable width, remembered
+ // draggable width, remembered
   const [sbWidth, setSbWidth] = useState(240);
   useEffect(() => {
-    // deferred so no setState runs synchronously in the effect body
+ // deferred so no setState runs synchronously in the effect body
     void Promise.resolve().then(() => {
       const w = Number(localStorage.getItem("sidebar-width"));
       if (w >= 200 && w <= 480) setSbWidth(w);
     });
   }, []);
-  // tab labels need ~55px beyond the six 32px pills — below that the selected
-  // tab stays icon-only so the row never overflows the resizable width
+ // tab labels need ~55px beyond the six 32px pills — below that the selected
+ // tab stays icon-only so the row never overflows the resizable width
   const showTabLabels = sbWidth >= 270;
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -222,7 +222,7 @@ export function Sidebar({
         >
           <PanelLeftClose size={16} />
         </button>
-      {/* Row 1 — workspace line only (new-Notion layout: tools live on the row
+      {/* Row 1 — workspace line only ( layout: tools live on the row
           below; this line carries just the switcher and the collapse control) */}
       <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         {workspace ? (
@@ -248,7 +248,7 @@ export function Sidebar({
       </div>
 
       {/* Row 2 — tool line: Home · Pages · Chats · Inbox pills, search/compose
-          at the end (new-Notion tab row). Icons keep their 32px footprint; the
+          at the end (new-tab row). Icons keep their 32px footprint; the
           selected tab's label only renders when the sidebar is wide enough, so
           narrow widths degrade to a clean row of evenly-sized icon pills. */}
       <div className="mb-1 flex items-center justify-between gap-0.5 px-1.5 pb-1">

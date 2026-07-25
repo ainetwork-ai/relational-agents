@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * relational-memory-mcp — MCP server wrapping the notion clone's REST API.
+ * relational-memory-mcp — MCP server wrapping the clone's REST API.
  *
  * Env:
- *   MEMORY_BASE_URL      base URL of the running clone (default http://localhost:3000)
- *   MEMORY_PRIVATE_KEY   AIN private key → /api/auth/key-login (omit → demo-login)
- *   MEMORY_DISPLAY_NAME  display name used with key-login
+ * MEMORY_BASE_URL base URL of the running clone (default http://localhost:3000)
+ * MEMORY_PRIVATE_KEY AIN private key → /api/auth/key-login (omit → demo-login)
+ * MEMORY_DISPLAY_NAME display name used with key-login
  *
- * Auth: the clone uses an iron-session cookie ("notion-session"). This server
+ * Auth: the clone uses an iron-session cookie ("-session"). This server
  * logs in lazily on the first call, keeps the cookie in memory, and re-logs-in
  * once on a 401.
  */
@@ -90,7 +90,7 @@ async function api(method: string, apiPath: string, opts: ApiOpts = {}): Promise
     if (!res.ok) throw new Error(`HTTP ${res.status} ${method} /api${apiPath}: ${text.slice(0, 1000)}`);
     return text;
   }
-  // binary (pdf, zip, images…): save to a temp file and return its path
+ // binary (pdf, zip, images…): save to a temp file and return its path
   const buf = Buffer.from(await res.arrayBuffer());
   if (!res.ok) throw new Error(`HTTP ${res.status} ${method} /api${apiPath} (${buf.length} bytes)`);
   const ext = ct.includes("pdf") ? "pdf" : ct.includes("zip") ? "zip" : "bin";
@@ -120,7 +120,7 @@ async function formFromFile(filePath: string, extraFields: Record<string, string
 
 // ---------------------------------------------------------------------------
 
-const server = new McpServer({ name: "notion-clone", version: "0.1.0" });
+const server = new McpServer({ name: "relational-memory", version: "0.1.0" });
 
 function toText(data: unknown): string {
   const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
@@ -339,7 +339,7 @@ t(
   { path: z.string().describe("local file path"), kind: z.string().optional() },
   async (a) => api("POST", "/upload", { form: await formFromFile(a.path, a.kind ? { kind: a.kind } : {}) })
 );
-t("import_notion_zip", "Import a Notion export .zip into the OKF content root", { path: z.string() }, async (a) =>
+t("import_export_zip", "Import a workspace export .zip into the OKF content root", { path: z.string() }, async (a) =>
   api("POST", "/import", { form: await formFromFile(a.path) })
 );
 t("notifications_list", "List notifications", {}, () => api("GET", "/notifications"));

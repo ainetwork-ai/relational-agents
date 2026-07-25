@@ -8,10 +8,10 @@ import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { BlockEditor } from "@/components/editor/block-editor";
 
-/** Opens a database row as a page. Like Notion, the default is a SIDE PEEK: a
- *  panel that slides in from the right with the row's properties + a full block
- *  editor, the page still visible behind it. "Open as full page" navigates to
- *  the row's own page route. */
+/** Opens a database row as a page. Like , the default is a SIDE PEEK: a
+ * panel that slides in from the right with the row's properties + a full block
+ * editor, the page still visible behind it. "Open as full page" navigates to
+ * the row's own page route. */
 export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void }) {
   const db = useDb();
   const router = useRouter();
@@ -40,7 +40,7 @@ export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void
   if (!row) return null;
 
   return (
-    // side-peek: dim the page a touch, dock the panel to the right edge
+ // side-peek: dim the page a touch, dock the panel to the right edge
     <div className="fixed inset-0 z-50 flex justify-end bg-black/10" onClick={onClose}>
       <div
         data-testid="db-row-peek"

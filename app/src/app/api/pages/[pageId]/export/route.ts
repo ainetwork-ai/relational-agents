@@ -8,7 +8,7 @@ import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 
 export const dynamic = "force-dynamic";
 
-/** GET → the page as a downloadable Markdown file (Notion: ... → Export). */
+/** GET → the page as a downloadable Markdown file. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }

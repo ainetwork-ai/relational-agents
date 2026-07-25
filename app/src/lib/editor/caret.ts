@@ -57,7 +57,7 @@ export function caretRect(): DOMRect | null {
   range.collapse(true);
   const rects = range.getClientRects();
   if (rects.length > 0) return rects[0];
-  // empty element fallback: use the element's rect
+ // empty element fallback: use the element's rect
   const el =
     range.startContainer instanceof HTMLElement
       ? range.startContainer

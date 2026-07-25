@@ -8,7 +8,7 @@ import { toPublicUser } from "@/lib/auth/public-user";
 export const dynamic = "force-dynamic";
 
 /** GET → { notifications: [...], unreadCount } for the caller, newest first.
- *  Each row carries its actor (PublicUser | null) and the target page title. */
+ * Each row carries its actor (PublicUser | null) and the target page title. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -17,7 +17,7 @@ export async function GET() {
     .select({ n: notifications, actor: users, pageTitle: pages.title })
     .from(notifications)
     .leftJoin(users, eq(notifications.actorId, users.id))
-    // pageId is text (it can hold OKF ids); cast the uuid side for the join
+ // pageId is text (it can hold OKF ids); cast the uuid side for the join
     .leftJoin(pages, sql`${notifications.pageId} = ${pages.id}::text`)
     .where(eq(notifications.userId, auth.user.id))
     .orderBy(desc(notifications.createdAt))
@@ -36,8 +36,8 @@ export async function GET() {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** POST { type: "reminder", body, pageId? } → a self-reminder in the caller's
- *  inbox (Notion's date reminders / agent nudges). An identical UNREAD reminder
- *  (same page + body) is not duplicated, so periodic feeders can re-post. */
+ * inbox. An identical UNREAD reminder
+ * (same page + body) is not duplicated, so periodic feeders can re-post. */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

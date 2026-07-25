@@ -54,9 +54,9 @@ async function loadOwnedPage(pageId: string, userId: string) {
     )
     .limit(1);
   if (!membership) return null;
-  // workspace membership alone isn't enough for restricted pages — reading
-  // takes an explicit grant (pageMembers) or owner/admin. Shields DM
-  // relationship docs from non-participant members.
+ // workspace membership alone isn't enough for restricted pages — reading
+ // takes an explicit grant (pageMembers) or owner/admin. Shields DM
+ // relationship docs from non-participant members.
   if (page.restricted && !(await getPagePermission(pageId, userId))) return null;
   return page;
 }
@@ -105,14 +105,14 @@ export async function PATCH(
 ) {
   const { pageId } = await params;
 
-  // Try session auth first
+ // Try session auth first
   let userId: string | null = null;
   const auth = await requireAuth();
   if (!("error" in auth)) {
     userId = auth.user.id;
   }
 
-  // OKF pages require session auth (no share-token path for file-backed pages)
+ // OKF pages require session auth (no share-token path for file-backed pages)
   if (isOkfId(pageId)) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
@@ -133,16 +133,16 @@ export async function PATCH(
     }
   }
 
-  // Session-authed page access
+ // Session-authed page access
   let page = userId ? await loadOwnedPage(pageId, userId) : null;
 
-  // Session auth: check page-level edit permission
+ // Session auth: check page-level edit permission
   if (page && userId) {
     const check = await requirePagePermission(pageId, userId, "edit");
     if (check !== true) return check;
   }
 
-  // Share-token fallback: must have edit or full
+ // Share-token fallback: must have edit or full
   if (!page) {
     const share = await validateShareToken(req, pageId);
     if (!share) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -153,7 +153,7 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
-  // Share-token users can only update title and icon (not reparent, archive, etc.)
+ // Share-token users can only update title and icon (not reparent, archive, etc.)
   const allowed = userId
     ? ([
         "title",
@@ -175,7 +175,7 @@ export async function PATCH(
   }
   update.updatedAt = new Date();
 
-  // Archiving / restoring cascades to the whole subtree.
+ // Archiving / restoring cascades to the whole subtree.
   if ("isArchived" in update) {
     const ids = await collectSubtreeIds(pageId);
     await db

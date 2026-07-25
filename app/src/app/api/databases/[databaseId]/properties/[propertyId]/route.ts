@@ -26,8 +26,8 @@ export async function PATCH(
 
   const body = await req.json().catch(() => ({}));
 
-  // file-backed database: rename goes to the CSV header; declared type /
-  // config (select options, number format) / position go to the .dbmeta.json.
+ // file-backed database: rename goes to the CSV header; declared type /
+ // config (select options, number format) / position go to the .dbmeta.json.
   if (isOkfId(databaseId)) {
     try {
       const rel = decodeId(databaseId);
@@ -81,7 +81,7 @@ export async function DELETE(
   if ("error" in auth) return auth.error;
   const { databaseId, propertyId } = await params;
 
-  // file-backed database: remove the CSV column (+ its meta annotation)
+ // file-backed database: remove the CSV column (+ its meta annotation)
   if (isOkfId(databaseId)) {
     try {
       await writeDbDeleteColumn(decodeId(databaseId), propertyId);

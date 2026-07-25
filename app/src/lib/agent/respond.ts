@@ -79,7 +79,7 @@ async function llmDecision(
       return { action: "reply", text: parsed.text.trim() };
     return { action: "silent" };
   } catch {
-    // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
+ // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
     return mentioned ? { action: "reply", text: raw.trim().slice(0, 2000) } : { action: "silent" };
   }
 }
@@ -97,7 +97,7 @@ export async function respondToMessage(
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   if (!agent?.isAgent || !room) return { action: "silent" };
 
-  // write path: observe → update the doc (replies continue even if it fails)
+ // write path: observe → update the doc (replies continue even if it fails)
   const writeDone = runPipeline(roomId).catch((err) =>
     console.error("agent write failed:", err)
   );
@@ -113,7 +113,7 @@ export async function respondToMessage(
       .select()
       .from(agentRoomStates)
       .where(eq(agentRoomStates.roomId, roomId));
-    // the relationship doc is OKF-file-canonical — answer evidence reads from files too
+ // the relationship doc is OKF-file-canonical — answer evidence reads from files too
     const tree = ensureOkfDocTree(roomId, room.name, {
       rootPath: state?.rootOkfPath,
       sectionPaths: state?.sectionOkfPaths,

@@ -6,7 +6,7 @@ import type { Page } from "@/lib/db/schema";
 interface PagesState {
   pages: Record<string, Page>;
   /** derived once per pages change — 1600+ PageItems must not each rescan
-   *  the whole map (that made page creation take ~10s at scale) */
+ * the whole map (that made page creation take ~10s at scale) */
   roots: Page[];
   childrenOf: Map<string, Page[]>;
   favorites: Page[];
@@ -82,9 +82,9 @@ export const usePagesStore = create<PagesState>((set, get) => ({
     const map: Record<string, Page> = {};
     for (const p of pages) map[p.id] = p;
     set((s) => {
-      // keep optimistic archives the server hasn't caught up to yet — the
-      // archive DELETE and this fetch race under load (S014/S015): a page we
-      // just trashed is gone from `pages` but may miss the server snapshot
+ // keep optimistic archives the server hasn't caught up to yet — the
+ // archive DELETE and this fetch race under load (S014/S015): a page we
+ // just trashed is gone from `pages` but may miss the server snapshot
       for (const [id, p] of Object.entries(s.archived)) {
         if (!map[id] && !s.pages[id]) map[id] = p;
       }
@@ -107,10 +107,10 @@ export const usePagesStore = create<PagesState>((set, get) => ({
   },
 
   updatePage: async (id, patch) => {
-    // optimistic — but never fabricate a partial entry for a page the store
-    // hasn't loaded yet ({...undefined, ...patch} has NO id, and the next
-    // caller reading it would PATCH /api/pages/undefined). The server
-    // response below fills the real record either way.
+ // optimistic — but never fabricate a partial entry for a page the store
+ // hasn't loaded yet ({...undefined, ...patch} has NO id, and the next
+ // caller reading it would PATCH /api/pages/undefined). The server
+ // response below fills the real record either way.
     set((s) => {
       if (!s.pages[id]) return s;
       const pages = { ...s.pages, [id]: { ...s.pages[id], ...patch } as Page };
@@ -132,7 +132,7 @@ export const usePagesStore = create<PagesState>((set, get) => ({
 
   archivePage: async (id) => {
     const { pages } = get();
-    // optimistic: drop the whole subtree from the live tree
+ // optimistic: drop the whole subtree from the live tree
     const doomed = new Set<string>([id]);
     let grew = true;
     while (grew) {
@@ -165,13 +165,13 @@ export const usePagesStore = create<PagesState>((set, get) => ({
       body: JSON.stringify({ isArchived: false }),
     });
     if (res.ok) {
-      // subtree restore happens server-side; refetch both lists
+ // subtree restore happens server-side; refetch both lists
       await Promise.all([get().load(), get().loadArchived()]);
     }
   },
 
   deleteForever: async (id) => {
-    // destructive — wait for the server before dropping it from the UI
+ // destructive — wait for the server before dropping it from the UI
     const res = await fetch(`/api/pages/${id}?permanent=1`, { method: "DELETE" });
     if (!res.ok) return;
     set((s) => {

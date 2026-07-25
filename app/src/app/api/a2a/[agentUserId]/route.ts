@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * In-app A2A agent runtime (spec v2 §3, §7-3).
- * GET  → the agent card (Direct Configuration deployment — card URL imported directly)
+ * GET → the agent card (Direct Configuration deployment — card URL imported directly)
  * POST → JSON-RPC SendMessage (+ the legacy "message/send" alias)
  * Auth: Bearer member token (external platforms, speaker identity) or A2A_SERVICE_TOKEN.
  * A third party who only knows the URL gets 401 — spec v2 §6.
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ agentUserI
   const { agentUserId } = await ctx.params;
   const agent = await loadAgent(agentUserId);
   if (!agent) return NextResponse.json({ error: "Unknown agent" }, { status: 404 });
-  // the card is public (just name/endpoint/auth scheme — standard spec practice)
+ // the card is public (just name/endpoint/auth scheme — standard spec practice)
   const card =
     (agent.agentCardJson as Record<string, unknown>) ?? buildAgentCard(agent.id, agent.displayName);
   return NextResponse.json(card);
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
   if (method !== "SendMessage" && method !== "message/send")
     return rpcError(id, -32601, `Method not found: ${method}`);
 
-  // --- auth: Bearer member token → speaker identity. Missing/mismatched → 401 (blocks third parties) ---
+ // --- auth: Bearer member token → speaker identity. Missing/mismatched → 401 (blocks third parties) ---
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   let callerUserId: string | null = null;
   if (bearer && process.env.A2A_SERVICE_TOKEN && bearer === process.env.A2A_SERVICE_TOKEN) {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
     .trim();
   if (!text) return rpcError(id, -32602, "No text part");
 
-  // room resolution: metadata.roomId (verified to be a room this agent is imported into) → else its only room
+ // room resolution: metadata.roomId (verified to be a room this agent is imported into) → else its only room
   const bots = await db.select().from(chatRoomBots).where(eq(chatRoomBots.agentUserId, agent.id));
   const metaRoomId = params?.message?.metadata?.roomId;
   let roomId: string | null = null;
@@ -86,9 +86,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   if (!room) return rpcError(id, -32602, "Room not found");
 
-  // utterances arriving via external platforms land in the room log too
-  // (cross-platform shared memory). Speaker = token owner (internal service
-  // calls use metadata.authorId).
+ // utterances arriving via external platforms land in the room log too
+ // (cross-platform shared memory). Speaker = token owner (internal service
+ // calls use metadata.authorId).
   const authorId =
     callerUserId ??
     (typeof params?.message?.metadata?.authorId === "string"
@@ -98,8 +98,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
 
   let message = null as typeof chatMessages.$inferSelect | null;
   if (params?.message?.messageId && UUID_RE.test(params.message.messageId)) {
-    // redelivery of a message the dispatcher already stored (never happens
-    // in-app, but external eve may echo it back) — prevents duplicate rows
+ // redelivery of a message the dispatcher already stored (never happens
+ // in-app, but external eve may echo it back) — prevents duplicate rows
     const [existing] = await db
       .select()
       .from(chatMessages)

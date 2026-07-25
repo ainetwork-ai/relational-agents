@@ -24,8 +24,8 @@ export async function PATCH(
   if (body?.config && typeof body.config === "object") patch.config = body.config as ViewConfig;
   if (typeof body?.name === "string" && body.name.trim()) patch.name = body.name.trim();
 
-  // file-backed database: view config/name persist in the schema overlay
-  // (the default "okf-table" view materializes on first patch)
+ // file-backed database: view config/name persist in the schema overlay
+ // (the default "okf-table" view materializes on first patch)
   if (isOkfId(databaseId)) {
     try {
       const view = await okfPatchView(decodeId(databaseId), viewId, patch);
@@ -55,7 +55,7 @@ export async function PATCH(
   return NextResponse.json({ view });
 }
 
-/** DELETE → remove a view (Notion: view tab menu → Delete view). */
+/** DELETE → remove a view. */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ databaseId: string; viewId: string }> }

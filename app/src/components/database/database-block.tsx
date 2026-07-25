@@ -68,8 +68,8 @@ interface DbApi {
   patchView: (config: ViewConfig, opts?: { draft?: boolean }) => void;
   openRow: (rowId: string) => void;
   /** true while the toolbar Filter popover (advanced panel) is open — the
-   *  chips row suppresses its auto-open-editor so both surfaces never show
-   *  the same filter editor at once */
+ * chips row suppresses its auto-open-editor so both surfaces never show
+ * the same filter editor at once */
   filterUiOpen: boolean;
   setFilterUiOpen: (open: boolean) => void;
 }
@@ -139,9 +139,9 @@ function DbSourceControls({ databaseId }: { databaseId: string }) {
   );
 }
 
-/** Reusable row templates (Notion): a template is a row flagged
- *  values.__template (never shown in views/calcs). The New-row menu lets you
- *  define templates and create a real row pre-filled from one. */
+/** Reusable row templates: a template is a row flagged
+ * values.__template (never shown in views/calcs). The New-row menu lets you
+ * define templates and create a real row pre-filled from one. */
 function TemplateMenu() {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -183,7 +183,7 @@ function TemplateMenu() {
                 data-testid={`db-template-default-${t.id}`}
                 onClick={() => {
                   const making = !t.values.__default;
-                  // single default: clear the flag on every other template
+ // single default: clear the flag on every other template
                   for (const other of db.rows.filter(
                     (r) => r.values.__template && r.values.__default && r.id !== t.id
                   ))
@@ -260,7 +260,7 @@ export function DatabaseBlock({
   /** id of the embedded view this linked block should show */
   linkedViewId?: string;
   /** slash-insert preset (e.g. "dashboard"): ensure a view of this type
-   *  exists on first load and open on it */
+ * exists on first load and open on it */
   initialViewType?: string;
 }) {
   const [database, setDatabase] = useState<Database | null>(null);
@@ -288,26 +288,26 @@ export function DatabaseBlock({
   const [filterUiOpen, setFilterUiOpen] = useState(false);
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [viewNameDraft, setViewNameDraft] = useState("");
-  // View-tab overflow (Notion-style): tabs that don't fit collapse behind an
-  // "N more" dropdown. Widths come from an invisible measurement row.
+ // View-tab overflow: tabs that don't fit collapse behind an
+ // "N more" dropdown. Widths come from an invisible measurement row.
   const tabsAreaRef = useRef<HTMLDivElement | null>(null);
   const tabsMeasureRef = useRef<HTMLDivElement | null>(null);
   const [visibleTabCount, setVisibleTabCount] = useState(Number.MAX_SAFE_INTEGER);
   const [moreTabsOpen, setMoreTabsOpen] = useState(false);
 
-  // Latest-committed mirrors so rapid successive edits (e.g. creating two
-  // options back-to-back) don't read a stale closure and clobber each other.
-  // Handlers also sync these synchronously; this effect catches external
-  // updates (SSE / initial load) after commit.
+ // Latest-committed mirrors so rapid successive edits (e.g. creating two
+ // options back-to-back) don't read a stale closure and clobber each other.
+ // Handlers also sync these synchronously; this effect catches external
+ // updates (SSE / initial load) after commit.
   const rowsRef = useRef(rows);
   const propsRef = useRef(properties);
-  // stable per-mount client id for SSE echo suppression (view sync)
+ // stable per-mount client id for SSE echo suppression (view sync)
   const [clientId] = useState(() => newId());
-  // "Save for everyone": filter/sort edits stage HERE (this window only)
-  // until saved to the server or reset (Notion's temporary view state)
+ // "Save for everyone": filter/sort edits stage HERE (this window only)
+ // until saved to the server or reset
   const [draftConfigs, setDraftConfigs] = useState<Record<string, ViewConfig>>({});
-  // mirrors for callbacks declared before activeView/me are derived (synced in
-  // an effect after the activeView memo below)
+ // mirrors for callbacks declared before activeView/me are derived (synced in
+ // an effect after the activeView memo below)
   const activeViewRef = useRef<DbView | undefined>(undefined);
   const meRef = useRef<string | null>(null);
   useEffect(() => {
@@ -329,15 +329,15 @@ export function DatabaseBlock({
       setProperties(snap.properties);
       setRows(snap.rows);
       setViews(snap.views);
-      // a linked block opens on its embedded view; an inline block opens on its
-      // first NON-embedded view (never a linked view).
+ // a linked block opens on its embedded view; an inline block opens on its
+ // first NON-embedded view (never a linked view).
       const initialView = linkedViewId
         ? snap.views.find((v: DbView) => v.id === linkedViewId)
         : initialViewType
           ? snap.views.find((v: DbView) => v.type === initialViewType)
           : snap.views.find((v: DbView) => !v.config.embedded);
       setActiveViewId((initialView ?? snap.views[0])?.id ?? null);
-      // slash presets like "Dashboard view" want that view to exist up front
+ // slash presets like "Dashboard view" want that view to exist up front
       if (initialViewType && !snap.views.some((v: DbView) => v.type === initialViewType)) {
         const res = await fetch(`/api/databases/${databaseId}/views`, {
           method: "POST",
@@ -359,9 +359,9 @@ export function DatabaseBlock({
     };
   }, [databaseId, linkedViewId]);
 
-  // Re-pull the snapshot after destructive ops: a file-backed (OKF) database
-  // has positional row/column ids (`row3`, `col2`) that SHIFT when one is
-  // spliced from the CSV — optimistic local state would misalign after that.
+ // Re-pull the snapshot after destructive ops: a file-backed (OKF) database
+ // has positional row/column ids (`row3`, `col2`) that SHIFT when one is
+ // spliced from the CSV — optimistic local state would misalign after that.
   const refreshSnapshot = useCallback(async () => {
     const snap = await fetch(`/api/databases/${databaseId}`).then((r) =>
       r.ok ? r.json() : null
@@ -389,8 +389,8 @@ export function DatabaseBlock({
     [databaseId]
   );
 
-  // Notion: a row created inside a filtered view pre-fills the filters' values
-  // so it doesn't instantly vanish from the view that created it.
+ // a row created inside a filtered view pre-fills the filters' values
+ // so it doesn't instantly vanish from the view that created it.
   const seedFromFilters = useCallback((): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     const NON_SEEDABLE = [
@@ -423,8 +423,8 @@ export function DatabaseBlock({
 
   const addRow = useCallback(
     async (values: Record<string, unknown> = {}, parentRowId?: string) => {
-      // Notion "default template": a template row flagged __default pre-fills
-      // every plain New row (explicit values and filter seeds still win)
+ // "default template": a template row flagged __default pre-fills
+ // every plain New row (explicit values and filter seeds still win)
       const def = rowsRef.current.find((r) => r.values.__template && r.values.__default);
       const templateSeed: Record<string, unknown> = {};
       if (def) {
@@ -451,9 +451,9 @@ export function DatabaseBlock({
     (rowId: string) => {
       const gone = rowsRef.current.find((r) => r.id === rowId);
       setRows((prev) => prev.filter((r) => r.id !== rowId));
-      // OKF row ids are positional and shift on splice → refetch. Postgres ids
-      // are stable — skip the refetch (its late response would clobber rows
-      // added in the meantime, e.g. delete → board "+ New" race).
+ // OKF row ids are positional and shift on splice → refetch. Postgres ids
+ // are stable — skip the refetch (its late response would clobber rows
+ // added in the meantime, e.g. delete → board "+ New" race).
       const isUuidDb = /^[0-9a-f-]{36}$/i.test(databaseId);
       void fetch(`/api/databases/${databaseId}/rows/${rowId}`, { method: "DELETE" }).then(() => {
         if (!isUuidDb) return refreshSnapshot();
@@ -461,8 +461,8 @@ export function DatabaseBlock({
       if (gone)
         useToastStore.getState().show("Row deleted", {
           onUndo: async () => {
-            // re-create with the same values (a fresh id — references aside,
-            // the CONTENT comes back, which is what undo is for)
+ // re-create with the same values (a fresh id — references aside,
+ // the CONTENT comes back, which is what undo is for)
             await fetch(`/api/databases/${databaseId}/rows`, {
               method: "POST",
               headers: { "content-type": "application/json" },
@@ -475,8 +475,8 @@ export function DatabaseBlock({
     [databaseId, refreshSnapshot]
   );
 
-  // Manual reorder. OKF row ids are positional and shift on move — always
-  // refetch the snapshot after the PATCH lands.
+ // Manual reorder. OKF row ids are positional and shift on move — always
+ // refetch the snapshot after the PATCH lands.
   const moveRow = useCallback(
     (rowId: string, position: number) => {
       setRows((prev) =>
@@ -523,9 +523,9 @@ export function DatabaseBlock({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           type,
-          // board default grouping: a status property, else a select NAMED like
-          // one (an imported CSV's "Status" column infers as select, not
-          // status), else any select
+ // board default grouping: a status property, else a select NAMED like
+ // one (an imported CSV's "Status" column infers as select, not
+ // status), else any select
           config:
             type === "board"
               ? {
@@ -548,7 +548,7 @@ export function DatabaseBlock({
     [databaseId]
   );
 
-  // Rename a view (Notion: double-click the tab) — persists via PATCH name.
+ // Rename a view — persists via PATCH name.
   const renameView = useCallback(
     (viewId: string, name: string) => {
       const clean = name.trim();
@@ -563,7 +563,7 @@ export function DatabaseBlock({
     [databaseId]
   );
 
-  // Duplicate a view: same type + config, "<name> (copy)" (Notion: tab menu).
+ // Duplicate a view: same type + config, "<name> (copy)".
   const duplicateView = useCallback(
     async (viewId: string) => {
       const src = views.find((v) => v.id === viewId);
@@ -581,8 +581,8 @@ export function DatabaseBlock({
     [databaseId, views]
   );
 
-  // Delete a view (Notion: view tab → Delete). The last remaining tab keeps
-  // its ✕ hidden, so a database always has at least one view.
+ // Delete a view. The last remaining tab keeps
+ // its ✕ hidden, so a database always has at least one view.
   const deleteView = useCallback(
     async (viewId: string) => {
       const gone = views.find((v) => v.id === viewId);
@@ -630,8 +630,8 @@ export function DatabaseBlock({
 
   const addSelectOption = useCallback(
     async (prop: DbProperty, name: string): Promise<SelectOption> => {
-      // read the freshest options from the ref, not the passed closure, so
-      // two creates in quick succession accumulate instead of clobbering.
+ // read the freshest options from the ref, not the passed closure, so
+ // two creates in quick succession accumulate instead of clobbering.
       const base = propsRef.current.find((p) => p.id === prop.id) ?? prop;
       const opt: SelectOption = {
         id: newId(),
@@ -713,8 +713,8 @@ export function DatabaseBlock({
     [databaseId, refreshSnapshot]
   );
 
-  // A linked block shows ONLY its embedded view; an inline block hides embedded
-  // (linked) views from its own tab bar.
+ // A linked block shows ONLY its embedded view; an inline block hides embedded
+ // (linked) views from its own tab bar.
   const tabViews = useMemo(
     () =>
       linkedViewId
@@ -729,9 +729,9 @@ export function DatabaseBlock({
     return draft ? { ...v, config: draft } : v;
   }, [views, activeViewId, tabViews, draftConfigs]);
 
-  // How many view tabs fit on one line. The hidden measurement row always
-  // renders every tab; the visible row shows the first `visibleTabCount` and
-  // an "N more" chip for the rest.
+ // How many view tabs fit on one line. The hidden measurement row always
+ // renders every tab; the visible row shows the first `visibleTabCount` and
+ // an "N more" chip for the rest.
   useLayoutEffect(() => {
     const area = tabsAreaRef.current;
     const meas = tabsMeasureRef.current;
@@ -767,8 +767,8 @@ export function DatabaseBlock({
     meRef.current = me;
   }, [activeView, me]);
 
-  // Typing a filter value patches per keystroke — coalesce the NETWORK writes
-  // (leading + trailing debounce; the optimistic local update stays instant).
+ // Typing a filter value patches per keystroke — coalesce the NETWORK writes
+ // (leading + trailing debounce; the optimistic local update stays instant).
   const patchNet = useRef<{ timer: ReturnType<typeof setTimeout> | null; lastSent: number }>({
     timer: null,
     lastSent: 0,
@@ -777,8 +777,8 @@ export function DatabaseBlock({
     (config: ViewConfig, opts?: { draft?: boolean }) => {
       const vid = activeView?.id;
       if (!vid) return;
-      // filter/sort edits stage locally; once a draft exists, EVERY further
-      // change joins it (mixed edits must not half-persist)
+ // filter/sort edits stage locally; once a draft exists, EVERY further
+ // change joins it (mixed edits must not half-persist)
       if (opts?.draft || draftConfigs[vid]) {
         setDraftConfigs((prev) => ({ ...prev, [vid]: config }));
         return;
@@ -827,14 +827,14 @@ export function DatabaseBlock({
     });
   }, [activeView?.id]);
 
-  // live view-settings sync (scienario 3): other windows' filter/sort/view
-  // changes arrive over the db-id SSE channel; our own echo is suppressed
+ // live view-settings sync (scienario 3): other windows' filter/sort/view
+ // changes arrive over the db-id SSE channel; our own echo is suppressed
   usePageSync(databaseId, clientId, () => {
     void refreshSnapshot();
   });
 
-  // prefetch every relation-target snapshot so filters/sorts on relation &
-  // rollup properties can resolve synchronously in applyView
+ // prefetch every relation-target snapshot so filters/sorts on relation &
+ // rollup properties can resolve synchronously in applyView
   useEffect(() => {
     const ids = new Set<string>();
     for (const p of properties) {
@@ -914,7 +914,7 @@ export function DatabaseBlock({
           <span className="mr-2 whitespace-nowrap text-sm font-semibold text-neutral-800 dark:text-neutral-100">
             {database.title}
           </span>
-          {/* tabs that don't fit collapse behind the "N more" dropdown (Notion) */}
+          {/* tabs that don't fit collapse behind the "N more" dropdown */}
           <div ref={tabsAreaRef} className="relative flex min-w-0 flex-1 items-center gap-1">
           <div
             ref={tabsMeasureRef}
@@ -1114,7 +1114,7 @@ export function DatabaseBlock({
             <FilterBar />
             <SortBar />
             <ViewOptions />
-            {/* overflow: secondary view actions live behind ⋯ (Notion) */}
+            {/* overflow: secondary view actions live behind ⋯ */}
             <div className="relative">
               <button
                 data-testid="db-view-menu"
@@ -1172,7 +1172,7 @@ export function DatabaseBlock({
           </div>
         </div>
 
-        {/* editable database description (Notion: text under the DB title) */}
+        {/* editable database description */}
         <input
           data-testid="db-description"
           defaultValue={database.description ?? ""}
@@ -1192,7 +1192,7 @@ export function DatabaseBlock({
           className="mb-1 w-full bg-transparent px-1 text-xs text-neutral-500 outline-none placeholder:text-neutral-300 dark:text-neutral-400 dark:placeholder:text-neutral-600"
         />
 
-        {/* Notion-style chips: active filters stay visible + editable inline */}
+        {/* chips: active filters stay visible + editable inline */}
         <FilterChips />
         {activeView && draftConfigs[activeView.id] && (
           <div

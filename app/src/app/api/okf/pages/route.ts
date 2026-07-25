@@ -6,8 +6,8 @@ import { okfGateFor } from "@/lib/okf-acl";
 export const dynamic = "force-dynamic";
 
 /** GET → flat page list (encoded ids + parent links) from the OKF folder.
- *  The sidebar-store shape; the migration points the main sidebar here.
- *  Participant-only paths (relationship docs etc.) are excluded for non-members. */
+ * The sidebar-store shape; the migration points the main sidebar here.
+ * Participant-only paths (relationship docs etc.) are excluded for non-members. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

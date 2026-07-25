@@ -9,8 +9,8 @@ import { getDefaultWorkspaceId } from "@/lib/workspace";
 export const dynamic = "force-dynamic";
 
 /** GET → { workspaces: [...], activeId } — the caller's workspaces. Guest
- *  memberships (DM-partner plumbing) are hidden: a relationship must not put
- *  someone else's workspace in your switcher. */
+ * memberships (DM-partner plumbing) are hidden: a relationship must not put
+ * someone else's workspace in your switcher. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  // workspaces.name is globally unique — suffix on collision so a caller can
-  // always create "My Workspace" even if another user already owns that name.
+ // workspaces.name is globally unique — suffix on collision so a caller can
+ // always create "My Workspace" even if another user already owns that name.
   let workspace;
   try {
     [workspace] = await db

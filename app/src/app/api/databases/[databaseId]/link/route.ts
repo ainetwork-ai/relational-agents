@@ -8,10 +8,10 @@ import { loadDatabaseForUser } from "@/lib/db-access";
 export const dynamic = "force-dynamic";
 
 /** POST → embed THIS database in a new page as a LINKED view. Creates a fresh
- *  embedded view (its own filters/sorts/hidden, flagged so it never shows in the
- *  source database's own tab bar) plus a page holding a linked database block.
- *  The source database's existing views are never mutated. Returns
- *  { pageId, viewId }. */
+ * embedded view (its own filters/sorts/hidden, flagged so it never shows in the
+ * source database's own tab bar) plus a page holding a linked database block.
+ * The source database's existing views are never mutated. Returns
+ * { pageId, viewId }. */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ databaseId: string }> }

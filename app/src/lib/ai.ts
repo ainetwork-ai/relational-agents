@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Local LLM bridge (scienario 44 — Notion AI). Talks to the host's vLLM
+ * Local LLM bridge (scienario 44 — the workspace AI). Talks to the host's vLLM
  * OpenAI-compatible server (docker `vllm-gemma4`, gemma-4-31B-it on :8100).
  * Override with AI_URL / AI_MODEL env vars.
  */

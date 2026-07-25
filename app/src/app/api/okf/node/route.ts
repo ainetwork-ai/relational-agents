@@ -6,7 +6,7 @@ import { okfGateFor } from "@/lib/okf-acl";
 export const dynamic = "force-dynamic";
 
 /** GET ?path=<relpath> | ?id=<base64url> → the parsed OKF node.
- *  Participant-only paths 404 for non-members (existence stays hidden). */
+ * Participant-only paths 404 for non-members (existence stays hidden). */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

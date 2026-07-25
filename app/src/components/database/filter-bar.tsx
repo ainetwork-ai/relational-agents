@@ -28,11 +28,11 @@ const propOptions = (props: DbProperty[]) =>
   props.map((p) => ({ value: p.id, label: p.name, icon: TYPE_ICON[p.type] ?? "•" }));
 const opOptions = (ops: FilterOp[]) => ops.map((op) => ({ value: op, label: OP_LABEL[op] }));
 
-/** The ONE type-aware filter-value editor (Notion has a single editing
- *  surface): multi-checkbox "is any of" for select/status/person, relative
- *  presets for dates, plain inputs otherwise. Used by chip popovers AND the
- *  advanced panel — the old panel-only single <select> silently collapsed
- *  any-of arrays to one value. */
+/** The ONE type-aware filter-value editor (a single editing
+ * surface): multi-checkbox "is any of" for select/status/person, relative
+ * presets for dates, plain inputs otherwise. Used by chip popovers AND the
+ * advanced panel — the old panel-only single <select> silently collapsed
+ * any-of arrays to one value. */
 function FilterValueEditor({
   i,
   prop,
@@ -77,8 +77,8 @@ function FilterValueEditor({
     );
   }
   if (prop.type === "relation") {
-    // pick target rows — Notion's "contains [row]" (mirror props list the
-    // SOURCE db's rows; both ids point at the same database)
+ // pick target rows — "contains [row]" (mirror props list the
+ // SOURCE db's rows; both ids point at the same database)
     const targetId = prop.config.relationDatabaseId ?? prop.config.mirrorOf?.databaseId;
     const snap = targetId ? db.related[targetId] : undefined;
     const titleP = snap?.properties.find((p) => p.type === "title");
@@ -191,9 +191,9 @@ function FilterValueEditor({
   );
 }
 
-/** Toolbar Filter button. Opens Notion's flow: a searchable PROPERTY PICKER —
- *  picking one creates the filter (its chip editor auto-opens below). An
- *  "Advanced filter" mode lists every rule in one panel. */
+/** Toolbar Filter button. Opens flow: a searchable PROPERTY PICKER —
+ * picking one creates the filter (its chip editor auto-opens below). An
+ * "Advanced filter" mode lists every rule in one panel. */
 export function FilterBar() {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -202,8 +202,8 @@ export function FilterBar() {
   const ref = useRef<HTMLDivElement>(null);
   const filters = db.activeView.config.filters ?? [];
 
-  // publish open state so the chips row won't auto-open a second editor for a
-  // filter added from this panel
+ // publish open state so the chips row won't auto-open a second editor for a
+ // filter added from this panel
   const setFilterUiOpen = db.setFilterUiOpen;
   useEffect(() => {
     setFilterUiOpen(open);
@@ -287,8 +287,8 @@ export function FilterBar() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && matches[0]) {
-                // clear the suppress-flag in the SAME batch so the new
-                // filter's chip editor auto-opens below
+ // clear the suppress-flag in the SAME batch so the new
+ // filter's chip editor auto-opens below
                 db.setFilterUiOpen(false);
                 addFilter(matches[0]);
                 setOpen(false);
@@ -527,9 +527,9 @@ export function FilterBar() {
 }
 
 // ===========================================================================
-// Notion-style filter CHIPS: active filters render as always-visible pills
+// filter CHIPS: active filters render as always-visible pills
 // under the toolbar ("Status is Done, In progress ∨"); clicking a pill opens a
-// per-filter editor. Active SORTS show as pills in the same row (Notion keeps
+// per-filter editor. Active SORTS show as pills in the same row (keep
 // one shared rule bar). "+ Filter" adds inline.
 // ===========================================================================
 
@@ -563,14 +563,14 @@ export function FilterChips() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  // A freshly ADDED filter auto-opens its editor (whether it came from the
-  // toolbar picker, the advanced panel, or the + Filter chip). Adjust-state-
-  // during-render — no effect, so the popover opens in the same paint.
+ // A freshly ADDED filter auto-opens its editor (whether it came from the
+ // toolbar picker, the advanced panel, or the + Filter chip). Adjust-state-
+ // during-render — no effect, so the popover opens in the same paint.
   const [prevLen, setPrevLen] = useState(filters.length);
   if (filters.length !== prevLen) {
     setPrevLen(filters.length);
     const last = filters[filters.length - 1];
-    // suppressed while the advanced panel is open — it edits the rule itself
+ // suppressed while the advanced panel is open — it edits the rule itself
     if (filters.length > prevLen && last && !filterIsActive(last) && !db.filterUiOpen)
       setOpenIdx(filters.length - 1);
   }
@@ -625,8 +625,8 @@ export function FilterChips() {
         const prop = propById(f.propertyId);
         if (!prop)
           return (
-            // orphaned rule (property deleted): inert for matching, but VISIBLE
-            // and removable — never an invisible ghost
+ // orphaned rule (property deleted): inert for matching, but VISIBLE
+ // and removable — never an invisible ghost
             <span
               key={i}
               data-testid={`db-filter-chip-${i}`}
@@ -690,7 +690,7 @@ export function FilterChips() {
         <Plus size={11} /> Filter
       </button>
 
-      {/* active sorts share the rule bar (Notion) */}
+      {/* active sorts share the rule bar */}
       {sorts.map((s, i) => {
         const prop = propById(s.propertyId);
         if (!prop) return null;

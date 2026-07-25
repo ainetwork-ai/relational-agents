@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Unlink, MessageSquarePlus, Palette, ChevronDown } from "lucide-react";
 
-/** Notion's inline color palette (class-based so the sanitizer keeps it). */
+/** inline color palette (class-based so the sanitizer keeps it). */
 const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
 
 function wrapColor(cls: string) {
@@ -61,7 +61,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
   const pathname = usePathname();
   const addComment = useCommentsStore((s) => s.add);
   const barRef = useRef<HTMLDivElement>(null);
-  // focusing the link input collapses the selection — save/restore the range
+ // focusing the link input collapses the selection — save/restore the range
   const savedRangeRef = useRef<Range | null>(null);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         range.commonAncestorContainer instanceof HTMLElement
           ? range.commonAncestorContainer
           : range.commonAncestorContainer.parentElement;
-      // only for selections inside an editable block of THIS editor
+ // only for selections inside an editable block of THIS editor
       if (!anchorEl?.closest('[data-testid^="block-editable-"]')) {
         setState(null);
         return;
@@ -100,7 +100,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
     };
 
     const onSelectionChange = () => {
-      // ignore while interacting with the toolbar itself (link input focus)
+ // ignore while interacting with the toolbar itself (link input focus)
       if (barRef.current?.contains(document.activeElement)) return;
       update();
     };
@@ -108,9 +108,9 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, [container]);
 
-  // Cmd/Ctrl+E → inline code, Cmd/Ctrl+K with a selection → link.
-  // Selection is computed LIVE — depending on `state` races the keystroke
-  // that follows Ctrl+A before React commits the toolbar.
+ // Cmd/Ctrl+E → inline code, Cmd/Ctrl+K with a selection → link.
+ // Selection is computed LIVE — depending on `state` races the keystroke
+ // that follows Ctrl+A before React commits the toolbar.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -127,8 +127,8 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         return;
       }
       const k = e.key.toLowerCase();
-      // explicit text-format shortcuts (don't rely on browser defaults, which
-      // are absent in some contexts): Cmd+B/I/U + Cmd+Shift+S for strike.
+ // explicit text-format shortcuts (don't rely on browser defaults, which
+ // are absent in some contexts): Cmd+B/I/U + Cmd+Shift+S for strike.
       if (k === "b") {
         e.preventDefault();
         exec("bold");
@@ -168,14 +168,14 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
     savedRangeRef.current = null;
     if (!saved) return;
 
-    // execCommand("createLink") silently no-ops while focus sits in the link
-    // input — wrap the saved range directly instead.
+ // execCommand("createLink") silently no-ops while focus sits in the link
+ // input — wrap the saved range directly instead.
     const a = document.createElement("a");
     a.setAttribute("href", href);
     try {
       saved.surroundContents(a);
     } catch {
-      // range crosses element boundaries (partially formatted selection)
+ // range crosses element boundaries (partially formatted selection)
       a.appendChild(saved.extractContents());
       saved.insertNode(a);
     }
@@ -183,8 +183,8 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
     host?.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  // Inline range comment: highlight the selected text and anchor a comment to
-  // the block that holds it (Notion's "comment on selection").
+ // Inline range comment: highlight the selected text and anchor a comment to
+ // the block that holds it.
   function submitRangeComment(body: string) {
     const saved = savedRangeRef.current;
     setCommentOpen(false);

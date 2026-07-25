@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "file too large" }, { status: 413 });
   }
-  // kind=file → generic attachment (any type); default keeps the image allowlist
+ // kind=file → generic attachment (any type); default keeps the image allowlist
   const generic = form.get("kind") === "file";
   if (!generic && file.type && !ALLOWED.has(file.type)) {
     return NextResponse.json({ error: "unsupported type" }, { status: 415 });
@@ -39,9 +39,9 @@ export async function POST(req: Request) {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
     .slice(0, 8);
-  // never store any upload under a same-origin browser-executable extension —
-  // applies to every path (not just kind=file), so a mislabeled svg/html can't
-  // land as an executable same-origin document (stored XSS).
+ // never store any upload under a same-origin browser-executable extension —
+ // applies to every path (not just kind=file), so a mislabeled svg/html can't
+ // land as an executable same-origin document (stored XSS).
   if (["html", "htm", "xhtml", "svg", "js", "mjs"].includes(ext)) ext = "txt";
   const name = `${crypto.randomUUID()}.${ext}`;
   const dir = path.join(process.cwd(), "public", "uploads");

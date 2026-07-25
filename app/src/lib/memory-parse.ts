@@ -17,9 +17,9 @@ export function cleanTitle(name: string): string {
   return name.replace(/\.(md|csv)$/i, "").replace(HASH_RE, "").trim() || "Untitled";
 }
 function stripLinks(s: string): string {
-  // Links the app can follow (absolute app routes like /p/{id}, external URLs)
-  // survive to become anchors via mdInlineToHtml; Notion-export-internal
-  // relative links (raw .md paths) still collapse to their label.
+ // Links the app can follow (absolute app routes like /p/{id}, external URLs)
+ // survive to become anchors via mdInlineToHtml; workspace-export-internal
+ // relative links (raw .md paths) still collapse to their label.
   return s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, href) =>
     /^(\/|https?:\/\/)/.test(href) ? m : label
   );
@@ -59,7 +59,7 @@ export function serializeFrontmatter(meta: Frontmatter): string {
 }
 
 /** Inline markdown → sanitized-shape HTML (**b**, *i*, ~~s~~, `code`, [t](u)).
- *  Returns undefined when the text carries no inline markers. */
+ * Returns undefined when the text carries no inline markers. */
 export function mdInlineToHtml(text: string): string | undefined {
   if (!/(\*\*|\*|~~|`|\[[^\]]+\]\()/.test(text)) return undefined;
   let h = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -91,15 +91,15 @@ export function parseMarkdown(
   let title = typeof meta.title === "string" ? meta.title : "";
   const drafts: { type: BlockType; content: BlockContent }[] = [];
   let i = 0;
-  // pasting markdown into a block keeps the first "# " line as a heading block
-  // rather than consuming it as a page title (opts.noTitle).
+ // pasting markdown into a block keeps the first "# " line as a heading block
+ // rather than consuming it as a page title (opts.noTitle).
   if (!opts.noTitle && lines[0]?.startsWith("# ")) {
     title = lines[0].slice(2).trim();
     i = 1;
   }
   const push = (type: BlockType, content: BlockContent) => {
-    // inline markdown (bold/italic/code/strike/links) becomes rich html; the
-    // plain text mirror drops the markers (links keep their label via strip)
+ // inline markdown (bold/italic/code/strike/links) becomes rich html; the
+ // plain text mirror drops the markers (links keep their label via strip)
     if (typeof content.text === "string" && content.text) {
       const html = mdInlineToHtml(content.text);
       if (html) {
@@ -142,7 +142,7 @@ export function parseMarkdown(
       continue;
     }
     if (/^#{1,6}\s/.test(t)) {
-      // '# ' after the title line is a heading1 block (the first '# ' was the title)
+ // '# ' after the title line is a heading1 block (the first '# ' was the title)
       const level = t.match(/^#+/)![0].length;
       const type = level === 1 ? "heading1" : level === 2 ? "heading2" : "heading3";
       push(type, { text: stripLinks(t.replace(/^#+\s/, "")) });
@@ -227,8 +227,8 @@ export function parseCsv(text: string): string[][] {
     else field += c;
   }
   if (field.length || row.length) { row.push(field); rows.push(row); }
-  // drop trailing all-empty rows (the final-newline artifact) but keep
-  // intentional empty cells within data rows.
+ // drop trailing all-empty rows (the final-newline artifact) but keep
+ // intentional empty cells within data rows.
   while (rows.length && rows[rows.length - 1].every((c) => c.trim() === "")) rows.pop();
   return rows;
 }
@@ -243,8 +243,8 @@ export function normDate(v: string): string | null {
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   const d = Date.parse(v);
   if (!isNaN(d)) {
-    // Date.parse reads "March 9, 2026 8:10 AM" as LOCAL time — format the
-    // LOCAL day too (toISOString would shift early-morning times a day back)
+ // Date.parse reads "March 9, 2026 8:10 AM" as LOCAL time — format the
+ // LOCAL day too (toISOString would shift early-morning times a day back)
     const t = new Date(d);
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
   }
@@ -260,7 +260,7 @@ export function multiTokens(v: string): string[] {
 }
 
 /** Parse a CSV date cell into the editor's date value: a plain "YYYY-MM-DD"
- *  string, or { start, end?, includeTime? } for "a → b" ranges / times. */
+ * string, or { start, end?, includeTime? } for "a → b" ranges / times. */
 export function parseDateCell(raw: string): unknown {
   const norm = (s: string) => {
     const m = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
@@ -285,8 +285,8 @@ function inferType(values: string[]): PropertyType {
   if (nn.every((v) => EMAIL_RE.test(v.trim()))) return "email";
   if (nn.every((v) => v.split(/\s*→\s*/).every((seg) => normDate(seg.trim()) !== null)))
     return "date";
-  // multi_select: at least one cell carries several comma-separated tokens and
-  // the whole vocabulary is bounded (otherwise it's free text).
+ // multi_select: at least one cell carries several comma-separated tokens and
+ // the whole vocabulary is bounded (otherwise it's free text).
   const tokenized = nn.map((v) => multiTokens(v));
   if (tokenized.some((t) => t.length > 1)) {
     const vocab = new Set(tokenized.flat());
@@ -303,8 +303,8 @@ export interface FsRow { id: string; values: Record<string, unknown>; position: 
 const COLORS = ["gray", "blue", "green", "red", "yellow", "purple", "orange", "pink"];
 
 /** Deterministic option identity — id and color derive from the option NAME,
- *  never from appearance order, so adding/removing rows can't recolor options
- *  (scienario 14). encodeURIComponent keeps ids unique per name. */
+ * never from appearance order, so adding/removing rows can't recolor options
+ * (scienario 14). encodeURIComponent keeps ids unique per name. */
 export function optionIdFor(name: string): string {
   return `opt_${encodeURIComponent(name)}`;
 }
@@ -323,7 +323,7 @@ export function parseCsvDatabase(
   const headers = grid[0].map((h) => h.trim() || "Column");
   const allData = grid.slice(1);
   const totalRows = allData.length;
-  // type inference samples up to 500 rows; rendering is capped by rowLimit.
+ // type inference samples up to 500 rows; rendering is capped by rowLimit.
   const sample = allData.slice(0, 500);
   const data = allData.slice(0, rowLimit);
   const properties: FsProperty[] = headers.map((name, idx) => {
@@ -334,7 +334,7 @@ export function parseCsvDatabase(
       for (const v of new Set(col.map((c) => c.trim()).filter(Boolean)))
         options.push({ id: optionIdFor(v), name: v, color: optionColorFor(v) });
     } else if (type === "multi_select") {
-      // option vocabulary = every distinct token across the column
+ // option vocabulary = every distinct token across the column
       for (const v of new Set(col.flatMap((c) => multiTokens(c))))
         options.push({ id: optionIdFor(v), name: v, color: optionColorFor(v) });
     }

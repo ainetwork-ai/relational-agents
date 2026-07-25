@@ -41,7 +41,7 @@ export function AgentLab() {
   const [text, setText] = useState("");
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  // pre-send fact check — a draft contradicting the relationship doc raises a decline card
+ // pre-send fact check — a draft contradicting the relationship doc raises a decline card
   const [guard, setGuard] = useState<GuardResult | null>(null);
   const [guardedText, setGuardedText] = useState("");
 
@@ -61,15 +61,15 @@ export function AgentLab() {
   }, []);
 
   useEffect(() => {
-    // fetch-on-mount: setState only fires async after the fetch resolves
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+ // fetch-on-mount: setState only fires async after the fetch resolves
+ // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRooms();
   }, [loadRooms]);
 
-  // guard the draft once typing stops; resuming typing discards stale responses (version guard).
+ // guard the draft once typing stops; resuming typing discards stale responses (version guard).
   useEffect(() => {
     if (!active || !text.trim()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+ // eslint-disable-next-line react-hooks/set-state-in-effect
       setGuard(null);
       return;
     }
@@ -92,7 +92,7 @@ export function AgentLab() {
     return () => clearTimeout(timer);
   }, [text, active]);
 
-  // is this decline verdict still valid for the current draft (text change invalidates it)
+ // is this decline verdict still valid for the current draft (text change invalidates it)
   const declined =
     guard?.verdict === "decline" && guard.checked && guardedText === text && text.trim().length > 0;
 

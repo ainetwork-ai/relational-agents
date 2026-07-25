@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/auth/metamask-verify
- *   body: { signature: string, address: string, displayName?: string }
+ * body: { signature: string, address: string, displayName?: string }
  *
  * MetaMask sign-in: the client fetches GET /api/auth/challenge, signs the
  * returned message with `personal_sign`, and posts the signature here.
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     let user = existing;
-    // Returning user typed a (different) name → honor it. Login is the only
-    // place the form offers a name, so this is how you rename yourself.
+ // Returning user typed a (different) name → honor it. Login is the only
+ // place the form offers a name, so this is how you rename yourself.
     if (user && typeof displayName === "string" && displayName.trim() && displayName.trim() !== user.displayName) {
       const [renamed] = await db
         .update(users)
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     session.userId = user.id;
     session.ainAddress = user.ainAddress;
     session.challenge = undefined;
-    // switching accounts invalidates the previous account's active workspace (same as demo-login)
+ // switching accounts invalidates the previous account's active workspace (same as demo-login)
     session.activeWorkspaceId = undefined;
     await session.save();
 

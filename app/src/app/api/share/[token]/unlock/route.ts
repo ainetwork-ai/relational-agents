@@ -27,7 +27,7 @@ export async function POST(
     return NextResponse.json({ error: "Wrong password" }, { status: 403 });
 
   const res = NextResponse.json({ ok: true });
-  // LAN http serving → no `secure` flag (same trade-off as INSECURE_COOKIES)
+ // LAN http serving → no `secure` flag (same trade-off as INSECURE_COOKIES)
   res.cookies.set(`share_pw_${token}`, hash, {
     httpOnly: true,
     sameSite: "lax",

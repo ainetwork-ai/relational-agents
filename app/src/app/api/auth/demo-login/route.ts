@@ -9,7 +9,7 @@ import { toPublicUser } from "@/lib/auth/public-user";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/auth/demo-login  { as?: string }
+ * POST /api/auth/demo-login { as?: string }
  *
  * Logs the caller in as the shared "DemoUser" (same public demo key as
  * slack-a2a) so visitors can try the app without a wallet.
@@ -35,7 +35,7 @@ async function loginUser(ainAddress: string, displayName: string) {
   session.userId = user.id;
   session.ainAddress = user.ainAddress;
   session.challenge = undefined;
-  // switching accounts invalidates the previous account's active workspace
+ // switching accounts invalidates the previous account's active workspace
   session.activeWorkspaceId = undefined;
   await session.save();
   return user;
@@ -43,9 +43,9 @@ async function loginUser(ainAddress: string, displayName: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Demo login attaches to accounts without credentials (shared demo key +
-    // deterministic `as` accounts). Disabled in production unless explicitly
-    // enabled — removes the account-takeover surface.
+ // Demo login attaches to accounts without credentials (shared demo key +
+ // deterministic `as` accounts). Disabled in production unless explicitly
+ // enabled — removes the account-takeover surface.
     if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO_LOGIN !== "1")
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 

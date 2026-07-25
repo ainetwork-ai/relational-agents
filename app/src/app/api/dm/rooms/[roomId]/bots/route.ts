@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (!/^https?:\/\//.test(a2aUrl))
     return NextResponse.json({ error: "a2aUrl must be http(s)" }, { status: 400 });
 
-  // card discovery: ① the URL directly (Direct Configuration) ② the domain's well-known
+ // card discovery: ① the URL directly (Direct Configuration) ② the domain's well-known
   let card: Record<string, unknown> | null = null;
   for (const cardUrl of [
     a2aUrl,
@@ -45,12 +45,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         }
       }
     } catch {
-      // try next
+ // try next
     }
   }
   if (!card) return NextResponse.json({ error: "Agent card not found at URL" }, { status: 422 });
 
-  // a bot already registered under this a2aUrl is reused
+ // a bot already registered under this a2aUrl is reused
   let [agent] = await db.select().from(users).where(eq(users.a2aUrl, a2aUrl));
   if (!agent) {
     [agent] = await db

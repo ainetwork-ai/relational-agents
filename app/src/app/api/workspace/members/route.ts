@@ -36,8 +36,8 @@ export async function GET() {
 }
 
 /** PATCH { userId, role } → change a member's role (admin+). The owner's role
- *  is immutable and nobody may be promoted to owner via this endpoint; an admin
- *  cannot assign a role above their own. */
+ * is immutable and nobody may be promoted to owner via this endpoint; an admin
+ * cannot assign a role above their own. */
 export async function PATCH(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest) {
       { error: "userId and role (guest|member|admin) required" },
       { status: 400 }
     );
-  // an admin cannot grant a role above their own level
+ // an admin cannot grant a role above their own level
   if (actorRole && ROLE_LEVEL[role] > ROLE_LEVEL[actorRole])
     return NextResponse.json({ error: "Cannot assign a role above your own" }, { status: 403 });
 
@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 /** DELETE ?userId= → remove a member from the workspace (admin+). The owner
- *  cannot be removed. */
+ * cannot be removed. */
 export async function DELETE(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

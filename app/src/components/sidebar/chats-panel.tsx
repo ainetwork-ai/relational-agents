@@ -58,12 +58,12 @@ export function ChatsPanel() {
     : afterUnread;
   const pinnedChats = visibleChats.filter((c) => c.isPinned);
   const unpinnedChats = visibleChats.filter((c) => !c.isPinned);
-  // keyboard-nav order mirrors the visual order (pinned section first).
+ // keyboard-nav order mirrors the visual order (pinned section first).
   const navChats = [...pinnedChats, ...unpinnedChats];
 
-  // arrows move the active item, Enter opens it. Active only while the
-  // container itself has focus, so rename inputs / menu buttons keep their
-  // own key handling.
+ // arrows move the active item, Enter opens it. Active only while the
+ // container itself has focus, so rename inputs / menu buttons keep their
+ // own key handling.
   function handleListKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || navChats.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -93,7 +93,7 @@ export function ChatsPanel() {
     router.push(`/chat/${chat.id}`);
   }
 
-  // new-chat shortcut: Cmd/Ctrl+J
+ // new-chat shortcut: Cmd/Ctrl+J
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
@@ -103,7 +103,7 @@ export function ChatsPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function openChat(id: string) {
@@ -131,7 +131,7 @@ export function ChatsPanel() {
     show("Chat deleted");
   }
 
-  // pinned/all share the same row markup — extracted to a helper (no JSX duplication).
+ // pinned/all share the same row markup — extracted to a helper (no JSX duplication).
   function renderChatRow(c: AiChat) {
     const muted = mutedChatIds.has(c.id);
     const navIndex = navChats.indexOf(c);

@@ -37,20 +37,20 @@ export async function validateShareToken(
     .limit(1);
   if (!share) return null;
 
-  // Token must match the requested page
+ // Token must match the requested page
   if (share.pageId !== pageId) return null;
 
-  // Expired links are dead links
+ // Expired links are dead links
   if (share.expiresAt && share.expiresAt.getTime() < Date.now()) return null;
 
-  // Password-protected: the unlock cookie (set by /api/share/[token]/unlock)
-  // must carry the current password hash
+ // Password-protected: the unlock cookie (set by /api/share/[token]/unlock)
+ // must carry the current password hash
   if (share.passwordHash) {
     const cookie = req.cookies.get(`share_pw_${share.token}`)?.value;
     if (cookie !== share.passwordHash) return null;
   }
 
-  // Verify the page still exists and is not archived
+ // Verify the page still exists and is not archived
   const [page] = await db
     .select()
     .from(pages)
@@ -87,11 +87,11 @@ export function forbiddenResponse(required: SharePermission) {
  * if the user has no access at all.
  *
  * Logic:
- *   1. If user has a pageMembers entry → use that permission level.
- *   2. No explicit grant: a regular workspace member (member/admin/owner) gets
- *      "full" (backwards compatible — the whole workspace can edit its pages).
- *   3. A *guest* (or a non-member) gets NO implicit access — a guest is scoped
- *      to exactly the pages explicitly shared with them (Notion guest rule).
+ * 1. If user has a pageMembers entry → use that permission level.
+ * 2. No explicit grant: a regular workspace member (member/admin/owner) gets
+ * "full" (backwards compatible — the whole workspace can edit its pages).
+ * 3. A *guest* (or a non-member) gets NO implicit access — a guest is scoped
+ * to exactly the pages explicitly shared with them.
  */
 export async function getPagePermission(
   pageId: string,
@@ -105,11 +105,11 @@ export async function getPagePermission(
   if (!page) return null;
 
   const role = await getWorkspaceRole(page.workspaceId, userId);
-  // Workspace owners/admins can always manage any page — an explicit page-level
-  // share (even one that downgrades them) never locks them out.
+ // Workspace owners/admins can always manage any page — an explicit page-level
+ // share (even one that downgrades them) never locks them out.
   if (role === "owner" || role === "admin") return "full";
 
-  // Explicit page grant: members can be narrowed, guests are scoped to it.
+ // Explicit page grant: members can be narrowed, guests are scoped to it.
   const [member] = await db
     .select({ permission: pageMembers.permission })
     .from(pageMembers)
@@ -120,11 +120,11 @@ export async function getPagePermission(
     return PERMISSION_LEVEL[perm] !== undefined ? perm : "full";
   }
 
-  // No explicit grant: guests/non-members get none.
+ // No explicit grant: guests/non-members get none.
   if (!role || role === "guest") return null;
-  // Restricted pages (e.g. DM relationship docs) default-DENY plain members without a
-  // grant — the whole point is participant-only privacy. Non-restricted pages
-  // keep the workspace-wide default (backwards compatible).
+ // Restricted pages (e.g. DM relationship docs) default-DENY plain members without a
+ // grant — the whole point is participant-only privacy. Non-restricted pages
+ // keep the workspace-wide default (backwards compatible).
   if (page.restricted) return null;
   return "full";
 }

@@ -7,9 +7,9 @@ import { aiChat } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
-/** POST { question } → { answer, sources: [{id,title}] } — Notion AI Q&A.
- *  Retrieval = the same title/body match the search modal uses (top pages),
- *  then gemma answers strictly from that context. */
+/** POST { question } → { answer, sources: [{id,title}] } — the workspace AI Q&A.
+ * Retrieval = the same title/body match the search modal uses (top pages),
+ * then gemma answers strictly from that context. */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     .limit(1);
   if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-  // retrieval: pages whose title or body mentions any significant query word
+ // retrieval: pages whose title or body mentions any significant query word
   const words = question
     .replace(/[?!.,]/g, " ")
     .split(/\s+/)

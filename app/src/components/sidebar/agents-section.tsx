@@ -29,8 +29,8 @@ interface ScopePage {
 }
 
 /** Custom Agents section atop the sidebar Chats tab. Presets that start a new
- *  AI chat from saved instructions — list/create/rename/icon/favorite/
- *  duplicate/share/delete. */
+ * AI chat from saved instructions — list/create/rename/icon/favorite/
+ * duplicate/share/delete. */
 export function AgentsSection() {
   const router = useRouter();
   const agents = useAiAgentsStore((s) => s.agents);
@@ -146,8 +146,8 @@ export function AgentsSection() {
     show("Agent deleted");
   }
 
-  // up to 3 recently used agents (those with lastUsedAt) go in a "recent"
-  // subsection on top; the rest stay in the normal list.
+ // up to 3 recently used agents (those with lastUsedAt) go in a "recent"
+ // subsection on top; the rest stay in the normal list.
   const recentAgents = [...agents]
     .filter((a) => a.lastUsedAt)
     .sort((a, b) => new Date(b.lastUsedAt as unknown as string).getTime() - new Date(a.lastUsedAt as unknown as string).getTime())

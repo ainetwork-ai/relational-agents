@@ -15,8 +15,8 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** Month-grid calendar. Lays each row out on the day its chosen date
- *  property falls on (config.calendarDatePropertyId). Prev/next navigate
- *  months. Defaults to the current month (new Date() is fine in the client). */
+ * property falls on (config.calendarDatePropertyId). Prev/next navigate
+ * months. Defaults to the current month (new Date() is fine in the client). */
 export function CalendarView({ view }: { view: DbView }) {
   const db = useDb();
   const dateProps = db.properties.filter((p) => p.type === "date");
@@ -28,7 +28,7 @@ export function CalendarView({ view }: { view: DbView }) {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  // Month/Week toggle (Notion's calendar header control)
+ // Month/Week toggle
   const [mode, setMode] = useState<"month" | "week">("month");
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const weekStart = new Date(weekAnchor);
@@ -45,8 +45,8 @@ export function CalendarView({ view }: { view: DbView }) {
   const startWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // a yearly-recurring date property (birthdays) matches on month/day only,
-  // so the row shows up in every year's grid, not just the stored year
+ // a yearly-recurring date property (birthdays) matches on month/day only,
+ // so the row shows up in every year's grid, not just the stored year
   const yearly = dateProp?.config.recurring === "yearly";
   const rowsForDay = (dayStr: string) =>
     dateProp

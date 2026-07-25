@@ -10,11 +10,11 @@ const MIME: Record<string, string> = {
 };
 
 /** Serve user uploads from public/uploads. A route (not static) so files
- *  written after the build are still served — `next start` does not serve
- *  post-build public assets, and Vercel's FS is ephemeral. */
+ * written after the build are still served — `next start` does not serve
+ * post-build public assets, and Vercel's FS is ephemeral. */
 export async function GET(_req: Request, ctx: { params: Promise<{ name: string }> }) {
   const { name } = await ctx.params;
-  // no traversal: a bare filename only
+ // no traversal: a bare filename only
   if (!/^[\w.-]+$/.test(name) || name.includes("..")) {
     return NextResponse.json({ error: "bad name" }, { status: 400 });
   }

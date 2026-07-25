@@ -38,7 +38,7 @@ function todayItem(): MentionItem {
 
 /** Build a date mention for an ISO (yyyy-mm-dd) date string. */
 function dateItem(iso: string): MentionItem {
-  // parse as local date (avoid the UTC shift of new Date("yyyy-mm-dd"))
+ // parse as local date (avoid the UTC shift of new Date("yyyy-mm-dd"))
   const [y, m, d] = iso.split("-").map(Number);
   const label = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString(undefined, {
     year: "numeric",
@@ -81,8 +81,8 @@ export function MentionMenu({
 
   const items = useMemo<MentionItem[]>(() => {
     const q = query.trim().toLowerCase();
-    // most recently edited first (Notion) — on a big workspace the fresh
-    // page you mean must not fall out of the visible slice
+ // most recently edited first — on a big workspace the fresh
+ // page you mean must not fall out of the visible slice
     const pageItems: MentionItem[] = Object.values(pages)
       .sort(
         (a, b) =>
@@ -115,7 +115,7 @@ export function MentionMenu({
       className="popover-anim fixed z-50 max-h-72 w-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
       style={{ left: anchor.x, top: anchor.y + 24 }}
     >
-      {/* Notion groups mentions under section headers — no per-row type
+      {/*  groups mentions under section headers — no per-row type
           badges (R2#18); rows are ~28px (R2#20) with a parent-path secondary
           label on pages (R2#19). selectedIndex stays a flat index. */}
       {(() => {
@@ -172,7 +172,7 @@ export function MentionMenu({
           );
         });
       })()}
-      {/* pick ANY date — typed input + a toggleable mini calendar (Notion) */}
+      {/* pick ANY date — typed input + a toggleable mini calendar */}
       <div
         className="mt-1 border-t border-neutral-100 px-3 py-1.5 dark:border-neutral-700"
         onMouseDown={(e) => e.stopPropagation()}

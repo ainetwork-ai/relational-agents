@@ -18,8 +18,8 @@ export const RELATION_CONSENT_TYPES = {
 } as const;
 
 /** Must mirror the constructor of RelationalAgentRegistry.sol. Until the
- *  registry is deployed the zero address stands in; signatures then anchor to
- *  the future deployment's domain via env. */
+ * registry is deployed the zero address stands in; signatures then anchor to
+ * the future deployment's domain via env. */
 export function relationConsentDomain() {
   return {
     name: "RelationalAgentRegistry",
@@ -46,8 +46,8 @@ export interface RelationConsentTypedData {
 }
 
 /** Canonical consent payload for a room — couples and groups alike. Parties
- *  are lowercased and sorted ascending (the order the registry requires), so
- *  every signer sees the identical struct. */
+ * are lowercased and sorted ascending (the order the registry requires), so
+ * every signer sees the identical struct. */
 export function buildRelationConsentTypedData(
   roomId: string,
   memberAddresses: string[]

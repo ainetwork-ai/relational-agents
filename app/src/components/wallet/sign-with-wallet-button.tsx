@@ -49,9 +49,9 @@ export function SignWithWalletButton({
   testId = "wallet-sign-button",
 }: SignWithWalletButtonProps) {
   const wallet = useWalletSignature();
-  // Separate from `wallet.busy`: covers resolving the message (nonce fetch) and
-  // running the caller's async `onSigned`, so the button stays disabled for the
-  // whole round trip, not just the wallet popup.
+ // Separate from `wallet.busy`: covers resolving the message (nonce fetch) and
+ // running the caller's async `onSigned`, so the button stays disabled for the
+ // whole round trip, not just the wallet popup.
   const [working, setWorking] = useState(false);
 
   async function handleClick() {
@@ -65,8 +65,8 @@ export function SignWithWalletButton({
       }
       await onSigned?.(result);
     } catch (err) {
-      // Only reachable from the message resolver or onSigned — wallet errors
-      // are already captured in hook state.
+ // Only reachable from the message resolver or onSigned — wallet errors
+ // are already captured in hook state.
       onError?.(err instanceof Error ? err.message : String(err), "failed");
     } finally {
       setWorking(false);

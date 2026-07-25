@@ -17,9 +17,9 @@ export function newId(): string {
 export async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
-      // writeText rejects with NotAllowedError ("Document is not focused")
-      // when devtools or a just-opened tab holds focus — reclaim it first,
-      // and fall through to the textarea path if the write still fails.
+ // writeText rejects with NotAllowedError ("Document is not focused")
+ // when devtools or a just-opened tab holds focus — reclaim it first,
+ // and fall through to the textarea path if the write still fails.
       if (!document.hasFocus()) window.focus();
       await navigator.clipboard.writeText(text);
       return true;
@@ -42,8 +42,8 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /** Resolve a port-relative URL (":3111/path") against the current host, so
- *  sibling services work over localhost tunnels and LAN alike. Absolute and
- *  path-relative URLs pass through unchanged. */
+ * sibling services work over localhost tunnels and LAN alike. Absolute and
+ * path-relative URLs pass through unchanged. */
 export function resolveAppUrl(url: string): string {
   return /^:\d+/.test(url)
     ? `${window.location.protocol}//${window.location.hostname}${url}`

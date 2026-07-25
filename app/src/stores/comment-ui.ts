@@ -3,9 +3,9 @@
 import { create } from "zustand";
 
 /** Which comment thread is open in the side panel. An anchor is either a
- *  block id (a thread pinned to that block) or the sentinel PAGE_ANCHOR for
- *  the page-level discussion. null = the panel is closed. Mirrors Notion,
- *  where a comment opens beside its anchor rather than in a bottom list. */
+ * block id (a thread pinned to that block) or the sentinel PAGE_ANCHOR for
+ * the page-level discussion. null = the panel is closed. 
+ * where a comment opens beside its anchor rather than in a bottom list. */
 export const PAGE_ANCHOR = "__page__";
 
 interface CommentUiState {

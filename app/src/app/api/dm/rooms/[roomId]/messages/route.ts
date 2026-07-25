@@ -51,7 +51,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 /** POST { text?, attachments?: [{url,name}] } → { message, autoRun? }.
- *  Sending marks read and publishes a dm-message notice (no body) to member inboxes. */
+ * Sending marks read and publishes a dm-message notice (no body) to member inboxes. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -70,13 +70,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (text.length > MAX_TEXT)
     return NextResponse.json({ error: `Text too long (max ${MAX_TEXT})` }, { status: 400 });
 
-  // authorId is always the session user — never client-supplied (no spoofing)
+ // authorId is always the session user — never client-supplied (no spoofing)
   const [message] = await db
     .insert(chatMessages)
     .values({ roomId, authorId: auth.user.id, text, attachments })
     .returning();
 
-  // the sender has read their own message — advance the unread baseline
+ // the sender has read their own message — advance the unread baseline
   await db
     .update(chatRoomMembers)
     .set({ lastReadAt: new Date() })
@@ -87,11 +87,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     clientId: req.headers.get("x-client-id"),
   });
 
-  // DM rooms share the agent rooms' harvest trigger — K+ pending now / idle scheduling
+ // DM rooms share the agent rooms' harvest trigger — K+ pending now / idle scheduling
   const autoRun = await maybeAutoRun(room);
 
-  // When the agent just recorded something, let it react in the room so the
-  // memory is visible — "saved this to our story" with a link to the doc.
+ // When the agent just recorded something, let it react in the room so the
+ // memory is visible — "saved this to our story" with a link to the doc.
   if (autoRun && autoRun.edits > 0 && auth.user.id !== null) {
     try {
       const { chatRoomBots } = await import("@/lib/db/schema");
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     }
   }
 
-  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response
+ // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response
   void dispatchToRoomBots(room, message).catch((err) =>
     console.error("bot dispatch failed:", err)
   );

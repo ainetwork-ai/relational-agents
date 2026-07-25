@@ -47,7 +47,7 @@ function connect(url: string, s: SharedStream) {
 }
 
 /** Subscribe to an SSE url; returns an unsubscribe. The underlying stream is
- *  shared across all subscribers of the same url. */
+ * shared across all subscribers of the same url. */
 export function subscribeSse(
   url: string,
   onMessage: (ev: MessageEvent) => void,
@@ -67,7 +67,7 @@ export function subscribeSse(
     pool.set(url, s);
     connect(url, s);
   } else if (s.es && s.es.readyState === EventSource.OPEN && onHello) {
-    // stream already live — the late subscriber still needs its initial sync
+ // stream already live — the late subscriber still needs its initial sync
     queueMicrotask(onHello);
   }
   s.refs++;

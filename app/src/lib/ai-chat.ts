@@ -2,21 +2,21 @@ import "server-only";
 import { aiChat, unfence, type AiMessage } from "./ai";
 
 /**
- * Notion AI chat reply generation.
+ * AI chat reply generation.
  *
  * Live: streams the vLLM (`aiChat`) result in chunks.
  * e2e/CI: with `AI_FAKE_LLM=1`, streams **deterministic** input-derived
- *   markdown (headings, bold, lists, code, tables) — render/stream/abort
- *   tests run reliably with no real LLM.
+ * markdown (headings, bold, lists, code, tables) — render/stream/abort
+ * tests run reliably with no real LLM.
  */
 
 export const FAKE_LLM = process.env.AI_FAKE_LLM === "1";
 
 const SYSTEM_PROMPT =
-  "You are Notion AI, a concise helpful assistant inside a Notion-style workspace. " +
+  "You are the workspace AI, a concise helpful assistant. " +
   "Answer in the user's language. Use Markdown.";
 
-/** Builds the chat title from the first user message (Notion titles chats by first prompt). */
+/** Builds the chat title from the first user message. */
 export function deriveTitle(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return "New chat";
@@ -53,8 +53,8 @@ function fakeReply(userText: string): string {
     ``,
     `$$\\sum x$$`,
     ``,
-    `![Chart 1](https://dummy.notion.local/chart1.png)`,
-    `![Chart 2](https://dummy.notion.local/chart2.png)`,
+    `![Chart 1](https://dummy.local/chart1.png)`,
+    `![Chart 2](https://dummy.local/chart2.png)`,
   ].join("\n");
 }
 
@@ -94,9 +94,9 @@ export async function* streamReply(
     full = unfence(await aiChat(messages, { maxTokens: 1024 }));
   }
   if (fake) {
-    // e2e: emit everything at once, no chunks or delays. Even on an
-    // overloaded server the SSE completes in a single flush, dodging send
-    // timeouts (streaming behavior is observed on the real-LLM path).
+ // e2e: emit everything at once, no chunks or delays. Even on an
+ // overloaded server the SSE completes in a single flush, dodging send
+ // timeouts (streaming behavior is observed on the real-LLM path).
     yield full;
     return;
   }

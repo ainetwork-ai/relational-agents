@@ -13,7 +13,7 @@ type Token =
   | { t: "rparen" };
 
 /** Look up a property's numeric value on a row by the property NAME used in
- *  a prop("…") reference. Missing / non-numeric resolves to 0. */
+ * a prop("…") reference. Missing / non-numeric resolves to 0. */
 function propValueByName(
   name: string,
   props: DbProperty[],
@@ -54,7 +54,7 @@ function tokenize(
       i++;
       continue;
     }
-    // number literal
+ // number literal
     if ((c >= "0" && c <= "9") || c === ".") {
       let j = i + 1;
       while (j < expr.length && ((expr[j] >= "0" && expr[j] <= "9") || expr[j] === ".")) j++;
@@ -64,7 +64,7 @@ function tokenize(
       i = j;
       continue;
     }
-    // prop("Name") or prop('Name')
+ // prop("Name") or prop('Name')
     if (expr.startsWith("prop", i)) {
       let j = i + 4;
       while (j < expr.length && expr[j] === " ") j++;
@@ -142,7 +142,7 @@ function evalTokens(tokens: Token[]): number | null {
 }
 
 /** Evaluate a formula expression for a row. Returns "" when the expression is
- *  empty or invalid so the cell stays blank rather than showing NaN. */
+ * empty or invalid so the cell stays blank rather than showing NaN. */
 export function evalFormula(
   expr: string | undefined,
   props: DbProperty[],
@@ -153,7 +153,7 @@ export function evalFormula(
   if (!tokens || tokens.length === 0) return "";
   const result = evalTokens(tokens);
   if (result === null || !Number.isFinite(result)) return "";
-  // integers render without a trailing ".0"
+ // integers render without a trailing ".0"
   return Number.isInteger(result) ? String(result) : String(result);
 }
 
@@ -174,7 +174,7 @@ export function aggregate(values: number[], fn: string | undefined): number {
 }
 
 /** Compute a rollup value string for a row given the linked target rows and the
- *  target property id. Non-numeric target values count as 0 for sum/avg. */
+ * target property id. Non-numeric target values count as 0 for sum/avg. */
 export function rollupValue(
   linkedRows: DbRow[],
   targetPropertyId: string | undefined,

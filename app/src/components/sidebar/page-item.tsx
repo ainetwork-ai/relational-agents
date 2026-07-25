@@ -72,12 +72,12 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
     if (draft !== page.title) updatePage(page.id, { title: draft });
   }
 
-  // Pointer-based drag to reorder (before/after a sibling) or reparent (drop
-  // onto the middle of a row → nest as a child). Persists position/parentPageId.
+ // Pointer-based drag to reorder (before/after a sibling) or reparent (drop
+ // onto the middle of a row → nest as a child). Persists position/parentPageId.
   function onGripPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
-    // live three-zone preview (above / inside / below) while dragging
+ // live three-zone preview (above / inside / below) while dragging
     const onMove = (ev: PointerEvent) => {
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
       const row = el?.closest('[data-testid^="page-tree-item-"]') as HTMLElement | null;
@@ -113,14 +113,14 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
       const rect = row.getBoundingClientRect();
       const rel = (ev.clientY - rect.top) / rect.height;
       if (rel < 0.33 || rel > 0.66) {
-        // reorder as a sibling of the target (before or after it)
+ // reorder as a sibling of the target (before or after it)
         const before = rel < 0.33;
         store.updatePage(page.id, {
           parentPageId: target.parentPageId,
           position: target.position + (before ? -0.5 : 0.5),
         });
       } else {
-        // nest under the target
+ // nest under the target
         store.updatePage(page.id, { parentPageId: targetId });
         useUiStore.getState().expand(targetId);
       }
@@ -162,7 +162,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
           aria-label={expanded ? "Collapse" : "Expand"}
         >
-          {/* Notion swaps the page icon for the chevron on row hover */}
+          {/* Swap the page icon for the chevron on row hover */}
           <span className="text-[15px] leading-none group-hover:hidden">
             <PageIcon icon={page.icon} fallback="📄" />
           </span>

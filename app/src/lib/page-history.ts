@@ -33,7 +33,7 @@ export async function maybeSnapshot(
     const { title, blocks } = await getState();
     await db.insert(pageSnapshots).values({ pageId, title, blocks, createdBy: userId });
 
-    // prune history depth
+ // prune history depth
     const [nth] = await db
       .select({ createdAt: pageSnapshots.createdAt })
       .from(pageSnapshots)
@@ -47,7 +47,7 @@ export async function maybeSnapshot(
         .where(and(eq(pageSnapshots.pageId, pageId), lt(pageSnapshots.createdAt, nth.createdAt)));
     }
   } catch (err) {
-    // history must never break saving
+ // history must never break saving
     console.error("snapshot failed", err instanceof Error ? err.message : err);
   }
 }
@@ -65,7 +65,7 @@ export function toSnapshotBlocks(
   }));
 }
 
-/** Page history is member-only (no share-token access, like Notion). */
+/** Page history is member-only (no share-token access, ). */
 export async function pageHistoryAccess(pageId: string, userId: string) {
   if (isOkfId(pageId)) return true; // file-backed: any authenticated member
   const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);

@@ -7,7 +7,7 @@ import { and, eq, inArray } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 /** GET → { agents } — the relationship agents living in the caller's DM rooms.
- *  These ARE the user's agents (one per relationship), shown in the sidebar. */
+ * These ARE the user's agents (one per relationship), shown in the sidebar. */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;

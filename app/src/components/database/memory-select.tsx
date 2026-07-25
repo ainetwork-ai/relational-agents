@@ -12,7 +12,7 @@ export interface NsOption {
   colorClass?: string;
 }
 
-/** Property-type glyphs for menu rows (Notion shows an icon per type). */
+/** Property-type glyphs for menu rows. */
 export const TYPE_ICON: Record<string, string> = {
   title: "Aa", text: "Aa", number: "#", select: "▾", multi_select: "≔",
   status: "◐", date: "🗓", person: "ᴘ", checkbox: "☑", url: "🔗",
@@ -21,9 +21,9 @@ export const TYPE_ICON: Record<string, string> = {
   created_by: "ᴘ", last_edited_by: "ᴘ",
 };
 
-/** Notion-style dropdown replacing native <select>: its own popover menu with
- *  a search box (when long), type icons and colored tags (R039 / scienario 4).
- *  Menu rows carry `data-testid={testid}-opt-{value}`. */
+/** dropdown replacing native <select>: its own popover menu with
+ * a search box (when long), type icons and colored tags (R039 / scienario 4).
+ * Menu rows carry `data-testid={testid}-opt-{value}`. */
 export function MemorySelect({
   testid,
   value,

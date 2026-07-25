@@ -1,6 +1,6 @@
 /** Categorized emoji dataset for the icon/emoji picker.
- *  Each entry: [emoji, searchTerms]. Search terms are lowercase, space-separated.
- *  Kept inline to avoid external dependencies (CSP blocks CDN fetches). */
+ * Each entry: [emoji, searchTerms]. Search terms are lowercase, space-separated.
+ * Kept inline to avoid external dependencies (CSP blocks CDN fetches). */
 
 export interface EmojiCategory {
   name: string;

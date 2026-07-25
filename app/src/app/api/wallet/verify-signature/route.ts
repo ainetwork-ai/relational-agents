@@ -5,8 +5,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/wallet/verify-signature
- *   body: { message: string, signature: string, address?: string }
- *   → { valid: boolean, signer: string | null }
+ * body: { message: string, signature: string, address?: string }
+ * → { valid: boolean, signer: string | null }
  *
  * Stateless signature check — pure crypto, no session, no DB, no side effects.
  * It answers "did this address sign this string?" and nothing more.

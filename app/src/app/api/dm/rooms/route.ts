@@ -54,9 +54,9 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
     .orderBy(chatMessages.roomId, desc(chatMessages.createdAt), desc(chatMessages.id));
   const lastByRoom = new Map(lastMessages.map((m) => [m.roomId, m]));
 
-  // unread = others' messages after I joined (joinedAt) AND after my last
-  // read (lastReadAt). GREATEST ignores NULLs, so lastReadAt=NULL (never
-  // read) baselines at joinedAt — pre-invite history doesn't all count as unread.
+ // unread = others' messages after I joined (joinedAt) AND after my last
+ // read (lastReadAt). GREATEST ignores NULLs, so lastReadAt=NULL (never
+ // read) baselines at joinedAt — pre-invite history doesn't all count as unread.
   const unreadRows = await db
     .select({ roomId: chatMessages.roomId, count: sql<number>`count(*)::int` })
     .from(chatMessages)
@@ -99,7 +99,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
       unreadCount: unreadByRoom.get(room.id) ?? 0,
     };
   });
-  // most recent conversation first (rooms without messages sort by creation)
+ // most recent conversation first (rooms without messages sort by creation)
   summaries.sort((a, b) => {
     const ta = (a.lastMessage?.createdAt ?? a.createdAt).getTime();
     const tb = (b.lastMessage?.createdAt ?? b.createdAt).getTime();
@@ -109,8 +109,8 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
 }
 
 /** My dm rooms in the active workspace. Each relationship lives in its own
- *  "{me} ❤️ {partner}" workspace, so scoping by workspace shows one room per
- *  relationship in the space that relationship belongs to. */
+ * "{me} ❤️ {partner}" workspace, so scoping by workspace shows one room per
+ * relationship in the space that relationship belongs to. */
 async function myDmRooms(meId: string, workspaceId: string): Promise<ChatRoom[]> {
   const rows = await db
     .select({ room: chatRooms })
@@ -137,7 +137,7 @@ export async function GET() {
 }
 
 /** POST /api/dm/rooms { memberIds: string[], name? } → { room: DmRoomSummary }.
- *  1:1 (single partner) reuses an existing room (200), else creates (201). */
+ * 1:1 (single partner) reuses an existing room (200), else creates (201). */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -159,11 +159,11 @@ export async function POST(req: NextRequest) {
   const name =
     typeof body?.name === "string" ? body.name.trim().slice(0, MAX_NAME) : "";
 
-  // immutable identity key for 1:1 rooms — survives membership changes (group/agent rooms: null)
+ // immutable identity key for 1:1 rooms — survives membership changes (group/agent rooms: null)
   const directKey =
     memberIds.length === 1 ? [meId, memberIds[0]].sort().join("|") : null;
 
-  // every invitee must belong to the same workspace (no exposure of outside users)
+ // every invitee must belong to the same workspace (no exposure of outside users)
   const wsRows = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
   if (wsRows.length !== memberIds.length)
     return NextResponse.json({ error: "All members must be in your workspace" }, { status: 400 });
 
-  // 1:1 dedup — looked up by directKey (immutable, so old group rooms can't hijack a fresh 1:1)
+ // 1:1 dedup — looked up by directKey (immutable, so old group rooms can't hijack a fresh 1:1)
   if (directKey) {
     const [existing] = await db
       .select()
@@ -192,10 +192,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // relationship rooms run on the signed contract — every member (couple or
-  // group) signs via wallet (/consent) before consentAt stamps and the agent
-  // is born. Only rooms with wallet-less members (demo accounts) keep the
-  // legacy instant consent.
+ // relationship rooms run on the signed contract — every member (couple or
+ // group) signs via wallet (/consent) before consentAt stamps and the agent
+ // is born. Only rooms with wallet-less members (demo accounts) keep the
+ // legacy instant consent.
   const allMemberIds = [meId, ...memberIds];
   const memberRows = await db
     .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
   const allWallets =
     memberRows.length === allMemberIds.length &&
     memberRows.every((r) => /^0x[0-9a-f]{40}$/i.test(r.address));
-  // relationship rooms are named after their people: "{me} ❤️ {partner}"
+ // relationship rooms are named after their people: "{me} ❤️ {partner}"
   const byId = new Map(memberRows.map((r) => [r.id, r.displayName]));
   const roomName =
     name ||

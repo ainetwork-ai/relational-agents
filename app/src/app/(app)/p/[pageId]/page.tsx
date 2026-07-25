@@ -28,12 +28,12 @@ export default async function PageRoute({
 
   const { pageId } = await params;
 
-  // OKF (file-backed) content: the folder tree IS the backend. Everything
-  // renders through the SAME PageView — a .md file is a page, a .csv file is a
-  // page whose body is the single database view (a synthetic `database` block
-  // that reads /api/databases/{id}, served from the CSV). No parallel view.
+ // OKF (file-backed) content: the folder tree IS the backend. Everything
+ // renders through the SAME PageView — a .md file is a page, a .csv file is a
+ // page whose body is the single database view (a synthetic `database` block
+ // that reads /api/databases/{id}, served from the CSV). No parallel view.
   if (isOkfId(pageId)) {
-    // participant-only OKF paths (relationship docs) hide their existence from non-members
+ // participant-only OKF paths (relationship docs) hide their existence from non-members
     const gate = await okfGateFor(session.userId);
     if (!gate.canReadId(pageId)) notFound();
     let node = null;
@@ -69,7 +69,7 @@ export default async function PageRoute({
       return <PageView key={okfPage.id} initialPage={okfPage} initialBlocks={[dbBlock]} wide />;
     }
 
-    // .md page or a database row (both render their file blocks in PageView)
+ // .md page or a database row (both render their file blocks in PageView)
     return (
       <PageView
         key={okfPage.id}

@@ -16,7 +16,7 @@ function readAll(): Record<string, boolean> {
 export function useSectionCollapse(name: string): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
-    // deferred so no setState runs synchronously in the effect body
+ // deferred so no setState runs synchronously in the effect body
     void Promise.resolve().then(() => setCollapsed(!!readAll()[name]));
   }, [name]);
   const toggle = () => {

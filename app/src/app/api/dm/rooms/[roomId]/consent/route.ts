@@ -65,9 +65,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 }
 
 /** POST { signature } → verifies the caller's EIP-712 consent signature and
- *  records it; when both parties have signed, stamps consentAt — the agent is
- *  born. The stored pair can be relayed on-chain to
- *  RelationalAgentRegistry.registerRelationalAgent() as-is. */
+ * records it; when both parties have signed, stamps consentAt — the agent is
+ * born. The stored pair can be relayed on-chain to
+ * RelationalAgentRegistry.registerRelationalAgent() as-is. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -124,8 +124,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if (complete && !consentAt) {
     consentAt = new Date();
     await db.update(chatRooms).set({ consentAt }).where(eq(chatRooms.id, roomId));
-    // The agent is born the moment consent completes — no extra button. Provision
-    // it and greet the room so both people see it come alive.
+ // The agent is born the moment consent completes — no extra button. Provision
+ // it and greet the room so both people see it come alive.
     try {
       const room = { ...access.room, consentAt };
       const memberIds = parties.map((p) => p.id);
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           text: `Hi ${parties.map((p) => p.displayName).join(" & ")} 💞 I'm your relationship agent, born from both your signatures. I'll remember only what the two of you share here — nothing leaves this relationship. Nice to meet you both!`,
         });
       }
-      // Relay both signatures on-chain: mint the agent in the ERC-8004 registry.
+ // Relay both signatures on-chain: mint the agent in the ERC-8004 registry.
       const contracts = await db
         .select({ address: relationContracts.address, signature: relationContracts.signature })
         .from(relationContracts)
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         agentUri: `okf://relationship/${roomId}`,
       });
       if (onchain) {
-        // stash the tx + agentId on the agent's card so the UI can link it
+ // stash the tx + agentId on the agent's card so the UI can link it
         const agentRow = await db.select().from(users).where(eq(users.id, agentUserId)).limit(1);
         const card = (agentRow[0]?.agentCardJson ?? {}) as Record<string, unknown>;
         await db

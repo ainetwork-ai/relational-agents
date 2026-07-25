@@ -9,7 +9,7 @@ interface ImportResult {
   databases: number;
 }
 
-/** Sidebar "Import" control: upload a Notion export .zip → it becomes pages. */
+/** Sidebar "Import" control: upload a workspace export .zip → it becomes pages. */
 export function ImportButton() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -20,7 +20,7 @@ export function ImportButton() {
   async function submit() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setError("Choose a Notion export .zip first");
+      setError("Choose a workspace export .zip first");
       return;
     }
     setBusy(true);
@@ -69,10 +69,10 @@ export function ImportButton() {
             className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-700 dark:bg-neutral-800"
           >
             <h2 className="mb-1 text-base font-semibold text-neutral-800 dark:text-neutral-100">
-              Import from Notion
+              Import export
             </h2>
             <p className="mb-4 text-xs text-neutral-500 dark:text-neutral-400">
-              Upload a Notion export <code>.zip</code> (Markdown &amp; CSV). Its pages and
+              Upload a workspace export <code>.zip</code> (Markdown &amp; CSV). Its pages and
               databases are added to your content tree.
             </p>
 

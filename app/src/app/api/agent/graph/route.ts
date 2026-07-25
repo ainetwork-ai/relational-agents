@@ -21,8 +21,8 @@ export interface GraphEdge {
 const ROOM_LINK_RE = /\/agent-lab\/([0-9a-f-]{36})#msg-/g;
 
 /** GET /api/agent/graph → { nodes, edges } — Obsidian-style graph.
- *  Nodes: my rooms + their relationship-doc trees (OKF files are canonical; legacy Postgres docs supported).
- *  Edges: room→root (owns), root→section (contains), link_to_page (link), source deep-link→room (provenance). */
+ * Nodes: my rooms + their relationship-doc trees (OKF files are canonical; legacy Postgres docs supported).
+ * Edges: room→root (owns), root→section (contains), link_to_page (link), source deep-link→room (provenance). */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -60,7 +60,7 @@ export async function GET() {
     }
   };
 
-  // --- OKF docs (current): build root/section nodes from the file tree -----
+ // --- OKF docs (current): build root/section nodes from the file tree -----
   const legacyRootIds = new Set<string>();
   for (const s of states) {
     if (s.rootOkfPath && nodeExists(s.rootOkfPath)) {
@@ -88,7 +88,7 @@ export async function GET() {
       }
       continue;
     }
-    // --- legacy (rooms whose docs lived in Postgres pages) ------------------
+ // --- legacy (rooms whose docs lived in Postgres pages) ------------------
     if (s.rootPageId) {
       legacyRootIds.add(s.rootPageId);
       edges.push({ source: s.roomId, target: s.rootPageId, kind: "owns" });

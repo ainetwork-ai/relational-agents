@@ -33,8 +33,8 @@ export function usePageSync(
     const url = shareToken
       ? `/api/pages/${pageId}/events?token=${encodeURIComponent(shareToken)}`
       : `/api/pages/${pageId}/events`;
-    // shared stream (sse-share): one EventSource per url across the whole
-    // tab — per-hook streams exhausted the browser's per-host connection pool
+ // shared stream (sse-share): one EventSource per url across the whole
+ // tab — per-hook streams exhausted the browser's per-host connection pool
     return subscribeSse(
       url,
       (ev) => {
@@ -44,9 +44,9 @@ export function usePageSync(
           onRemoteRef.current(event);
         } catch {}
       },
-      // Initial sync on (re)connect — anything published between our SSR
-      // snapshot and this subscription would otherwise be lost forever
-      // (aindrive's sync-step-1 equivalent).
+ // Initial sync on (re)connect — anything published between our SSR
+ // snapshot and this subscription would otherwise be lost forever
+ // (aindrive's sync-step-1 equivalent).
       () => {
         onRemoteRef.current({ type: "blocks", pageId, clientId: null, at: Date.now() });
       }

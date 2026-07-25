@@ -22,7 +22,7 @@ export async function POST(
   const name: string = body?.name || "Property";
   const type: PropertyType = body?.type || "text";
 
-  // file-backed database: add a CSV column; declared type/config → .dbmeta.json
+ // file-backed database: add a CSV column; declared type/config → .dbmeta.json
   if (isOkfId(databaseId)) {
     try {
       const col = await writeDbAddColumn(decodeId(databaseId), name, type, body?.config);

@@ -11,9 +11,9 @@ import type { PublicUser } from "@/lib/auth/public-user";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
 
 /** Operators offered for each property type in the filter builder (the full
- *  Notion operator set per type). */
+ * operator set per type). */
 /** Target-db snapshots keyed by database id — lets relation mirrors and
- *  rollups resolve synchronously inside applyView. */
+ * rollups resolve synchronously inside applyView. */
 export interface RelatedSnapshots {
   [dbId: string]: { properties: DbProperty[]; rows: DbRow[] };
 }
@@ -72,7 +72,7 @@ export function opsForType(type: PropertyType): FilterOp[] {
 }
 
 /** The value a filter/sort actually evaluates for a property — audit columns
- *  and formulas aren't in row.values (Notion filters on them regardless). */
+ * and formulas aren't in row.values. */
 export function resolveFilterValue(
   row: DbRow,
   prop: DbProperty,
@@ -97,7 +97,7 @@ export function resolveFilterValue(
     case "relation": {
       const mirror = prop.config.mirrorOf;
       if (mirror) {
-        // two-way mirror: reverse links computed from the source db
+ // two-way mirror: reverse links computed from the source db
         const src = related?.[mirror.databaseId];
         if (!src) return undefined;
         const ids = src.rows
@@ -154,7 +154,7 @@ export function opNeedsValue(op: FilterOp): boolean {
   return !["is_me", "is_empty", "not_empty", "checked", "unchecked"].includes(op);
 }
 
-// ---- relative dates (Notion's "Today", "One week ago", "is within past week")
+// ---- relative dates
 /** Point-in-time tokens usable as a date filter value (`@today` …). */
 export const DATE_TOKENS: { token: string; label: string }[] = [
   { token: "@today", label: "Today" },
@@ -182,8 +182,8 @@ function isoDay(d: Date): string {
 function shifted(days: number, months = 0, years = 0): string {
   const d = new Date();
   if (months || years) {
-    // month/year steps clamp the day-of-month (Jan 31 − 1 month = Dec 31, not
-    // Jan 2/3 via day-overflow roll-over)
+ // month/year steps clamp the day-of-month (Jan 31 − 1 month = Dec 31, not
+ // Jan 2/3 via day-overflow roll-over)
     const day = d.getDate();
     d.setDate(1);
     d.setFullYear(d.getFullYear() + years, d.getMonth() + months, 1);
@@ -194,7 +194,7 @@ function shifted(days: number, months = 0, years = 0): string {
   return isoDay(d);
 }
 /** Resolve a filter's date value — a relative token becomes today's concrete
- *  "YYYY-MM-DD"; a plain date string passes through. */
+ * "YYYY-MM-DD"; a plain date string passes through. */
 export function resolveDateValue(value: unknown): string {
   const v = String(value ?? "");
   switch (v) {
@@ -258,7 +258,7 @@ export function findOption(prop: DbProperty, id: unknown): SelectOption | undefi
 }
 
 /** A filter that still needs a value (none picked yet) is INACTIVE — the view
- *  stays unfiltered while the user is mid-edit (Notion treats it as a no-op). */
+ * stays unfiltered while the user is mid-edit. */
 export function filterIsActive(f: { op: FilterOp; value?: unknown }): boolean {
   if (!opNeedsValue(f.op)) return true;
   if (f.value === undefined || f.value === "") return false;
@@ -274,16 +274,16 @@ export function applyView(
   me: string | null,
   related?: RelatedSnapshots
 ): DbRow[] {
-  // template rows (values.__template) are blueprints, never real data — they
-  // never show in any view or count toward calcs.
+ // template rows (values.__template) are blueprints, never real data — they
+ // never show in any view or count toward calcs.
   let out = rows.filter((r) => !r.values.__template);
-  // inactive rules don't restrict: incomplete (no value yet) or orphaned
-  // (their property was deleted — a ghost rule must never blank the view).
+ // inactive rules don't restrict: incomplete (no value yet) or orphaned
+ // (their property was deleted — a ghost rule must never blank the view).
   const isLive = (f: ViewFilter) =>
     filterIsActive(f) && props.some((p) => p.id === f.propertyId);
   const active = (config.filters ?? []).filter(isLive);
-  // nested groups: each group ANDs/ORs its own rules, then counts as ONE hit
-  // at the top level (Notion's 2-level advanced filters)
+ // nested groups: each group ANDs/ORs its own rules, then counts as ONE hit
+ // at the top level
   const groups = (config.filterGroups ?? [])
     .map((g) => ({
       or: g.conjunction === "or",
@@ -295,7 +295,7 @@ export function applyView(
     return matchFilter(resolveFilterValue(r, prop, props, related), f.op, f.value, me, prop.type);
   };
   if (active.length || groups.length) {
-    // AND (default) requires every condition; OR requires at least one.
+ // AND (default) requires every condition; OR requires at least one.
     const or = config.filterConjunction === "or";
     out = out.filter((r) => {
       const hits = [
@@ -328,7 +328,7 @@ function empty(v: unknown): boolean {
   return v === undefined || v === null || v === "";
 }
 
-/** Column-footer aggregation (Notion "Calculate"). Returns a display string. */
+/** Column-footer aggregation. Returns a display string. */
 export function computeCalc(rows: DbRow[], propId: string, calc: string): string {
   const vals = rows.map((r) => r.values[propId]);
   const nums = vals
@@ -370,12 +370,12 @@ export function matchFilter(
   me: string | null,
   type?: PropertyType
 ): boolean {
-  // "is / is not" accept an ARRAY value = Notion's "is any of / is none of".
+ // "is / is not" accept an ARRAY value = "is any of / is none of".
   const wanted: unknown[] = Array.isArray(value) ? value : [value];
   const eq = (): boolean => {
     if (empty(v)) return false;
-    // dispatch on the PROPERTY TYPE (not the value's shape): a text cell that
-    // happens to look like a date must not get day-prefix matching.
+ // dispatch on the PROPERTY TYPE (not the value's shape): a text cell that
+ // happens to look like a date must not get day-prefix matching.
     switch (type) {
       case "date":
       case "created_time":
@@ -388,7 +388,7 @@ export function matchFilter(
       case "url":
       case "email":
       case "phone":
-        // Notion text filters are case-insensitive across all operators
+ // Text filters are case-insensitive across all operators
         return wanted.some(
           (w) => String(v).toLowerCase() === String(w ?? "").toLowerCase()
         );
@@ -406,7 +406,7 @@ export function matchFilter(
       case "last_edited_by":
         return wanted.some((w) => String(v) === String(w));
       default: {
-        // no type known (legacy caller) — keep the shape heuristic
+ // no type known (legacy caller) — keep the shape heuristic
         if (v !== null && typeof v === "object" && !Array.isArray(v))
           return wanted.some((w) => cellDay(v) === resolveDateValue(w));
         if (/^\d{4}-\d{2}-\d{2}/.test(String(v)))
@@ -433,7 +433,7 @@ export function matchFilter(
     case "equals":
       return eq();
     case "not_equals":
-      return empty(v) ? true : !eq(); // Notion: empty rows pass "is not X"
+      return empty(v) ? true : !eq(); // empty rows pass "is not X"
     case "contains":
       return has();
     case "not_contains":
@@ -482,12 +482,12 @@ function compareValues(a: unknown, b: unknown, prop?: DbProperty): number {
   if (ae) return 1; // empties sort last
   if (be) return -1;
   if (prop?.type === "number") return Number(a) - Number(b);
-  // dates: compare by start day — a {start,end} range must not stringify to
-  // "[object Object]"
+ // dates: compare by start day — a {start,end} range must not stringify to
+ // "[object Object]"
   if (prop?.type === "date" || prop?.type === "created_time" || prop?.type === "last_edited_time")
     return dateStart(a).localeCompare(dateStart(b));
-  // select/status: Notion sorts by the property's OPTION ORDER, not by the
-  // options' internal ids
+ // select/status: sort by the property's OPTION ORDER, not by the
+ // options' internal ids
   if (prop?.type === "select" || prop?.type === "status") {
     const opts = prop.config.options ?? [];
     const ai = opts.findIndex((o) => o.id === a);
@@ -498,7 +498,7 @@ function compareValues(a: unknown, b: unknown, prop?: DbProperty): number {
 }
 
 /** Partition rows into labelled sections by a select/status property (the
- *  shared group-by used by table sections, list and gallery groupings). */
+ * shared group-by used by table sections, list and gallery groupings). */
 export function groupRowsBy(
   rows: DbRow[],
   prop: DbProperty | undefined
@@ -527,8 +527,8 @@ export function personLabel(members: PublicUser[], id: unknown): string {
 }
 
 /** Normalize a date property value to its start date string (calendar view
- *  lays rows on `dateStart(value).slice(0,10)`). Handles a plain ISO string or
- *  a `{ start }` range object. */
+ * lays rows on `dateStart(value).slice(0,10)`). Handles a plain ISO string or
+ * a `{ start }` range object. */
 export function dateStart(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;

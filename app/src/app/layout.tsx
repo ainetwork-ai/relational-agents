@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 // Runs before paint so a saved dark preference never flashes light (FOUC).
-const themeScript = `(function(){try{var m=localStorage.getItem("notion-theme");var dark=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(dark)document.documentElement.classList.add("dark")}catch(e){}})()`;
+const themeScript = `(function(){try{var m=localStorage.getItem("app-theme");var dark=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(dark)document.documentElement.classList.add("dark")}catch(e){}})()`;
 
 export default function RootLayout({
   children,
