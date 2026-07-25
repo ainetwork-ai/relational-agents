@@ -17,13 +17,13 @@ app/.omc/
 md-mirror/
 
 # personal/runtime data — caches, raw originals, generated content.
-# 사용자 업로드는 런타임 데이터라 커밋하지 않는다.
+# user uploads are runtime data, not source
 app/public/uploads/
 app/public/avatars/
 dashboard/.uploads-cache.json
 dashboard/public/date/*.heic
 dashboard/public/source/
 .claude/scheduled_tasks.lock
-notion-data/content/관계 문서*/
+notion-data/content/Relationship doc*/
 notion-data/content/Relationships.csv
 notion-data/content/demo.md
