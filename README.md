@@ -78,7 +78,7 @@ couples demo above is just one instance of the same model.)
 
 ```mermaid
 flowchart TB
-    subgraph WS["🏢 Acme workspace (a team)"]
+    subgraph WS["🏢 ComCom workspace (a team)"]
         direction LR
         BD(["👤 BD"])
         MK(["👤 Marketing"])
