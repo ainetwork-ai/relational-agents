@@ -65,6 +65,9 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
   useEffect(() => {
     onFinalRef.current = onFinal;
   });
+  // Chrome occasionally finalizes the same sentence twice back to back —
+  // without this the agent hears everything said twice
+  const lastFinalRef = useRef({ text: "", at: 0 });
 
   useEffect(() => {
     if (!enabled) return;
@@ -81,7 +84,12 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
         const r = ev.results[i];
         const text = r[0].transcript.trim();
         if (r.isFinal) {
-          if (text.length >= 2) onFinalRef.current(text);
+          const dup =
+            text === lastFinalRef.current.text && Date.now() - lastFinalRef.current.at < 3000;
+          if (text.length >= 2 && !dup) {
+            lastFinalRef.current = { text, at: Date.now() };
+            onFinalRef.current(text);
+          }
         } else {
           pending += ` ${text}`;
         }
@@ -105,7 +113,9 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
     rec.onend = () => {
       setInterim("");
       if (!active || dead) return;
-      // Chrome ends recognition after ~seconds of silence — restart
+      // Chrome ends recognition after ~seconds of silence — restart fast:
+      // the gap is deaf time, and a long one eats the first syllable of
+      // whatever is said next
       setTimeout(() => {
         if (!active || dead) return;
         try {
@@ -113,7 +123,7 @@ export function useSpeechTranscript({ enabled, lang, onFinal }: SpeechTranscript
         } catch {
           /* InvalidStateError when already restarted */
         }
-      }, 250);
+      }, 80);
     };
     try {
       rec.start();

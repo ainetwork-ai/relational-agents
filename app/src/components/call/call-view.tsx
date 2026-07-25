@@ -497,6 +497,9 @@ export function CallView({ roomId }: { roomId: string }) {
         method: "POST",
         headers: { "content-type": "application/json", "x-client-id": clientId },
         body: JSON.stringify({ text }),
+        // the last sentence often finalizes as the call is being torn down —
+        // keepalive lets it outlive the page instead of dying with it
+        keepalive: true,
       });
     },
   });
