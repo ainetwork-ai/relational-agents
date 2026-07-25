@@ -1,5 +1,3 @@
-Stack: Next.js 16 + Postgres/Drizzle for the workspace app, Solidity for the registry, viem + MetaMask for wallets, a local LLM behind a provider port for agent replies.
-
 A2A: once born, every relational agent is a first-class A2A participant, not an in-app special case. It publishes an agent card at /.well-known/agent-card.json and speaks JSON-RPC SendMessage, so any A2A client — our dispatcher, a Kakao bot, an external eve agent — talks to it the same way. Access is authorized by per-member bearer tokens: a third party who only knows the URL is refused.
 
 MCP: the agent's memory surface is also exposed as MCP tools (relational-memory-mcp), so an external agent reads and writes the exact same bundle the in-app agent does — one memory, two protocols.
@@ -9,3 +7,5 @@ OKF: each relationship gets one OKF (Open Knowledge Format) bundle — a folder 
 ERC-8004: RelationalAgentRegistry.sol is a dependency-free, ERC-8004 (Trustless Agents) compatible identity registry with one twist — registerRelationalAgent() only mints when EVERY party's EIP-712 RelationConsent signature verifies on-chain. The agent NFT is minted to the registry itself (jointly owned by the relationship, no transfer function), relationId = keccak256(roomId), and a relayer submits the signature set so no member pays gas. Fun bug: wallets hash EIP-712 address[] as 32-byte words while abi.encodePacked packs 20 bytes — we had to bytes32-encode each element or every signature "failed". Dissolution mirrors birth: dissolveRelationalAgent verifies a RelationDissolve from all parties and stamps dissolvedAt — no burn, the record outlives the relationship.
 
 Hacky-but-notable: agent replies are LLM-emitted JSON that can attach images — whitelisted to local /uploads/* paths cited in the relationship doc, so the model can "show" a memory but never exfiltrate an arbitrary URL.
+
+Stack: Next.js 16 · Postgres/Drizzle · Solidity · viem · MetaMask · local LLM
