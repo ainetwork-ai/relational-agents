@@ -75,9 +75,11 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   }, [open]);
 
   // After switching/creating, reload the (workspace-scoped) page tree and
-  // re-render the server layout so every workspace-derived value refreshes.
+  // navigate to "/" so the URL leaves the old workspace's page and re-resolves
+  // to the new workspace's first page (or empty home).
   async function refreshWorkspace() {
     await usePagesStore.getState().load();
+    router.push("/");
     router.refresh();
   }
 
