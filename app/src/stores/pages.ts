@@ -24,6 +24,10 @@ interface PagesState {
 
 const byPos = (a: Page, b: Page) => a.position - b.position;
 
+/** A page renders at the root when it has no parent or its parent isn't loaded. */
+const isRoot = (p: Page, pages: Record<string, Page>) =>
+  !p.parentPageId || !pages[p.parentPageId];
+
 /** Build the tree indexes in one O(N log N) pass. */
 function derive(pages: Record<string, Page>) {
   const roots: Page[] = [];
@@ -37,12 +41,13 @@ function derive(pages: Record<string, Page>) {
       if (t) t.push(p);
       else byTeamspace.set(p.teamspaceId, [p]);
     }
-    if (!p.parentPageId || !pages[p.parentPageId]) {
+    if (isRoot(p, pages)) {
       roots.push(p);
     } else {
-      const arr = childrenOf.get(p.parentPageId);
+      const pid = p.parentPageId!; // non-root ⇒ parent id present (isRoot above)
+      const arr = childrenOf.get(pid);
       if (arr) arr.push(p);
-      else childrenOf.set(p.parentPageId, [p]);
+      else childrenOf.set(pid, [p]);
     }
   }
   roots.sort(byPos);
@@ -180,8 +185,8 @@ export const usePagesStore = create<PagesState>((set, get) => ({
 /** Root-level pages sorted by position. */
 export function selectRoots(pages: Record<string, Page>): Page[] {
   return Object.values(pages)
-    .filter((p) => !p.parentPageId || !pages[p.parentPageId])
-    .sort((a, b) => a.position - b.position);
+    .filter((p) => isRoot(p, pages))
+    .sort(byPos);
 }
 
 /** Children of a page sorted by position. */

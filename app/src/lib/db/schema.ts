@@ -557,7 +557,9 @@ export const notifications = pgTable(
       .notNull(),
     type: text("type").notNull(), // 'mention' | 'comment' | 'invite'
     actorId: uuid("actor_id").references(() => users.id),
-    pageId: uuid("page_id"),
+    // text, not uuid: OKF page ids are base64url path encodings (comments and
+    // page_snapshots already store them as text for the same reason)
+    pageId: text("page_id"),
     commentId: uuid("comment_id"),
     body: text("body").default("").notNull(),
     read: boolean("read").default(false).notNull(),

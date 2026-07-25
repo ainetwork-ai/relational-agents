@@ -40,7 +40,7 @@ export async function getWorkspaceRole(
   // unknown/legacy role strings fall back to the least-privileged real role
   return (ROLE_LEVEL[m.role as WorkspaceRole] !== undefined
     ? (m.role as WorkspaceRole)
-    : "member") as WorkspaceRole;
+    : "guest") as WorkspaceRole;
 }
 
 export function hasRole(actual: WorkspaceRole | null, min: WorkspaceRole): boolean {

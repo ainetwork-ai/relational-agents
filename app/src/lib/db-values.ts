@@ -438,10 +438,16 @@ export function matchFilter(
       return has();
     case "not_contains":
       return empty(v) ? true : !has();
-    case "starts_with":
-      return String(v ?? "").toLowerCase().startsWith(String(value ?? "").toLowerCase());
-    case "ends_with":
-      return String(v ?? "").toLowerCase().endsWith(String(value ?? "").toLowerCase());
+    case "starts_with": {
+      const w = String(wanted[0] ?? "").toLowerCase();
+      if (Array.isArray(v)) return v.some((x) => String(x).toLowerCase().startsWith(w));
+      return String(v ?? "").toLowerCase().startsWith(w);
+    }
+    case "ends_with": {
+      const w = String(wanted[0] ?? "").toLowerCase();
+      if (Array.isArray(v)) return v.some((x) => String(x).toLowerCase().endsWith(w));
+      return String(v ?? "").toLowerCase().endsWith(w);
+    }
     case "gt":
       return !empty(v) && Number(v) > Number(value);
     case "gte":
