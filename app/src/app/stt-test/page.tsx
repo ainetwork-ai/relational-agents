@@ -32,13 +32,23 @@ export default function SttTestPage() {
   const [device, setDevice] = useState<string>("");
   const [lang, setLang] = useState("en-US");
   const [sttOn, setSttOn] = useState(false);
+  const [roomId, setRoomId] = useState("");
+  const [postOn, setPostOn] = useState(true);
+  const roomIdRef = useRef("");
+  const postOnRef = useRef(true);
+  roomIdRef.current = roomId.trim();
+  postOnRef.current = postOn;
   const recRef = useRef<RecLike | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const logRef = useRef<HTMLDivElement | null>(null);
 
-  const add = (s: string) =>
+  const add = (s: string) => {
     setLog((l) => [...l.slice(-120), `${new Date().toLocaleTimeString("en-GB")}  ${s}`]);
+    // headless-free automation: significant events surface in the tab title
+    // so a script (or AppleScript) can read the verdict without a debugger
+    if (/FINAL|ERROR|ENGINE|MIC/.test(s)) document.title = `STT-TEST ${s.slice(0, 80)}`;
+  };
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -99,6 +109,24 @@ export default function SttTestPage() {
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
         add(`${r.isFinal ? "FINAL " : "interim"}: ${r[0].transcript}`);
+        // step 3: a finalized sentence rides the REAL pipeline
+        if (r.isFinal && postOnRef.current && roomIdRef.current) {
+          const text = r[0].transcript.trim();
+          if (text.length < 2) continue;
+          void fetch(`/api/calls/${roomIdRef.current}/utterance`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ text }),
+          })
+            .then(async (res) =>
+              add(
+                `utterance POST → ${res.status}${
+                  res.ok ? "" : ` (${(await res.json().catch(() => ({})))?.error ?? "?"})`
+                }`
+              )
+            )
+            .catch((e) => add(`utterance POST FAILED: ${String(e).slice(0, 60)}`));
+        }
       }
     };
     rec.onerror = (ev) => add(`ERROR: ${ev.error}`);
@@ -114,6 +142,28 @@ export default function SttTestPage() {
   }
 
   useEffect(() => () => { stopMic(); recRef.current?.stop(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ?auto=1 — start both stages on load (fake-media Chrome grants without a
+  // prompt), so a launched browser window IS the test run
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get("auto")) return;
+    const t = setTimeout(() => {
+      void startMic();
+      startStt();
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // room id: ?room= wins, else the last one used on this browser
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("room");
+    const saved = localStorage.getItem("stt-test-room") ?? "";
+    if (q || saved) setRoomId(q ?? saved);
+  }, []);
+  useEffect(() => {
+    if (roomId.trim()) localStorage.setItem("stt-test-room", roomId.trim());
+  }, [roomId]);
 
   const btn =
     "rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40";
@@ -153,6 +203,28 @@ export default function SttTestPage() {
           모든 이벤트를 필터 없이 기록합니다. 말했는데 interim조차 없으면 → 1단계 확인;
           ERROR: network → 구글 음성 서비스 차단 (Web Speech 불가, Azure/외부 STT 필요);
           FINAL이 찍히면 → STT 정상, 통화의 utterance 전송도 동작합니다 (그 뒷단은 e2e로 증명됨).
+        </p>
+      </section>
+
+      <section className="space-y-2 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
+        <h2 className="font-semibold">3단계 — FINAL이 utterance API를 실제로 타는가</h2>
+        <div className="flex items-center gap-3">
+          <input
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+            placeholder="room id (예: 184cc64d-44c6-48e6-9b20-267cd64d4559)"
+            className="w-96 rounded border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+          />
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={postOn} onChange={(e) => setPostOn(e.target.checked)} />
+            FINAL 시 POST
+          </label>
+        </div>
+        <p className="text-xs text-neutral-500">
+          확정 문장마다 POST /api/calls/&#123;room&#125;/utterance 로 전송하고 응답 코드를 로그에 남깁니다.
+          201 = 성공(에이전트가 읽음). 409 &quot;No active call&quot; = 그 방에 <b>진행 중인 통화</b>가 있어야 합니다
+          (다른 창에서 통화를 연결해 두고 테스트). 401/403 = 이 브라우저 세션이 방 멤버가 아님.
+          ?room=&lt;id&gt; 로 미리 채울 수 있습니다.
         </p>
       </section>
 
