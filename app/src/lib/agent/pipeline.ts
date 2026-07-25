@@ -8,6 +8,7 @@ import {
   chatMessages,
   chatRoomMembers,
   chatRooms,
+  users,
   type ChatMessage,
 } from "@/lib/db/schema";
 import { aiChat, type AiContentPart } from "@/lib/ai";
@@ -22,8 +23,9 @@ import {
 } from "./okf-docs";
 import { parseEdits, SECTIONS, type DocEdit } from "./parse-edits";
 
-/** Swap only this when the chat route settles (source deep-link prefix). */
-export const CHAT_ROUTE_PREFIX = "/agent-lab";
+/** Source deep-link prefix. Rooms live at /dm/[roomId]; /agent-lab has no
+ *  per-room route, so provenance links pointed at a 404. */
+export const CHAT_ROUTE_PREFIX = "/dm";
 
 export interface RunResult {
   processed: number;
@@ -195,23 +197,42 @@ async function runOnce(roomId: string): Promise<RunResult> {
   });
   await setOkfAcl(tree.rootPath, roomId, participants);
 
+  // The agent's own greeting and system notices are not memories — recording
+  // them made the Timeline a transcript of the bot talking to itself. They stay
+  // in `batch` so the checkpoint still advances past them.
+  const authorIds = [...new Set(batch.map((m) => m.authorId))];
+  const agentIds = new Set(
+    (
+      await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(inArray(users.id, authorIds), eq(users.isAgent, true)))
+    ).map((u) => u.id)
+  );
+  const source = batch.filter((m) => !agentIds.has(m.authorId));
+
   const current = readOkfSectionTexts(tree);
  // Deterministic path when the LLM is off or unreachable — the memory still
  // gets written (fakeEdits appends each message to the Timeline), so the
  // agent always records even without an AI endpoint configured.
   let rawEdits: DocEdit[];
-  if (process.env.AGENT_FAKE_LLM === "1" || !process.env.AI_URL) {
-    rawEdits = fakeEdits(batch);
+  // Only an explicit opt-out picks the deterministic path. AI_URL is optional —
+  // the provider defaults to the local vLLM — so gating on it here silently
+  // demoted every real run to fakeEdits (no photo reading, chat copied verbatim).
+  if (!source.length) {
+    rawEdits = []; // nothing but agent chatter this round
+  } else if (process.env.AGENT_FAKE_LLM === "1") {
+    rawEdits = fakeEdits(source);
   } else {
     try {
-      rawEdits = await llmEdits(batch, current, room.name);
+      rawEdits = await llmEdits(source, current, room.name);
     } catch (err) {
       console.error("llm edits failed, recording deterministically:", err);
-      rawEdits = fakeEdits(batch);
+      rawEdits = fakeEdits(source);
     }
   }
  // source forgery prevention: sourceMessageIds only count if they exist in this batch
-  const batchIds = new Set(batch.map((m) => m.id));
+  const batchIds = new Set(source.map((m) => m.id));
   const edits = rawEdits.map((e) => ({
     ...e,
     sourceMessageIds: e.sourceMessageIds.filter((id) => batchIds.has(id)),
