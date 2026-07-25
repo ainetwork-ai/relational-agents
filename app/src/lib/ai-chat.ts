@@ -49,6 +49,8 @@ function fakeReply(userText: string): string {
     ``,
     `> Ask a follow-up any time.`,
     ``,
+    `See the [docs](https://example.com/docs) or visit https://example.com directly.`,
+    ``,
     `Mass-energy equivalence: $E=mc^2$`,
     ``,
     `$$\\sum x$$`,
