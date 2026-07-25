@@ -58,7 +58,7 @@ so any A2A client — our own dispatcher, a Kakao bot, an external
 [eve](relation-agent/) agent — talks to it the same way. Membership is authorized by a
 per-member Bearer token; a third party who only knows the URL is refused.
 
-Its memory is **OKF** ([Open Knowledge Format](app/src/lib/okf-store.ts)) — the folder tree *is* the database. Each relationship gets one bundle:
+Its memory is **OKF** ([Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)) — the folder tree *is* the database. Each relationship gets one bundle:
 a folder of Markdown (Overview, Timeline, People notes, Decisions, Open topics). The agent
 *writes* memories by appending to those files, and *answers* by reading them back with source
 links. Because a bundle is one folder gated by [`okf_acl`](app/src/lib/okf-acl.ts), the
@@ -70,35 +70,45 @@ One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.
 
 ## Architecture
 
-A workspace holds many relationships. Each relationship, once both people sign the contract,
-gets its own A2A agent; the agent reaches its memory through `notion-mcp` into a single OKF
-bundle — and the `okf_acl` gate makes every other bundle unreachable.
+A workspace is a **team**. Relationships form between its members — BD ⇄ Dev,
+Marketing ⇄ Dev, any pair that agrees. Each relationship, once both members sign the
+contract, gets its own A2A agent; the agent reaches its memory through `notion-mcp` into a
+single OKF bundle — and the `okf_acl` gate makes every other bundle unreachable. (The
+couples demo above is just one instance of the same model.)
 
 ```mermaid
 flowchart TB
-    subgraph WS["🏢 Workspace (a team space)"]
-        direction TB
-        R1(["💞 Chanho ❤️ Hannah"])
-        R2(["💞 Chanho ❤️ Ava"])
-        R3(["💞 …more relationships"])
+    subgraph WS["🏢 Acme workspace (a team)"]
+        direction LR
+        BD(["👤 BD"])
+        MK(["👤 Marketing"])
+        DV(["👤 Dev"])
     end
 
-    R1 -->|"EIP-712 contract<br/>both sign"| A1["🤖 A2A agent"]
-    R2 -->|"EIP-712 contract<br/>both sign"| A2["🤖 A2A agent"]
+    subgraph REL1["🤝 BD ⇄ Dev"]
+        A1["🤖 A2A agent"]
+    end
+    subgraph REL2["🤝 Marketing ⇄ Dev"]
+        A2["🤖 A2A agent"]
+    end
 
-    A1 -->|"MCP tools"| M1["🔌 notion-mcp"]
-    A2 -->|"MCP tools"| M2["🔌 notion-mcp"]
+    BD -->|"EIP-712<br/>contract"| REL1
+    DV --> REL1
+    MK -->|"EIP-712<br/>contract"| REL2
+    DV --> REL2
 
-    M1 -->|"read / write<br/>(okf_acl gated)"| O1["📁 OKF bundle<br/>Chanho–Hannah"]
-    M2 -->|"read / write<br/>(okf_acl gated)"| O2["📁 OKF bundle<br/>Chanho–Ava"]
+    A1 -->|"MCP tools"| M1["🔌 notion-mcp"] -->|"okf_acl gated"| O1["📁 OKF bundle<br/>BD–Dev"]
+    A2 -->|"MCP tools"| M2["🔌 notion-mcp"] -->|"okf_acl gated"| O2["📁 OKF bundle<br/>Marketing–Dev"]
 
     A1 -. "⛔ no path" .-x O2
     A2 -. "⛔ no path" .-x O1
 
     style WS fill:#f8fafc,stroke:#64748b,stroke-width:2px
-    style R1 fill:#fce7f3,stroke:#db2777,color:#111
-    style R2 fill:#fce7f3,stroke:#db2777,color:#111
-    style R3 fill:#f1f5f9,stroke:#94a3b8,color:#64748b
+    style BD fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style MK fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style DV fill:#e0e7ff,stroke:#4f46e5,color:#111
+    style REL1 fill:#fdf2f8,stroke:#db2777,stroke-width:2px
+    style REL2 fill:#fdf2f8,stroke:#db2777,stroke-width:2px
     style A1 fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111
     style A2 fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#111
     style M1 fill:#dbeafe,stroke:#2563eb,color:#111
@@ -107,6 +117,7 @@ flowchart TB
     style O2 fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
 ```
 
-**Workspace → many relationships → one A2A agent each → MCP → one OKF bundle each.** The
-crossed-out paths are the point: isolation isn't a policy the model follows, it's a boundary
-in the filesystem and the contract.
+**Team → relationships between members → one A2A agent per relationship → MCP → one OKF
+bundle each.** Dev is in two relationships and gets two separate agents — what BD shared
+with Dev never reaches the Marketing ⇄ Dev bundle. The crossed-out paths are the point:
+isolation isn't a policy the model follows, it's a boundary in the filesystem and the contract.
