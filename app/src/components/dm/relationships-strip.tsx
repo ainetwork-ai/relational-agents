@@ -18,6 +18,7 @@ interface Person {
   level: number; // -1 = unknown (no Relationships DB)
   pageId: string | null; // doc/record page; null = room-only (no doc yet)
   roomId: string | null; // 1:1 DM room with this person, when one exists
+  partnerUserId?: string | null; // her user id — lets a click open/create the chat
   avatarUrl?: string | null; // partner's profile image (structured source)
 }
 
@@ -122,12 +123,18 @@ export function RelationshipsStrip() {
           .catch(() => null);
         // the workspace's member roster — a relation belongs in THIS
         // workspace only when the partner is one of its members
-        const memberNames = new Set<string>(
+        const memberByKey = new Map<string, string>(
           await fetch("/api/workspace/members")
             .then((r) => (r.ok ? r.json() : { members: [] }))
-            .then((d) => (d.members ?? []).map((m: { displayName: string }) => nameKey(m.displayName ?? "")))
+            .then((d) =>
+              (d.members ?? []).map((m: { id: string; displayName: string }) => [
+                nameKey(m.displayName ?? ""),
+                m.id,
+              ])
+            )
             .catch(() => [])
         );
+        const memberNames = new Set(memberByKey.keys());
 
         // faces come from two shapes of relationship doc:
         // 1) children of a "Relationship Records" index page (seeded records)
@@ -220,6 +227,7 @@ export function RelationshipsStrip() {
             level: levels.get(key) ?? -1,
             pageId: k.id,
             roomId: roomByName.get(key) ?? null,
+            partnerUserId: memberByKey.get(nameKey(name)) ?? null,
           });
         }
         for (const d of okfDocs) {
@@ -233,8 +241,9 @@ export function RelationshipsStrip() {
             key,
             name,
             level: prev?.level ?? levels.get(key) ?? -1,
-            pageId: d.id, // the doc itself IS the destination
+            pageId: d.id, // doc fallback when no chat can be opened
             roomId: prev?.roomId ?? roomByName.get(key) ?? null,
+            partnerUserId: memberByKey.get(nameKey(name)) ?? null,
           });
         }
         if (kids.length === 0 && okfDocs.length === 0 && roomRelations.length === 0) return;
@@ -268,11 +277,33 @@ export function RelationshipsStrip() {
   /** The relationship doc (agent-maintained, OKF) is the card's document;
  * the seeded record page is only the fallback for people without a room
  * or whose room has no doc yet (no consent / no messages processed). */
-  function openPerson(person: Person) {
+  async function openPerson(person: Person) {
     // a face opens the conversation — the room header links to the doc.
-    // seeded records without a room still fall back to their page.
-    if (person.roomId) router.push(`/dm/${person.roomId}`);
-    else if (person.pageId) router.push(`/p/${person.pageId}`);
+    if (person.roomId) {
+      router.push(`/dm/${person.roomId}`);
+      return;
+    }
+    // no room in this workspace yet: open (or create) the 1:1 with her —
+    // she is a member here, so the same-workspace rule allows it
+    if (person.partnerUserId) {
+      try {
+        const res = await fetch("/api/dm/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberIds: [person.partnerUserId] }),
+        });
+        if (res.ok) {
+          const { room } = await res.json();
+          if (room?.id) {
+            router.push(`/dm/${room.id}`);
+            return;
+          }
+        }
+      } catch {
+        // fall through to the doc
+      }
+    }
+    if (person.pageId) router.push(`/p/${person.pageId}`);
   }
 
   if (!people || people.length === 0) return null;
@@ -286,7 +317,7 @@ export function RelationshipsStrip() {
           <button
             key={p.pageId ?? p.roomId ?? p.key}
             data-testid={`rel-face-${p.pageId ?? p.roomId ?? p.key}`}
-            onClick={() => openPerson(p)}
+            onClick={() => void openPerson(p)}
             className="flex w-[76px] shrink-0 flex-col items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
           >
             <Face person={p} />
