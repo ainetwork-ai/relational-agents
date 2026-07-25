@@ -605,6 +605,8 @@ export const chatRooms = pgTable("chat_rooms", {
   directKey: text("direct_key"),
  // when everyone consented — messages before this are never collected
   consentAt: timestamp("consent_at"),
+ // when everyone signed the dissolution — the chat closes, the record stays
+  dissolvedAt: timestamp("dissolved_at"),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -625,6 +627,23 @@ export const relationContracts = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [uniqueIndex("relation_contracts_room_user").on(t.roomId, t.userId)]
+);
+
+// Dissolution mirrors consent: one signed RelationDissolve row per member;
+// when the set completes, chat_rooms.dissolvedAt is stamped and the set can be
+// relayed to dissolveRelationalAgent() on-chain as-is.
+export const relationDissolves = pgTable(
+  "relation_dissolves",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    address: text("address").notNull(), // wallet address at signing time (lowercase)
+    message: text("message").notNull(), // the signed dissolve payload, verbatim
+    signature: text("signature").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("relation_dissolves_room_user").on(t.roomId, t.userId)]
 );
 
 // DM membership + read state. (roomId,userId) composite unique — no id column (workspace_members pattern).

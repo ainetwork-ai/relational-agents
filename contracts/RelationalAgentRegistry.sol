@@ -197,6 +197,61 @@ contract RelationalAgentRegistry {
         emit RelationalAgentRegistered(agentId, relationId, parties);
     }
 
+    // ── Dissolution: it takes everyone to close what everyone opened ───────
+    /// relationId → when the relationship was dissolved (0 = alive)
+    mapping(bytes32 => uint256) public dissolvedAt;
+
+    event RelationalAgentDissolved(
+        uint256 indexed agentId,
+        bytes32 indexed relationId,
+        address[] parties
+    );
+
+    bytes32 private constant DISSOLVE_TYPEHASH =
+        keccak256("RelationDissolve(bytes32 relationId,address[] parties)");
+
+    function dissolveDigest(bytes32 relationId, address[] memory parties)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(DISSOLVE_TYPEHASH, relationId, _hashParties(parties))
+                )
+            )
+        );
+    }
+
+    /**
+     * Every party signed the same RelationDissolve — the relationship is
+     * closed. The agent NFT is NOT burned: the record of what two people made
+     * together outlives the relationship (dissolvedAt is stamped on-chain and
+     * in metadata instead). `sigs[i]` must recover the registered parties[i];
+     * anyone may relay.
+     */
+    function dissolveRelationalAgent(bytes32 relationId, bytes[] calldata sigs)
+        external
+    {
+        uint256 agentId = agentOfRelation[relationId];
+        require(agentId != 0, "no agent for relation");
+        require(dissolvedAt[relationId] == 0, "already dissolved");
+        address[] memory parties = _partiesOfRelation[relationId];
+        require(sigs.length == parties.length, "one signature per party");
+
+        bytes32 digest = dissolveDigest(relationId, parties);
+        for (uint256 i = 0; i < parties.length; i++) {
+            require(_recover(digest, sigs[i]) == parties[i], "signature invalid");
+        }
+
+        dissolvedAt[relationId] = block.timestamp;
+        _setMetadata(agentId, "dissolvedAt", abi.encodePacked(block.timestamp));
+        emit RelationalAgentDissolved(agentId, relationId, parties);
+    }
+
     // ── internals ───────────────────────────────────────────────────────────
     function _mint(address to, string memory uri) private returns (uint256 agentId) {
         agentId = _nextId++;

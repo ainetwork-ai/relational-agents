@@ -35,6 +35,13 @@ export function relationIdFromRoom(roomId: string): `0x${string}` {
   return keccak256(stringToBytes(roomId));
 }
 
+export const RELATION_DISSOLVE_TYPES = {
+  RelationDissolve: [
+    { name: "relationId", type: "bytes32" },
+    { name: "parties", type: "address[]" },
+  ],
+} as const;
+
 export interface RelationConsentTypedData {
   domain: ReturnType<typeof relationConsentDomain>;
   types: typeof RELATION_CONSENT_TYPES;
@@ -59,6 +66,33 @@ export function buildRelationConsentTypedData(
     domain: relationConsentDomain(),
     types: RELATION_CONSENT_TYPES,
     primaryType: "RelationConsent",
+    message: { relationId: relationIdFromRoom(roomId), parties },
+  };
+}
+
+export interface RelationDissolveTypedData {
+  domain: ReturnType<typeof relationConsentDomain>;
+  types: typeof RELATION_DISSOLVE_TYPES;
+  primaryType: "RelationDissolve";
+  message: {
+    relationId: `0x${string}`;
+    parties: `0x${string}`[];
+  };
+}
+
+/** Closing mirrors opening: the identical party set signs a RelationDissolve
+ * over the same domain, relayable to dissolveRelationalAgent() unchanged. */
+export function buildRelationDissolveTypedData(
+  roomId: string,
+  memberAddresses: string[]
+): RelationDissolveTypedData {
+  const parties = [...memberAddresses]
+    .map((x) => x.toLowerCase() as `0x${string}`)
+    .sort();
+  return {
+    domain: relationConsentDomain(),
+    types: RELATION_DISSOLVE_TYPES,
+    primaryType: "RelationDissolve",
     message: { relationId: relationIdFromRoom(roomId), parties },
   };
 }

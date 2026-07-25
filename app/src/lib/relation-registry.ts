@@ -30,6 +30,23 @@ const ABI = [
     inputs: [{ name: "", type: "bytes32" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "dissolveRelationalAgent",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "relationId", type: "bytes32" },
+      { name: "sigs", type: "bytes[]" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "dissolvedAt",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "bytes32" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
 ] as const;
 
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
@@ -82,6 +99,50 @@ export async function relayRelationOnChain(input: RelayInput): Promise<{ txHash:
     return { txHash, agentId: agentId.toString() };
   } catch (err) {
     console.error("on-chain relay failed:", err);
+    return null;
+  }
+}
+
+/** Relays a completed RelationDissolve set to dissolveRelationalAgent().
+ * The agent NFT survives — only dissolvedAt is stamped. Best-effort like the
+ * registration relay: returns { txHash, agentId } or null. */
+export async function relayDissolveOnChain(input: {
+  roomId: string;
+  signaturesByAddress: Record<string, string>;
+}): Promise<{ txHash: string; agentId: string } | null> {
+  const address = process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS as Hex | undefined;
+  const key = relayerKey();
+  if (!address || address === "0x0000000000000000000000000000000000000000" || !key) return null;
+
+  const parties = Object.keys(input.signaturesByAddress)
+    .map((a) => a.toLowerCase())
+    .sort() as Hex[];
+  if (parties.length < 2) return null;
+  const sigs = parties.map((p) => input.signaturesByAddress[p] as Hex);
+  const relationId = relationIdFromRoom(input.roomId) as Hex;
+
+  try {
+    const account = privateKeyToAccount(key);
+    const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
+    const agentId = (await pub.readContract({
+      address, abi: ABI, functionName: "agentOfRelation", args: [relationId],
+    })) as bigint;
+    if (agentId === BigInt(0)) return null; // never registered — nothing to dissolve
+    const already = (await pub.readContract({
+      address, abi: ABI, functionName: "dissolvedAt", args: [relationId],
+    })) as bigint;
+    if (already > BigInt(0)) return { txHash: "", agentId: agentId.toString() };
+
+    const wallet = createWalletClient({ account, chain: sepolia, transport: http(RPC) });
+    const txHash = await wallet.writeContract({
+      address, abi: ABI, functionName: "dissolveRelationalAgent",
+      args: [relationId, sigs],
+    });
+    const receipt = await pub.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+    if (receipt.status !== "success") return null;
+    return { txHash, agentId: agentId.toString() };
+  } catch (err) {
+    console.error("on-chain dissolve relay failed:", err);
     return null;
   }
 }

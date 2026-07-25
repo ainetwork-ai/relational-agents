@@ -10,16 +10,6 @@ icon: 🎬
 Total runtime 3:00 · 1440×900 · light mode.
 Concept: a relationship-management workspace. The star is the relational agent — born only by mutual consent, it manages and remembers your relationships. All scenes below use the REAL data in this workspace: the **Relationships** database (Relationships.csv) and the **Relationship Records** pages — every record titled **"Chanho ❤️ {name}"** (Chanho ❤️ Isla Montgomery, Chanho ❤️ Hannah Brooks, Chanho ❤️ Sophie Miller, and seven more).
 
-## Setup — three wallets, two consents (off camera)
-
-1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
-2. **Wire the triangle**: from Chanho, invite **Hannah** → in each profile, both sign the **Relational Agent Contract** (an EIP-712 `RelationConsent` — MetaMask shows the relation id and the parties) → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. The signature pair is stored and can be relayed as-is to the ERC-8004-compatible `RelationalAgentRegistry` on-chain.
-3. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
-
-The pre-roll and the 2:12 finale lean on these two pre-wired relationships (the Lisbon egg tart lives with Hannah, and only there). On camera, the tenth relationship — Isla — is born fresh.
-
----
-
 ## Pre-roll · 0:00–0:15 · Why a relational agent?
 
 Two title cards before the product appears. No UI yet — this is the thesis, and everything after it is the proof. Every scene below is timed to absorb this pre-roll, so the total stays at 3:00.
@@ -38,6 +28,16 @@ Caption: **"Nothing else is in there to leak."** This plants the egg tart, so th
 
 **VO**:
 > "Ava asked Chanho's agent about the egg tart — and it answered from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+
+## Setup — three wallets, two consents (live, right after the pre-roll)
+
+Demonstrated for real, not pre-wired off camera:
+
+1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
+2. **Wire the triangle**: from Chanho, invite **Hannah** → in each profile, both sign the **Relational Agent Contract** (an EIP-712 `RelationConsent` — MetaMask shows the relation id and the parties) → **Chanho ❤️ Hannah** is born. Repeat with **Ava** → **Chanho ❤️ Ava**. The signature pair is stored and can be relayed as-is to the ERC-8004-compatible `RelationalAgentRegistry` on-chain.
+3. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away. Warm up the local LLM once before recording.
+
+The rest of the script leans on these two relationships (the Lisbon egg tart lives with Hannah, and only there). Later, the tenth relationship — Isla — is born fresh on camera.
 
 ## 0:15–0:33 · Opening — first login lands on the dashboard
 
@@ -92,16 +92,17 @@ Caption: **"An agent that remembers also knows what never happened."**
 ## 2:40–2:52 · Epilogue: the relationship ends, the agent remains
 
 **Screen actions**:
-1. Quiet cut: one member leaves a relationship (leave/dissolve on a ❤️ room). The chat closes.
-2. The **Chanho ❤️ …** page and its agent are still there — record intact, memories sealed. The registry entry (ERC-8004 agent) doesn't un-mint.
-3. Slow push-in on the last Timeline entry.
+1. Quiet cut: in a ❤️ room, one member clicks **Leave** — **MetaMask opens** with a `RelationDissolve` (same relation id, same parties as the birth contract). One signature does nothing yet: the other member's room shows the 💔 banner — *"…asked to close this relationship. 1/2 signed."*
+2. The other member clicks **Sign the dissolution**; MetaMask again. On the second signature the chat closes for both — born by mutual consent, closed only by mutual consent. The agent's last line: *"I'll keep everything you shared, sealed."*
+3. The **Chanho ❤️ …** page and its agent are still there — record intact, memories sealed. The registry entry (ERC-8004 agent) doesn't un-mint; `dissolveRelationalAgent` only stamps `dissolvedAt` on-chain.
+4. Slow push-in on the last Timeline entry.
 
 **VO**:
 > "People leave. The agent stays — holding what was shared, for whoever comes back to read it. What two people made together doesn't belong to either of them alone."
 
-## 2:52–3:00 · Closing
+## 2:52–3:00 · Closing — Chanho's home (담당: hyeonjj)
 
-**Screen**: Graph view zooms out — ten "Chanho ❤️ …" nodes orbiting one very busy Chanho → title card.
+**Screen**: Cut to **Chanho's home** — the progress dashboard over all ten relationships ("Chanho ❤️ …" with Isla, Hannah, Ava, Sophie, Olivia, Emma and the rest): per-relationship progress bars, upcoming dates, last-memory timestamps, one very busy Chanho at the center. Then the graph view zooms out — ten nodes orbiting him → title card.
 
 **VO**:
 > "Every person, every promise, remembered — human to human."

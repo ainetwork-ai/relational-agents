@@ -1,5 +1,5 @@
 // Girlfriend-records source: reads the team's gf documents straight from the
-// Notion clone's REST API (the pages under "Relationship Records"). Each page is:
+// workspace app’s REST API (the pages under "Relationship Records"). Each page is:
 //   [code]  YAML-ish metadata (name/age/job/mbti/met_at/since/likes/dislikes…)
 //   [h2] chat log      → chat paragraphs "speaker: text"
 //   [h2] places         → table

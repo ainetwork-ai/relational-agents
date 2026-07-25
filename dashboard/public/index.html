@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Relationship Agent</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23f43f5e' d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/></svg>" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidenav">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#f43f5e" d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+        <span>Relationship&nbsp;Agent</span>
+      </div>
+      <nav class="nav">
+        <button id="nav-dashboard" class="nav-item active" data-tab="dashboard">
+          <span class="ni">📇</span><span class="nl">Dashboard</span>
+        </button>
+        <button id="nav-messages" class="nav-item" data-tab="messages">
+          <span class="ni">💬</span><span class="nl">Messenger</span>
+        </button>
+        <a id="open-app" class="nav-item" href="#" target="_blank" rel="noopener">
+          <span class="ni">🗂️</span><span class="nl">Workspace data</span> <span class="ext">↗</span>
+        </a>
+      </nav>
+      <div class="lang-switch">
+        <button data-lang="en">EN</button>
+        <button data-lang="pt">PT</button>
+      </div>
+      <div class="nav-foot">
+        <p class="nav-caption">Relationship levels</p>
+        <div id="side-legend" class="side-legend"></div>
+      </div>
+    </aside>
+    <main id="view"><div class="loading">Loading relationships…</div></main>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "relationship-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hackathon relationship-agent dashboard over the Notion clone's OKF store (zero dependencies)",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

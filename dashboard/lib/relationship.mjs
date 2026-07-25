@@ -1,7 +1,7 @@
 // ===========================================================================
 // Relationship agent core: people are nodes, relationships are edges.
-// The girlfriends database is a plain CSV inside the Notion clone's OKF store
-// (NOTION_FS_ROOT) — editable as a normal Notion table. This module is the
+// The girlfriends database is a plain CSV inside the workspace app’s OKF store
+// (OKF_ROOT) — editable as a normal workspace table. This module is the
 // pure edge-derivation layer: level scale, D-day math, alerts, and the
 // agent's suggested actions. Everything is deterministic w.r.t. (data, today)
 // so a derivation can never mix one partner's dates into another edge.
