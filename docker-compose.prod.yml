@@ -13,9 +13,19 @@ services:
     image: memory-live-app:${APP_TAG:-latest}
     build:
       context: ./app
+      # Every NEXT_PUBLIC_* the Dockerfile declares must be listed here. These
+      # are inlined into the browser bundle at BUILD time, so setting one in
+      # .env.prod and restarting does nothing — it needs a rebuild and a new
+      # APP_TAG. Leaving one out is worse than useless: the server still reads
+      # it at runtime, so the two halves can disagree with no error anywhere.
       args:
         NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS: ${NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS}
         NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID: ${NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID}
+        NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS: ${NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS:-}
+        NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
+        NEXT_PUBLIC_WORLD_ID_ACTION: ${NEXT_PUBLIC_WORLD_ID_ACTION:-}
+        NEXT_PUBLIC_SUI_PACKAGE_ID: ${NEXT_PUBLIC_SUI_PACKAGE_ID:-}
+        NEXT_PUBLIC_CALL_WEB_SPEECH: ${NEXT_PUBLIC_CALL_WEB_SPEECH:-}
     restart: unless-stopped
     depends_on:
       postgres:
