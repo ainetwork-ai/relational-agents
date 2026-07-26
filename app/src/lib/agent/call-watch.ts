@@ -204,6 +204,23 @@ export async function writeCallRecap(
   ).map((m) => m.userId);
   await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
 
+ // Persist the paths this run resolved. The write pipeline does the same, but a
+ // room whose only activity is calls would never record them — and a section
+ // this profile added would be forgotten the moment the profile changed back,
+ // leaving a file nothing links to.
+  await db
+    .insert(agentRoomStates)
+    .values({
+      roomId,
+      rootOkfPath: tree.rootPath,
+      sectionOkfPaths: tree.sectionPaths,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: agentRoomStates.roomId,
+      set: { rootOkfPath: tree.rootPath, sectionOkfPaths: tree.sectionPaths, updatedAt: new Date() },
+    });
+
   const names = new Map<string, string>();
   const people = await db
     .select({ id: users.id, displayName: users.displayName })
