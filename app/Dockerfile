@@ -45,6 +45,10 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+# COPY lands as root, and the server runs as nextjs — so Next cannot mkdir its
+# own prerender cache and every ISR write fails with EACCES, silently falling
+# back to re-rendering each request. Same trap as public/uploads had.
+RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next
 # OKF_ROOT is the content database and is written at runtime — it lives on a
 # mounted volume, never in the image.
 RUN mkdir -p /data/okf /data/md-mirror && chown -R nextjs:nodejs /data
