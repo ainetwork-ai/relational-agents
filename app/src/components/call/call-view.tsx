@@ -80,6 +80,17 @@ const ICE_SERVERS: RTCIceServer[] = [
       ]),
 ];
 
+/** The two languages a call can be held in. The picker sets what the speech
+ * engine listens for AND, by elimination, what the speaker's own subtitle is
+ * translated into: speak Korean, read English; speak English, read Korean. */
+const LANGS = [
+  { code: "ko-KR", label: "한국어", other: "en", otherTag: "EN" },
+  { code: "en-US", label: "English", other: "ko", otherTag: "KO" },
+] as const;
+const STT_LANG_KEY = "call-stt-lang";
+/** How long a finished sentence's translation lingers after it arrives. */
+const TRANSLATION_TTL_MS = 8_000;
+
 /** Outgoing ringback — the ONE state that sounds is "Calling…". WebAudio
  * dual-tone like the incoming ringtone, slower cadence. Returns the stop
  * function; the caller manages it from an effect so cleanup is the single,
@@ -131,7 +142,6 @@ export function CallView({ roomId }: { roomId: string }) {
   const [status, setStatus] = useState<ViewStatus>("loading");
   const [meId, setMeId] = useState<string | null>(null);
   const [members, setMembers] = useState<DmUser[]>([]);
-  const [rootPageId, setRootPageId] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [remoteLive, setRemoteLive] = useState(false);
@@ -158,7 +168,7 @@ export function CallView({ roomId }: { roomId: string }) {
 
   const partner = members.find((m) => m.id !== meId && !m.isAgent) ?? null;
 
-  // ---- room context (names, record page for the end-of-call destination) ----
+  // ---- room context (names) ----
   useEffect(() => {
     let alive = true;
     fetch(`/api/dm/rooms/${roomId}`)
@@ -167,7 +177,6 @@ export function CallView({ roomId }: { roomId: string }) {
         if (!alive || !d) return;
         setMeId(d.meId);
         setMembers(d.members ?? []);
-        setRootPageId(d.room?.rootPageId ?? null);
       })
       .catch(() => {});
     return () => {
@@ -268,7 +277,7 @@ export function CallView({ roomId }: { roomId: string }) {
   }, []);
 
   const leave = useCallback(
-    (to: "record" | "room" = "record") => {
+    () => {
       if (endedRef.current) return;
       endedRef.current = true;
       teardown();
@@ -278,9 +287,9 @@ export function CallView({ roomId }: { roomId: string }) {
         body: JSON.stringify({ action: "end" }),
         keepalive: true,
       });
-      router.push(to === "record" && rootPageId ? `/p/${rootPageId}` : `/dm/${roomId}`);
+      router.push(`/dm/${roomId}`);
     },
-    [roomId, rootPageId, clientId, router, teardown]
+    [roomId, clientId, router, teardown]
   );
 
   // ---- signaling: refetch state and advance the machine ----
@@ -300,7 +309,7 @@ export function CallView({ roomId }: { roomId: string }) {
           endedRef.current = true;
           teardown();
           setStatus("ended");
-          router.push(rootPageId ? `/p/${rootPageId}` : `/dm/${roomId}`);
+          router.push(`/dm/${roomId}`);
         }
         return;
       }
@@ -363,7 +372,7 @@ export function CallView({ roomId }: { roomId: string }) {
     } finally {
       syncingRef.current = false;
     }
-  }, [roomId, meId, status, clientId, rootPageId, router, ensurePc, ensureLocalStream, teardown]);
+  }, [roomId, meId, status, clientId, router, ensurePc, teardown]);
 
   // run once the room context (meId) is known, and on every call event
   useEffect(() => {
@@ -378,7 +387,7 @@ export function CallView({ roomId }: { roomId: string }) {
       if (event.type === "dm-call-decline") {
         teardown();
         setStatus("declined");
-        setTimeout(() => leave("room"), 1600);
+        setTimeout(() => leave(), 1600);
         return;
       }
       if (event.type === "dm-call-end" || event.type === "dm-call-cancel") {
@@ -386,7 +395,7 @@ export function CallView({ roomId }: { roomId: string }) {
           endedRef.current = true;
           teardown();
           setStatus("ended");
-          router.push(rootPageId ? `/p/${rootPageId}` : `/dm/${roomId}`);
+          router.push(`/dm/${roomId}`);
         }
         return;
       }
@@ -420,7 +429,7 @@ export function CallView({ roomId }: { roomId: string }) {
   // incoming card auto-dismisses at 30s too); ending mid-ring records Missed
   useEffect(() => {
     if (status !== "ringing-out") return;
-    const t = setTimeout(() => leave("room"), 30_000);
+    const t = setTimeout(() => leave(), 30_000);
     return () => clearTimeout(t);
   }, [status, leave]);
 
@@ -437,7 +446,7 @@ export function CallView({ roomId }: { roomId: string }) {
   // other side ringing at a peer that can never send media
   useEffect(() => {
     if (!mediaError) return;
-    const t = setTimeout(() => leave("room"), 2500);
+    const t = setTimeout(() => leave(), 2500);
     return () => clearTimeout(t);
   }, [mediaError, leave]);
 
@@ -489,19 +498,38 @@ export function CallView({ roomId }: { roomId: string }) {
   // silence-restart, so the capture indicator blinks. Set the env to "0" to
   // silence the engine entirely.
   const webSpeechOn = process.env.NEXT_PUBLIC_CALL_WEB_SPEECH !== "0";
-  // recognition language: ?stt=ko-KR beats the env beats en-US — deployment
-  // stays English while a tester can flip one call to Korean from the URL
-  const [sttLang] = useState<string | undefined>(() =>
-    typeof window === "undefined"
-      ? undefined
-      : new URLSearchParams(window.location.search).get("stt") ??
-        process.env.NEXT_PUBLIC_STT_LANG
-  );
+  // recognition language: ?stt=ko-KR beats the last pick on this browser beats
+  // the env beats en-US. The in-call picker writes the choice back, so the
+  // next call opens in whatever language the last one was held in.
+  const [sttLang, setSttLang] = useState<string>(() => {
+    if (typeof window === "undefined") return "en-US";
+    const q = new URLSearchParams(window.location.search).get("stt");
+    if (q) return q;
+    const saved = window.localStorage.getItem(STT_LANG_KEY);
+    if (LANGS.some((l) => l.code === saved)) return saved as string;
+    return process.env.NEXT_PUBLIC_STT_LANG ?? "en-US";
+  });
   // diagnostics live behind ?debug=1 — the demo stage stays clean
   const [debugOn] = useState(
     () =>
       typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).get("debug") === "1"
+  );
+  // My finished sentence, mirrored in the other language, on MY screen only.
+  // Nothing crosses to the peer and nothing reaches the agent, so a slow or
+  // failed translation can only ever cost this subtitle — never the call.
+  const [translation, setTranslation] = useState("");
+  const translationSeqRef = useRef(0);
+  const translationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // switching language mid-call makes the standing subtitle a lie
+  useEffect(() => {
+    setTranslation("");
+  }, [sttLang]);
+  useEffect(
+    () => () => {
+      if (translationTimerRef.current) clearTimeout(translationTimerRef.current);
+    },
+    []
   );
   const {
     interim: sttInterim,
@@ -522,6 +550,27 @@ export function CallView({ roomId }: { roomId: string }) {
         // keepalive lets it outlive the page instead of dying with it
         keepalive: true,
       });
+      // …and the same sentence, in the other language, for me to read. Fired
+      // after the utterance POST and never awaited: the agent's feed must not
+      // wait on a subtitle.
+      const target = sttLang.startsWith("ko") ? "en" : "ko";
+      const seq = ++translationSeqRef.current;
+      void fetch(`/api/calls/${roomId}/translate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, target }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { text?: string } | null) => {
+          // a slow answer must never overwrite a sentence spoken since
+          if (!d?.text || seq !== translationSeqRef.current) return;
+          setTranslation(d.text);
+          if (translationTimerRef.current) clearTimeout(translationTimerRef.current);
+          translationTimerRef.current = setTimeout(() => setTranslation(""), TRANSLATION_TTL_MS);
+        })
+        .catch(() => {
+          /* the call is the product; a missing subtitle is not an error */
+        });
     },
   });
 
@@ -609,7 +658,7 @@ export function CallView({ roomId }: { roomId: string }) {
           </button>
           <button
             data-testid="call-end"
-            onClick={() => leave("record")}
+            onClick={() => leave()}
             aria-label="End call"
             className={`${ctrl} bg-red-500 hover:bg-red-600`}
           >
@@ -632,14 +681,61 @@ export function CallView({ roomId }: { roomId: string }) {
                 : "STT listening"}
           </div>
         )}
-        {/* live caption — what the engine hears, as it hears it (the demo
-            can SEE the speech land instead of trusting a tiny badge) */}
-        {webSpeechOn && status === "active" && sttInterim && (
+        {/* spoken language — the picker sets what the engine listens for and
+            which way the subtitle below is translated */}
+        {webSpeechOn && status === "active" && sttSupported && (
           <div
-            data-testid="call-stt-caption"
-            className="pointer-events-none absolute bottom-24 left-1/2 max-w-[70%] -translate-x-1/2 rounded-lg bg-black/70 px-4 py-2 text-center text-lg font-medium leading-snug text-white shadow-lg"
+            data-testid="call-lang-picker"
+            className="absolute right-4 top-4 flex items-center gap-0.5 rounded-full bg-black/60 p-0.5 text-xs shadow-lg backdrop-blur-sm"
           >
-            {sttInterim}
+            {LANGS.map((l) => (
+              <button
+                key={l.code}
+                data-testid={`call-lang-${l.code}`}
+                onClick={() => {
+                  setSttLang(l.code);
+                  try {
+                    window.localStorage.setItem(STT_LANG_KEY, l.code);
+                  } catch {
+                    /* private mode — the choice just won't outlive the call */
+                  }
+                }}
+                aria-pressed={sttLang === l.code}
+                className={`rounded-full px-2.5 py-1 font-medium transition-colors ${
+                  sttLang === l.code
+                    ? "bg-white text-black"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* live caption — what the engine hears, as it hears it (the demo
+            can SEE the speech land instead of trusting a tiny badge) — with
+            the finished sentence echoed underneath in the other language */}
+        {webSpeechOn && status === "active" && (sttInterim || translation) && (
+          <div className="pointer-events-none absolute bottom-24 left-1/2 flex w-[70%] -translate-x-1/2 flex-col items-center gap-1.5">
+            {sttInterim && (
+              <div
+                data-testid="call-stt-caption"
+                className="max-w-full rounded-lg bg-black/70 px-4 py-2 text-center text-lg font-medium leading-snug text-white shadow-lg"
+              >
+                {sttInterim}
+              </div>
+            )}
+            {translation && (
+              <div
+                data-testid="call-stt-translation"
+                className="flex max-w-full items-center gap-2 rounded-lg bg-black/70 px-4 py-2 leading-snug text-white shadow-lg ring-1 ring-white/15"
+              >
+                <span className="flex-none rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-white/90">
+                  {sttLang.startsWith("ko") ? "EN" : "KO"}
+                </span>
+                <span className="text-base font-medium">{translation}</span>
+              </div>
+            )}
           </div>
         )}
         {/* demo/test: one click = one canned utterance through the REAL
