@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
+    "db:check": "tsx --tsconfig scripts/tsconfig.json scripts/check-schema-drift.mts",
     "demo:cast": "tsx scripts/demo-cast.mts",
     "demo:seed": "tsx --tsconfig scripts/tsconfig.json scripts/seed-demo-room.mts",
     "demo:ask": "tsx --tsconfig scripts/tsconfig.json scripts/demo-ask.mts"

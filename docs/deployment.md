@@ -39,6 +39,9 @@ docker images memory-live-app   # 되돌릴 수 있는 후보 목록
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
 cd app && npx playwright test -c playwright.prod.config.ts
+
+# 스키마가 이 빌드에 못 미치면 503 + 무엇이 없는지 (아래 3.6)
+curl -sf https://memory.ainetwork.ai/api/health | jq .
 ```
 
 `app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 데모가 세계를
@@ -89,6 +92,26 @@ dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기
 
 덕분에 compose의 경로도 절대경로가 아니라 `./deploy/okf-content`, `.env.prod`처럼
 프로젝트 상대경로다. 리포만 있으면 배포가 재현된다.
+
+### 3.6 스키마는 자동으로 밀지 않는다 — 대신 뜰 때 알려준다
+
+`drizzle-kit push`는 손으로, DB 하나씩 돌린다. 부팅 때 자동으로 밀면 배포가
+컬럼을 지우는 권한까지 갖게 되고, 아무도 그 diff를 읽지 않는다(3.3에서 dev와
+라이브 DB를 분리한 이유와 같은 이야기다).
+
+대신 읽기 전용 드리프트 검사를 세 곳에 뒀다. 셋 다 같은 함수를 부른다:
+
+- **부팅 로그** — `src/instrumentation.ts`. 스키마가 맞으면 아무 말도 하지 않고,
+  모자라면 없는 테이블·컬럼과 적용 명령을 한 블록으로 찍는다. 기동을 막지는
+  않는다 — 컬럼 하나가 없다고 나머지 화면까지 못 열 이유는 없다.
+- **`GET /api/health`** — 맞으면 200, 모자라면 **503**과 목록. 인증이 없어서
+  배포 스크립트가 로그인 없이 물어볼 수 있고, 내용은 아무것도 새지 않는다.
+- **`pnpm db:check`** — 아무 DB나 겨눠서 미리 확인. 모자라면 exit 1이라 게이트로
+  쓸 수 있다.
+
+이게 없으면 증상이 이렇게 나온다: 배포는 성공하고, 며칠 뒤 어떤 요청 하나가
+`column "call_id" does not exist`로 죽는다. 어느 배포부터 그랬는지는 아무도
+모른다.
 
 ## 4. 함정 — 여기서 시간을 썼다
 
