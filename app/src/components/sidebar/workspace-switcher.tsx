@@ -138,7 +138,13 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
         description: d.workspace.description ?? null,
       });
     }
-    await refreshWorkspace();
+ // A new workspace owns nothing yet, but the OKF tree is shared, so
+ // refreshWorkspace's "open the first page" heuristic drops you into a
+ // document from the space you just left — and a new workspace that instantly
+ // looks like the old one reads as "it wasn't created". Land on its own home.
+    await usePagesStore.getState().load();
+    router.push("/home");
+    router.refresh();
   }
 
   return (
