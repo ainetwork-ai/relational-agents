@@ -2,7 +2,7 @@ import "server-only";
 import { createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import { AgentKit, ViemWalletProvider, walletActionProvider } from "@coinbase/agentkit";
+import type { AgentKit, ViemWalletProvider } from "@coinbase/agentkit";
 
 /**
  * AgentKit, wired to the wallet the relationship agent was born with.
@@ -30,15 +30,24 @@ export interface AgentWallet {
 }
 
 /** Builds the agent's AgentKit instance from its own private key. */
+ // AgentKit ships prebundled code that the production build cannot load while
+ // collecting page data (it reaches for a @scure/bip39 subpath its own bundle
+ // does not export). Importing it here, at call time rather than module scope,
+ // keeps the build out of that code path — the route still gets the real thing.
+async function loadAgentKit() {
+  return import("@coinbase/agentkit");
+}
+
 export async function agentKitFor(storedKey: string): Promise<AgentWallet> {
+  const { AgentKit: Kit, ViemWalletProvider: Provider, walletActionProvider } = await loadAgentKit();
   const account = privateKeyToAccount(toPrivateKey(storedKey));
   const walletClient = createWalletClient({ account, chain: sepolia, transport: http(RPC) });
  // AgentKit pins an older viem than the app, so the two WalletClient types are
  // structurally identical but nominally distinct. The cast crosses that gap.
-  const provider = new ViemWalletProvider(
+  const provider = new Provider(
     walletClient as unknown as ConstructorParameters<typeof ViemWalletProvider>[0]
   );
-  const agentkit = await AgentKit.from({
+  const agentkit = await Kit.from({
     walletProvider: provider,
     actionProviders: [walletActionProvider()],
   });
