@@ -33,6 +33,7 @@ export const ROMANTIC: RelationshipProfile = {
     subject: "relationship",
     parties: "the couple",
     guardHarm: "sending it as-is could hurt the other person or damage the relationship",
+    suggestion: "a place or a date idea",
   },
   behavior: { proactive: true, whisperOnQuestion: true },
   persona: { name: "Relationship agent", tone: "warm" },

@@ -83,14 +83,26 @@ export function AgentSettings({
   const save = useCallback(async () => {
     setSaving(true);
     setError(null);
+    const target = profiles?.find((p) => p.key === (config.profile ?? active?.key)) ?? active;
+    const personaOverride: { name?: string; tone?: string } = {};
+    if (personaName && personaName !== target?.persona.name) personaOverride.name = personaName;
+    if (tone && tone !== target?.persona.tone) personaOverride.tone = tone;
+    const behaviorOverride: { proactive?: boolean; whisperOnQuestion?: boolean } = {};
+    if (target && proactive !== target.behavior.proactive) behaviorOverride.proactive = proactive;
+    if (target && whisper !== target.behavior.whisperOnQuestion)
+      behaviorOverride.whisperOnQuestion = whisper;
     const res = await fetch(`/api/dm/rooms/${roomId}/agent`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: name.trim() || undefined,
-        profile: config.profile ?? active?.key,
-        persona: config.persona ?? null,
-        behavior: config.behavior ?? null,
+        profile: target?.key,
+        // Only what actually differs from the chosen profile travels as an
+        // override. Sending every field back would pin this room to today's
+        // defaults forever — a profile improved in a later release, or a
+        // profile switch that means to change the voice, would never reach it.
+        persona: Object.keys(personaOverride).length ? personaOverride : null,
+        behavior: Object.keys(behaviorOverride).length ? behaviorOverride : null,
         systemPrompt: config.systemPrompt ?? "",
       }),
     });
@@ -101,7 +113,7 @@ export function AgentSettings({
     }
     onSaved?.();
     onClose();
-  }, [roomId, name, config, active, onClose, onSaved]);
+  }, [roomId, name, config, active, profiles, personaName, tone, proactive, whisper, onClose, onSaved]);
 
   return (
     <div

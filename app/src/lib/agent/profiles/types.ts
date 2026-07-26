@@ -56,6 +56,9 @@ export interface RelationshipProfile {
     parties: string;
     /** what makes a draft harmful enough to hold back (guard's AND condition) */
     guardHarm: string;
+    /** what the agent is asked to suggest — "a date idea" is not a thing two
+     *  colleagues want proposed to them */
+    suggestion: string;
   };
   behavior: {
     /** speak up unprompted when the members must know something */

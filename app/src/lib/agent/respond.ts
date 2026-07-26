@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   agentRoomStates,
   chatMessages,
+  chatRoomMembers,
   chatRooms,
   users,
   type AgentConfig,
@@ -11,11 +12,12 @@ import {
   type User,
 } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
+import { setOkfAcl } from "@/lib/okf-acl";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
-import { ensureOkfDocTree, readOkfSectionTexts } from "./okf-docs";
+import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
 
 export interface RespondResult {
   action: "reply" | "silent";
@@ -161,13 +163,16 @@ async function llmDecision(
   config: AgentConfig,
   profile: RelationshipProfile,
   sections: Record<string, string>,
+  titles: Record<string, string>,
   recent: ChatMessage[],
   rootPageId: string | null
 ): Promise<RespondResult> {
   const persona = profile.persona.name;
   const custom = typeof config.systemPrompt === "string" ? `\nExtra instructions: ${config.systemPrompt}` : "";
   const proactive = profile.behavior.proactive;
-  const docs = profile.sections.map((s) => `### ${s.title}\n${sections[s.key] || "(empty)"}`).join("\n\n");
+  const docs = Object.entries(titles)
+    .map(([key, title]) => `### ${title}\n${sections[key] || "(empty)"}`)
+    .join("\n\n");
   const history = recent
     .slice()
     .reverse()
@@ -186,16 +191,16 @@ async function llmDecision(
           `("she loves sunsets — you two watched one at …"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
           `When you cite the document, mention its link (/p/${rootPageId ?? ""}).\n` +
-          `When you recommend a place or a date idea, ground it in this relationship's memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
+          `When you recommend ${profile.voice.suggestion}, ground it in this ${profile.voice.subject}'s memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
           // The whole promise of a per-relationship agent: what it was never
           // told, it cannot say. It is only ever handed this relationship's
           // sections, so this restates a boundary the code already enforces.
-          `Never reveal, hint at, or draw on anything not written in this relationship's document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
+          `Never reveal, hint at, or draw on anything not written in this ${profile.voice.subject}'s document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
           `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"/uploads/...","name":"..."}]} or {"action":"silent"}`,
       },
       {
         role: "user",
-        content: `## Relationship document\n${docs}\n\n## Recent conversation\n${history}\n\n## New message (mentioned: ${mentioned})\n${message.text}`,
+        content: `## Shared document\n${docs}\n\n## Recent conversation\n${history}\n\n## New message (mentioned: ${mentioned})\n${message.text}`,
       },
     ],
     { maxTokens: 600, temperature: 0.4 }
@@ -260,7 +265,19 @@ export async function respondToMessage(
         rootPath: state?.rootOkfPath,
         sectionPaths: state?.sectionOkfPaths,
       });
+   // ensureOkfDocTree CREATES the folder, and an OKF path nobody registered is
+   // workspace-readable. Answering is often a room's first doc-touching event
+   // (the write pipeline returns early when there is nothing new to record), so
+   // registering here is what keeps the record participant-only.
+      const memberIds = (
+        await db
+          .select({ userId: chatRoomMembers.userId })
+          .from(chatRoomMembers)
+          .where(eq(chatRoomMembers.roomId, roomId))
+      ).map((m) => m.userId);
+      await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
       const sections = readOkfSectionTexts(tree, profile);
+    const titles = sectionTitles(tree, profile);
       const recent = await db
         .select()
         .from(chatMessages)
@@ -275,6 +292,7 @@ export async function respondToMessage(
           config,
           profile,
           sections,
+          titles,
           recent,
           docPageIdOf(state)
         );

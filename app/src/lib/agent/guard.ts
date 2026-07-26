@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { agentRoomStates } from "@/lib/db/schema";
 import { aiChat } from "@/lib/ai";
 import { profileForRoom } from "./profiles";
-import { okfDocTreeFromState, readOkfSectionTexts } from "./okf-docs";
+import { okfDocTreeFromState, readOkfSectionTexts, sectionTitles } from "./okf-docs";
 
 /**
  * Pre-send fact-check gate (decline).
@@ -112,7 +112,11 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
   if (!tree) return ALLOW_UNCHECKED; // a room with no memories yet
 
   const sections = readOkfSectionTexts(tree, profile);
-  const bySection = profile.sections.map((s) => ({ title: s.title, body: sections[s.key] ?? "" })).filter(
+ // every section the document holds, including ones this profile no longer
+ // writes to — a draft can contradict those just as well
+  const bySection = Object.entries(sectionTitles(tree, profile))
+    .map(([key, title]) => ({ title, body: sections[key] ?? "" }))
+    .filter(
     (s) => s.body.trim()
   );
   const docText = bySection.map((s) => `### ${s.title}\n${s.body}`).join("\n\n");

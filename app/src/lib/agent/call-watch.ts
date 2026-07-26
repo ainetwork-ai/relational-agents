@@ -75,7 +75,7 @@ async function factSheet(roomId: string, callId: string): Promise<string> {
           {
             role: "system",
             content:
-              "Condense this relationship's record into a lookup sheet for a live call. " +
+              `Condense this ${profile.voice.subject}'s record into a lookup sheet for a live call. ` +
               "Lines: places, tastes, foods, events, people. List only what the record states, with the wording it uses plus obvious synonyms. " +
               'Write "(nothing recorded)" for a line the record says nothing about — that absence is meaningful. No prose, no headings.',
           },
@@ -330,14 +330,14 @@ interface Read {
 
 /** What the line is about, and whether this relationship has it — the only
  *  judgement the model makes. Pronouns resolve here ("that place back then"). */
-async function readLine(text: string, sheet: string): Promise<Read> {
+async function readLine(text: string, sheet: string, subject: string): Promise<Read> {
   const raw = await aiChat(
     [
       {
         role: "system",
         content:
-          `On record for this relationship:\n${sheet}\n\n` +
-          "Name what the line is about and whether this relationship has it on record. " +
+          `On record for this ${subject}:\n${sheet}\n\n` +
+          `Name what the line is about and whether this ${subject} has it on record. ` +
           'Resolve pronouns (that place, back then, it) from the line. "(nothing recorded)" means nothing of that kind is on record. ' +
           'If the line is about nothing in particular — small talk, a reaction, the weather, how someone feels — answer {"topic":null,"known":false}.\n' +
           'JSON only: {"topic":"<subject>"|null,"known":true|false}',
@@ -356,12 +356,12 @@ async function readLine(text: string, sheet: string): Promise<Read> {
   }
 }
 
-function whisperText(read: Read, said: string): string {
+function whisperText(read: Read, said: string, subject: string): string {
   if (read.known) return `🔎 ${read.topic} — you two have this in your record.`;
   // a question can arrive without a topic the model would name; quoting what
   // was asked beats warning about "that"
   const about = read.topic ?? `“${said.trim().replace(/\s+/g, " ").slice(0, 60)}”`;
-  return `🔎 Nothing in your record about ${about} — not in this relationship, at least.`;
+  return `🔎 Nothing in your record about ${about} — not in this ${subject}, at least.`;
 }
 
 /**
@@ -381,7 +381,7 @@ export async function watchUtterance(
 
   const profile = await profileForRoom(roomId);
   const sheet = await factSheet(roomId, callId);
-  const read = await readLine(text, sheet);
+  const read = await readLine(text, sheet, profile.voice.subject);
  // A question to your member earns a whisper — unless this relationship turned
  // that off. The settings form offers the switch, so it has to mean something;
  // a line that touches the record still whispers either way.
@@ -397,7 +397,7 @@ export async function watchUtterance(
   const listeners = members.map((m) => m.userId).filter((id) => id !== bot.agentUserId);
   if (!listeners.length) return { whispered: false, topic: read.topic };
 
-  const body = whisperText(read, text);
+  const body = whisperText(read, text, profile.voice.subject);
   for (const userId of listeners) {
     await db.insert(chatMessages).values({
       roomId,

@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { DEFAULT_PROFILE } from "./profiles";
 import {
   agentAccessTokens,
   chatRoomBots,
@@ -20,10 +21,18 @@ export function agentA2aUrl(agentUserId: string): string {
   return `${a2aBaseUrl()}/api/a2a/${agentUserId}`;
 }
 
+/**
+ * What a new agent is born with: a profile and nothing else.
+ *
+ * persona and behavior used to be seeded here too, and that quietly made the
+ * profile system decorative — resolveProfile treats a stored value as a room
+ * override, so every agent in the database carried "Relationship agent" /
+ * "warm" and no profile could ever change its own voice. Absent means "follow
+ * the profile", which is what a fresh agent should do.
+ */
 const DEFAULT_CONFIG: AgentConfig = {
-  persona: { name: "Relationship agent", tone: "warm" },
+  profile: DEFAULT_PROFILE.key,
   skills: ["relationship-doc"],
-  behavior: { proactive: true },
 };
 
 /** Generate the agent's own AIN key → derive its address. The key sits in

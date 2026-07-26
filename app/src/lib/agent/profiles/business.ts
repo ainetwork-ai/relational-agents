@@ -43,6 +43,7 @@ export const BUSINESS: RelationshipProfile = {
     parties: "the two of them",
     guardHarm:
       "sending it as-is could commit them to something they did not agree to, contradict what was agreed, or damage the working relationship",
+    suggestion: "a place to meet or a next step",
   },
   behavior: { proactive: true, whisperOnQuestion: true },
   persona: { name: "Working agent", tone: "concise" },

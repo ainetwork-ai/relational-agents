@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { requireRoomAccess } from "@/lib/chat-room-access";
 import { db } from "@/lib/db";
 import { agentRoomStates, callUtterances } from "@/lib/db/schema";
-import { okfDocTreeFromState, okfDocPageId } from "@/lib/agent/okf-docs";
+import { okfDocTreeFromState, okfDocPageId, sectionTitles } from "@/lib/agent/okf-docs";
 import { profileForRoom } from "@/lib/agent/profiles";
 import { encodeId, nodeExists, readNode } from "@/lib/okf-store";
 import { CHAT_ROUTE_PREFIX } from "@/lib/agent/pipeline";
@@ -53,7 +53,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ roomId: str
   const entries: { section: string; sectionTitle: string; text: string; pageId: string }[] = [];
 
   if (tree) {
-    for (const s of profile.sections) {
+   // every section the document holds — a call may have filed something under a
+   // section this profile has since stopped writing to
+    const titles = sectionTitles(tree, profile);
+    for (const [key, title] of Object.entries(titles)) {
+      const s = { key, title };
       const rel = tree.sectionPaths[s.key];
       if (!rel || !nodeExists(rel)) continue;
       const node = readNode(rel);
@@ -63,6 +67,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ roomId: str
       let pending: string[] = [];
       for (const b of node.blocks) {
         const text = ((b.content ?? {}) as { text?: string }).text ?? "";
+       // Headings belong to the day or the event, not to whatever cites itself
+       // next: a date h1 written by the pipeline sat directly above the next
+       // call's Sources line and was reported as that call's doing.
+        if (b.type.startsWith("heading")) {
+          pending = [];
+          continue;
+        }
         if (/^Sources:/i.test(text.trim())) {
           if (text.includes(anchor))
             for (const t of pending)
