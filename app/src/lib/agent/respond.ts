@@ -14,7 +14,7 @@ import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
-import { SECTIONS } from "./parse-edits";
+import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts } from "./okf-docs";
 
 export interface RespondResult {
@@ -159,14 +159,15 @@ async function llmDecision(
   mentioned: boolean,
   roomName: string,
   config: AgentConfig,
+  profile: RelationshipProfile,
   sections: Record<string, string>,
   recent: ChatMessage[],
   rootPageId: string | null
 ): Promise<RespondResult> {
-  const persona = config.persona?.name ?? "Relationship agent";
+  const persona = profile.persona.name;
   const custom = typeof config.systemPrompt === "string" ? `\nExtra instructions: ${config.systemPrompt}` : "";
-  const proactive = config.behavior?.proactive !== false;
-  const docs = SECTIONS.map((s) => `### ${s.title}\n${sections[s.key] || "(empty)"}`).join("\n\n");
+  const proactive = profile.behavior.proactive;
+  const docs = profile.sections.map((s) => `### ${s.title}\n${sections[s.key] || "(empty)"}`).join("\n\n");
   const history = recent
     .slice()
     .reverse()
@@ -178,13 +179,13 @@ async function llmDecision(
       {
         role: "system",
         content:
-          `You are the ${persona} of the "${roomName}" room. Take part in the conversation grounded in the relationship document.${custom}\n` +
+          `You are the ${persona} of the "${roomName}" room, in a ${profile.persona.tone} voice. Take part in the conversation grounded in the ${profile.voice.subject} document.${custom}\n` +
           `Rules: always reply when mentioned. When not mentioned, ${proactive ? "chime in briefly only if the members must know something (a scheduling conflict, an important remembered fact)" : "stay silent"}. Otherwise stay silent.\n` +
           `Answer from the document above. If a section records something that bears on the question, say what is recorded — a partial memory is still an answer. ` +
           `When asked what to do, where to go, or what they would like, make one concrete suggestion and say which remembered detail it follows from ` +
           `("she loves sunsets — you two watched one at …"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
-          `When you cite the document, mention the relationship-doc link (/p/${rootPageId ?? ""}).\n` +
+          `When you cite the document, mention its link (/p/${rootPageId ?? ""}).\n` +
           `When you recommend a place or a date idea, ground it in this relationship's memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
           // The whole promise of a per-relationship agent: what it was never
           // told, it cannot say. It is only ever handed this relationship's
@@ -230,6 +231,9 @@ export async function respondToMessage(
   );
 
   const config = (agent.agentConfig ?? {}) as AgentConfig;
+ // the agent's own config decides how it behaves here — not the room's, since
+ // an imported external agent brings its own
+  const profile = resolveProfile(config);
  // a quiet message is addressed to the agent by definition — the lock is the
  // address, so it need not also be spelled out with an @
   const mentioned =
@@ -252,11 +256,11 @@ export async function respondToMessage(
         .from(agentRoomStates)
         .where(eq(agentRoomStates.roomId, roomId));
    // the relationship doc is OKF-file-canonical — answer evidence reads from files too
-      const tree = ensureOkfDocTree(roomId, room.name, {
+      const tree = ensureOkfDocTree(roomId, room.name, profile, {
         rootPath: state?.rootOkfPath,
         sectionPaths: state?.sectionOkfPaths,
       });
-      const sections = readOkfSectionTexts(tree);
+      const sections = readOkfSectionTexts(tree, profile);
       const recent = await db
         .select()
         .from(chatMessages)
@@ -269,6 +273,7 @@ export async function respondToMessage(
           mentioned,
           room.name,
           config,
+          profile,
           sections,
           recent,
           docPageIdOf(state)

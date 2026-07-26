@@ -23,7 +23,8 @@ import {
   readOkfSectionTexts,
   type NewLine,
 } from "./okf-docs";
-import { parseEdits, SECTIONS, type DocEdit, type TimelineEvent } from "./parse-edits";
+import { parseEdits, type DocEdit, type TimelineEvent } from "./parse-edits";
+import { profileForRoom, sectionMenu, type RelationshipProfile } from "./profiles";
 
 /** Source deep-link prefix. Rooms live at /dm/[roomId]; /agent-lab has no
  *  per-room route, so provenance links pointed at a 404. */
@@ -56,7 +57,7 @@ const IMG_EXT = /\.(png|jpe?g|gif|webp|heic)$/i;
 
 /** Offline/test path (AGENT_FAKE_LLM=1): applies the batch deterministically.
  *  Image attachments are embedded as markdown so photos land in the doc too. */
-function fakeEdits(batch: ChatMessage[]): DocEdit[] {
+function fakeEdits(batch: ChatMessage[], profile: RelationshipProfile): DocEdit[] {
   const ids = batch.map((m) => m.id);
   const lines: string[] = [];
   for (const m of batch) {
@@ -70,13 +71,15 @@ function fakeEdits(batch: ChatMessage[]): DocEdit[] {
   // the same formal template the LLM path writes (date h1 / title h2 / callout / timed photos)
   const hasPhotos = batch.some((m) => (m.attachments ?? []).some((a) => IMG_EXT.test(a.url)));
   const last = batch[batch.length - 1]!;
+  const chrono = profile.timeline.section;
+  const implied = profile.timeline.photosImply;
   return [
     {
-      section: "timeline",
+      section: chrono,
       markdown: lines.join("\n"),
       sourceMessageIds: ids,
-      ...(hasPhotos
-        ? { event: { kind: "date" as const, date: isoDay(last.createdAt), title: "Moments together" } }
+      ...(hasPhotos && implied
+        ? { event: { kind: implied, date: isoDay(last.createdAt), title: "Moments together" } }
         : {}),
     },
     { section: "overview", markdown: `Captured ${batch.length} recent messages.`, sourceMessageIds: ids },
@@ -116,12 +119,22 @@ function imageDataUrl(url: string): string | null {
   }
 }
 
+/** What each built-in event kind means, for the classification instruction. */
+const EVENT_HINT: Record<string, string> = {
+  date: "a shared outing or meetup, especially one with photos",
+  "first-met": "the story of how the two FIRST MET",
+  meeting: "a call or meeting they both took part in",
+  intro: "how the two were first introduced",
+};
+
 async function llmEdits(
   batch: ChatMessage[],
   current: Record<string, string>,
-  roomName: string
+  roomName: string,
+  profile: RelationshipProfile
 ): Promise<DocEdit[]> {
-  const sectionList = SECTIONS.map((s) => `${s.key} (${s.title})`).join(", ");
+  const sectionList = sectionMenu(profile.sections);
+  const eventMenu = profile.timeline.events.map((e) => `"${e.kind}"`).join(" | ");
   const messages = batch
     .map((m) => {
       const who = `[${m.id}] (${m.authorId.slice(0, 8)})`;
@@ -147,11 +160,12 @@ async function llmEdits(
       {
         role: "system" as const,
         content:
-          `You are the record-keeper for the "${roomName}" relationship. Read the new batch of messages and incrementally update the relationship document.\n` +
+          `You are the record-keeper for the "${roomName}" ${profile.voice.subject}. Read the new batch of messages and incrementally update the ${profile.voice.subject} document.\n` +
           `Output a JSON array only: [{"section": <one key of ${sectionList}>, "markdown": "<markdown to append>", "sourceMessageIds": ["<supporting message id>"]}].\n` +
-          `Timeline entries additionally classify the moment with an "event" field: a shared outing/date/meetup (especially one with photos) gets ` +
-          `"event": {"kind": "date", "date": "YYYY-MM-DD", "title": "<short evocative event title>"}; the story of how the two FIRST MET gets ` +
-          `"event": {"kind": "first-met", "date": "<the met date if stated>"}. Ordinary chatter gets no event field. ` +
+          `Entries in the ${profile.timeline.section} section additionally classify the moment with an "event" field, one of ${eventMenu}: ` +
+          `"event": {"kind": "<kind>", "date": "YYYY-MM-DD", "title": "<short event title>"}. ` +
+          `${profile.timeline.events.map((e) => `${e.kind} = ${EVENT_HINT[e.kind] ?? "a moment worth marking"}`).join("; ")}. ` +
+          `Ordinary chatter gets no event field. ` +
           `Today is ${isoDay(batch[batch.length - 1]!.createdAt)} — date the event by when it happened, not when it was told.\n` +
           `Do not repeat facts already in the document — only what is newly learned. Every entry must carry its supporting message ids.\n` +
           `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the /uploads/... url exactly as given). ` +
@@ -173,13 +187,13 @@ async function llmEdits(
 
   const opts = { maxTokens: 1500, temperature: 0.2 };
   try {
-    return parseEdits(await aiChat(prompt(photos), opts));
+    return parseEdits(await aiChat(prompt(photos), opts), profile);
   } catch (err) {
     // A server that refuses this many images refuses the whole batch. Dropping
     // the pixels costs photo captions; dropping the batch costs the memory.
     if (!photos.length || !/image/i.test(String(err))) throw err;
     console.warn("vision rejected, re-reading the batch as text:", String(err));
-    return parseEdits(await aiChat(prompt([]), opts));
+    return parseEdits(await aiChat(prompt([]), opts), profile);
   }
 }
 
@@ -205,7 +219,8 @@ const hhmm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 function timelineEventLines(
   edit: DocEdit,
   event: TimelineEvent,
-  source: ChatMessage[]
+  source: ChatMessage[],
+  profile: RelationshipProfile
 ): NewLine[] {
   const cited = source.filter((m) => edit.sourceMessageIds.includes(m.id));
   const anchor = cited[cited.length - 1] ?? source[source.length - 1];
@@ -227,7 +242,13 @@ function timelineEventLines(
     detail.push(cleaned);
   }
 
-  const firstMet = event.kind === "first-met";
+ // The "how we met" kind is the one that is a story, not an occasion: no
+ // heading of its own and no photo strip. Every profile has exactly one, and
+ // it is the second kind it declares.
+  const originKind = profile.timeline.events[1]?.kind;
+  const firstMet = event.kind === originKind;
+  const icon =
+    profile.timeline.events.find((e) => e.kind === event.kind)?.icon ?? profile.timeline.defaultIcon;
   // real-time writes arrive one message at a time, so the LLM rarely names the
   // event — with several detail sentences the first stands in as the summary
   // heading; a lone sentence lives in the callout only (no verbatim-echo h2)
@@ -237,7 +258,7 @@ function timelineEventLines(
   const lines: NewLine[] = [{ type: "heading1", text: day }];
   if (!firstMet && title && !calloutText.startsWith(title))
     lines.push({ type: "heading2", text: title });
-  lines.push({ type: "callout", text: calloutText, icon: firstMet ? "💘" : "💕" });
+  lines.push({ type: "callout", text: calloutText, icon });
   // first-met is date + callout only; date events carry their timed photos
   if (!firstMet) {
     for (const m of cited) {
@@ -309,7 +330,8 @@ async function runOnce(roomId: string): Promise<RunResult> {
   const participants = [...new Set([room.createdBy, ...memberIds])];
 
  // the relationship doc is OKF-file-canonical (CLAUDE.md: folder = content DB).
-  const tree = ensureOkfDocTree(roomId, room.name, {
+  const profile = await profileForRoom(roomId);
+  const tree = ensureOkfDocTree(roomId, room.name, profile, {
     rootPath: state0?.rootOkfPath,
     sectionPaths: state0?.sectionOkfPaths,
   });
@@ -354,7 +376,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
     })),
   ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) as ChatMessage[];
 
-  const current = readOkfSectionTexts(tree);
+  const current = readOkfSectionTexts(tree, profile);
  // Deterministic path when the LLM is off or unreachable — the memory still
  // gets written (fakeEdits appends each message to the Timeline), so the
  // agent always records even without an AI endpoint configured.
@@ -365,13 +387,13 @@ async function runOnce(roomId: string): Promise<RunResult> {
   if (!source.length) {
     rawEdits = []; // nothing but agent chatter this round
   } else if (process.env.AGENT_FAKE_LLM === "1") {
-    rawEdits = fakeEdits(source);
+    rawEdits = fakeEdits(source, profile);
   } else {
     try {
-      rawEdits = await llmEdits(source, current, room.name);
+      rawEdits = await llmEdits(source, current, room.name, profile);
     } catch (err) {
       console.error("llm edits failed, recording deterministically:", err);
-      rawEdits = fakeEdits(source);
+      rawEdits = fakeEdits(source, profile);
     }
   }
  // source forgery prevention: sourceMessageIds only count if they exist in this batch
@@ -389,18 +411,20 @@ async function runOnce(roomId: string): Promise<RunResult> {
   for (const edit of edits) {
     const rel = tree.sectionPaths[edit.section];
     if (!rel) continue;
-    // "photos shared = a date event" is a hard rule, not an LLM judgement call:
-    // real-time single-message batches rarely get classified, but a moment with
-    // pictures must still land in the formal template.
-    let event = edit.section === "timeline" ? edit.event : undefined;
-    if (edit.section === "timeline" && !event) {
+    // "photos shared = an occasion" is a coded rule where the profile declares
+    // one, not an LLM judgement call: real-time single-message batches rarely
+    // get classified, but a moment with pictures must still land in the formal
+    // template. A working record declares none — there a photo is a whiteboard.
+    const chrono = profile.timeline.section;
+    let event = edit.section === chrono ? edit.event : undefined;
+    if (edit.section === chrono && !event && profile.timeline.photosImply) {
       const cited = source.filter((m) => edit.sourceMessageIds.includes(m.id));
       if (cited.some((m) => (m.attachments ?? []).some((a) => IMG_EXT.test(a.url))))
-        event = { kind: "date" };
+        event = { kind: profile.timeline.photosImply };
     }
     const lines: NewLine[] =
-      edit.section === "timeline" && event
-        ? timelineEventLines(edit, event, source)
+      edit.section === chrono && event
+        ? timelineEventLines(edit, event, source, profile)
         : edit.markdown
             .split("\n")
             .filter((l) => l.trim())
@@ -426,8 +450,8 @@ async function runOnce(roomId: string): Promise<RunResult> {
         .join(" · ");
       lines.push({ type: "paragraph", text: `Sources: ${links}` });
     }
-    const title = SECTIONS.find((s) => s.key === edit.section)?.title ?? edit.section;
-    appendOkfLines(rel, title, lines, okfDocMeta(roomId, edit.section));
+    const title = profile.sections.find((s) => s.key === edit.section)?.title ?? edit.section;
+    appendOkfLines(rel, title, lines, okfDocMeta(roomId, profile, edit.section));
   }
 
  // the checkpoint advances only after file writes finish. Files can't join

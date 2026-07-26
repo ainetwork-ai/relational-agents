@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { profileForRoom } from "@/lib/agent/profiles";
 import { agentRoomStates, chatMessages, chatRoomMembers, users } from "@/lib/db/schema";
 import { ensureOkfDocTree, appendOkfLines, okfDocMeta } from "@/lib/agent/okf-docs";
 
@@ -65,7 +66,9 @@ export async function seedSunsetStory(
 
   // ground the agent: the preference (People notes) + the reusable rec (Open topics)
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
-  const tree = ensureOkfDocTree(roomId, roomName, {
+ // the demo room is a romance; the seed writes into that profile's sections
+  const profile = await profileForRoom(roomId);
+  const tree = ensureOkfDocTree(roomId, roomName, profile, {
     rootPath: state?.rootOkfPath,
     sectionPaths: state?.sectionOkfPaths,
   });
@@ -78,7 +81,7 @@ export async function seedSunsetStory(
         text: `${other.displayName} — loves sunsets ("${MARKER} — best part of my day"); keeps sharing golden-hour photos in chat.`,
       },
     ],
-    okfDocMeta(roomId, "people")
+    okfDocMeta(roomId, profile, "people")
   );
   appendOkfLines(
     tree.sectionPaths["open-topics"],
@@ -92,7 +95,7 @@ export async function seedSunsetStory(
       },
       { type: "image", text: "Belém Tower at sunset", url: TOWER_IMG },
     ],
-    okfDocMeta(roomId, "open-topics")
+    okfDocMeta(roomId, profile, "open-topics")
   );
 
   return { seeded: true, messages: seedMsgs.length, sunsetLover: other.displayName };

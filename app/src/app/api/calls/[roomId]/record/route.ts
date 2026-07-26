@@ -5,7 +5,7 @@ import { requireRoomAccess } from "@/lib/chat-room-access";
 import { db } from "@/lib/db";
 import { agentRoomStates, callUtterances } from "@/lib/db/schema";
 import { okfDocTreeFromState, okfDocPageId } from "@/lib/agent/okf-docs";
-import { SECTIONS } from "@/lib/agent/parse-edits";
+import { profileForRoom } from "@/lib/agent/profiles";
 import { encodeId, nodeExists, readNode } from "@/lib/okf-store";
 import { CHAT_ROUTE_PREFIX } from "@/lib/agent/pipeline";
 
@@ -43,7 +43,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ roomId: str
     .select()
     .from(agentRoomStates)
     .where(eq(agentRoomStates.roomId, roomId));
-  const tree = okfDocTreeFromState(state);
+  const profile = await profileForRoom(roomId);
+  const tree = okfDocTreeFromState(state, profile);
 
   // The recap writes `Sources: /dm/{roomId}#call-{callId}` under everything it
   // files, which makes the anchor the join key — no second table to keep in
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ roomId: str
   const entries: { section: string; sectionTitle: string; text: string; pageId: string }[] = [];
 
   if (tree) {
-    for (const s of SECTIONS) {
+    for (const s of profile.sections) {
       const rel = tree.sectionPaths[s.key];
       if (!rel || !nodeExists(rel)) continue;
       const node = readNode(rel);

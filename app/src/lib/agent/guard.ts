@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agentRoomStates } from "@/lib/db/schema";
 import { aiChat } from "@/lib/ai";
-import { SECTIONS } from "./parse-edits";
+import { profileForRoom } from "./profiles";
 import { okfDocTreeFromState, readOkfSectionTexts } from "./okf-docs";
 
 /**
@@ -107,11 +107,12 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
     .select()
     .from(agentRoomStates)
     .where(eq(agentRoomStates.roomId, roomId));
-  const tree = okfDocTreeFromState(state);
+  const profile = await profileForRoom(roomId);
+  const tree = okfDocTreeFromState(state, profile);
   if (!tree) return ALLOW_UNCHECKED; // a room with no memories yet
 
-  const sections = readOkfSectionTexts(tree);
-  const bySection = SECTIONS.map((s) => ({ title: s.title, body: sections[s.key] ?? "" })).filter(
+  const sections = readOkfSectionTexts(tree, profile);
+  const bySection = profile.sections.map((s) => ({ title: s.title, body: sections[s.key] ?? "" })).filter(
     (s) => s.body.trim()
   );
   const docText = bySection.map((s) => `### ${s.title}\n${s.body}`).join("\n\n");
@@ -134,11 +135,11 @@ export async function checkDraft(roomId: string, draft: string): Promise<GuardRe
         {
           role: "system",
           content:
-            "You are a fact-checker guarding the shared record of a relationship. Decide whether the user's draft " +
+            `You are a fact-checker guarding the shared record of a ${profile.voice.subject}. Decide whether the user's draft ` +
             "contradicts that record.\n" +
             "Block (contradicts=true, harmful=true) **only when both are true**:\n" +
             "  contradicts = it directly contradicts a recorded fact (new content absent from the record is NOT a contradiction)\n" +
-            "  harmful = sending it as-is could hurt the other person or damage the relationship\n" +
+            `  harmful = ${profile.voice.guardHarm}\n` +
             "Important: **never block something just because it is not in the record.** New topics, plans and feelings always pass.\n" +
             "If you judge it a contradiction, put the exact sentence copied from the document into evidence (no summarizing or rewording).\n" +
             'Output JSON only: {"contradicts":bool,"harmful":bool,"reason":"...","suggestion":"...","evidence":[{"quote":"..."}]}',

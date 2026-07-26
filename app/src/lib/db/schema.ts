@@ -804,12 +804,19 @@ export const agentAccessTokens = pgTable(
 
 /** Owner-edited per-room agent config (users.agentConfig) — spec v2 §4-3. */
 export interface AgentConfig {
+ // Which relationship profile this agent runs on (lib/agent/profiles) — the
+ // sections it keeps, the vocabulary it speaks, which coded rules apply. An
+ // unknown or missing key falls back to the default; a room is never left
+ // without a profile.
+  profile?: string;
   /** custom system prompt (appended after the base prompt) */
   systemPrompt?: string;
+ // Everything below overrides the profile for this room only. Absent = follow
+ // the profile, including when a later release changes it.
   persona?: { name?: string; tone?: string };
   /** active skill keys (a selection from the offered superset) */
   skills?: string[];
-  behavior?: { proactive?: boolean };
+  behavior?: { proactive?: boolean; whisperOnQuestion?: boolean };
   [key: string]: unknown;
 }
 

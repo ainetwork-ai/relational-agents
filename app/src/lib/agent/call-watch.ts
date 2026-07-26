@@ -22,7 +22,8 @@ import {
   readOkfSectionTexts,
 } from "./okf-docs";
 import { CHAT_ROUTE_PREFIX } from "./pipeline";
-import { KEY_BY_ALIAS, SECTIONS, type SectionKey } from "./parse-edits";
+import { keyByAlias, type SectionKey } from "./parse-edits";
+import { profileForRoom, sectionMenu, type RelationshipProfile } from "./profiles";
 
 /**
  * The agent listening in on a call.
@@ -57,9 +58,10 @@ async function factSheet(roomId: string, callId: string): Promise<string> {
   const hit = cache().get(callId);
   if (hit) return hit.sheet;
 
+  const profile = await profileForRoom(roomId);
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
-  const tree = okfDocTreeFromState(state);
-  const sections = tree ? readOkfSectionTexts(tree) : {};
+  const tree = okfDocTreeFromState(state, profile);
+  const sections = tree ? readOkfSectionTexts(tree, profile) : {};
   const body = Object.entries(sections)
     .filter(([, v]) => v.trim())
     .map(([k, v]) => `## ${k}\n${v}`)
@@ -93,10 +95,11 @@ export function forgetCallFacts(callId: string): void {
   cache().delete(callId);
 }
 
-/** Sections a call may file something under — the timeline is excluded because
- *  the summary already lands there, and a duplicate entry is worse than none. */
-const RECAP_SECTIONS = SECTIONS.filter((s) => s.key !== "timeline");
-const SECTION_MENU = RECAP_SECTIONS.map((s) => `${s.key} (${s.title})`).join(", ");
+/** Sections a call may file something under — the chronological one is excluded
+ *  because the summary already lands there, and a duplicate is worse than none. */
+function recapSectionMenu(profile: RelationshipProfile): string {
+  return sectionMenu(profile.sections.filter((s) => s.key !== profile.timeline.section));
+}
 
 interface RecapEntry {
   section: SectionKey;
@@ -105,7 +108,11 @@ interface RecapEntry {
 
 /** LLM output → summary + validated entries. Never throws: a call that is
  *  summarised but whose entries are malformed still gets recorded. */
-function parseRecap(raw: string): { summary: string; entries: RecapEntry[] } {
+function parseRecap(
+  raw: string,
+  profile: RelationshipProfile
+): { summary: string; entries: RecapEntry[] } {
+  const aliases = keyByAlias(profile.sections);
   const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
   const body = (fenced ? fenced[1] : raw).trim();
   let parsed: { summary?: unknown; entries?: unknown };
@@ -121,8 +128,8 @@ function parseRecap(raw: string): { summary: string; entries: RecapEntry[] } {
   for (const item of Array.isArray(parsed.entries) ? parsed.entries : []) {
     const e = item as Record<string, unknown>;
     const section =
-      typeof e?.section === "string" ? KEY_BY_ALIAS.get(e.section.trim().toLowerCase()) : undefined;
-    if (!section || section === "timeline") continue;
+      typeof e?.section === "string" ? aliases.get(e.section.trim().toLowerCase()) : undefined;
+    if (!section || section === profile.timeline.section) continue;
     const text = typeof e?.markdown === "string" ? e.markdown.trim().replace(/^-\s*/, "") : "";
     if (text) entries.push({ section, markdown: text });
   }
@@ -179,7 +186,8 @@ export async function writeCallRecap(
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
   if (!room) return { recorded: false };
-  const tree = ensureOkfDocTree(roomId, room.name, {
+  const profile = await profileForRoom(roomId);
+  const tree = ensureOkfDocTree(roomId, room.name, profile, {
     rootPath: state?.rootOkfPath,
     sectionPaths: state?.sectionOkfPaths,
   });
@@ -214,13 +222,14 @@ export async function writeCallRecap(
         {
           role: "system",
           content:
-            "Write up a call for a couple's shared record.\n" +
+            `Write up a call for the shared record of a ${profile.voice.subject}.\n` +
             '"summary": what the call was about — two or three sentences, past tense, naming what they did, decided, or plan to do. ' +
             "Only what was actually said: no advice, no invented detail. Plain prose, no heading, no bullet list.\n" +
             '"entries": anything from the call that belongs in a section of its own, each as {"section": "<key>", "markdown": "- <one line>"}. ' +
-            `Sections: ${SECTION_MENU}. ` +
+            `Sections: ${recapSectionMenu(profile)}. ` +
             "A plan the two settled on is a decision. A question they left open is an open topic. Something learned about a person goes to people notes. " +
-            "The call already goes on the timeline as the summary — never put an entry there. Nothing qualifies? Return an empty list; do not restate the summary.\n" +
+            `The call already goes on the ${profile.timeline.section} section as the summary — never put an entry there. ` +
+            "Nothing qualifies? Return an empty list; do not restate the summary.\n" +
             'JSON only: {"summary":"…","entries":[…]}',
         },
         { role: "user", content: script },
@@ -232,7 +241,7 @@ export async function writeCallRecap(
     return { recorded: false };
   }
 
-  const { summary, entries } = parseRecap(raw);
+  const { summary, entries } = parseRecap(raw, profile);
   if (!summary) return { recorded: false };
 
   // The call itself is one thing that happened → one timeline entry. What it
@@ -241,7 +250,7 @@ export async function writeCallRecap(
   for (const entry of entries) {
     const secRel = tree.sectionPaths[entry.section];
     if (!secRel) continue;
-    const title = SECTIONS.find((s) => s.key === entry.section)?.title ?? entry.section;
+    const title = profile.sections.find((s) => s.key === entry.section)?.title ?? entry.section;
     appendOkfLines(
       secRel,
       title,
@@ -249,20 +258,20 @@ export async function writeCallRecap(
         { type: "bulleted_list", text: entry.markdown },
         { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
       ],
-      okfDocMeta(roomId, entry.section)
+      okfDocMeta(roomId, profile, entry.section)
     );
   }
 
-  const rel = tree.sectionPaths.timeline;
+  const rel = tree.sectionPaths[profile.timeline.section];
   if (rel) {
     appendOkfLines(
       rel,
-      "Timeline",
+      profile.sections.find((s) => s.key === profile.timeline.section)?.title ?? "Timeline",
       [
         { type: "callout", text: summary, icon: "📞" },
         { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
       ],
-      okfDocMeta(roomId, "timeline")
+      okfDocMeta(roomId, profile, profile.timeline.section)
     );
   }
   return { recorded: true };
