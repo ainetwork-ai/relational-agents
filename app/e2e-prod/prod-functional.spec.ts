@@ -58,7 +58,11 @@ test.afterEach(async ({ playwright, baseURL }) => {
     await api.post("/api/auth/demo-login", { data: { as: SCRATCH } });
     while (trash.length) {
       const id = trash.pop()!;
-      const res = await api.delete(`/api/pages/${id}?permanent=1`);
+      // Archive rather than hard-delete: while the judging guards are in place
+      // nginx answers 405 to ?permanent=1, since that same call is rm -rf on a
+      // relationship doc folder. Archived scratch pages sit in a workspace
+      // nobody but this account can see, which is clean enough.
+      const res = await api.delete(`/api/pages/${id}`);
       expect(res.status(), `scratch page ${id} not cleaned up`).toBe(200);
     }
   } finally {
