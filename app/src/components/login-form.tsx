@@ -199,6 +199,12 @@ export function LoginForm() {
             {error}
           </p>
         )}
+
+        <p className="mt-8 text-center text-xs text-neutral-400 dark:text-neutral-600">
+          <a href="/sui" className="underline underline-offset-4 hover:text-neutral-600 dark:hover:text-neutral-400">
+            A relationship as a shared object, live on Sui testnet
+          </a>
+        </p>
       </div>
     </main>
   );
