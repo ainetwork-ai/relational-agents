@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { chatRooms, users } from "@/lib/db/schema";
+import { agentRoomStates, chatRooms, users, type AgentConfig } from "@/lib/db/schema";
+import { PROFILES, resolveProfile } from "@/lib/agent/profiles";
+import { ensureOkfDocTree } from "@/lib/agent/okf-docs";
+import { setOkfAcl } from "@/lib/okf-acl";
 import { eq } from "drizzle-orm";
 import { requireRoomAccess, roomMemberIds, publishToRoomMembers } from "@/lib/chat-room-access";
 import { provisionRoomAgent } from "@/lib/agent/provision";
@@ -73,7 +76,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   return NextResponse.json({ agents });
 }
 
-/** PATCH { name } → rename this room's relationship agent (any member). */
+/**
+ * PATCH → adjust this room's agent. Any member, no signature: the contract is
+ * what brought the agent into being, not what it is told to pay attention to,
+ * and a couple should not need a wallet to change its tone.
+ *
+ * { name }                     rename (the agent's user displayName)
+ * { profile }                  which relationship this is — sections, vocabulary, rules
+ * { persona, behavior, systemPrompt }
+ *                              overrides on top of that profile. null clears one,
+ *                              handing the setting back to the profile.
+ */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -81,13 +94,103 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: s
   const access = await requireRoomAccess(roomId, auth.user.id);
   if ("error" in access) return access.error;
 
-  const body = await req.json().catch(() => ({}));
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
-  if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+  const touchesConfig = ["profile", "persona", "behavior", "systemPrompt"].some((k) => k in body);
+  if (!name && !touchesConfig)
+    return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
 
   const { chatRoomBots } = await import("@/lib/db/schema");
   const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
   if (!bot) return NextResponse.json({ error: "No agent" }, { status: 404 });
+
+  if (touchesConfig) {
+    const [agentUser] = await db.select().from(users).where(eq(users.id, bot.agentUserId));
+    const next = { ...((agentUser?.agentConfig ?? {}) as AgentConfig) };
+
+   // an unknown key would silently fall back to the default at read time —
+   // better to refuse it here, while someone is looking
+    if ("profile" in body) {
+      const key = typeof body.profile === "string" ? body.profile : "";
+      if (!PROFILES.some((p) => p.key === key))
+        return NextResponse.json({ error: `Unknown profile: ${key}` }, { status: 400 });
+      next.profile = key;
+    }
+    if ("persona" in body) {
+      const p = (body.persona ?? {}) as { name?: unknown; tone?: unknown };
+      const persona: { name?: string; tone?: string } = {};
+      if (typeof p.name === "string" && p.name.trim()) persona.name = p.name.trim().slice(0, 80);
+      if (typeof p.tone === "string" && p.tone.trim()) persona.tone = p.tone.trim().slice(0, 40);
+      if (Object.keys(persona).length) next.persona = persona;
+      else delete next.persona;
+    }
+    if ("behavior" in body) {
+      const b = (body.behavior ?? {}) as Record<string, unknown>;
+      const behavior: { proactive?: boolean; whisperOnQuestion?: boolean } = {};
+      if (typeof b.proactive === "boolean") behavior.proactive = b.proactive;
+      if (typeof b.whisperOnQuestion === "boolean") behavior.whisperOnQuestion = b.whisperOnQuestion;
+      if (Object.keys(behavior).length) next.behavior = behavior;
+      else delete next.behavior;
+    }
+    if ("systemPrompt" in body) {
+      const t = typeof body.systemPrompt === "string" ? body.systemPrompt.trim() : "";
+      if (t) next.systemPrompt = t.slice(0, 2_000);
+      else delete next.systemPrompt;
+    }
+
+    await db
+      .update(users)
+      .set({ agentConfig: next as Record<string, unknown> })
+      .where(eq(users.id, bot.agentUserId));
+
+   // Reshape the document now rather than at the next agent run. The write
+   // pipeline returns early when there is nothing new to file, so a room that
+   // is quiet after the change would keep the old section names indefinitely —
+   // the setting would look like it had not taken.
+    if ("profile" in body) {
+      const profile = resolveProfile(next);
+      const [state] = await db
+        .select()
+        .from(agentRoomStates)
+        .where(eq(agentRoomStates.roomId, roomId));
+      const tree = ensureOkfDocTree(roomId, access.room.name, profile, {
+        rootPath: state?.rootOkfPath,
+        sectionPaths: state?.sectionOkfPaths,
+      });
+      const memberIds = await roomMemberIds(roomId);
+      await setOkfAcl(tree.rootPath, roomId, [...new Set([access.room.createdBy, ...memberIds])]);
+      await db
+        .insert(agentRoomStates)
+        .values({
+          roomId,
+          rootOkfPath: tree.rootPath,
+          sectionOkfPaths: tree.sectionPaths,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: agentRoomStates.roomId,
+          set: {
+            rootOkfPath: tree.rootPath,
+            sectionOkfPaths: tree.sectionPaths,
+            updatedAt: new Date(),
+          },
+        });
+    }
+
+    if (!name) {
+      const [agent] = await db.select().from(users).where(eq(users.id, bot.agentUserId));
+      await publishToRoomMembers(
+        roomId,
+        { type: "dm-room", clientId: req.headers.get("x-client-id") },
+        await roomMemberIds(roomId)
+      );
+      return NextResponse.json({
+        agentUserId: agent.id,
+        displayName: agent.displayName,
+        agentConfig: agent.agentConfig ?? {},
+      });
+    }
+  }
 
   const [agent] = await db
     .update(users)

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Phone, PhoneMissed, Send, ShoppingBag, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Phone, PhoneMissed, Send, ShoppingBag, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
 
 /** The human-backed registry is what makes "did two people prove they are
@@ -17,6 +17,7 @@ import { DmAvatar } from "@/components/dm/dm-avatar";
 import { CallButton } from "@/components/call/call-button";
 import { ConsentBanner } from "@/components/dm/consent-banner";
 import { DissolveBanner } from "@/components/dm/dissolve-banner";
+import { AgentSettings } from "@/components/dm/agent-settings";
 import { signTypedDataWithWallet } from "@/lib/wallet/sign";
 import { WalletSignatureError } from "@/lib/wallet/provider";
 
@@ -195,6 +196,7 @@ export function DmView({
   // 열린 통화 버블(있다면) → 그 통화가 문서에 남긴 것. null = 로딩 중
   const [openCall, setOpenCall] = useState<string | null>(null);
   const [callRecord, setCallRecord] = useState<Record<string, CallRecord | null>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [candidates, setCandidates] = useState<DmUser[] | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -879,6 +881,17 @@ export function DmView({
               <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
             </button>
           )}
+          {agentMember && (
+            <button
+              data-testid="dm-agent-settings"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Agent settings"
+              data-tip="What this agent keeps, and how it speaks"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+            >
+              <SlidersHorizontal size={14} />
+            </button>
+          )}
           {/* Filing happens on its own; this is the manual nudge, so it earns an
               icon rather than a coloured button competing with the room title. */}
           <button
@@ -974,6 +987,20 @@ export function DmView({
           <ConsentBanner roomId={roomId} />
           <DissolveBanner roomId={roomId} />
         </>
+      )}
+
+      {settingsOpen && agentMember && (
+        <AgentSettings
+          roomId={roomId}
+          agentName={agentMember.displayName}
+          onClose={() => setSettingsOpen(false)}
+          // the profile decides section names and the doc title, so the room
+          // header and its record link can both be stale after a save
+          onSaved={() => {
+            void loadAll();
+            void loadRooms();
+          }}
+        />
       )}
 
       {/* Message list */}
