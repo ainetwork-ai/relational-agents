@@ -158,6 +158,178 @@ node sui/scripts/lifecycle.mjs \
   --member-a memberA --member-b memberB --outsider outsider
 ```
 
+---
+
+# M0 + M2 — the memory is really sealed, and really on Walrus
+
+The lifecycle above proved the *object*. This section proves the *memory*: real
+bytes, encrypted with Seal, stored on Walrus, pointed at by the chain, and
+readable by exactly one couple.
+
+- **Run date:** 2026-07-26, 02:52–02:54 UTC
+- **Script:** `sui/scripts/walrus-seal.mjs` — receipt in `sui/walrus-seal.json`
+- **SDKs:** `@mysten/sui` 2.22.1, `@mysten/seal` 1.3.4, `@mysten/walrus` 1.2.9,
+  installed into `app/` (`pnpm add`, lockfile updated — no vendored workaround
+  was needed). Chain writes still go through the Sui CLI so the script needs no
+  gas plumbing; Seal goes through `@mysten/seal` against the live testnet key
+  servers.
+- **Relationship used:** a **fresh** agent
+  [`0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837`](https://suiscan.xyz/testnet/object/0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837)
+  (`members = [Member A, Member B]`, `status = 0`), born in digest
+  [`5HERdG5yVggyYz5dxGTSXmSfn2qrxqKiRDzriGqR5xCi`](https://suiscan.xyz/testnet/tx/5HERdG5yVggyYz5dxGTSXmSfn2qrxqKiRDzriGqR5xCi).
+  The M1 agent was dissolved at the end of its run and correctly refuses new
+  memories (`EAlreadyDissolved`), so a live relationship was needed.
+
+## M0 — real bytes on Walrus
+
+The two halves of the egg-tart memory: the demo photo actually shipped in this
+repo (`docs/img/egg-tart.jpg`) and the markdown note that goes with it. Both
+were sealed first, so what Walrus holds is ciphertext.
+
+| Memory | Plaintext | Ciphertext | Walrus blob id | On-chain `add_memory` |
+| --- | --- | --- | --- | --- |
+| note (markdown) | 219 B | 569 B | [`F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM`](https://walruscan.com/testnet/blob/F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM) | [`Dm7MWjuMQCvN5PRGwqhdS1LmmuXtDd34QxpSw9wJCKkK`](https://suiscan.xyz/testnet/tx/Dm7MWjuMQCvN5PRGwqhdS1LmmuXtDd34QxpSw9wJCKkK) |
+| photo (`egg-tart.jpg`) | 17 054 B | 17 405 B | [`8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ`](https://walruscan.com/testnet/blob/8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ) | [`GpB3VGVK4CwmRS9UjnYPdDasRapZbAN2Tw6N9HMfhAa9`](https://suiscan.xyz/testnet/tx/GpB3VGVK4CwmRS9UjnYPdDasRapZbAN2Tw6N9HMfhAa9) |
+
+Storage went through the Walrus **HTTP publisher**
+(`https://publisher.walrus-testnet.walrus.space`) and reads through the
+**aggregator** (`https://aggregator.walrus-testnet.walrus.space`) rather than
+`@mysten/walrus`'s write path, because the publisher is the endpoint that does
+not require the demo addresses to hold WAL. The blob ids are the real,
+content-addressed Walrus ids either way — Walruscan resolves both, and the sizes
+it reports (569 B, 17.41 KB) are the ciphertext sizes above.
+
+Round-trip: `getBlob(putBlob(bytes))` returned **byte-identical** data for both
+blobs (`walrusRoundTripIdentical: true` in the receipt).
+
+The chain now points at real blobs rather than the `walrus://demo-egg-tart-blob`
+placeholder — verifiable in the object's own fields:
+
+```json
+"memories": [
+  { "blob_id": "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM", "kind": "note",  "created_at_ms": "1785034397832" },
+  { "blob_id": "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ", "kind": "photo", "created_at_ms": "1785034399835" }
+]
+```
+
+## M2 — Seal, and the three things it makes true
+
+Encryption is 2-of-2 threshold across Seal's two testnet key servers
+(`0xb012…1e98` in committee mode via the Mysten aggregator, and the independent
+`0x73d0…db75`). The identity is the agent's object id plus a one-byte per-memory
+suffix — which is exactly what `seal_approve`'s `is_prefix` check binds.
+
+**1. A member decrypts, and gets the original bytes back.** Member A, holding
+nothing but their own key:
+
+```
+== member_decrypt_note
+{ "status": "ok", "bytes": 219, "matchesOriginal": true,
+  "preview": "# The egg tart\n\nWe walked past the bakery twice before going in. She said the crust\nwas better than the one in Lisbon; he disagreed, loudly, and then ate\ntwo.\n\n" }
+
+== member_decrypt_photo
+{ "status": "ok", "bytes": 17054, "matchesOriginal": true,
+  "preview": "ffd8ffe000104a4649460001" }
+```
+
+`matchesOriginal` is a byte-for-byte comparison against the input, and the photo
+comes back with the JPEG magic `ff d8 ff e0 … JFIF` intact.
+
+**2. A non-member is refused by the key servers — verbatim.** The outsider from
+the M1 run asks for the same blob with a valid session key of their own:
+
+```
+== outsider_decrypt_note
+{
+  "sender": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+  "status": "refused",
+  "errorClass": "NoAccessError",
+  "isNoAccess": true,
+  "error": "User does not have access to one or more of the requested keys"
+}
+```
+
+This is `NoAccessError` from `@mysten/seal` — the key servers dry-ran
+`seal_approve`, saw the abort, and returned no share. No share, no key, no
+plaintext.
+
+**3. Being in *another* relationship does not unlock this one.** Member A is
+genuinely a member of the second relationship
+(`0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee`).
+Presenting *that* object while asking for *this* memory's identity is refused
+just as hard:
+
+```
+== cross_relationship_decrypt_note
+{
+  "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+  "viaAgent": "0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee",
+  "status": "refused",
+  "errorClass": "NoAccessError",
+  "error": "User does not have access to one or more of the requested keys"
+}
+```
+
+That is the check an ACL table gets wrong, and here it is enforced by
+`EPolicyMismatch` inside `seal_approve` — off the app's critical path entirely.
+
+**A note on how we nearly fooled ourselves.** The first version of this script
+reused one `SealClient` for every attempt, and the outsider "succeeded" —
+because `SealClient` caches derived keys in memory and the outsider was reading
+the *member's* cached key without any key server being contacted. The script now
+constructs a fresh `SealClient` per attempt so every read is a real threshold
+round trip, and `app/src/lib/sui/seal.ts` does the same for the same reason. The
+refusals above are from the fixed run.
+
+## Even the operator cannot read it
+
+We hold the blob. Here are its first 48 bytes, fetched from the Walrus
+aggregator with no key of any kind:
+
+```
+00 fd 75 93 30 54 9d 61 35 cf 85 ca 03 78 6c a2 5c 79 d0 53 b0 16 76 95
+d3 2f 8d f9 5b bc f5 d8 e4 21 d9 3b dd 24 a0 e8 9c db b2 5d 6a c1 b0 e8
+
+as text:  "..u.0T.a5....xl.\\y.S..v../..[....!.;.$.....]j..."
+plaintext: "# The egg tart\n\nWe walked past the bakery twice "
+```
+
+Searching the whole blob for the string `egg tart` finds nothing
+(`containsPlaintextMarker: false`). What is readable in that header is only Seal
+metadata: the package id `fd759330…bcf5d8e4` and the identity
+`d93bdd24a0e89cdbb25d6ac1b0e8…` — the policy is public, the memory is not.
+There is no `okf_acl` row to flip here, because there is no row.
+
+Reproduce:
+
+```bash
+node sui/scripts/walrus-seal.mjs \
+  --sui /path/to/sui --config /path/to/client.yaml \
+  --package 0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4 \
+  --other-agent 0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee
+```
+
+## In the app
+
+- **`app/src/lib/sui/walrus.ts`** — `putBlob` / `getBlob` / `walrusBlobUrl`,
+  speaking the publisher/aggregator protocol directly so the same two functions
+  work in the browser, in a route handler, and in the proof script.
+- **`app/src/lib/sui/seal.ts`** — `sealEncryptToWalrus` /
+  `sealDecryptFromWalrus` / `buildSealApprovalBytes` / `sealIdentity`, over
+  `@mysten/seal` with the testnet key servers and threshold 2.
+
+`cd app && ./node_modules/.bin/tsc --noEmit` passes with both modules in the
+tree.
+
+**Deliberate boundary:** neither module is wired into
+`app/src/lib/agent/pipeline.ts` yet. The running demo still writes through
+`okf-store`, and we did not want a live deployment to start depending on testnet
+key servers mid-hackathon. The swap is `putBlob`/`sealEncryptToWalrus` in place
+of the disk write plus the `blobId` we already store — the Move object has taken
+real blob ids since this run.
+
+---
+
 ## Screenshots
 
 The published package on Suiscan (immutable, publisher visible, the lifecycle
@@ -179,12 +351,25 @@ And the transaction the chain refused — a non-member trying to write a memory:
 
 ![Non-member add_memory aborted](screenshot-denied-tx.png)
 
+The sealed relationship's fields after the M0/M2 run — two members, `status = 0`,
+and two `MemoryRef`s carrying the **real** Walrus blob ids:
+
+![Sealed agent fields on Suiscan](screenshot-sealed-agent-fields.png)
+
+The note's ciphertext blob on Walruscan — 569 B, certified, five epochs paid:
+
+![Sealed note blob on Walruscan](screenshot-walrus-blob-note.png)
+
+And the egg-tart photo's ciphertext blob, 17.41 KB:
+
+![Sealed photo blob on Walruscan](screenshot-walrus-blob-photo.png)
+
 ---
 
 ## Scope — what is real and what is next
 
 Honest accounting, because the milestones in [plan.md](plan.md) are ordered by
-risk and we shipped **M1**.
+risk and we shipped **M0, M1 and M2**.
 
 **Real, on testnet, today:**
 
@@ -197,15 +382,21 @@ risk and we shipped **M1**.
   server evaluates it.
 - App-side transaction builders and a dependency-free lifecycle runner.
 
-**Not yet wired — the next milestones:**
+- **Walrus (M0).** The real egg-tart photo and its note are stored on Walrus
+  testnet as content-addressed blobs, read back byte-identical, and their blob
+  ids are on chain.
+- **Seal (M2).** Memory bytes are 2-of-2 threshold-encrypted before they ever
+  leave the process. A member decrypts; a non-member and a member-of-another-
+  relationship are both refused by the key servers; the stored blob contains no
+  plaintext.
 
-- **Walrus (M0).** `blob_id` currently holds the demo string
-  `walrus://demo-egg-tart-blob`. The object already stores exactly what Walrus
-  returns, so this is a `putBlob`/`getBlob` swap in the pipeline, not a redesign.
-- **Seal client-side (M2).** The on-chain half of Seal — the policy — is
-  published and enforced. The `@mysten/seal` encrypt/decrypt calls and key-server
-  threshold config are not yet in the app, so today's memory is a plaintext
-  pointer rather than a ciphertext blob.
+**Not yet wired — what is left:**
+
+- **Pipeline integration.** `walrus.ts` and `seal.ts` exist and are proven by
+  script, but `app/src/lib/agent/pipeline.ts` still writes through `okf-store`,
+  and `setOkfAcl` is still the live isolation mechanism. Deliberate: we did not
+  want the running demo to acquire a dependency on testnet key servers during
+  the event.
 - **zkLogin / Enoki (M1 second half).** Members are ed25519 keypairs here, not
   Google accounts. This changes how addresses are obtained, not what the object
   does with them.
