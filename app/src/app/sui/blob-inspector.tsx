@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { NOTE_BLOB_ID, NOTE_PLAINTEXT_PREVIEW, walrusBlobUrl } from "@/lib/sui/demo";
+import { Lock } from "lucide-react";
+import {
+  NOTE_BLOB_ID,
+  NOTE_PLAINTEXT_PREVIEW,
+  ROOM_SEALED,
+  walrusBlobUrl,
+} from "@/lib/sui/demo";
 
 interface BlobHead {
   blobId: string;
@@ -53,11 +59,13 @@ export function BlobInspector() {
   }
 
   return (
-    <div className="rounded-2xl border border-amber-400/25 bg-gradient-to-b from-amber-400/[0.07] to-transparent p-5 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-amber-200">The blob, right now</h3>
-          <p className="mt-1 text-sm text-neutral-400">
+    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-800/60">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4 dark:border-neutral-700/60">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            Pull the egg tart note off Walrus
+          </h4>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
             No key required — that is the point. Anyone can hold this file.
           </p>
         </div>
@@ -65,77 +73,82 @@ export function BlobInspector() {
           onClick={fetchBlob}
           disabled={busy}
           data-testid="fetch-blob"
-          className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-300 disabled:opacity-50"
+          className="shrink-0 rounded-md bg-blue-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
         >
           {busy ? "Fetching…" : data ? "Fetch again" : "Fetch the raw blob"}
         </button>
       </div>
 
-      <p className="mt-4 break-all font-mono text-[11px] text-neutral-500">
-        GET {walrusBlobUrl(NOTE_BLOB_ID)}
-      </p>
-
-      {error && (
-        <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          Walrus fetch failed: {error}
+      <div className="px-5 py-4">
+        <p className="break-all font-mono text-[11px] text-neutral-400">
+          GET {walrusBlobUrl(NOTE_BLOB_ID)}
         </p>
-      )}
 
-      {data && (
-        <div className="mt-5 space-y-5" data-testid="blob-result">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="min-w-0 rounded-xl border border-neutral-800 bg-black/50 p-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                What came back · first {data.headBytes} of {data.totalBytes} bytes
-              </p>
-              <div className="overflow-x-auto">
-                <pre className="font-mono text-[11px] leading-relaxed text-neutral-300">
-                  {rows(data.hex, data.ascii).map((r) => (
-                    <div key={r.offset} className="whitespace-pre">
-                      <span className="text-neutral-600">{r.offset}</span>{" "}
-                      <span className="text-emerald-300/90">
-                        {r.hex.join(" ").padEnd(47, " ")}
-                      </span>{" "}
-                      <span className="text-neutral-500">|{r.ascii}|</span>
-                    </div>
-                  ))}
+        {error && (
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">
+            Walrus fetch failed: {error}
+          </p>
+        )}
+
+        {data && (
+          <div className="mt-4 space-y-4" data-testid="blob-result">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="min-w-0 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                  What the internet gets
+                </p>
+                <p className="mb-3 text-xs text-neutral-400">
+                  First {data.headBytes} of {data.totalBytes} bytes, straight from the
+                  aggregator
+                </p>
+                <div className="overflow-x-auto">
+                  <pre className="font-mono text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-300">
+                    {rows(data.hex, data.ascii).map((r) => (
+                      <div key={r.offset} className="whitespace-pre">
+                        <span className="text-neutral-300 dark:text-neutral-600">{r.offset}</span>{" "}
+                        <span>{r.hex.join(" ").padEnd(47, " ")}</span>{" "}
+                        <span className="text-neutral-400 dark:text-neutral-500">|{r.ascii}|</span>
+                      </div>
+                    ))}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="min-w-0 rounded-lg border border-rose-100 bg-rose-50/40 p-4 dark:border-rose-950/60 dark:bg-rose-950/10">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                  What {ROOM_SEALED} gets
+                </p>
+                <p className="mb-3 inline-flex items-center gap-1 text-xs text-neutral-400">
+                  <Lock size={11} /> Only with a member&apos;s signature
+                </p>
+                <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-neutral-700 dark:text-neutral-300">
+                  {NOTE_PLAINTEXT_PREVIEW}
                 </pre>
+                <p className="mt-3 text-xs text-neutral-400">
+                  Printed here from the recorded run, not decrypted by this page — this page
+                  has no key either.
+                </p>
               </div>
             </div>
 
-            <div className="min-w-0 rounded-xl border border-neutral-800 bg-black/50 p-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                What it would say, decrypted
-              </p>
-              <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-neutral-400 blur-[3px] select-none">
-                {NOTE_PLAINTEXT_PREVIEW}
-              </pre>
-              <p className="mt-3 text-xs text-neutral-500">
-                Blurred here because this page has no key either. Only a member&apos;s
-                signature gets those bytes back.
-              </p>
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm ${
+                data.containsMarker
+                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
+              }`}
+            >
+              <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+                blob.includes(&quot;{data.marker}&quot;) ={" "}
+              </span>
+              <span className="font-semibold">{String(data.containsMarker)}</span>
+              {!data.containsMarker && (
+                <span className="ml-2">— the memory is not in the file we serve.</span>
+              )}
             </div>
           </div>
-
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              data.containsMarker
-                ? "border-red-500/40 bg-red-500/10 text-red-200"
-                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-            }`}
-          >
-            <span className="font-mono text-xs text-neutral-400">
-              blob.includes(&quot;{data.marker}&quot;) ={" "}
-            </span>
-            <span className="font-semibold">{String(data.containsMarker)}</span>
-            {!data.containsMarker && (
-              <span className="ml-2 text-emerald-300/80">
-                — the memory is not in the file we serve.
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

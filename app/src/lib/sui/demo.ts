@@ -29,6 +29,25 @@ export const MEMBER_B =
 export const OUTSIDER =
   "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8";
 
+/**
+ * The demo cast, mapped onto the keypairs the scripted run actually used.
+ *
+ * The scripts signed with three throwaway ed25519 keys; these are the demo
+ * characters those keys stand for, so the page can tell the same story the
+ * product tells (memory-data seeds the rooms "Hannah ❤️ Chanho" and
+ * "Ava ❤️ Chanho"). The addresses are unchanged — only the labels are ours.
+ */
+export const CHANHO = { name: "Chanho", address: MEMBER_A };
+export const HANNAH = { name: "Hannah", address: MEMBER_B };
+export const AVA = { name: "Ava", address: OUTSIDER };
+
+/** The two rooms the demo runs in, titled the way the app titles them. */
+export const ROOM_SEALED = "Hannah ❤️ Chanho";
+export const ROOM_OTHER = "Ava ❤️ Chanho";
+
+/** The photo that was sealed — byte-identical to what the scripts encrypted. */
+export const PHOTO_SRC = "/egg-tart.jpg";
+
 export const NOTE_BLOB_ID = "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM";
 export const PHOTO_BLOB_ID = "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ";
 
@@ -100,6 +119,7 @@ export const LIFECYCLE: LifecycleEvent[] = [
 
 export interface SealOutcome {
   who: string;
+  role: string;
   asks: string;
   verdict: string;
   detail: string;
@@ -109,27 +129,30 @@ export interface SealOutcome {
 /** From sui/walrus-seal.json — the three recorded decryption attempts. */
 export const SEAL_OUTCOMES: SealOutcome[] = [
   {
-    who: "Member A",
-    asks: "her own relationship's note",
-    verdict: "219 bytes, byte-identical",
+    who: "Chanho",
+    role: `In ${ROOM_SEALED}`,
+    asks: "the egg tart note, from his own room",
+    verdict: "Opens · 219 bytes, byte-identical",
     detail:
-      "The key servers dry-run seal_approve, find her address in members, and release their shares. matchesOriginal: true. The photo comes back with its JPEG magic intact (ffd8ffe0…JFIF).",
+      "The key servers dry-run seal_approve, find his address in members, and release their shares. matchesOriginal: true. The photo comes back with its JPEG magic intact (ffd8ffe0…JFIF).",
     allowed: true,
   },
   {
-    who: "An outsider",
+    who: "Ava",
+    role: "Not in this relationship",
     asks: "the same note",
-    verdict: "NoAccessError",
+    verdict: "Refused · NoAccessError",
     detail:
       '"User does not have access to one or more of the requested keys." Refused by the Seal key servers, before any byte is handed over.',
     allowed: false,
   },
   {
-    who: "A member of another relationship",
-    asks: "the same note, presenting THEIR object",
-    verdict: "NoAccessError",
+    who: `Chanho, via ${ROOM_OTHER}`,
+    role: "A member — of the other relationship",
+    asks: "the same note, presenting the Ava agent",
+    verdict: "Refused · NoAccessError",
     detail:
-      "The interesting refusal. Being in a relationship is not being in this one: seal_approve binds the identity to this object id, so relationship #2's member cannot open relationship #1's memory even though she is legitimately a member of her own.",
+      "This is the demo's whole point, enforced by a chain instead of by us. Chanho is legitimately a member here too, but seal_approve binds the identity to one object id — so the agent he shares with Ava cannot open the memory he made with Hannah.",
     allowed: false,
   },
 ];
