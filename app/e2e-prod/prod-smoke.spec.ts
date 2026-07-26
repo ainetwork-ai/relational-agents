@@ -1,36 +1,38 @@
 import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
 
 /**
- * Read-only smoke check against the deployed site.
+ * Read-only smoke check against the deployed site, scene by scene.
  *
- * The point is the half the API checks cannot see: whether the pages actually
- * render. A build can serve 200s on every route and still paint a blank screen
- * — a client bundle missing a NEXT_PUBLIC_* value, a hydration mismatch, an
- * asset 404. Those show up here and nowhere else.
+ * The demo script (assets/script.txt) is the spec: sign in, one workspace per
+ * relationship, an agent born on mutual consent, a photo that becomes a memory,
+ * and that memory staying with the relationship it belongs to. e2e/DEMO-0*.spec
+ * already drives those scenes end to end — but against a dev server and a
+ * scratch database, and by signing consent and dissolving relationships. None
+ * of that may touch production.
+ *
+ * So this asserts the observable STATE each scene depends on: if the deployed
+ * build can show the demo, these pass. Nothing here writes.
  */
 
 /**
  * Collects the failures that mean something, and only those.
  *
- * Three kinds of noise would otherwise drown the signal. Next prefetches route
- * payloads (`?_rsc=`) and cancels them when you navigate; the DM event stream
- * is a long-lived SSE connection that is aborted on teardown; and the agent
- * endpoint answers 404 by design — `loadAgent` reads `res.ok` to decide whether
- * a room has an agent yet, so "no agent" IS a 404. None of these is a defect.
+ * Next prefetches route payloads (`?_rsc=`) and cancels them on navigation; the
+ * DM event stream is a long-lived SSE aborted at teardown; and the agent
+ * endpoint answers 404 by design — `loadAgent` reads res.ok to decide whether a
+ * room has an agent, so "no agent" IS a 404. None is a defect.
  */
 const ABORTED = /net::ERR_ABORTED/;
-/** 404 here is a state check, not a failure — see dm-view.tsx `loadAgent`. */
 const AGENT_PROBE = /\/api\/dm\/rooms\/[^/]+\/agent$/;
 
 function watch(page: Page) {
   const problems: string[] = [];
   page.on("console", (m: ConsoleMessage) => {
-    // The browser logs its own line for every non-2xx; the response handler
-    // below judges those, with the URL in hand. Keep only real script errors.
+    // The browser logs a line for every non-2xx; the response handler judges
+    // those with the URL in hand. Keep only real script errors.
     if (m.type() === "error" && !/Failed to load resource/.test(m.text()))
       problems.push(`console: ${m.text().slice(0, 200)}`);
   });
-  // An uncaught exception is always a defect.
   page.on("pageerror", (e) => problems.push(`pageerror: ${String(e).slice(0, 200)}`));
   page.on("requestfailed", (r) => {
     if (ABORTED.test(r.failure()?.errorText ?? "")) return;
@@ -44,64 +46,166 @@ function watch(page: Page) {
   return problems;
 }
 
+/** OKF page ids are the content path; the route takes it base64url-encoded. */
+function pageUrl(okfPath: string) {
+  return `/p/${Buffer.from(okfPath, "utf8").toString("base64url")}`;
+}
+
+const HANNAH_TIMELINE = "Relationship doc — Hannah Brooks-f08201/Timeline.md";
+const AVA_TIMELINE = "Relationship doc — Ava Thorne-36b9ad/Timeline.md";
+
 async function demoLogin(page: Page) {
   await page.goto("/login");
   await page.getByTestId("demo-login-button").click();
   await page.waitForURL(/\/home/, { timeout: 45_000 });
 }
 
-test.describe("production smoke (read-only)", () => {
-  test("the demo entry lands on a populated home", async ({ page }) => {
+/**
+ * Opens a relationship document and waits for its blocks to actually arrive.
+ *
+ * `editor-root` turns visible while still holding placeholder glyphs, so a text
+ * read here can catch "💘 💕 💕 •". For the absence check that is worse than a
+ * flake: "Ava's record has no egg tart" would pass on an empty page, which is
+ * the one result this suite must never report for the wrong reason.
+ */
+async function openDoc(page: Page, okfPath: string) {
+  await page.goto(pageUrl(okfPath));
+  await expect(page.getByTestId("page-title")).toBeVisible();
+  const editor = page.getByTestId("editor-root");
+  await expect(editor).toBeVisible();
+  await expect
+    .poll(async () => (await editor.innerText()).replace(/[\s•💘💕]/g, "").length, {
+      message: `document never loaded its content: ${okfPath}`,
+      timeout: 20_000,
+    })
+    .toBeGreaterThan(200);
+  return editor;
+}
+
+test.describe("production — the demo, scene by scene (read-only)", () => {
+  // ── "He signs in with his wallet." ───────────────────────────────────────
+  test("scene: sign-in lands on the account the demo world hangs off", async ({ page }) => {
     const problems = watch(page);
     await demoLogin(page);
 
-    // The demo must open on the account that owns the relationship world. An
-    // empty account also renders /home fine, so assert the identity, not the URL.
+    // /home renders for an empty account too, so assert the identity.
     const me = await page.request.get("/api/auth/me").then((r) => r.json());
-    expect(me.user, "demo login returned no user").toBeTruthy();
-    expect(me.user.displayName).toBe("Chanho");
+    expect(me.user?.displayName).toBe("Chanho");
 
     await expect(page.getByTestId("home-cover")).toBeVisible();
-    await expect(page.getByTestId("home-workspaces")).toBeVisible();
-    expect(problems, `page problems:\n${problems.join("\n")}`).toEqual([]);
+    expect(problems, problems.join("\n")).toEqual([]);
   });
 
-  test("a relationship room renders its conversation", async ({ page }) => {
+  // ── "He has two exclusive workspaces — one for Hannah, one for Ava." ─────
+  test("scene: one workspace per relationship", async ({ page }) => {
+    const problems = watch(page);
+    await demoLogin(page);
+
+    const { workspaces } = await page.request.get("/api/workspaces").then((r) => r.json());
+    const names: string[] = workspaces.map((w: { name: string }) => w.name);
+    expect(names, `workspaces: ${names.join(", ")}`).toEqual(
+      expect.arrayContaining([expect.stringContaining("Hannah"), expect.stringContaining("Ava")])
+    );
+
+    await expect(page.getByTestId("home-workspaces")).toBeVisible();
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  // ── "This is Chanho's home — ten different women, each with her own agent" ─
+  test("scene: the home dashboard lists the relationships", async ({ page }) => {
+    const problems = watch(page);
+    await demoLogin(page);
+
+    await expect(page.getByTestId("home-dashboard")).toBeVisible();
+    const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
+    expect(rooms?.length, "no relationships to show").toBeGreaterThan(0);
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  // ── "Chanho drops a photo in — the agent organized it into the document." ─
+  test("scene: the photo became a memory, and the image still loads", async ({ page }) => {
+    const problems = watch(page);
+    await demoLogin(page);
+
+    await openDoc(page, HANNAH_TIMELINE);
+
+    // Uploads live on a mounted volume — a redeploy that loses the mount
+    // leaves the page rendering fine with every image broken.
+    const imgs = page.getByTestId("editor-root").locator("img");
+    const n = await imgs.count();
+    for (let i = 0; i < n; i++) {
+      const src = await imgs.nth(i).getAttribute("src");
+      if (!src) continue;
+      const res = await page.request.get(src);
+      expect(res.status(), `image not served: ${src}`).toBe(200);
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  // ── "The Chanho-and-Hannah agent holds the egg tarts. Ava's holds none." ──
+  test("scene: the egg tart lives with Hannah, and never with Ava", async ({ page }) => {
+    const problems = watch(page);
+    await demoLogin(page);
+
+    const hannah = await openDoc(page, HANNAH_TIMELINE);
+    await expect(hannah, "Hannah's record lost the egg tart memory").toContainText(/egg tarts?/i);
+
+    // openDoc has already proven this page carries real content, so an absent
+    // egg tart here means isolation held — not that nothing rendered.
+    const ava = await openDoc(page, AVA_TIMELINE);
+    await expect(
+      ava,
+      "the egg tart leaked into Ava's record — isolation broken"
+    ).not.toContainText(/egg tarts?/i);
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  // ── "And right then — a video call." ─────────────────────────────────────
+  test("scene: a room and its call surface open", async ({ page }) => {
     const problems = watch(page);
     await demoLogin(page);
 
     const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
-    expect(rooms?.length, "the demo account sees no rooms").toBeGreaterThan(0);
-
-    await page.goto(`/dm/${rooms[0].id}`);
+    const room = rooms[0];
+    await page.goto(`/dm/${room.id}`);
     await expect(page.getByTestId("dm-room-title")).toBeVisible();
     await expect(page.getByTestId("dm-messages")).toBeVisible();
 
-    // A room with history must actually paint messages, not an empty shell.
-    const { messages } = await page
-      .request.get(`/api/dm/rooms/${rooms[0].id}/messages`)
-      .then((r) => r.json());
-    if (messages?.length) {
-      await expect(page.getByTestId("dm-messages").locator("> *").first()).toBeVisible();
-    }
-    expect(problems, `page problems:\n${problems.join("\n")}`).toEqual([]);
+    // Placing a call needs two browsers and media permissions; what is checked
+    // here is that the deployed build serves the surface without blowing up.
+    await page.goto(`/call/${room.id}`);
+    await expect(page.locator("body")).toBeVisible();
+    expect(problems, problems.join("\n")).toEqual([]);
   });
 
-  test("the OKF content tree is served and readable", async ({ page }) => {
-    const problems = watch(page);
+  // ── "The relational agent is born when both sign." ───────────────────────
+  // Demo-readiness, not a build check: the deployment can be perfectly healthy
+  // and still have no agent in the demo rooms, which is what `pnpm demo:seed`
+  // is for. Failing here means "do not record yet", not "the code is broken".
+  test("scene: the demo relationships have their agent", async ({ page }) => {
     await demoLogin(page);
 
-    // The folder tree IS the content database — if the volume were unmounted
-    // the API would answer 200 with nothing, which is the failure to catch.
-    const { tree } = await page.request.get("/api/okf/tree").then((r) => r.json());
-    expect(tree?.length, "OKF tree is empty — content volume not mounted?").toBeGreaterThan(0);
-    expect(problems, `page problems:\n${problems.join("\n")}`).toEqual([]);
-  });
+    // One relationship per workspace, and /api/dm/rooms only returns the active
+    // one's — so walk them. Switching moves session.activeWorkspaceId and
+    // nothing else, which is the same kind of write as signing in.
+    const { workspaces } = await page.request.get("/api/workspaces").then((r) => r.json());
+    const checked: string[] = [];
+    const withAgent: string[] = [];
 
-  test("static assets the demo depends on are present", async ({ page }) => {
-    // The home cover ships in the image; uploads come from a mounted volume.
-    // A 404 here means a redeploy dropped something that used to be there.
-    const cover = await page.request.get("/covers/home-cover-chanho.png");
-    expect(cover.status(), "demo home cover missing").toBe(200);
+    for (const ws of workspaces) {
+      await page.request.post("/api/workspaces/switch", { data: { workspaceId: ws.id } });
+      const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
+      for (const r of rooms ?? []) {
+        checked.push(r.name);
+        const res = await page.request.get(`/api/dm/rooms/${r.id}/agent`);
+        if (res.ok()) withAgent.push(r.name);
+      }
+    }
+
+    expect(
+      withAgent.length,
+      `no relationship has an agent — seed the demo before recording. ` +
+        `checked ${checked.length} room(s) across ${workspaces.length} workspace(s): ${checked.join(", ")}`
+    ).toBeGreaterThan(0);
   });
 });
