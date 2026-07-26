@@ -104,7 +104,11 @@ test.describe("production — what a visitor can actually do", () => {
     await expect(page.getByTestId("search-modal")).toBeVisible();
     await page.getByTestId("search-input").fill(needle);
 
-    await expect(page.getByTestId("search-modal")).toContainText(needle, { timeout: 20_000 });
+    // Assert the result ROW, not the modal's text. The modal echoes the query
+    // back in two places — the "Ask AI: <query>" button and the empty state's
+    // No results for "<query>" — so a contains-check on the modal passes with
+    // zero results, and would stay green if search 500'd.
+    await expect(page.getByTestId(`search-result-${id}`)).toBeVisible({ timeout: 20_000 });
   });
 
   test("an uploaded image is stored and served back", async ({ page }) => {
