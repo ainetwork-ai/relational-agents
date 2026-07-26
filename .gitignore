@@ -40,3 +40,7 @@ memory-data/content/demo.md
 # local backups (not source)
 /backup/
 memory-data/content-test/
+
+# Demo videos live on YouTube, not in git
+assets/*.mp4
+*.mp4
