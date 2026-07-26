@@ -115,7 +115,11 @@
   <p class="lede">
     무엇이 파이프라인을 깨우고, 파이프라인이 무엇을 하고, LLM이 정확히 어느 지점에서
     어떤 프롬프트와 어떤 컨텍스트로 불리는지. 컨텍스트의 출처까지 따라갑니다.
-    코드베이스 기준: <code>app/src/lib/agent/*</code>, 2026-07-25.
+    코드베이스 기준: <code>app/src/lib/agent/*</code>, 2026-07-26.
+    <strong>섹션 구성·어휘·이벤트 규칙은 이제 관계 프로필이 정합니다</strong>
+    (<code>lib/agent/profiles</code>) — 아래 값들은 기본값인 Romantic 프로필 기준이고,
+    Business 프로필에서는 섹션이 6개(Meeting log·Agreements·Action items·Contacts·
+    Open questions)이며 사진 규칙이 없고 이벤트가 📅 meeting / 🤝 intro 입니다.
   </p>
   <div class="legend">
     <span class="chip code">■ 코드가 결정</span>
@@ -242,7 +246,7 @@ flowchart TD
       <dt>컨텍스트</dt>
       <dd>
         <ul>
-          <li><strong>문서 현재 상태</strong> — 5개 섹션 전문을 JSON으로 통째 (<span class="muted">상한 없음</span>)</li>
+          <li><strong>문서 현재 상태</strong> — 프로필의 섹션 전문을 JSON으로 통째 (<span class="muted">상한 없음</span>)</li>
           <li><strong>새 메시지 배치</strong> — <code>[id] (작성자8자) 본문 [attached: …]</code> 형식</li>
           <li><strong>실제 사진</strong> — 업로드 이미지를 data URL로 인라인 (비전 입력)</li>
         </ul>
@@ -261,7 +265,7 @@ flowchart TD
           <li>섹션 키 정규화 — 모델이 <code>Overview</code>라고 써도 <code>overview</code>로 (parse-edits.ts:32)</li>
           <li>출처 위조 차단 — 이번 배치에 실제로 없는 id는 버림 (pipeline.ts:378)</li>
           <li>산문에 섞인 <code>[uuid]</code>, 모델이 만든 <code>Sources:</code>, 앞머리 날짜 제거</li>
-          <li><span class="chip stop">하드룰</span> 인용 메시지에 사진이 있으면 <strong>모델 판단과 무관하게</strong> date 이벤트로 승격</li>
+          <li><span class="chip stop">하드룰</span> 인용 메시지에 사진이 있으면 <strong>모델 판단과 무관하게</strong> 프로필이 선언한 이벤트로 승격 (Romantic=date, Business=규칙 없음)</li>
           <li>파일에는 <strong>append만</strong> — 기존 줄 수정·삭제 경로 없음</li>
         </ul>
       </dd>
@@ -288,7 +292,7 @@ flowchart TD
       <dt>컨텍스트</dt>
       <dd>
         <ul>
-          <li><strong>관계 문서 5개 섹션 전문</strong> (섹션당 상한 없음)</li>
+          <li><strong>문서의 모든 섹션 전문</strong> — 이전 프로필이 남긴 섹션도 포함 (섹션당 상한 없음)</li>
           <li><strong>최근 대화 20건</strong> — <code>(작성자8자) 본문</code>, 시간 역순을 뒤집어 정순으로</li>
           <li><strong>새 메시지</strong> + <code>mentioned</code> 불리언</li>
           <li>문서 루트 링크 <code>/p/{rootPageId}</code></li>

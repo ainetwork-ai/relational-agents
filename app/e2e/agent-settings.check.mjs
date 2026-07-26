@@ -27,6 +27,15 @@ const check = (name, ok, detail = "") => {
   if (!ok) failed++;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`);
 };
+// Body minus its H1: the heading is the section's label and a profile switch is
+// supposed to change it. Everything below it is the writing, which must not
+// change no matter what the profile is called.
+const bodyOf = (file) => {
+  const p = path.join(ROOT, DOC, file);
+  if (!fs.existsSync(p)) return "";
+  const body = fs.readFileSync(p, "utf8").split("---").slice(2).join("---").trim();
+  return body.replace(/^#\s.*\n?/, "").trim();
+};
 const titleOf = (file) => {
   const p = path.join(ROOT, DOC, file);
   if (!fs.existsSync(p)) return null;
@@ -43,6 +52,11 @@ await ctx.request.post(`${BASE}/api/auth/demo-login`, { data: { as: MEMBER } });
 // start from a known profile: this check flips back and forth, and a previous
 // run that ended mid-flight would otherwise decide what "restored" means
 await ctx.request.patch(`${BASE}/api/dm/rooms/${ROOM}/agent`, { data: { profile: "romantic" } });
+// Titles are what a profile switch is supposed to change; the writing under
+// them is what it must never touch. Asserting only titles let a run that
+// emptied every section pass 12/12.
+const SECTIONS = ["Timeline.md", "Decisions.md", "Overview.md", "People notes.md", "Open topics.md"];
+const bodiesBefore = Object.fromEntries(SECTIONS.map((f) => [f, bodyOf(f)]));
 const page = await ctx.newPage();
 await page.goto(`${BASE}/dm/${ROOM}`);
 
@@ -91,6 +105,17 @@ check("decisions restored", titleOf("Decisions.md") === "Decisions", `${titleOf(
 check("the other profile's section survives", titleOf("Action items.md") === "Action items");
 const index = fs.readFileSync(path.join(ROOT, DOC, "index.md"), "utf8");
 check("and stays reachable from the index", index.includes("[Action items]"));
+
+for (const f of SECTIONS) {
+  const before = bodiesBefore[f];
+  if (!before) continue; // nothing was in it to lose
+  const now = bodyOf(f);
+  check(
+    `${f} 내용 보존`,
+    now.includes(before),
+    `${before.length}B → ${now.length}B`
+  );
+}
 
 await browser.close();
 console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");

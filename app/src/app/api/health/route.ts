@@ -1,31 +1,22 @@
 import { NextResponse } from "next/server";
-import { checkSchemaDrift } from "@/lib/db/schema-drift";
+import { checkSchemaDrift, reportSchemaDrift } from "@/lib/db/schema-drift";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/health → { ok, schema }
+ * GET /api/health → { ok } · 503 when this build's schema is not present.
  *
- * Unauthenticated on purpose: a deploy step has to be able to ask before
- * anyone logs in, and the answer carries no content — only whether this build's
- * schema is present. Returns 503 when it is not, so a deploy script can fail on
- * the status code without parsing anything.
+ * Unauthenticated, because a deploy step has to be able to ask before anyone
+ * logs in — so the answer is a status code and nothing else. An earlier version
+ * put the missing table and column names in the body, plus `String(err)` from
+ * the driver, which on a connection failure reads
+ * `connect ECONNREFUSED <host>:5432` or names the database user. That is a map
+ * of the inside handed to whoever asks. What is missing belongs in the server
+ * log (reportSchemaDrift) and in `pnpm db:check`, both of which are already
+ * where the person fixing it is looking.
  */
 export async function GET() {
   const schema = await checkSchemaDrift();
-  return NextResponse.json(
-    {
-      ok: schema.ok,
-      schema: schema.ok
-        ? { ok: true }
-        : {
-            ok: false,
-            missingTables: schema.missingTables,
-            missingColumns: schema.missingColumns,
-            ...(schema.error ? { error: schema.error } : {}),
-            hint: "run `pnpm db:push` against this deployment's POSTGRES_URL",
-          },
-    },
-    { status: schema.ok ? 200 : 503 }
-  );
+  if (!schema.ok) reportSchemaDrift(schema);
+  return NextResponse.json({ ok: schema.ok }, { status: schema.ok ? 200 : 503 });
 }

@@ -21,8 +21,12 @@ const WRITE = process.argv.includes("--write");
 // Only the bare "they had a call" sentences. A recap callout ("> 📞 …") says
 // what the call was about and must survive, so the pattern requires the
 // content-free shape and never matches a quote line.
+// The whole line has to be the bare fact — "…had a video call", optionally
+// with its duration. A trailing `.*` once made this match sentences that go on
+// to say something ("…had a video call with her parents and she cried"), and
+// those are memories, not bubbles.
 const BUBBLE_LINE =
-  /^-?\s*(\d{4}-\d{2}-\d{2}:\s*)?.{0,80}?\bhad (a|another) video call\b.*$/i;
+  /^-?\s*(\d{4}-\d{2}-\d{2}:\s*)?.{0,80}?\bhad (a|another) video call\b( lasting [^.]{1,40})?\.?\s*$/i;
 
 function isSources(block) {
   return /^Sources:/i.test(block.trim());

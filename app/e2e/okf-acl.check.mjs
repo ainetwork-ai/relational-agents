@@ -92,7 +92,7 @@ const probes = [
       fetch(`${BASE}/api/pages/${id(relPage)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json", cookie: c },
-        body: JSON.stringify({ title: "Timeline" }),
+        body: JSON.stringify({ title: node.title }),
       }),
   ],
   // archive-only: the OKF branch treats a non-permanent delete as a no-op,
@@ -122,7 +122,16 @@ for (const [name, run] of probes) {
     name.includes("okf/tree") ||
     name.includes("search") ||
     name.includes("/p/{id}");
-  const strangerBlocked = byBody ? !leak : sRes.status === 404 && !leak;
+  // Listings answer with paths and titles, not bodies, so looking for the
+  // document's *contents* in them always passed — the gate could have been
+  // removed and this still read 13/13. Ask whether the document appears at all.
+  // Not for /p/{id}: the id is in the URL there by definition, and Next echoes
+  // it back in the router payload of the not-found page.
+  const isListing =
+    name.includes("okf/pages") || name.includes("okf/tree") || name.includes("search");
+  const listed =
+    isListing && (sBody.includes(DOC) || sBody.includes(id(relPage)) || sBody.includes(id(DOC)));
+  const strangerBlocked = byBody ? !leak && !listed : sRes.status === 404 && !leak;
   const memberAllowed = mRes.status < 400;
   row(name, mRes.status, sRes.status, leak, memberAllowed && strangerBlocked);
 }

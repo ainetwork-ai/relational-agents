@@ -40,8 +40,10 @@ docker images memory-live-app   # 되돌릴 수 있는 후보 목록
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
 cd app && npx playwright test -c playwright.prod.config.ts
 
-# 스키마가 이 빌드에 못 미치면 503 + 무엇이 없는지 (아래 3.6)
-curl -sf https://memory.ainetwork.ai/api/health | jq .
+# 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
+# -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
+# 보이지 않는다. 상태코드를 직접 찍는다.
+curl -s -o /dev/null -w '%{http_code}\n' https://memory.ainetwork.ai/api/health
 ```
 
 `app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 데모가 세계를
@@ -104,8 +106,11 @@ dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기
 - **부팅 로그** — `src/instrumentation.ts`. 스키마가 맞으면 아무 말도 하지 않고,
   모자라면 없는 테이블·컬럼과 적용 명령을 한 블록으로 찍는다. 기동을 막지는
   않는다 — 컬럼 하나가 없다고 나머지 화면까지 못 열 이유는 없다.
-- **`GET /api/health`** — 맞으면 200, 모자라면 **503**과 목록. 인증이 없어서
-  배포 스크립트가 로그인 없이 물어볼 수 있고, 내용은 아무것도 새지 않는다.
+- **`GET /api/health`** — 맞으면 200, 모자라면 **503**. 그게 전부다: 무엇이
+  없는지는 본문에 담지 않는다. 인증이 없는 엔드포인트라 테이블·컬럼 목록이나
+  드라이버 에러 문자열(`connect ECONNREFUSED <host>:5432`, DB 계정명)을 실으면
+  묻는 사람 누구에게나 내부 지도를 건네는 셈이다. 세부는 서버 로그와
+  `pnpm db:check` 로 — 고치는 사람은 이미 거기를 보고 있다.
 - **`pnpm db:check`** — 아무 DB나 겨눠서 미리 확인. 모자라면 exit 1이라 게이트로
   쓸 수 있다.
 
