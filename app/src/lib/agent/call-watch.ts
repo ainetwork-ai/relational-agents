@@ -119,8 +119,11 @@ function parseRecap(
   try {
     parsed = JSON.parse(body) as typeof parsed;
   } catch {
- // the model answered in prose — that IS the summary, which is the part
- // that matters; sections are the bonus
+ // The model may answer in prose instead of JSON; that prose IS the summary,
+ // which is the part that matters. But output that *starts* like JSON and
+ // fails to parse is truncated (maxTokens) or malformed — writing it verbatim
+ // put `> 📞 {"summary":"…` into the record as if it were a sentence.
+    if (/^[{[]|^```/.test(body)) return { summary: "", entries: [] };
     return { summary: body.slice(0, 2_000), entries: [] };
   }
   const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
@@ -174,6 +177,19 @@ export async function claimCallUtterances(callId: string): Promise<CallUtterance
   return spoken;
 }
 
+/**
+ * Hand claimed lines back to the write queue.
+ *
+ * The claim is what makes one call one entry, but it also means a failed recap
+ * takes the call with it: the rows are marked processed and nothing ever looks
+ * at them again. When the summary cannot be written, scattered-but-present
+ * beats tidy-and-gone.
+ */
+async function releaseCallUtterances(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await db.update(callUtterances).set({ processedAt: null }).where(inArray(callUtterances.id, ids));
+}
+
 /** Summarise claimed lines into one Timeline entry. */
 export async function writeCallRecap(
   roomId: string,
@@ -186,6 +202,12 @@ export async function writeCallRecap(
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
   const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
   if (!room) return { recorded: false };
+ // No signed contract, no agent — and therefore no record. The write pipeline
+ // refuses the same way (runOnce: "no consent yet"); without this a call alone
+ // would create the folder, the ACL row and the state for a relationship that
+ // never agreed to have one. The lines stay claimed on purpose: they happened
+ // before consent, and the pipeline would skip them anyway.
+  if (!room.consentAt) return { recorded: false };
   const profile = await profileForRoom(roomId);
   const tree = ensureOkfDocTree(roomId, room.name, profile, {
     rootPath: state?.rootOkfPath,
@@ -255,11 +277,16 @@ export async function writeCallRecap(
     );
   } catch (err) {
     console.error("call recap failed:", err);
+    await releaseCallUtterances(spoken.map((u) => u.id));
     return { recorded: false };
   }
 
   const { summary, entries } = parseRecap(raw, profile);
-  if (!summary) return { recorded: false };
+  if (!summary && !entries.length) {
+    console.error("call recap produced nothing usable:", raw.slice(0, 200));
+    await releaseCallUtterances(spoken.map((u) => u.id));
+    return { recorded: false };
+  }
 
   // The call itself is one thing that happened → one timeline entry. What it
   // produced — a decision, an open question — belongs where a reader would
@@ -279,7 +306,9 @@ export async function writeCallRecap(
     );
   }
 
-  const rel = tree.sectionPaths[profile.timeline.section];
+ // A summary is the timeline entry; entries above were already filed. Losing
+ // the prose is not a reason to lose what the call decided.
+  const rel = summary ? tree.sectionPaths[profile.timeline.section] : undefined;
   if (rel) {
     appendOkfLines(
       rel,
@@ -350,9 +379,13 @@ export async function watchUtterance(
   const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
   if (!bot) return { whispered: false };
 
+  const profile = await profileForRoom(roomId);
   const sheet = await factSheet(roomId, callId);
   const read = await readLine(text, sheet);
-  const asks = QUESTION.test(text.trim());
+ // A question to your member earns a whisper — unless this relationship turned
+ // that off. The settings form offers the switch, so it has to mean something;
+ // a line that touches the record still whispers either way.
+  const asks = profile.behavior.whisperOnQuestion && QUESTION.test(text.trim());
   const worth = asks || Boolean(read.topic && read.known);
   if (!worth) return { whispered: false, topic: read.topic };
 
