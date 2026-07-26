@@ -101,7 +101,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: s
     return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
 
   const { chatRoomBots } = await import("@/lib/db/schema");
-  const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
+ // A room can hold more than one bot — external A2A agents get imported the
+ // same way. Settings here mean *this relationship's* agent, so pick the one
+ // this room gave birth to (ownerId = the room's creator, as provisionRoomAgent
+ // sets it) rather than whichever row came back first. Config is stored on the
+ // user row, so writing to the wrong bot changes an agent in someone else's
+ // room while this one carries on unchanged.
+  const roomBots = await db
+    .select({ agentUserId: chatRoomBots.agentUserId, isAgent: users.isAgent, ownerId: users.ownerId })
+    .from(chatRoomBots)
+    .innerJoin(users, eq(users.id, chatRoomBots.agentUserId))
+    .where(eq(chatRoomBots.roomId, roomId));
+  const ours = roomBots.filter((b) => b.isAgent);
+  const bot = ours.find((b) => b.ownerId === access.room.createdBy) ?? ours[0];
   if (!bot) return NextResponse.json({ error: "No agent" }, { status: 404 });
 
   if (touchesConfig) {

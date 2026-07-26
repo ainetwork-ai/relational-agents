@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 /**
@@ -52,6 +52,19 @@ export function AgentSettings({
   const [name, setName] = useState(agentName);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const downOnOverlay = useRef(false);
+
+  // Escape closes, and focus starts inside — the rest of the app's dialogs
+  // behave this way, and a modal you can only leave with the mouse is a trap.
+  useEffect(() => {
+    panelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   useEffect(() => {
     void (async () => {
@@ -118,12 +131,25 @@ export function AgentSettings({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-      onClick={onClose}
+      // A click that *began* inside the panel is a drag that ended out here —
+      // selecting text in the instructions box and releasing past its edge
+      // would otherwise close the dialog and throw the draft away.
+      onMouseDown={(e) => {
+        downOnOverlay.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && downOnOverlay.current) onClose();
+      }}
     >
       <div
         data-testid="agent-settings"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Agent settings"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl bg-white p-5 shadow-xl dark:bg-neutral-900"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-neutral-900"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>

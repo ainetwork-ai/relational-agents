@@ -135,9 +135,11 @@ function CallRecordPanel({ record }: { record: CallRecord | null }) {
         </>
       ) : (
         <p className="text-neutral-500">
-          {utteranceCount > 0
-            ? "Nothing from this call made it into the record."
-            : "Nothing was said out loud on this call."}
+          {utteranceCount >= 2
+            ? "Still being written up — check back in a moment."
+            : utteranceCount > 0
+              ? "Nothing from this call made it into the record."
+              : "Nothing was said out loud on this call."}
         </p>
       )}
       {docPageId && (
@@ -297,12 +299,27 @@ export function DmView({
         return;
       }
       setOpenCall(messageId);
-      if (callRecord[callId] !== undefined) return;
+      const cached = callRecord[callId];
+     // A finished call's record does not change — except right after the call,
+     // when the summary is still being written. Caching that moment pinned
+     // "Nothing from this call made it into the record" on screen even after
+     // the agent had filed it, so an in-flight answer is not an answer.
+      if (cached && !(cached.entries.length === 0 && cached.utteranceCount >= 2)) return;
       setCallRecord((r) => ({ ...r, [callId]: null }));
-      const res = await fetch(`/api/calls/${roomId}/record?callId=${encodeURIComponent(callId)}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as CallRecord;
-      setCallRecord((r) => ({ ...r, [callId]: data }));
+      try {
+        const res = await fetch(`/api/calls/${roomId}/record?callId=${encodeURIComponent(callId)}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = (await res.json()) as CallRecord;
+        setCallRecord((r) => ({ ...r, [callId]: data }));
+      } catch {
+       // drop the loading sentinel so opening it again retries instead of
+       // showing "Looking it up…" forever
+        setCallRecord((r) => {
+          const next = { ...r };
+          delete next[callId];
+          return next;
+        });
+      }
     },
     [openCall, callRecord, roomId]
   );
@@ -1030,6 +1047,18 @@ export function DmView({
             const grouped =
               !newDay && prev?.authorId === m.authorId &&
               new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
+            const after = messages[i + 1];
+           // One clock per burst, on the message that ends it. A stamp beside
+           // every bubble sat at whatever x that bubble happened to end at, so
+           // a screen of chat had the time zigzagging across it.
+            const endsRun =
+              !after ||
+              after.authorId !== m.authorId ||
+              new Date(after.createdAt).toDateString() !== new Date(m.createdAt).toDateString() ||
+              new Date(after.createdAt).getTime() - new Date(m.createdAt).getTime() >= 5 * 60_000;
+           // Same for the quiet notice: every private message keeps the lock,
+           // but only the last of a private stretch spells out what it means.
+            const lastQuiet = Boolean(m.privateToUserId) && !after?.privateToUserId;
             // "📞 " prefix = a call record the calls route inserted — rendered
             // as a KakaoTalk-style event bubble instead of a text bubble
             const callEvent =
