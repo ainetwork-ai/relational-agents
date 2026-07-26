@@ -179,9 +179,10 @@ test.describe("production — the demo, scene by scene (read-only)", () => {
   });
 
   // ── "The relational agent is born when both sign." ───────────────────────
-  // Demo-readiness, not a build check: the deployment can be perfectly healthy
-  // and still have no agent in the demo rooms, which is what `pnpm demo:seed`
-  // is for. Failing here means "do not record yet", not "the code is broken".
+  // Not a build check: the deployment can be perfectly healthy and still have
+  // no agent in any relationship. It matters because the public link is what a
+  // visitor clicks — an agentless room shows none of what the product is for.
+  // Failing here means "seed the live site", not "the code is broken".
   test("scene: the demo relationships have their agent", async ({ page }) => {
     await demoLogin(page);
 
@@ -204,7 +205,7 @@ test.describe("production — the demo, scene by scene (read-only)", () => {
 
     expect(
       withAgent.length,
-      `no relationship has an agent — seed the demo before recording. ` +
+      `no relationship has an agent — a visitor would see none of the product. ` +
         `checked ${checked.length} room(s) across ${workspaces.length} workspace(s): ${checked.join(", ")}`
     ).toBeGreaterThan(0);
   });
