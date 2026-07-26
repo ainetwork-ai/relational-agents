@@ -19,7 +19,7 @@ export async function waitEditorReady(page: Page) {
     const m = location.pathname.match(/\/p\/([0-9a-f-]{36})/);
     return (
       !!m &&
-      (window as unknown as Record<string, unknown>).__notionEditorReady === m[1]
+      (window as unknown as Record<string, unknown>).__editorReady === m[1]
     );
   });
 }
