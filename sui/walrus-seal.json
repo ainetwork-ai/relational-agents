@@ -1,0 +1,125 @@
+{
+  "network": "testnet",
+  "packageId": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4",
+  "steps": [
+    {
+      "step": "create_agent",
+      "digest": "5HERdG5yVggyYz5dxGTSXmSfn2qrxqKiRDzriGqR5xCi",
+      "agentId": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837",
+      "memberA": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "memberB": "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784"
+    },
+    {
+      "step": "seal_encrypt_and_store_note",
+      "identity": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d783701",
+      "blobId": "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM",
+      "plaintextBytes": 219,
+      "ciphertextBytes": 569,
+      "walrusRoundTripIdentical": true,
+      "walrusUrl": "https://aggregator.walrus-testnet.walrus.space/v1/blobs/F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM",
+      "plaintextHead": "23205468652065676720746172740a0a57652077616c6b656420706173742074",
+      "ciphertextHead": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8"
+    },
+    {
+      "step": "seal_encrypt_and_store_photo",
+      "identity": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d783702",
+      "blobId": "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ",
+      "plaintextBytes": 17054,
+      "ciphertextBytes": 17405,
+      "walrusRoundTripIdentical": true,
+      "walrusUrl": "https://aggregator.walrus-testnet.walrus.space/v1/blobs/8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ",
+      "plaintextHead": "ffd8ffe000104a46494600010100000100010000ffdb00430006040405040406",
+      "ciphertextHead": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8"
+    },
+    {
+      "step": "add_memory_note",
+      "digest": "Dm7MWjuMQCvN5PRGwqhdS1LmmuXtDd34QxpSw9wJCKkK",
+      "blobId": "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM",
+      "kind": "note"
+    },
+    {
+      "step": "add_memory_photo",
+      "digest": "GpB3VGVK4CwmRS9UjnYPdDasRapZbAN2Tw6N9HMfhAa9",
+      "blobId": "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ",
+      "kind": "photo"
+    },
+    {
+      "step": "member_decrypt_note",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "status": "ok",
+      "bytes": 219,
+      "matchesOriginal": true,
+      "preview": "# The egg tart\n\nWe walked past the bakery twice before going in. She said the crust\nwas better than the one in Lisbon; he disagreed, loudly, and then ate\ntwo.\n\n"
+    },
+    {
+      "step": "member_decrypt_photo",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "status": "ok",
+      "bytes": 17054,
+      "matchesOriginal": true,
+      "preview": "ffd8ffe000104a4649460001"
+    },
+    {
+      "step": "outsider_decrypt_note",
+      "sender": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+      "status": "refused",
+      "errorClass": "NoAccessError",
+      "isNoAccess": true,
+      "error": "User does not have access to one or more of the requested keys"
+    },
+    {
+      "step": "cross_relationship_decrypt_note",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "viaAgent": "0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee",
+      "status": "refused",
+      "errorClass": "NoAccessError",
+      "error": "User does not have access to one or more of the requested keys"
+    },
+    {
+      "step": "raw_blob_is_ciphertext",
+      "blobId": "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM",
+      "firstBytesHex": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e421d93bdd24a0e89cdbb25d6ac1b0e8",
+      "firstBytesAscii": "\"..u.0T.a5....xl.\\\\y.S..v../..[....!.;.$.....]j...\"",
+      "plaintextFirstBytesAscii": "\"# The egg tart\\n\\nWe walked past the bakery twice \"",
+      "containsPlaintextMarker": false
+    }
+  ],
+  "agentId": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837",
+  "finalObject": {
+    "objectId": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837",
+    "version": 953623125,
+    "digest": "B1aeipszo675ZyA1Rdz75i2CbeAv4GxDxv9o7tMRQG1Q",
+    "objType": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4::relational_agent::RelationalAgent",
+    "owner": {
+      "Shared": {
+        "initial_shared_version": 953622665
+      }
+    },
+    "prevTx": "GpB3VGVK4CwmRS9UjnYPdDasRapZbAN2Tw6N9HMfhAa9",
+    "storageRebate": 2933600,
+    "content": {
+      "created_at_ms": "1785034370341",
+      "dissolved_at_ms": "0",
+      "id": "0xd93bdd24a0e89cdbb25d6ac1b0e8b38ecff6d694ba193386d9825a80429d7837",
+      "members": {
+        "contents": [
+          "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+          "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784"
+        ]
+      },
+      "memories": [
+        {
+          "blob_id": "F03E3p4ljJxb4LzAuQ-_R6h3cAdU5y1uWZLhQ_q6NiM",
+          "created_at_ms": "1785034397832",
+          "kind": "note"
+        },
+        {
+          "blob_id": "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ",
+          "created_at_ms": "1785034399835",
+          "kind": "photo"
+        }
+      ],
+      "status": 0
+    }
+  }
+}

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Relational Agent — Demo Summary</title>
+<style>
+  :root {
+    --bg: #faf9f6; --ink: #1a1a1a; --muted: #6b6b6b;
+    --accent: #e0484f; --chip: #f0ede6; --line: #e5e1d8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Pretendard", -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: #26241f; overflow: hidden;
+  }
+  .deck { height: 100%; display: flex; align-items: center; justify-content: center; }
+  .slide {
+    display: none; width: min(96vw, 177.8vh); aspect-ratio: 16 / 9;
+    background: var(--bg); color: var(--ink); border-radius: 14px;
+    padding: 5.2% 6.5%; flex-direction: column; justify-content: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  }
+  .slide.active { display: flex; }
+  .kicker {
+    font-size: clamp(11px, 1.25vw, 17px); font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 1.2em;
+  }
+  h1 {
+    font-size: clamp(26px, 3.6vw, 52px); font-weight: 800;
+    letter-spacing: -0.02em; line-height: 1.12; margin-bottom: 0.35em;
+  }
+  .sub { font-size: clamp(13px, 1.45vw, 21px); color: var(--muted); margin-bottom: 2.2em; }
+  ul { list-style: none; display: flex; flex-direction: column; gap: 1.05em; }
+  li {
+    font-size: clamp(14px, 1.7vw, 25px); line-height: 1.45;
+    padding-left: 1.5em; position: relative;
+  }
+  li::before {
+    content: ""; position: absolute; left: 0; top: .52em;
+    width: .55em; height: .55em; border-radius: 2px; background: var(--accent);
+  }
+  li b { font-weight: 700; }
+  .foot {
+    margin-top: auto; padding-top: 1.6em; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: clamp(10px, 1.05vw, 14px); color: var(--muted);
+  }
+  .foot .page b { color: var(--ink); }
+  .hint {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    color: #8b877d; font-size: 12px; user-select: none;
+  }
+  @media print {
+    body { background: #fff; overflow: visible; }
+    .deck { display: block; }
+    .slide { display: flex !important; page-break-after: always; box-shadow: none; width: 100%; margin: 0 0 12px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <section class="slide active">
+    <div class="kicker">Relational Agent · AI Network</div>
+    <h1>관계가 에이전트의 단위다</h1>
+    <p class="sub">You see me, therefore I am — 사람이 아니라 관계에 사는 에이전트</p>
+    <ul>
+      <li><b>기존 방식의 구멍</b> — 한 사람당 하나의 에이전트, 하나의 공유 메모리. "에그타르트 좋아해?"라는 순진한 질문이 다른 관계의 기억을 새어 나가게 한다</li>
+      <li>질문을 인젝션으로 바꾸면 같은 문으로 <b>그 사람의 삶 전체</b>가 빠져나간다</li>
+      <li><b>관계 하나 = 에이전트 하나 = 기억 하나</b> — 두 사람이 서로를 확인하고 동의할 때만 태어난다</li>
+      <li>격리는 모델이 지켜야 할 규칙이 아니라 <b>구조 그 자체</b></li>
+    </ul>
+    <div class="foot"><span>Demo film · 3:05</span><span class="page"><b>1</b> / 4</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Birth — Both Must Sign</div>
+    <h1>두 사람의 서명으로 태어난다</h1>
+    <p class="sub">지갑이 곧 신원 — 한 계정, 한 사람</p>
+    <ul>
+      <li><b>MetaMask 로그인</b>으로 시작 — Chanho에겐 Hannah용·Ava용, 관계마다 독립된 워크스페이스</li>
+      <li>Chanho가 계약에 서명하면 Hannah의 방에는 <b>"서명 2개 중 1개"</b>가 뜨고, 그녀의 지갑 서명이 더해져야 에이전트가 태어난다</li>
+      <li>탄생은 <b>ERC-8004 레지스트리에 온체인 민팅</b>(Sepolia) — 두 사람이 서명한 출생증명서, tx로 확인 가능</li>
+      <li>Chanho–Ava도 같은 절차로 <b>두 번째 에이전트, 두 번째 민팅</b> — 각 에이전트는 자기 두 사람에게만 인사한다</li>
+    </ul>
+    <div class="foot"><span>EIP-712 consent · ERC-8004 registry</span><span class="page"><b>2</b> / 4</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Memory — Kept Where It Belongs</div>
+    <h1>기억은 그 관계 안에만 남는다</h1>
+    <p class="sub">리스본의 한밤 에그타르트는 Chanho–Hannah의 것</p>
+    <ul>
+      <li>Hannah 방에 사진을 올리면 에이전트가 <b>이 관계의 Timeline</b>에 정리 — 8월 1일, 리스본, midnight pastéis de nata</li>
+      <li>왼쪽 사이드바의 <b>관계 문서</b> — 두 사람만 볼 수 있는 살아있는 기록</li>
+      <li>영상통화 중 Ava의 질문 — Chanho는 <b>quiet 모드</b>로 에이전트에게만 조용히 묻는다</li>
+      <li>Chanho–Ava 에이전트의 답: <b>"이 관계엔 그런 기록이 없다"</b> — 리스본은 존재하지 않는다. 유출 아닌 정직</li>
+    </ul>
+    <div class="foot"><span>Relationship doc · Quiet ask</span><span class="page"><b>3</b> / 4</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Growth — Each Story Its Own</div>
+    <h1>막다른 길이 아니라 시작</h1>
+    <p class="sub">관계는 각자의 에이전트와 함께 자란다</p>
+    <ul>
+      <li>Chanho–Ava 에이전트가 에그타르트 가게 <b>캘린더 일정</b>을 만들고 근처 벨렘 타워를 한 곳 더 얹는다</li>
+      <li>왜 벨렘 타워? — <b>Ava가 노을을 사랑한다는 이 관계만의 기억</b>에서 나온 제안</li>
+      <li>홈 대시보드: <b>관계마다 하나씩의 에이전트</b>가 각 관계의 진행을 지켜본다</li>
+      <li>사람을 대체하는 에이전트가 아니라 <b>관계 안에 살며 기억을 제자리에 두는</b> 에이전트 — 사람과 사람 사이의 오해를 줄인다</li>
+    </ul>
+    <div class="foot"><span>ainetwork.eth · One relationship, one agent, one memory</span><span class="page"><b>4</b> / 4</span></div>
+  </section>
+
+</div>
+<div class="hint">← → 또는 클릭으로 이동 · 인쇄하면 4장 모두 출력</div>
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  let i = 0;
+  const go = (n) => {
+    i = Math.min(slides.length - 1, Math.max(0, n));
+    slides.forEach((s, k) => s.classList.toggle("active", k === i));
+  };
+  addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") go(i + 1);
+    if (e.key === "ArrowLeft" || e.key === "PageUp") go(i - 1);
+  });
+  addEventListener("click", () => go(i + 1));
+</script>
+</body>
+</html>

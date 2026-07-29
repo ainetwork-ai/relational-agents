@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+/* class-based dark mode (toggled by adding .dark to <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  --background: #191919;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  /* Notion accent blue (R2#39) — retargets every blue-500/600 utility */
+  --color-blue-500: #2383e2;
+  --color-blue-600: #1d6fbf;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+}
+
+/* Notion-style inline placeholder for empty focused blocks */
+[contenteditable][data-placeholder]:empty:focus::before {
+  content: attr(data-placeholder);
+  color: #9b9a97;
+  pointer-events: none;
+}
+.dark [contenteditable][data-placeholder]:empty:focus::before {
+  color: #5a5a58;
+}
+
+/* inline formatting inside blocks (F6) */
+[contenteditable] code {
+  background: rgba(135, 131, 120, 0.15);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.85em;
+  color: #eb5757;
+}
+[contenteditable] a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(135, 131, 120, 0.6);
+  cursor: pointer;
+}
+
+/* code block syntax highlighting tokens (dependency-free highlighter) */
+.tok-keyword { color: #a626a4; }
+.tok-string  { color: #50a14f; }
+.tok-number  { color: #986801; }
+.tok-comment { color: #a0a1a7; font-style: italic; }
+.dark .tok-keyword { color: #c678dd; }
+.dark .tok-string  { color: #98c379; }
+.dark .tok-number  { color: #d19a66; }
+.dark .tok-comment { color: #7f848e; }
+
+/* inline range-comment anchor (selection-toolbar comment) */
+.comment-highlight {
+  background: rgba(255, 212, 0, 0.25);
+  border-bottom: 2px solid rgba(255, 200, 0, 0.7);
+  cursor: pointer;
+}
+
+/* Inline text colors + highlights (Notion palette) — class-based spans so the
+   sanitizer keeps them (no style attributes). */
+.c-gray{color:#787774}.c-brown{color:#9f6b53}.c-orange{color:#d9730d}
+.c-yellow{color:#cb912f}.c-green{color:#448361}.c-blue{color:#337ea9}
+.c-purple{color:#9065b0}.c-pink{color:#c14c8a}.c-red{color:#d44c47}
+.hl-gray{background:#f1f1ef}.hl-brown{background:#f4eeee}.hl-orange{background:#fbecdd}
+.hl-yellow{background:#fbf3db}.hl-green{background:#edf3ec}.hl-blue{background:#e7f3f8}
+.hl-purple{background:#f6f3f9}.hl-pink{background:#faf1f5}.hl-red{background:#fdebec}
+.dark .hl-gray{background:#2f2f2f}.dark .hl-brown{background:#4a3228}.dark .hl-orange{background:#5c3b23}
+.dark .hl-yellow{background:#564328}.dark .hl-green{background:#243d30}.dark .hl-blue{background:#143a4e}
+.dark .hl-purple{background:#3c2d49}.dark .hl-pink{background:#4e2c3c}.dark .hl-red{background:#522e2a}
+
+/* "Copy link to block" deep-link flash (#b-<id>) */
+[data-flash] { box-shadow: 0 0 0 2px rgb(147 197 253); border-radius: 4px; transition: box-shadow .3s; }
+
+/* ── UIUX polish pass ─────────────────────────────────── */
+
+/* page-switch fade (UIUX #6): (app)/template.tsx remounts per navigation */
+.page-enter {
+  animation: page-fade-in 150ms ease-out;
+}
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* #78 popovers/menus fade-scale in (Notion's 60–80ms enter) */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+.popover-anim { animation: pop-in 80ms ease-out; transform-origin: top left; }
+
+/* #80 styled instant tooltips via data-tip (delay ≈ Notion's 300ms) */
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #222;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0;
+  animation: tip-in 120ms ease-out 350ms forwards;
+}
+
+/* #97 thin overlay-style scrollbars everywhere */
+* { scrollbar-width: thin; scrollbar-color: rgba(120, 119, 116, 0.35) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(120, 119, 116, 0.3); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(120, 119, 116, 0.5); }
+
+/* R2#97 — native controls (checkboxes, scrollbars) must render dark in dark
+   mode; without color-scheme the unchecked checkbox stays a solid white box */
+.dark {
+  color-scheme: dark;
+}
+
+/* #98 one consistent keyboard focus ring — but never a box around the text
+   you are editing: Notion shows a caret only (R2#10) */
+:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+[contenteditable]:focus,
+[contenteditable]:focus-visible,
+textarea[data-testid="page-title"]:focus-visible {
+  outline: none;
+}
+
+/* #99 soft theme-switch transition on the big surfaces */
+body,
+aside,
+main,
+header {
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+/* #100 cursor grammar: grab for drag handles, precise resize cursors */
+[data-testid^="db-row-drag-"],
+[data-testid^="page-drag-"],
+[data-testid^="block-drag-"],
+[data-testid^="db-col-drag-"] { cursor: grab; }
+[data-testid^="db-row-drag-"]:active,
+[data-testid^="page-drag-"]:active,
+[data-testid^="block-drag-"]:active,
+[data-testid^="db-col-drag-"]:active { cursor: grabbing; }
+[data-testid^="db-col-resize-"] { cursor: col-resize; }

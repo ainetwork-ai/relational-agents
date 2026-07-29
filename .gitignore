@@ -1,0 +1,46 @@
+node_modules/
+.next/
+.next-e2e/
+# NEXT_DIST_DIR variants — a second dev server needs its own build dir
+.next-*/
+.env*
+!.env.example
+*.tsbuildinfo
+test-results/
+playwright-report/
+notion-fs/
+app/e2e/.okf-work/
+.gstack/
+
+# runtime/session state — never commit
+.omc/
+app/.omc/
+.playwright-mcp/
+md-mirror/
+
+# personal/runtime data — caches, raw originals, generated content.
+# user uploads are runtime data, not source
+app/public/uploads/
+app/public/avatars/
+dashboard/public/avatars/
+dashboard/public/date/
+dashboard/public/source/
+videocall/public/gf.png
+videocall/public/gfs/
+dashboard/.uploads-cache.json
+.claude/scheduled_tasks.lock
+memory-data/content/Relationship doc*/
+memory-data/content/Relationships.csv
+memory-data/content/demo.md
+
+# production runtime state — the live OKF content tree and DB dumps.
+# Lives in the project so deploys are discoverable, but is data, not source.
+/deploy/
+
+# local backups (not source)
+/backup/
+memory-data/content-test/
+
+# Demo videos live on YouTube, not in git
+assets/*.mp4
+*.mp4

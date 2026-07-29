@@ -1,0 +1,102 @@
+{
+  "network": "testnet",
+  "steps": [
+    {
+      "step": "create",
+      "status": "ok",
+      "digest": "CApTfpV3AyxVqAPfVDtKUzPsLcyuVH7fCYtc5mB9h6Jh",
+      "agentId": "0x47694faf5169cafb74c4d2124a251d2f4597611d319b014dfeeb0a03015f9933",
+      "memberA": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "memberB": "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784"
+    },
+    {
+      "step": "add_memory_member",
+      "status": "ok",
+      "digest": "2L2C2sC5fCh1Zp8HgpGERpHKLB8rfBNNCHrbSVzxGqEX",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "blobId": "walrus://demo-egg-tart-blob",
+      "kind": "date"
+    },
+    {
+      "step": "add_memory_outsider",
+      "status": "rejected",
+      "sender": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+      "error": "Error executing transaction 'BJvg3gkAijt4JGy47iLyNnmCS1iM4BZqoMbpfpF9tbkd': 1st command aborted within function '0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4::relational_agent::add_memory' at instruction 29 with code 2"
+    },
+    {
+      "step": "seal_approve_member",
+      "status": "approved",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69"
+    },
+    {
+      "step": "seal_approve_outsider",
+      "status": "rejected",
+      "sender": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+      "abortCode": 2,
+      "error": "Dry run completed, execution status: failure due to MoveAbort(MoveLocation { module: ModuleId { address: fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4, name: Identifier(\"relational_agent\") }, function: 3, instruction: 14, function_name: Some(\"seal_approve\") }, 2) in command 0"
+    },
+    {
+      "step": "create_second_relationship",
+      "status": "ok",
+      "digest": "C6QoRjEQL9Qtf7YkBcz1T6KPCs8UW5h7Z6jx9tMekHey",
+      "agentId": "0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee",
+      "members": [
+        "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+        "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8"
+      ]
+    },
+    {
+      "step": "seal_approve_cross_relationship",
+      "status": "rejected",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "viaAgent": "0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee",
+      "forIdentityOf": "0x47694faf5169cafb74c4d2124a251d2f4597611d319b014dfeeb0a03015f9933",
+      "abortCode": 4,
+      "error": "Dry run completed, execution status: failure due to MoveAbort(MoveLocation { module: ModuleId { address: fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4, name: Identifier(\"relational_agent\") }, function: 3, instruction: 25, function_name: Some(\"seal_approve\") }, 4) in command 0"
+    },
+    {
+      "step": "dissolve",
+      "status": "ok",
+      "digest": "5qoWR4Hdb5Ecr1bondefrVPgoa4SnESwR5g67TgQNMMp",
+      "sender": "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784"
+    }
+  ],
+  "packageId": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4",
+  "memberA": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+  "memberB": "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784",
+  "outsider": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+  "agentId": "0x47694faf5169cafb74c4d2124a251d2f4597611d319b014dfeeb0a03015f9933",
+  "secondAgentId": "0xe80fa259f7910a17709080ef005f48aa3202ad3e4da54c677c9567a6928c03ee",
+  "finalObject": {
+    "objectId": "0x47694faf5169cafb74c4d2124a251d2f4597611d319b014dfeeb0a03015f9933",
+    "version": 953016957,
+    "digest": "CBXS2ocbCzEwNsFwMznJ6N5aJ2NjP9eSALmnWECD77R3",
+    "objType": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4::relational_agent::RelationalAgent",
+    "owner": {
+      "Shared": {
+        "initial_shared_version": 953016774
+      }
+    },
+    "prevTx": "5qoWR4Hdb5Ecr1bondefrVPgoa4SnESwR5g67TgQNMMp",
+    "storageRebate": 2371200,
+    "content": {
+      "created_at_ms": "1784994945149",
+      "dissolved_at_ms": "1784994957127",
+      "id": "0x47694faf5169cafb74c4d2124a251d2f4597611d319b014dfeeb0a03015f9933",
+      "members": {
+        "contents": [
+          "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+          "0x28988cf3cf57057986de90646ef7cbb4e3f39d821a17bc2de9b459dc69bd0784"
+        ]
+      },
+      "memories": [
+        {
+          "blob_id": "walrus://demo-egg-tart-blob",
+          "created_at_ms": "1784994947589",
+          "kind": "date"
+        }
+      ],
+      "status": 1
+    }
+  }
+}

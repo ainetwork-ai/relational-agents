@@ -1,0 +1,10 @@
+[package]
+name = "relational_agent"
+edition = "2024.beta"
+license = "MIT"
+
+# Sui / MoveStdlib are added implicitly by the CLI, which keeps the framework
+# version pinned to the toolchain that publishes the package.
+
+[addresses]
+relational_agent = "0x0"

@@ -1,0 +1,411 @@
+import "server-only";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  agentRoomStates,
+  callUtterances,
+  chatMessages,
+  chatRoomBots,
+  chatRoomMembers,
+  chatRooms,
+  users,
+  type CallUtterance,
+} from "@/lib/db/schema";
+import { publishToRoomMembers } from "@/lib/chat-room-access";
+import { setOkfAcl } from "@/lib/okf-acl";
+import { aiChat } from "@/lib/ai";
+import {
+  appendOkfLines,
+  ensureOkfDocTree,
+  okfDocMeta,
+  okfDocTreeFromState,
+  readOkfSectionTexts,
+} from "./okf-docs";
+import { CHAT_ROUTE_PREFIX } from "./pipeline";
+import { keyByAlias, type SectionKey } from "./parse-edits";
+import { profileForRoom, sectionMenu, type RelationshipProfile } from "./profiles";
+
+/**
+ * The agent listening in on a call.
+ *
+ * Two rules decide whether to speak up, and *we* decide them, not the model:
+ * a question to your member always earns a whisper (the answer may be on
+ * record, or conspicuously not), a statement only when it touches something
+ * recorded. Asking the model "should you whisper?" gave different answers to
+ * the same kind of line — "do you like egg tarts?" and "what's your favourite
+ * dessert?" split — so the model is left with the part it is good at: what the
+ * line is about, and whether this relationship has it.
+ */
+
+/** Anything that asks the other person something. */
+const QUESTION = /\?|^(do|did|does|have|has|are|is|was|were|what|where|when|why|how|which|who|can|could|would|will|should)\b/i;
+
+export interface CallFacts {
+  /** compact digest of the record, built once per call */
+  sheet: string;
+}
+
+const KEY = Symbol.for("app.callFacts");
+function cache(): Map<string, CallFacts> {
+  const g = globalThis as unknown as Record<symbol, Map<string, CallFacts>>;
+  if (!g[KEY]) g[KEY] = new Map();
+  return g[KEY];
+}
+
+/** One pass over the record at call start. During the call every line is
+ *  checked against this digest, so judging a line costs no document reading. */
+async function factSheet(roomId: string, callId: string): Promise<string> {
+  const hit = cache().get(callId);
+  if (hit) return hit.sheet;
+
+  const profile = await profileForRoom(roomId);
+  const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
+  const tree = okfDocTreeFromState(state, profile);
+  const sections = tree ? readOkfSectionTexts(tree, profile) : {};
+  const body = Object.entries(sections)
+    .filter(([, v]) => v.trim())
+    .map(([k, v]) => `## ${k}\n${v}`)
+    .join("\n\n");
+
+  let sheet = "places: (nothing recorded)\ntastes: (nothing recorded)\nfoods: (nothing recorded)\nevents: (nothing recorded)";
+  if (body.trim()) {
+    try {
+      sheet = await aiChat(
+        [
+          {
+            role: "system",
+            content:
+              `Condense this ${profile.voice.subject}'s record into a lookup sheet for a live call. ` +
+              "Lines: places, tastes, foods, events, people. List only what the record states, with the wording it uses plus obvious synonyms. " +
+              'Write "(nothing recorded)" for a line the record says nothing about — that absence is meaningful. No prose, no headings.',
+          },
+          { role: "user", content: body.slice(0, 8_000) },
+        ],
+        { maxTokens: 300, temperature: 0 }
+      );
+    } catch (err) {
+      console.error("call fact sheet failed:", err);
+    }
+  }
+  cache().set(callId, { sheet });
+  return sheet;
+}
+
+export function forgetCallFacts(callId: string): void {
+  cache().delete(callId);
+}
+
+/** Sections a call may file something under — the chronological one is excluded
+ *  because the summary already lands there, and a duplicate is worse than none. */
+function recapSectionMenu(profile: RelationshipProfile): string {
+  return sectionMenu(profile.sections.filter((s) => s.key !== profile.timeline.section));
+}
+
+interface RecapEntry {
+  section: SectionKey;
+  markdown: string;
+}
+
+/** LLM output → summary + validated entries. Never throws: a call that is
+ *  summarised but whose entries are malformed still gets recorded. */
+function parseRecap(
+  raw: string,
+  profile: RelationshipProfile
+): { summary: string; entries: RecapEntry[] } {
+  const aliases = keyByAlias(profile.sections);
+  const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  const body = (fenced ? fenced[1] : raw).trim();
+  let parsed: { summary?: unknown; entries?: unknown };
+  try {
+    parsed = JSON.parse(body) as typeof parsed;
+  } catch {
+ // The model may answer in prose instead of JSON; that prose IS the summary,
+ // which is the part that matters. But output that *starts* like JSON and
+ // fails to parse is truncated (maxTokens) or malformed — writing it verbatim
+ // put `> 📞 {"summary":"…` into the record as if it were a sentence.
+    if (/^[{[]|^```/.test(body)) return { summary: "", entries: [] };
+    return { summary: body.slice(0, 2_000), entries: [] };
+  }
+  const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+  const entries: RecapEntry[] = [];
+  for (const item of Array.isArray(parsed.entries) ? parsed.entries : []) {
+    const e = item as Record<string, unknown>;
+    const section =
+      typeof e?.section === "string" ? aliases.get(e.section.trim().toLowerCase()) : undefined;
+    if (!section || section === profile.timeline.section) continue;
+    const text = typeof e?.markdown === "string" ? e.markdown.trim().replace(/^-\s*/, "") : "";
+    if (text) entries.push({ section, markdown: text });
+  }
+  return { summary, entries };
+}
+
+/**
+ * Write the call up once it is over.
+ *
+ * Folding utterances in one by one would leave a call scattered across a dozen
+ * timeline entries, none of which reads like anything happened. A finished call
+ * is one thing that happened, so it gets one entry — the way a meeting gets
+ * notes, not a transcript.
+ */
+export async function recapCall(roomId: string, callId: string): Promise<{ recorded: boolean }> {
+  const spoken = await claimCallUtterances(callId);
+  return writeCallRecap(roomId, callId, spoken);
+}
+
+/**
+ * Take this call's unprocessed lines out of the write queue, and return them.
+ *
+ * Split from the summary because the claim has to happen *before* the call is
+ * deleted and the "call ended" message posted: that message wakes the write
+ * pipeline, which no longer sees a live call to skip, and whoever got there
+ * first won — the call ended up scattered line by line instead of summarised.
+ * The claim is one UPDATE, so the hangup request can await it; the summary
+ * (an LLM round-trip) runs after, off the request path.
+ */
+export async function claimCallUtterances(callId: string): Promise<CallUtterance[]> {
+  const spoken = await db
+    .select()
+    .from(callUtterances)
+    .where(and(eq(callUtterances.callId, callId), isNull(callUtterances.processedAt)))
+    .orderBy(asc(callUtterances.createdAt));
+  forgetCallFacts(callId);
+  if (spoken.length)
+    await db
+      .update(callUtterances)
+      .set({ processedAt: new Date() })
+      .where(inArray(callUtterances.id, spoken.map((u) => u.id)));
+  return spoken;
+}
+
+/**
+ * Hand claimed lines back to the write queue.
+ *
+ * The claim is what makes one call one entry, but it also means a failed recap
+ * takes the call with it: the rows are marked processed and nothing ever looks
+ * at them again. When the summary cannot be written, scattered-but-present
+ * beats tidy-and-gone.
+ */
+async function releaseCallUtterances(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await db.update(callUtterances).set({ processedAt: null }).where(inArray(callUtterances.id, ids));
+}
+
+/** Summarise claimed lines into one Timeline entry. */
+export async function writeCallRecap(
+  roomId: string,
+  callId: string,
+  spoken: CallUtterance[]
+): Promise<{ recorded: boolean }> {
+  // too little was said to be worth a memory (already out of the queue)
+  if (spoken.length < 2) return { recorded: false };
+
+  const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
+  const [state] = await db.select().from(agentRoomStates).where(eq(agentRoomStates.roomId, roomId));
+  if (!room) return { recorded: false };
+ // No signed contract, no agent — and therefore no record. The write pipeline
+ // refuses the same way (runOnce: "no consent yet"); without this a call alone
+ // would create the folder, the ACL row and the state for a relationship that
+ // never agreed to have one. The lines stay claimed on purpose: they happened
+ // before consent, and the pipeline would skip them anyway.
+  if (!room.consentAt) return { recorded: false };
+  const profile = await profileForRoom(roomId);
+  const tree = ensureOkfDocTree(roomId, room.name, profile, {
+    rootPath: state?.rootOkfPath,
+    sectionPaths: state?.sectionOkfPaths,
+  });
+  // The OKF tree has no permissions of its own, so a doc folder is only
+  // participant-private once okf_acl knows about it. A call can be the first
+  // thing that ever happens in a room — creating the folder here without
+  // registering it would leave the record workspace-readable until the write
+  // pipeline happened to run.
+  const memberIds = (
+    await db
+      .select({ userId: chatRoomMembers.userId })
+      .from(chatRoomMembers)
+      .where(eq(chatRoomMembers.roomId, roomId))
+  ).map((m) => m.userId);
+  await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
+
+ // Persist the paths this run resolved. The write pipeline does the same, but a
+ // room whose only activity is calls would never record them — and a section
+ // this profile added would be forgotten the moment the profile changed back,
+ // leaving a file nothing links to.
+  await db
+    .insert(agentRoomStates)
+    .values({
+      roomId,
+      rootOkfPath: tree.rootPath,
+      sectionOkfPaths: tree.sectionPaths,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: agentRoomStates.roomId,
+      set: { rootOkfPath: tree.rootPath, sectionOkfPaths: tree.sectionPaths, updatedAt: new Date() },
+    });
+
+  const names = new Map<string, string>();
+  const people = await db
+    .select({ id: users.id, displayName: users.displayName })
+    .from(users)
+    .where(inArray(users.id, [...new Set(spoken.map((u) => u.speakerId))]));
+  for (const p of people) names.set(p.id, p.displayName);
+  const script = spoken
+    .map((u) => `${names.get(u.speakerId) ?? "someone"}: ${u.text}`)
+    .join("\n")
+    .slice(0, 8_000);
+
+  let raw = "";
+  try {
+    raw = await aiChat(
+      [
+        {
+          role: "system",
+          content:
+            `Write up a call for the shared record of a ${profile.voice.subject}.\n` +
+            '"summary": what the call was about — two or three sentences, past tense, naming what they did, decided, or plan to do. ' +
+            "Only what was actually said: no advice, no invented detail. Plain prose, no heading, no bullet list.\n" +
+            '"entries": anything from the call that belongs in a section of its own, each as {"section": "<key>", "markdown": "- <one line>"}. ' +
+            `Sections: ${recapSectionMenu(profile)}. ` +
+            "A plan the two settled on is a decision. A question they left open is an open topic. Something learned about a person goes to people notes. " +
+            `The call already goes on the ${profile.timeline.section} section as the summary — never put an entry there. ` +
+            "Nothing qualifies? Return an empty list; do not restate the summary.\n" +
+            'JSON only: {"summary":"…","entries":[…]}',
+        },
+        { role: "user", content: script },
+      ],
+      { maxTokens: 400, temperature: 0.2 }
+    );
+  } catch (err) {
+    console.error("call recap failed:", err);
+    await releaseCallUtterances(spoken.map((u) => u.id));
+    return { recorded: false };
+  }
+
+  const { summary, entries } = parseRecap(raw, profile);
+  if (!summary && !entries.length) {
+    console.error("call recap produced nothing usable:", raw.slice(0, 200));
+    await releaseCallUtterances(spoken.map((u) => u.id));
+    return { recorded: false };
+  }
+
+  // The call itself is one thing that happened → one timeline entry. What it
+  // produced — a decision, an open question — belongs where a reader would
+  // look for it, not buried in a paragraph about a phone call.
+  for (const entry of entries) {
+    const secRel = tree.sectionPaths[entry.section];
+    if (!secRel) continue;
+    const title = profile.sections.find((s) => s.key === entry.section)?.title ?? entry.section;
+    appendOkfLines(
+      secRel,
+      title,
+      [
+        { type: "bulleted_list", text: entry.markdown },
+        { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
+      ],
+      okfDocMeta(roomId, profile, entry.section)
+    );
+  }
+
+ // A summary is the timeline entry; entries above were already filed. Losing
+ // the prose is not a reason to lose what the call decided.
+  const rel = summary ? tree.sectionPaths[profile.timeline.section] : undefined;
+  if (rel) {
+    appendOkfLines(
+      rel,
+      profile.sections.find((s) => s.key === profile.timeline.section)?.title ?? "Timeline",
+      [
+        { type: "callout", text: summary, icon: "📞" },
+        { type: "paragraph", text: `Sources: ${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}` },
+      ],
+      okfDocMeta(roomId, profile, profile.timeline.section)
+    );
+  }
+  return { recorded: true };
+}
+
+interface Read {
+  topic: string | null;
+  known: boolean;
+}
+
+/** What the line is about, and whether this relationship has it — the only
+ *  judgement the model makes. Pronouns resolve here ("that place back then"). */
+async function readLine(text: string, sheet: string, subject: string): Promise<Read> {
+  const raw = await aiChat(
+    [
+      {
+        role: "system",
+        content:
+          `On record for this ${subject}:\n${sheet}\n\n` +
+          `Name what the line is about and whether this ${subject} has it on record. ` +
+          'Resolve pronouns (that place, back then, it) from the line. "(nothing recorded)" means nothing of that kind is on record. ' +
+          'If the line is about nothing in particular — small talk, a reaction, the weather, how someone feels — answer {"topic":null,"known":false}.\n' +
+          'JSON only: {"topic":"<subject>"|null,"known":true|false}',
+      },
+      { role: "user", content: text },
+    ],
+    { maxTokens: 60, temperature: 0 }
+  );
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) return { topic: null, known: false };
+  try {
+    const parsed = JSON.parse(m[0]) as Partial<Read>;
+    return { topic: typeof parsed.topic === "string" ? parsed.topic : null, known: parsed.known === true };
+  } catch {
+    return { topic: null, known: false };
+  }
+}
+
+function whisperText(read: Read, said: string, subject: string): string {
+  if (read.known) return `🔎 ${read.topic} — you two have this in your record.`;
+  // a question can arrive without a topic the model would name; quoting what
+  // was asked beats warning about "that"
+  const about = read.topic ?? `“${said.trim().replace(/\s+/g, " ").slice(0, 60)}”`;
+  return `🔎 Nothing in your record about ${about} — not in this ${subject}, at least.`;
+}
+
+/**
+ * Judge one spoken line and, if it is worth it, whisper to the listener — the
+ * member who did NOT say it. The whisper is a private message in the room's
+ * chat, so it reaches the side panel already open next to the call and stays
+ * invisible to the person on the other end of the line.
+ */
+export async function watchUtterance(
+  roomId: string,
+  callId: string,
+  speakerId: string,
+  text: string
+): Promise<{ whispered: boolean; topic?: string | null }> {
+  const [bot] = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, roomId));
+  if (!bot) return { whispered: false };
+
+  const profile = await profileForRoom(roomId);
+  const sheet = await factSheet(roomId, callId);
+  const read = await readLine(text, sheet, profile.voice.subject);
+ // A question to your member earns a whisper — unless this relationship turned
+ // that off. The settings form offers the switch, so it has to mean something;
+ // a line that touches the record still whispers either way.
+  const asks = profile.behavior.whisperOnQuestion && QUESTION.test(text.trim());
+  const worth = asks || Boolean(read.topic && read.known);
+  if (!worth) return { whispered: false, topic: read.topic };
+
+  // everyone in the room except the speaker and the agent itself
+  const members = await db
+    .select({ userId: chatRoomMembers.userId })
+    .from(chatRoomMembers)
+    .where(and(eq(chatRoomMembers.roomId, roomId), ne(chatRoomMembers.userId, speakerId)));
+  const listeners = members.map((m) => m.userId).filter((id) => id !== bot.agentUserId);
+  if (!listeners.length) return { whispered: false, topic: read.topic };
+
+  const body = whisperText(read, text, profile.voice.subject);
+  for (const userId of listeners) {
+    await db.insert(chatMessages).values({
+      roomId,
+      authorId: bot.agentUserId,
+      text: body,
+      privateToUserId: userId,
+    });
+  }
+  await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
+  return { whispered: true, topic: read.topic };
+}
