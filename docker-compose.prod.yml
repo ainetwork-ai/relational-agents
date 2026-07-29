@@ -25,7 +25,6 @@ services:
         NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
         NEXT_PUBLIC_WORLD_ID_ACTION: ${NEXT_PUBLIC_WORLD_ID_ACTION:-}
         NEXT_PUBLIC_SUI_PACKAGE_ID: ${NEXT_PUBLIC_SUI_PACKAGE_ID:-}
-        NEXT_PUBLIC_CALL_WEB_SPEECH: ${NEXT_PUBLIC_CALL_WEB_SPEECH:-}
     restart: unless-stopped
     depends_on:
       postgres:

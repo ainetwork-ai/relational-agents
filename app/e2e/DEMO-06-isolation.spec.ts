@@ -10,7 +10,7 @@ import {
 } from "./relation-helpers";
 
 /**
- * Demo scene 6 — Finale: Ava asks about egg tarts over a video call, and her
+ * Demo scene 6 — Finale: Ava asks about egg tarts in her room, and her
  * relationship's agent has NO record — "Not in this relationship." The egg tart
  * lives with Hannah and ONLY there. This proves per-relationship memory
  * isolation: two agents born the same way, one remembers, the other cannot.

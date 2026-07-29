@@ -5,7 +5,7 @@
 // Drives the real settings dialog and then checks the document, because the
 // point of the form is what it does to the record — not that it saves.
 //
-//   CALL_ROOM_ID=<room with an agent> OKF_DOC="<doc folder>" \
+//   DM_ROOM_ID=<room with an agent> OKF_DOC="<doc folder>" \
 //   [BASE_URL=…] [MEMBER=vc-alice] node e2e/agent-settings.check.mjs
 
 import { chromium } from "@playwright/test";
@@ -13,12 +13,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:36625";
-const ROOM = process.env.CALL_ROOM_ID;
+const ROOM = process.env.DM_ROOM_ID;
 const MEMBER = process.env.MEMBER ?? "vc-alice";
 const ROOT = process.env.OKF_ROOT ?? "/mnt/newdata/git/notion/memory-data/content";
 const DOC = process.env.OKF_DOC;
 if (!ROOM || !DOC) {
-  console.error("CALL_ROOM_ID and OKF_DOC are required");
+  console.error("DM_ROOM_ID and OKF_DOC are required");
   process.exit(2);
 }
 

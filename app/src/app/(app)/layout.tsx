@@ -8,7 +8,6 @@ import { Sidebar } from "@/components/sidebar/sidebar";
 import { SearchModal } from "@/components/search-modal";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
-import { IncomingCallHost } from "@/components/call/incoming-call-host";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +53,6 @@ export default async function AppLayout({
         <ToastHost />
       </main>
       <SearchModal />
-      <IncomingCallHost />
     </div>
   );
 }

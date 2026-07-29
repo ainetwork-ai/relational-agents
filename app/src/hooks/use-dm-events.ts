@@ -5,20 +5,11 @@ import { subscribeSse } from "@/lib/sse-share";
 import type { DmUser } from "@/stores/dm-rooms";
 
 export interface DmEvent {
-  type:
-    | "dm-message"
-    | "dm-room"
-    | "dm-typing"
-    | "dm-call-ring"
-    | "dm-call-cancel"
-    | "dm-call-accept"
-    | "dm-call-decline"
-    | "dm-call-signal"
-    | "dm-call-end";
+  type: "dm-message" | "dm-room" | "dm-typing";
   roomId?: string;
   clientId: string | null;
   at: number;
-  /** dm-typing and dm-call-ring carry the acting user */
+  /** dm-typing carries the acting user */
   user?: DmUser;
 }
 

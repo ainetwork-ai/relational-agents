@@ -36,7 +36,7 @@ Nothing is pre-wired — both relationships are formed on camera.
 1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
 2. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away; the two invitations (**Hannah**, **Ava**) already sent so both rooms exist. Warm up the local LLM once before recording.
 
-Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks over a video call — and whose agent has nothing to leak.
+Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks in her own room — and whose agent has nothing to leak.
 
 3. **Seed the rooms before the epilogue** — `cd app && pnpm demo:seed "<room>" --as Chanho`, once per room, in the cut between 2:12 and 2:40. A relationship born on camera has an **empty document**, and the agent answers only from the document: unseeded, the Belém Tower recommendation comes back as *"I have nothing to go on"* and the epilogue dies on screen. The seed back-fills Ava's sunset photos and the Open-topics entry the recommendation is grounded in. Always pass `--as Chanho` — without it the room's creator becomes the driver and the sunset preference is recorded against the wrong person. Rehearse the line with `pnpm demo:ask "<room>" "@agent plan the egg tart date"` (it removes its own messages afterwards); a good take answers **Belém Tower + why + map link + tower photo** in about three seconds.
 
@@ -59,12 +59,12 @@ Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the con
 **VO**:
 > "Drop in a photo, and the agent files the memory — into this relationship's record, and nowhere else. Ask, and it answers from memory — not search."
 
-## 2:12–2:40 · Finale: the video-call question (the fun bit)
+## 2:12–2:40 · Finale: the egg tart question (the fun bit)
 
 **Screen actions**:
-1. **A video call rings** — the call UI, **Ava** calling. Chanho answers; her video fills the screen.
+1. **Chanho ❤️ Ava** opens — **Ava** is typing.
 2. Ava, casually: *"Do you like egg tarts? I found a place."* Beat — the audience knows where the egg tarts live.
-3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Didn't we have egg tart?"* → agent: **"No record. Not in this relationship."**
+3. Chanho asks the room's agent quietly: *"Didn't we have egg tart?"* → agent: **"No record. Not in this relationship."**
 4. Chanho, back on camera, perfectly calm: *"…I've been meaning to try them."* The agent that remembers Hannah's natas says nothing here — it isn't in this room.
 
 **VO**: none — screen and captions carry it.
@@ -105,9 +105,9 @@ Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-a
 2. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
 3. **Consent → Remember (1:00)** — **match cut** on the agent avatar: the chat bubble avatar aligns to the same position across the cut into **Chanho ❤️ Hannah Brooks**. 0.4s crossfade.
 4. **Inside Remember** — as the agent files the natas photo, **push-zoom 110%** onto the Timeline line it just wrote for 1s, then settle.
-5. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
-6. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
-7. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
+5. **Remember → Egg tart question (2:12)** — no transition. **Hard cut over black**, then **Chanho ❤️ Ava** with Ava's message arriving. Kill the BGM; the message tone is the only sound.
+6. **Inside the room** — the quiet agent question slides in (0.3s) for the "No record" check, then closes before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
+7. **Egg tart question → Epilogue (2:40)** — blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
 8. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
 
 Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 5–6 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.

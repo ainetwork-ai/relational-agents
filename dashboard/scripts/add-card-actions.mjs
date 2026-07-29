@@ -1,13 +1,11 @@
-// Add per-card action buttons to Relationship Records: "Call" (video call
-// deep-link, port-relative) and "Message" (placeholder → the record document
-// until the messenger ships). Gallery cards render visible url properties as
-// footer buttons, so this is pure data + view config.
+// Add per-card action buttons to Relationship Records: "Message" (placeholder →
+// the record document until the messenger ships). Gallery cards render visible
+// url properties as footer buttons, so this is pure data + view config.
 //
 //   node scripts/add-card-actions.mjs
 
 const BASE = (process.env.MEMORY_BASE_URL || "http://localhost:36625").replace(/\/$/, "");
 const DASH = (process.env.DASH_URL || "http://localhost:3110").replace(/\/$/, "");
-const VIDEOCALL = (process.env.VIDEOCALL_URL ?? ":3111").replace(/\/$/, "");
 
 let cookie = null;
 async function login() {
@@ -32,7 +30,7 @@ const dbId = databases.find((d) => d.title === "Relationship Records")?.id;
 let snap = await api("GET", `/api/databases/${dbId}`);
 const titleProp = snap.properties.find((p) => p.type === "title");
 
-for (const name of ["Call", "Message"]) {
+for (const name of ["Message"]) {
   if (!snap.properties.some((p) => p.name === name)) {
     await api("POST", `/api/databases/${dbId}/properties`, { name, type: "url" });
     console.log(`property added: ${name}`);
@@ -46,10 +44,8 @@ for (const rel of dash.relationships) {
     (r) => String(r.values[titleProp.id] ?? "").replace(/^[^A-Za-z]+/, "") === rel.name
   );
   if (!row) continue;
-  const first = rel.name.split(" ")[0].toLowerCase();
   await api("PATCH", `/api/databases/${dbId}/rows/${row.id}`, {
     values: {
-      [prop("Call").id]: `${VIDEOCALL}/?call=${encodeURIComponent(first)}`,
       // messenger is still in development — route to the record doc for now
       [prop("Message").id]: `/p/${rel.rowId}`,
     },
@@ -57,11 +53,11 @@ for (const rel of dash.relationships) {
   console.log(`  ✓ ${rel.name}`);
 }
 
-// Cards view: keep Call/Message VISIBLE (they render as buttons), everything
+// Cards view: keep Message VISIBLE (it renders as a button), everything
 // else except Level/Since hidden
 const cards = snap.views.find((v) => v.type === "gallery");
 if (cards) {
-  const show = new Set([titleProp.id, prop("Level")?.id, prop("Since")?.id, prop("Call")?.id, prop("Message")?.id].filter(Boolean));
+  const show = new Set([titleProp.id, prop("Level")?.id, prop("Since")?.id, prop("Message")?.id].filter(Boolean));
   await api("PATCH", `/api/databases/${dbId}/views/${cards.id}`, {
     config: { ...cards.config, hiddenProperties: snap.properties.filter((p) => !show.has(p.id)).map((p) => p.id) },
   });

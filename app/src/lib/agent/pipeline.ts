@@ -8,13 +8,11 @@ import {
   chatMessages,
   chatRoomMembers,
   chatRooms,
-  callUtterances,
   users,
   type ChatMessage,
 } from "@/lib/db/schema";
 import { aiChat, type AiContentPart } from "@/lib/ai";
 import { setOkfAcl } from "@/lib/okf-acl";
-import { getCall } from "@/lib/call-store";
 import {
   appendOkfLines,
   ensureOkfDocTree,
@@ -296,27 +294,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
     .orderBy(asc(chatMessages.createdAt))
     .limit(200); // caps LLM prompt blowup — the excess waits for the next run (idempotent)
 
- // What was said aloud on a call counts as much as what was typed, so the
- // record keeps up with a conversation that never touched the keyboard.
-  const spoken = await db
-    .select()
-    .from(callUtterances)
-    .where(
-      and(
-        eq(callUtterances.roomId, roomId),
-        isNull(callUtterances.processedAt),
-        gt(callUtterances.createdAt, room.consentAt)
-      )
-    )
-    .orderBy(asc(callUtterances.createdAt))
-    .limit(200);
-
- // A call in progress belongs to the recap, which writes it up as one entry
- // when it ends — folding its lines in now would scatter it across the timeline.
-  const live = getCall(roomId);
-  const settled = live ? spoken.filter((u) => u.callId !== live.callId) : spoken;
-
-  if (!batch.length && !settled.length)
+  if (!batch.length)
     return { processed: 0, edits: 0, rootPageId: docPageIdOf(state0), skipped: "no new messages" };
 
  // participants = room members + creator. The OKF tree has no permissions,
@@ -351,30 +329,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   );
  // Private @agent exchanges belong to one member; the record is shared by both,
  // so they never become memories (they stay in `batch` to advance the checkpoint).
-  // "📞 Video Call ended · 4:12" is the call bubble the DM view renders, not
-  // something either of them said. Now that a finished call writes its own
-  // recap, leaving these in would record the call twice — once as what was
-  // discussed, once as the bare fact that a call happened.
-  const typed = batch.filter(
-    (m) => !agentIds.has(m.authorId) && !m.privateToUserId && !m.text.startsWith("📞 ")
-  );
- // Spoken lines join the same stream, tagged so the model knows they were said
- // out loud and so provenance can cite the call instead of a message anchor.
-  const callOf = new Map(settled.map((u) => [u.id, u.callId]));
-  const source = [
-    ...typed,
-    ...settled.map((u) => ({
-      id: u.id,
-      roomId: u.roomId,
-      authorId: u.speakerId,
-      text: u.text,
-      attachments: [],
-      privateToUserId: null,
-      processedAt: null,
-      recordedAt: null,
-      createdAt: u.createdAt,
-    })),
-  ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) as ChatMessage[];
+  const source = batch.filter((m) => !agentIds.has(m.authorId) && !m.privateToUserId);
 
   const current = readOkfSectionTexts(tree, profile);
  // Deterministic path when the LLM is off or unreachable — the memory still
@@ -440,13 +395,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
             });
     if (edit.sourceMessageIds.length) {
       const links = edit.sourceMessageIds
-        .map((id) => {
-          const callId = callOf.get(id);
-          // a settled line has no message to jump to — cite the call it came from
-          return callId
-            ? `${CHAT_ROUTE_PREFIX}/${roomId}#call-${callId}`
-            : `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`;
-        })
+        .map((id) => `${CHAT_ROUTE_PREFIX}/${roomId}#msg-${id}`)
         .join(" · ");
       lines.push({ type: "paragraph", text: `Sources: ${links}` });
     }
@@ -468,11 +417,6 @@ async function runOnce(roomId: string): Promise<RunResult> {
         .update(chatMessages)
         .set({ processedAt: now })
         .where(inArray(chatMessages.id, batch.map((m) => m.id)));
-    if (settled.length)
-      await tx
-        .update(callUtterances)
-        .set({ processedAt: now })
-        .where(inArray(callUtterances.id, settled.map((u) => u.id)));
     if (recordedIds.length) {
       await tx
         .update(chatMessages)
@@ -500,7 +444,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   });
 
   return {
-    processed: batch.length + settled.length,
+    processed: batch.length,
     edits: edits.length,
     rootPageId: okfDocPageId(tree.rootPath),
   };

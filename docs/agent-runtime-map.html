@@ -131,25 +131,19 @@
 <section>
   <h2><span class="n">01</span> 전체 흐름</h2>
   <p>
-    진입점은 셋뿐입니다 — <strong>메시지 POST</strong>, <strong>통화 API</strong>, <strong>초안 검사 요청</strong>.
-    나머지는 전부 이 셋에서 뻗어 나갑니다. 주황이 LLM 호출 지점입니다.
+    진입점은 둘뿐입니다 — <strong>메시지 POST</strong>, <strong>초안 검사 요청</strong>.
+    나머지는 전부 이 둘에서 뻗어 나갑니다. 주황이 LLM 호출 지점입니다.
   </p>
   <div class="diagram">
 <pre class="mermaid">
 flowchart TD
   subgraph IN["진입점"]
     M["POST /api/dm/rooms/:id/messages"]
-    C["POST /api/calls/:id  invite·accept·end"]
-    U["POST /api/calls/:id/utterance"]
     G["POST /api/agent/rooms/:id/guard"]
   end
 
   M --> AR["maybeAutoRun<br/>triggers.ts"]
   M --> DP["dispatchToRoomBots<br/>dispatch.ts"]
-  C -->|"📞 버블을 채팅에 저장하면"| AR
-  C -->|"end: claim 먼저"| CL["claimCallUtterances"]
-  CL --> RC{{"writeCallRecap<br/>통화 요약"}}
-  U --> WU{{"watchUtterance<br/>발화 판단"}}
   G --> GD{{"checkDraft<br/>모순 검사"}}
 
   AR -->|"dm 1건 즉시 · 그 외 10건 · 유휴 120초"| PL{{"runPipeline<br/>문서 편집"}}
@@ -157,18 +151,14 @@ flowchart TD
   DP -->|"외부 봇"| EX["A2A SendMessage POST"]
   RS --> PL
 
-  WU -->|"질문이거나 기록에 있는 화제"| WH["멤버에게 비밀 속삭임"]
-  RC --> DOC[("OKF 파일<br/>Timeline · Decisions …")]
-  BUB["📞 버블 클릭"] -->|"#call-{callId} 역검색"| REC["GET /api/calls/:id/record"]
-  REC --> DOC
-  PL --> DOC
+  PL --> DOC[("OKF 파일<br/>Timeline · Decisions …")]
   GD --> V["allow / decline"]
 
   classDef llm fill:#f6ead6,stroke:#a2660f,color:#3d2a08,stroke-width:2px;
   classDef code fill:#e3ecf5,stroke:#2f5d8f,color:#14232f;
   classDef store fill:#e8e4f0,stroke:#5c4d7d,color:#241d33;
-  class RC,WU,GD,PL,RS llm;
-  class M,C,U,G,AR,DP,CL,EX,WH,V,BUB,REC code;
+  class GD,PL,RS llm;
+  class M,G,AR,DP,EX,V code;
   class DOC store;
 </pre>
   </div>
@@ -202,16 +192,6 @@ flowchart TD
           <td>인앱 → <code>respondToMessage</code> / 외부 → A2A POST</td>
         </tr>
         <tr>
-          <td>발화 도착</td><td class="m">utterance/route.ts:47</td>
-          <td>통화 <code>active</code>일 때만. 응답을 기다리지 않고 백그라운드</td>
-          <td><code>watchUtterance</code></td>
-        </tr>
-        <tr>
-          <td>통화 종료</td><td class="m">calls/route.ts:141</td>
-          <td>발화 선점(await) → 삭제 → 버블 → 요약(백그라운드). 발화 <strong>2줄 미만이면 요약 생략</strong></td>
-          <td><code>writeCallRecap</code></td>
-        </tr>
-        <tr>
           <td>보내기 전 검사</td><td class="m">guard/route.ts:31</td>
           <td>사용자가 초안을 입력했을 때 UI가 호출</td>
           <td><code>checkDraft</code></td>
@@ -222,9 +202,9 @@ flowchart TD
 </section>
 
 <section>
-  <h2><span class="n">03</span> LLM 호출 지점 6곳</h2>
+  <h2><span class="n">03</span> LLM 호출 지점 3곳</h2>
   <p>
-    에이전트가 모델을 부르는 곳은 정확히 여섯 군데입니다. 각각 프롬프트가 하드코딩돼 있고,
+    에이전트가 모델을 부르는 곳은 정확히 세 군데입니다. 각각 프롬프트가 하드코딩돼 있고,
     <strong>도구는 붙어 있지 않습니다</strong> — 모델은 JSON 텍스트를 반환하고, 그걸 해석해 파일을 쓰는 건 전부 코드입니다.
   </p>
 
@@ -254,7 +234,7 @@ flowchart TD
       <dt>출처</dt>
       <dd>
         문서 → OKF 파일 <code>readOkfSectionTexts()</code> · 메시지 → Postgres <code>chat_messages</code>
-        (미처리 + <code>consentAt</code> 이후) + <code>call_utterances</code>(끝난 통화만) ·
+        (미처리 + <code>consentAt</code> 이후) ·
         사진 → 디스크 <code>public/uploads/*</code>
       </dd>
       <dt>파라미터</dt>
@@ -355,103 +335,11 @@ flowchart TD
     </dl>
   </div>
 
-  <div class="card">
-    <div class="head">
-      <span class="what">④ 통화 팩트시트 (통화당 1회)</span>
-      <span class="where">call-watch.ts:70 · factSheet()</span>
-    </div>
-    <dl>
-      <dt>역할</dt>
-      <dd class="tight">통화 시작 시 관계 기록을 <em>조회용 시트</em>로 압축. 이후 모든 발화는 문서 대신 이 시트와 대조 — 발화 한 줄 판단에 문서 읽기 비용이 0</dd>
-      <dt>시스템 프롬프트</dt>
-      <dd class="tight">
-        "places / tastes / foods / events / people 줄로 압축. <strong>기록이 말하는 것만</strong>, 그 표현 그대로 + 명백한 동의어.
-        기록이 침묵하는 줄은 <code>(nothing recorded)</code> — <strong>그 부재가 의미를 갖는다</strong>. 산문·제목 금지"
-      </dd>
-      <dt>컨텍스트</dt>
-      <dd>비어있지 않은 섹션 전부, <strong>8,000자 상한</strong></dd>
-      <dt>출처</dt>
-      <dd>OKF 파일 (<code>okfDocTreeFromState</code> — 읽기 전용, 문서가 없으면 만들지 않음)</dd>
-      <dt>파라미터</dt>
-      <dd class="tight m">maxTokens 300 · temperature 0 · <code>callId</code>별 프로세스 메모리 캐시</dd>
-      <dt>실패 시</dt>
-      <dd class="tight">전 줄 <code>(nothing recorded)</code>로 진행 — 통화는 계속된다</dd>
-    </dl>
-  </div>
-
-  <div class="card">
-    <div class="head">
-      <span class="what">⑤ 이 발화는 무엇에 관한 것인가</span>
-      <span class="where">call-watch.ts:216 · readLine()</span>
-    </div>
-    <dl>
-      <dt>역할</dt>
-      <dd class="tight">발화 한 줄 → <code>{topic, known}</code>. <strong>속삭일지 말지는 모델이 정하지 않는다</strong></dd>
-      <dt>시스템 프롬프트</dt>
-      <dd class="tight">
-        팩트시트를 통째로 얹고 → "이 말이 무엇에 관한 것인지, 그리고 이 관계가 그걸 기록에 갖고 있는지 말하라.
-        대명사를 해소하라(that place, back then, it). <code>(nothing recorded)</code>는 그런 종류가 아무것도 없다는 뜻이다.
-        딱히 무엇에 관한 것도 아니면 — 잡담·반응·날씨·기분 — <code>{topic:null, known:false}</code>"
-      </dd>
-      <dt>컨텍스트</dt>
-      <dd>④가 만든 팩트시트 + 발화 텍스트 <strong>단 한 줄</strong> (대화 이력 없음)</dd>
-      <dt>파라미터</dt>
-      <dd class="tight m">maxTokens 60 · temperature 0</dd>
-      <dt>코드가 결정</dt>
-      <dd>
-        <span class="chip code">worth = asks || (topic &amp;&amp; known)</span>
-        <code>asks</code>는 정규식 — <code>?</code> 포함 또는 do/did/what/where/how… 로 시작 (call-watch.ts:39).
-        <strong>내 멤버에게 온 질문은 언제나 속삭일 값어치가 있고</strong>(답이 기록에 있거나, 없다는 사실이 눈에 띄거나),
-        평서문은 기록에 닿을 때만. 이걸 모델에 물었더니 "egg tarts 좋아해?"와 "좋아하는 디저트가 뭐야?"가 갈렸다는 게 주석에 남아 있음
-      </dd>
-      <dt>전달</dt>
-      <dd class="tight">말한 사람을 <strong>뺀</strong> 멤버에게 <code>privateToUserId</code> 메시지로. 통화 옆 채팅 패널에 뜨고 상대에겐 안 보임</dd>
-    </dl>
-  </div>
-
-  <div class="card">
-    <div class="head">
-      <span class="what">⑥ 통화 요약 (미팅노트)</span>
-      <span class="where">call-watch.ts:175 · writeCallRecap()</span>
-    </div>
-    <dl>
-      <dt>역할</dt>
-      <dd class="tight">끝난 통화 하나 = Timeline 항목 하나. "회의는 회의록을 남기지 속기록을 남기지 않는다".
-        여기에 더해 통화가 <em>낳은 것</em>(결정·미결·사람 메모)은 제 섹션으로 간다</dd>
-      <dt>시스템 프롬프트</dt>
-      <dd class="tight">
-        <code>summary</code>: "이 통화가 무엇에 관한 것이었는지 두 사람의 공동 기록용으로 써라. <strong>2–3문장, 과거형</strong>,
-        무엇을 했고 정했고 하려는지 이름을 대라. <strong>실제로 말한 것만</strong> — 조언 금지, 지어내기 금지. 평문, 제목·불릿 금지"<br>
-        <code>entries</code>: "제 섹션이 있는 것만 <code>{section, markdown}</code>으로.
-        <strong>둘이 정한 계획은 결정, 남겨둔 질문은 미결, 사람에 대해 알게 된 건 사람 메모.</strong>
-        통화는 이미 요약으로 타임라인에 간다 — 거기엔 절대 넣지 마라. 해당 없으면 빈 목록"
-      </dd>
-      <dt>컨텍스트</dt>
-      <dd><code>표시이름: 발화</code> 대본, <strong>8,000자 상한</strong>. 문서 내용은 들어가지 않음</dd>
-      <dt>출처</dt>
-      <dd>Postgres <code>call_utterances</code> — 이 <code>callId</code>의 미처리 행 (이름은 <code>users.displayName</code> 조인)</dd>
-      <dt>파라미터</dt>
-      <dd class="tight m">maxTokens 400 · temperature 0.2 · <code>parseRecap</code>은 던지지 않음(JSON 아니면 본문 전체를 요약으로)</dd>
-      <dt>쓰는 위치</dt>
-      <dd class="tight">
-        <code>Timeline.md</code>에 📞 callout 1개, entries는 각자의 섹션 파일에 불릿 1줄.
-        모두 <code>Sources: /dm/{roomId}#call-{callId}</code>를 단다 — 메시지 앵커가 없으니
-        <strong>통화를 출처로 인용</strong>하고, 그 앵커가 다시 <strong>버블 → 기록</strong>을 잇는 조인 키가 된다
-        (<code>GET /api/calls/{roomId}/record</code>). 되돌아오는 건 문서에 남은 줄뿐, <strong>발화 원문은 아니다</strong>
-      </dd>
-      <dt>순서 계약</dt>
-      <dd>
-        <span class="chip code">선점 먼저</span> 통화가 <em>살아있는 동안</em> 발화를 큐에서 빼앗는다(UPDATE 한 방).
-        안 그러면 "📞 통화 종료" 메시지가 파이프라인을 깨우고, 파이프라인은 이제 건너뛸 라이브 콜이 없어서
-        같은 발화를 한 줄씩 흩뿌린다
-      </dd>
-    </dl>
-  </div>
 </section>
 
 <section>
   <h2><span class="n">04</span> 컨텍스트는 어디서 오나</h2>
-  <p>저장소는 셋입니다. <strong>관계 문서만 파일</strong>이고, 런타임 상태는 Postgres, 통화 진행 상태는 프로세스 메모리입니다.</p>
+  <p>저장소는 셋입니다. <strong>관계 문서만 파일</strong>이고, 런타임 상태는 Postgres, 실행 중 상태는 프로세스 메모리입니다.</p>
   <div class="diagram">
 <pre class="mermaid">
 flowchart LR
@@ -464,34 +352,26 @@ flowchart LR
   end
   subgraph PG["Postgres — 런타임 상태"]
     CM["chat_messages"]
-    CU["call_utterances"]
     ARS["agent_room_states<br/>문서 경로 + 체크포인트"]
     US["users.agentConfig<br/>페르소나"]
     ACL["okf_acl<br/>경로별 참여자 권한"]
   end
   subgraph MEM["프로세스 메모리"]
-    CS["call-store<br/>통화 진행 상태"]
-    FC["factSheet 캐시"]
     RUN["runPipeline 뮤텍스<br/>+ 유휴 타이머"]
   end
 
   FS --> L1["① 문서 편집"]
   CM --> L1
-  CU --> L1
   IMG[("public/uploads/*")] --> L1
   FS --> L2["② 답장"]
   CM --> L2
   US --> L2
   FS --> L3["③ 모순 검사"]
-  FS --> L4["④ 팩트시트"]
-  L4 --> L5["⑤ 발화 판단"]
-  CU --> L6["⑥ 통화 요약"]
   ARS -.->|"문서 경로 해석"| FS
   ACL -.->|"읽기 게이트"| FS
-  CS -.->|"진행 중 통화는 건너뜀"| L1
 
   classDef llm fill:#f6ead6,stroke:#a2660f,color:#3d2a08,stroke-width:2px;
-  class L1,L2,L3,L4,L5,L6 llm;
+  class L1,L2,L3 llm;
 </pre>
   </div>
 
@@ -500,7 +380,7 @@ flowchart LR
       <strong>권한</strong> — OKF 트리에는 파일시스템 권한이 없습니다. <code>okf_acl</code>이 문서 루트 경로를
       <em>참여자 전용</em>으로 등록하고, 그 경로와 하위 전체를 <code>okfGateFor(userId)</code>가
       <code>/p/[pageId]</code>·<code>api/pages</code>·<code>api/okf/*</code>·<code>api/search</code>·<code>api/mcp</code>에서 막습니다.
-      등록은 파이프라인과 통화 요약, 두 경로 모두에서 합니다. <strong>게이트는 라우트마다 각자 물어야 합니다</strong> — 페이지 id 가 경로의 base64url 이라 방 이름만 알면 주소가 만들어지고, 묻지 않던 세 라우트(<code>pages/[id]</code>, <code>pages/[id]/blocks</code>, <code>okf/db</code>)로 문서가 읽히고 지워졌습니다. 회귀는 <code>e2e/okf-acl.check.mjs</code> 가 지킵니다.
+      등록은 파이프라인에서 합니다. <strong>게이트는 라우트마다 각자 물어야 합니다</strong> — 페이지 id 가 경로의 base64url 이라 방 이름만 알면 주소가 만들어지고, 묻지 않던 세 라우트(<code>pages/[id]</code>, <code>pages/[id]/blocks</code>, <code>okf/db</code>)로 문서가 읽히고 지워졌습니다. 회귀는 <code>e2e/okf-acl.check.mjs</code> 가 지킵니다.
     </div>
     <div class="note">
       <strong>체크포인트</strong> — <code>processedAt</code>이 "에이전트가 읽었다"의 표시입니다.
@@ -519,8 +399,6 @@ flowchart LR
       <tbody>
         <tr><td>에이전트 자신의 발언</td><td class="m">pipeline.ts:327</td><td>인사·공지가 기록되자 Timeline이 봇의 독백 기록이 됐다</td></tr>
         <tr><td>비밀 <code>@agent</code> 대화</td><td class="m">pipeline.ts:327</td><td>기록은 둘의 공동 소유 — 한 사람 것은 들어가지 않는다</td></tr>
-        <tr><td><code>📞 </code> 통화 버블</td><td class="m">pipeline.ts:327</td><td>UI 표시물이지 누가 한 말이 아니다. 요약이 있으니 두 번 적힌다</td></tr>
-        <tr><td>진행 중 통화의 발화</td><td class="m">pipeline.ts:286</td><td>끝날 때 한 항목으로 쓰인다 — 지금 접으면 타임라인에 흩어진다</td></tr>
         <tr><td>다른 봇의 메시지</td><td class="m">dispatch.ts:71</td><td>봇↔봇 루프 차단 (데모 정책)</td></tr>
         <tr><td><code>consentAt</code> 이전 메시지</td><td class="m">triggers.ts:34</td><td>계약 서명 전 대화는 에이전트의 것이 아니다</td></tr>
       </tbody>
@@ -537,14 +415,11 @@ flowchart LR
         <tr><td>① 문서 편집</td><td>어느 섹션에 무슨 문장을</td><td>언제 돌지, 무엇을 먹일지, 어디에 append할지, 사진이면 date 이벤트</td></tr>
         <tr><td>② 답장</td><td>답할지 + 문안</td><td>멘션 판정, 비밀=멘션, 공개 범위, 사진 선택 폴백</td></tr>
         <tr><td>③ 모순 검사</td><td>모순인가 / 해로운가</td><td>호출 여부(바이그램), AND 조건, 증거 실재 확인, 장애 시 통과</td></tr>
-        <tr><td>④ 팩트시트</td><td>기록의 압축</td><td>언제 만들지, 캐시 수명, 글자 상한</td></tr>
-        <tr><td>⑤ 발화 판단</td><td>무엇에 관한 말인가</td><td><strong>속삭일지 말지</strong>, 누구에게, 문구 형식</td></tr>
-        <tr><td>⑥ 통화 요약</td><td>2–3문장 요약</td><td>선점 시점, 2줄 미만 생략, 쓸 위치, 출처 앵커</td></tr>
       </tbody>
     </table>
   </div>
   <p>
-    여섯 곳 모두 <strong>행동 결정은 코드</strong>이고 모델은 내용만 채웁니다. 계산 가능한 판단을 모델에 넘기면
+    세 곳 모두 <strong>행동 결정은 코드</strong>이고 모델은 내용만 채웁니다. 계산 가능한 판단을 모델에 넘기면
     같은 입력에 다른 답이 나오기 때문이고, 그 결정이 코드 주석에 근거와 함께 남아 있습니다.
     자율 툴 루프가 값을 하는 곳은 <strong>① 문서 편집</strong> 하나입니다 — 지금은 append만 가능해서
     기존 줄 수정·중복 병합·모순 정리를 구조적으로 못 합니다.
@@ -552,8 +427,8 @@ flowchart LR
 </section>
 
 <footer>
-  근거 파일: <span class="m">lib/agent/{pipeline,respond,guard,call-watch,triggers,dispatch,parse-edits,okf-docs}.ts</span>,
-  <span class="m">lib/okf-acl.ts</span>, <span class="m">api/calls/[roomId]/{route,utterance/route}.ts</span>,
+  근거 파일: <span class="m">lib/agent/{pipeline,respond,guard,triggers,dispatch,parse-edits,okf-docs}.ts</span>,
+  <span class="m">lib/okf-acl.ts</span>,
   <span class="m">api/dm/rooms/[roomId]/messages/route.ts</span>, <span class="m">api/a2a/[agentUserId]/route.ts</span>.
   줄 번호는 2026-07-25 <span class="m">85e82c6</span> 기준.
 </footer>

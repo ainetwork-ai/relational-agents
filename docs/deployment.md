@@ -242,12 +242,7 @@ Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다
 6. **ENS 레코드가 옛 A2A 주소를 가리킨다.** DB는 §4.10에서 정정했지만 온체인
    `agent-endpoint[a2a]` 텍스트 레코드는 아직 `192.168.1.193:36625`다.
    8개 에이전트에 대해 재발행이 필요하고, 가스와 키가 든다.
-7. **통화 STT가 꺼져 있다.** `NEXT_PUBLIC_CALL_WEB_SPEECH` 미설정이라 브라우저
-   음성 인식이 항상 off고, 에이전트는 통화를 듣지 못한다(리캡은 100% 발화 기반).
-   dev도 동일하므로 회귀는 아니지만, 데모에서 "에이전트가 통화를 듣는다"를
-   보여줄 거라면 build arg로 `1`을 넘기고 재빌드해야 한다. 끌 거라면
-   `call-view.tsx`의 "STT unavailable" 안내를 항상 노출하도록 바꿔야 한다.
-8. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
+7. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
    양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
    `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
    (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.

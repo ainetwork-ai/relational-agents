@@ -160,8 +160,8 @@ test.describe("production — the demo, scene by scene (read-only)", () => {
     expect(problems, problems.join("\n")).toEqual([]);
   });
 
-  // ── "And right then — a video call." ─────────────────────────────────────
-  test("scene: a room and its call surface open", async ({ page }) => {
+  // ── "A relationship room opens." ─────────────────────────────────────────
+  test("scene: a room opens", async ({ page }) => {
     const problems = watch(page);
     await demoLogin(page);
 
@@ -170,11 +170,6 @@ test.describe("production — the demo, scene by scene (read-only)", () => {
     await page.goto(`/dm/${room.id}`);
     await expect(page.getByTestId("dm-room-title")).toBeVisible();
     await expect(page.getByTestId("dm-messages")).toBeVisible();
-
-    // Placing a call needs two browsers and media permissions; what is checked
-    // here is that the deployed build serves the surface without blowing up.
-    await page.goto(`/call/${room.id}`);
-    await expect(page.locator("body")).toBeVisible();
     expect(problems, problems.join("\n")).toEqual([]);
   });
 

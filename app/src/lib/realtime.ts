@@ -26,14 +26,7 @@ export interface PageEvent {
     | "presence"
     | "dm-message"
     | "dm-room"
-    | "dm-typing"
-    // video-call signaling (notification-only like the rest — receivers GET /api/calls/{roomId})
-    | "dm-call-ring"
-    | "dm-call-cancel"
-    | "dm-call-accept"
-    | "dm-call-decline"
-    | "dm-call-signal"
-    | "dm-call-end";
+    | "dm-typing";
   /** channel key — page id, database id, or DM inbox key (`dm-inbox:<userId>`) */
   pageId: string;
   /** originating editor instance — clients ignore their own echo */
