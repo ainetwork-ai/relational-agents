@@ -6,13 +6,12 @@ import {
   chatMessages,
   chatRooms,
   chatRoomMembers,
-  personhoodProofs,
   relationContracts,
   users,
 } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
-import { buildRelationConsentTypedData, humanBackedRegistryAddress } from "@/lib/relation-contract";
+import { buildRelationConsentTypedData } from "@/lib/relation-contract";
 import { provisionRoomAgent } from "@/lib/agent/provision";
 import { notifyConsent } from "@/lib/notifications";
 import { relayRelationOnChain } from "@/lib/relation-registry";
@@ -36,15 +35,6 @@ async function contractParties(roomId: string) {
     : [];
 }
 
-/** userId → nullifier hash for everyone in the room who proved personhood. */
-async function personhoodByUser(roomId: string): Promise<Map<string, string>> {
-  const rows = await db
-    .select({ userId: personhoodProofs.userId, nullifierHash: personhoodProofs.nullifierHash })
-    .from(personhoodProofs)
-    .where(eq(personhoodProofs.roomId, roomId));
-  return new Map(rows.map((r) => [r.userId, r.nullifierHash]));
-}
-
 function typedDataFor(roomId: string, parties: { address: string }[]) {
   const addrs = parties.map((p) => p.address);
   if (addrs.length < 2 || !addrs.every((a) => HEX_ADDR.test(a))) return null;
@@ -66,8 +56,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     .where(eq(relationContracts.roomId, roomId));
   const signed = new Set(signedRows.map((r) => r.userId));
   const typedData = typedDataFor(roomId, parties);
-  const personhood = await personhoodByUser(roomId);
-  const personhoodRequired = humanBackedRegistryAddress() !== null;
 
   return NextResponse.json({
     consentAt: access.room.consentAt,
@@ -76,11 +64,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
       userId: p.id,
       displayName: p.displayName,
       signed: signed.has(p.id),
-      personhoodVerified: personhood.has(p.id),
     })),
     mySigned: signed.has(auth.user.id),
-    myPersonhoodVerified: personhood.has(auth.user.id),
-    personhoodRequired,
     canSign: typedData !== null && HEX_ADDR.test(auth.user.ainAddress),
     typedData,
   });
@@ -123,16 +108,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     signature: signature as `0x${string}`,
   }).catch(() => false);
   if (!valid) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-
- // A signature proves an account agreed. Personhood proves a PERSON did — and
- // the human-backed agent is only meaningful if that holds for every side, so
- // the proof has to come before the signature counts.
-  const personhood = await personhoodByUser(roomId);
-  if (humanBackedRegistryAddress() && !personhood.has(auth.user.id))
-    return NextResponse.json(
-      { error: "Verify you're a unique human first" },
-      { status: 403 }
-    );
 
   await db
     .insert(relationContracts)
@@ -206,19 +181,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       const signaturesByAddress = Object.fromEntries(
         contracts.map((c) => [c.address.toLowerCase(), c.signature])
       );
- // carry each party's proof-of-personhood into the registration, keyed by the
- // same address as their signature
-      const proofs = await personhoodByUser(roomId);
-      const addressOfUser = new Map(parties.map((p) => [p.id, p.address.toLowerCase()]));
-      const nullifiersByAddress: Record<string, string> = {};
-      for (const [userId, nullifierHash] of proofs) {
-        const addr = addressOfUser.get(userId);
-        if (addr) nullifiersByAddress[addr] = nullifierHash;
-      }
       const onchain = await relayRelationOnChain({
         roomId,
         signaturesByAddress,
-        nullifiersByAddress,
         agentUri: `okf://relationship/${roomId}`,
       });
       if (onchain) {
@@ -233,9 +198,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           await db.insert(chatMessages).values({
             roomId,
             authorId: agentUserId,
-            text: onchain.humanBacked
-              ? `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia), with a proof-of-personhood bound for each of you. Anyone can now ask the chain: are two real people behind this agent? tx: ${onchain.txHash}`
-              : `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia). tx: ${onchain.txHash}`,
+            text: `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia). tx: ${onchain.txHash}`,
           });
         }
       }

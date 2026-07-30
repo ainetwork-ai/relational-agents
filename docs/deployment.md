@@ -120,15 +120,14 @@ dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기
 
 ## 4. 함정 — 여기서 시간을 썼다
 
-### 4.1 프로덕션 빌드는 원래 깨져 있었다
+### 4.1 프로덕션 빌드는 원래 깨져 있었다 (해소됨)
 
-`next dev`는 되는데 `next build`는 `/api/agent/[agentUserId]/spend`에서
-`TypeError: Y is not a function`(@noble/hashes sha3)으로 죽었다. 트레이스에 뜨는
-`viem@2.22.12`, `@noble+hashes@1.6.1`은 **이 트리에 존재하지 않는 버전**이라 디렉터리를
-찾아도 없다 — AgentKit이 publish 시점에 선번들한 코드에 박힌 경로다. Turbopack이 그
-선번들 코드를 다시 번들하면서 ESM interop이 깨진 것이라 재설치로는 안 고쳐진다.
-
-→ `next.config.ts`의 `serverExternalPackages: ["@coinbase/agentkit", "viem", "@ainblockchain/ain-js"]`.
+`next build`가 `/api/agent/[agentUserId]/spend`에서 `TypeError: Y is not a function`
+(@noble/hashes sha3)으로 죽던 문제였다. AgentKit이 publish 시점에 선번들한 코드를
+Turbopack이 다시 번들하면서 ESM interop이 깨진 것이 원인이었고,
+`serverExternalPackages`에 `@coinbase/agentkit`을 넣어 우회했다. World 트랙(AgentKit
+지불 데모)이 제거되면서 해당 라우트와 의존성이 함께 사라져 이 함정은 더 이상 없다.
+`serverExternalPackages`에는 `viem`, `@ainblockchain/ain-js`만 남아 있다.
 
 ### 4.2 `| tail`이 빌드 실패를 exit 0으로 가린다
 
@@ -198,12 +197,12 @@ env가 빠지면 컨테이너 안 존재하지 않는 경로로 조용히 흘러
 
 ### 4.9 `NEXT_PUBLIC_*`는 빌드타임, 서버는 런타임 — 반쪽만 켜면 침묵한다
 
-Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다. 나머지 5개는
-브라우저 번들에서 영원히 `undefined`인데 **서버는 같은 이름을 런타임에 읽는다.**
-그래서 `.env.prod`에만 `NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS`를 넣고 재시작하면
-서버는 personhood 게이트를 켜고 브라우저는 World ID app id가 없어 nullifier를 못
-만든다 → **consent가 영구 불가, 로그 한 줄 없음.** 지금은 7개 전부 전달한다.
-값을 바꾸려면 재시작이 아니라 `build` + 새 `APP_TAG`가 필요하다.
+Dockerfile이 선언한 ARG 중 일부만 compose가 넘기고 있었다. 빠진 값은 브라우저
+번들에서 영원히 `undefined`인데 **서버는 같은 이름을 런타임에 읽는다.** 그래서
+`.env.prod`에만 값을 넣고 재시작하면 서버와 브라우저가 서로 다른 상태를 믿게 되고,
+그 불일치는 **로그 한 줄 없이** 기능을 죽인다. 지금은 Dockerfile의 ARG와 compose의
+build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `build` + 새 `APP_TAG`가
+필요하다.
 
 ### 4.10 한 번 저장된 값은 env를 바꿔도 따라오지 않는다
 
@@ -239,7 +238,3 @@ Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
 5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
    (`deploy/backups/`에 수동 스냅샷만 있다.)
-6. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
-   양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
-   `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
-   (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.

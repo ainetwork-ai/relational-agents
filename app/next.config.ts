@@ -12,11 +12,11 @@ const nextConfig: NextConfig = {
   // Container images ship .next/standalone — a traced, self-contained server
   // that does not need the full node_modules tree at runtime.
   output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined,
-  // AgentKit ships prebundled code whose @noble/hashes copy breaks when
-  // Turbopack re-bundles it ("TypeError: Y is not a function" while collecting
-  // page data for /api/agent/[id]/spend). Loading these through Node instead
-  // of the bundler keeps their own module graph intact.
-  serverExternalPackages: ["@coinbase/agentkit", "viem", "@ainblockchain/ain-js"],
+  // These ship prebundled code that breaks when Turbopack re-bundles it
+  // ("TypeError: Y is not a function" from a vendored @noble/hashes copy).
+  // Loading them through Node instead of the bundler keeps their own module
+  // graph intact.
+  serverExternalPackages: ["viem", "@ainblockchain/ain-js"],
 };
 
 export default nextConfig;
