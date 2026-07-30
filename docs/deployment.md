@@ -15,7 +15,8 @@
 
 | 항목 | 값 |
 |---|---|
-| URL | **아직 없다** — 루프백 전용. nginx/도메인 미구성 (§6-6) |
+| URL | `https://ainmem.ainetwork.ai` — **설치 대기**: DNS A 레코드와 nginx 적용이 남았다 (§6-6) |
+| nginx | conf 초안 `deploy/nginx/ainmem.ainetwork.ai.conf` (certbot 이전 스냅샷) |
 | 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3120` |
 | DB | 컨테이너 `ainmem_prod_postgres`, DB/롤 `ainmem_prod` (포트 미공개) |
 | 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
@@ -333,13 +334,37 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
 5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
    (`deploy/backups/`는 이 호스트에서 아직 비어 있다.)
-6. **도메인 / nginx.** 이 스택은 `127.0.0.1:3120`에만 있고 앞에 nginx가 없다.
-   `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)을 가리키므로 그 이름을 쓰려면
-   A 레코드를 옮겨야 하고 저쪽이 죽는다(§4.3). 새 서브도메인을 이 호스트의
-   `101.202.37.107`로 향하게 하는 편이 안전하다. conf는 `ainteams-backend.ainetwork.ai`
-   모양을 따르고, `~/NGINX-README.md`대로 **live 설정을 직접 편집**한다(홈의 `*.conf`
-   스냅샷은 certbot 이전 상태라 정본이 아니다). 적용에는 sudo가 필요하다.
-   TLS가 붙기 전까지 세션 쿠키는 Secure라 원격 브라우저 로그인이 안 된다.
+6. **도메인 / nginx — 이름은 `ainmem.ainetwork.ai`로 정했다. 적용이 남았다.**
+   `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)이라 쓰지 않는다(§4.3).
+   conf 초안은 `deploy/nginx/ainmem.ainetwork.ai.conf`에 있고 nginx 컨테이너로
+   문법 검증까지 했다. 남은 두 가지:
+   - **DNS**: `ainmem.ainetwork.ai` A 레코드가 아직 없다(`dig` 무응답). 이 호스트의
+     ingress `101.202.37.107`(= `ainteams.ainetwork.ai`와 동일)로 향해야 한다.
+     레코드가 없으면 certbot HTTP-01이 실패한다.
+   - **적용**: sudo가 필요해 사람이 실행한다.
+     ```bash
+     sudo cp deploy/nginx/ainmem.ainetwork.ai.conf \
+        /etc/nginx/sites-available/ainmem.ainetwork.ai
+     sudo ln -s /etc/nginx/sites-available/ainmem.ainetwork.ai \
+        /etc/nginx/sites-enabled/ainmem.ainetwork.ai
+     sudo nginx -t && sudo systemctl reload nginx
+     sudo certbot --nginx -d ainmem.ainetwork.ai   # DNS 가 선 뒤에
+     ```
+   certbot이 live 설정에 TLS 블록을 넣는 순간부터 **live가 정본**이다. 그 뒤에
+   `deploy/nginx/`의 초안을 다시 복사하면 HTTPS가 벗겨진다 —
+   `~/NGINX-README.md`에 기록된 `setup-nginx.sh` 사고와 같은 함정이다.
+
+   conf에 담긴 값과 근거: `client_max_body_size 12M`(=`/api/upload`의 10MB +
+   multipart 오버헤드), `proxy_buffering off`(SSE 4곳 — AI 채팅 스트리밍,
+   `dm/events`, `pages/[pageId]/events`. 버퍼링이 켜지면 토큰이 뭉쳐 오거나 응답이
+   끝날 때까지 안 온다), `300s` 타임아웃(`/api/import`의 `maxDuration 300`과 LLM
+   호출 타임아웃 120s를 덮는다).
+
+   공개에 맞춰 `.env.prod`를 두 곳 바꿨다: `A2A_BASE_URL`을
+   `https://ainmem.ainetwork.ai`로(§4.10 — DB가 비어 있는 지금이 공짜다), 그리고
+   **`ENABLE_DEMO_LOGIN=0`**. 공개 URL에서 누구나 DemoUser로 들어오는 것을 기본값으로
+   둘 수는 없다. MetaMask·키 로그인은 이 플래그와 무관하게 동작한다. 데모를 공개하려면
+   `1`로 바꾸고 `up -d app`.
 7. **초기 데이터.** DB는 스키마만 있고 행이 0이다. dev DB(5434 `notion_clone`)를
    덤프해 넣을지, 데모 로그인으로 새로 만들지 정해야 한다. 넣을 때 OKF 파일 트리를
    같이 복사해야 정합이 맞는다(§3.3).
