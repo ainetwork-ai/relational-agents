@@ -1,6 +1,6 @@
 /**
  * The relational agent contract — EIP-712 typed data both members sign so the
- * agent can be born. The shape matches contracts/RelationalAgentRegistry.sol
+ * agent can be born. The shape matches the deployed RelationalAgentRegistry
  * exactly (struct RelationConsent + domain), so the signatures collected
  * here can be relayed on-chain via registerRelationalAgent() unchanged and
  * registered into the ERC-8004-compatible identity registry.

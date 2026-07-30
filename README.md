@@ -34,7 +34,7 @@ Isolation is structural, not a rule the model has to remember.
 
 ## The contract — consent, on-chain
 
-The birth rule is enforced by [`RelationalAgentRegistry`](contracts/RelationalAgentRegistry.sol),
+The birth rule is enforced by `RelationalAgentRegistry`,
 an **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (Trustless Agents) compatible identity
 registry** with one twist: an agent can only be minted from a relationship.
 
@@ -53,7 +53,6 @@ registerRelationalAgent(bytes32 relationId, address[] parties, string agentURI, 
   `MetadataSet` events, per-agent key-value metadata (`relationId`, `parties`).
 
 Live on Sepolia: [`0xf1dc0686c8b22a1afe8941c2613f7efa4e439256`](https://sepolia.etherscan.io/address/0xf1dc0686c8b22a1afe8941c2613f7efa4e439256)
-([deployment record](contracts/deployments/sepolia.json))
 
 ## The agent — A2A wire, OKF memory
 
