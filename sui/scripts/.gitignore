@@ -1,2 +1,0 @@
-# Symlink to ../../app/node_modules, so these scripts can import the Mysten SDKs.
-node_modules
