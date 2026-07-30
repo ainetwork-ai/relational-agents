@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# ainmem prod 백업 — DB + 파일 상태를 한 세트로 뜬다.
+#
+#   scripts/backup-prod.sh                 # 기본값으로
+#   scripts/backup-prod.sh --no-pause      # 앱을 멈추지 않고 (§일관성 참고)
+#   scripts/backup-prod.sh --keep 30
+#   COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
+#
+# 무엇을 뜨는가
+#   db.dump       pg_dump -Fc (단일 스냅샷 트랜잭션이라 DB 내부는 일관적)
+#   files.tar.gz  deploy/{okf-content,uploads,avatars}
+#                 — OKF 트리는 파생물이 아니라 콘텐츠 원본이다(docs §3.2).
+#   MANIFEST      복원할 때 "이게 어느 코드 시점의 데이터인가"를 알기 위한 것
+#
+# 무엇을 안 뜨는가
+#   md-mirror 볼륨 — DB가 write model이고 미러는 변경마다 재출력되는 파생물이다.
+#   .env.prod     — 데이터와 같은 아카이브에 시크릿을 넣으면 파일 하나가 새는
+#                   순간 피해가 배가 된다. 시크릿은 별도 경로로 보관할 것.
+#
+# 일관성
+#   DB 행이 OKF 경로와 업로드 URL을 가리키므로 둘의 시점이 어긋나면 참조가 깨진다.
+#   순서를 DB→파일로 고정한 이유가 이것이다: 그 사이 생긴 파일은 덤프에 없으니
+#   고아 파일로 남을 뿐 무해하다. 반대 순서면 DB가 없는 파일을 가리켜 깨진다.
+#   --pause(기본)는 그 틈마저 없앤다 — 스냅샷 동안 앱을 몇 초 얼린다.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP=ainmem_prod_app
+PG=ainmem_prod_postgres
+PAUSE=1
+KEEP="${KEEP:-14}"
+OUT="${OUT:-$REPO/deploy/backups}"
+COPY_TO="${COPY_TO:-}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-pause) PAUSE=0; shift ;;
+    --keep) KEEP="$2"; shift 2 ;;
+    --out) OUT="$2"; shift 2 ;;
+    -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+running() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ]; }
+running "$PG" || { echo "$PG 가 떠 있지 않다 — 백업할 것이 없다" >&2; exit 1; }
+
+DB_USER=$(docker inspect "$PG" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^POSTGRES_USER=//p')
+DB_NAME=$(docker inspect "$PG" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^POSTGRES_DB=//p')
+STAMP=$(date +%Y%m%d_%H%M%S)
+DEST="$OUT/$STAMP"
+mkdir -p "$DEST"
+
+# 실패하든 Ctrl-C 든 컨테이너는 반드시 다시 돌려놓는다. 멈춘 채로 남는 것이
+# 백업 실패보다 나쁘다.
+unpause() { [ "$PAUSE" = 1 ] && running "$APP" && \
+  [ "$(docker inspect -f '{{.State.Paused}}' "$APP")" = "true" ] && docker unpause "$APP" >/dev/null || true; }
+trap unpause EXIT INT TERM
+
+if [ "$PAUSE" = 1 ] && running "$APP"; then
+  docker pause "$APP" >/dev/null
+  echo "paused $APP"
+fi
+
+docker exec "$PG" pg_dump -U "$DB_USER" --no-owner --no-acl -Fc "$DB_NAME" > "$DEST/db.dump"
+tar czf "$DEST/files.tar.gz" -C "$REPO/deploy" okf-content uploads avatars
+
+unpause
+trap - EXIT INT TERM
+
+# 스키마 버전이 다른 덤프를 지금 코드에 복원하면 /api/health 가 503 으로 잡아주지만,
+# 어긋난 것을 알고 시작하는 편이 낫다. 그래서 커밋과 이미지 태그를 같이 적는다.
+{
+  echo "taken_at:   $(date -Is)"
+  echo "host:       $(hostname)"
+  echo "git_commit: $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  echo "git_dirty:  $([ -n "$(git -C "$REPO" status --porcelain 2>/dev/null)" ] && echo yes || echo no)"
+  echo "app_image:  $(docker inspect "$APP" --format '{{.Config.Image}}' 2>/dev/null || echo '(not running)')"
+  echo "paused:     $([ "$PAUSE" = 1 ] && echo yes || echo no)"
+  echo "database:   $DB_NAME (role $DB_USER)"
+  echo "tables:     $(docker exec "$PG" psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+      "select count(*) from information_schema.tables where table_schema='public'")"
+  echo "rows_approx: $(docker exec "$PG" psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+      "select coalesce(sum(n_live_tup),0) from pg_stat_user_tables")"
+  echo "sha256:"
+  (cd "$DEST" && sha256sum db.dump files.tar.gz | sed 's/^/  /')
+} > "$DEST/MANIFEST"
+
+if [ -n "$COPY_TO" ]; then
+  rsync -a "$DEST" "$COPY_TO/" && echo "copied to $COPY_TO/$STAMP"
+fi
+
+# 보존 — 오래된 세트부터 지운다. 이름이 시각순이라 정렬이 곧 시간순이다.
+mapfile -t OLD < <(ls -1d "$OUT"/[0-9]*_[0-9]* 2>/dev/null | sort | head -n -"$KEEP")
+for d in "${OLD[@]:-}"; do [ -n "$d" ] && rm -rf "$d" && echo "pruned $(basename "$d")"; done
+
+echo "backup: $DEST ($(du -sh "$DEST" | cut -f1))"

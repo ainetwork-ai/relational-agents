@@ -78,15 +78,56 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3120/api/health
 docker inspect -f '{{.State.Health.Status}}' ainmem_prod_app
 ```
 
-`app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 데모가 세계를
-소유한 계정(`Chanho`)으로 열리는지, 방이 대화를 그리는지, OKF 트리가 비어 있지
-않은지, 커버 에셋이 뜨는지. **기존 `playwright.config.ts`를 프로덕션에 겨누면 안
-된다** — 그건 자체 dev 서버를 띄우고 공유 DB를 쓰며, 스펙 중에 관계를 실제로
-해소하는 것들이 있다.
+`app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 로그인 화면이
+뜨는지, 방과 문서가 그려지는지, 콘텐츠 트리가 비어 있지 않은지, 업로드 에셋이
+뜨는지. 전부 읽기 전용이다. **기존 `playwright.config.ts`를 프로덕션에 겨누면 안
+된다** — 그건 자체 dev 서버를 띄우고 공유 DB를 쓰며, 데이터를 실제로 변경하는
+스펙이 섞여 있다.
 
-> 이 호스트에서는 아직 **통과할 수 없다.** DB가 비어 있어 `Chanho`도, 방도, OKF
+> 이 호스트에서는 아직 **통과할 수 없다.** DB가 비어 있어 검사할 계정도 방도
 > 문서도 없다(§6-7). 데이터가 들어오기 전까지 배포 검증은 `/api/health` 200과
 > 컨테이너 healthy까지다.
+
+## 2.1 백업 / 복원
+
+```bash
+scripts/backup-prod.sh                # 기본값: 앱을 잠깐 pause, 14세트 보존
+scripts/backup-prod.sh --no-pause --keep 30
+COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
+```
+
+한 세트는 `deploy/backups/<타임스탬프>/`에 `db.dump`(pg_dump -Fc),
+`files.tar.gz`(okf-content·uploads·avatars), `MANIFEST`(커밋 SHA, 이미지 태그,
+테이블·행 수, sha256)로 떨어진다. md-mirror는 파생물이라, `.env.prod`는 데이터와
+같은 아카이브에 시크릿을 넣지 않기 위해 제외한다.
+
+**순서가 곧 안전장치다.** DB 행이 OKF 경로와 업로드 URL을 가리키므로 두 시점이
+어긋나면 참조가 깨진다. 스크립트는 항상 **DB → 파일** 순으로 뜬다: 그 사이 생긴
+파일은 덤프에 없으니 고아로 남을 뿐 무해하고, 반대 순서면 DB가 없는 파일을 가리켜
+깨진다. `--pause`(기본)는 그 틈마저 없앤다. 부작용이 하나 있다 — pause 동안
+헬스체크가 돌지 못해 컨테이너가 잠시 `unhealthy`로 보인다. 다음 검사(30s)에서
+스스로 복구되지만, 헬스 상태를 보고 반응하는 것이 생기면 이 깜빡임을 알고 있어야
+한다.
+
+복원은 이렇게 한다(prod를 덮어쓰므로 손으로):
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml stop app
+docker exec -i ainmem_prod_postgres psql -U ainmem_prod -d postgres \
+  -c 'drop database ainmem_prod' -c 'create database ainmem_prod'
+docker exec -i ainmem_prod_postgres pg_restore -U ainmem_prod -d ainmem_prod \
+  --no-owner --no-acl < deploy/backups/<타임스탬프>/db.dump
+tar xzf deploy/backups/<타임스탬프>/files.tar.gz -C deploy
+docker run --rm -v "$PWD/deploy:/d" alpine chown -R 1001:1001 /d/okf-content /d/uploads /d/avatars
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
+```
+
+`MANIFEST`의 `git_commit`이 지금 코드와 다르면 스키마도 다를 수 있다 — 복원 후
+`/api/health`가 503이면 그 이야기다(§3.6).
+
+2026-07-30에 빈 DB로 한 바퀴 검증했다: 일회용 postgres 컨테이너에 `db.dump`를
+복원해 34테이블이 그대로 올라오는 것, `files.tar.gz`가 세 디렉터리를 담고 있는 것,
+pause된 앱이 스크립트 종료 후 반드시 unpause되는 것(트랩)을 확인했다.
 
 ## 3. 결정된 것과 그 이유
 
@@ -103,8 +144,8 @@ git이 없는 파일 더미라 라이브에 뭐가 떠 있는지 커밋으로 �
 ### 3.2 OKF 콘텐츠는 이미지가 아니라 바인드 마운트
 
 `okf-store.ts`가 런타임에 `writeFileSync`/`mkdirSync`로 콘텐츠를 쓴다 — 폴더 트리가 곧
-콘텐츠 DB다. 이미지에 구우면 **재배포마다 라이브에서 쌓인 관계 문서가 날아간다.**
-named volume 대신 호스트 바인드 마운트를 쓴 이유는 데모 중 생성된 문서를 직접 열어보고
+콘텐츠 DB다. 이미지에 구우면 **재배포마다 라이브에서 쌓인 문서가 날아간다.**
+named volume 대신 호스트 바인드 마운트를 쓴 이유는 라이브에서 생성된 문서를 직접 열어보고
 git으로 회수할 수 있어야 해서다. 컨테이너가 uid 1001로 돌기 때문에 마운트 경로는
 `chown -R 1001:1001`이 되어 있어야 쓰기가 된다.
 
@@ -121,7 +162,7 @@ dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를
 첫 배포에서는 초기 데이터를 dev DB에서 `pg_dump --no-owner --no-acl`로 떠서 넣었다
 (롤 이름이 다르므로 `--no-owner`가 필수다). 이 호스트에서는 아직 넣지 않았다.
 넣을 때 **DB만 옮기면 안 된다** — 행이 가리키는 OKF 경로가 `deploy/okf-content/`에
-없으면 문서 없는 관계만 남는다. 파일 트리도 같이 복사해야 정합이 맞는다.
+없으면 가리키는 문서가 없는 행만 남는다. 파일 트리도 같이 복사해야 정합이 맞는다.
 
 ### 3.4 compose 파일 분리
 
@@ -313,7 +354,7 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
 | OKF 콘텐츠 | **분리** — 바인드 마운트 (단, git으로 자동 회수되지 않음) |
 | 포트 | **분리** — prod 3120, dev 36625 / dev DB 5434 |
 | `SESSION_SECRET` | **분리** — 라이브 전용 값 |
-| 온체인 키 (`DEPLOYER_KEY`, 데모 지갑) | **미설정** — 양쪽 다 키가 없어 온체인 릴레이는 비활성 |
+| 온체인 키 (`DEPLOYER_KEY`) | **미설정** — 양쪽 다 키가 없어 온체인 릴레이는 비활성 |
 | LLM | **해당 없음** — 이 호스트에 vLLM이 없고 prod는 보류 상태(§4.8) |
 
 같은 호스트의 다른 서비스(`ainteams_prod_*`, `ainteams_staging_*`)와도 포트·DB·볼륨이
@@ -324,16 +365,19 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
 1. **온체인 키.** 이 호스트에는 `RELAYER_KEY`/`DEPLOYER_KEY`가 없어 온체인 릴레이가
    비활성이다(`relation-registry.ts`가 키 없으면 `null` 반환). 필요해지면 **라이브 전용**
    키와 자금을 넣어야 한다 — dev와 공유하면 동시 트랜잭션에서 nonce가 충돌한다.
-2. **OKF 회수 정책.** 라이브가 쓴 관계 문서는 바인드 마운트에만 쌓이고 git에 안 돌아온다.
-   주기적으로 커밋할지, 데모용이라 버릴지 정해야 한다.
+2. **OKF 회수 정책.** 라이브가 쓴 문서는 바인드 마운트에만 쌓이고 git에 안 돌아온다.
+   주기적으로 커밋할지, 버릴지 정해야 한다.
 3. **`ENABLE_DEMO_LOGIN=1`.** 누구나 DemoUser로 로그인된다. 지금은 루프백 전용이라
    접근 경로가 없지만, **nginx로 공개하기 전에 다시 판단해야 한다.**
 4. **origin/main 히스토리 재작성.** 2026-07-25 01:35 UTC `18084c0` 직후 GitHub 웹 UI
    업로드 커밋을 rebase로 통합하면서 179개 커밋의 SHA가 새로 찍혔다. 로컬 main이
    origin/main의 내용상 상위 집합(+ call 작업 10개)이라 `push --force-with-lease` 한 번이면
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
-5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
-   (`deploy/backups/`는 이 호스트에서 아직 비어 있다.)
+5. **백업 스케줄.** 스크립트는 있다(§2.1) — 언제 자동으로 돌릴지와 호스트 밖
+   사본을 어디에 둘지가 남았다. 지금은 손으로만 돈다. `deploy/backups/`는 원본과
+   **같은 디스크**라 실수(`down -v`, 파일 삭제)에는 강하지만 디스크 손실에는 같이
+   죽는다. 참고로 이 호스트에는 아직 자동 백업이 하나도 없다 — `~/backups/`,
+   `~/db-backups/`의 ainteams 덤프도 전부 수동이고 `crontab -l`은 비어 있다.
 6. **도메인 / nginx — 이름은 `ainmem.ainetwork.ai`로 정했다. 적용이 남았다.**
    `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)이라 쓰지 않는다(§4.3).
    conf 초안은 `deploy/nginx/ainmem.ainetwork.ai.conf`에 있고 nginx 컨테이너로
