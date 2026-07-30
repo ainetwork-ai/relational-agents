@@ -1,49 +1,80 @@
-# 프로덕션 배포 — memory.ainetwork.ai
+# 프로덕션 배포 — ainmem prod (`ainmem_prod`)
 
-> 2026-07-25 첫 라이브 배포에서 내린 결정과 그 이유다. **확정본이 아니라 이어받기 위한
-> 기준점**이다. 결정된 것, 폐기된 것(과 그 이유), 아직 열린 것을 구분해 적었다.
-> 새 세션은 §1로 현황을 잡고 §6(열린 질문)부터 이어가면 된다.
+> 2026-07-25 첫 라이브 배포(memory.ainetwork.ai)에서 내린 결정과 그 이유로 시작한
+> 문서다. 2026-07-30 이 프로젝트를 **v100-02 호스트로 가져와 ainmem prod로 새로
+> 띄우면서** §1·§2·§4.3·§4.8·§5·§6을 이 호스트 기준으로 갱신했다. §3·§4의 결정과
+> 함정은 호스트와 무관하게 유효해 그대로 둔다.
+>
+> **확정본이 아니라 이어받기 위한 기준점**이다. 결정된 것, 폐기된 것(과 그 이유),
+> 아직 열린 것을 구분해 적었다. 새 세션은 §1로 현황을 잡고 §6(열린 질문)부터
+> 이어가면 된다.
 
 ## 1. 지금 떠 있는 것
 
+호스트 `v100-02`, 리포 `/home/comcom/ainmem`. 2026-07-30 기준.
+
 | 항목 | 값 |
 |---|---|
-| URL | `https://memory.ainetwork.ai` |
-| 인증서 | Let's Encrypt, certbot 자동 갱신 |
-| 앱 | 컨테이너 `memory-live-app-1` → `127.0.0.1:3120` |
-| DB | 컨테이너 `memory-live-postgres-1` (포트 미공개) |
+| URL | **아직 없다** — 루프백 전용. nginx/도메인 미구성 (§6-6) |
+| 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3120` |
+| DB | 컨테이너 `ainmem_prod_postgres`, DB/롤 `ainmem_prod` (포트 미공개) |
 | 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
-| nginx | `/etc/nginx/sites-available/memory-live` |
-| compose | `docker-compose.prod.yml` (프로젝트명 `memory-live`) |
+| 볼륨 | `ainmem_prod_pgdata`, `ainmem_prod_mdmirror` |
+| compose | `docker-compose.prod.yml` (프로젝트명 `ainmem_prod`) |
 | 시크릿 | `.env.prod` (600, `.env*` 룰로 gitignore) |
+| LLM | **보류** — `.env.prod`에 후보만 주석으로 (§4.8) |
+| 데이터 | 스키마 34테이블, 행 0 — 비어 있다 (§6-7) |
 
-구조는 `nginx(443) → 127.0.0.1:3120 → app 컨테이너 → postgres 컨테이너`다.
+구조는 `(nginx 미구성) → 127.0.0.1:3120 → app 컨테이너 → postgres 컨테이너`다.
+
+이름은 이 호스트 규칙(`ainteams_prod_*`, `ainmem_dev_postgres`)에 맞췄다. 처음엔
+가져온 리포에 있던 `memory-live` 정체성(프로젝트·컨테이너·이미지·DB·볼륨)으로
+띄웠는데, **ainmem prod는 그 스택과 이름 말고는 아무것도 공유하지 않는 별개
+서비스**라 전부 개명했다. `docker ps` 한 줄에서 어느 서비스·어느 환경인지 읽혀야
+한다. 개명 시점에 DB 행이 0이라 덤프 없이 `down -v` 후 재기동으로 끝났다 —
+데이터가 쌓인 뒤엔 이 비용이 훨씬 커진다.
 
 ## 2. 배포 / 롤백
 
 ```bash
-cd /mnt/newdata/git/notion
+cd /home/comcom/ainmem
 E=.env.prod
-
-# 배포 — 이미지를 커밋 SHA로 태깅해 라이브 버전을 특정 가능하게 만든다
 TAG=$(git rev-parse --short HEAD)
-docker compose --env-file $E -f docker-compose.prod.yml build app
-docker tag memory-live-app:latest memory-live-app:$TAG
+
+# 빌드 — HEAD 스냅샷에서 빌드한다. compose의 build 컨텍스트는 워크트리라서
+# `compose build`를 쓰면 커밋 안 된 작업까지 이미지에 굽힌다(다른 세션이 편집
+# 중일 수 있다). 라이브가 어느 커밋인지 태그로 특정되어야 롤백이 의미를 갖는다.
+SNAP=$(mktemp -d) && git archive HEAD | tar -x -C $SNAP
+set -o pipefail   # | tail 은 빌드 실패를 exit 0으로 삼킨다 (§4.2)
+docker build -f $SNAP/app/Dockerfile -t ainmem_prod:app-$TAG \
+  --build-arg NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS= \
+  --build-arg NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID= $SNAP/app
+
+# 스키마 — 손으로, 한 번씩 (§3.6). migrate 프로파일이라 up -d 에는 안 뜬다.
+APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml \
+  --profile migrate run --rm migrator
+
+# 기동
 APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
 # 롤백 — 이전 태그로 되돌린다 (소스만이 아니라 node_modules까지 그 시점 그대로)
 APP_TAG=<이전-SHA> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
-docker images memory-live-app   # 되돌릴 수 있는 후보 목록
+docker images ainmem_prod   # 되돌릴 수 있는 후보 목록
 
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
-cd app && npx playwright test -c playwright.prod.config.ts
+# PROD_URL 을 반드시 준다: 기본값이 memory.ainetwork.ai(다른 머신, §4.3)다.
+cd app && PROD_URL=http://127.0.0.1:3120 npx playwright test -c playwright.prod.config.ts
 
 # 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
 # -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
 # 보이지 않는다. 상태코드를 직접 찍는다.
-curl -s -o /dev/null -w '%{http_code}\n' https://memory.ainetwork.ai/api/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3120/api/health
+
+# 컨테이너 헬스체크도 같은 엔드포인트를 본다 — unhealthy 는 "프로세스가 죽었다"가
+# 아니라 "스키마가 이 빌드에 못 미친다"까지 포함한다.
+docker inspect -f '{{.State.Health.Status}}' ainmem_prod_app
 ```
 
 `app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 데모가 세계를
@@ -52,15 +83,21 @@ curl -s -o /dev/null -w '%{http_code}\n' https://memory.ainetwork.ai/api/health
 된다** — 그건 자체 dev 서버를 띄우고 공유 DB를 쓰며, 스펙 중에 관계를 실제로
 해소하는 것들이 있다.
 
+> 이 호스트에서는 아직 **통과할 수 없다.** DB가 비어 있어 `Chanho`도, 방도, OKF
+> 문서도 없다(§6-7). 데이터가 들어오기 전까지 배포 검증은 `/api/health` 200과
+> 컨테이너 healthy까지다.
+
 ## 3. 결정된 것과 그 이유
 
 ### 3.1 Docker — systemd + 파일 복사를 폐기하고 채택
 
 처음엔 리포에 Dockerfile이 없어서 systemd + rsync 사본으로 띄웠다. **폐기했다.**
 git이 없는 파일 더미라 라이브에 뭐가 떠 있는지 커밋으로 특정할 수 없고 롤백이 불가능했다.
-같은 호스트의 `aindrive`가 이미 커밋 SHA로 태깅한 이미지(`predeploy-88e1755`)를 남기는
-방식으로 도는 걸 보고 그 관례를 따랐다. git worktree 방식도 검토했으나 소스만 되돌릴 뿐
-`node_modules`까지 되돌려주지 않아 이미지 태깅이 낫다.
+첫 배포 호스트의 `aindrive`가 이미 커밋 SHA로 태깅한 이미지(`predeploy-88e1755`)를
+남기는 방식으로 도는 걸 보고 그 관례를 따랐다. git worktree 방식도 검토했으나 소스만
+되돌릴 뿐 `node_modules`까지 되돌려주지 않아 이미지 태깅이 낫다. v100-02에서도
+`ainmem_prod:app-<sha>`로 유지한다 — 이 호스트의 `ainteams_prod:web`은 SHA 없이
+고정 태그라 롤백 후보가 남지 않는데, 그 관례는 따르지 않았다.
 
 ### 3.2 OKF 콘텐츠는 이미지가 아니라 바인드 마운트
 
@@ -72,15 +109,22 @@ git으로 회수할 수 있어야 해서다. 컨테이너가 uid 1001로 돌기 
 
 ### 3.3 프로덕션 DB는 별도 컨테이너, 포트 미공개
 
-dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기엔 라이브도
-같은 DB를 봤는데, dev에서 `drizzle-kit push` 한 번이면 라이브 스키마가 그 자리에서
-바뀌는 구조라 분리했다. 프로덕션 DB는 **포트를 공개하지 않는다** — dev 도구가 실수로
-접근할 경로 자체를 없앤 것이다. 초기 데이터는 dev DB를 `pg_dump --no-owner --no-acl`로
-떠서 넣었다(롤 이름이 `notion_clone` → `memory_live`로 다르다).
+dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를 쓴다. 초기엔
+라이브도 같은 DB를 봤는데, dev에서 `drizzle-kit push` 한 번이면 라이브 스키마가 그
+자리에서 바뀌는 구조라 분리했다. 프로덕션 DB는 **포트를 공개하지 않는다** — dev
+도구가 실수로 접근할 경로 자체를 없앤 것이다. DB·롤 이름도 `ainmem_prod`로 달라서
+접속 문자열이 섞일 여지가 없다(값은 compose에 박지 않고 `.env.prod`의
+`POSTGRES_DB`/`POSTGRES_USER`에서 온다. 빠뜨리면 `:?required` 가드가 기동 전에
+멈춘다).
+
+첫 배포에서는 초기 데이터를 dev DB에서 `pg_dump --no-owner --no-acl`로 떠서 넣었다
+(롤 이름이 다르므로 `--no-owner`가 필수다). 이 호스트에서는 아직 넣지 않았다.
+넣을 때 **DB만 옮기면 안 된다** — 행이 가리키는 OKF 경로가 `deploy/okf-content/`에
+없으면 문서 없는 관계만 남는다. 파일 트리도 같이 복사해야 정합이 맞는다.
 
 ### 3.4 compose 파일 분리
 
-`docker-compose.prod.yml`은 별도 파일이고 프로젝트명도 `memory-live`로 다르다.
+`docker-compose.prod.yml`은 별도 파일이고 프로젝트명도 `ainmem_prod`로 다르다.
 개발 중 `docker compose up`이 라이브를 건드리는 일이 없어야 한다. 실행할 때
 `-f docker-compose.prod.yml`을 명시해야만 뜬다.
 
@@ -113,10 +157,19 @@ dev는 `docker-compose.yml`의 `notion-clone-postgres-1`(5434)을 쓴다. 초기
   `pnpm db:check` 로 — 고치는 사람은 이미 거기를 보고 있다.
 - **`pnpm db:check`** — 아무 DB나 겨눠서 미리 확인. 모자라면 exit 1이라 게이트로
   쓸 수 있다.
+- **컨테이너 헬스체크** — `docker-compose.prod.yml`의 app 서비스가 같은
+  `/api/health`를 본다(node 내장 fetch로 — 런너 이미지에 curl이 없다). 그래서
+  `docker ps`의 unhealthy가 "프로세스가 죽었다"만이 아니라 "스키마가 이 빌드에
+  못 미친다"까지 포함한다.
 
 이게 없으면 증상이 이렇게 나온다: 배포는 성공하고, 며칠 뒤 어떤 요청 하나가
 `column "call_id" does not exist`로 죽는다. 어느 배포부터 그랬는지는 아무도
 모른다.
+
+푸시는 `migrator` 서비스로 돈다 — `profiles: ["migrate"]`라서 `up -d`에는 절대
+뜨지 않고 `--profile migrate run --rm migrator`로만 실행된다. 런타임 이미지에는
+drizzle-kit도 스키마 소스도 없어서(standalone 번들) **builder 스테이지**를 쓴다.
+레이어는 앱 빌드와 공유되므로 추가 비용이 없다.
 
 ## 4. 함정 — 여기서 시간을 썼다
 
@@ -136,15 +189,29 @@ Turbopack이 다시 번들하면서 ESM interop이 깨진 것이 원인이었고
 
 ### 4.3 공인 IP는 egress ≠ ingress
 
-`curl ifconfig.me`가 답하는 `103.139.119.10`은 **egress** IP다. DNS A 레코드가 가리켜야
-하는 **ingress**는 `101.202.37.14`(`aindrive.ainetwork.ai`와 동일)다. 이 서버는 NAT
-뒤에 있다. 둘을 헷갈리면 certbot HTTP-01이 실패한다.
+`curl ifconfig.me`가 답하는 `103.139.119.10`은 **egress** IP다. DNS A 레코드가
+가리켜야 하는 것은 **ingress**고, 둘은 다르다 — 이 서버는 NAT 뒤에 있다. 헷갈리면
+certbot HTTP-01이 실패한다.
 
-부수 효과로 **이 호스트에서** `curl https://memory.ainetwork.ai`가 000으로 죽는데,
-로컬 리졸버의 부정 캐시 때문이지 장애가 아니다. 검증은 이렇게 한다:
+2026-07-30 v100-02에서 확인한 값:
+
+| 이름 | 값 | 비고 |
+|---|---|---|
+| egress (`ifconfig.me`) | `103.139.119.10` | 첫 배포 호스트와 같다 — 같은 NAT |
+| `ainteams.ainetwork.ai` | `101.202.37.107` | 이 호스트의 nginx가 서브한다 → 이게 **이 호스트의 ingress** |
+| `memory.ainetwork.ai` | `101.202.37.14` | `aindrive.ainetwork.ai`와 같다 = **다른 머신** |
+| `ainmem.ainetwork.ai` | (레코드 없음) | |
+
+즉 **`memory.ainetwork.ai`는 이 스택을 가리키지 않는다.** 그 이름은 첫 배포 호스트
+(`.14`)에 그대로 남아 있다. 이 호스트의 ainmem prod에 도메인을 붙이려면 새 이름을
+`101.202.37.107`로 향하게 하거나, `memory.ainetwork.ai`의 A 레코드를 옮겨야 한다
+(그러면 저쪽이 죽는다 — 먼저 확인할 것). §6-6.
+
+로컬 리졸버 부정 캐시 탓에 **이 호스트에서** 자기 도메인 curl이 000으로 죽는 일이
+있는데 장애가 아니다. 그때는 ingress를 직접 지정한다:
 
 ```bash
-curl --resolve memory.ainetwork.ai:443:101.202.37.14 https://memory.ainetwork.ai/login
+curl --resolve <도메인>:443:101.202.37.107 https://<도메인>/login
 ```
 
 ### 4.4 pnpm 24시간 격리 정책
@@ -189,11 +256,35 @@ env가 빠지면 컨테이너 안 존재하지 않는 경로로 조용히 흘러
 **추적되지 않는 `docker-compose.yml`에는 `MD_MIRROR_ROOT`가 없다** — 그 파일로
 배포하면 즉시 이 함정에 빠진다.
 
-### 4.8 컨테이너의 `localhost`는 호스트가 아니다
+### 4.8 컨테이너의 `localhost`는 호스트가 아니다 — 그리고 엔드포인트는 호스트마다 다르다
 
 `AI_URL` 기본값 `localhost:8100`이 컨테이너 안에서는 자기 자신을 가리켜 모든 LLM
 호출이 `ECONNREFUSED`로 죽었다. 로그에만 남고 결정론적 폴백으로 조용히 넘어가서
-겉으로는 멀쩡해 보인다. `host.docker.internal` + `extra_hosts: host-gateway`로 해결.
+겉으로는 멀쩡해 보인다. 첫 배포 호스트에는 vLLM이 있어서
+`host.docker.internal` + `extra_hosts: host-gateway`로 해결했다.
+
+**v100-02에는 vLLM(:8100)이 없다.** 그런데 compose에 `AI_URL`이 하드코딩돼 있어서,
+그 값이 이 호스트에서는 아무 데도 없는 곳을 가리켰다 — 같은 함정의 재발이다.
+그래서 compose에서 뺐다. `AI_URL`/`AI_MODEL`/`AI_API_KEY`는 **런타임** 변수이므로
+`.env.prod`에만 있고, 바꾸려면 재시작만 필요하다(재빌드·새 태그 불필요 — §4.9의
+`NEXT_PUBLIC_*`와 정반대다). `host.docker.internal` 별칭은 남겨 뒀다.
+
+현재는 **보류** 상태다. 후보 세 개(ainetwork 공용 `llm.ainetwork.ai/v1`,
+Azure OpenAI, 호스트 로컬)를 `.env.prod` 주석에 적어 뒀다. Azure는 신형 v1 서피스
+(`/openai/v1`)만 코드 수정 없이 맞는다 — 구형은 `?api-version=` 쿼리와 `api-key`
+헤더를 쓰므로 `src/lib/ai/openai-compat.ts`를 손봐야 한다.
+
+미설정 상태에서 실제로 일어나는 일(모두 확인함):
+
+| 경로 | 동작 |
+|---|---|
+| 메모리 쓰기 `agent/pipeline.ts` | throw → catch → `fakeEdits`로 기록. 에러 로그 남음 |
+| send-guard `agent/guard.ts` | throw → catch → 전송 허용. 에러 로그 남음 |
+| AI 채팅 패널 `ai-chat.ts` | **catch 없음 → 화면에 에러** |
+
+`AI_FAKE_LLM=1`로 켜는 선택도 있었지만 채택하지 않았다. 마지막 줄이 뒤집히는데 —
+가짜 답변이 **진짜 답변처럼** 스트리밍되고 로그도 남지 않는다. 엔드포인트가 없으면
+없는 대로 드러나는 편이 낫다. fake 플래그는 e2e/CI용이다.
 
 ### 4.9 `NEXT_PUBLIC_*`는 빌드타임, 서버는 런타임 — 반쪽만 켜면 침묵한다
 
@@ -216,25 +307,40 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
 
 | 자원 | 상태 |
 |---|---|
-| 소스 / `node_modules` / 빌드 | **분리** — 이미지 안에서 clean install |
-| Postgres | **분리** — 별도 컨테이너 + 별도 볼륨 |
+| 소스 / `node_modules` / 빌드 | **분리** — HEAD 스냅샷에서 빌드, 이미지 안에서 clean install |
+| Postgres | **분리** — 별도 컨테이너(`ainmem_prod_postgres`) + 별도 볼륨 + 별도 DB·롤 이름 |
 | OKF 콘텐츠 | **분리** — 바인드 마운트 (단, git으로 자동 회수되지 않음) |
-| 포트 | **분리** — 3120 (dev는 3000/3001) |
+| 포트 | **분리** — prod 3120, dev 36625 / dev DB 5434 |
 | `SESSION_SECRET` | **분리** — 라이브 전용 값 |
-| 온체인 키 (`DEPLOYER_KEY`, 데모 지갑) | **공유** — 동시 트랜잭션 시 nonce 충돌 위험 |
-| vLLM (`AI_URL`, :8100) | **공유** — 부하 경합만, 정합성 문제는 없음 |
+| 온체인 키 (`DEPLOYER_KEY`, 데모 지갑) | **미설정** — 양쪽 다 키가 없어 온체인 릴레이는 비활성 |
+| LLM | **해당 없음** — 이 호스트에 vLLM이 없고 prod는 보류 상태(§4.8) |
+
+같은 호스트의 다른 서비스(`ainteams_prod_*`, `ainteams_staging_*`)와도 포트·DB·볼륨이
+전부 다르다. 겹치는 자원은 없다.
 
 ## 6. 열린 질문
 
-1. **온체인 키 분리.** dev와 live가 같은 `DEPLOYER_KEY`와 데모 지갑을 쓴다. 양쪽이
-   동시에 트랜잭션을 쏘면 nonce가 충돌한다. 라이브 전용 키와 자금이 필요하다.
+1. **온체인 키.** 이 호스트에는 `RELAYER_KEY`/`DEPLOYER_KEY`가 없어 온체인 릴레이가
+   비활성이다(`relation-registry.ts`가 키 없으면 `null` 반환). 필요해지면 **라이브 전용**
+   키와 자금을 넣어야 한다 — dev와 공유하면 동시 트랜잭션에서 nonce가 충돌한다.
 2. **OKF 회수 정책.** 라이브가 쓴 관계 문서는 바인드 마운트에만 쌓이고 git에 안 돌아온다.
    주기적으로 커밋할지, 데모용이라 버릴지 정해야 한다.
-3. **`ENABLE_DEMO_LOGIN=1`.** 누구나 DemoUser로 로그인된다. 데모 목적이라 켰지만
-   공개 URL이므로 인지하고 있어야 한다.
+3. **`ENABLE_DEMO_LOGIN=1`.** 누구나 DemoUser로 로그인된다. 지금은 루프백 전용이라
+   접근 경로가 없지만, **nginx로 공개하기 전에 다시 판단해야 한다.**
 4. **origin/main 히스토리 재작성.** 2026-07-25 01:35 UTC `18084c0` 직후 GitHub 웹 UI
    업로드 커밋을 rebase로 통합하면서 179개 커밋의 SHA가 새로 찍혔다. 로컬 main이
    origin/main의 내용상 상위 집합(+ call 작업 10개)이라 `push --force-with-lease` 한 번이면
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
 5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
-   (`deploy/backups/`에 수동 스냅샷만 있다.)
+   (`deploy/backups/`는 이 호스트에서 아직 비어 있다.)
+6. **도메인 / nginx.** 이 스택은 `127.0.0.1:3120`에만 있고 앞에 nginx가 없다.
+   `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)을 가리키므로 그 이름을 쓰려면
+   A 레코드를 옮겨야 하고 저쪽이 죽는다(§4.3). 새 서브도메인을 이 호스트의
+   `101.202.37.107`로 향하게 하는 편이 안전하다. conf는 `ainteams-backend.ainetwork.ai`
+   모양을 따르고, `~/NGINX-README.md`대로 **live 설정을 직접 편집**한다(홈의 `*.conf`
+   스냅샷은 certbot 이전 상태라 정본이 아니다). 적용에는 sudo가 필요하다.
+   TLS가 붙기 전까지 세션 쿠키는 Secure라 원격 브라우저 로그인이 안 된다.
+7. **초기 데이터.** DB는 스키마만 있고 행이 0이다. dev DB(5434 `notion_clone`)를
+   덤프해 넣을지, 데모 로그인으로 새로 만들지 정해야 한다. 넣을 때 OKF 파일 트리를
+   같이 복사해야 정합이 맞는다(§3.3).
+8. **LLM 엔드포인트.** §4.8 참조. 결정되면 `.env.prod` 한 줄 + `up -d app`이면 끝이다.
