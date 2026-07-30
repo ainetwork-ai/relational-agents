@@ -314,7 +314,7 @@ SEPOLIA_RPC=...                                     # / BASE_SEPOLIA_RPC
 RELAYER_KEY=0x...                                   # existing gasless relayer (pays gas)
 ```
 
-> Existing (do not remove): `A2A_BASE_URL`, `DEPLOYER_KEY`, ENS vars. Current registry on Sepolia: `0xf1dc0686c8b22a1afe8941c2613f7efa4e439256` — the human-backed redeploy supersedes it.
+> Existing (do not remove): `A2A_BASE_URL`, `DEPLOYER_KEY`. Current registry on Sepolia: `0xf1dc0686c8b22a1afe8941c2613f7efa4e439256` — the human-backed redeploy supersedes it.
 
 ---
 

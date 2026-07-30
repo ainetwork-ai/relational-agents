@@ -16,7 +16,6 @@ import { buildRelationConsentTypedData, humanBackedRegistryAddress } from "@/lib
 import { provisionRoomAgent } from "@/lib/agent/provision";
 import { notifyConsent } from "@/lib/notifications";
 import { relayRelationOnChain } from "@/lib/relation-registry";
-import { mintAgentSubname } from "@/lib/ens";
 
 export const dynamic = "force-dynamic";
 
@@ -238,35 +237,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
               ? `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia), with a proof-of-personhood bound for each of you. Anyone can now ask the chain: are two real people behind this agent? tx: ${onchain.txHash}`
               : `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia). tx: ${onchain.txHash}`,
           });
-        }
- // ENS identity: mint the agent's subname + ENSIP-25/26 records (ens/PLAN.md).
- // Best-effort like the registry relay — a chain hiccup never blocks a birth.
-        const registryAddress =
-          humanBackedRegistryAddress() ?? process.env.NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS;
-        if (registryAddress) {
-          const base = process.env.A2A_BASE_URL ?? "";
-          const ensName = await mintAgentSubname({
-            roomId,
-            roomName: room.name,
-            agentWallet: agentRow[0]?.ainAddress ?? "",
-            agentId: onchain.agentId,
-            registryAddress,
-            a2aUrl: agentRow[0]?.a2aUrl ?? (base ? `${base}/api/a2a/${agentUserId}` : null),
-            mcpUrl: base ? `${base}/api/mcp` : null,
-            webUrl: base ? `${base}/dm/${roomId}` : null,
-            avatarUrl: agentRow[0]?.avatarUrl,
-          });
-          if (ensName) {
-            await db
-              .update(users)
-              .set({ agentCardJson: { ...card, onchain, ensName } })
-              .where(eq(users.id, agentUserId));
-            await db.insert(chatMessages).values({
-              roomId,
-              authorId: agentUserId,
-              text: `🔤 I have a name — ${ensName}. Resolve it anywhere: my agent-context, A2A and MCP endpoints all live in its ENS records.`,
-            });
-          }
         }
       }
     } catch (err) {

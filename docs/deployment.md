@@ -211,7 +211,7 @@ Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다
 `A2A_BASE_URL`을 프로덕션 주소로 바꿔도 기존 8개 에이전트는 dev LAN 주소
 (`http://192.168.1.193:36625/...`)를 계속 광고했다. 인앱 호출은 `dispatch.ts`의
 느슨한 `url.includes("/api/a2a/")` 매칭 덕에 우연히 살아 있어서 더 안 보인다.
-일회성 UPDATE로 정정했으나, **ENS 텍스트 레코드는 아직 옛 주소**다(§6).
+일회성 UPDATE로 정정했다.
 
 ## 5. dev ↔ prod 격리 현황
 
@@ -239,10 +239,7 @@ Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
 5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
    (`deploy/backups/`에 수동 스냅샷만 있다.)
-6. **ENS 레코드가 옛 A2A 주소를 가리킨다.** DB는 §4.10에서 정정했지만 온체인
-   `agent-endpoint[a2a]` 텍스트 레코드는 아직 `192.168.1.193:36625`다.
-   8개 에이전트에 대해 재발행이 필요하고, 가스와 키가 든다.
-7. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
+6. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
    양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
    `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
    (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.
