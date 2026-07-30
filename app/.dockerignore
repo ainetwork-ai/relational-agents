@@ -1,5 +1,5 @@
-# The build context is app/ only — the 2.7GB backup/ tree and the sibling
-# service (dashboard) never reaches the daemon at all.
+# The build context is app/ only — the 2.7GB backup/ tree never reaches the
+# daemon at all.
 node_modules
 .next
 .next-*

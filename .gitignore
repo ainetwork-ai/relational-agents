@@ -22,10 +22,6 @@ md-mirror/
 # user uploads are runtime data, not source
 app/public/uploads/
 app/public/avatars/
-dashboard/public/avatars/
-dashboard/public/date/
-dashboard/public/source/
-dashboard/.uploads-cache.json
 .claude/scheduled_tasks.lock
 memory-data/content/Relationship doc*/
 memory-data/content/Relationships.csv
