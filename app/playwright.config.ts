@@ -3,12 +3,12 @@ import path from "node:path";
 
 // Dedicated e2e port (NOT 3000/366xx/368xx — those belong to warm dev servers
 // booted with the REAL OKF_ROOT; reusing one would let agent write-tests mutate
-// the real memory-data/. A fresh port forces playwright to boot its own server
+// the real content tree. A fresh port forces playwright to boot its own server
 // with the isolated .okf-work root below).
 const PORT = process.env.E2E_PORT || "34100";
 const BASE_URL = `http://localhost:${PORT}`;
-// OKF store points at a throwaway working copy of the fixture (global-setup
-// copies it) so write-back tests can mutate files without dirtying git.
+// OKF store points at a throwaway root (global-setup creates it empty) so
+// write-back tests can mutate files without dirtying git.
 const OKF_FIXTURE = path.resolve(__dirname, "e2e/.okf-work");
 
 export default defineConfig({
@@ -41,7 +41,7 @@ export default defineConfig({
     // the vLLM server (see src/lib/agent/pipeline.ts fakeEdits).
     env: {
       // The code reads OKF_ROOT (src/lib/okf-store.ts). Point it at the isolated
-      // working copy so agent write-tests never touch the real memory-data/.
+      // throwaway root so agent write-tests never touch a real content tree.
       OKF_ROOT: OKF_FIXTURE,
       // Deterministic agent write-pipeline without the vLLM server (pipeline.ts
       // fakeEdits). Also keep AI_URL unset so the LLM path is never taken.

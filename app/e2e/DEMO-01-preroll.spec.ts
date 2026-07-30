@@ -26,7 +26,7 @@ test.describe("DEMO-01 Pre-roll assets", () => {
   }
 
   test("the script wires the concept diagrams and the tagline", () => {
-    const demo = fs.readFileSync(path.join(REPO, "memory-data/content/demo.md"), "utf8");
+    const demo = fs.readFileSync(path.join(REPO, "docs/demo.md"), "utf8");
     expect(demo).toContain("docs/img/agent.png");
     expect(demo).toContain("docs/img/relational_agent.png");
     // the thesis and the closing tagline the whole demo builds toward
