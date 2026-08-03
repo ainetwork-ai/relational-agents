@@ -84,16 +84,42 @@ export function useDb() {
   return ctx;
 }
 
-/** "Open as full page" + "Link" controls for an inline database block. */
-function DbSourceControls({ databaseId }: { databaseId: string }) {
-  const db = useDb();
+/**
+ * Expand an inline database into a full page.
+ *
+ * Sits in the toolbar, not behind the "..." menu: Notion puts this on the
+ * inline database itself, and a reader looking for it there found nothing —
+ * the one action that changes how the whole block is presented was filed under
+ * per-view settings.
+ */
+function DbExpandButton({ databaseId }: { databaseId: string }) {
   const router = useRouter();
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   async function openFullPage() {
     const res = await fetch(`/api/databases/${databaseId}/fullpage`, { method: "POST" });
     if (res.ok) router.push(`/p/${(await res.json()).pageId}`);
   }
+
+  return (
+    <button
+      data-testid="db-open-fullpage"
+      onClick={() => void openFullPage()}
+      aria-label="Open as full page"
+      data-tip="Open as full page"
+      className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+    >
+      <Maximize size={14} />
+    </button>
+  );
+}
+
+/** "Link a database" picker — stays behind the "..." menu; it is a rarer action
+ *  and has no top-level equivalent in Notion's inline toolbar. */
+function DbSourceControls() {
+  const db = useDb();
+  const router = useRouter();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   async function linkDb(id: string) {
     setPickerOpen(false);
     const res = await fetch(`/api/databases/${id}/link`, { method: "POST" });
@@ -102,13 +128,6 @@ function DbSourceControls({ databaseId }: { databaseId: string }) {
 
   return (
     <>
-      <button
-        data-testid="db-open-fullpage"
-        onClick={() => void openFullPage()}
-        className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
-      >
-        <Maximize size={12} /> Full page
-      </button>
       <div className="relative">
         <button
           data-testid="db-link-picker"
@@ -905,15 +924,19 @@ export function DatabaseBlock({
         {...(wrapperTestId ? { "data-variant": fullPage ? "fullpage" : "linked" } : {})}
         className={`my-2 w-full ${fullPage ? "mx-auto max-w-[1500px]" : ""}`}
       >
-        {wrapperTestId && (
-          <div data-testid={wrapperTestId} className="mb-1 text-[10px] uppercase tracking-wide text-neutral-400">
-            {fullPage ? "Full-page database" : "Linked view"}
-          </div>
-        )}
+        {/* A marker for tests to tell the two embeddings apart. It used to also
+            print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
+            that reached users and that Notion has no equivalent of. */}
+        {wrapperTestId && <div data-testid={wrapperTestId} hidden />}
         <div className="mb-1.5 flex items-center gap-1 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
-          <span className="mr-2 whitespace-nowrap text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-            {database.title}
-          </span>
+          {/* Inline databases carry their name here, as Notion's do. A full-page
+              one must not: the page title above IS the database name, and
+              printing it twice reads as a bug. */}
+          {!fullPage && (
+            <span className="mr-2 whitespace-nowrap text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+              {database.title}
+            </span>
+          )}
           {/* tabs that don't fit collapse behind the "N more" dropdown */}
           <div ref={tabsAreaRef} className="relative flex min-w-0 flex-1 items-center gap-1">
           <div
@@ -1114,6 +1137,7 @@ export function DatabaseBlock({
             <FilterBar />
             <SortBar />
             <ViewOptions />
+            {!fullPage && !linkedViewId && <DbExpandButton databaseId={databaseId} />}
             {/* overflow: secondary view actions live behind ⋯ */}
             <div className="relative">
               <button
@@ -1127,7 +1151,7 @@ export function DatabaseBlock({
               </button>
               {viewMenuOpen && (
                 <div className="popover-anim absolute right-0 top-8 z-40 flex w-44 flex-col items-stretch gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                  {!fullPage && !linkedViewId && <DbSourceControls databaseId={databaseId} />}
+                  {!fullPage && !linkedViewId && <DbSourceControls />}
                   <TemplateMenu />
                 </div>
               )}
