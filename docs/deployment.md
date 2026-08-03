@@ -2,7 +2,8 @@
 
 > 2026-07-25 첫 라이브 배포(memory.ainetwork.ai)에서 내린 결정과 그 이유로 시작한
 > 문서다. 2026-07-30 이 프로젝트를 **v100-02 호스트로 가져와 ainmem prod로 새로
-> 띄우면서** §1·§2·§4.3·§4.8·§5·§6을 이 호스트 기준으로 갱신했다. §3·§4의 결정과
+> 띄우면서** §1·§2·§4.3·§4.8·§5·§6을 이 호스트 기준으로 갱신했고, 08-03 도메인·TLS를
+> 붙이며 §3.7을 더했다. 나머지 §3·§4의 결정과
 > 함정은 호스트와 무관하게 유효해 그대로 둔다.
 >
 > **확정본이 아니라 이어받기 위한 기준점**이다. 결정된 것, 폐기된 것(과 그 이유),
@@ -11,12 +12,12 @@
 
 ## 1. 지금 떠 있는 것
 
-호스트 `v100-02`, 리포 `/home/comcom/ainmem`. 2026-07-30 기준.
+호스트 `v100-02`, 리포 `/home/comcom/ainmem`. 2026-08-03 기준.
 
 | 항목 | 값 |
 |---|---|
-| URL | `https://ainmem.ainetwork.ai` — **설치 대기**: DNS A 레코드와 nginx 적용이 남았다 (§6-6) |
-| nginx | conf 초안 `deploy/nginx/ainmem.ainetwork.ai.conf` (certbot 이전 스냅샷) |
+| URL | `https://ainmem.ainetwork.ai` — 라이브. Let's Encrypt(만료 2026-11-01, `certbot.timer` 자동 갱신), 80 → 301 (§3.7) |
+| nginx | **정본** `/etc/nginx/sites-available/ainmem.ainetwork.ai` · `deploy/nginx/…conf`는 설치 전 스냅샷일 뿐이다 (§3.7) |
 | 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3100` |
 | DB | 컨테이너 `ainmem_prod_postgres`, DB/롤 `ainmem_prod` (포트 미공개) |
 | 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
@@ -24,9 +25,9 @@
 | compose | `docker-compose.prod.yml` (프로젝트명 `ainmem_prod`) |
 | 시크릿 | `.env.prod` (600, `.env*` 룰로 gitignore) |
 | LLM | **보류** — `.env.prod`에 후보만 주석으로 (§4.8) |
-| 데이터 | 스키마 34테이블, 행 0 — 비어 있다 (§6-7) |
+| 데이터 | 스키마 34테이블, 행 0 — 비어 있다 (§6-6) |
 
-구조는 `(nginx 미구성) → 127.0.0.1:3100 → app 컨테이너 → postgres 컨테이너`다.
+구조는 `nginx(443, TLS 종료) → 127.0.0.1:3100 → app 컨테이너 → postgres 컨테이너`다.
 
 이름은 이 호스트 규칙(`ainteams_prod_*`, `ainmem_dev_postgres`)에 맞췄다. 처음엔
 가져온 리포에 있던 `memory-live` 정체성(프로젝트·컨테이너·이미지·DB·볼륨)으로
@@ -66,12 +67,13 @@ docker images ainmem_prod   # 되돌릴 수 있는 후보 목록
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
 # PROD_URL 을 반드시 준다: 기본값이 memory.ainetwork.ai(다른 머신, §4.3)다.
-cd app && PROD_URL=http://127.0.0.1:3100 npx playwright test -c playwright.prod.config.ts
+cd app && PROD_URL=https://ainmem.ainetwork.ai npx playwright test -c playwright.prod.config.ts
 
 # 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
 # -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
 # 보이지 않는다. 상태코드를 직접 찍는다.
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health
+curl -s -o /dev/null -w '%{http_code}\n' https://ainmem.ainetwork.ai/api/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health   # nginx 를 건너뛴 확인
 
 # 컨테이너 헬스체크도 같은 엔드포인트를 본다 — unhealthy 는 "프로세스가 죽었다"가
 # 아니라 "스키마가 이 빌드에 못 미친다"까지 포함한다.
@@ -85,7 +87,7 @@ docker inspect -f '{{.State.Health.Status}}' ainmem_prod_app
 스펙이 섞여 있다.
 
 > 이 호스트에서는 아직 **통과할 수 없다.** DB가 비어 있어 검사할 계정도 방도
-> 문서도 없다(§6-7). 데이터가 들어오기 전까지 배포 검증은 `/api/health` 200과
+> 문서도 없다(§6-6). 데이터가 들어오기 전까지 배포 검증은 `/api/health` 200과
 > 컨테이너 healthy까지다.
 
 ## 2.1 백업 / 복원
@@ -213,6 +215,38 @@ dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를
 drizzle-kit도 스키마 소스도 없어서(standalone 번들) **builder 스테이지**를 쓴다.
 레이어는 앱 빌드와 공유되므로 추가 비용이 없다.
 
+### 3.7 도메인은 `ainmem.ainetwork.ai`, TLS는 certbot이 관리한다
+
+2026-08-03 적용. `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)이라 쓰지 않았고
+(§4.3), 새 이름을 이 호스트로 향하게 했다. DNS는 A가 아니라 **CNAME →
+`ainteams.ainetwork.ai` → `101.202.37.107`** 로 들어갔다 — 동작에 문제는 없고
+(certbot HTTP-01도 CNAME을 따라간다) ainteams의 IP가 바뀌면 같이 따라간다.
+
+설치는 `deploy/nginx/ainmem.ainetwork.ai.conf`(HTTP 전용 초안)를 넣고
+`certbot --nginx --redirect`를 돌리는 순서였다. certbot이 443 블록과 인증서 경로,
+80 → 301 리다이렉트를 live 설정에 직접 써 넣는다. **그 순간부터
+`/etc/nginx/sites-available/ainmem.ainetwork.ai`가 정본**이고, `deploy/nginx/`의
+초안은 설치 전 스냅샷일 뿐이다. 다시 복사하면 HTTPS가 벗겨진다 —
+`~/NGINX-README.md`에 기록된 `setup-nginx.sh` 사고와 같은 함정이라 초안 헤더에도
+적어 뒀다.
+
+conf 값의 근거: `client_max_body_size 12M`(=`/api/upload`의 `MAX_BYTES` 10MB +
+multipart 오버헤드. 기본값 1M이면 사진 업로드가 nginx 단에서 413으로 잘린다),
+`proxy_buffering off`(SSE 4곳 — AI 채팅 스트리밍, `dm/events`,
+`pages/[pageId]/events`. 버퍼링이 켜지면 토큰이 뭉쳐 오거나 응답이 끝날 때까지
+안 온다), `300s` 타임아웃(`/api/import`의 `maxDuration 300`과 LLM 호출 타임아웃
+120s를 덮는다), `X-Forwarded-Proto`를 포함한 프록시 헤더 5종(빠지면 앱이 자기
+주소를 http로 만들어 리다이렉트가 틀어진다).
+
+공개에 맞춰 `.env.prod`도 두 곳 바꿨다: `A2A_BASE_URL`을
+`https://ainmem.ainetwork.ai`로(§4.10 — DB가 비어 있는 동안은 공짜다), 그리고
+**`ENABLE_DEMO_LOGIN=0`**. 공개 URL에서 누구나 DemoUser로 들어오는 것을 기본값으로
+둘 수는 없다. MetaMask·키 로그인은 이 플래그와 무관하게 동작한다. 데모를 열려면
+`1`로 바꾸고 `up -d app`.
+
+인증서는 `2026-11-01` 만료, `certbot.timer`가 자동 갱신한다. 갱신이 조용히 실패하는
+경우를 대비해 만료 전에 한 번은 `sudo certbot renew --dry-run`으로 확인해 둘 것.
+
 ## 4. 함정 — 여기서 시간을 썼다
 
 ### 4.1 프로덕션 빌드는 원래 깨져 있었다 (해소됨)
@@ -247,7 +281,7 @@ certbot HTTP-01이 실패한다.
 즉 **`memory.ainetwork.ai`는 이 스택을 가리키지 않는다.** 그 이름은 첫 배포 호스트
 (`.14`)에 그대로 남아 있다. 이 호스트의 ainmem prod에 도메인을 붙이려면 새 이름을
 `101.202.37.107`로 향하게 하거나, `memory.ainetwork.ai`의 A 레코드를 옮겨야 한다
-(그러면 저쪽이 죽는다 — 먼저 확인할 것). §6-6.
+(그러면 저쪽이 죽는다). 실제로는 새 이름을 CNAME으로 붙였다 — §3.7.
 
 로컬 리졸버 부정 캐시 탓에 **이 호스트에서** 자기 도메인 curl이 000으로 죽는 일이
 있는데 장애가 아니다. 그때는 ingress를 직접 지정한다:
@@ -379,38 +413,7 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
    **같은 디스크**라 실수(`down -v`, 파일 삭제)에는 강하지만 디스크 손실에는 같이
    죽는다. 참고로 이 호스트에는 아직 자동 백업이 하나도 없다 — `~/backups/`,
    `~/db-backups/`의 ainteams 덤프도 전부 수동이고 `crontab -l`은 비어 있다.
-6. **도메인 / nginx — 이름은 `ainmem.ainetwork.ai`로 정했다. 적용이 남았다.**
-   `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)이라 쓰지 않는다(§4.3).
-   conf 초안은 `deploy/nginx/ainmem.ainetwork.ai.conf`에 있고 nginx 컨테이너로
-   문법 검증까지 했다. 남은 두 가지:
-   - **DNS**: `ainmem.ainetwork.ai` A 레코드가 아직 없다(`dig` 무응답). 이 호스트의
-     ingress `101.202.37.107`(= `ainteams.ainetwork.ai`와 동일)로 향해야 한다.
-     레코드가 없으면 certbot HTTP-01이 실패한다.
-   - **적용**: sudo가 필요해 사람이 실행한다.
-     ```bash
-     sudo cp deploy/nginx/ainmem.ainetwork.ai.conf \
-        /etc/nginx/sites-available/ainmem.ainetwork.ai
-     sudo ln -s /etc/nginx/sites-available/ainmem.ainetwork.ai \
-        /etc/nginx/sites-enabled/ainmem.ainetwork.ai
-     sudo nginx -t && sudo systemctl reload nginx
-     sudo certbot --nginx -d ainmem.ainetwork.ai   # DNS 가 선 뒤에
-     ```
-   certbot이 live 설정에 TLS 블록을 넣는 순간부터 **live가 정본**이다. 그 뒤에
-   `deploy/nginx/`의 초안을 다시 복사하면 HTTPS가 벗겨진다 —
-   `~/NGINX-README.md`에 기록된 `setup-nginx.sh` 사고와 같은 함정이다.
-
-   conf에 담긴 값과 근거: `client_max_body_size 12M`(=`/api/upload`의 10MB +
-   multipart 오버헤드), `proxy_buffering off`(SSE 4곳 — AI 채팅 스트리밍,
-   `dm/events`, `pages/[pageId]/events`. 버퍼링이 켜지면 토큰이 뭉쳐 오거나 응답이
-   끝날 때까지 안 온다), `300s` 타임아웃(`/api/import`의 `maxDuration 300`과 LLM
-   호출 타임아웃 120s를 덮는다).
-
-   공개에 맞춰 `.env.prod`를 두 곳 바꿨다: `A2A_BASE_URL`을
-   `https://ainmem.ainetwork.ai`로(§4.10 — DB가 비어 있는 지금이 공짜다), 그리고
-   **`ENABLE_DEMO_LOGIN=0`**. 공개 URL에서 누구나 DemoUser로 들어오는 것을 기본값으로
-   둘 수는 없다. MetaMask·키 로그인은 이 플래그와 무관하게 동작한다. 데모를 공개하려면
-   `1`로 바꾸고 `up -d app`.
-7. **초기 데이터.** DB는 스키마만 있고 행이 0이다. dev DB(5434 `notion_clone`)를
-   덤프해 넣을지, 데모 로그인으로 새로 만들지 정해야 한다. 넣을 때 OKF 파일 트리를
-   같이 복사해야 정합이 맞는다(§3.3).
-8. **LLM 엔드포인트.** §4.8 참조. 결정되면 `.env.prod` 한 줄 + `up -d app`이면 끝이다.
+6. **초기 데이터.** DB는 스키마만 있고 행이 0이다. dev DB(5434 `notion_clone`)를
+   덤프해 넣을지, 새로 만들지 정해야 한다. 넣을 때 OKF 파일 트리를 같이 복사해야
+   정합이 맞는다(§3.3).
+7. **LLM 엔드포인트.** §4.8 참조. 결정되면 `.env.prod` 한 줄 + `up -d app`이면 끝이다.
