@@ -5,11 +5,12 @@ export interface SessionData {
   userId?: string;
   /** the workspace the user is currently viewing (workspace switcher) */
   activeWorkspaceId?: string;
+  /** CSRF state for an in-flight Google sign-in; cleared by the callback */
+  oauthState?: string;
 }
 // `ainAddress` and `challenge` lived here for the wallet logins. Both are gone:
 // the address was a copy of users.ainAddress that nothing read back, and the
-// challenge was the AIN sign-in nonce. A Google sign-in adds neither — the
-// session stays a user id and the workspace being viewed.
+// challenge was the AIN sign-in nonce.
 
 const sessionOptions: SessionOptions = {
   password: process.env.SESSION_SECRET || "dev-secret-change-in-production-32ch",

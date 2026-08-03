@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
     .where(inArray(users.id, allMemberIds));
   const allWallets =
     memberRows.length === allMemberIds.length &&
-    memberRows.every((r) => /^0x[0-9a-f]{40}$/i.test(r.address));
+    memberRows.every((r) => !!r.address && /^0x[0-9a-f]{40}$/i.test(r.address));
  // relationship rooms are named after their people: "{me} ❤️ {partner}"
   const byId = new Map(memberRows.map((r) => [r.id, r.displayName]));
   const roomName =

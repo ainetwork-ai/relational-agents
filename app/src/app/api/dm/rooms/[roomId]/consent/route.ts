@@ -35,9 +35,12 @@ async function contractParties(roomId: string) {
     : [];
 }
 
-function typedDataFor(roomId: string, parties: { address: string }[]) {
-  const addrs = parties.map((p) => p.address);
-  if (addrs.length < 2 || !addrs.every((a) => HEX_ADDR.test(a))) return null;
+function typedDataFor(roomId: string, parties: { address: string | null }[]) {
+  // Human rows have no address since sign-in moved to Google, so in practice
+  // this returns null and the room reports canSign:false. Kept intact rather
+  // than ripped out while the on-chain path's future is undecided.
+  const addrs = parties.flatMap((p) => (p.address && HEX_ADDR.test(p.address) ? [p.address] : []));
+  if (addrs.length < 2 || addrs.length !== parties.length) return null;
   return buildRelationConsentTypedData(roomId, addrs);
 }
 
@@ -66,7 +69,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
       signed: signed.has(p.id),
     })),
     mySigned: signed.has(auth.user.id),
-    canSign: typedData !== null && HEX_ADDR.test(auth.user.ainAddress),
+    canSign: typedData !== null && !!auth.user.ainAddress && HEX_ADDR.test(auth.user.ainAddress),
     typedData,
   });
 }
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   if ("error" in access) return access.error;
 
   const address = auth.user.ainAddress;
-  if (!HEX_ADDR.test(address))
+  if (!address || !HEX_ADDR.test(address))
     return NextResponse.json(
       { error: "A wallet account is required to sign the contract" },
       { status: 400 }

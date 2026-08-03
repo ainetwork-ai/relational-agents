@@ -29,7 +29,15 @@ export const workspaces = pgTable("workspaces", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  ainAddress: text("ain_address").unique().notNull(),
+  // Google sign-in identity. `sub` is the stable one — an account can change
+  // its email — so lookups go through sub first and fall back to email for
+  // rows that predate it (and for page_invites, which invites by email).
+  googleSub: text("google_sub").unique(),
+  email: text("email").unique(),
+  // Was NOT NULL: a wallet address used to BE the identity. Human rows no
+  // longer have one (the wallet logins are gone); agents still generate one at
+  // provision time, and external A2A bots store an `a2a:<url>` marker here.
+  ainAddress: text("ain_address").unique(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
  // /home dashboard cover the user picked (uploaded or built-in); null = default

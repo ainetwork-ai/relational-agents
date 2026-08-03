@@ -5,6 +5,9 @@ import type { User } from "@/lib/db/schema";
 export function toPublicUser(user: User) {
   return {
     id: user.id,
+    // identity is the Google account now; ainAddress survives only on agent
+    // rows (generated key) and external A2A bots (an `a2a:<url>` marker)
+    email: user.email,
     ainAddress: user.ainAddress,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
