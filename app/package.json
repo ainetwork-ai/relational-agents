@@ -14,7 +14,6 @@
     "emoji:check": "tsx --tsconfig scripts/tsconfig.json scripts/check-emoji-data.mts"
   },
   "dependencies": {
-    "@ainblockchain/ain-js": "^1.15.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "drizzle-orm": "^0.45.2",
     "iron-session": "^8.0.4",
@@ -26,7 +25,6 @@
     "react-dom": "19.2.4",
     "sanitize-html": "^2.17.5",
     "uuid": "^14.0.1",
-    "viem": "^2.55.8",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
