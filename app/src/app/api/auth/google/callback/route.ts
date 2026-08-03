@@ -8,9 +8,26 @@ import { exchangeCode, googleConfig, type GoogleIdentity } from "@/lib/auth/goog
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Where to send the browser.
+ *
+ * NOT `new URL(path, req.url)`: inside the container req.url carries the
+ * server's own bind address, so that produced `https://0.0.0.0:3000/` and the
+ * browser (and one wallet extension, loudly) treated it as a hostile redirect.
+ * GOOGLE_REDIRECT_URI is by definition the public origin this app is reached
+ * on — Google validated it byte for byte — so its origin is the one absolute
+ * base we can trust without reading proxy headers. req.url stays as the
+ * fallback for the not-configured case, where there is nothing better.
+ */
+function siteUrl(req: NextRequest, path: string): URL {
+  const configured = process.env.GOOGLE_REDIRECT_URI;
+  const base = configured ? new URL(configured).origin : req.url;
+  return new URL(path, base);
+}
+
 /** Every failure lands the visitor back on /login with a reason in the URL. */
 function back(req: NextRequest, reason: string) {
-  const url = new URL("/login", req.url);
+  const url = siteUrl(req, "/login");
   url.searchParams.set("error", reason);
   return NextResponse.redirect(url);
 }
@@ -92,7 +109,7 @@ export async function GET(req: NextRequest) {
     // logins gave (lib/auth/provision.ts).
     await ensureWorkspace(user.id, user.displayName);
 
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(siteUrl(req, "/"));
   } catch (err) {
     // The reason (redirect_uri_mismatch, invalid_client, …) belongs in the
     // server log, not in a query string on a public page.
