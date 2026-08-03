@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { pages, workspaces, workspaceMembers } from "@/lib/db/schema";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { ensureGeneralTeamspace, getDefaultWorkspaceId } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +86,8 @@ export async function POST(req: NextRequest) {
     .insert(workspaceMembers)
     .values({ workspaceId: workspace.id, userId: auth.user.id, role: "owner" })
     .onConflictDoNothing();
+
+  await ensureGeneralTeamspace(workspace.id, auth.user.id);
 
   const session = await getSession();
   session.activeWorkspaceId = workspace.id;

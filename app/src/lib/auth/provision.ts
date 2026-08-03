@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { workspaces, workspaceMembers, pages, blocks } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { firstGlyphs } from "@/lib/glyph";
+import { ensureGeneralTeamspace } from "@/lib/workspace";
 
 const GETTING_STARTED = [
   { type: "heading1" as const, text: "Welcome" },
@@ -74,6 +75,7 @@ export async function ensureWorkspace(userId: string, displayName: string) {
     .values({ workspaceId: workspace.id, userId, role: "owner" })
     .onConflictDoNothing();
 
+  await ensureGeneralTeamspace(workspace.id, userId);
   await seedGettingStarted(workspace.id, userId);
   return workspace.id;
 }
