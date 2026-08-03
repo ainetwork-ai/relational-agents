@@ -44,6 +44,10 @@ cd /home/comcom/ainmem
 E=.env.prod
 TAG=$(git rev-parse --short HEAD)
 
+# 백업 — cron(04:00)이 있어도 배포 전엔 손으로 한 번 뜬다. 마지막 자동 백업 이후
+# 쌓인 것이 배포 사고로 날아가면 cron 이 있어도 잃는다 (§2.1).
+scripts/backup-prod.sh
+
 # 빌드 — HEAD 스냅샷에서 빌드한다. compose의 build 컨텍스트는 워크트리라서
 # `compose build`를 쓰면 커밋 안 된 작업까지 이미지에 굽힌다(다른 세션이 편집
 # 중일 수 있다). 라이브가 어느 커밋인지 태그로 특정되어야 롤백이 의미를 갖는다.
@@ -96,13 +100,34 @@ docker inspect -f '{{.State.Health.Status}}' ainmem_prod_app
 ```bash
 scripts/backup-prod.sh                # 기본값: 앱을 잠깐 pause, 14세트 보존
 scripts/backup-prod.sh --no-pause --keep 30
+scripts/backup-prod.sh --out /mnt/backup
 COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
 ```
 
-한 세트는 `deploy/backups/<타임스탬프>/`에 `db.dump`(pg_dump -Fc),
-`files.tar.gz`(okf-content·uploads·avatars), `MANIFEST`(커밋 SHA, 이미지 태그,
-테이블·행 수, sha256)로 떨어진다. md-mirror는 파생물이라, `.env.prod`는 데이터와
-같은 아카이브에 시크릿을 넣지 않기 위해 제외한다.
+자동 실행: **매일 04:00, 사용자 crontab.** 이 호스트 최초의 자동 백업이다(같은 호스트의
+ainteams 는 릴리스 절차에 묶인 수동 덤프만 있고 cron 은 비어 있었다). 로그는
+`~/ainmem-backups/cron.log` 에 append 되고, **그날의 `backup:` 줄이 없으면 실패한
+것이다** — 스크립트가 판독 검증에 실패하면 세트를 지우고 exit 1 한다.
+
+```cron
+0 4 * * * /home/comcom/ainmem/scripts/backup-prod.sh >> /home/comcom/ainmem-backups/cron.log 2>&1
+```
+
+경로는 절대경로여야 한다 — cron 의 cwd 는 `$HOME` 이다. 등록 후 `env -i` 로 cron 과 같은
+환경에서 한 번 돌려 확인했다.
+
+**배포 직전에도 손으로 한 번 뜬다.** cron 은 바닥값이고, 배포는 되돌릴 지점이 필요한
+순간이다 — 마지막 04:00 이후 쌓인 것이 배포 사고로 날아가면 cron 이 있어도 잃는다.
+ainteams 의 릴리스 절차가 배포 전 덤프를 뜨는 것과 같은 이유다(§2 참조).
+
+한 세트는 `~/ainmem-backups/<타임스탬프>/` 에 `db.dump`(pg_dump -Fc),
+`files.tar.gz`(okf-content·uploads·avatars), `MANIFEST` 로 떨어진다. md-mirror 는
+파생물이라, `.env.prod` 는 데이터와 같은 아카이브에 시크릿을 넣지 않기 위해 제외한다.
+
+목적지는 **레포 밖**이다. 처음엔 `deploy/okf-content` 처럼 프로젝트 안에 뒀는데(§3.5),
+백업만은 밖으로 뺐다 — `.gitignore` 는 실수를 줄이지만 `git add -f` 나 룰 변경 한 번에
+무력화되고, 그때 커밋되는 것이 prod 사용자 데이터다. ainteams 도 `~/db-backups`,
+`~/minio-backups` 로 같은 선택을 했다.
 
 **순서가 곧 안전장치다.** DB 행이 OKF 경로와 업로드 URL을 가리키므로 두 시점이
 어긋나면 참조가 깨진다. 스크립트는 항상 **DB → 파일** 순으로 뜬다: 그 사이 생긴
@@ -112,15 +137,22 @@ COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
 스스로 복구되지만, 헬스 상태를 보고 반응하는 것이 생기면 이 깜빡임을 알고 있어야
 한다.
 
+**판독 검증.** `pg_dump` 의 exit 0 은 "쓰기가 실패하지 않았다" 이지 "읽을 수 있다" 가
+아니다 — 디스크가 차거나 파이프가 끊기면 잘린 파일이 성공으로 남는다. 그래서 매번
+`pg_restore -l` 로 TOC 를 파싱해 객체 수를 세고(현재 150), `tar tzf` 로 아카이브를
+훑고, 둘 중 하나라도 실패하면 세트를 지운다. 읽히지 않는 백업을 보존 목록에 남기면
+롤백 후보가 있다고 착각하게 된다. ainteams 릴리스 스킬의 함정 ⑥ 과 같은 태도다.
+
 복원은 이렇게 한다(prod를 덮어쓰므로 손으로):
 
 ```bash
+B=~/ainmem-backups/<타임스탬프>
 docker compose --env-file .env.prod -f docker-compose.prod.yml stop app
 docker exec -i ainmem_prod_postgres psql -U ainmem_prod -d postgres \
   -c 'drop database ainmem_prod' -c 'create database ainmem_prod'
 docker exec -i ainmem_prod_postgres pg_restore -U ainmem_prod -d ainmem_prod \
-  --no-owner --no-acl < deploy/backups/<타임스탬프>/db.dump
-tar xzf deploy/backups/<타임스탬프>/files.tar.gz -C deploy
+  --no-owner --no-acl < $B/db.dump
+tar xzf $B/files.tar.gz -C deploy
 docker run --rm -v "$PWD/deploy:/d" alpine chown -R 1001:1001 /d/okf-content /d/uploads /d/avatars
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
 ```
@@ -128,8 +160,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
 `MANIFEST`의 `git_commit`이 지금 코드와 다르면 스키마도 다를 수 있다 — 복원 후
 `/api/health`가 503이면 그 이야기다(§3.6).
 
-2026-07-30에 빈 DB로 한 바퀴 검증했다: 일회용 postgres 컨테이너에 `db.dump`를
-복원해 34테이블이 그대로 올라오는 것, `files.tar.gz`가 세 디렉터리를 담고 있는 것,
+2026-07-30에 빈 DB로 복원까지 한 바퀴 검증했다: 일회용 postgres 컨테이너에 `db.dump`를
+복원해 테이블이 그대로 올라오는 것, `files.tar.gz`가 세 디렉터리를 담고 있는 것,
 pause된 앱이 스크립트 종료 후 반드시 unpause되는 것(트랩)을 확인했다.
 
 ## 3. 결정된 것과 그 이유
@@ -175,8 +207,9 @@ dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를
 
 ### 3.5 배포 상태는 전부 프로젝트 안에 둔다
 
-`.env.prod`, OKF 콘텐츠(`deploy/okf-content/`), DB 덤프(`deploy/backups/`) 모두
-리포 안에 있다. 처음엔 시크릿을 git에서 떼어놓는다며 `/mnt/newdata/deploy/` 아래로
+`.env.prod`, OKF 콘텐츠(`deploy/okf-content/`) 는 리포 안에 있다. **백업만은
+예외로 밖에 둔다**(`~/ainmem-backups`, §2.1) — 다른 배포 상태는 잘못 커밋돼도 설정이
+새는 정도지만, 백업은 prod 사용자 데이터 전체다. 처음엔 시크릿을 git에서 떼어놓는다며 `/mnt/newdata/deploy/` 아래로
 뺐다가 **되돌렸다.** `.gitignore`에 이미 `.env*`가 있어 리포 안에 둬도 커밋될 일이
 없는데, 밖으로 빼면 배포 상태가 파일시스템 여기저기 흩어져 다음 사람이 찾지 못한다.
 `/deploy/`는 gitignore에 추가했다 — 프로젝트 안에 있되 소스가 아니라 데이터다.
@@ -502,12 +535,9 @@ NextResponse.redirect(new URL("/", req.url))   // req.url = http://0.0.0.0:3000/
    정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
    **아직 push 하지 않았다** — 08-03 작업(구글 로그인, 지갑·데모 제거)은 전부 로컬
    `remove-hackathon-integrations` 브랜치에만 있다.
-3. **백업 스케줄.** 스크립트는 있다(§2.1) — 언제 자동으로 돌릴지와 호스트 밖
-   사본을 어디에 둘지가 남았다. 지금은 손으로만 돈다. `deploy/backups/`는 원본과
-   **같은 디스크**라 실수(`down -v`, 파일 삭제)에는 강하지만 디스크 손실에는 같이
-   죽는다. 참고로 이 호스트에는 아직 자동 백업이 하나도 없다 — `~/backups/`,
-   `~/db-backups/`의 ainteams 덤프도 전부 수동이고 `crontab -l`은 비어 있다.
-   **라이브에 실제 데이터가 생긴 지금부터는 이게 가장 시급한 항목이다.**
+3. **호스트 밖 사본.** 매일 04:00 cron 은 돈다(§2.1). 남은 것은 `~/ainmem-backups`
+   가 원본과 **같은 디스크**라는 점이다 — 실수(`down -v`, 파일 삭제)에는 강하지만 디스크
+   손실에는 같이 죽는다. 목적지를 주면 `COPY_TO=user@host:/path` 한 줄로 붙는다.
 4. **LLM 엔드포인트.** §4.8 참조. 결정되면 `.env.prod` 한 줄 + `up -d app`이면 끝이다.
    아직 미설정이라 AI 채팅 패널은 에러를 띄우고, 메모리 쓰기는 결정적 append로 폴백한다.
 5. **관계 에이전트의 자리.** 지갑이 사라져 "양쪽이 서명해야 에이전트가 태어난다"는

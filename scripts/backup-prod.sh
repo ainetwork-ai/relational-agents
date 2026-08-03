@@ -4,13 +4,20 @@
 #   scripts/backup-prod.sh                 # 기본값으로
 #   scripts/backup-prod.sh --no-pause      # 앱을 멈추지 않고 (§일관성 참고)
 #   scripts/backup-prod.sh --keep 30
+#   scripts/backup-prod.sh --out /mnt/backup
 #   COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
+#
+# 목적지 기본값은 **레포 밖** ~/ainmem-backups 다. 레포 안에 두면 `git add -A` 한 번에
+# prod 데이터가 커밋될 수 있다 — .gitignore 는 실수를 줄이지만 `-f` 나 룰 변경 한 번에
+# 무력화된다. 같은 호스트의 ainteams 도 db 백업을 ~/db-backups 로 빼는 이유가 이것이다.
 #
 # 무엇을 뜨는가
 #   db.dump       pg_dump -Fc (단일 스냅샷 트랜잭션이라 DB 내부는 일관적)
 #   files.tar.gz  deploy/{okf-content,uploads,avatars}
 #                 — OKF 트리는 파생물이 아니라 콘텐츠 원본이다(docs §3.2).
-#   MANIFEST      복원할 때 "이게 어느 코드 시점의 데이터인가"를 알기 위한 것
+#   MANIFEST      복원할 때 "이게 어느 코드 시점의 데이터인가"를 알기 위한 것 —
+#                 커밋 SHA, 이미지 태그, 테이블·행 수, sha256, 그리고 덤프에서
+#                 실제로 읽어낸 객체 수
 #
 # 무엇을 안 뜨는가
 #   md-mirror 볼륨 — DB가 write model이고 미러는 변경마다 재출력되는 파생물이다.
@@ -29,7 +36,7 @@ APP=ainmem_prod_app
 PG=ainmem_prod_postgres
 PAUSE=1
 KEEP="${KEEP:-14}"
-OUT="${OUT:-$REPO/deploy/backups}"
+OUT="${OUT:-$HOME/ainmem-backups}"
 COPY_TO="${COPY_TO:-}"
 
 while [ $# -gt 0 ]; do
@@ -65,6 +72,19 @@ fi
 docker exec "$PG" pg_dump -U "$DB_USER" --no-owner --no-acl -Fc "$DB_NAME" > "$DEST/db.dump"
 tar czf "$DEST/files.tar.gz" -C "$REPO/deploy" okf-content uploads avatars
 
+# 판독 검증. `pg_dump` 의 exit 0 은 "쓰기가 실패하지 않았다" 이지 "읽을 수 있다" 가
+# 아니다 — 디스크가 차거나 파이프가 끊기면 잘린 파일이 성공으로 남는다. TOC 를 실제로
+# 파싱해 객체 수를 세고, 0 이면 백업 자체를 실패로 처리한다(빈 세트를 보존 대상으로
+# 남기면 롤백 후보가 있다고 착각하게 된다).
+OBJECTS=$(docker run --rm -i postgres:16-alpine pg_restore -l < "$DEST/db.dump" \
+  | grep -cv '^;' || true)
+if [ "${OBJECTS:-0}" -lt 1 ]; then
+  echo "판독 검증 실패: db.dump 에서 객체를 읽지 못했다 — 세트를 폐기한다" >&2
+  rm -rf "$DEST"
+  exit 1
+fi
+tar tzf "$DEST/files.tar.gz" > /dev/null || { echo "files.tar.gz 판독 실패" >&2; rm -rf "$DEST"; exit 1; }
+
 unpause
 trap - EXIT INT TERM
 
@@ -82,6 +102,7 @@ trap - EXIT INT TERM
       "select count(*) from information_schema.tables where table_schema='public'")"
   echo "rows_approx: $(docker exec "$PG" psql -U "$DB_USER" -d "$DB_NAME" -tAc \
       "select coalesce(sum(n_live_tup),0) from pg_stat_user_tables")"
+  echo "dump_objects: $OBJECTS (pg_restore -l 로 판독 확인)"
   echo "sha256:"
   (cd "$DEST" && sha256sum db.dump files.tar.gz | sed 's/^/  /')
 } > "$DEST/MANIFEST"
