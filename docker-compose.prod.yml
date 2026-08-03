@@ -78,10 +78,11 @@ services:
       - ./deploy/avatars:/app/public/avatars
       - mdmirror:/data/md-mirror
     ports:
-      # Loopback only; nginx terminates TLS and proxies here. 3120 is the
-      # convention (dev uses 3000/3001, ainteams holds 3000-3003) — override
-      # with APP_HOST_PORT in .env.prod if it ever collides.
-      - "127.0.0.1:${APP_HOST_PORT:-3120}:3000"
+      # Loopback only; nginx terminates TLS and proxies here. The host-side
+      # number follows this host's block convention — ainteams owns 30xx,
+      # ainmem owns 31xx — so `ss -tlnp` says which service a port belongs to
+      # without looking anything up. Override with APP_HOST_PORT in .env.prod.
+      - "127.0.0.1:${APP_HOST_PORT:-3100}:3000"
 
   # Manual-only schema push. Boot must never migrate on its own (docs/deployment.md
   # §3.6): that hands the deploy the right to drop columns with nobody reading the

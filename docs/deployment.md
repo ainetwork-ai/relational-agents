@@ -17,7 +17,7 @@
 |---|---|
 | URL | `https://ainmem.ainetwork.ai` — **설치 대기**: DNS A 레코드와 nginx 적용이 남았다 (§6-6) |
 | nginx | conf 초안 `deploy/nginx/ainmem.ainetwork.ai.conf` (certbot 이전 스냅샷) |
-| 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3120` |
+| 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3100` |
 | DB | 컨테이너 `ainmem_prod_postgres`, DB/롤 `ainmem_prod` (포트 미공개) |
 | 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
 | 볼륨 | `ainmem_prod_pgdata`, `ainmem_prod_mdmirror` |
@@ -26,7 +26,7 @@
 | LLM | **보류** — `.env.prod`에 후보만 주석으로 (§4.8) |
 | 데이터 | 스키마 34테이블, 행 0 — 비어 있다 (§6-7) |
 
-구조는 `(nginx 미구성) → 127.0.0.1:3120 → app 컨테이너 → postgres 컨테이너`다.
+구조는 `(nginx 미구성) → 127.0.0.1:3100 → app 컨테이너 → postgres 컨테이너`다.
 
 이름은 이 호스트 규칙(`ainteams_prod_*`, `ainmem_dev_postgres`)에 맞췄다. 처음엔
 가져온 리포에 있던 `memory-live` 정체성(프로젝트·컨테이너·이미지·DB·볼륨)으로
@@ -66,12 +66,12 @@ docker images ainmem_prod   # 되돌릴 수 있는 후보 목록
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
 # PROD_URL 을 반드시 준다: 기본값이 memory.ainetwork.ai(다른 머신, §4.3)다.
-cd app && PROD_URL=http://127.0.0.1:3120 npx playwright test -c playwright.prod.config.ts
+cd app && PROD_URL=http://127.0.0.1:3100 npx playwright test -c playwright.prod.config.ts
 
 # 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
 # -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
 # 보이지 않는다. 상태코드를 직접 찍는다.
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3120/api/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health
 
 # 컨테이너 헬스체크도 같은 엔드포인트를 본다 — unhealthy 는 "프로세스가 죽었다"가
 # 아니라 "스키마가 이 빌드에 못 미친다"까지 포함한다.
@@ -352,7 +352,8 @@ build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `
 | 소스 / `node_modules` / 빌드 | **분리** — HEAD 스냅샷에서 빌드, 이미지 안에서 clean install |
 | Postgres | **분리** — 별도 컨테이너(`ainmem_prod_postgres`) + 별도 볼륨 + 별도 DB·롤 이름 |
 | OKF 콘텐츠 | **분리** — 바인드 마운트 (단, git으로 자동 회수되지 않음) |
-| 포트 | **분리** — prod 3120, dev 36625 / dev DB 5434 |
+| 포트 | **분리** — prod 3100, dev 36625 / dev DB 5434 |
+| 포트 대역 | 이 호스트 규칙: **ainteams 30xx, ainmem 31xx**. `ss -tlnp` 한 줄로 어느 서비스인지 읽힌다 |
 | `SESSION_SECRET` | **분리** — 라이브 전용 값 |
 | 온체인 키 (`DEPLOYER_KEY`) | **미설정** — 양쪽 다 키가 없어 온체인 릴레이는 비활성 |
 | LLM | **해당 없음** — 이 호스트에 vLLM이 없고 prod는 보류 상태(§4.8) |
