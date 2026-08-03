@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Download, ImagePlus } from "lucide-react";
 import type { ActiveWorkspace } from "./workspace-switcher";
+import { IconPicker } from "@/components/page/icon-picker";
+import { firstGlyphs } from "@/lib/glyph";
 
 interface SavedPatch {
   name: string;
@@ -148,12 +150,26 @@ export function WorkspaceSettingsModal({
               </span>
               <input
                 value={iconText}
-                onChange={(e) => setIconText(e.target.value)}
-                maxLength={2}
+                /* clamped by visible character, not by UTF-16 unit: maxLength=2
+                   counted 🧑‍💻 as five and refused every emoji past ❤️ */
+                onChange={(e) => setIconText(firstGlyphs(e.target.value, 2))}
                 className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-center text-lg outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900"
                 aria-label="Workspace icon"
               />
             </label>
+            {/* typing an emoji into a text field needs an OS picker, so offer
+                the app's own — same set the page icons use */}
+            <div className="shrink-0 pb-0.5">
+              <IconPicker
+                icon={null}
+                onChange={(emoji) => emoji && setIconText(firstGlyphs(emoji, 1))}
+                testid="workspace-icon-emoji"
+                pickerTestid="workspace-icon-emoji-picker"
+                triggerClassName="rounded-md border border-neutral-200 px-2 py-1.5 text-base leading-6 transition-colors hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-700"
+                placeholder="😀"
+                allowRemove={false}
+              />
+            </div>
             <label className="block min-w-0 flex-1">
               <span className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
                 Name

@@ -2,23 +2,14 @@
 // Conversion commits on the trailing SPACE (same convention as the block-level
 // "# " shortcuts), except :emoji: which commits on the closing colon.
 
+import { MAX_SHORTCODE_LENGTH, shortcodeFor } from "@/lib/emoji-data";
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
-/** Common :shortcode: emoji. */
-export const EMOJI: Record<string, string> = {
-  smile: "😄", grin: "😁", joy: "😂", wink: "😉", blush: "😊", heart: "❤️",
-  broken_heart: "💔", thumbsup: "👍", "+1": "👍", thumbsdown: "👎", "-1": "👎",
-  clap: "👏", pray: "🙏", muscle: "💪", wave: "👋", eyes: "👀", thinking: "🤔",
-  tada: "🎉", fire: "🔥", rocket: "🚀", star: "⭐", sparkles: "✨", zap: "⚡",
-  bulb: "💡", check: "✅", white_check_mark: "✅", x: "❌", warning: "⚠️",
-  question: "❓", exclamation: "❗", memo: "📝", book: "📖",
-  calendar: "📅", clock: "🕐", pin: "📌", pushpin: "📌", link: "🔗",
-  lock: "🔒", key: "🔑", gear: "⚙️", bug: "🐛", coffee: "☕", pizza: "🍕",
-  dog: "🐶", cat: "🐱", sun: "☀️", moon: "🌙", rain: "🌧️", snow: "❄️",
-  smiley: "😃", laughing: "😆", cry: "😢", sob: "😭", angry: "😠",
-  sunglasses: "😎", raised_hands: "🙌", ok_hand: "👌", point_right: "👉",
-  "100": "💯", boom: "💥", bell: "🔔", gift: "🎁", trophy: "🏆",
-};
+/** `:shortcode:` covers every GitHub/Slack spelling — see lib/emoji-data. The
+ * upper bound is the longest code that set may contain
+ * (`:british_indian_ocean_territory:` and friends), so none is cut off. */
+const SHORTCODE_RE = new RegExp(`:([a-z0-9_+-]{2,${MAX_SHORTCODE_LENGTH}}):$`);
 
 type Rule = { re: RegExp; html: (m: RegExpMatchArray) => string };
 const RULES: Rule[] = [
@@ -26,7 +17,7 @@ const RULES: Rule[] = [
   { re: /(?<!\*)\*([^*\s][^*]*?)\*\s$/, html: (m) => `<i>${esc(m[1])}</i>&nbsp;` },
   { re: /~~([^~\s][^~]*?)~~\s$/, html: (m) => `<s>${esc(m[1])}</s>&nbsp;` },
   { re: /`([^`\s][^`]*?)`\s$/, html: (m) => `<code>${esc(m[1])}</code>&nbsp;` },
-  { re: /:([a-z0-9_+-]{2,30}):$/, html: (m) => (EMOJI[m[1]] ? esc(EMOJI[m[1]]) : "") },
+  { re: SHORTCODE_RE, html: (m) => esc(shortcodeFor(m[1]) ?? "") },
  // inline equation: $E=mc^2$ commits on the closing $ (block equations use
  // the "$$ " markdown shortcut instead)
   {

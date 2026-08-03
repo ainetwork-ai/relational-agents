@@ -26,6 +26,7 @@ import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
 import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";
 import { EmojiSuggestMenu, emojiCandidates, type EmojiCandidate } from "./emoji-suggest";
+import { loadEmojiSet } from "@/lib/emoji-data";
 import { BlockRow } from "./block-row";
 import { useDebounced } from "@/hooks/use-debounced";
 import { usePageSync } from "@/hooks/use-page-sync";
@@ -473,6 +474,14 @@ export const BlockEditor = forwardRef<
       (window as unknown as Record<string, unknown>).__editorReady = null;
     };
   }, [pageId]);
+
+ // The emoji catalogue is a lazy chunk (see lib/emoji-data). Warm it a moment
+ // after the editor settles: both `:shortcode:` expansion and the icon picker
+ // then answer from memory, instead of the first `:tada:` racing a fetch.
+  useEffect(() => {
+    const warm = setTimeout(() => void loadEmojiSet(), 1000);
+    return () => clearTimeout(warm);
+  }, []);
 
  // Apply pending caret placement after React commits block changes.
  // useLayoutEffect (not useEffect): during fast typing the NEXT keydown can
@@ -1455,6 +1464,9 @@ export const BlockEditor = forwardRef<
       }
 
       if (e.key === ":" && !slash && !mention && !emojiSug) {
+ // the emoji catalogue is a lazy chunk; start it on the opening ':' so the
+ // suggestions and the `:shortcode:` expansion have it a keystroke later
+        void loadEmojiSet();
         const rect = caretRect() ?? el.getBoundingClientRect();
         setEmojiSug({
           blockId: id,

@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Shuffle } from "lucide-react";
-import { EMOJI_CATEGORIES, ALL_EMOJIS } from "@/lib/emoji-data";
+import {
+  SKIN_TONES,
+  applySkinTone,
+  countEmojiMatches,
+  drawableEmojis,
+  emojiCategories,
+  emojiLabel,
+  emojiSetReady,
+  loadEmojiSet,
+  randomEmoji,
+  searchEmoji,
+} from "@/lib/emoji-data";
 import { uploadBlob } from "@/lib/upload";
 import { PageIcon } from "@/components/page-icon";
 
@@ -50,16 +61,42 @@ export function IconPicker({
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) return null; // show categories view
-    return EMOJI_CATEGORIES.flatMap((cat) =>
-      cat.emojis.filter(([, terms]) => terms.includes(q) || terms.split(" ").some((t) => t.startsWith(q)))
-    );
-  }, [query]);
+ // The ~1.9k emoji catalogue is a separate chunk — nobody needs it until a
+ // picker is actually opened, so fetch it here and re-render when it lands
+  const [ready, setReady] = useState(emojiSetReady);
+  useEffect(() => {
+    if (!open || ready) return;
+    let live = true;
+    void loadEmojiSet().then((ok) => {
+      if (live && ok) setReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [open, ready]);
 
- // Skin tone
-  const TONES = ["", "\u{1F3FB}", "\u{1F3FC}", "\u{1F3FD}", "\u{1F3FE}", "\u{1F3FF}"];
+  const categories = useMemo(() => (ready ? emojiCategories() : []), [ready]);
+
+  const search = useMemo(() => {
+    const q = query.trim();
+ // no categories yet means the catalogue is still loading, and searching it
+ // would only come up empty
+    if (!q || !categories.length) return null; // show categories view
+    const results = searchEmoji(q);
+    const total = countEmojiMatches(q);
+    return { results, hidden: total - results.length };
+  }, [query, categories]);
+
+ // Which rows the grid shows: search hits, or the active category minus
+ // anything this platform's font cannot draw
+  const rows = useMemo(
+    () =>
+      search?.results ??
+      (categories[activeCategory] ? drawableEmojis(categories[activeCategory]) : []),
+    [search, categories, activeCategory]
+  );
+
+ // Skin tone — 0 is the default yellow, 1–5 the Fitzpatrick modifiers
   const [skin, setSkin] = useState(() => {
     try {
       return Number(localStorage.getItem("emoji-skin") ?? 0) || 0;
@@ -67,15 +104,9 @@ export function IconPicker({
       return 0;
     }
   });
-  const applySkin = (emoji: string) => {
-    if (!skin) return emoji;
-    try {
-      if (/^\p{Emoji_Modifier_Base}$/u.test(emoji)) return emoji + TONES[skin];
-    } catch {}
-    return emoji;
-  };
+  const applySkin = (emoji: string) => applySkinTone(emoji, skin);
   function cycleSkin() {
-    const next = (skin + 1) % TONES.length;
+    const next = (skin + 1) % (SKIN_TONES.length + 1);
     setSkin(next);
     try {
       localStorage.setItem("emoji-skin", String(next));
@@ -83,7 +114,7 @@ export function IconPicker({
   }
 
   function pickRandom() {
-    const emoji = ALL_EMOJIS[Math.floor(Math.random() * ALL_EMOJIS.length)];
+    const emoji = randomEmoji();
     onChange(emoji);
     setOpen(false);
     setQuery("");
@@ -226,7 +257,7 @@ export function IconPicker({
           </div>
 
           {/* Recently used */}
-          {!filtered && recentEmoji().length > 0 && (
+          {!search && recentEmoji().length > 0 && (
             <div className="border-b border-neutral-100 px-2 py-1 dark:border-neutral-700">
               <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
                 Recent
@@ -237,6 +268,8 @@ export function IconPicker({
                     key={`${e}-${i}`}
                     data-testid={`icon-recent-${i}`}
                     onClick={() => pick(e)}
+                    title={emojiLabel(e)}
+                    aria-label={emojiLabel(e) ?? e}
                     className="rounded p-1 text-lg transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
                   >
                     {e}
@@ -246,9 +279,9 @@ export function IconPicker({
             </div>
           )}
           {/* Category tabs (hidden when searching) */}
-          {!filtered && (
+          {!search && (
             <div className="flex gap-0.5 overflow-x-auto border-b border-neutral-100 px-1 py-1 dark:border-neutral-700">
-              {EMOJI_CATEGORIES.map((cat, i) => (
+              {categories.map((cat, i) => (
                 <button
                   key={cat.name}
                   onClick={() => {
@@ -269,44 +302,42 @@ export function IconPicker({
             </div>
           )}
 
-          {/* Emoji grid */}
+          {/* Emoji grid — search hits, or the active category */}
           <div ref={gridRef} className="max-h-56 overflow-y-auto p-1.5">
-            {filtered ? (
- // Search results
-              filtered.length === 0 ? (
-                <p className="py-4 text-center text-xs text-neutral-400">
-                  No emoji found
-                </p>
-              ) : (
-                <div className="grid grid-cols-9 gap-0.5">
-                  {filtered.map(([emoji], i) => (
-                    <button
-                      key={`${emoji}-${i}`}
-                      onClick={() => pick(applySkin(emoji))}
-                      className="rounded p-1 text-lg transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                    >
-                      {applySkin(emoji)}
-                    </button>
-                  ))}
-                </div>
-              )
+            {!ready ? (
+              <p className="py-4 text-center text-xs text-neutral-400">Loading emoji…</p>
+            ) : rows.length === 0 ? (
+              <p className="py-4 text-center text-xs text-neutral-400">No emoji found</p>
             ) : (
- // Category view
               <>
                 <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
-                  {EMOJI_CATEGORIES[activeCategory].name}
+                  {search
+                    ? `${rows.length} result${rows.length === 1 ? "" : "s"}`
+                    : categories[activeCategory]?.name}
                 </p>
                 <div className="grid grid-cols-9 gap-0.5">
-                  {EMOJI_CATEGORIES[activeCategory].emojis.map(([emoji], i) => (
-                    <button
-                      key={`${emoji}-${i}`}
-                      onClick={() => pick(applySkin(emoji))}
-                      className="rounded p-1 text-lg transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                    >
-                      {applySkin(emoji)}
-                    </button>
-                  ))}
+                  {rows.map(({ emoji, label }) => {
+                    const toned = applySkin(emoji);
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => pick(toned)}
+                        title={label}
+                        aria-label={label}
+                        className="rounded p-1 text-lg transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                      >
+                        {toned}
+                      </button>
+                    );
+                  })}
                 </div>
+                {/* the cap only bites on very broad queries, but say so rather
+                    than pretending the list is complete */}
+                {search && search.hidden > 0 && (
+                  <p className="px-1 pt-1.5 text-[10px] text-neutral-400">
+                    +{search.hidden} more — keep typing to narrow it down
+                  </p>
+                )}
               </>
             )}
           </div>

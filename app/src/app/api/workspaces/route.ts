@@ -5,6 +5,7 @@ import { pages, workspaces, workspaceMembers } from "@/lib/db/schema";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { ensureGeneralTeamspace, getDefaultWorkspaceId } from "@/lib/workspace";
+import { firstGlyphs } from "@/lib/glyph";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       .insert(workspaces)
       .values({
         name,
-        iconText: name.slice(0, 2).toUpperCase() || "WS",
+        iconText: firstGlyphs(name, 2).toUpperCase() || "WS",
         createdBy: auth.user.id,
       })
       .returning();
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
       .insert(workspaces)
       .values({
         name: `${name} ${auth.user.id.slice(0, 6)}`,
-        iconText: name.slice(0, 2).toUpperCase() || "WS",
+        iconText: firstGlyphs(name, 2).toUpperCase() || "WS",
         createdBy: auth.user.id,
       })
       .returning();
