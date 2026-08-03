@@ -83,16 +83,9 @@ export async function setUserDisplayName(
   return after;
 }
 
-/**
- * Login-time rename. The login form is the only place that offers a name, so a
- * returning user typing a different one IS the rename gesture — every wallet
- * path (AIN, MetaMask, raw key) honours it, not just the first sign-up.
- */
-export async function applyLoginDisplayName(user: User, provided: unknown): Promise<User> {
-  const name = normalizeDisplayName(provided);
-  if (!name || name === user.displayName) return user;
-  return (await setUserDisplayName(user.id, name)) ?? user;
-}
+// applyLoginDisplayName lived here: the wallet login form let you type a name,
+// so signing in with a different one WAS the rename gesture. Removed with those
+// routes — a Google sign-in brings its own name and offers no such field.
 
 export interface PropagationResult {
   rooms: number;

@@ -47,9 +47,6 @@ export default defineConfig({
       // fakeEdits). Also keep AI_URL unset so the LLM path is never taken.
       AGENT_FAKE_LLM: "1",
       AI_FAKE_LLM: process.env.AI_FAKE_LLM ?? "1",
-      // demo-login/metamask-verify are open in dev; make it explicit so a fresh
-      // server never gates them off.
-      ENABLE_DEMO_LOGIN: "1",
       // Blank the on-chain registry so consent/dissolve do NOT relay a real
       // Sepolia tx (relayRelationOnChain returns null on a zero/blank address).
       // Otherwise the completing signature would block on waitForTransactionReceipt
