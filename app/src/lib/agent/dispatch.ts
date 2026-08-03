@@ -76,7 +76,10 @@ export async function dispatchToRoomBots(room: ChatRoom, message: ChatMessage): 
       if (!agent.isAgent) return;
       const url = agent.a2aUrl ?? "";
       const isInApp = url.startsWith(self) || url.includes("/api/a2a/");
-      if (isInApp && agent.encryptedPrivateKey) {
+      // The old second condition was `agent.encryptedPrivateKey` — the agent's
+      // own keypair doubled as the "we provisioned this one" marker. The keys
+      // are gone; the a2aUrl pointing back at us is the marker.
+      if (isInApp) {
         await respondToMessage(agent.id, room.id, message).catch((err) =>
           console.error("in-app agent respond failed:", err)
         );

@@ -34,10 +34,6 @@ export const users = pgTable("users", {
   // rows that predate it (and for page_invites, which invites by email).
   googleSub: text("google_sub").unique(),
   email: text("email").unique(),
-  // Was NOT NULL: a wallet address used to BE the identity. Human rows no
-  // longer have one (the wallet logins are gone); agents still generate one at
-  // provision time, and external A2A bots store an `a2a:<url>` marker here.
-  ainAddress: text("ain_address").unique(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
  // /home dashboard cover the user picked (uploaded or built-in); null = default
@@ -54,7 +50,6 @@ export const users = pgTable("users", {
   agentVisibility: text("agent_visibility").default("private"),
   agentCategory: text("agent_category"),
   agentTags: jsonb("agent_tags").$type<string[]>().default([]),
-  encryptedPrivateKey: text("encrypted_private_key"),
  // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
@@ -621,40 +616,11 @@ export const chatRooms = pgTable("chat_rooms", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// The relational agent contract — the signature record behind "an agent is
-// born only when everyone signs". Each room member's wallet signature adds a
-// row; when the set completes, chat_rooms.consentAt is stamped. The signed
-// payload and signature are preserved verbatim for later re-verification.
-export const relationContracts = pgTable(
-  "relation_contracts",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    address: text("address").notNull(), // wallet address at signing time (lowercase)
-    message: text("message").notNull(), // the signed contract payload, verbatim
-    signature: text("signature").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("relation_contracts_room_user").on(t.roomId, t.userId)]
-);
-
-// Dissolution mirrors consent: one signed RelationDissolve row per member;
-// when the set completes, chat_rooms.dissolvedAt is stamped and the set can be
-// relayed to dissolveRelationalAgent() on-chain as-is.
-export const relationDissolves = pgTable(
-  "relation_dissolves",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    address: text("address").notNull(), // wallet address at signing time (lowercase)
-    message: text("message").notNull(), // the signed dissolve payload, verbatim
-    signature: text("signature").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("relation_dissolves_room_user").on(t.roomId, t.userId)]
-);
+// relation_contracts / relation_dissolves lived here: one wallet-signed row per
+// member, completing the set stamped chat_rooms.consent_at / dissolved_at, and
+// the set could be relayed on-chain verbatim. Wallets are gone, so nothing can
+// produce a signature; both tables are dropped. chat_rooms keeps consent_at and
+// dissolved_at — they are plain timestamps the app still reads.
 
 // DM membership + read state. (roomId,userId) composite unique — no id column (workspace_members pattern).
 export const chatRoomMembers = pgTable(

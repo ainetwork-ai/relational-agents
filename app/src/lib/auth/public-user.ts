@@ -1,14 +1,11 @@
 import type { User } from "@/lib/db/schema";
 
 /** Whitelist of user fields safe to send to the client (never the full row —
- * users carries encryptedPrivateKey and other agent internals). */
+ * users carries agent internals like its A2A card and config). */
 export function toPublicUser(user: User) {
   return {
     id: user.id,
-    // identity is the Google account now; ainAddress survives only on agent
-    // rows (generated key) and external A2A bots (an `a2a:<url>` marker)
     email: user.email,
-    ainAddress: user.ainAddress,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     homeCoverUrl: user.homeCoverUrl,

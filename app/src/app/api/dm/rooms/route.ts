@@ -216,18 +216,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
- // relationship rooms run on the signed contract — every member (couple or
- // group) signs via wallet (/consent) before consentAt stamps and the agent
- // is born. Only rooms with wallet-less members (demo accounts) keep the
- // legacy instant consent.
+ // consentAt used to wait for every member's wallet signature (/consent) and
+ // only rooms whose members had no wallet were consented on the spot. With the
+ // wallet layer gone there is no signature to wait for, so every room is
+ // consented at creation — the timestamp still gates memory collection
+ // (messages before it are never recorded), which is why it is stamped rather
+ // than dropped.
   const allMemberIds = [meId, ...memberIds];
   const memberRows = await db
-    .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })
+    .select({ id: users.id, displayName: users.displayName })
     .from(users)
     .where(inArray(users.id, allMemberIds));
-  const allWallets =
-    memberRows.length === allMemberIds.length &&
-    memberRows.every((r) => !!r.address && /^0x[0-9a-f]{40}$/i.test(r.address));
  // relationship rooms are named after their people: "{me} ❤️ {partner}"
   const byId = new Map(memberRows.map((r) => [r.id, r.displayName]));
   const roomName =
@@ -242,7 +241,7 @@ export async function POST(req: NextRequest) {
       kind: "dm",
       workspaceId,
       createdBy: meId,
-      consentAt: allWallets ? null : new Date(),
+      consentAt: new Date(),
       directKey,
     })
     .returning();

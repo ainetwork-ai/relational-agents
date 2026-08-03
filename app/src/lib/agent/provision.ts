@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { DEFAULT_PROFILE } from "./profiles";
@@ -35,15 +35,9 @@ const DEFAULT_CONFIG: AgentConfig = {
   skills: ["relationship-doc"],
 };
 
-/** Generate the agent's own AIN key → derive its address. The key sits in
- * encryptedPrivateKey (demo: plain hex — production would KMS-encrypt). */
-async function generateAgentKey(): Promise<{ address: string; privateKey: string }> {
-  const privateKey = randomBytes(32).toString("hex");
-  const Ain = (await import("@ainblockchain/ain-js")).default;
-  const ain = new Ain("https://devnet-api.ainetwork.ai", null, 0);
-  const address = ain.wallet.add(privateKey).toLowerCase();
-  return { address, privateKey };
-}
+// Agents used to be given an AIN keypair here, stored as plain hex in
+// encryptedPrivateKey, so they could sign on-chain. Nothing signs any more —
+// the wallet layer is gone — so no key is generated and the column is dropped.
 
 export interface ProvisionResult {
   agentUserId: string;
@@ -80,16 +74,13 @@ export async function provisionRoomAgent(
     }
   }
 
-  const { address, privateKey } = await generateAgentKey();
   const [agent] = await db
     .insert(users)
     .values({
-      ainAddress: address,
       displayName: `${room.name} agent`,
       isAgent: true,
       ownerId: room.createdBy,
       agentInvitedBy: importedBy,
-      encryptedPrivateKey: privateKey,
       agentConfig: DEFAULT_CONFIG as Record<string, unknown>,
       status: "online",
     })

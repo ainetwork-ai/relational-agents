@@ -9,11 +9,7 @@ import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
 import { DmAvatar } from "@/components/dm/dm-avatar";
-import { ConsentBanner } from "@/components/dm/consent-banner";
-import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { AgentSettings } from "@/components/dm/agent-settings";
-import { signTypedDataWithWallet } from "@/lib/wallet/sign";
-import { WalletSignatureError } from "@/lib/wallet/provider";
 
 /** Block explorer for the chain the relation registry is deployed on. */
 const EXPLORER_BY_CHAIN: Record<string, string> = {
@@ -496,53 +492,8 @@ export function DmView({ roomId }: { roomId: string }) {
 
   async function leave() {
     setConfirmLeave(false);
- // A consented room hosts a living agent — leaving it is a dissolution, and
- // dissolution mirrors birth: EVERY signer's wallet must sign RelationDissolve.
-    const stRes = await fetch(`/api/dm/rooms/${roomId}/dissolve`);
-    const st = stRes.ok ? await stRes.json() : null;
-    if (st?.consentAt && !st.dissolvedAt) {
-      if (st.mySigned) {
-        const waiting = (st.parties as { displayName: string; signed: boolean }[])
-          .filter((p) => !p.signed)
-          .map((p) => p.displayName)
-          .join(", ");
-        show(`You already signed — waiting for ${waiting || "the other side"}`);
-        return;
-      }
-      if (!st.canDissolve || !st.typedData) {
-        show("Cannot leave: closing this relationship needs every signer's wallet");
-        return;
-      }
-      try {
-        const { signature } = await signTypedDataWithWallet(st.typedData);
-        const res = await fetch(`/api/dm/rooms/${roomId}/dissolve`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-client-id": clientId },
-          body: JSON.stringify({ signature }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          show(`Could not sign the dissolution: ${data?.error ?? res.status}`);
-          return;
-        }
-        if (data.dissolvedAt) {
-          show("Both signed — the relationship is closed. The record remains.");
-          void loadRooms();
-          router.push("/");
-        } else {
-          show(`Dissolution signed (${data.signed}/${data.required}) — waiting for the other side`);
-        }
-      } catch (err) {
-        if (err instanceof WalletSignatureError && err.reason === "rejected") {
-          show("Signature request was rejected.");
-        } else {
-          const msg = err instanceof Error ? err.message : String(err);
-          show(`Signing failed: ${msg.slice(0, 140)}`);
-        }
-      }
-      return;
-    }
- // no agent yet — a plain leave needs no one's signature
+ // Leaving used to be a "dissolution" that every member's wallet had to sign
+ // (RelationDissolve). Wallets are gone, so it is a plain leave.
     const res = await fetch(`/api/dm/rooms/${roomId}/members`, {
       method: "DELETE",
       headers: { "x-client-id": clientId },
@@ -805,8 +756,8 @@ export function DmView({ roomId }: { roomId: string }) {
             {confirmLeave && (
               <div className="popover-anim absolute right-0 top-8 z-50 w-52 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
                 <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-300">
-                  Leave this conversation? If the agent has been born, closing it
-                  takes both signatures — your wallet will ask first.
+                  Leave this conversation? The record and its agent stay for the
+                  others.
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -830,8 +781,6 @@ export function DmView({ roomId }: { roomId: string }) {
         </div>
       </header>
 
-      <ConsentBanner roomId={roomId} />
-      <DissolveBanner roomId={roomId} />
 
       {settingsOpen && agentMember && (
         <AgentSettings
