@@ -3,9 +3,9 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
-import { applyView, optionClass, personLabel } from "@/lib/db-values";
+import { applyView, optionClass } from "@/lib/db-values";
 import { useDb } from "./database-block";
-import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
 const NONE = "none";
 
@@ -115,7 +115,11 @@ export function BoardView({ view }: { view: DbView }) {
             </div>
             <div className="flex flex-col gap-1.5">
               {cards.map((r) => {
-                const assignee = personProp ? personLabel(db.members, r.values[personProp.id]) : "";
+ // the assignee's own row, so the card shows their photo. A person cell
+ // holds an id, or a list of them once it carries several people.
+                const cell = personProp ? r.values[personProp.id] : null;
+                const assigneeId = Array.isArray(cell) ? cell[0] : cell;
+                const assignee = db.members.find((m) => m.id === assigneeId) ?? null;
                 return (
                   <div
                     key={r.id}
@@ -141,10 +145,8 @@ export function BoardView({ view }: { view: DbView }) {
                     </div>
                     {assignee && (
                       <div className="mt-1.5 flex items-center gap-1">
-                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-semibold text-white">
-                          {initial(assignee)}
-                        </span>
-                        <span className="text-xs text-neutral-500">{assignee}</span>
+                        <UserAvatar user={assignee} size={16} />
+                        <span className="text-xs text-neutral-500">{assignee.displayName}</span>
                       </div>
                     )}
                     </div>
