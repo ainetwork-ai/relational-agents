@@ -529,11 +529,15 @@ export async function okfDatabaseSnapshot(
   const node = readNode(relPath);
   if (!node || node.kind !== "database") return null;
   const now = new Date();
+ // a file-backed database keeps its description (and whether it shows) in the
+ // schema overlay — the CSV itself has nowhere to put either
+  const meta = await readDbMeta(relPath);
   const database = {
     id: databaseId,
     workspaceId: "",
     title: node.title,
-    description: (await readDbMeta(relPath)).description ?? "",
+    description: meta.description ?? "",
+    descriptionVisible: meta.descriptionVisible ?? null,
     createdBy: null,
     createdAt: now,
     updatedAt: now,
@@ -731,6 +735,8 @@ export interface DbMeta {
   views?: DbMetaView[];
   /** editable text under the DB title */
   description?: string;
+  /** 설명 표시 / 설명 숨기기; absent = never toggled (shows if there is text) */
+  descriptionVisible?: boolean;
 }
 
 export async function readDbMeta(rel: string): Promise<DbMeta> {

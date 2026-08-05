@@ -394,6 +394,10 @@ export const databases = pgTable("databases", {
   title: text("title").default("Untitled Database").notNull(),
  // editable text under the DB title
   description: text("description").default("").notNull(),
+ // 설명 표시 / 설명 숨기기. Deliberately nullable: null means nobody has toggled
+ // it, and then the description shows if there is any — a database that already
+ // has text must not go blank the moment this column exists.
+  descriptionVisible: boolean("description_visible"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

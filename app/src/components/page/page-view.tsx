@@ -99,6 +99,63 @@ export function PageView({
   );
   const databaseId = (fullPageDb?.content as { databaseId?: string } | undefined)?.databaseId;
 
+ // 설명 — a database page's own text under the title (Notion's collection
+ // description), not a block: it lives on the database row, so the block editor
+ // never sees it and the view tabs sit below it.
+  const [desc, setDesc] = useState("");
+  const [descShown, setDescShown] = useState(false);
+  const [descLoaded, setDescLoaded] = useState(false);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!databaseId) return;
+    let alive = true;
+    void fetch(`/api/databases/${databaseId}?meta=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.database) return;
+        const text: string = d.database.description ?? "";
+        const flag: boolean | null = d.database.descriptionVisible ?? null;
+        setDesc(text);
+ // never toggled → show it if there is anything to show, which is what a
+ // database imported with a description expects
+        setDescShown(flag ?? text.trim() !== "");
+        setDescLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [databaseId]);
+
+  const saveDesc = useDebounced((value: string) => {
+    void fetch(`/api/databases/${databaseId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ description: value }),
+    });
+  }, 400);
+
+ // the toggle is the whole feature: 설명 추가 → write, 설명 숨기기 → keep the text
+ // and fold it away, 설명 표시 → bring it back.
+  function toggleDesc() {
+    const next = !descShown;
+    setDescShown(next);
+    if (next) requestAnimationFrame(() => descRef.current?.focus());
+    void fetch(`/api/databases/${databaseId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ descriptionVisible: next }),
+    });
+  }
+
+ // grow with its content, like the title does
+  useEffect(() => {
+    const el = descRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [desc, descShown]);
+
   const saveTitle = useDebounced((value: string) => {
     updatePage(initialPage.id, { title: value });
     if (databaseId) {
@@ -280,6 +337,19 @@ export function PageView({
           >
             💬 Add comment
           </button>
+          {/* 설명 추가 / 설명 숨기기 / 설명 표시 — only a database page has a
+              description, and the row it sits in is the same hover row as
+              아이콘 추가 · 커버 추가 (Notion's .notion-page-controls). */}
+          {databaseId && descLoaded && (
+            <button
+              data-testid="db-description-toggle"
+              onClick={toggleDesc}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            >
+              <InfoCircleIcon />
+              {descShown ? "설명 숨기기" : desc.trim() ? "설명 표시" : "설명 추가"}
+            </button>
+          )}
         </div>
 
         <textarea
@@ -303,6 +373,24 @@ export function PageView({
           className="mt-2 w-full resize-none overflow-hidden bg-transparent text-4xl font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600"
         />
 
+        {/* the description sits between the title and the database's view tabs,
+            where Notion puts it — 14px, multi-line, saved as you type */}
+        {databaseId && descShown && (
+          <textarea
+            ref={descRef}
+            data-testid="db-page-description"
+            rows={1}
+            value={desc}
+            disabled={page.isLocked}
+            placeholder="설명을 추가하세요"
+            onChange={(e) => {
+              setDesc(e.target.value);
+              saveDesc.call(e.target.value);
+            }}
+            className="mb-3 mt-1.5 w-full resize-none overflow-hidden bg-transparent text-sm leading-6 text-neutral-600 outline-none placeholder:text-neutral-400 dark:text-neutral-300 dark:placeholder:text-neutral-500"
+          />
+        )}
+
         {/* database-row pages show their EDITABLE properties above the body
             self-hides on ordinary pages. Locked page → read-only. */}
         <div className={page.isLocked ? "pointer-events-none opacity-90" : undefined}>
@@ -321,6 +409,21 @@ export function PageView({
       </div>
       <CommentThreadPanel pageId={initialPage.id} />
     </div>
+  );
+}
+
+/** Notion's own infoCircleFill glyph, kept as-is next to 설명 추가/숨기기/표시 —
+ *  lucide has no filled info circle and the outline one reads as a different
+ *  control. Path and viewBox are Notion's (docs/target.html). */
+function InfoCircleIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="2.37 2.37 15.26 15.25"
+      className="h-3.5 w-3.5 shrink-0 fill-current"
+    >
+      <path d="M2.375 10a7.625 7.625 0 1 1 15.25 0 7.625 7.625 0 0 1-15.25 0M8.65 8.25a.625.625 0 1 0 0 1.25h.725v3.25H8.65a.625.625 0 1 0 0 1.25h2.7a.625.625 0 1 0 0-1.25h-.725V8.875A.625.625 0 0 0 10 8.25zM10.7 6.3a.8.8 0 1 0-1.6 0 .8.8 0 0 0 1.6 0" />
+    </svg>
   );
 }
 

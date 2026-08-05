@@ -10,7 +10,11 @@ export const dynamic = "force-dynamic";
 
 /** GET → full { database, properties, rows, views } snapshot. The SAME contract
  * the single database view consumes; a .csv-file-backed (OKF) database is
- * served here too — files are the backend, one view renders both. */
+ * served here too — files are the backend, one view renders both.
+ *
+ * `?meta=1` answers with { database } alone: the page header needs the title
+ * and description, and dragging every row along for that would make opening a
+ * database page pay for its content twice. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ databaseId: string }> }
@@ -18,15 +22,17 @@ export async function GET(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { databaseId } = await params;
+  const metaOnly = new URL(_req.url).searchParams.get("meta") === "1";
 
   if (isOkfId(databaseId)) {
     const snap = await okfDatabaseSnapshot(databaseId, decodeId(databaseId));
     if (!snap) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(snap);
+    return NextResponse.json(metaOnly ? { database: snap.database } : snap);
   }
 
   const database = await loadDatabaseForUser(databaseId, auth.user.id);
   if (!database) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (metaOnly) return NextResponse.json({ database });
 
   const [properties, rows, views] = await Promise.all([
     db.select().from(dbProperties).where(eq(dbProperties.databaseId, databaseId)).orderBy(dbProperties.position),
@@ -37,7 +43,7 @@ export async function GET(
   return NextResponse.json({ database, properties, rows, views });
 }
 
-/** PATCH { title?, description? } → updates database metadata. */
+/** PATCH { title?, description?, descriptionVisible? } → database metadata. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ databaseId: string }> }
@@ -51,10 +57,13 @@ export async function PATCH(
  // is the file name — renaming files is a separate op)
   if (isOkfId(databaseId)) {
     try {
-      if (typeof body?.description === "string") {
+      const wantsDesc = typeof body?.description === "string";
+      const wantsVisible = typeof body?.descriptionVisible === "boolean";
+      if (wantsDesc || wantsVisible) {
         const rel = decodeId(databaseId);
         const meta = await readDbMeta(rel);
-        meta.description = body.description;
+        if (wantsDesc) meta.description = body.description;
+        if (wantsVisible) meta.descriptionVisible = body.descriptionVisible;
         await writeDbMeta(rel, meta);
       }
       return NextResponse.json({ ok: true });
@@ -69,6 +78,8 @@ export async function PATCH(
   const update: Record<string, unknown> = {};
   if (typeof body?.title === "string") update.title = body.title;
   if (typeof body?.description === "string") update.description = body.description;
+  if (typeof body?.descriptionVisible === "boolean")
+    update.descriptionVisible = body.descriptionVisible;
   if (Object.keys(update).length === 0) return NextResponse.json({ database });
   update.updatedAt = new Date();
   const [row] = await db

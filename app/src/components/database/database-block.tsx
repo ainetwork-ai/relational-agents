@@ -1196,7 +1196,10 @@ export function DatabaseBlock({
           </div>
         </div>
 
-        {/* editable database description */}
+        {/* editable database description. A full-page database's description is
+            the PAGE's — it renders above the view tabs under the title, behind
+            설명 표시 / 설명 숨기기 (page-view.tsx). Inline databases keep it here. */}
+        {!fullPage && (
         <input
           data-testid="db-description"
           defaultValue={database.description ?? ""}
@@ -1215,6 +1218,7 @@ export function DatabaseBlock({
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="mb-1 w-full bg-transparent px-1 text-xs text-neutral-500 outline-none placeholder:text-neutral-300 dark:text-neutral-400 dark:placeholder:text-neutral-600"
         />
+        )}
 
         {/* chips: active filters stay visible + editable inline */}
         <FilterChips />
