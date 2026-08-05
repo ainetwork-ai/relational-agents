@@ -16,7 +16,6 @@ import { PropertyValue } from "./property-value";
 
 const DAY = 86_400_000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const pad = (n: number) => String(n).padStart(2, "0");
 const parse = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return y ? new Date(y, (m || 1) - 1, d || 1) : null;
