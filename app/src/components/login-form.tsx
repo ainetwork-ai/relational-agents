@@ -28,7 +28,7 @@ export function LoginForm() {
         <div className="mb-10 text-center">
           <div className="mb-3 text-4xl">📝</div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Relational Memory
+            AINMem
           </h1>
           <p className="mt-1.5 text-sm text-neutral-500">
             Think it. Write it. All in one place.
