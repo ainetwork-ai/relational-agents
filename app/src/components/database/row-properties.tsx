@@ -74,6 +74,7 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       members,
       me,
       itemName: "페이지",
+      icon: null,
       allDatabases,
       activeView: view,
       updateRow,

@@ -52,6 +52,8 @@ interface DbApi {
   me: string | null;
   /** what one row is called — the original's Projects says "새 프로젝트" */
   itemName: string;
+  /** the database's icon, shown on rows that have none of their own */
+  icon: string | null;
   activeView: DbView;
   /** all databases in the workspace — for the relation target picker */
   allDatabases: { id: string; title: string }[];
@@ -980,6 +982,7 @@ export function DatabaseBlock({
       members,
       me,
       itemName: database?.itemName || "페이지",
+      icon: database?.icon ?? null,
       allDatabases,
       activeView: activeView!,
       updateRow,
@@ -996,7 +999,7 @@ export function DatabaseBlock({
       filterUiOpen,
       setFilterUiOpen,
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName]
+    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName, database?.icon]
   );
 
   if (!database || !activeView) {
