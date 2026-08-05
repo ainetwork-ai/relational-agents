@@ -80,8 +80,23 @@ export function PageView({
   const [title, setTitle] = useState(initialPage.title);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<BlockEditorHandle>(null);
+  // A page whose body IS a database: its title is the database's name, so the
+  // placeholder says so and the save writes both. Notion has one object here;
+  // we have two rows and have to keep them in step.
+  const fullPageDb = initialBlocks.find(
+    (b) => b.type === "database" && (b.content as { fullPage?: boolean }).fullPage
+  );
+  const databaseId = (fullPageDb?.content as { databaseId?: string } | undefined)?.databaseId;
+
   const saveTitle = useDebounced((value: string) => {
     updatePage(initialPage.id, { title: value });
+    if (databaseId) {
+      void fetch(`/api/databases/${databaseId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: value }),
+      });
+    }
   }, 300);
 
   useEffect(() => {
@@ -204,7 +219,7 @@ export function PageView({
           rows={1}
           value={title}
           disabled={page.isLocked}
-          placeholder="Untitled"
+          placeholder={fullPageDb ? "새 데이터베이스" : "Untitled"}
           onChange={(e) => {
             const v = e.target.value.replace(/\n/g, "");
             setTitle(v);

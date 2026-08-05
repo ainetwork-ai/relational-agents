@@ -28,9 +28,11 @@ import { PageItem } from "./page-item";
 import { TrashModal } from "./trash-modal";
 import { WorkspaceSwitcher, type ActiveWorkspace } from "./workspace-switcher";
 import { TeamspacesSection } from "./teamspaces-section";
+import { SectionMenu, sortRows } from "./section-menu";
 import { ImportButton } from "@/components/import/import-button";
 import { NotificationsInbox, InboxPanel } from "@/components/notifications/inbox";
 import { PageIcon } from "@/components/page-icon";
+import { pageLabel, pageFallbackIcon, type PageRow } from "@/lib/page-label";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { initial } from "@/lib/glyph";
 
@@ -98,6 +100,7 @@ export function Sidebar({
   }, [load]);
 
   const roots = usePagesStore((s) => s.roots);
+  const sidebarSort = useUiStore((s) => s.sidebarSort);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
  // draggable width, remembered
@@ -181,8 +184,8 @@ export function Sidebar({
                     href={`/p/${p.id}`}
                     className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
                   >
-                    <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                    <span className="truncate">{p.title || "Untitled"}</span>
+                    <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                    <span className="truncate">{pageLabel(p as PageRow)}</span>
                   </a>
                 ))}
               </div>
@@ -376,8 +379,8 @@ export function Sidebar({
                 href={`/p/${p.id}`}
                 className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
               >
-                <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                <span className="truncate">{p.title || "Untitled"}</span>
+                <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                <span className="truncate">{pageLabel(p as PageRow)}</span>
               </a>
             ))}
           </section>
@@ -402,8 +405,8 @@ export function Sidebar({
                   className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-sm text-neutral-600 dark:text-neutral-400"
                 >
                   <Star size={13} className="shrink-0 text-neutral-400" />
-                  <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                  <span className="truncate">{p.title || "Untitled"}</span>
+                  <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                  <span className="truncate">{pageLabel(p as PageRow)}</span>
                 </a>
                 <button
                   data-testid={`favorite-remove-${p.id}`}
@@ -417,21 +420,28 @@ export function Sidebar({
             ))}
           </section>
         )}
-        <h3 className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400" data-testid="private-section-label">
-          Private
-        </h3>
-
         <section>
-          <div className="flex items-center justify-between px-2 py-1">
-            <h3 className="text-xs font-medium text-neutral-400">Private</h3>
-            <button
-              data-testid="sidebar-new-page"
-              onClick={newPage}
-              className="rounded p-0.5 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-700"
-              aria-label="New page"
+          {/* The + reveals on hover, as Notion's section headers do: a sidebar
+              full of always-visible buttons reads as clutter, and the row is
+              the affordance. focus-visible keeps it reachable by keyboard. */}
+          <div className="group/section flex items-center justify-between px-2 py-1">
+            <h3
+              className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+              data-testid="private-section-label"
             >
-              <Plus size={14} />
-            </button>
+              Private
+            </h3>
+            <div className="flex items-center gap-0.5">
+              <SectionMenu testId="private-section-menu" label="Private" />
+              <button
+                data-testid="sidebar-new-page"
+                onClick={newPage}
+                className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
+                aria-label="Add page"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
           {!loaded ? (
@@ -446,7 +456,7 @@ export function Sidebar({
           ) : roots.length === 0 ? (
             <p className="px-2 py-1 text-xs text-neutral-400">No pages yet</p>
           ) : (
-            roots.map((p) => <PageItem key={p.id} page={p} depth={0} />)
+            sortRows(roots, sidebarSort).map((p) => <PageItem key={p.id} page={p} depth={0} />)
           )}
         </section>
       </nav>

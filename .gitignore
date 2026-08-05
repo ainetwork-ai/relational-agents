@@ -34,3 +34,9 @@ app/public/avatars/
 # Demo videos live on YouTube, not in git
 assets/*.mp4
 *.mp4
+
+# 노션 대조용 DOM 캡처 — 로컬 참고 자료이고 소스가 아니다.
+# 파일 하나가 최대 1.4MB 라 리포를 무겁게 만든다. 무엇이 어떤 화면인지는
+# docs/notion-captures.md 에 정리돼 있다.
+docs/*.html
+docs/plus_page_personalpage_html
