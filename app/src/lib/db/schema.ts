@@ -454,6 +454,9 @@ export const dbViews = pgTable(
 // ---------------------------------------------------------------------------
 // Teamspaces: a named grouping of pages inside a workspace (pages.teamspaceId).
 // ---------------------------------------------------------------------------
+/** Who can see and join a teamspace — the "보안" field of the create dialog. */
+export type TeamspaceVisibility = "open" | "closed" | "private";
+
 export const teamspaces = pgTable(
   "teamspaces",
   {
@@ -463,10 +466,31 @@ export const teamspaces = pgTable(
       .notNull(),
     name: text("name").notNull(),
     icon: text("icon"),
+ // "이 팀스페이스의 용도는 무엇인가요?" — optional, shown under the name
+    description: text("description").default("").notNull(),
+ // open = anyone in the workspace can see and join (Notion's default 공개)
+    visibility: text("visibility").$type<TeamspaceVisibility>().default("open").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("teamspaces_workspace_idx").on(t.workspaceId)]
+);
+
+/** Teamspace membership — what step 2 of the create flow writes. The creator is
+ *  inserted as owner; invitees added from the member search land as members. */
+export const teamspaceMembers = pgTable(
+  "teamspace_members",
+  {
+    teamspaceId: uuid("teamspace_id")
+      .references(() => teamspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    role: text("role").default("member").notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("teamspace_members_pk").on(t.teamspaceId, t.userId)]
 );
 
 // Invite specific people to a page. permission ∈ view|comment|edit|full.
@@ -887,6 +911,7 @@ export type AiChatMute = typeof aiChatMutes.$inferSelect;
 export type Page = typeof pages.$inferSelect;
 export type Block = typeof blocks.$inferSelect;
 export type Teamspace = typeof teamspaces.$inferSelect;
+export type TeamspaceMember = typeof teamspaceMembers.$inferSelect;
 export type PageMember = typeof pageMembers.$inferSelect;
 export type PageInvite = typeof pageInvites.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
