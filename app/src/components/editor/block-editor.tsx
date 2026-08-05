@@ -215,6 +215,9 @@ export const BlockEditor = forwardRef<
  // the block whose Enter we deferred until the commit lands.
   const composingRef = useRef(false);
   const splitOnComposeEnd = useRef<string | null>(null);
+ // when a composition-deferred Enter actually split, so the same keypress
+ // passed back through by the IME can be recognised and dropped
+  const composedSplitAt = useRef(0);
  // block-level multi-selection (Esc to select, Shift+Arrow / Shift+Click to extend)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectedIdsRef = useRef<Set<string>>(selectedIds);
@@ -1485,6 +1488,18 @@ export const BlockEditor = forwardRef<
         return;
       }
 
+ // Some IMEs hand the committing Enter back as a second keydown, this time
+ // with isComposing=false. We already split for it from compositionend, so
+ // splitting again is the "one Enter, two blank lines" report. Only a
+ // pass-through can land this soon after that split — a person pressing Enter
+ // twice needs a key release in between (~100ms at the very fastest, and key
+ // repeat waits far longer).
+      if (e.key === "Enter" && !e.shiftKey && Date.now() - composedSplitAt.current < 50) {
+        composedSplitAt.current = 0;
+        e.preventDefault();
+        return;
+      }
+
       if (slash && slash.blockId === id) {
         const items = filterSlashItems(slash.query);
         if (e.key === "ArrowDown") {
@@ -1678,6 +1693,7 @@ export const BlockEditor = forwardRef<
       if (splitOnComposeEnd.current !== id) return;
       splitOnComposeEnd.current = null;
       splitBlock(id, el);
+      composedSplitAt.current = Date.now();
     },
     [splitBlock]
   );
