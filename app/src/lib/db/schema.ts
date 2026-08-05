@@ -373,6 +373,8 @@ export interface ChartConfig {
   hideEmptyGroups?: boolean;
 }
 
+export type TimelineZoom = "month" | "quarter" | "year";
+
 export interface ViewConfig {
   groupByPropertyId?: string; // board grouping
   filters?: ViewFilter[];
@@ -390,6 +392,10 @@ export interface ViewConfig {
   widths?: Record<string, number>;
   /** which date property the calendar view lays rows out on */
   calendarDatePropertyId?: string;
+  /** timeline: how wide a window one screen covers, and whether the side table
+   * is open (the original's `My Timeline` keeps it open at quarter zoom) */
+  timelineZoom?: TimelineZoom;
+  timelineShowTable?: boolean;
   /** a linked database view embedded inside another page */
   embedded?: boolean;
   /** per-property column-footer aggregation:
