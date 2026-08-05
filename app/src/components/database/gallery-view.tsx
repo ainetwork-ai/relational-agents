@@ -93,7 +93,7 @@ export function GalleryView({ view }: { view: DbView }) {
           onClick={() => db.addRow()}
           className="flex min-h-[80px] items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          <Plus size={13} /> New
+          <Plus size={13} /> 새 {db.itemName}
         </button>
       )}
     </div>

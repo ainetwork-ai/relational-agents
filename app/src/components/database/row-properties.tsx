@@ -73,6 +73,7 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       rows,
       members,
       me,
+      itemName: "페이지",
       allDatabases,
       activeView: view,
       updateRow,

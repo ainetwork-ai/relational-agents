@@ -199,15 +199,8 @@ function HeaderRow({ cols, view }: { cols: DbProperty[]; view: DbView }) {
   );
 }
 
-function AddRowButton({
-  testid,
-  onClick,
-  label = "새 페이지",
-}: {
-  testid: string;
-  onClick: () => void;
-  label?: string;
-}) {
+function AddRowButton({ testid, onClick }: { testid: string; onClick: () => void }) {
+  const label = `새 ${useDb().itemName}`;
   return (
     <button
       data-testid={testid}
@@ -316,7 +309,7 @@ function GroupSection({
             <button
               data-testid={`db-group-add-${group.key}`}
               onClick={addToGroup}
-              aria-label="그룹에 새 페이지 추가"
+              aria-label={`그룹에 새 ${db.itemName} 추가`}
               className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <Plus size={14} />
@@ -672,7 +665,7 @@ function RowLine({
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
-            className={`group/titlecell relative flex shrink-0 items-center border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+            className={`group/titlecell relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
               i === 0 ? "sticky left-0 z-[2]" : ""
             }`}
           >
@@ -738,7 +731,9 @@ function RowLine({
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
-            className={`shrink-0 border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+ // one line per cell: the original's table views all carry `table_wrap: false`,
+ // so a cell with five team chips is clipped rather than growing the row
+            className={`flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
               i === 0 ? "sticky left-0 z-[2]" : ""
             }`}
           >

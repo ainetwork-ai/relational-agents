@@ -50,6 +50,8 @@ interface DbApi {
   rows: DbRow[];
   members: PublicUser[];
   me: string | null;
+  /** what one row is called — the original's Projects says "새 프로젝트" */
+  itemName: string;
   activeView: DbView;
   /** all databases in the workspace — for the relation target picker */
   allDatabases: { id: string; title: string }[];
@@ -977,6 +979,7 @@ export function DatabaseBlock({
       rows,
       members,
       me,
+      itemName: database?.itemName || "페이지",
       allDatabases,
       activeView: activeView!,
       updateRow,
@@ -993,7 +996,7 @@ export function DatabaseBlock({
       filterUiOpen,
       setFilterUiOpen,
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen]
+    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName]
   );
 
   if (!database || !activeView) {
@@ -1259,7 +1262,7 @@ export function DatabaseBlock({
               onClick={() => void addRow({})}
               className="order-last ml-1 flex items-center gap-1 rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600"
             >
-              New
+              새 {database.itemName || "페이지"}
             </button>
             {activeView?.type !== "table" && (
             <div className="relative">

@@ -444,6 +444,9 @@ export const databases = pgTable("databases", {
  // it, and then the description shows if there is any — a database that already
  // has text must not go blank the moment this column exists.
   descriptionVisible: boolean("description_visible"),
+ // What one row is called, used wherever the UI offers to make one: the
+ // original's Projects says "새 프로젝트", not "새 페이지". Null = 페이지.
+  itemName: text("item_name"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

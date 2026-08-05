@@ -160,7 +160,7 @@ export function BoardView({ view }: { view: DbView }) {
                 }
                 className="flex items-center gap-1 rounded px-1 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
-                <Plus size={12} /> New
+                <Plus size={12} /> 새 {db.itemName}
               </button>
             </div>
           </div>

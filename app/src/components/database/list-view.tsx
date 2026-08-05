@@ -63,7 +63,7 @@ export function ListView({ view }: { view: DbView }) {
         onClick={() => db.addRow()}
         className="flex w-full items-center gap-1 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <Plus size={13} /> New
+        <Plus size={13} /> 새 {db.itemName}
       </button>
     </div>
   );
