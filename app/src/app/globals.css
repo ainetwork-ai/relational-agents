@@ -125,6 +125,14 @@ body {
 }
 .popover-anim { animation: pop-in 80ms ease-out; transform-origin: top left; }
 
+/* A side peek slides in from the edge it is docked to (Notion: 200ms ease) —
+   a panel that big appearing instantly reads as a page swap, not a peek. */
+@keyframes peek-in-right {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.peek-anim-right { animation: peek-in-right 200ms ease; }
+
 /* #80 styled instant tooltips via data-tip (delay ≈ Notion's 300ms) */
 @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
 [data-tip] { position: relative; }

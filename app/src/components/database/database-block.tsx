@@ -440,6 +440,23 @@ export function DatabaseBlock({
     return out;
   }, []);
 
+ /** A row's body is a real page, created the first time the row is opened —
+  *  a table of 500 rows should not mint 500 pages up front. */
+  const ensureRowPage = useCallback(
+    async (row: DbRow) => {
+      if (typeof row.values["__page"] === "string") return;
+      const titleProp = propsRef.current.find((p) => p.type === "title");
+      const title = (titleProp && (row.values[titleProp.id] as string)) || "Untitled";
+      const res = await fetch("/api/pages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (res.ok) updateRow(row.id, { __page: (await res.json()).page.id as string });
+    },
+    [updateRow]
+  );
+
   const addRow = useCallback(
     async (values: Record<string, unknown> = {}, parentRowId?: string) => {
  // "default template": a template row flagged __default pre-fills
@@ -461,9 +478,16 @@ export function DatabaseBlock({
       if (!res.ok) return null;
       const { row } = await res.json();
       setRows((prev) => [...prev, row]);
+ // Notion opens what you just made: 새로 만들기 (and a group's 새 프로젝트 row)
+ // lands in the side peek, ready to be named. A sub-item or a template
+ // definition is not an entry you were about to write, so it stays put.
+      if (!parentRowId && !seeded.__template) {
+        await ensureRowPage(row as DbRow);
+        setOpenRowId(row.id as string);
+      }
       return row as DbRow;
     },
-    [databaseId, seedFromFilters]
+    [databaseId, seedFromFilters, ensureRowPage]
   );
 
   const deleteRow = useCallback(
@@ -516,23 +540,10 @@ export function DatabaseBlock({
     async (rowId: string) => {
       const row = rowsRef.current.find((r) => r.id === rowId);
       if (!row) return;
-      let pageId = row.values["__page"];
-      if (typeof pageId !== "string") {
-        const titleProp = propsRef.current.find((p) => p.type === "title");
-        const title = (titleProp && (row.values[titleProp.id] as string)) || "Untitled";
-        const res = await fetch("/api/pages", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ title }),
-        });
-        if (res.ok) {
-          pageId = (await res.json()).page.id as string;
-          updateRow(rowId, { __page: pageId });
-        }
-      }
+      await ensureRowPage(row);
       setOpenRowId(rowId);
     },
-    [updateRow]
+    [ensureRowPage]
   );
 
   const addView = useCallback(

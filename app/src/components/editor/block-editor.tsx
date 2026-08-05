@@ -183,8 +183,15 @@ const CONTINUING: BlockType[] = ["bulleted_list", "numbered_list", "todo"];
 
 export const BlockEditor = forwardRef<
   BlockEditorHandle,
-  { pageId: string; initialBlocks: Block[]; shareToken?: string }
->(function BlockEditor({ pageId, initialBlocks, shareToken }, apiRef) {
+  {
+    pageId: string;
+    initialBlocks: Block[];
+    shareToken?: string;
+    /** What an empty body offers. A page gets the 시작하기 row; a database row
+     *  opened in a peek gets Notion's quieter line there instead. */
+    emptyVariant?: "page" | "row";
+  }
+>(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page" }, apiRef) {
   const [blocks, setBlocks] = useState<EBlock[]>(() => {
     const mapped = initialBlocks.map(fromRow);
     return mapped.length > 0 ? mapped : [freshParagraph(null, 1)];
@@ -2219,7 +2226,25 @@ export const BlockEditor = forwardRef<
           <>
             {/* An empty page offers what it can become — Notion's 시작하기 row.
                 The template list below is the same one that used to sit here
-                unconditionally; it now opens from the 템플릿 button. */}
+                unconditionally; it now opens from the 템플릿 button. A row opened
+                in a peek gets the one line Notion shows there instead: the row
+                is an entry in a database, not a page you are starting fresh. */}
+            {emptyVariant === "row" ? (
+              <p
+                data-testid="empty-row-hint"
+                className="pb-6 pl-2 pt-2 text-sm text-neutral-400"
+              >
+                &apos;Enter&apos; 키를 눌러 빈 페이지에 입력을 시작하거나{" "}
+                <button
+                  data-testid="empty-row-templates"
+                  onClick={() => setTemplatesOpen((v) => !v)}
+                  className="underline decoration-neutral-300 transition-colors hover:text-neutral-600 dark:hover:text-neutral-200"
+                >
+                  템플릿을 생성하세요
+                </button>
+                .
+              </p>
+            ) : (
             <EmptyPageStarter
               onPick={(type, preset) =>
                 type === "database"
@@ -2228,6 +2253,7 @@ export const BlockEditor = forwardRef<
               }
               onTemplates={() => setTemplatesOpen((v) => !v)}
             />
+            )}
             {templatesOpen && (
             <div data-testid="page-template-strip" className="mt-4 text-sm text-neutral-400">
               <p className="mb-1.5 text-xs uppercase tracking-wide">Start with a template</p>
