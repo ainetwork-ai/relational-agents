@@ -411,11 +411,18 @@ export const BlockEditor = forwardRef<
         h.future = [];
       }
       lastPushRef.current = now;
-      setBlocks((prev) => {
-        const next = updater(prev);
-        save.call(next);
-        return next;
-      });
+ // Run the updater exactly ONCE, here, instead of inside setBlocks. React may
+ // invoke a setState updater more than once (dev StrictMode always does, and a
+ // replayed render can too), and ours is not pure: the structural ops mint a
+ // block id with newId() and set pendingFocus. Two invocations therefore built
+ // two *different* blocks, and one Enter left a second blank line behind — a
+ // ghost the server never received (it only ever saw the payload below).
+ // blocksRef is the authoritative list, so back-to-back mutate calls inside one
+ // handler still compose.
+      const next = updater(blocksRef.current);
+      blocksRef.current = next;
+      setBlocks(next);
+      save.call(next);
     },
     [save]
   );
