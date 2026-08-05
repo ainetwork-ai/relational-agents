@@ -15,6 +15,7 @@ import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { copyText } from "@/lib/compat";
+import { plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
 import { Breadcrumbs } from "./breadcrumbs";
 import { RowPropertiesPanel } from "@/components/database/row-properties";
@@ -105,7 +106,10 @@ export function PageView({
   const [desc, setDesc] = useState("");
   const [descShown, setDescShown] = useState(false);
   const [descLoaded, setDescLoaded] = useState(false);
-  const descRef = useRef<HTMLTextAreaElement>(null);
+  const descRef = useRef<HTMLDivElement>(null);
+ // bumped when the DOM must resync from `desc` (load, blur) — never while
+ // typing, or the innerHTML rewrite would throw the caret to the start
+  const [descSync, setDescSync] = useState(0);
   useEffect(() => {
     if (!databaseId) return;
     let alive = true;
@@ -120,6 +124,7 @@ export function PageView({
  // database imported with a description expects
         setDescShown(flag ?? text.trim() !== "");
         setDescLoaded(true);
+        setDescSync((n) => n + 1);
       });
     return () => {
       alive = false;
@@ -139,7 +144,7 @@ export function PageView({
   function toggleDesc() {
     const next = !descShown;
     setDescShown(next);
-    if (next) requestAnimationFrame(() => descRef.current?.focus());
+    if (next) requestAnimationFrame(() => focusDescEnd());
     void fetch(`/api/databases/${databaseId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -147,14 +152,29 @@ export function PageView({
     });
   }
 
- // grow with its content, like the title does
+  function focusDescEnd() {
+    const el = descRef.current;
+    if (!el) return;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+ // The description is stored as plain text but rendered as inline HTML so a
+ // pasted URL reads as a link, the way it does in the reference capture. React
+ // must not own these children — it would rewrite them mid-keystroke — so the
+ // DOM is written here and read back with innerText.
   useEffect(() => {
     const el = descRef.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
-    }
-  }, [desc, descShown]);
+    if (el) el.innerHTML = plainTextToLinkedHtml(desc);
+ // `desc` is deliberately NOT a dependency: resync on load/blur (descSync)
+ // only, never on a typed character.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [descSync, descShown]);
 
   const saveTitle = useDebounced((value: string) => {
     updatePage(initialPage.id, { title: value });
@@ -373,21 +393,49 @@ export function PageView({
           className="mt-2 w-full resize-none overflow-hidden bg-transparent text-4xl font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600"
         />
 
-        {/* the description sits between the title and the database's view tabs,
-            where Notion puts it — 14px, multi-line, saved as you type */}
+        {/* The description sits between the title and the database's view tabs,
+            where Notion puts it, with the capture's own metrics: 14px/1.5, a
+            12px inline start, 780px measure (a description does not stretch to
+            a wide table's width), 12px below. */}
         {databaseId && descShown && (
-          <textarea
+          <div
             ref={descRef}
             data-testid="db-page-description"
-            rows={1}
-            value={desc}
-            disabled={page.isLocked}
-            placeholder="설명을 추가하세요"
-            onChange={(e) => {
-              setDesc(e.target.value);
-              saveDesc.call(e.target.value);
+            contentEditable={!page.isLocked}
+            suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
+            aria-label="설명"
+            data-placeholder="설명을 추가하세요"
+            data-placeholder-persist=""
+            onInput={(e) => {
+              const text = (e.currentTarget as HTMLDivElement).innerText;
+              setDesc(text);
+              saveDesc.call(text);
             }}
-            className="mb-3 mt-1.5 w-full resize-none overflow-hidden bg-transparent text-sm leading-6 text-neutral-600 outline-none placeholder:text-neutral-400 dark:text-neutral-300 dark:placeholder:text-neutral-500"
+            onBlur={() => {
+ // relinkify from the text that ended up in the DOM: a URL typed by hand
+ // becomes a link now, and text typed against a link's edge normalizes
+              const text = descRef.current?.innerText ?? "";
+              setDesc(text);
+              setDescSync((n) => n + 1);
+            }}
+            onPaste={(e) => {
+ // plain text only — the store holds text, and pasted markup would be
+ // dropped on the next blur anyway (silently losing what it looked like)
+              e.preventDefault();
+              const text = e.clipboardData.getData("text/plain");
+              document.execCommand("insertText", false, text);
+            }}
+            onClick={(e) => {
+ // links inside a contenteditable are not followed by the browser
+              const anchor = (e.target as HTMLElement).closest?.("a[href]");
+              const href = anchor?.getAttribute("href");
+              if (!href) return;
+              e.preventDefault();
+              window.open(href, "_blank", "noopener,noreferrer");
+            }}
+            className="mb-3 mt-1.5 max-w-[780px] whitespace-pre-wrap break-words pb-1 pl-3 pt-[3px] text-sm leading-[1.5] text-neutral-800 outline-none dark:text-neutral-200"
           />
         )}
 

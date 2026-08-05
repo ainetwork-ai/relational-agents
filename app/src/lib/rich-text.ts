@@ -55,6 +55,35 @@ export function inlineHtmlToMd(html: string): string {
   return decodeEntities(s);
 }
 
+/**
+ * Plain text → inline HTML with bare URLs turned into links, for text that is
+ * STORED as plain text but rendered in a contenteditable (a database's 설명).
+ * Newlines stay literal — the element carries `white-space: pre-wrap`, and a
+ * <br> would come back out of innerText as a doubled line.
+ */
+export function plainTextToLinkedHtml(text: string): string {
+  const url = /(?:https?:\/\/|www\.)[^\s<>()]*[^\s<>().,;:!?'"]/gi;
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(url)) {
+    const raw = m[0];
+    const at = m.index ?? 0;
+    out += escapeHtml(text.slice(last, at));
+    const href = raw.startsWith("www.") ? `https://${raw}` : raw;
+    out += `<a href="${escapeHtml(href)}">${escapeHtml(raw)}</a>`;
+    last = at + raw.length;
+  }
+  return out + escapeHtml(text.slice(last));
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export function htmlToText(html: string): string {
   return decodeEntities(sanitizeInline(html).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""));
 }

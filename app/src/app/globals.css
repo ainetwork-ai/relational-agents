@@ -40,6 +40,19 @@ body {
   color: #5a5a58;
 }
 
+/* A database's 설명 keeps its hint while empty whether or not it has focus: the
+   row is open because someone asked for it, and an empty unfocused block would
+   otherwise be an invisible gap under the title. Blocks keep the :focus rule —
+   a page of always-on placeholders reads as clutter. */
+[contenteditable][data-placeholder][data-placeholder-persist]:empty::before {
+  content: attr(data-placeholder);
+  color: #9b9a97;
+  pointer-events: none;
+}
+.dark [contenteditable][data-placeholder][data-placeholder-persist]:empty::before {
+  color: #5a5a58;
+}
+
 /* inline formatting inside blocks (F6) */
 [contenteditable] code {
   background: rgba(135, 131, 120, 0.15);
