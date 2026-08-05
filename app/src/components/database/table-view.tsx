@@ -163,7 +163,7 @@ export function TableView({ view }: { view: DbView }) {
         {/* calculation footer — selects fade in on row hover; a
             chosen calc stays visible */}
         <div className="group/calcrow flex border-t border-neutral-200 dark:border-neutral-700">
-          <div className="sticky left-0 z-[2] w-24 shrink-0 bg-white dark:bg-neutral-900" />
+          <div className="sticky left-0 z-[2] w-24 shrink-0 bg-[var(--background)]" />
           {cols.map((p) => (
             <CalcCell key={p.id} view={view} prop={p} rows={visible} />
           ))}
@@ -178,7 +178,7 @@ export function TableView({ view }: { view: DbView }) {
 function HeaderRow({ cols, view }: { cols: DbProperty[]; view: DbView }) {
   return (
     <div className="flex border-b border-neutral-200 dark:border-neutral-700">
-      <div className="sticky left-0 z-[3] w-24 shrink-0 bg-white dark:bg-neutral-900" />
+      <div className="sticky left-0 z-[3] w-24 shrink-0 bg-[var(--background)]" />
       {cols.map((p, i) => (
         <ColumnHeader key={p.id} prop={p} view={view} frozen={i === 0} />
       ))}
@@ -257,7 +257,7 @@ function GroupSection({
         data-testid={`db-group-header-${group.key}`}
         className="group/gh flex h-9 items-center border-b border-neutral-100 dark:border-neutral-800"
       >
-        <div className="sticky left-0 z-[3] flex items-center gap-1 bg-white pl-1 pr-2 dark:bg-neutral-900">
+        <div className="sticky left-0 z-[3] flex items-center gap-1 bg-[var(--background)] pl-1 pr-2">
           <button
             data-testid={`db-group-toggle-${group.key}`}
             onClick={onToggle}
@@ -394,7 +394,7 @@ function FrozenBg({ checked }: { checked?: boolean }) {
     <>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-20 bg-white dark:bg-neutral-900"
+        className="pointer-events-none absolute inset-0 -z-20 bg-[var(--background)]"
       />
       <span
         aria-hidden="true"
@@ -777,7 +777,7 @@ function ColumnHeader({
       ref={ref}
       style={{ width: view.config.widths?.[prop.id] ?? 176 }}
       className={`group/col relative shrink-0 border-l border-neutral-200 first:border-l-0 dark:border-neutral-700 ${
-        frozen ? "sticky left-24 z-[3] bg-white dark:bg-neutral-900" : ""
+        frozen ? "sticky left-24 z-[3] bg-[var(--background)]" : ""
       }`}
     >
       {/* drag the right edge to resize the column (persists per view) */}
