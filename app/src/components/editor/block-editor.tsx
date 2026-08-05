@@ -66,6 +66,9 @@ interface EditorApi {
   registerEl: (id: string, el: HTMLElement | null) => void;
   onInput: (id: string, el: HTMLElement) => void;
   onKeyDown: (id: string, e: React.KeyboardEvent, el: HTMLElement) => void;
+  /** IME composition (Hangul, Kana, Pinyin…) — see onKeyDown's isComposing guard */
+  onCompositionStart: () => void;
+  onCompositionEnd: (id: string, el: HTMLElement) => void;
   onPaste: (id: string, e: React.ClipboardEvent, el: HTMLElement) => void;
   toggleExpand: (id: string) => void;
   addInsideToggle: (id: string) => void;
@@ -207,6 +210,11 @@ export const BlockEditor = forwardRef<
     anchor: { x: number; y: number };
   } | null>(null);
   const mentionItemsRef = useRef<MentionItem[]>([]);
+ // an IME (Hangul, Kana, Pinyin…) owns the text until it commits. composingRef
+ // keeps the DOM-rewriting autoformat off that text; splitOnComposeEnd holds
+ // the block whose Enter we deferred until the commit lands.
+  const composingRef = useRef(false);
+  const splitOnComposeEnd = useRef<string | null>(null);
  // block-level multi-selection (Esc to select, Shift+Arrow / Shift+Click to extend)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectedIdsRef = useRef<Set<string>>(selectedIds);
@@ -1023,8 +1031,14 @@ export const BlockEditor = forwardRef<
   const onInput = useCallback(
     (id: string, el: HTMLElement) => {
  // inline markdown (**bold** etc.) / :emoji: autoformat — rewrites the
- // DOM in place; normalize() below re-reads it either way
-      if (el.closest("[data-block-type]")?.getAttribute("data-block-type") !== "code")
+ // DOM in place; normalize() below re-reads it either way. Never while an IME
+ // composes: replacing nodes it is composing into drops the pending syllable.
+ // The next non-composing keystroke autoformats instead (a closing "**" is
+ // ASCII, so nothing a user can type is left unformatted).
+      if (
+        !composingRef.current &&
+        el.closest("[data-block-type]")?.getAttribute("data-block-type") !== "code"
+      )
         tryInlineAutoformat();
       const text = normalize(el);
 
@@ -1447,6 +1461,23 @@ export const BlockEditor = forwardRef<
       const block = blocks.find((b) => b.id === id);
       if (!block) return;
 
+ // While an IME is composing, the keystroke belongs to the IME, not to us:
+ // Chrome delivers keydown with isComposing=true BEFORE it commits the
+ // syllable. Splitting here moved focus to the new block while the IME still
+ // owned "트", so its commit landed there — 프로젝트 + Enter came out as
+ // "프로젝트" / "트". Remember the Enter and split once the text is committed
+ // (Latin typing never composes, which is why it looked fine in English).
+ // The event's own flag decides, never composingRef: were a compositionend
+ // ever missed, a sticky ref would swallow every keystroke that follows.
+      if ((e.nativeEvent as KeyboardEvent).isComposing) {
+        if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
+ // preventDefault stops the browser's own newline; the IME still commits
+          e.preventDefault();
+          splitOnComposeEnd.current = id;
+        }
+        return;
+      }
+
       if (slash && slash.blockId === id) {
         const items = filterSlashItems(slash.query);
         if (e.key === "ArrowDown") {
@@ -1626,6 +1657,22 @@ export const BlockEditor = forwardRef<
       }
     },
     [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock]
+  );
+
+  const onCompositionStart = useCallback(() => {
+    composingRef.current = true;
+  }, []);
+
+ // The IME has committed: the syllable is in the DOM (and no longer composing),
+ // so an Enter we held back can now split the block at the real caret.
+  const onCompositionEnd = useCallback(
+    (id: string, el: HTMLElement) => {
+      composingRef.current = false;
+      if (splitOnComposeEnd.current !== id) return;
+      splitOnComposeEnd.current = null;
+      splitBlock(id, el);
+    },
+    [splitBlock]
   );
 
   const toggleExpand = useCallback(
@@ -2041,6 +2088,8 @@ export const BlockEditor = forwardRef<
       registerEl,
       onInput,
       onKeyDown,
+      onCompositionStart,
+      onCompositionEnd,
       onPaste,
       toggleExpand,
       addInsideToggle,
@@ -2077,6 +2126,8 @@ export const BlockEditor = forwardRef<
       registerEl,
       onInput,
       onKeyDown,
+      onCompositionStart,
+      onCompositionEnd,
       onPaste,
       toggleExpand,
       addInsideToggle,

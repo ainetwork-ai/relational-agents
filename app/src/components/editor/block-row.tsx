@@ -1234,6 +1234,8 @@ function Editable({
       data-placeholder={placeholder}
       onInput={(e) => editor.onInput(block.id, e.currentTarget)}
       onKeyDown={(e) => editor.onKeyDown(block.id, e, e.currentTarget)}
+      onCompositionStart={() => editor.onCompositionStart()}
+      onCompositionEnd={(e) => editor.onCompositionEnd(block.id, e.currentTarget)}
       onPaste={(e) => editor.onPaste(block.id, e, e.currentTarget)}
       className={`min-h-[1.75rem] whitespace-pre-wrap outline-none ${className ?? ""}`}
     />
