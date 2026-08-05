@@ -107,7 +107,11 @@ export function TableView({ view }: { view: DbView }) {
     db.patchView({ ...view.config, collapsedGroups: keys });
 
   return (
-    <div className="w-full overflow-x-auto">
+ // -ml-9/pl-9: the scroller keeps 36px of visible padding on its left so the
+ // per-row affordances can hang there (`overflow-x-auto` would clip anything
+ // outside it), while the negative margin puts the columns back where they
+ // were — flush with the page's own left edge, as in the capture.
+    <div className="-ml-9 w-full overflow-x-auto pl-9">
       {checked.size > 0 && (
         <div
           data-testid="db-bulk-bar"
@@ -171,7 +175,6 @@ export function TableView({ view }: { view: DbView }) {
         {/* calculation footer — selects fade in on row hover; a
             chosen calc stays visible */}
         <div className="group/calcrow flex border-t border-neutral-200 dark:border-neutral-700">
-          <div className="sticky left-0 z-[2] w-24 shrink-0 bg-[var(--background)]" />
           {cols.map((p) => (
             <CalcCell key={p.id} view={view} prop={p} rows={visible} />
           ))}
@@ -186,7 +189,6 @@ export function TableView({ view }: { view: DbView }) {
 function HeaderRow({ cols, view }: { cols: DbProperty[]; view: DbView }) {
   return (
     <div className="flex border-b border-neutral-200 dark:border-neutral-700">
-      <div className="sticky left-0 z-[3] w-24 shrink-0 bg-[var(--background)]" />
       {cols.map((p, i) => (
         <ColumnHeader key={p.id} prop={p} view={view} frozen={i === 0} />
       ))}
@@ -597,90 +599,54 @@ function RowLine({
     <div
       data-testid={`db-row-${row.id}`}
       data-dbrow
-      style={{ paddingLeft: depth * 24 }}
-      className={`group/dbrow flex border-b border-neutral-100 hover:bg-neutral-50/60 dark:border-neutral-800 dark:hover:bg-neutral-800/30 ${
+      className={`group/dbrow relative flex border-b border-neutral-100 hover:bg-neutral-50/60 dark:border-neutral-800 dark:hover:bg-neutral-800/30 ${
         checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
       }`}
     >
-      {/* gutter + first column stay put while the rest scrolls sideways
-          (Notion's frozen column) */}
-      <div className="sticky left-0 z-[2] flex w-24 shrink-0 items-start justify-start gap-0.5 pl-1 pt-1">
-        <FrozenBg checked={checked} />
-        <input
-          type="checkbox"
-          data-testid={`db-row-check-${row.id}`}
-          checked={checked}
-          onChange={() => onCheck?.()}
-          aria-label="Select row"
-          className={`mt-0.5 h-3.5 w-3.5 shrink-0 accent-blue-500 transition-opacity ${
+      {/* Row affordances live in the page margin *outside* the table, taking no
+          width — Notion hangs them at `inset-inline-start: -36px` off a sticky
+          zero-width anchor, so they follow the frozen column when it scrolls.
+          A leading gutter column would leave an empty first cell, which the
+          real table doesn't have. */}
+      <div className="sticky left-0 z-[4] w-0 shrink-0">
+        <div
+          className={`absolute -left-9 top-0 flex h-full w-9 items-start justify-center gap-0.5 pt-1 transition-opacity ${
             checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
           }`}
-        />
-        <button
-          data-testid={`db-row-drag-${row.id}`}
-          onPointerDown={(e) => {
-            if (e.button !== 0) return;
-            e.preventDefault();
-            const onUp = (ev: PointerEvent) => {
-              window.removeEventListener("pointerup", onUp);
-              const el = document.elementFromPoint(ev.clientX, ev.clientY);
-              const target = el?.closest(".group\\/dbrow") as HTMLElement | null;
-              const tid = target?.getAttribute("data-testid")?.replace("db-row-", "");
-              if (!tid || tid === row.id) return;
-              const t = db.rows.find((r) => r.id === tid);
-              if (!t) return;
-              const rect = target!.getBoundingClientRect();
-              const before = ev.clientY < rect.y + rect.height / 2;
-              db.moveRow(row.id, t.position + (before ? -0.5 : 0.5));
-            };
-            window.addEventListener("pointerup", onUp);
-          }}
-          aria-label="Drag to reorder row"
-          className="shrink-0 cursor-grab text-neutral-300 opacity-0 transition-opacity hover:text-neutral-500 group-hover/dbrow:opacity-100"
         >
-          <GripVertical size={11} />
-        </button>
-        {hasChildren ? (
+          <input
+            type="checkbox"
+            data-testid={`db-row-check-${row.id}`}
+            checked={checked}
+            onChange={() => onCheck?.()}
+            aria-label="Select row"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-blue-500"
+          />
           <button
-            data-testid={`db-row-expand-${row.id}`}
-            onClick={onToggle}
-            aria-label={collapsed ? "Expand sub-items" : "Collapse sub-items"}
-            className="shrink-0 text-neutral-400 hover:text-neutral-600"
+            data-testid={`db-row-drag-${row.id}`}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              const onUp = (ev: PointerEvent) => {
+                window.removeEventListener("pointerup", onUp);
+                const el = document.elementFromPoint(ev.clientX, ev.clientY);
+                const target = el?.closest(".group\\/dbrow") as HTMLElement | null;
+                const tid = target?.getAttribute("data-testid")?.replace("db-row-", "");
+                if (!tid || tid === row.id) return;
+                const t = db.rows.find((r) => r.id === tid);
+                if (!t) return;
+                const rect = target!.getBoundingClientRect();
+                const before = ev.clientY < rect.y + rect.height / 2;
+                db.moveRow(row.id, t.position + (before ? -0.5 : 0.5));
+              };
+              window.addEventListener("pointerup", onUp);
+            }}
+            aria-label="Drag to reorder row"
+            className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
-            <ChevronRight
-              size={13}
-              className={`transition-transform ${collapsed ? "" : "rotate-90"}`}
-            />
+            <GripVertical size={11} />
           </button>
-        ) : (
-          <span className="w-[13px] shrink-0" />
-        )}
-        <button
-          data-testid={`db-open-row-${row.id}`}
-          onClick={() => db.openRow(row.id)}
-          aria-label="Open row as page"
-          title="Open as page"
-          className="flex items-center gap-0.5 rounded border border-transparent px-0.5 py-0.5 text-[11px] font-medium text-neutral-400 opacity-0 transition-all hover:border-neutral-200 hover:bg-white hover:text-neutral-700 group-hover/dbrow:opacity-100 dark:hover:border-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-        >
-          <Maximize2 size={11} />
-        </button>
-        <button
-          data-testid={`db-subitem-add-${row.id}`}
-          onClick={onAddSub}
-          aria-label="Add sub-item"
-          title="Add sub-item"
-          className="shrink-0 text-neutral-300 opacity-0 transition-opacity hover:text-blue-500 group-hover/dbrow:opacity-100"
-        >
-          <Plus size={12} />
-        </button>
-        <button
-          data-testid={`db-del-row-${row.id}`}
-          onClick={() => db.deleteRow(row.id)}
-          aria-label="Delete row"
-          className="mt-0.5 shrink-0 text-neutral-300 opacity-0 transition-opacity hover:text-red-500 group-hover/dbrow:opacity-100"
-        >
-          <Trash2 size={12} />
-        </button>
+        </div>
       </div>
       {cols.map((p, i) =>
         p.type === "title" ? (
@@ -693,10 +659,27 @@ function RowLine({
             data-cellnav
             onKeyDown={onCellNavKey}
             className={`group/titlecell relative flex shrink-0 items-center border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              i === 0 ? "sticky left-24 z-[2]" : ""
+              i === 0 ? "sticky left-0 z-[2]" : ""
             }`}
           >
             {i === 0 && <FrozenBg checked={checked} />}
+            {/* sub-item indent and its toggle sit inside the title cell */}
+            {depth > 0 && <span className="shrink-0" style={{ width: depth * 18 }} />}
+            {hasChildren ? (
+              <button
+                data-testid={`db-row-expand-${row.id}`}
+                onClick={onToggle}
+                aria-label={collapsed ? "하위 항목 펼치기" : "하위 항목 접기"}
+                className="ml-1 shrink-0 text-neutral-400 hover:text-neutral-600"
+              >
+                <ChevronRight
+                  size={13}
+                  className={`transition-transform ${collapsed ? "" : "rotate-90"}`}
+                />
+              </button>
+            ) : (
+              depth > 0 && <span className="ml-1 w-[13px] shrink-0" />
+            )}
             <div className="min-w-0 flex-1">
               <PropertyCell prop={p} row={row} />
             </div>
@@ -711,6 +694,28 @@ function RowLine({
             >
               <Maximize2 size={10} /> 열기
             </button>
+            {/* the row actions that used to sit in the gutter now hover here,
+                left of 열기 */}
+            <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100">
+              <button
+                data-testid={`db-subitem-add-${row.id}`}
+                onClick={onAddSub}
+                aria-label="하위 항목 추가"
+                title="하위 항목 추가"
+                className="text-neutral-300 hover:text-blue-500"
+              >
+                <Plus size={13} />
+              </button>
+              <button
+                data-testid={`db-del-row-${row.id}`}
+                onClick={() => db.deleteRow(row.id)}
+                aria-label="행 삭제"
+                title="행 삭제"
+                className="text-neutral-300 hover:text-red-500"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         ) : (
           <div
@@ -720,7 +725,7 @@ function RowLine({
             data-cellnav
             onKeyDown={onCellNavKey}
             className={`shrink-0 border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              i === 0 ? "sticky left-24 z-[2]" : ""
+              i === 0 ? "sticky left-0 z-[2]" : ""
             }`}
           >
             {i === 0 && <FrozenBg checked={checked} />}
@@ -790,7 +795,7 @@ function ColumnHeader({
       ref={ref}
       style={{ width: view.config.widths?.[prop.id] ?? 176 }}
       className={`group/col relative shrink-0 border-l border-neutral-200 first:border-l-0 dark:border-neutral-700 ${
-        frozen ? "sticky left-24 z-[3] bg-[var(--background)]" : ""
+        frozen ? "sticky left-0 z-[3] bg-[var(--background)]" : ""
       }`}
     >
       {/* drag the right edge to resize the column (persists per view) */}

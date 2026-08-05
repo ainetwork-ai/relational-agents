@@ -1014,63 +1014,28 @@ function PersonCell({
     onSet(next.length ? next : null);
   }
 
- // A person cell stays one line however many people it holds: fit as many as
- // the column is wide and fold the rest into "N개 더 보기", which is what the
- // capture's narrow `TL` column does. Chip widths are estimated from the label
- // — measuring each one would cost a layout pass per cell.
-  const fitRef = useRef<HTMLButtonElement>(null);
-  const [avail, setAvail] = useState(0);
-  useEffect(() => {
-    const el = fitRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setAvail(el.clientWidth));
-    ro.observe(el);
-    setAvail(el.clientWidth);
-    return () => ro.disconnect();
-  }, []);
-
-  const CHIP = 28, CHAR = 7.2, GAP = 4, MORE = 66;
-  let used = 0;
-  let fits = 0;
-  for (const p of people) {
-    const w = CHIP + p.label.length * CHAR + (fits ? GAP : 0);
-    const rest = people.length - fits - 1;
-    if (fits > 0 && avail > 0 && used + w + (rest > 0 ? GAP + MORE : 0) > avail) break;
-    used += w;
-    fits++;
-  }
- // always show at least one person, even in a column too narrow for it
-  const visible = people.slice(0, Math.max(1, fits));
-  const overflow = people.length - visible.length;
-
+ // However many people a cell holds it stays one line and is simply clipped by
+ // the column — the real table has no "N개 더 보기" in a cell (that pill is a
+ // filter chip in the toolbar, which is where `target.html` has it).
   return (
     <div ref={ref} className="relative px-1.5 py-1">
       <button
-        ref={fitRef}
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
         className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
       >
         {people.length ? (
           <>
-            {visible.map((p) => (
-              <span key={p.id} className="flex min-w-0 items-center gap-1">
+            {people.map((p) => (
+              <span key={p.id} className="flex shrink-0 items-center gap-1">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
                   {initial(p.label)}
                 </span>
-                <span className="truncate text-sm text-neutral-700 dark:text-neutral-200">
+                <span className="whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-200">
                   {p.label}
                 </span>
               </span>
             ))}
-            {overflow > 0 && (
-              <span
-                data-testid={`${testid}-overflow`}
-                className="shrink-0 whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500"
-              >
-                {overflow}개 더 보기
-              </span>
-            )}
           </>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
