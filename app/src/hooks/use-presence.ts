@@ -6,6 +6,7 @@ import { newId } from "@/lib/compat";
 import { caretRect } from "@/lib/editor/caret";
 import type { PublicUser } from "@/lib/auth/public-user";
 import type { CursorInfo } from "@/lib/realtime";
+import { useMe } from "@/stores/me";
 
 const COLORS = [
   "#ef4444",
@@ -62,24 +63,12 @@ export function usePresence(pageId: string): {
 } {
   const [clientId] = useState(() => newId());
   const [color] = useState(() => COLORS[Math.floor(Math.random() * COLORS.length)]);
-  const [self, setSelf] = useState<PublicUser | null>(null);
+ // same store the sidebar profile chip reads, so my face pile avatar and my
+ // caret label are always the name and photo I just saved
+  const self = useMe();
   const [others, setOthers] = useState<Record<string, PresentClient>>({});
  // bridges the interval sender to the caret-move listener without resubscribing
   const sendRef = useRef<() => void>(() => {});
-
- // who am I (label for my caret + my face-pile avatar)
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((d) => {
-        if (alive) setSelf(d.user ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
 
  // seed with whoever is already present
   useEffect(() => {

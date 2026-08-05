@@ -2,11 +2,7 @@
 
 import type { PresentClient, PresenceSelf } from "@/hooks/use-presence";
 import type { PublicUser } from "@/lib/auth/public-user";
-import { initial } from "@/lib/glyph";
-
-function initials(name: string) {
-  return initial(name);
-}
+import { UserAvatar } from "@/components/user-avatar";
 
 /** Face pile of everyone on the page (self + others), deduped by userId. */
 export function PresenceBar({
@@ -28,15 +24,15 @@ export function PresenceBar({
   return (
     <div data-testid="presence-bar" className="flex items-center -space-x-1.5">
       {people.map(({ user, color }) => (
-        <span
+        <UserAvatar
           key={user.id}
-          data-testid={`presence-avatar-${user.id}`}
+          testId={`presence-avatar-${user.id}`}
+          user={user}
+          size={24}
+          color={color}
           title={user.displayName}
-          style={{ backgroundColor: color }}
-          className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[11px] font-semibold text-white dark:border-[#191919]"
-        >
-          {initials(user.displayName)}
-        </span>
+          className="border-2 border-white font-semibold dark:border-[#191919]"
+        />
       ))}
     </div>
   );
