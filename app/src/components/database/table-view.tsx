@@ -15,7 +15,15 @@ import {
   Check,
 } from "lucide-react";
 import type { DbView, DbProperty, DbRow, PropertyType } from "@/lib/db/schema";
-import { applyView, computeCalc, buildGroups, isGroupable, type RowGroup } from "@/lib/db-values";
+import {
+  applyView,
+  computeCalc,
+  buildGroups,
+  isGroupable,
+  personLabels,
+  type RowGroup,
+} from "@/lib/db-values";
+import { UserAvatar } from "@/components/user-avatar";
 import { fetchDatabaseSnapshot } from "@/lib/db-relation";
 import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
@@ -247,6 +255,10 @@ function GroupSection({
     return () => document.removeEventListener("mousedown", close);
   }, [menuOpen]);
 
+ // a person section is headed by that person's own face
+  const groupPerson =
+    groupProp.type === "person" ? personLabels(db.members, group.preset)[0] : undefined;
+
  // a row added inside a section must carry that section's value
   const addToGroup = () =>
     void db.addRow(group.preset === undefined ? {} : { [groupProp.id]: group.preset });
@@ -271,10 +283,11 @@ function GroupSection({
             />
           </button>
           <span className="flex min-w-0 items-center gap-1.5 rounded px-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
-            {groupProp.type === "person" && group.preset !== undefined && (
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                {group.label.trim().charAt(0).toUpperCase()}
-              </span>
+            {groupPerson && (
+              <UserAvatar
+                user={{ displayName: groupPerson.label, avatarUrl: groupPerson.avatarUrl }}
+                size={20}
+              />
             )}
             <span className="truncate">{group.label}</span>
           </span>

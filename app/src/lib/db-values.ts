@@ -605,12 +605,21 @@ export function personLabel(members: PublicUser[], id: unknown): string {
   return members.find((m) => m.id === first)?.displayName ?? "";
 }
 
-/** Display labels for every person in a cell, in the cell's own order. */
-export function personLabels(members: PublicUser[], v: unknown): { id: string; label: string }[] {
-  return personIds(v).map((id) => ({
-    id,
-    label: members.find((m) => m.id === id)?.displayName ?? "알 수 없는 사용자",
-  }));
+/** Every person in a cell, in the cell's own order, resolved for display: the
+ * label to write and the photo to draw beside it (an id nobody in the roster
+ * matches has neither, and falls back to the unknown-user label). */
+export function personLabels(
+  members: PublicUser[],
+  v: unknown
+): { id: string; label: string; avatarUrl: string | null }[] {
+  return personIds(v).map((id) => {
+    const member = members.find((m) => m.id === id);
+    return {
+      id,
+      label: member?.displayName ?? "알 수 없는 사용자",
+      avatarUrl: member?.avatarUrl ?? null,
+    };
+  });
 }
 
 /** Normalize a date property value to its start date string (calendar view
