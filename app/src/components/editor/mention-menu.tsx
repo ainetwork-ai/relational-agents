@@ -5,7 +5,7 @@ import { FileText, Calendar } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { MonthGrid } from "@/components/database/property-cell";
-import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
 export interface MentionItem {
   kind: "page" | "person" | "date";
@@ -14,6 +14,8 @@ export interface MentionItem {
   icon?: string | null;
   /** parent page title, shown as secondary text (R2#19) */
   parent?: string;
+  /** person rows only: their photo, so a mention shows the same face as everywhere else */
+  avatarUrl?: string | null;
 }
 
 interface PublicMember {
@@ -98,7 +100,12 @@ export function MentionMenu({
       }))
       .filter((it) => !q || it.label.toLowerCase().includes(q));
     const personItems: MentionItem[] = people
-      .map((m) => ({ kind: "person" as const, id: m.id, label: m.displayName }))
+      .map((m) => ({
+        kind: "person" as const,
+        id: m.id,
+        label: m.displayName,
+        avatarUrl: m.avatarUrl,
+      }))
       .filter((it) => !q || it.label.toLowerCase().includes(q));
     const dateItems: MentionItem[] = "today".includes(q) || !q ? [todayItem()] : [];
     return [...personItems.slice(0, 5), ...pageItems.slice(0, 6), ...dateItems];
@@ -151,9 +158,10 @@ export function MentionMenu({
                   >
                     <span className="shrink-0 text-neutral-400">
                       {item.kind === "person" ? (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                          {initial(item.label)}
-                        </span>
+                        <UserAvatar
+                          user={{ displayName: item.label, avatarUrl: item.avatarUrl }}
+                          size={20}
+                        />
                       ) : item.kind === "page" ? (
                         item.icon ? <span className="text-base"><PageIcon icon={item.icon} /></span> : <FileText size={15} />
                       ) : (

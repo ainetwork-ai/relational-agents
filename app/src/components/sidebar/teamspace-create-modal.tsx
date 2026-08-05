@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Users, X, ChevronDown, Link as LinkIcon, Check } from "lucide-react";
 import { useToastStore } from "@/stores/toast";
+import { UserAvatar } from "@/components/user-avatar";
 import type { TeamspaceVisibility } from "@/lib/db/schema";
 
 interface WorkspaceMember {
@@ -349,9 +350,7 @@ export function TeamspaceCreateModal({
                       }
                       className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-200">
-                        {[...(m.displayName || "?")][0]}
-                      </span>
+                      <UserAvatar user={{ ...m, displayName: m.displayName || "?" }} size={24} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-neutral-800 dark:text-neutral-100">
                           {m.displayName}

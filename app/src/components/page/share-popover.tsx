@@ -5,6 +5,7 @@ import { Globe, Link as LinkIcon, UserPlus } from "lucide-react";
 import { copyText } from "@/lib/compat";
 import { MemorySelect } from "@/components/database/memory-select";
 import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
 const PERMS = ["view", "comment", "edit", "full"] as const;
 type Perm = (typeof PERMS)[number];
@@ -286,9 +287,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   key={m.user.id}
                   className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-medium text-neutral-600 dark:bg-neutral-600 dark:text-neutral-200">
-                    {initial(m.user.displayName)}
-                  </span>
+                  <UserAvatar user={m.user} size={20} />
                   <span className="min-w-0 flex-1 truncate text-xs text-neutral-700 dark:text-neutral-200">
                     {m.user.displayName}
                   </span>

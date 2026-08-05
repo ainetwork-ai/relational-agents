@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
 /** Rose scale per emotion level (Lv.0 🩶 … Lv.7 💝) — matches the
  * relationship dashboard's badge palette. */
@@ -81,22 +81,15 @@ function HeartBadge({ level }: { level: number }) {
 }
 
 function Face({ person }: { person: Person }) {
-  const [imgOk, setImgOk] = useState(true);
   return (
     <span className="relative flex h-11 w-11 items-center justify-center">
-      {imgOk ? (
- // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={person.avatarUrl || `/avatars/${person.key}.png`}
-          alt={person.name}
-          onError={() => setImgOk(false)}
-          className="h-11 w-11 rounded-full object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-        />
-      ) : (
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-200 text-base font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
-          {initial(person.name)}
-        </span>
-      )}
+ {/* their photo (the same one the sidebar and face pile draw) or their
+     initial — the old /avatars/<key>.png guess pointed at nothing */}
+      <UserAvatar
+        user={{ displayName: person.name, avatarUrl: person.avatarUrl }}
+        size={44}
+        className="shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+      />
       {person.level >= 0 && <HeartBadge level={person.level} />}
     </span>
   );

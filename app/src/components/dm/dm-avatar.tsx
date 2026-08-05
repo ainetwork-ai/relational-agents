@@ -3,11 +3,12 @@
 import { Bot } from "lucide-react";
 import type { DmUser } from "@/stores/dm-rooms";
 import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
-/** DM avatar: image when avatarUrl exists, else the name's first letter
- * (members-modal convention). Agents keep the same person-style initial —
- * their names vary ("relationshipagent" → R) — and a small robot chip on
- * the corner is what marks them as an agent. */
+/** DM avatar: a person goes through the shared UserAvatar — their photo when
+ * they have one, else their initial — so a DM face matches the sidebar and the
+ * page's face pile. Agents keep their own person-style initial ("relationship
+ * agent" → R) with a small robot chip on the corner marking them as an agent. */
 export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.max(10, size * 0.45) };
   if (user.isAgent) {
@@ -35,23 +36,5 @@ export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
       </span>
     );
   }
-  if (user.avatarUrl) {
-    return (
- // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={user.avatarUrl}
-        alt={user.displayName}
-        style={style}
-        className="shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      style={style}
-      className="flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
-    >
-      {initial(user.displayName)}
-    </span>
-  );
+  return <UserAvatar user={user} size={size} />;
 }
