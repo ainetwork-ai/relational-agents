@@ -371,6 +371,9 @@ export interface ViewConfig {
    * shows its row count (the capture renders the count slot empty — off) */
   collapsedGroups?: string[];
   showGroupCount?: boolean;
+  /** drop sections that hold no rows (every grouped view in the original has
+   * this on; a chart there has it off) */
+  hideEmptyGroups?: boolean;
   /** dashboard view: its widget layout (.com/help/dashboards — up to 12
  * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];

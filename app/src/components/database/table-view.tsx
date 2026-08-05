@@ -104,6 +104,7 @@ export function TableView({ view }: { view: DbView }) {
   ];
  // collapse state lives in the view so it survives a reload, as in Notion
   const collapsedGroups = view.config.collapsedGroups ?? [];
+  const hideEmptyGroups = view.config.hideEmptyGroups ?? true;
   const setCollapsedGroups = (keys: string[]) =>
     db.patchView({ ...view.config, collapsedGroups: keys });
 
@@ -144,7 +145,7 @@ export function TableView({ view }: { view: DbView }) {
  // Grouped: every section carries its own column header row, add-row and
  // header affordances — the shape of the grouped table in `target.html`.
           groups.map((g) =>
-            g.rows.length === 0 ? null : (
+            hideEmptyGroups && g.rows.length === 0 ? null : (
               <GroupSection
                 key={g.key}
                 group={g}
@@ -349,6 +350,18 @@ function GroupSection({
                   onClick={() => {
                     setMenuOpen(false);
                     db.patchView({ ...view.config, showGroupCount: !showCount });
+                  }}
+                />
+                <GroupMenuItem
+                  testid={`db-group-menu-hide-empty-${group.key}`}
+                  label="빈 그룹 숨기기"
+                  checked={view.config.hideEmptyGroups ?? true}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    db.patchView({
+                      ...view.config,
+                      hideEmptyGroups: !(view.config.hideEmptyGroups ?? true),
+                    });
                   }}
                 />
                 <GroupMenuItem

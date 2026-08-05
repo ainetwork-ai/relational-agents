@@ -537,7 +537,13 @@ export function visibleColumns(props: DbProperty[], config: ViewConfig): DbPrope
 /** Property types a view can group by. Notion groups by more than select/status
  * — `docs/target.html`'s Projects table is grouped by the *person* property
  * `TL`, one section per teammate. */
-export const GROUPABLE_TYPES: PropertyType[] = ["select", "status", "person", "checkbox"];
+export const GROUPABLE_TYPES: PropertyType[] = [
+  "select",
+  "status",
+  "person",
+  "multi_select",
+  "checkbox",
+];
 
 export function isGroupable(p: DbProperty): boolean {
   return GROUPABLE_TYPES.includes(p.type);
@@ -603,6 +609,22 @@ export function buildGroups(
   }
 
   const opts = prop.config.options ?? [];
+
+  if (prop.type === "multi_select") {
+ // `All Projects` groups by the multi_select `Team`; a project on two teams
+ // shows up under both, the way a two-person cell shows up under both people.
+    const ids = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+    return [
+      ...opts.map((o) => ({
+        key: o.id,
+        label: o.name,
+        rows: rows.filter((r) => ids(r.values[prop.id]).includes(o.id)),
+        preset: [o.id] as unknown,
+      })),
+      none(`${prop.name} 없음`, (v) => ids(v).length > 0),
+    ];
+  }
+
   return [
     ...opts.map((o) => ({
       key: o.id,
