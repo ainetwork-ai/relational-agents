@@ -21,8 +21,13 @@ export interface DatabaseSnapshot {
 export async function provisionDatabase(
   workspaceId: string,
   userId: string,
-  title = "Tasks"
+  title = "Tasks",
+  shape: "tracker" | "minimal" = "tracker"
 ): Promise<DatabaseSnapshot> {
+  // A database created as a page of its own starts bare, the way Notion's does:
+  // one 이름 column, one 표 view, no rows. The tracker shape below is for the
+  // inline /database command, whose whole promise is "table + board".
+  if (shape === "minimal") return provisionMinimal(workspaceId, userId, title);
   const [database] = await db
     .insert(databases)
     .values({ workspaceId, title, createdBy: userId })
@@ -92,4 +97,31 @@ export async function provisionDatabase(
     .returning();
 
   return { database, properties, rows, views };
+}
+
+
+/** A bare database: title property only, single table view, no rows. */
+async function provisionMinimal(
+  workspaceId: string,
+  userId: string,
+  title: string
+): Promise<DatabaseSnapshot> {
+  const [database] = await db
+    .insert(databases)
+    .values({ workspaceId, title, createdBy: userId })
+    .returning();
+
+  const properties = await db
+    .insert(dbProperties)
+    .values([{ databaseId: database.id, name: "이름", type: "title" as const, config: {}, position: 1 }])
+    .returning();
+
+  const views = await db
+    .insert(dbViews)
+    .values([
+      { databaseId: database.id, name: "표", type: "table" as const, config: {}, position: 1 },
+    ])
+    .returning();
+
+  return { database, properties, rows: [], views };
 }

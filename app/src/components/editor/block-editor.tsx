@@ -28,6 +28,7 @@ import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";
 import { EmojiSuggestMenu, emojiCandidates, type EmojiCandidate } from "./emoji-suggest";
 import { loadEmojiSet } from "@/lib/emoji-data";
 import { BlockRow } from "./block-row";
+import { EmptyPageStarter } from "./empty-page-starter";
 import { useDebounced } from "@/hooks/use-debounced";
 import { usePageSync } from "@/hooks/use-page-sync";
 import { usePagesStore } from "@/stores/pages";
@@ -189,6 +190,7 @@ export const BlockEditor = forwardRef<
     return mapped.length > 0 ? mapped : [freshParagraph(null, 1)];
   });
   const [slash, setSlash] = useState<SlashState | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);
  // URL paste → "keep link / bookmark" chooser
@@ -628,11 +630,18 @@ export const BlockEditor = forwardRef<
     else editables.current.delete(id);
   }, []);
 
-  const applySlashPick = useCallback(
-    (type: BlockType, preset?: Record<string, unknown>) => {
-      if (!slash) return;
-      const { blockId, offset, query } = slash;
-      setSlash(null);
+  /**
+   * Turn a block into `type`. The target is passed in rather than read from the
+   * slash state so the empty-page starter panel can use the same path — one
+   * conversion routine, not two that drift.
+   */
+  const applyPick = useCallback(
+    (
+      type: BlockType,
+      preset: Record<string, unknown> | undefined,
+      target: { blockId: string; offset: number; query: string }
+    ) => {
+      const { blockId, offset, query } = target;
 
  // A database block must provision a collection server-side, so it can't
  // be done in the synchronous mutate path. Convert now, create async,
@@ -751,7 +760,58 @@ export const BlockEditor = forwardRef<
         return next;
       });
     },
-    [slash, mutate, positionAfter, pageId]
+    [mutate, positionAfter, pageId]
+  );
+
+  /**
+   * The empty-page 데이터베이스 button: this page BECOMES the database.
+   *
+   * Notion does not put an inline table inside a prose page here — the page's
+   * own title turns into the database's, so the block is flagged fullPage and
+   * the database is provisioned bare (one 이름 column, one 표 view). The inline
+   * table is what /database gives you.
+   */
+  const becomeDatabasePage = useCallback(
+    async (blockId: string) => {
+      mutate((prev) =>
+        prev.map((b) =>
+          b.id === blockId
+            ? { ...b, type: "database" as BlockType, content: { fullPage: true }, version: b.version + 1 }
+            : b
+        )
+      );
+      const res = await fetch("/api/databases", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shape: "minimal", title: "" }),
+      });
+      if (!res.ok) return;
+      const { database } = await res.json();
+      mutate((prev) =>
+        prev.map((b) =>
+          b.id === blockId
+            ? { ...b, content: { databaseId: database.id, fullPage: true }, version: b.version + 1 }
+            : b
+        )
+      );
+   // the page is now a database page: widen it, and mark it locally so the
+   // sidebar renames/re-icons the row at once — waiting for the next /api/pages
+   // round trip is what made the label appear to change only after navigating
+   // away and back.
+      usePagesStore.getState().markAsDatabase(pageId);
+      void usePagesStore.getState().updatePage(pageId, { fullWidth: true });
+    },
+    [mutate, pageId]
+  );
+
+  const applySlashPick = useCallback(
+    (type: BlockType, preset?: Record<string, unknown>) => {
+      if (!slash) return;
+      const target = { blockId: slash.blockId, offset: slash.offset, query: slash.query };
+      setSlash(null);
+      applyPick(type, preset, target);
+    },
+    [slash, applyPick]
   );
 
   const applyMentionPick = useCallback(
@@ -2156,7 +2216,20 @@ export const BlockEditor = forwardRef<
         {blocks.length === 1 &&
           blocks[0].type === "paragraph" &&
           !(blocks[0].content.text ?? "").trim() && (
-            <div data-testid="page-template-strip" className="mt-6 text-sm text-neutral-400">
+          <>
+            {/* An empty page offers what it can become — Notion's 시작하기 row.
+                The template list below is the same one that used to sit here
+                unconditionally; it now opens from the 템플릿 button. */}
+            <EmptyPageStarter
+              onPick={(type, preset) =>
+                type === "database"
+                  ? void becomeDatabasePage(blocks[0].id)
+                  : applyPick(type, preset, { blockId: blocks[0].id, offset: 0, query: "" })
+              }
+              onTemplates={() => setTemplatesOpen((v) => !v)}
+            />
+            {templatesOpen && (
+            <div data-testid="page-template-strip" className="mt-4 text-sm text-neutral-400">
               <p className="mb-1.5 text-xs uppercase tracking-wide">Start with a template</p>
               <div className="flex flex-col items-start gap-0.5">
                 {PAGE_TEMPLATES.map((t) => (
@@ -2175,6 +2248,8 @@ export const BlockEditor = forwardRef<
                 ))}
               </div>
             </div>
+            )}
+          </>
           )}
         {slash && (
           <SlashMenu
