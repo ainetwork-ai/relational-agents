@@ -219,6 +219,12 @@ dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를
 
 ### 3.6 스키마는 자동으로 밀지 않는다 — 대신 뜰 때 알려준다
 
+> **지금 라이브에 없는 컬럼이 있다.** 2026-08-06의 Projects 이식 작업에서
+> `databases.item_name`, `databases.icon`이 추가됐다(그 전에 `description_visible`도).
+> dev에는 손으로 넣었고 라이브에는 아직 없다. **이 커밋들을 라이브에 올리기 전에
+> `pnpm db:push`를 먼저 돌려야 한다** — drizzle이 컬럼을 명시해서 SELECT 하기 때문에,
+> 컬럼이 없으면 데이터베이스 API가 통째로 500이 된다. 헬스체크가 503으로 잡아준다.
+
 `drizzle-kit push`는 손으로, DB 하나씩 돌린다. 부팅 때 자동으로 밀면 배포가
 컬럼을 지우는 권한까지 갖게 되고, 아무도 그 diff를 읽지 않는다(3.3에서 dev와
 라이브 DB를 분리한 이유와 같은 이야기다).
