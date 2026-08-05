@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
-import { and, eq, inArray, max, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 import { scheduleMirror } from "@/lib/md-mirror";
@@ -22,11 +22,30 @@ export async function GET(req: NextRequest) {
   if (!workspaceId) return NextResponse.json({ pages: [] });
 
   const archived = new URL(req.url).searchParams.get("archived") === "1";
-  const rows = await db
+  const plain = await db
     .select()
     .from(pages)
     .where(and(eq(pages.workspaceId, workspaceId), eq(pages.isArchived, archived)))
     .orderBy(pages.position);
+
+ // isDatabase: this page's body IS a database (a fullPage database block), not a
+ // page that happens to contain one. The sidebar needs it to name and icon the
+ // row the way Notion does — "새 데이터베이스" with a table glyph, not "Untitled"
+ // with a page glyph — and only the block knows.
+ //
+ // Two queries rather than a correlated subquery: `${pages.id}` inside a raw sql
+ // template renders as bare "id", which the subquery resolves against BLOCKS —
+ // so `b.page_id = "id"` compared blocks.page_id to blocks.id and was false for
+ // every row, silently.
+  const dbPageIds = new Set(
+    (
+      await db
+        .select({ pageId: blocks.pageId })
+        .from(blocks)
+        .where(and(eq(blocks.type, "database"), sql`${blocks.content}->>'fullPage' = 'true'`))
+    ).map((r) => r.pageId)
+  );
+  const rows = plain.map((p) => ({ ...p, isDatabase: dbPageIds.has(p.id) }));
 
  // Restricted pages (DM relationship docs etc.) show only to explicitly
  // granted members; owner/admin read everything for administration (same as
@@ -65,6 +84,7 @@ export async function GET(req: NextRequest) {
  // participant-only OKF paths (relationship docs) are excluded for
  // non-members — the file tree has no permissions of its own, so the
  // okf_acl gate plays that role.
+ // OKF pages are files, never a database block — the flag is false for them.
   let okf: (typeof rows)[number][] = [];
   try {
     const gate = await okfGateFor(auth.user.id);
@@ -110,8 +130,9 @@ export async function GET(req: NextRequest) {
     };
     okf = listPages()
       .filter((p) => gate.canReadId(p.id) && inThisWorkspace(p.id))
-      .map((p) =>
-      okfSyntheticPage({
+      .map((p) => ({
+        isDatabase: false,
+        ...okfSyntheticPage({
         id: p.id,
         workspaceId,
         title: p.title,
@@ -119,15 +140,16 @@ export async function GET(req: NextRequest) {
         parentPageId: p.parentPageId,
         position: p.position,
         kind: p.kind,
-      })
-    );
+        }),
+      }));
   } catch {
  // OKF root missing/malformed → just the Postgres pages
   }
   return NextResponse.json({ pages: [...visible, ...okf] });
 }
 
-/** POST /api/pages { title?, parentPageId?, icon? } → { page } */
+/** POST /api/pages { title?, parentPageId?, icon?, teamspaceId? } → { page }
+ *  teamspaceId is optional: a page with a parent inherits the parent's. */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
@@ -150,12 +172,37 @@ export async function POST(req: NextRequest) {
       )
     );
 
+ // A sub-page belongs where its parent belongs. The + on a teamspace row
+ // ("추가 대상: 🏠 팀스페이스 홈") adds to that teamspace; without this the child
+ // came out with teamspace_id NULL — a 개인 페이지 that merely happened to sit
+ // under a team page. Only the topmost ancestor is sure to carry the id on
+ // rows created before this, so walk up until one does.
+  let inheritedTeamspaceId = typeof teamspaceId === "string" ? teamspaceId : null;
+  if (!inheritedTeamspaceId && parentPageId) {
+    let cursor: string | null = parentPageId;
+    const seen = new Set<string>();
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      const [ancestor] = await db
+        .select({ teamspaceId: pages.teamspaceId, parentPageId: pages.parentPageId })
+        .from(pages)
+        .where(and(eq(pages.id, cursor), eq(pages.workspaceId, workspaceId)))
+        .limit(1);
+      if (!ancestor) break;
+      if (ancestor.teamspaceId) {
+        inheritedTeamspaceId = ancestor.teamspaceId;
+        break;
+      }
+      cursor = ancestor.parentPageId;
+    }
+  }
+
   const [page] = await db
     .insert(pages)
     .values({
       workspaceId,
       parentPageId,
-      teamspaceId: typeof teamspaceId === "string" ? teamspaceId : null,
+      teamspaceId: inheritedTeamspaceId,
       title,
       icon,
       position: (maxPos ?? 0) + 1,

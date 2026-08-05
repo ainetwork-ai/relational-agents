@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Block, Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { useDebounced } from "@/hooks/use-debounced";
+import Link from "next/link";
 import { IconPicker } from "./icon-picker";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { SharePopover } from "./share-popover";
-import { MessageSquare, Link2, Check, Lock as LockIcon } from "lucide-react";
+import { MessageSquare, Link2, Check, Lock as LockIcon, Maximize2, X } from "lucide-react";
+import { PageIcon } from "@/components/page-icon";
 import { PageOptionsMenu } from "./page-options";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
@@ -25,11 +27,16 @@ export function PageView({
   initialPage,
   initialBlocks,
   wide = false,
+  peek,
 }: {
   initialPage: Page;
   initialBlocks: Block[];
   /** database pages render near-full-width , not the 836px column */
   wide?: boolean;
+  /** Rendered inside the center peek popup (PagePeek): the header trades the
+   *  breadcrumb trail for Notion's destination line — ⤢ 전체 페이지로 열기, then
+   *  "추가 대상 🏠 <parent>" — and gains a ✕. */
+  peek?: { parent: Page | null; onClose: () => void };
 }) {
   const storePage = usePagesStore((s) => s.pages[initialPage.id]);
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -46,7 +53,11 @@ export function PageView({
  // Remember and restore the scroll position per page, so navigating back
  // returns to where the reader left off. Restore retries briefly
  // because block content can grow the scroll height after mount.
+  const isPeek = !!peek;
   useEffect(() => {
+ // A peek scrolls inside its own panel — touching <main> here would move the
+ // page UNDER the popup and store its offset against the peeked page's key.
+    if (isPeek) return;
     const main = document.querySelector('main[aria-label="Page content"]');
     if (!(main instanceof HTMLElement)) return;
     const key = `scroll:${initialPage.id}`;
@@ -73,7 +84,7 @@ export function PageView({
       cancelAnimationFrame(raf);
       main.removeEventListener("scroll", onScroll);
     };
-  }, [initialPage.id]);
+  }, [initialPage.id, isPeek]);
 
  // Parent renders <PageView key={page.id}>, so navigation remounts and
  // resets this state naturally.
@@ -110,10 +121,57 @@ export function PageView({
   return (
     <div className="min-h-full pb-32">
       {/* React 19 hoists this and keeps ownership — direct document.title
-          writes get reverted to the layout metadata on re-commits */}
-      <title>{title.trim() ? title : "Untitled"}</title>
+          writes get reverted to the layout metadata on re-commits. A peek is
+          a popup over another page: it must not take the tab's title. */}
+      {!peek && <title>{title.trim() ? title : "Untitled"}</title>}
       <div className="sticky top-0 z-30 flex items-center justify-between gap-1 bg-white px-3 py-1.5 dark:bg-[#191919]">
-        <Breadcrumbs pageId={initialPage.id} />
+        {peek ? (
+          /* Notion's peek header: open-as-full-page, a divider, then where the
+             page went. A page with no parent went to Private, which Notion
+             names 개인 페이지 rather than leaving the line blank. */
+          <div className="flex min-w-0 items-center">
+            <Link
+              href={`/p/${initialPage.id}`}
+              onClick={peek.onClose}
+              data-testid="peek-open-full"
+              aria-label="전체 페이지로 열기"
+              data-tip="전체 페이지로 열기"
+              className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+            >
+              <Maximize2 size={14} />
+            </Link>
+            <span
+              aria-hidden="true"
+              className="mx-1.5 h-3.5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700"
+            />
+            <span className="flex min-w-0 items-center gap-1 text-sm">
+              <span className="shrink-0 text-neutral-400 dark:text-neutral-500">추가 대상</span>
+              {peek.parent ? (
+                <Link
+                  href={`/p/${peek.parent.id}`}
+                  onClick={peek.onClose}
+                  data-testid="peek-destination"
+                  className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <span className="shrink-0 text-[15px] leading-none">
+                    <PageIcon icon={peek.parent.icon} fallback="📄" />
+                  </span>
+                  <span className="truncate">{peek.parent.title || "Untitled"}</span>
+                </Link>
+              ) : (
+                <span
+                  data-testid="peek-destination"
+                  className="flex min-w-0 items-center gap-1 px-1 font-semibold text-neutral-700 dark:text-neutral-200"
+                >
+                  <LockIcon size={12} className="shrink-0 text-neutral-400" />
+                  <span className="truncate">개인 페이지</span>
+                </span>
+              )}
+            </span>
+          </div>
+        ) : (
+          <Breadcrumbs pageId={initialPage.id} />
+        )}
         <div className="flex items-center gap-1">
         <PresenceBar self={self} others={others} />
         {page.isLocked && (
@@ -158,6 +216,17 @@ export function PageView({
         <CopyLinkButton pageId={initialPage.id} />
         <SharePopover pageId={initialPage.id} />
         <PageOptionsMenu page={page} />
+        {peek && (
+          <button
+            data-testid="peek-close"
+            onClick={peek.onClose}
+            aria-label="닫기"
+            data-tip="닫기"
+            className="rounded-md px-1.5 py-1 text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          >
+            <X size={16} />
+          </button>
+        )}
         </div>
       </div>
       <LiveCursors others={others} />

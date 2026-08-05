@@ -12,8 +12,10 @@ import {
   Trash2,
   Pencil,
   GripVertical,
+  Table2,
 } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
+import { pageLabel, type PageRow } from "@/lib/page-label";
 import { usePagesStore } from "@/stores/pages";
 import { useShallow } from "zustand/react/shallow";
 import { useUiStore } from "@/stores/ui";
@@ -32,6 +34,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   const expanded = useUiStore((s) => s.expanded[page.id] ?? false);
   const toggleExpanded = useUiStore((s) => s.toggleExpanded);
   const expand = useUiStore((s) => s.expand);
+  const openPeek = useUiStore((s) => s.openPeek);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -64,7 +67,10 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   async function addChild() {
     const child = await createPage(page.id);
     expand(page.id);
-    router.push(`/p/${child.id}`);
+ // Notion opens a new sub-page in the center peek rather than navigating away
+ // — the popup header says where it went ("추가 대상 🏠 팀스페이스 홈"), and you
+ // keep the page you were reading behind it. ⤢ in the peek makes it full-page.
+    openPeek(child.id, page.id);
   }
 
   function commitRename() {
@@ -164,7 +170,11 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
         >
           {/* Swap the page icon for the chevron on row hover */}
           <span className="text-[15px] leading-none group-hover:hidden">
-            <PageIcon icon={page.icon} fallback="📄" />
+            {(page as PageRow).isDatabase && !page.icon ? (
+              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label="데이터베이스" />
+            ) : (
+              <PageIcon icon={page.icon} fallback="📄" />
+            )}
           </span>
           <ChevronRight
             size={14}
@@ -193,7 +203,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             aria-current={isActive ? "page" : undefined}
             className="flex min-w-0 flex-1 items-center gap-1.5"
           >
-            <span className="truncate">{page.title || "Untitled"}</span>
+            <span className="truncate">{pageLabel(page as PageRow)}</span>
           </Link>
         )}
 
