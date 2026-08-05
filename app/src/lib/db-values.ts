@@ -398,12 +398,16 @@ export function matchFilter(
             ? Number(v) === Number(w)
             : String(v).toLowerCase() === String(w ?? "").toLowerCase()
         );
+      case "person":
+      case "created_by":
+      case "last_edited_by": {
+ // a multi-person cell "is" any of the people in it
+        const ids = personIds(v);
+        return wanted.some((w) => ids.includes(String(w)));
+      }
       case "select":
       case "status":
       case "multi_select":
-      case "person":
-      case "created_by":
-      case "last_edited_by":
         return wanted.some((w) => String(v) === String(w));
       default: {
  // no type known (legacy caller) — keep the shape heuristic
@@ -421,7 +425,7 @@ export function matchFilter(
   };
   switch (op) {
     case "is_me":
-      return v === me;
+      return !!me && personIds(v).includes(me);
     case "is_empty":
       return empty(v);
     case "not_empty":
@@ -497,29 +501,15 @@ function compareValues(a: unknown, b: unknown, prop?: DbProperty): number {
   return String(a).localeCompare(String(b));
 }
 
-/** Partition rows into labelled sections by a select/status property (the
- * shared group-by used by table sections, list and gallery groupings). */
+/** Partition rows into labelled sections (the shared group-by used by list,
+ * gallery and the dashboard's grouped widgets). Same sections as the grouped
+ * table — see `buildGroups`, which this delegates to. */
 export function groupRowsBy(
   rows: DbRow[],
-  prop: DbProperty | undefined
-): { key: string; label: string; rows: DbRow[] }[] | null {
-  if (!prop) return null;
-  const opts = prop.config.options ?? [];
-  return [
-    ...opts.map((o) => ({
-      key: o.id,
-      label: o.name,
-      rows: rows.filter((r) => r.values[prop.id] === o.id),
-    })),
-    {
-      key: "__none__",
-      label: `No ${prop.name}`,
-      rows: rows.filter((r) => {
-        const v = r.values[prop.id];
-        return !v || !opts.some((o) => o.id === v);
-      }),
-    },
-  ];
+  prop: DbProperty | undefined,
+  members: PublicUser[] = []
+): RowGroup[] | null {
+  return buildGroups(rows, prop, members);
 }
 
 /** Property types a view can group by. Notion groups by more than select/status
@@ -567,26 +557,26 @@ export function buildGroups(
   }
 
   if (prop.type === "person") {
- // member order keeps the sections stable as rows are edited
-    const present = new Set(
-      rows.map((r) => r.values[prop.id]).filter((v): v is string => typeof v === "string" && !!v)
-    );
+ // member order keeps the sections stable as rows are edited. A cell can hold
+ // several people, so such a row belongs to each of their sections.
+    const present = new Set(rows.flatMap((r) => personIds(r.values[prop.id])));
     const known = members.filter((m) => present.has(m.id));
     const orphans = [...present].filter((id) => !members.some((m) => m.id === id));
+    const forPerson = (id: string) => rows.filter((r) => personIds(r.values[prop.id]).includes(id));
     return [
       ...known.map((m) => ({
         key: m.id,
         label: m.displayName,
-        rows: rows.filter((r) => r.values[prop.id] === m.id),
-        preset: m.id as unknown,
+        rows: forPerson(m.id),
+        preset: [m.id] as unknown,
       })),
       ...orphans.map((id) => ({
         key: id,
         label: "알 수 없는 사용자",
-        rows: rows.filter((r) => r.values[prop.id] === id),
-        preset: id as unknown,
+        rows: forPerson(id),
+        preset: [id] as unknown,
       })),
-      none(`${prop.name} 없음`, (v) => typeof v === "string" && present.has(v)),
+      none(`${prop.name} 없음`, (v) => personIds(v).length > 0),
     ];
   }
 
@@ -602,8 +592,25 @@ export function buildGroups(
   ];
 }
 
+/** A person cell holds *several* people — `Assignee` in the capture carries two,
+ * and a cell with more than it can show ends in "N개 더 보기". Cells written
+ * before that were single ids, so every reader normalizes through here. */
+export function personIds(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && !!x);
+  return typeof v === "string" && v ? [v] : [];
+}
+
 export function personLabel(members: PublicUser[], id: unknown): string {
-  return members.find((m) => m.id === id)?.displayName ?? "";
+  const first = personIds(id)[0] ?? id;
+  return members.find((m) => m.id === first)?.displayName ?? "";
+}
+
+/** Display labels for every person in a cell, in the cell's own order. */
+export function personLabels(members: PublicUser[], v: unknown): { id: string; label: string }[] {
+  return personIds(v).map((id) => ({
+    id,
+    label: members.find((m) => m.id === id)?.displayName ?? "알 수 없는 사용자",
+  }));
 }
 
 /** Normalize a date property value to its start date string (calendar view

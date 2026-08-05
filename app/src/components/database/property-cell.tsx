@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
-import { optionClass, findOption, personLabel } from "@/lib/db-values";
+import { Check } from "lucide-react";
+import { optionClass, findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
 import {
   fetchDatabaseSnapshot,
@@ -993,7 +994,11 @@ function PersonCell({
   const db = useDb();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const label = personLabel(db.members, value);
+ // several people per cell (the capture's `Assignee` holds two); the popover
+ // toggles them rather than replacing the value
+  const picked = personIds(value);
+  const people = personLabels(db.members, value);
+  const slug = testid.split("db-cell-")[1];
 
   useEffect(() => {
     if (!open) return;
@@ -1004,19 +1009,68 @@ function PersonCell({
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
+  function toggle(id: string) {
+    const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
+    onSet(next.length ? next : null);
+  }
+
+ // A person cell stays one line however many people it holds: fit as many as
+ // the column is wide and fold the rest into "N개 더 보기", which is what the
+ // capture's narrow `TL` column does. Chip widths are estimated from the label
+ // — measuring each one would cost a layout pass per cell.
+  const fitRef = useRef<HTMLButtonElement>(null);
+  const [avail, setAvail] = useState(0);
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setAvail(el.clientWidth));
+    ro.observe(el);
+    setAvail(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const CHIP = 28, CHAR = 7.2, GAP = 4, MORE = 66;
+  let used = 0;
+  let fits = 0;
+  for (const p of people) {
+    const w = CHIP + p.label.length * CHAR + (fits ? GAP : 0);
+    const rest = people.length - fits - 1;
+    if (fits > 0 && avail > 0 && used + w + (rest > 0 ? GAP + MORE : 0) > avail) break;
+    used += w;
+    fits++;
+  }
+ // always show at least one person, even in a column too narrow for it
+  const visible = people.slice(0, Math.max(1, fits));
+  const overflow = people.length - visible.length;
+
   return (
     <div ref={ref} className="relative px-1.5 py-1">
       <button
+        ref={fitRef}
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full items-center gap-1.5"
+        className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
       >
-        {label ? (
+        {people.length ? (
           <>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-              {initial(label)}
-            </span>
-            <span className="text-sm text-neutral-700 dark:text-neutral-200">{label}</span>
+            {visible.map((p) => (
+              <span key={p.id} className="flex min-w-0 items-center gap-1">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
+                  {initial(p.label)}
+                </span>
+                <span className="truncate text-sm text-neutral-700 dark:text-neutral-200">
+                  {p.label}
+                </span>
+              </span>
+            ))}
+            {overflow > 0 && (
+              <span
+                data-testid={`${testid}-overflow`}
+                className="shrink-0 whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500"
+              >
+                {overflow}개 더 보기
+              </span>
+            )}
           </>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
@@ -1024,34 +1078,33 @@ function PersonCell({
       </button>
       {open && (
         <div className="popover-anim absolute left-0 top-8 z-40 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {!!value && (
+          {picked.length > 0 && (
             <button
-              data-testid={`db-person-${testid.split("db-cell-")[1]}-none`}
+              data-testid={`db-person-${slug}-none`}
               onClick={() => {
                 onSet(null);
                 setOpen(false);
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             >
-              Clear
+              모두 지우기
             </button>
           )}
           {db.members.map((m) => (
             <button
               key={m.id}
-              data-testid={`db-person-${testid.split("db-cell-")[1]}-${m.id}`}
-              onClick={() => {
-                onSet(m.id);
-                setOpen(false);
-              }}
+              data-testid={`db-person-${slug}-${m.id}`}
+              aria-pressed={picked.includes(m.id)}
+              onClick={() => toggle(m.id)}
               className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
             >
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
                 {initial(m.displayName)}
               </span>
-              <span className="text-sm text-neutral-700 dark:text-neutral-200">
+              <span className="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-200">
                 {m.displayName}
               </span>
+              {picked.includes(m.id) && <Check size={13} className="shrink-0 text-blue-500" />}
             </button>
           ))}
         </div>

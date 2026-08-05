@@ -428,7 +428,7 @@ export function DatabaseBlock({
       const first = Array.isArray(f.value) ? f.value[0] : f.value;
       if (f.op === "checked" && prop.type === "checkbox") out[prop.id] = true;
       else if (f.op === "is_me" && prop.type === "person" && meRef.current)
-        out[prop.id] = meRef.current;
+        out[prop.id] = [meRef.current];
       else if (f.op === "equals" && first !== undefined) {
         if (prop.type === "multi_select") out[prop.id] = [first];
         else if (prop.type === "date") out[prop.id] = resolveDateValue(first);

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Plus, X, ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
 import type { DashWidget, DbProperty, DbRow, DbView } from "@/lib/db/schema";
-import { applyView, groupRowsBy, optionClass } from "@/lib/db-values";
+import { applyView, groupRowsBy, optionClass, isGroupable } from "@/lib/db-values";
+import type { PublicUser } from "@/lib/auth/public-user";
 import { useDb } from "./database-block";
 import { BoardView } from "./board-view";
 
@@ -37,8 +38,13 @@ function newId() {
 }
 
 /** Group rows and aggregate a value per group (count, or sum of a number). */
-function seriesFor(rows: DbRow[], prop: DbProperty | undefined, w: DashWidget) {
-  const groups = groupRowsBy(rows, prop) ?? [];
+function seriesFor(
+  rows: DbRow[],
+  prop: DbProperty | undefined,
+  w: DashWidget,
+  members: PublicUser[] = []
+) {
+  const groups = groupRowsBy(rows, prop, members) ?? [];
   const colorOf = (key: string) => prop?.config.options?.find((o) => o.id === key)?.color ?? "gray";
   return groups
     .map((g) => ({
@@ -65,7 +71,7 @@ export function DashboardView({ view }: { view: DbView }) {
   const db = useDb();
   const rows = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const titleProp = db.properties.find((p) => p.type === "title");
-  const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+  const groupable = db.properties.filter(isGroupable);
   const numberProps = db.properties.filter((p) => p.type === "number");
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -126,7 +132,7 @@ export function DashboardView({ view }: { view: DbView }) {
 
   const renderBar = (w: DashWidget) => {
     const prop = db.properties.find((p) => p.id === w.groupByPropertyId) ?? groupable[0];
-    const series = seriesFor(rows, prop, w);
+    const series = seriesFor(rows, prop, w, db.members);
     const max = Math.max(1, ...series.map((s) => s.value));
     if (!prop) return <p className="text-xs text-neutral-400">Pick a select/status property.</p>;
     return (
@@ -147,7 +153,7 @@ export function DashboardView({ view }: { view: DbView }) {
 
   const renderDonut = (w: DashWidget) => {
     const prop = db.properties.find((p) => p.id === w.groupByPropertyId) ?? groupable[0];
-    const series = seriesFor(rows, prop, w);
+    const series = seriesFor(rows, prop, w, db.members);
     const total = series.reduce((a, s) => a + s.value, 0);
     const R = 34, C = 2 * Math.PI * R, GAP = series.length > 1 ? 2 : 0;
     let acc = 0;

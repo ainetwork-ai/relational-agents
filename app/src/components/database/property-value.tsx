@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
-import { optionClass, findOption, personLabel } from "@/lib/db-values";
+import { optionClass, findOption, personLabels } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { initial } from "@/lib/glyph";
 
@@ -37,13 +37,17 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
       );
     }
     case "person": {
-      const label = personLabel(db.members, v);
-      return label ? (
-        <span className="flex items-center gap-1">
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-semibold text-white">
-            {initial(label)}
-          </span>
-          <span className="text-xs text-neutral-600 dark:text-neutral-300">{label}</span>
+      const people = personLabels(db.members, v);
+      return people.length ? (
+        <span className="flex flex-wrap items-center gap-1">
+          {people.map((p) => (
+            <span key={p.id} className="flex items-center gap-1">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-semibold text-white">
+                {initial(p.label)}
+              </span>
+              <span className="text-xs text-neutral-600 dark:text-neutral-300">{p.label}</span>
+            </span>
+          ))}
         </span>
       ) : null;
     }

@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import type { DbView } from "@/lib/db/schema";
-import { applyView, groupRowsBy } from "@/lib/db-values";
+import { applyView, groupRowsBy, isGroupable } from "@/lib/db-values";
 import { resolveAppUrl } from "@/lib/compat";
 import { useDb } from "./database-block";
 import { PropertyValue } from "./property-value";
@@ -18,9 +18,9 @@ export function GalleryView({ view }: { view: DbView }) {
  // visible url properties become card ACTION BUTTONS (call / message / docs …)
  // — except the one already consumed as the card cover
   const rest = shown.filter((p) => p.type !== "url");
-  const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+  const groupable = db.properties.filter(isGroupable);
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
-  const groups = groupRowsBy(visible, groupProp);
+  const groups = groupRowsBy(visible, groupProp, db.members);
  // card cover: the first url/files property's value.
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
