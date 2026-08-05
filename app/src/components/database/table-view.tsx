@@ -20,7 +20,9 @@ import {
   computeCalc,
   buildGroups,
   isGroupable,
+  orderedProperties,
   personLabels,
+  visibleColumns,
   type RowGroup,
 } from "@/lib/db-values";
 import { UserAvatar } from "@/components/user-avatar";
@@ -34,9 +36,8 @@ const NO_GROUP = "__nogroup__";
 export function TableView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
- // per-view property visibility (ViewOptions → config.hiddenProperties)
-  const hidden = view.config.hiddenProperties ?? [];
-  const cols = db.properties.filter((p) => !hidden.includes(p.id));
+ // per-view property visibility AND order (hiddenProperties / propertyOrder)
+  const cols = visibleColumns(db.properties, view.config);
  // sub-item collapse state (rows in this set have their children hidden)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
  // row multi-select: hover checkboxes + a bulk action bar
@@ -770,7 +771,9 @@ function ColumnHeader({
     setOpen(false);
   }
 
- // drag a column header onto another to reorder properties (persists position).
+ // Drag a column header onto another to reorder columns. The order belongs to
+ // THIS view (config.propertyOrder), so the same database can start with TL in
+ // one view and Team in another, as the original does.
   function onDragPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -781,11 +784,17 @@ function ColumnHeader({
       if (!header) return;
       const targetId = header.getAttribute("data-testid")!.replace("db-prop-header-", "");
       if (targetId === prop.id) return;
-      const target = db.properties.find((p) => p.id === targetId);
-      if (!target) return;
+ // start from the order as rendered, so the first drag in a view that has
+ // never been reordered doesn't scramble the rest
+      const ids = orderedProperties(db.properties, view.config).map((p) => p.id);
+      const from = ids.indexOf(prop.id);
+      let to = ids.indexOf(targetId);
+      if (from < 0 || to < 0) return;
       const rect = header.getBoundingClientRect();
-      const before = ev.clientX < rect.x + rect.width / 2;
-      db.updateProperty(prop.id, { position: target.position + (before ? -0.5 : 0.5) });
+      if (ev.clientX >= rect.x + rect.width / 2) to += 1;
+      if (to > from) to -= 1;
+      ids.splice(to, 0, ...ids.splice(from, 1));
+      db.patchView({ ...view.config, propertyOrder: ids });
     };
     window.addEventListener("pointerup", onUp);
   }

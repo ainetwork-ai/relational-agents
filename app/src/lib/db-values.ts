@@ -512,6 +512,28 @@ export function groupRowsBy(
   return buildGroups(rows, prop, members);
 }
 
+/** Column order belongs to the VIEW, not the database — the original Projects
+ * page shows the same 23 properties starting with TL in one view, Team in
+ * another and Status in a third (`docs/notion-projects-spec.md`). A property the
+ * view has never ordered keeps its database position, at the end.
+ *
+ * `visibleColumns` additionally drops the view's hidden properties. */
+export function orderedProperties(props: DbProperty[], config: ViewConfig): DbProperty[] {
+  const order = config.propertyOrder;
+  if (!order?.length) return props;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  return [...props].sort((a, b) => {
+    const ra = rank.get(a.id) ?? order.length + a.position;
+    const rb = rank.get(b.id) ?? order.length + b.position;
+    return ra - rb;
+  });
+}
+
+export function visibleColumns(props: DbProperty[], config: ViewConfig): DbProperty[] {
+  const hidden = config.hiddenProperties ?? [];
+  return orderedProperties(props, config).filter((p) => !hidden.includes(p.id));
+}
+
 /** Property types a view can group by. Notion groups by more than select/status
  * — `docs/target.html`'s Projects table is grouped by the *person* property
  * `TL`, one section per teammate. */

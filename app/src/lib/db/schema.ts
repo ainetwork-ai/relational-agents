@@ -355,6 +355,9 @@ export interface ViewConfig {
   filterConjunction?: "and" | "or";
   /** property ids hidden in this view */
   hiddenProperties?: string[];
+  /** column order for THIS view (property ids). Notion keeps order per view —
+   * the same database starts with a different column in each of its views. */
+  propertyOrder?: string[];
   /** per-property column widths in px (table view; drag the column edge) */
   widths?: Record<string, number>;
   /** which date property the calendar view lays rows out on */

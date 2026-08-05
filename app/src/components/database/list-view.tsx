@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import type { DbView } from "@/lib/db/schema";
-import { applyView, groupRowsBy, isGroupable } from "@/lib/db-values";
+import { applyView, groupRowsBy, isGroupable, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { PropertyValue } from "./property-value";
 
@@ -12,8 +12,7 @@ export function ListView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const titleProp = db.properties.find((p) => p.type === "title");
-  const hidden = view.config.hiddenProperties ?? [];
-  const rest = db.properties.filter((p) => p.type !== "title" && !hidden.includes(p.id));
+  const rest = visibleColumns(db.properties, view.config).filter((p) => p.type !== "title");
   const groupable = db.properties.filter(isGroupable);
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
   const groups = groupRowsBy(visible, groupProp, db.members);
