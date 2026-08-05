@@ -33,6 +33,35 @@ import { TYPE_ICON } from "./memory-select";
 
 const NO_GROUP = "__nogroup__";
 
+/** Render in chunks and grow as the bottom comes into view. The original loads
+ * its rows the same way — 249 rows over 23 groups is 3,600 cells if you draw
+ * them all at once, and the page took 12s to show its first row. */
+function useIncremental(step: number, total: number) {
+  const [limit, setLimit] = useState(step);
+  const [seenTotal, setSeenTotal] = useState(total);
+  const sentinel = useRef<HTMLDivElement | null>(null);
+ // switching view (or filtering) starts the count over — adjusted during
+ // render rather than in an effect, so there is no extra pass with the old list
+  if (seenTotal !== total) {
+    setSeenTotal(total);
+    setLimit(step);
+  }
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || limit >= total || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setLimit((n) => n + step);
+      },
+      { rootMargin: "800px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [limit, total, step]);
+  return { limit, sentinel };
+}
+
 export function TableView({ view }: { view: DbView }) {
   const db = useDb();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
@@ -105,6 +134,9 @@ export function TableView({ view }: { view: DbView }) {
  // collapse state lives in the view so it survives a reload, as in Notion
   const collapsedGroups = view.config.collapsedGroups ?? [];
   const hideEmptyGroups = view.config.hideEmptyGroups ?? true;
+  const shownGroups = hideEmptyGroups ? groups.filter((g) => g.rows.length > 0) : groups;
+  const grouped = !!groupProp;
+  const { limit, sentinel } = useIncremental(grouped ? 4 : 60, grouped ? shownGroups.length : visible.length);
   const setCollapsedGroups = (keys: string[]) =>
     db.patchView({ ...view.config, collapsedGroups: keys });
 
@@ -141,11 +173,10 @@ export function TableView({ view }: { view: DbView }) {
         </div>
       )}
       <div className="min-w-max" data-dbtable>
-        {groupProp ? (
+        {grouped ? (
  // Grouped: every section carries its own column header row, add-row and
  // header affordances — the shape of the grouped table in `target.html`.
-          groups.map((g) =>
-            hideEmptyGroups && g.rows.length === 0 ? null : (
+          shownGroups.slice(0, limit).map((g) => (
               <GroupSection
                 key={g.key}
                 group={g}
@@ -164,14 +195,16 @@ export function TableView({ view }: { view: DbView }) {
                 onExpandAll={() => setCollapsedGroups([])}
                 renderRows={renderRows}
               />
-            )
-          )
+          ))
         ) : (
           <>
             <HeaderRow cols={cols} view={view} />
-            {renderRows(visible)}
+            {renderRows(visible.slice(0, limit))}
             <AddRowButton testid="db-add-row" onClick={() => db.addRow()} />
           </>
+        )}
+        {limit < (grouped ? shownGroups.length : visible.length) && (
+          <div ref={sentinel} data-testid="db-load-more" className="h-8" />
         )}
 
         {/* calculation footer — selects fade in on row hover; a
