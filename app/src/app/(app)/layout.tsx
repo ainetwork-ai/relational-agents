@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { SearchModal } from "@/components/search-modal";
+import { PagePeek } from "@/components/page/page-peek";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
 
@@ -53,6 +54,8 @@ export default async function AppLayout({
         <ToastHost />
       </main>
       <SearchModal />
+      {/* center peek — a page opened over the current one (sidebar + on a page) */}
+      <PagePeek />
     </div>
   );
 }
