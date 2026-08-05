@@ -282,6 +282,10 @@ export interface RollupConfig {
 
 export interface PropertyConfig {
   options?: SelectOption[]; // select / status
+  /** status: its options bucketed into groups — the original's Status carries
+   * `To-do · In progress · Complete`, and one of its views filters by the
+   * GROUP rather than by an option (docs/notion-projects-spec.md) */
+  optionGroups?: { id: string; name: string; color?: string; optionIds: string[] }[];
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
  * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";

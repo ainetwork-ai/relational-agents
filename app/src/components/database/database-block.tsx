@@ -988,7 +988,8 @@ export function DatabaseBlock({
             ) : (
             <button
               key={v.id}
-              data-testid={`db-view-${v.type}`}
+              data-testid={`db-view-tab-${v.id}`}
+              data-view-type={v.type}
               onClick={() => setActiveViewId(v.id)}
               onDoubleClick={() => {
                 setViewNameDraft(v.name);
@@ -1081,7 +1082,7 @@ export function DatabaseBlock({
                 onClick={() => setMoreTabsOpen((v) => !v)}
                 className="flex items-center gap-0.5 whitespace-nowrap rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                {tabViews.length - visibleTabCount} more
+                {tabViews.length - visibleTabCount}개 더 보기
                 <span className="text-[9px]">▾</span>
               </button>
               {moreTabsOpen && (
@@ -1089,7 +1090,8 @@ export function DatabaseBlock({
                   {tabViews.slice(visibleTabCount).map((v) => (
                     <button
                       key={v.id}
-                      data-testid={`db-view-more-${v.type}`}
+                      data-testid={`db-view-more-${v.id}`}
+                      data-view-type={v.type}
                       onClick={() => {
                         setMoreTabsOpen(false);
                         setActiveViewId(v.id);

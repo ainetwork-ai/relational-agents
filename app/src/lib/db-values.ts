@@ -292,7 +292,7 @@ export function applyView(
     .filter((g) => g.filters.length > 0);
   const matchOne = (r: DbRow, f: ViewFilter) => {
     const prop = props.find((p) => p.id === f.propertyId)!;
-    return matchFilter(resolveFilterValue(r, prop, props, related), f.op, f.value, me, prop.type);
+    return matchFilter(resolveFilterValue(r, prop, props, related), f.op, f.value, me, prop.type, prop);
   };
   if (active.length || groups.length) {
  // AND (default) requires every condition; OR requires at least one.
@@ -368,10 +368,20 @@ export function matchFilter(
   op: FilterOp,
   value: unknown,
   me: string | null,
-  type?: PropertyType
+  type?: PropertyType,
+  prop?: DbProperty
 ): boolean {
  // "is / is not" accept an ARRAY value = "is any of / is none of".
-  const wanted: unknown[] = Array.isArray(value) ? value : [value];
+ // A status filter can also name a GROUP ("group:In progress"), which stands
+ // for every option in that group.
+  const expand = (w: unknown): unknown[] => {
+    const s = typeof w === "string" ? w : "";
+    if (!s.startsWith("group:")) return [w];
+    const name = s.slice(6);
+    const g = prop?.config.optionGroups?.find((x) => x.name === name || x.id === name);
+    return g ? g.optionIds : [w];
+  };
+  const wanted: unknown[] = (Array.isArray(value) ? value : [value]).flatMap(expand);
   const eq = (): boolean => {
     if (empty(v)) return false;
  // dispatch on the PROPERTY TYPE (not the value's shape): a text cell that
