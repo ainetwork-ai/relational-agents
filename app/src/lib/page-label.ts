@@ -1,8 +1,9 @@
 import type { Page } from "@/lib/db/schema";
 
 /** A page row as the client sees it: the API adds isDatabase, which no column
- *  carries — a page "is" a database when its body is a full-page database block. */
-export type PageRow = Page & { isDatabase?: boolean };
+ *  carries — a page "is" a database when its body is a full-page database block —
+ *  and isRow, true when the page IS a database entry's body. */
+export type PageRow = Page & { isDatabase?: boolean; isRow?: boolean };
 
 /**
  * What to call an untitled page.

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { blocks, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
+import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
 import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
@@ -45,7 +45,24 @@ export async function GET(req: NextRequest) {
         .where(and(eq(blocks.type, "database"), sql`${blocks.content}->>'fullPage' = 'true'`))
     ).map((r) => r.pageId)
   );
-  const rows = plain.map((p) => ({ ...p, isDatabase: dbPageIds.has(p.id) }));
+ // isRow: this page is a database ENTRY's body (db_rows.values.__page points at
+ // it). Notion keeps entries inside their database, never in the sidebar — and
+ // the sidebar filled up with "Untitled" the moment rows started getting their
+ // page up front. The flag rather than an exclusion here: the store still needs
+ // the record for breadcrumbs, favourites and @-mentions.
+  const rowPageIds = new Set(
+    (
+      await db
+        .select({ pageId: sql<string>`${dbRows.values}->>'__page'` })
+        .from(dbRows)
+        .where(sql`${dbRows.values} ? '__page'`)
+    ).map((r) => r.pageId)
+  );
+  const rows = plain.map((p) => ({
+    ...p,
+    isDatabase: dbPageIds.has(p.id),
+    isRow: rowPageIds.has(p.id),
+  }));
 
  // Restricted pages (DM relationship docs etc.) show only to explicitly
  // granted members; owner/admin read everything for administration (same as
@@ -132,6 +149,9 @@ export async function GET(req: NextRequest) {
       .filter((p) => gate.canReadId(p.id) && inThisWorkspace(p.id))
       .map((p) => ({
         isDatabase: false,
+ // a file-backed entry already sits under its database in the folder tree,
+ // so it is nested rather than a root the sidebar would list twice
+        isRow: false,
         ...okfSyntheticPage({
         id: p.id,
         workspaceId,

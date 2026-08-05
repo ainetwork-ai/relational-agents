@@ -50,7 +50,9 @@ function derive(pages: Record<string, Page>) {
     if (top) {
    // Private is what is left over: a page that belongs to a teamspace lives
    // there, not in both places (it used to show up under Private as well).
-      if (!p.teamspaceId) roots.push(p);
+   // A database ENTRY's page is not a sidebar page at all — it belongs to its
+   // database, and listing every row would bury the tree in "Untitled".
+      if (!p.teamspaceId && !(p as PageRow).isRow) roots.push(p);
     } else {
       const pid = p.parentPageId!; // non-root ⇒ parent id present (isRoot above)
       const arr = childrenOf.get(pid);
