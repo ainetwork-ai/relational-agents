@@ -343,7 +343,31 @@ export interface ViewFilterGroup {
   conjunction?: "and" | "or";
   filters: ViewFilter[];
 }
-export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "dashboard";
+export type ViewType =
+  | "table"
+  | "board"
+  | "list"
+  | "gallery"
+  | "calendar"
+  | "timeline"
+  | "dashboard"
+  | "chart";
+
+/** A chart view's own settings — mirrors the original's `chart_config`
+ * (docs/notion-projects-spec.md): a column chart grouped by a property,
+ * measuring count or a sum, optionally stacked by a second property. */
+export interface ChartConfig {
+  type?: "column" | "bar" | "line" | "donut";
+  groupByPropertyId?: string;
+  aggregate?: "count" | "sum";
+  aggregatePropertyId?: string;
+  stackByPropertyId?: string;
+  height?: "small" | "medium" | "large";
+  caption?: string;
+  showCaption?: boolean;
+  showDataLabels?: boolean;
+  hideEmptyGroups?: boolean;
+}
 
 export interface ViewConfig {
   groupByPropertyId?: string; // board grouping
@@ -374,6 +398,8 @@ export interface ViewConfig {
   /** drop sections that hold no rows (every grouped view in the original has
    * this on; a chart there has it off) */
   hideEmptyGroups?: boolean;
+  /** chart view: what it plots */
+  chart?: ChartConfig;
   /** dashboard view: its widget layout (.com/help/dashboards — up to 12
  * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];

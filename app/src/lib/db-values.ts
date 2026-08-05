@@ -608,6 +608,23 @@ export function buildGroups(
     ];
   }
 
+  if (prop.type === "title" || prop.type === "text") {
+ // no option list to enumerate, so the distinct values *are* the groups — this
+ // is what the original's chart does when it stacks by title ("groupBy: exact")
+    const byValue = new Map<string, DbRow[]>();
+    for (const r of rows) {
+      const v = String(r.values[prop.id] ?? "").trim();
+      if (!v) continue;
+      const list = byValue.get(v);
+      if (list) list.push(r);
+      else byValue.set(v, [r]);
+    }
+    return [
+      ...[...byValue].map(([v, rs]) => ({ key: v, label: v, rows: rs, preset: v as unknown })),
+      none(`${prop.name} 없음`, (v) => String(v ?? "").trim() !== ""),
+    ];
+  }
+
   const opts = prop.config.options ?? [];
 
   if (prop.type === "multi_select") {

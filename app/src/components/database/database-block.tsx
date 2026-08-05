@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, Plus, Maximize, Link as LinkIcon } from "lucide-react";
+import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon } from "lucide-react";
 import type {
   Database,
   DbProperty,
@@ -36,6 +36,7 @@ import { GalleryView } from "./gallery-view";
 import { CalendarView } from "./calendar-view";
 import { TimelineView } from "./timeline-view";
 import { DashboardView } from "./dashboard-view";
+import { ChartView } from "./chart-view";
 import { ViewOptions } from "./view-options";
 import { FilterBar, FilterChips } from "./filter-bar";
 import { SortBar } from "./sort-bar";
@@ -1007,6 +1008,8 @@ export function DatabaseBlock({
                 <LayoutGrid size={13} />
               ) : v.type === "dashboard" ? (
                 <LayoutDashboard size={13} />
+              ) : v.type === "chart" ? (
+                <BarChart3 size={13} />
               ) : (
                 <Table2 size={13} />
               )}
@@ -1105,6 +1108,8 @@ export function DatabaseBlock({
                         <LayoutGrid size={13} />
                       ) : v.type === "dashboard" ? (
                         <LayoutDashboard size={13} />
+                      ) : v.type === "chart" ? (
+                        <BarChart3 size={13} />
                       ) : (
                         <Table2 size={13} />
                       )}
@@ -1127,7 +1132,7 @@ export function DatabaseBlock({
             </button>
             {addViewOpen && (
               <div className="popover-anim absolute left-0 top-8 z-40 w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                {(["table", "board", "list", "gallery", "calendar", "timeline", "dashboard"] as const).map((t) => (
+                {(["table", "board", "list", "gallery", "calendar", "timeline", "chart", "dashboard"] as const).map((t) => (
                   <button
                     key={t}
                     data-testid={`db-add-view-${t}`}
@@ -1268,6 +1273,8 @@ export function DatabaseBlock({
           <TimelineView view={activeView} />
         ) : activeView.type === "dashboard" ? (
           <DashboardView view={activeView} />
+        ) : activeView.type === "chart" ? (
+          <ChartView view={activeView} />
         ) : (
           <TableView view={activeView} />
         )}
