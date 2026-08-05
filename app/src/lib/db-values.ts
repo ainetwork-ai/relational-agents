@@ -544,6 +544,21 @@ export function visibleColumns(props: DbProperty[], config: ViewConfig): DbPrope
   return orderedProperties(props, config).filter((p) => !hidden.includes(p.id));
 }
 
+/** Which band a status option belongs to. Prefers the property's own
+ * `optionGroups` (what the original carries: To-do · In progress · Complete);
+ * falls back to the fixed `group` flag older options were written with. */
+const LEGACY_GROUP: Record<string, string> = {
+  todo: "To-do",
+  in_progress: "In progress",
+  complete: "Complete",
+};
+export function statusGroupOf(prop: DbProperty, optionId: string): string | null {
+  const g = prop.config.optionGroups?.find((x) => x.optionIds.includes(optionId));
+  if (g) return g.name;
+  const opt = prop.config.options?.find((o) => o.id === optionId);
+  return opt?.group ? LEGACY_GROUP[opt.group] ?? opt.group : null;
+}
+
 /** Property types a view can group by. Notion groups by more than select/status
  * — `docs/target.html`'s Projects table is grouped by the *person* property
  * `TL`, one section per teammate. */

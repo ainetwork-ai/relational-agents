@@ -3,20 +3,15 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
-import { applyView, optionClass } from "@/lib/db-values";
+import { applyView, optionClass, statusGroupOf, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
+import { PropertyValue } from "./property-value";
 import { UserAvatar } from "@/components/user-avatar";
 
 const NONE = "none";
 
 // Status option groups: columns are ordered by band and labelled with it.
 const GROUP_ORDER: Record<string, number> = { todo: 0, in_progress: 1, complete: 2 };
-const GROUP_LABEL: Record<string, string> = {
-  todo: "To-do",
-  in_progress: "In progress",
-  complete: "Complete",
-};
-
 export function BoardView({ view }: { view: DbView }) {
   const db = useDb();
   const [dragging, setDragging] = useState<string | null>(null);
@@ -26,6 +21,8 @@ export function BoardView({ view }: { view: DbView }) {
   const titleProp = db.properties.find((p) => p.type === "title");
   const personProp = db.properties.find((p) => p.type === "person");
   const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+ // properties shown on a card, in this view's order (title is the card's own)
+  const cardProps = visibleColumns(db.properties, view.config).filter((p) => p.type !== "title");
  // card cover: the first url/files property's value (like gallery)
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
@@ -104,12 +101,12 @@ export function BoardView({ view }: { view: DbView }) {
                 {col.name}
               </span>
               <span className="text-xs text-neutral-400">{cards.length}</span>
-              {groupProp.type === "status" && col.id !== NONE && (
+              {groupProp.type === "status" && col.id !== NONE && statusGroupOf(groupProp, col.id) && (
                 <span
                   data-testid={`db-board-group-${col.id}`}
                   className="ml-auto text-[10px] uppercase tracking-wide text-neutral-300 dark:text-neutral-600"
                 >
-                  {GROUP_LABEL[col.group ?? "in_progress"]}
+                  {statusGroupOf(groupProp, col.id)}
                 </span>
               )}
             </div>
@@ -143,11 +140,22 @@ export function BoardView({ view }: { view: DbView }) {
                     <div className="text-sm text-neutral-800 dark:text-neutral-100">
                       {cardTitle(r)}
                     </div>
-                    {assignee && (
-                      <div className="mt-1.5 flex items-center gap-1">
-                        <UserAvatar user={assignee} size={16} />
-                        <span className="text-xs text-neutral-500">{assignee.displayName}</span>
+                    {/* the view's own card properties, in its own order — the
+                        original's `My` shows Team, Evaluation and TL under the
+                        title (docs/notion-projects-spec.md) */}
+                    {cardProps.length > 0 ? (
+                      <div className="mt-1.5 flex flex-col gap-1">
+                        {cardProps.map((prop) => (
+                          <PropertyValue key={prop.id} prop={prop} row={r} />
+                        ))}
                       </div>
+                    ) : (
+                      assignee && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <UserAvatar user={assignee} size={16} />
+                          <span className="text-xs text-neutral-500">{assignee.displayName}</span>
+                        </div>
+                      )
                     )}
                     </div>
                   </div>

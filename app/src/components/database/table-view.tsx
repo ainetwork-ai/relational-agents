@@ -657,7 +657,7 @@ function RowLine({
       </div>
       {cols.map((p, i) =>
         p.type === "title" ? (
- // Title cell: hovering it reveals a "열기" button at the right edge
+ // Title cell: hovering it reveals a "사이드 보기" button at the right edge
  // opens the row's page (its full mapped content).
           <div
             key={p.id}
@@ -693,13 +693,13 @@ function RowLine({
             <button
               data-testid={`db-title-open-${row.id}`}
               onClick={() => db.openRow(row.id)}
-              aria-label="열기"
-              title="열기"
+              aria-label="사이드 보기"
+              title="사이드 보기"
  // opacity-0 alone still intercepts clicks — disable pointer events
  // until hover so the invisible button never swallows a title click
               className="pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] font-medium text-neutral-500 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 hover:text-neutral-700 group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              <Maximize2 size={10} /> 열기
+              <Maximize2 size={10} /> 사이드 보기
             </button>
             {/* the row actions that used to sit in the gutter now hover here,
                 left of 열기 */}
