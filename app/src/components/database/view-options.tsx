@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Settings2, Eye, EyeOff } from "lucide-react";
 import { useDb } from "./database-block";
+import { isGroupable } from "@/lib/db-values";
 
 /** Per-view property visibility: toggle any property shown/hidden in the
  * active view. Persisted in ViewConfig.hiddenProperties; every view
@@ -71,7 +72,7 @@ export function ViewOptions() {
           >
             <option value="">None</option>
             {db.properties
-              .filter((p) => (p.config.options?.length ?? 0) > 0 || p.type === "select" || p.type === "status")
+              .filter((p) => isGroupable(p) || (p.config.options?.length ?? 0) > 0)
               .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

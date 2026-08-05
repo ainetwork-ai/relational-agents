@@ -364,6 +364,10 @@ export interface ViewConfig {
   /** per-property column-footer aggregation:
  * { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
   calcs?: Record<string, string>;
+  /** grouped table: collapsed section keys, and whether each section header
+   * shows its row count (the capture renders the count slot empty — off) */
+  collapsedGroups?: string[];
+  showGroupCount?: boolean;
   /** dashboard view: its widget layout (.com/help/dashboards — up to 12
  * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];

@@ -522,6 +522,86 @@ export function groupRowsBy(
   ];
 }
 
+/** Property types a view can group by. Notion groups by more than select/status
+ * — `docs/target.html`'s Projects table is grouped by the *person* property
+ * `TL`, one section per teammate. */
+export const GROUPABLE_TYPES: PropertyType[] = ["select", "status", "person", "checkbox"];
+
+export function isGroupable(p: DbProperty): boolean {
+  return GROUPABLE_TYPES.includes(p.type);
+}
+
+/** One group-by section. `preset` is the value a row created inside the section
+ * must carry so it lands in that section (Notion's "그룹에 새 페이지 추가"). */
+export interface RowGroup {
+  key: string;
+  label: string;
+  rows: DbRow[];
+  preset: unknown;
+}
+
+/** Partition rows into sections by any groupable property.
+ *
+ * select/status enumerate their configured options (so an empty option still
+ * gets a section, which is how a board keeps its columns); person and checkbox
+ * have no option list, so their sections come from the values actually present
+ * — as in the capture, where only the ten teammates who own a project appear. */
+export function buildGroups(
+  rows: DbRow[],
+  prop: DbProperty | undefined,
+  members: PublicUser[] = []
+): RowGroup[] | null {
+  if (!prop) return null;
+  const none = (label: string, has: (v: unknown) => boolean): RowGroup => ({
+    key: "__none__",
+    label,
+    rows: rows.filter((r) => !has(r.values[prop.id])),
+    preset: undefined,
+  });
+
+  if (prop.type === "checkbox") {
+    return [
+      { key: "true", label: "체크됨", rows: rows.filter((r) => r.values[prop.id] === true), preset: true },
+      { key: "false", label: "체크 안 됨", rows: rows.filter((r) => r.values[prop.id] !== true), preset: false },
+    ];
+  }
+
+  if (prop.type === "person") {
+ // member order keeps the sections stable as rows are edited
+    const present = new Set(
+      rows.map((r) => r.values[prop.id]).filter((v): v is string => typeof v === "string" && !!v)
+    );
+    const known = members.filter((m) => present.has(m.id));
+    const orphans = [...present].filter((id) => !members.some((m) => m.id === id));
+    return [
+      ...known.map((m) => ({
+        key: m.id,
+        label: m.displayName,
+        rows: rows.filter((r) => r.values[prop.id] === m.id),
+        preset: m.id as unknown,
+      })),
+      ...orphans.map((id) => ({
+        key: id,
+        label: "알 수 없는 사용자",
+        rows: rows.filter((r) => r.values[prop.id] === id),
+        preset: id as unknown,
+      })),
+      none(`${prop.name} 없음`, (v) => typeof v === "string" && present.has(v)),
+    ];
+  }
+
+  const opts = prop.config.options ?? [];
+  return [
+    ...opts.map((o) => ({
+      key: o.id,
+      label: o.name,
+      rows: rows.filter((r) => r.values[prop.id] === o.id),
+      preset: o.id as unknown,
+    })),
+    none(`${prop.name} 없음`, (v) => !!v && opts.some((o) => o.id === v)),
+  ];
+}
+
 export function personLabel(members: PublicUser[], id: unknown): string {
   return members.find((m) => m.id === id)?.displayName ?? "";
 }

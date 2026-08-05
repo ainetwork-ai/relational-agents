@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Maximize2, ChevronRight, GripVertical } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Pencil,
+  Maximize2,
+  ChevronRight,
+  ChevronDown,
+  GripVertical,
+  MoreHorizontal,
+  Check,
+} from "lucide-react";
 import type { DbView, DbProperty, DbRow, PropertyType } from "@/lib/db/schema";
-import { applyView, computeCalc } from "@/lib/db-values";
+import { applyView, computeCalc, buildGroups, isGroupable, type RowGroup } from "@/lib/db-values";
 import { fetchDatabaseSnapshot } from "@/lib/db-relation";
 import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
@@ -73,34 +85,18 @@ export function TableView({ view }: { view: DbView }) {
     return out;
   }
 
- // General group-by: any select/status property can partition the rows into
- // labelled sections. null = flat.
+ // General group-by: any groupable property (select/status/person/checkbox)
+ // partitions the rows into sections. null = flat.
   const groupProp = db.properties.find(
-    (p) => p.id === view.config.groupByPropertyId && (p.type === "select" || p.type === "status")
+    (p) => p.id === view.config.groupByPropertyId && isGroupable(p)
   );
-  const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
-
-  let groups: { key: string; label: string; rows: DbRow[] }[] = [
-    { key: NO_GROUP, label: "", rows: visible },
+  const groups: RowGroup[] = buildGroups(visible, groupProp, db.members) ?? [
+    { key: NO_GROUP, label: "", rows: visible, preset: undefined },
   ];
-  if (groupProp) {
-    const opts = groupProp.config.options ?? [];
-    groups = [
-      ...opts.map((o) => ({
-        key: o.id,
-        label: o.name,
-        rows: visible.filter((r) => r.values[groupProp.id] === o.id),
-      })),
-      {
-        key: NO_GROUP,
-        label: `No ${groupProp.name}`,
-        rows: visible.filter((r) => {
-          const v = r.values[groupProp.id];
-          return !v || !opts.some((o) => o.id === v);
-        }),
-      },
-    ];
-  }
+ // collapse state lives in the view so it survives a reload, as in Notion
+  const collapsedGroups = view.config.collapsedGroups ?? [];
+  const setCollapsedGroups = (keys: string[]) =>
+    db.patchView({ ...view.config, collapsedGroups: keys });
 
   return (
     <div className="w-full overflow-x-auto">
@@ -131,55 +127,284 @@ export function TableView({ view }: { view: DbView }) {
         </div>
       )}
       <div className="min-w-max" data-dbtable>
-        {/* group-by control */}
-        
-
-        {/* header */}
-        <div className="flex border-b border-neutral-200 dark:border-neutral-700">
-          <div className="w-24 shrink-0" />
-          {cols.map((p) => (
-            <ColumnHeader key={p.id} prop={p} view={view} />
-          ))}
-          <AddPropertyHeader />
-        </div>
-
-        {/* rows (optionally grouped) */}
-        {groups.map((g) =>
-          groupProp && g.rows.length === 0 ? null : (
-            <div key={g.key} data-testid={`db-group-${g.key}`}>
-              {groupProp && (
-                <div
-                  data-testid={`db-group-header-${g.key}`}
-                  className="flex items-center gap-2 border-b border-neutral-100 bg-neutral-50/70 px-2 py-1 text-xs font-medium text-neutral-500 dark:border-neutral-800 dark:bg-neutral-800/40 dark:text-neutral-400"
-                >
-                  <span>{g.label}</span>
-                  <span className="text-neutral-300 dark:text-neutral-600">{g.rows.length}</span>
-                </div>
-              )}
-              {renderRows(g.rows)}
-            </div>
+        {groupProp ? (
+ // Grouped: every section carries its own column header row, add-row and
+ // header affordances — the shape of the grouped table in `target.html`.
+          groups.map((g) =>
+            g.rows.length === 0 ? null : (
+              <GroupSection
+                key={g.key}
+                group={g}
+                view={view}
+                cols={cols}
+                groupProp={groupProp}
+                collapsed={collapsedGroups.includes(g.key)}
+                onToggle={() =>
+                  setCollapsedGroups(
+                    collapsedGroups.includes(g.key)
+                      ? collapsedGroups.filter((k) => k !== g.key)
+                      : [...collapsedGroups, g.key]
+                  )
+                }
+                onCollapseAll={() => setCollapsedGroups(groups.map((x) => x.key))}
+                onExpandAll={() => setCollapsedGroups([])}
+                renderRows={renderRows}
+              />
+            )
           )
+        ) : (
+          <>
+            <HeaderRow cols={cols} view={view} />
+            {renderRows(visible)}
+            <AddRowButton testid="db-add-row" onClick={() => db.addRow()} />
+          </>
         )}
-
-        {/* add row */}
-        <button
-          data-testid="db-add-row"
-          onClick={() => db.addRow()}
-          className="flex w-full items-center gap-1 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:hover:bg-neutral-800"
-        >
-          <Plus size={13} /> New
-        </button>
 
         {/* calculation footer — selects fade in on row hover; a
             chosen calc stays visible */}
         <div className="group/calcrow flex border-t border-neutral-200 dark:border-neutral-700">
-          <div className="w-24 shrink-0" />
+          <div className="sticky left-0 z-[2] w-24 shrink-0 bg-white dark:bg-neutral-900" />
           {cols.map((p) => (
             <CalcCell key={p.id} view={view} prop={p} rows={visible} />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+/** The column header row. A grouped table repeats it inside every section
+ * (`target.html` carries 10 `notion-table-view-header-row`s for 10 groups). */
+function HeaderRow({ cols, view }: { cols: DbProperty[]; view: DbView }) {
+  return (
+    <div className="flex border-b border-neutral-200 dark:border-neutral-700">
+      <div className="sticky left-0 z-[3] w-24 shrink-0 bg-white dark:bg-neutral-900" />
+      {cols.map((p, i) => (
+        <ColumnHeader key={p.id} prop={p} view={view} frozen={i === 0} />
+      ))}
+      <AddPropertyHeader />
+    </div>
+  );
+}
+
+function AddRowButton({
+  testid,
+  onClick,
+  label = "새 페이지",
+}: {
+  testid: string;
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      data-testid={testid}
+      onClick={onClick}
+      className="flex w-full items-center gap-1 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:hover:bg-neutral-800"
+    >
+      <span className="sticky left-2 flex items-center gap-1">
+        <Plus size={13} /> {label}
+      </span>
+    </button>
+  );
+}
+
+/** One group-by section of a grouped table: a header carrying the group value,
+ * its options menu and "add a page to this group", then the section's own
+ * column header row, rows and add-row. */
+function GroupSection({
+  group,
+  groupProp,
+  view,
+  cols,
+  collapsed,
+  onToggle,
+  onCollapseAll,
+  onExpandAll,
+  renderRows,
+}: {
+  group: RowGroup;
+  groupProp: DbProperty;
+  view: DbView;
+  cols: DbProperty[];
+  collapsed: boolean;
+  onToggle: () => void;
+  onCollapseAll: () => void;
+  onExpandAll: () => void;
+  renderRows: (rows: DbRow[]) => ReactNode[];
+}) {
+  const db = useDb();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const showCount = view.config.showGroupCount ?? false;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+ // a row added inside a section must carry that section's value
+  const addToGroup = () =>
+    void db.addRow(group.preset === undefined ? {} : { [groupProp.id]: group.preset });
+
+  return (
+    <div data-testid={`db-group-${group.key}`}>
+      <div
+        data-testid={`db-group-header-${group.key}`}
+        className="group/gh flex h-9 items-center border-b border-neutral-100 dark:border-neutral-800"
+      >
+        <div className="sticky left-0 z-[3] flex items-center gap-1 bg-white pl-1 pr-2 dark:bg-neutral-900">
+          <button
+            data-testid={`db-group-toggle-${group.key}`}
+            onClick={onToggle}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "열기" : "닫기"}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+          >
+            <ChevronDown
+              size={13}
+              className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+            />
+          </button>
+          <span className="flex min-w-0 items-center gap-1.5 rounded px-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+            {groupProp.type === "person" && group.preset !== undefined && (
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
+                {group.label.trim().charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span className="truncate">{group.label}</span>
+          </span>
+          {showCount && (
+            <span
+              data-testid={`db-group-count-${group.key}`}
+              className="text-xs text-neutral-400 dark:text-neutral-500"
+            >
+              {group.rows.length}
+            </span>
+          )}
+          <div className="relative flex items-center gap-0.5 opacity-0 transition-opacity group-hover/gh:opacity-100">
+            <button
+              data-testid={`db-group-options-${group.key}`}
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="그룹 옵션 표시"
+              aria-expanded={menuOpen}
+              className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            <button
+              data-testid={`db-group-add-${group.key}`}
+              onClick={addToGroup}
+              aria-label="그룹에 새 페이지 추가"
+              className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            >
+              <Plus size={14} />
+            </button>
+            {menuOpen && (
+              <div
+                ref={menuRef}
+                data-testid={`db-group-menu-${group.key}`}
+                className="popover-anim absolute left-0 top-7 z-50 w-44 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                <GroupMenuItem
+                  testid={`db-group-menu-collapse-all-${group.key}`}
+                  label="모든 그룹 접기"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onCollapseAll();
+                  }}
+                />
+                <GroupMenuItem
+                  testid={`db-group-menu-expand-all-${group.key}`}
+                  label="모든 그룹 펼치기"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onExpandAll();
+                  }}
+                />
+                <GroupMenuItem
+                  testid={`db-group-menu-count-${group.key}`}
+                  label="그룹 개수 표시"
+                  checked={showCount}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    db.patchView({ ...view.config, showGroupCount: !showCount });
+                  }}
+                />
+                <GroupMenuItem
+                  testid={`db-group-menu-ungroup-${group.key}`}
+                  label="그룹화 제거"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    db.patchView({
+                      ...view.config,
+                      groupByPropertyId: undefined,
+                      collapsedGroups: [],
+                    });
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      {!collapsed && (
+        <>
+          <HeaderRow cols={cols} view={view} />
+          {renderRows(group.rows)}
+          <AddRowButton testid={`db-group-add-row-${group.key}`} onClick={addToGroup} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function GroupMenuItem({
+  testid,
+  label,
+  onClick,
+  checked,
+}: {
+  testid: string;
+  label: string;
+  onClick: () => void;
+  checked?: boolean;
+}) {
+  return (
+    <button
+      data-testid={testid}
+      onClick={onClick}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+    >
+      <span className="w-3.5">{checked && <Check size={13} />}</span>
+      {label}
+    </button>
+  );
+}
+
+/** Opaque backing for a frozen column: cells scrolling underneath must not show
+ * through, so the frozen cell repaints the row's background itself — base first,
+ * then the hover/selected tint, in the same order the row paints them. */
+function FrozenBg({ checked }: { checked?: boolean }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-20 bg-white dark:bg-neutral-900"
+      />
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-0 -z-10 ${
+          checked
+            ? "bg-blue-50/70 dark:bg-blue-900/20"
+            : "group-hover/dbrow:bg-neutral-50/60 dark:group-hover/dbrow:bg-neutral-800/30"
+        }`}
+      />
+    </>
   );
 }
 
@@ -364,7 +589,10 @@ function RowLine({
         checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
       }`}
     >
-      <div className="flex w-24 shrink-0 items-start justify-start gap-0.5 pl-1 pt-1">
+      {/* gutter + first column stay put while the rest scrolls sideways
+          (Notion's frozen column) */}
+      <div className="sticky left-0 z-[2] flex w-24 shrink-0 items-start justify-start gap-0.5 pl-1 pt-1">
+        <FrozenBg checked={checked} />
         <input
           type="checkbox"
           data-testid={`db-row-check-${row.id}`}
@@ -441,9 +669,9 @@ function RowLine({
           <Trash2 size={12} />
         </button>
       </div>
-      {cols.map((p) =>
+      {cols.map((p, i) =>
         p.type === "title" ? (
- // Title cell: hovering it reveals an "OPEN" button at the right edge
+ // Title cell: hovering it reveals a "열기" button at the right edge
  // opens the row's page (its full mapped content).
           <div
             key={p.id}
@@ -451,21 +679,24 @@ function RowLine({
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
-            className="group/titlecell relative flex shrink-0 items-center border-l border-neutral-100 first:border-l-0 dark:border-neutral-800"
+            className={`group/titlecell relative flex shrink-0 items-center border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+              i === 0 ? "sticky left-24 z-[2]" : ""
+            }`}
           >
+            {i === 0 && <FrozenBg checked={checked} />}
             <div className="min-w-0 flex-1">
               <PropertyCell prop={p} row={row} />
             </div>
             <button
               data-testid={`db-title-open-${row.id}`}
               onClick={() => db.openRow(row.id)}
-              aria-label="Open"
-              title="Open"
+              aria-label="열기"
+              title="열기"
  // opacity-0 alone still intercepts clicks — disable pointer events
  // until hover so the invisible button never swallows a title click
               className="pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] font-medium text-neutral-500 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 hover:text-neutral-700 group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              <Maximize2 size={10} /> OPEN
+              <Maximize2 size={10} /> 열기
             </button>
           </div>
         ) : (
@@ -475,8 +706,11 @@ function RowLine({
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
-            className="shrink-0 border-l border-neutral-100 first:border-l-0 dark:border-neutral-800"
+            className={`shrink-0 border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+              i === 0 ? "sticky left-24 z-[2]" : ""
+            }`}
           >
+            {i === 0 && <FrozenBg checked={checked} />}
             <PropertyCell prop={p} row={row} />
           </div>
         )
@@ -485,7 +719,15 @@ function RowLine({
   );
 }
 
-function ColumnHeader({ prop, view }: { prop: DbProperty; view: DbView }) {
+function ColumnHeader({
+  prop,
+  view,
+  frozen,
+}: {
+  prop: DbProperty;
+  view: DbView;
+  frozen?: boolean;
+}) {
   const db = useDb();
   const [open, setOpen] = useState(false);
  // two-step confirm before the irreversible property delete
@@ -534,7 +776,9 @@ function ColumnHeader({ prop, view }: { prop: DbProperty; view: DbView }) {
     <div
       ref={ref}
       style={{ width: view.config.widths?.[prop.id] ?? 176 }}
-      className="group/col relative shrink-0 border-l border-neutral-200 first:border-l-0 dark:border-neutral-700"
+      className={`group/col relative shrink-0 border-l border-neutral-200 first:border-l-0 dark:border-neutral-700 ${
+        frozen ? "sticky left-24 z-[3] bg-white dark:bg-neutral-900" : ""
+      }`}
     >
       {/* drag the right edge to resize the column (persists per view) */}
       <div
