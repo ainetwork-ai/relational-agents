@@ -4,23 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/user-avatar";
 
-/** Rose scale per emotion level (Lv.0 🩶 … Lv.7 💝) — matches the
- * relationship dashboard's badge palette. */
-const LEVEL_FILL = [
-  "#f4f4f5", "#ffe4e6", "#fecdd3", "#fda4af",
-  "#fb7185", "#f43f5e", "#e11d48", "#be123c",
-];
-
-const INDEX_TITLE = "Relationship Records";
-
 interface Person {
   key: string;
   name: string;
-  level: number; // -1 = unknown (no Relationships DB)
-  pageId: string | null; // doc/record page; null = room-only (no doc yet)
+  pageId: string | null; // their relationship doc; null = room-only (no doc yet)
   roomId: string | null; // 1:1 DM room with this person, when one exists
-  partnerUserId?: string | null; // her user id — lets a click open/create the chat
-  avatarUrl?: string | null; // partner's profile image (structured source)
+  partnerUserId?: string | null; // their user id — lets a click open/create the chat
+  avatarUrl?: string | null; // their profile photo, from the room's member row
 }
 
 interface DmRoomRow {
@@ -32,20 +22,21 @@ interface DmRoomRow {
 interface PageRow {
   id: string;
   title: string;
-  parentPageId: string | null;
   isArchived: boolean;
 }
 
-/** "❤️ Sophie Miller" / "Chanho ❤️ Sophie Miller" → "sophie miller" */
+/** A title side → a comparable key: "❤️ Ada Park" / "Bo ❤️ Ada Park" → "ada park" */
 const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
 const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥)+/u;
 
-/** Doc titles read "<me> ❤️ <partner>" ("Relationship doc — A ❤️ B", …) —
- * the face belongs to whichever side isn't the viewer. Split on the heart
- * (not on every symbol: names like "User-0x876c61" carry hyphens), prefer
- * the side that differs from `myName`, else the last one. */
+/** Doc titles read "Relationship doc — <me> ❤️ <partner>" (rooms are named
+ * "<me> ❤️ <partner>" — see lib/auth/display-name) and the face belongs to
+ * whichever side isn't the viewer. Split on the heart rather than on every
+ * symbol, because a name may carry hyphens of its own; the trailing "-<room6>"
+ * an OKF doc folder ends in (lib/agent/okf-docs) is stripped separately.
+ * Prefer the side that differs from `myName`, else the last one. */
 const partnerOf = (title: string, myName?: string | null) => {
   const sides = title
     .split(HEART_SPLIT)
@@ -64,42 +55,11 @@ const partnerOf = (title: string, myName?: string | null) => {
 const isRelationshipDoc = (title: string) =>
   /^(relationship doc|관계 문서)\s*—/i.test(title.trim());
 
-function HeartBadge({ level }: { level: number }) {
-  const fill = LEVEL_FILL[Math.max(0, Math.min(level, LEVEL_FILL.length - 1))] ?? LEVEL_FILL[0];
-  return (
-    <span className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white dark:bg-neutral-900">
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-label={`Level ${level}`}>
-        <path
-          d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
-          fill={fill}
-          stroke="rgba(136,19,55,.45)"
-          strokeWidth="1.4"
-        />
-      </svg>
-    </span>
-  );
-}
-
-function Face({ person }: { person: Person }) {
-  return (
-    <span className="relative flex h-11 w-11 items-center justify-center">
- {/* their photo (the same one the sidebar and face pile draw) or their
-     initial — the old /avatars/<key>.png guess pointed at nothing */}
-      <UserAvatar
-        user={{ displayName: person.name, avatarUrl: person.avatarUrl }}
-        size={44}
-        className="shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-      />
-      {person.level >= 0 && <HeartBadge level={person.level} />}
-    </span>
-  );
-}
-
-/** Sidebar Chats tab, horizontal people strip: round faces with a level
- * heart badge. Faces come from "Relationship Records" children (seeded
- * records) AND file-primary OKF docs titled "Relationship doc — A ❤️ B"
- * (agent-maintained; okf_acl scopes them to participants). Hidden when
- * neither shape exists in the viewer's page list. */
+/** Sidebar Chats tab, horizontal people strip: one round face per relation.
+ * Faces come from file-primary OKF docs titled "Relationship doc — A ❤️ B"
+ * (agent-maintained; okf_acl scopes them to participants) and from
+ * agent-attached 1:1 rooms, which are relations before their first doc page
+ * exists. Hidden when the viewer has neither. */
 export function RelationshipsStrip() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
@@ -130,16 +90,8 @@ export function RelationshipsStrip() {
         );
         const memberNames = new Set(memberByKey.keys());
 
-        // faces come from two shapes of relationship doc:
-        // 1) children of a "Relationship Records" index page (seeded records)
-        // 2) file-primary OKF docs — root pages titled "Relationship doc — A ❤️ B"
-        //    (the agent-maintained ones; okf_acl already scoped them to us)
-        const indexIds = new Set(
-          pages.filter((p) => p.title === INDEX_TITLE && !p.isArchived).map((p) => p.id)
-        );
-        const kids = pages.filter(
-          (p) => p.parentPageId && indexIds.has(p.parentPageId) && !p.isArchived
-        );
+        // file-primary OKF docs — root pages titled "Relationship doc — A ❤️ B"
+        // (the agent-maintained ones; okf_acl already scoped them to us)
         const okfDocs = pages.filter((p) => !p.isArchived && isRelationshipDoc(p.title));
 
  // 1:1 DM rooms by the other member's name — the card should open the
@@ -176,71 +128,26 @@ export function RelationshipsStrip() {
             }
           }
         } catch {
- // room lookup is best-effort — cards fall back to the record page
+ // room lookup is best-effort — a face falls back to its doc page
         }
 
- // levels by person name, from databases embedded on the index pages
- // (a "Level" select column). Discovered via the pages' own database
- // blocks — /api/databases scopes to the default workspace, which can
- // differ from the workspace these pages live in.
-        const levels = new Map<string, number>();
-        try {
-          const dbIds = new Set<string>();
-          for (const id of indexIds) {
-            const { blocks } = await (await fetch(`/api/pages/${id}/blocks`)).json();
-            for (const b of blocks ?? []) {
-              if (b.type === "database" && b.content?.databaseId) dbIds.add(b.content.databaseId);
-            }
-          }
-          for (const dbId of [...dbIds].slice(0, 4)) {
-            const snap = await (await fetch(`/api/databases/${dbId}`)).json();
-            const titleProp = snap.properties?.find((p: { type: string }) => p.type === "title");
-            const levelProp = snap.properties?.find(
-              (p: { name: string; type: string }) => p.type === "select" && p.name === "Level"
-            );
-            if (!titleProp || !levelProp) continue;
-            for (const row of snap.rows) {
-              const t = String(row.values[titleProp.id] ?? "");
-              const opt = String(row.values[levelProp.id] ?? "");
-              const m = opt.match(/(\d+)/); // option ids look like "lv5"
-              if (t && m) levels.set(nameKey(t), Number(m[1]));
-            }
-          }
-        } catch {
- // DB lookup is best-effort — faces render without badges
-        }
-
-        // dedup by partner: the living OKF doc wins over a seeded record
+        // one face per partner, whether we found them by doc or by room
         const byPartner = new Map<string, Person>();
-        for (const k of kids) {
-          const name = partnerOf(k.title, myName); // the other person, never "me"
-          const key = name.toLowerCase();
-          byPartner.set(key, {
-            key,
-            name,
-            level: levels.get(key) ?? -1,
-            pageId: k.id,
-            roomId: roomByName.get(key) ?? null,
-            partnerUserId: memberByKey.get(nameKey(name)) ?? null,
-          });
-        }
         for (const d of okfDocs) {
           const name = partnerOf(d.title, myName);
           // OKF docs are workspace-agnostic files; only surface the ones whose
           // partner is a member of the current workspace
           if (memberNames.size > 0 && !memberNames.has(nameKey(name))) continue;
           const key = name.toLowerCase();
-          const prev = byPartner.get(key);
           byPartner.set(key, {
             key,
             name,
-            level: prev?.level ?? levels.get(key) ?? -1,
             pageId: d.id, // doc fallback when no chat can be opened
-            roomId: prev?.roomId ?? roomByName.get(key) ?? null,
+            roomId: roomByName.get(key) ?? null,
             partnerUserId: memberByKey.get(nameKey(name)) ?? null,
           });
         }
-        if (kids.length === 0 && okfDocs.length === 0 && roomRelations.length === 0) return;
+        if (okfDocs.length === 0 && roomRelations.length === 0) return;
 
         for (const r of roomRelations) {
           const key = r.name.toLowerCase();
@@ -248,16 +155,16 @@ export function RelationshipsStrip() {
           byPartner.set(key, {
             key,
             name: r.name,
-            level: prev?.level ?? levels.get(key) ?? -1,
-            // the room's own doc link is authoritative; title-parsed pages
-            // only fill in for seeded records without a room
+            // the room's own doc link is authoritative; a title-parsed page
+            // only fills in for a partner we found by doc alone
             pageId: r.docPageId ?? prev?.pageId ?? null,
             roomId: r.roomId,
+            partnerUserId: prev?.partnerUserId ?? null,
             avatarUrl: r.avatarUrl,
           });
         }
         const list = [...byPartner.values()];
-        list.sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+        list.sort((a, b) => a.name.localeCompare(b.name));
         if (alive) setPeople(list);
       } catch {
  // sidebar strip is decorative — fail silent
@@ -268,17 +175,17 @@ export function RelationshipsStrip() {
     };
   }, []);
 
-  /** The relationship doc (agent-maintained, OKF) is the card's document;
- * the seeded record page is only the fallback for people without a room
- * or whose room has no doc yet (no consent / no messages processed). */
+  /** A face opens the conversation; the agent-maintained OKF doc is the
+ * fallback for a partner with no room, or whose room has no doc yet (no
+ * consent / no messages processed). */
   async function openPerson(person: Person) {
     // a face opens the conversation — the room header links to the doc.
     if (person.roomId) {
       router.push(`/dm/${person.roomId}`);
       return;
     }
-    // no room in this workspace yet: open (or create) the 1:1 with her —
-    // she is a member here, so the same-workspace rule allows it
+    // no room in this workspace yet: open (or create) the 1:1 with them —
+    // they are a member here, so the same-workspace rule allows it
     if (person.partnerUserId) {
       try {
         const res = await fetch("/api/dm/rooms", {
@@ -314,7 +221,11 @@ export function RelationshipsStrip() {
             onClick={() => void openPerson(p)}
             className="flex w-[76px] shrink-0 flex-col items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
           >
-            <Face person={p} />
+            <UserAvatar
+              user={{ displayName: p.name, avatarUrl: p.avatarUrl }}
+              size={44}
+              className="shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+            />
             <span className="line-clamp-2 w-full text-center text-[10px] leading-[14px] text-neutral-500 dark:text-neutral-400">
               {p.name}
             </span>
