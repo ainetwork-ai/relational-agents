@@ -58,8 +58,13 @@ export function inlineHtmlToMd(html: string): string {
 /**
  * Plain text → inline HTML with bare URLs turned into links, for text that is
  * STORED as plain text but rendered in a contenteditable (a database's 설명).
- * Newlines stay literal — the element carries `white-space: pre-wrap`, and a
- * <br> would come back out of innerText as a doubled line.
+ *
+ * Line breaks are <br>, not literal newlines: Chrome's editing engine treats a
+ * newline character in a contenteditable as removable whitespace and eats it as
+ * soon as you type near it (verified — two Enters then a keystroke lost a line).
+ * A trailing <br> gets a second one, the filler every editor needs: a lone
+ * trailing <br> renders no line and domToPlainText reads it back as nothing, so
+ * without it the last empty line would vanish on every save.
  */
 export function plainTextToLinkedHtml(text: string): string {
   const url = /(?:https?:\/\/|www\.)[^\s<>()]*[^\s<>().,;:!?'"]/gi;
@@ -73,7 +78,37 @@ export function plainTextToLinkedHtml(text: string): string {
     out += `<a href="${escapeHtml(href)}">${escapeHtml(raw)}</a>`;
     last = at + raw.length;
   }
-  return out + escapeHtml(text.slice(last));
+  out = (out + escapeHtml(text.slice(last))).replace(/\n/g, "<br>");
+  return out.endsWith("<br>") ? `${out}<br>` : out;
+}
+
+const BLOCK_TAG = /^(DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE|PRE|SECTION|ARTICLE)$/;
+
+/**
+ * A contenteditable's DOM → the plain text it shows. `innerText` cannot do this
+ * job: Chrome answers a pasted blank line (`<div><br></div>`) with TWO newlines
+ * — one for the block boundary, one for the <br> — so every save spread the
+ * lines further apart. Here a block boundary is one newline, and a <br> with
+ * nothing after it is the filler that makes an empty line visible, worth none.
+ */
+export function domToPlainText(root: HTMLElement): string {
+  let out = "";
+  const walk = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        out += (child as Text).data;
+      } else if (child.nodeName === "BR") {
+        if (child.nextSibling) out += "\n";
+      } else if (BLOCK_TAG.test(child.nodeName)) {
+        if (out !== "") out += "\n";
+        walk(child);
+      } else {
+        walk(child); // <a>, <span>, <b>… contribute only their text
+      }
+    }
+  };
+  walk(root);
+  return out;
 }
 
 function escapeHtml(s: string): string {

@@ -15,7 +15,7 @@ import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { copyText } from "@/lib/compat";
-import { plainTextToLinkedHtml } from "@/lib/rich-text";
+import { domToPlainText, plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
 import { Breadcrumbs } from "./breadcrumbs";
 import { RowPropertiesPanel } from "@/components/database/row-properties";
@@ -409,15 +409,20 @@ export function PageView({
             data-placeholder="설명을 추가하세요"
             data-placeholder-persist=""
             onInput={(e) => {
-              const text = (e.currentTarget as HTMLDivElement).innerText;
+ // domToPlainText, never innerText — innerText counts a pasted blank line
+ // twice and the description drifted apart a line on every save
+              const text = domToPlainText(e.currentTarget as HTMLDivElement);
               setDesc(text);
               saveDesc.call(text);
             }}
             onBlur={() => {
  // relinkify from the text that ended up in the DOM: a URL typed by hand
  // becomes a link now, and text typed against a link's edge normalizes
-              const text = descRef.current?.innerText ?? "";
+              const el = descRef.current;
+              if (!el) return;
+              const text = domToPlainText(el);
               setDesc(text);
+              saveDesc.call(text);
               setDescSync((n) => n + 1);
             }}
             onPaste={(e) => {
