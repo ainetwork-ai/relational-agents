@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon } from "lucide-react";
+import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon, ChevronDown} from "lucide-react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -1026,7 +1026,7 @@ export function DatabaseBlock({
                 key={v.id}
                 className="flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-2 py-1 text-xs"
               >
-                <Table2 size={13} />
+                <Table2 size={20} />
                 {v.name}
                 <span className="ml-0.5 px-0.5">⋯</span>
               </span>
@@ -1055,31 +1055,42 @@ export function DatabaseBlock({
               key={v.id}
               data-testid={`db-view-tab-${v.id}`}
               data-view-type={v.type}
-              onClick={() => setActiveViewId(v.id)}
+              onClick={() =>
+                v.id === activeView.id
+                  ? setTabMenuViewId((cur) => (cur === v.id ? null : v.id))
+                  : setActiveViewId(v.id)
+              }
               onDoubleClick={() => {
                 setViewNameDraft(v.name);
                 setRenamingViewId(v.id);
               }}
-              className={`relative flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t border-b-2 px-2 py-1 text-xs transition-colors ${
+              // measured on the original (e2e/fixtures/notion-view-tabs.json):
+              // a 32-tall pill, 12px inner padding, 20px icon, 6px gap, label
+              // 14px/500. The active one carries rgba(33,27,23,.05); the others
+              // carry nothing and are grey. We had 12px text on an underline.
+              className={`relative flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[20px] px-3 text-[14px] font-medium leading-5 transition-colors ${
                 v.id === activeView.id
-                  ? "border-neutral-800 font-medium text-neutral-800 dark:border-neutral-200 dark:text-neutral-100"
-                  : "border-transparent text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  ? "bg-[rgba(33,27,23,0.05)] text-[rgb(44,44,43)] dark:bg-neutral-700/50 dark:text-neutral-100"
+                  : "text-[rgb(125,122,117)] hover:bg-[rgba(33,27,23,0.03)] dark:text-neutral-400 dark:hover:bg-neutral-800"
               }`}
             >
               {v.type === "board" ? (
-                <KanbanSquare size={13} />
+                <KanbanSquare size={20} />
               ) : v.type === "list" ? (
-                <ListIcon size={13} />
+                <ListIcon size={20} />
               ) : v.type === "gallery" ? (
-                <LayoutGrid size={13} />
+                <LayoutGrid size={20} />
               ) : v.type === "dashboard" ? (
-                <LayoutDashboard size={13} />
+                <LayoutDashboard size={20} />
               ) : v.type === "chart" ? (
-                <BarChart3 size={13} />
+                <BarChart3 size={20} />
               ) : (
-                <Table2 size={13} />
+                <Table2 size={20} />
               )}
               {v.name}
+              {/* no ⋯ in the tab: the original's active tab measures 168px of
+                  icon + label and nothing else. Clicking the tab you are already
+                  on is what opens its menu. */}
               {v.id === activeView.id && (
                 <span
                   role="button"
@@ -1089,10 +1100,8 @@ export function DatabaseBlock({
                     e.stopPropagation();
                     setTabMenuViewId((cur) => (cur === v.id ? null : v.id));
                   }}
-                  className="ml-0.5 rounded px-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-700"
-                >
-                  ⋯
-                </span>
+                  className="hidden"
+                />
               )}
               {tabMenuViewId === v.id && (
                 <span
@@ -1145,10 +1154,11 @@ export function DatabaseBlock({
               <button
                 data-testid="db-view-more"
                 onClick={() => setMoreTabsOpen((v) => !v)}
-                className="flex items-center gap-0.5 whitespace-nowrap rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                // 85×32 pill, 14px/400 grey, text only — the original's
+                // overflow button has no caret
+                className="flex h-8 items-center whitespace-nowrap rounded-[20px] px-2.5 text-[14px] leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.03)] dark:text-neutral-400 dark:hover:bg-neutral-800"
               >
                 {tabViews.length - visibleTabCount}개 더 보기
-                <span className="text-[9px]">▾</span>
               </button>
               {moreTabsOpen && (
                 <div className="popover-anim absolute left-0 top-8 z-40 flex w-44 flex-col rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
@@ -1253,13 +1263,30 @@ export function DatabaseBlock({
                   document.body
                 )}
             </div>
-            <button
-              data-testid="db-new-row"
-              onClick={() => void addRow({})}
-              className="order-last ml-1 flex items-center gap-1 rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600"
-            >
-              새 {database.itemName || "페이지"}
-            </button>
+            {/* the original's primary is a SPLIT button: 80×28 + a 24×28 caret,
+                radius 6, rgb(39,131,222), with a hairline between them. The caret
+                menu (templates) is not built, so it says why on hover. */}
+            <div className="order-last ml-1 flex h-7 shrink-0 items-stretch overflow-hidden rounded-[6px] bg-[rgb(39,131,222)]">
+              <button
+                data-testid="db-new-row"
+                onClick={() => void addRow({})}
+                className="flex items-center px-3 text-[14px] font-medium leading-5 text-white transition-colors hover:bg-[rgb(35,118,199)]"
+              >
+                {/* the toolbar's primary reads 새로 만들기 in the original; the
+                    item name (새 프로젝트) is what a GROUP's add-row says */}
+                새로 만들기
+              </button>
+              <span className="w-px bg-white/25" aria-hidden="true" />
+              <button
+                data-testid="db-new-row-more"
+                aria-label="추가 옵션 더 보기"
+                title="템플릿 메뉴는 아직 없습니다"
+                disabled
+                className="flex w-6 cursor-not-allowed items-center justify-center text-white/70"
+              >
+                <ChevronDown size={16} />
+              </button>
+            </div>
             {activeView?.type !== "table" && (
             <div className="relative">
               <button

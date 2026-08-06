@@ -48,14 +48,16 @@ export function SortBar() {
         data-tip="Sort"
         aria-label="Sort"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+                // 28×28, radius 6, 16px icon — and ACTIVE means a blue icon, not a
+        // blue chip: the original never fills these (measured toolbar, six of
+        // them at a 28px pitch)
+        className={`flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors ${
           sorts.length
-            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"
-            : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            ? "text-[rgb(39,131,222)] hover:bg-[rgba(33,27,23,0.05)]"
+            : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
       >
-        <ArrowUpDown size={14} />
-        {sorts.length > 0 && <span className="text-[10px] font-semibold">{sorts.length}</span>}
+        <ArrowUpDown size={16} />
       </button>
       {open &&
         createPortal(
