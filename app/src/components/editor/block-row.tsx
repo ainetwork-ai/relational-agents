@@ -97,7 +97,17 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
         }`}
         style={{ paddingLeft: depth * 24 }}
       >
-        <div className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/block:opacity-100" style={{ left: depth * 24 - 40 }} /* hug the block */>
+        {/* The + and the drag handle belong to the ONE line the pointer is on.
+            `group-hover/block:` was a descendant selector, so every block
+            CONTAINING the pointer lit its own gutter: a nested parent showed
+            handles along with its child, and a row peek — which renders inside
+            the database block — showed handles on all of its lines at once.
+            This keys off the nearest block instead: hovered, and not
+            containing another hovered block. */}
+        <div
+          className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
+          style={{ left: depth * 24 - 40 }} /* hug the block */
+        >
           <button
             tabIndex={-1}
             data-testid={`block-add-below-${block.id}`}
@@ -319,6 +329,8 @@ function BlockHandle({ block }: { block: EBlock }) {
   const pathname = usePathname();
   const pageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
 
+ // dismiss:manual — this listener guards the in-place block menu, not the
+ // portal; the portalled comment overlay closes itself on its own mousedown.
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
