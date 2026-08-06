@@ -166,17 +166,30 @@ export function TableView({ view }: { view: DbView }) {
 
   return (
     <div className="relative">
-      {/* The columns sit where the page's text sits, and the 36px to their left
-          — inside the page's own inset — holds each row's checkbox and grip.
-          That is the original's arrangement: with the content area starting at
-          270, its columns are at 374 and the checkbox zone at 338, one gutter
-          width left of them. -ml-9/pl-9 gives the scroller that gutter without
-          moving the columns (`overflow-x-auto` would clip anything outside it).
-          Its own scrollbar is hidden; the bar at the bottom of the screen is
-          the one you see and drag. */}
+      {/* Two things at once, both taken from the original.
+
+          Where the columns REST: lined up with the view tabs, one gutter width
+          (36px) right of the row's checkbox zone. With its content area
+          starting at 270 the original rests its columns at 374 and its zone at
+          338; ours rest at 304 and 268.
+
+          How far they can SCROLL: the original's scroller is the whole content
+          area, so scrolling sideways carries the columns to the content's left
+          edge and out of sight (374 → -226 at scrollLeft 600). Ours used to be
+          a box starting at 268, which meant no column could ever pass 268 and
+          the table kept a gap from the sidebar however far you dragged.
+
+          So the box is full width (-mx-16 cancels the page's inset) and the
+          resting position comes from padding inside it (pl-16), which scrolls
+          away with the content. Its own scrollbar is hidden; the bar at the
+          bottom of the screen is the one you see and drag. */}
       <div
         ref={scrollerRef}
-        className="-ml-9 w-full overflow-x-auto pl-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+ // no w-full on the full-page branch: the negative margins have to widen the
+ // box, and a fixed 100% would keep it at the inset width and shift it left
+        className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          db.fullPage ? "-mx-16 pl-16" : "-ml-9 w-full pl-9"
+        }`}
       >
       {checked.size > 0 && (
         <div
