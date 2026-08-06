@@ -132,6 +132,7 @@ export function TableView({ view }: { view: DbView }) {
     { key: NO_GROUP, label: "", rows: visible, preset: undefined },
   ];
  // collapse state lives in the view so it survives a reload, as in Notion
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const collapsedGroups = view.config.collapsedGroups ?? [];
   const hideEmptyGroups = view.config.hideEmptyGroups ?? true;
   const shownGroups = hideEmptyGroups ? groups.filter((g) => g.rows.length > 0) : groups;
@@ -141,11 +142,17 @@ export function TableView({ view }: { view: DbView }) {
     db.patchView({ ...view.config, collapsedGroups: keys });
 
   return (
- // -ml-9/pl-9: the scroller keeps 36px of visible padding on its left so the
- // per-row affordances can hang there (`overflow-x-auto` would clip anything
- // outside it), while the negative margin puts the columns back where they
- // were — flush with the page's own left edge, as in the capture.
-    <div className="-ml-9 w-full overflow-x-auto pl-9">
+    <div className="relative">
+      {/* -ml-9/pl-9: the scroller keeps 36px of visible padding on its left so
+          the per-row affordances can hang there (`overflow-x-auto` would clip
+          anything outside it), while the negative margin puts the columns back
+          where they were — flush with the page's own left edge. Its own
+          scrollbar is hidden; the bar at the bottom of the screen is the one
+          you see and drag. */}
+      <div
+        ref={scrollerRef}
+        className="-ml-9 w-full overflow-x-auto pl-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
       {checked.size > 0 && (
         <div
           data-testid="db-bulk-bar"
@@ -214,7 +221,81 @@ export function TableView({ view }: { view: DbView }) {
             <CalcCell key={p.id} view={view} prop={p} rows={visible} />
           ))}
         </div>
+        </div>
       </div>
+      <BottomScrollbar scrollerRef={scrollerRef} />
+    </div>
+  );
+}
+
+/** The horizontal scrollbar the original keeps at the bottom of the SCREEN, not
+ * at the end of a 2,700px-tall table where nobody can reach it. `sticky` does
+ * not hold in this page's layout, so the bar is fixed and follows the table's
+ * own left edge and width; the table hides its native bar and the two scroll
+ * each other. */
+function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDivElement | null> }) {
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const spacerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    let syncing = false;
+
+ // written straight to the DOM: this runs on every scroll, and routing it
+ // through state raced with the table's own re-renders and blanked the bar
+    const update = (e?: Event) => {
+      const bar = barRef.current;
+      const spacer = spacerRef.current;
+      if (!bar || !spacer) return;
+ // the capture listener sees the BAR's own scroll too; snapping it back to the
+ // table here would undo the drag before it reached the table
+      const fromTheBar = !!e && e.target === bar;
+      const r = sc.getBoundingClientRect();
+      const needed = sc.scrollWidth > sc.clientWidth + 1;
+      const onScreen = r.top < window.innerHeight - 40 && r.bottom > 140;
+      bar.style.display = needed && onScreen ? "" : "none";
+      bar.style.left = `${Math.round(r.left)}px`;
+      bar.style.width = `${Math.round(r.width)}px`;
+      spacer.style.width = `${sc.scrollWidth}px`;
+      if (!syncing && !fromTheBar) {
+        syncing = true;
+        bar.scrollLeft = sc.scrollLeft;
+        syncing = false;
+      }
+    };
+    const fromBar = () => {
+      const bar = barRef.current;
+      if (!bar || syncing) return;
+      syncing = true;
+      sc.scrollLeft = bar.scrollLeft;
+      syncing = false;
+    };
+
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => update()) : null;
+    ro?.observe(sc);
+ // capture: the page scroller and the table both bubble their scrolls here
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    barRef.current?.addEventListener("scroll", fromBar, { passive: true });
+    const bar = barRef.current;
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+      bar?.removeEventListener("scroll", fromBar);
+    };
+  }, [scrollerRef]);
+
+  return (
+    <div
+      ref={barRef}
+      data-testid="db-hscroll"
+      style={{ display: "none" }}
+      className="fixed bottom-2 z-30 overflow-x-auto"
+    >
+      <div ref={spacerRef} className="h-1.5" />
     </div>
   );
 }
