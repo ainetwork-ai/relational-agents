@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ChevronsUpDown, Plus, Settings, Check, Users, Sun, Moon, Monitor } from "lucide-react";
 import { setThemeMode, useThemeMode, type ThemeMode } from "@/components/dark-mode-toggle";
@@ -44,6 +46,11 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   const [display, setDisplay] = useState<ActiveWorkspace>(workspace);
   const [syncedWorkspace, setSyncedWorkspace] = useState(workspace);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled and placed: the sidebar shell clips, and this 316px list lost
+ // 28px off the bottom of a 340px-tall window
+  useAnchored(open, btnRef, popRef, { align: "start" });
 
  // Re-sync from the server prop whenever it changes (router.refresh after a
  // switch/rename) — render-time adjustment, not an effect.
@@ -69,7 +76,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) {
+      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) {
         setOpen(false);
         setCreating(false);
       }
@@ -150,6 +157,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   return (
     <div ref={ref} className="relative flex min-w-0 flex-1 items-center gap-0.5">
       <button
+        ref={btnRef}
         data-testid="workspace-switcher"
         onClick={() => setOpen((v) => !v)}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-neutral-200/60 dark:hover:bg-neutral-700"
@@ -173,8 +181,13 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
       </button>
       <MembersModal />
 
-      {open && (
-        <div className="popover-anim absolute left-0 top-10 z-50 w-60 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-60 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <div className="max-h-64 overflow-y-auto">
             {list.map((w) => (
               <button
@@ -281,8 +294,9 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
               Create workspace
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {settingsOpen && (
         <WorkspaceSettingsModal
