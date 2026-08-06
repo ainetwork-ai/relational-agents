@@ -71,6 +71,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/status-dropdown.check.mjs` | Status 셀 메뉴의 박스·바·칩·그룹·구분선·푸터·검색 2종 |
 | `node e2e/chip-consistency.check.mjs` | 같은 값의 칩이 셀과 메뉴에서 같은 모양인지 |
 | `node e2e/view-columns.check.mjs` | 표의 열 순서·폭 13개 |
+| `node e2e/row-gutter.check.mjs` | 가로 스크롤에서 행 컨트롤(체크박스·⠿)이 어디에 붙는지 |
 | `node e2e/db-hover-scope.check.mjs` | 호버 시 켜지는 셀이 포인터가 있는 하나뿐인지 |
 | `pnpm check:dismiss` | 포털 팝오버가 바깥클릭 감지를 직접 짜고 있지 않은지 |
 

@@ -75,6 +75,10 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
  // pill and you see two bars. That is exactly the bug this hunt was about.
       el.style.width = `${host.clientWidth}px`;
       el.style.paddingLeft = `${inset}px`;
+ // the row gutter needs it too: a sticky child clamps to the scrollport's
+ // CONTENT box, which this padding pushes inward, so the gutter has to subtract
+ // it to reach the scroller's visible left edge
+      el.style.setProperty("--db-inset", `${inset}px`);
     };
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => apply()) : null;
     ro?.observe(host);
@@ -86,6 +90,7 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
       el.style.marginLeft = "";
       el.style.width = "";
       el.style.paddingLeft = "";
+      el.style.removeProperty("--db-inset");
     };
   }, [ref, on]);
 }
@@ -976,32 +981,30 @@ function RowLine({
         checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
       }`}
     >
-      {/* Row affordances take no width and overlay the first cell's left edge,
-          off a sticky zero-width anchor — the original does the same (its
-          checkbox hangs off `inset-inline-start` and floats over the first
-          column). A leading gutter column would leave an empty first cell,
-          which the real table doesn't have. */}
-      <div className="sticky left-0 z-[4] w-0 shrink-0">
-        {/* 36×36 one gutter-width left of the first column — where the original
-            puts it (338 against columns at 374) — holding a 16px grip and a
-            16px checkbox, revealed while the pointer is anywhere in the row —
-            they sit in the page's inset, so they cover nothing. */}
-        <div className="absolute -left-9 top-0 flex h-9 w-9 items-center justify-center gap-px">
-          <div
-            className={`flex items-center gap-px transition-opacity ${
-              checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
-            }`}
-          >
-          <input
-            type="checkbox"
-            data-testid={`db-row-check-${row.id}`}
-            checked={checked}
-            onChange={() => onCheck?.()}
-            aria-label="Select row"
-            className="h-4 w-4 shrink-0 rounded-[3px] accent-blue-500"
-          />
+      {/* The row's grip and checkbox, in the page inset left of the first cell.
+          They take no width, off a zero-width sticky anchor.
+
+          The anchor's `left` is `37px − the table's own left inset`, and the two
+          sit at −62 and −26 from it, so BOTH states land where the original's
+          do (measured at scrollLeft 0 / 400 / 1250):
+
+            not scrolled  anchor at the row's own start → ⠿ row−62, ☐ row−26
+            scrolled      a sticky child clamps to the scrollport's CONTENT box,
+                          which the full-bleed padding pushes inward — subtract
+                          it and the clamp lands at scroller+37, so ☐ sits at
+                          scroller+11 and the ⠿ passes the edge, out of sight
+
+          `left-0` pinned them at a fixed viewport spot instead, so scrolling
+          slid the cells UNDER them and the checkbox sat on top of a name. */}
+      <div className="sticky z-[4] w-0 shrink-0" style={{ left: "calc(37px - var(--db-inset, 0px))" }}>
+        <div
+          className={`absolute top-0 flex h-[37px] items-center transition-opacity ${
+            checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
+          }`}
+        >
           <button
             data-testid={`db-row-drag-${row.id}`}
+            style={{ position: "absolute", left: -62 }}
             ref={dragRef}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
@@ -1032,7 +1035,15 @@ function RowLine({
           >
             <GripVertical size={16} />
           </button>
-          </div>
+          <input
+            type="checkbox"
+            data-testid={`db-row-check-${row.id}`}
+            checked={checked}
+            onChange={() => onCheck?.()}
+            aria-label="Select row"
+            style={{ position: "absolute", left: -26 }}
+            className="h-4 w-4 shrink-0 rounded-[3px] accent-blue-500"
+          />
         </div>
       </div>
       {cols.map((p, i) =>
