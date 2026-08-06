@@ -1,0 +1,56 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects' table view, 2026-08-06. Read-only per docs/notion-golden-set.md §3: horizontal wheel scrolling to paint the Evaluation/Team/Status columns, computed styles read off the painted chips, and ONE Evaluation cell clicked to open its option list (measured, then Escape — no option was picked). Numbers are px.",
+  "_why": "The chip is not one shape. A select/multi-select value is a 4px-radius chip; a status value is a 10px pill with a dot. We drew everything as the pill, because the only thing measured before was the Status menu.",
+
+  "select": {
+    "_of": "Evaluation (select) and Team (multi_select), identical in a cell and in the option list",
+    "height": 20,
+    "radius": "4px",
+    "paddingLeft": 6,
+    "paddingRight": 6,
+    "fontSize": 14,
+    "lineHeight": 20,
+    "fontWeight": 400,
+    "dot": false,
+    "whiteSpace": "nowrap",
+    "textOverflow": "ellipsis"
+  },
+
+  "status": {
+    "_of": "Status (status) in a cell — matches e2e/fixtures/notion-status-dropdown.json",
+    "height": 20,
+    "radius": "10px",
+    "paddingLeft": 7,
+    "paddingRight": 9,
+    "fontSize": 14,
+    "lineHeight": 20,
+    "fontWeight": 400,
+    "dot": true,
+    "dotSize": 8,
+    "dotGap": 5
+  },
+
+  "cell": {
+    "_of": "a multi_select cell holding two chips (Team)",
+    "height": 37,
+    "padding": 0,
+    "firstChipInsetLeft": 8,
+    "firstChipInsetTop": 8,
+    "gapBetweenChips": 8
+  },
+
+  "colors": {
+    "_note": "Notion paints translucent overlays, hence the alpha. Sampled where each was on screen: red/purple/yellow/green/brown/blue from the Evaluation option list, orange/pink from Team cells, gray from the Status menu fixture.",
+    "red": { "bg": "rgba(206, 24, 0, 0.165)", "text": "rgb(109, 53, 49)", "seenAs": "Superb, inbody, Agent Commerce" },
+    "purple": { "bg": "rgba(92, 0, 163, 0.14)", "text": "rgb(85, 59, 105)", "seenAs": "Strongly Exceeds Expectation" },
+    "yellow": { "bg": "rgba(209, 156, 0, 0.282)", "text": "rgb(101, 81, 33)", "seenAs": "Exceeds Expectations, 카카오페이증권" },
+    "green": { "bg": "rgba(0, 96, 38, 0.157)", "text": "rgb(42, 83, 60)", "seenAs": "Meets Expectations" },
+    "brown": { "bg": "rgba(127, 51, 0, 0.157)", "text": "rgb(88, 68, 55)", "seenAs": "Need Improvement" },
+    "blue": { "bg": "rgba(0, 118, 217, 0.204)", "text": "rgb(38, 74, 114)", "seenAs": "NA, Donga Science, In progress" },
+    "orange": { "bg": "rgba(196, 88, 0, 0.204)", "text": "rgb(106, 66, 34)", "seenAs": "Walkerhill AI Guide" },
+    "pink": { "bg": "rgba(183, 0, 78, 0.153)", "text": "rgb(104, 53, 78)", "seenAs": "Uncommon Membership" },
+    "gray": { "bg": "rgba(28, 19, 1, 0.11)", "text": "rgb(73, 72, 70)", "seenAs": "Status menu (notion-status-dropdown.json)" }
+  },
+
+  "_mismatch": "Our copy of the Evaluation option 'Need Improvement' is stored as color 'orange', but the original paints it brown (rgba(127,51,0,.157)); the original's actual orange is rgba(196,88,0,.204), seen on Team. The option's stored colour came in with the import, so the fix belongs there, not in the chip."
+}
