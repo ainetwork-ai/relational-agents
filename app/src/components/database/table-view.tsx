@@ -106,6 +106,7 @@ export function TableView({ view }: { view: DbView }) {
           cols={cols}
           widths={view.config.widths}
           frozenLefts={frozenLefts}
+          showIcon={view.config.showPageIcon ?? true}
           depth={depth}
           hasChildren={kids.length > 0}
           collapsed={collapsed.has(row.id)}
@@ -747,6 +748,7 @@ function RowLine({
   cols,
   widths,
   frozenLefts,
+  showIcon = true,
   depth = 0,
   hasChildren = false,
   collapsed = false,
@@ -759,6 +761,7 @@ function RowLine({
   cols: DbProperty[];
   widths?: Record<string, number>;
   frozenLefts: (number | null)[];
+  showIcon?: boolean;
   depth?: number;
   hasChildren?: boolean;
   collapsed?: boolean;
@@ -856,7 +859,10 @@ function RowLine({
             ) : (
               depth > 0 && <span className="ml-1 w-[13px] shrink-0" />
             )}
-            {db.icon && (
+            {/* the row's icon. In the original each row *page* stores its own
+                (99 of 100 hold the database's, one was changed by hand); ours
+                have none yet, so the database's stands in. Views can hide it. */}
+            {showIcon && db.icon && (
               <span className="ml-1 shrink-0 text-[13px] leading-none" aria-hidden="true">
                 {db.icon}
               </span>

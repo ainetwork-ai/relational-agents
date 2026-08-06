@@ -388,6 +388,9 @@ export interface ViewConfig {
   /** column order for THIS view (property ids). Notion keeps order per view —
    * the same database starts with a different column in each of its views. */
   propertyOrder?: string[];
+  /** draw the row's icon in the title cell. The original leaves it on for its
+   * tables and turns it off for `My`, `All Projects` and `My Timeline`. */
+  showPageIcon?: boolean;
   /** freeze columns up to and including this index while the table scrolls
    * sideways. -1 (the default, and what every view of the original carries in
    * `table_frozen_column_index`) freezes nothing. */
