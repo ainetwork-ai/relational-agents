@@ -335,11 +335,14 @@ function MultiSelectCell({
   }
 
   return (
-    <div ref={ref} className="relative min-w-0 px-1.5 py-1">
+    <div ref={ref} className="relative min-w-0 py-1 pl-[7px] pr-1.5">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
+ // the original insets the first chip 8px from the cell's border box and gaps
+ // chips by 8px (e2e/fixtures/notion-chips.json → cell); our cell draws a 1px
+ // left border, so 7px of padding lands the chip on 8
+        className="flex min-h-[1.5rem] w-full items-center gap-2 overflow-hidden"
       >
         {selected.length ? (
  // one line, clipped by the column — the capture's cell does not wrap
@@ -838,7 +841,7 @@ function SelectCell({
  // the menu covers the CELL, not this padded box inside it
         cellRef.current = (el?.closest("[data-cellnav]") as HTMLElement | null) ?? el;
       }}
-      className="relative min-w-0 px-1.5 py-1"
+      className="relative min-w-0 py-1 pl-[7px] pr-1.5"
     >
       <button
         data-testid={testid}

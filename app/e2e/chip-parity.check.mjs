@@ -67,6 +67,23 @@ const chips = await page.evaluate(`(() => {
   }
   return out;
 })()`);
+
+/** the cell layout: where the first chip sits, and the gap between two chips */
+const layout = await page.evaluate(`(() => {
+  let inset = null, gap = null, rowH = null;
+  for (const cell of document.querySelectorAll("[data-cellnav]")) {
+    const chips = Array.from(cell.querySelectorAll("[data-chip]")).filter((c) => c.getBoundingClientRect().width);
+    if (!chips.length) continue;
+    const cr = cell.getBoundingClientRect(), a = chips[0].getBoundingClientRect();
+    if (inset === null) { inset = Math.round(a.left - cr.left); rowH = Math.round(cr.height); }
+    if (chips.length >= 2 && gap === null) {
+      const b = chips[1].getBoundingClientRect();
+      gap = Math.round(b.left - a.right);
+    }
+    if (inset !== null && gap !== null) break;
+  }
+  return { firstChipInsetLeft: inset, gapBetweenChips: gap, height: rowH };
+})()`);
 await browser.close();
 
 if (!chips.length) {
@@ -101,7 +118,13 @@ for (const c of chips) {
   }
 }
 
-console.log(`compared ${chips.length} chips (${seen.size} distinct kind+colour) against the original`);
+for (const [k, exp] of [["firstChipInsetLeft", FIX.cell.firstChipInsetLeft], ["gapBetweenChips", FIX.cell.gapBetweenChips], ["height", FIX.cell.height]]) {
+  const got = layout[k];
+  if (got === null || got === undefined) { console.log(`  (cell ${k}: nothing to measure on this page)`); continue; }
+  if (got !== exp) diffs.push(`cell: ${k} ${got} ≠ ${exp}`);
+}
+
+console.log(`compared ${chips.length} chips (${seen.size} distinct kind+colour) and the cell layout against the original`);
 if (diffs.length) {
   console.error("\n  ┌─ 원본과 다릅니다 ──────────────────────────────");
   for (const d of diffs) console.error(`  │ ${d}`);

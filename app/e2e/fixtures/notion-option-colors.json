@@ -1,0 +1,107 @@
+{
+  "_source": "app.notion.com ComCom > Projects — the collection schema from a read-only POST /api/v3/loadPageChunk (2026-08-06). These are the colours NOTION stores per option, not colours read off pixels.",
+  "_why": "Our seed mapped Notion's palette onto ours while ours had no brown, so it carried `brown: \"orange\"`. 'Need Improvement' and '한양대' came in orange, and the chip then painted them orange. Notion's brown is a different colour (see notion-chips.json).",
+  "properties": {
+    "Status": {
+      "type": "status",
+      "options": {
+        "Not started": "default",
+        "In progress": "blue",
+        "Deprecated": "red",
+        "Needs review": "yellow",
+        "Hold": "green",
+        "Done": "green"
+      }
+    },
+    "Team": {
+      "type": "multi_select",
+      "options": {
+        "AINSpace": "pink",
+        "KKaebi": "pink",
+        "Uncommon Membership": "pink",
+        "Walkerhill AI Guide": "orange",
+        "Walkerhill WISE": "orange",
+        "Walkerhill AI Lounge": "orange",
+        "Ops": "green",
+        "한양대": "brown",
+        "Donga Science": "blue",
+        "Sysmate": "blue",
+        "모두연(Modulabs)": "green",
+        "카카오페이증권": "yellow",
+        "AIN Branding": "purple",
+        "ComCom Culture": "purple",
+        "ComCom Branding": "purple",
+        "UX": "purple",
+        "slack&notion": "yellow",
+        "IPO": "red",
+        "VASP": "default",
+        "Agent boosting": "gray",
+        "IR Deck": "blue",
+        "Gov": "green",
+        "Legal / Compliance": "orange",
+        "Global BizDev": "blue",
+        "inbody": "red",
+        "Infra": "blue",
+        "VivaTech": "yellow",
+        "ComCom AX": "red",
+        "국내 세일즈": "gray",
+        "AI Network": "red",
+        "HB": "green",
+        "Uncommon Gallery": "blue",
+        "Agent Commerce": "red"
+      }
+    },
+    "Evaluation": {
+      "type": "select",
+      "options": {
+        "Superb": "red",
+        "Strongly Exceeds Expectation": "purple",
+        "Exceeds Expectations": "yellow",
+        "Meets Expectations": "green",
+        "Need Improvement": "brown",
+        "NA": "blue"
+      }
+    },
+    "Territory": {
+      "type": "select",
+      "options": {
+        "Japan": "orange",
+        "China": "red",
+        "USA": "blue",
+        "EU": "purple",
+        "Singapore": "green",
+        "Korea": "gray",
+        "Philippines": "pink",
+        "Malaysia": "yellow",
+        "Hong Kong": "brown",
+        "WO/Madrid": "default"
+      }
+    },
+    "Law Firm": {
+      "type": "select",
+      "options": {
+        "KNK": "blue",
+        "ANK": "purple"
+      }
+    },
+    "Action": {
+      "type": "select",
+      "options": {
+        "Re-file": "red",
+        "Defend": "orange",
+        "Sec8 Filing": "yellow",
+        "Counsel Review": "blue",
+        "None": "green"
+      }
+    },
+    "Status 1": {
+      "type": "select",
+      "options": {
+        "Urgent": "red",
+        "In Progress": "yellow",
+        "Safe": "green",
+        "Monitor": "gray"
+      }
+    }
+  }
+}
