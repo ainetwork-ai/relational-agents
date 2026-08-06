@@ -105,6 +105,7 @@ export function TableView({ view }: { view: DbView }) {
           row={row}
           cols={cols}
           widths={view.config.widths}
+          frozenLefts={frozenLefts}
           depth={depth}
           hasChildren={kids.length > 0}
           collapsed={collapsed.has(row.id)}
@@ -132,6 +133,21 @@ export function TableView({ view }: { view: DbView }) {
     { key: NO_GROUP, label: "", rows: visible, preset: undefined },
   ];
  // collapse state lives in the view so it survives a reload, as in Notion
+ // Frozen columns: the view says how many stay put while the rest scrolls
+ // sideways (-1 = none, which is what the original uses — its TL column scrolls
+ // away with everything else). Each frozen column sticks at the running width
+ // of the ones before it.
+  const frozenTo = view.config.frozenColumnIndex ?? -1;
+  const frozenLefts: (number | null)[] = [];
+  {
+    let acc = 0;
+    cols.forEach((p, i) => {
+      if (i <= frozenTo) {
+        frozenLefts[i] = acc;
+        acc += view.config.widths?.[p.id] ?? 176;
+      } else frozenLefts[i] = null;
+    });
+  }
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const collapsedGroups = view.config.collapsedGroups ?? [];
   const hideEmptyGroups = view.config.hideEmptyGroups ?? true;
@@ -201,11 +217,12 @@ export function TableView({ view }: { view: DbView }) {
                 onCollapseAll={() => setCollapsedGroups(groups.map((x) => x.key))}
                 onExpandAll={() => setCollapsedGroups([])}
                 renderRows={renderRows}
+                frozenLefts={frozenLefts}
               />
           ))
         ) : (
           <>
-            <HeaderRow cols={cols} view={view} />
+            <HeaderRow cols={cols} view={view} frozenLefts={frozenLefts} />
             {renderRows(visible.slice(0, limit))}
             <AddRowButton testid="db-add-row" onClick={() => db.addRow()} />
           </>
@@ -325,11 +342,19 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
 
 /** The column header row. A grouped table repeats it inside every section
  * (`target.html` carries 10 `notion-table-view-header-row`s for 10 groups). */
-function HeaderRow({ cols, view }: { cols: DbProperty[]; view: DbView }) {
+function HeaderRow({
+  cols,
+  view,
+  frozenLefts,
+}: {
+  cols: DbProperty[];
+  view: DbView;
+  frozenLefts: (number | null)[];
+}) {
   return (
     <div className="flex border-b border-neutral-200 dark:border-neutral-700">
       {cols.map((p, i) => (
-        <ColumnHeader key={p.id} prop={p} view={view} frozen={i === 0} />
+        <ColumnHeader key={p.id} prop={p} view={view} frozenLeft={frozenLefts[i]} />
       ))}
       <AddPropertyHeader />
     </div>
@@ -364,6 +389,7 @@ function GroupSection({
   onCollapseAll,
   onExpandAll,
   renderRows,
+  frozenLefts,
 }: {
   group: RowGroup;
   groupProp: DbProperty;
@@ -374,6 +400,7 @@ function GroupSection({
   onCollapseAll: () => void;
   onExpandAll: () => void;
   renderRows: (rows: DbRow[]) => ReactNode[];
+  frozenLefts: (number | null)[];
 }) {
   const db = useDb();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -513,7 +540,7 @@ function GroupSection({
       </div>
       {!collapsed && (
         <>
-          <HeaderRow cols={cols} view={view} />
+          <HeaderRow cols={cols} view={view} frozenLefts={frozenLefts} />
           {renderRows(group.rows)}
           <AddRowButton testid={`db-group-add-row-${group.key}`} onClick={addToGroup} />
         </>
@@ -719,6 +746,7 @@ function RowLine({
   row,
   cols,
   widths,
+  frozenLefts,
   depth = 0,
   hasChildren = false,
   collapsed = false,
@@ -730,6 +758,7 @@ function RowLine({
   row: DbRow;
   cols: DbProperty[];
   widths?: Record<string, number>;
+  frozenLefts: (number | null)[];
   depth?: number;
   hasChildren?: boolean;
   collapsed?: boolean;
@@ -798,15 +827,18 @@ function RowLine({
  // opens the row's page (its full mapped content).
           <div
             key={p.id}
-            style={{ width: widths?.[p.id] ?? 176 }}
+            style={{
+              width: widths?.[p.id] ?? 176,
+              ...(frozenLefts[i] != null ? { left: frozenLefts[i]! } : {}),
+            }}
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
             className={`group/titlecell relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              i === 0 ? "sticky left-0 z-[2]" : ""
+              frozenLefts[i] != null ? "sticky z-[2]" : ""
             }`}
           >
-            {i === 0 && <FrozenBg checked={checked} />}
+            {frozenLefts[i] != null && <FrozenBg checked={checked} />}
             {/* sub-item indent and its toggle sit inside the title cell */}
             {depth > 0 && <span className="shrink-0" style={{ width: depth * 18 }} />}
             {hasChildren ? (
@@ -864,17 +896,20 @@ function RowLine({
         ) : (
           <div
             key={p.id}
-            style={{ width: widths?.[p.id] ?? 176 }}
+            style={{
+              width: widths?.[p.id] ?? 176,
+              ...(frozenLefts[i] != null ? { left: frozenLefts[i]! } : {}),
+            }}
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
  // one line per cell: the original's table views all carry `table_wrap: false`,
  // so a cell with five team chips is clipped rather than growing the row
             className={`flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              i === 0 ? "sticky left-0 z-[2]" : ""
+              frozenLefts[i] != null ? "sticky z-[2]" : ""
             }`}
           >
-            {i === 0 && <FrozenBg checked={checked} />}
+            {frozenLefts[i] != null && <FrozenBg checked={checked} />}
             <PropertyCell prop={p} row={row} />
           </div>
         )
@@ -886,11 +921,11 @@ function RowLine({
 function ColumnHeader({
   prop,
   view,
-  frozen,
+  frozenLeft,
 }: {
   prop: DbProperty;
   view: DbView;
-  frozen?: boolean;
+  frozenLeft?: number | null;
 }) {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -947,9 +982,12 @@ function ColumnHeader({
   return (
     <div
       ref={ref}
-      style={{ width: view.config.widths?.[prop.id] ?? 176 }}
+      style={{
+        width: view.config.widths?.[prop.id] ?? 176,
+        ...(frozenLeft != null ? { left: frozenLeft } : {}),
+      }}
       className={`group/col relative shrink-0 border-l border-neutral-200 first:border-l-0 dark:border-neutral-700 ${
-        frozen ? "sticky left-0 z-[3] bg-[var(--background)]" : ""
+        frozenLeft != null ? "sticky z-[3] bg-[var(--background)]" : ""
       }`}
     >
       {/* drag the right edge to resize the column (persists per view) */}
