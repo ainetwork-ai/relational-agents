@@ -7,12 +7,14 @@ import {
   ArrowUp,
   ArrowDown,
   Pencil,
-  Maximize2,
   ChevronRight,
   ChevronDown,
   GripVertical,
   MoreHorizontal,
   Check,
+  Copy,
+  MessageSquare,
+  PanelRight,
 } from "lucide-react";
 import type { DbView, DbProperty, DbRow, PropertyType } from "@/lib/db/schema";
 import {
@@ -225,19 +227,19 @@ export function TableView({ view }: { view: DbView }) {
           resting position comes from padding inside it (pl-16), which scrolls
           away with the content.
 
-          This scroller's own bar is the ONE horizontal bar on the page. Hiding
-          it ([scrollbar-width:none]) never worked — globals.css sets
-          `* { scrollbar-width: thin }` unlayered, which beats any Tailwind
-          utility whatever its specificity — so the page showed two bars: this
-          one and <main>'s. And hiding it would leave nothing to drag: <main>
-          does not scroll the table, this box does. */}
+          The visible bar is the floating db-hscroll pill below, which tracks
+          this box — so the NATIVE bar here must be hidden or there are two.
+          `[scrollbar-width:none]` never did it: globals.css sets
+          `* { scrollbar-width: thin }` unlayered, and unlayered CSS beats any
+          Tailwind utility whatever its specificity. `.no-native-scrollbar`
+          (globals.css, unlayered, later) is the one that holds. */}
       <div
         ref={scrollerRef}
  // full-page: margin/width/padding are measured against the scroll container
  // (see useFullBleed) because the page is centred with a max width, so a fixed
  // -mx-16 only worked while the window was narrow enough for that centring to
  // be zero — past that the table started further and further right.
-        className={`overflow-x-auto ${db.fullPage ? "" : "-ml-9 w-full pl-9"}`}
+        className={`no-native-scrollbar overflow-x-auto ${db.fullPage ? "" : "-ml-9 w-full pl-9"}`}
       >
       {checked.size > 0 && (
         <div
@@ -642,6 +644,69 @@ function GroupMenuItem({
   );
 }
 
+/** What a cell offers on hover, measured on the original: a cell WITH a value
+ * shows 댓글 at its right edge (24×20, 7px in), and the types that copy as text
+ * — date, number, created time, plain text — show 클립보드에 복사 beside it.
+ * `Created time` shows only the copy button, being read-only. An EMPTY cell
+ * shows nothing. The title cell is separate: it keeps 열기 and the comment count. */
+const COPYABLE: PropertyType[] = [
+  "date",
+  "number",
+  "created_time",
+  "last_edited_time",
+  "text",
+  "url",
+  "email",
+  "phone",
+  "formula",
+  "rollup",
+];
+const NO_COMMENT: PropertyType[] = ["created_time", "last_edited_time", "created_by", "last_edited_by"];
+
+function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
+  const [copied, setCopied] = useState(false);
+  if (prop.type === "title") return null;
+  const value = row.values[prop.id];
+  const readOnly = NO_COMMENT.includes(prop.type);
+  const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
+  if (empty && !readOnly) return null;
+
+  const copy = (e: React.MouseEvent) => {
+    const cell = (e.currentTarget as HTMLElement).closest("[data-cellnav]");
+    const text = (cell?.textContent ?? String(value ?? "")).trim();
+    void navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 900);
+  };
+
+  return (
+    <div className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100">
+      {!readOnly && (
+        <button
+          data-testid={`db-cell-comment-${row.id}-${prop.id}`}
+          aria-label="댓글"
+          title="셀 댓글은 아직 없습니다"
+          disabled
+          className="flex h-5 w-6 cursor-not-allowed items-center justify-center rounded border border-neutral-200 bg-white text-neutral-300 shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-600"
+        >
+          <MessageSquare size={12} />
+        </button>
+      )}
+      {COPYABLE.includes(prop.type) && (
+        <button
+          data-testid={`db-cell-copy-${row.id}-${prop.id}`}
+          aria-label="클립보드에 복사"
+          title="클립보드에 복사"
+          onClick={copy}
+          className="flex h-5 w-6 items-center justify-center rounded border border-neutral-200 bg-white text-neutral-500 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+        >
+          {copied ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Opaque backing for a frozen column: cells scrolling underneath must not show
  * through, so the frozen cell repaints the row's background itself — base first,
  * then the hover/selected tint, in the same order the row paints them. */
@@ -956,17 +1021,17 @@ function RowLine({
             <button
               data-testid={`db-title-open-${row.id}`}
               onClick={() => db.openRow(row.id)}
-              aria-label="사이드 보기"
-              title="사이드 보기"
+              aria-label="사이드 보기에서 열기"
+              title="사이드 보기에서 열기"
  // opacity-0 alone still intercepts clicks — disable pointer events
  // until hover so the invisible button never swallows a title click
-              className="pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] font-medium text-neutral-500 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 hover:text-neutral-700 group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex h-5 -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1.5 text-[11px] font-medium text-neutral-600 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              <Maximize2 size={10} /> 사이드 보기
+              <PanelRight size={11} /> 열기
             </button>
             {/* the row actions that used to sit in the gutter now hover here,
                 left of 열기 */}
-            <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/titlecell:pointer-events-auto group-hover/titlecell:opacity-100">
+            <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100">
               <button
                 data-testid={`db-subitem-add-${row.id}`}
                 onClick={onAddSub}
@@ -976,15 +1041,7 @@ function RowLine({
               >
                 <Plus size={13} />
               </button>
-              <button
-                data-testid={`db-del-row-${row.id}`}
-                onClick={() => db.deleteRow(row.id)}
-                aria-label="행 삭제"
-                title="행 삭제"
-                className="text-neutral-300 hover:text-red-500"
-              >
-                <Trash2 size={13} />
-              </button>
+              
             </div>
           </div>
         ) : (
@@ -1011,6 +1068,7 @@ function RowLine({
             <div className="min-w-0 flex-1">
               <PropertyCell prop={p} row={row} />
             </div>
+            <CellActions prop={p} row={row} />
           </div>
         )
       )}
