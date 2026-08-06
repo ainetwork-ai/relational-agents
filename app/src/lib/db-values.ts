@@ -237,16 +237,33 @@ export function withinRange(token: unknown): [string, string] {
   }
 }
 
+/**
+ * Notion's own chip palette, not Tailwind's.
+ *
+ * Tailwind's `bg-*-100` with `text-*-700` reads as highlighter next to the
+ * real thing: the tint is vivid AND the text is saturated, so a table of
+ * chips glows. Notion's tints are greyed and warm, and the text on top is the
+ * page's ordinary near-black (#32302C light, #D4D4D4 dark) — the colour lives
+ * only in the background.
+ *
+ * The captures reference these as CSS variables (`--ca-bluBacTerTra`,
+ * `--c-bluTexPri`) but the stylesheet that resolves them was not saved with
+ * them, so the values below are Notion's published select colours rather than
+ * something measured out of `docs/*.html`. Compare on screen before trusting
+ * any single one.
+ */
 export const OPTION_COLORS: Record<string, string> = {
-  gray: "bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200",
-  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200",
-  green: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200",
-  red: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200",
-  yellow: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-200",
-  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200",
-  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-200",
-  pink: "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-200",
+  gray: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
+  brown: "bg-[#EEE0DA] text-[#32302C] dark:bg-[#603B2C] dark:text-[#D4D4D4]",
+  orange: "bg-[#FADEC9] text-[#32302C] dark:bg-[#854C1D] dark:text-[#D4D4D4]",
+  yellow: "bg-[#FDECC8] text-[#32302C] dark:bg-[#89632A] dark:text-[#D4D4D4]",
+  green: "bg-[#DBEDDB] text-[#32302C] dark:bg-[#2B593F] dark:text-[#D4D4D4]",
+  blue: "bg-[#D3E5EF] text-[#32302C] dark:bg-[#28456C] dark:text-[#D4D4D4]",
+  purple: "bg-[#E8DEEE] text-[#32302C] dark:bg-[#492F64] dark:text-[#D4D4D4]",
+  pink: "bg-[#F5E0E9] text-[#32302C] dark:bg-[#69314C] dark:text-[#D4D4D4]",
+  red: "bg-[#FFE2DD] text-[#32302C] dark:bg-[#6E3630] dark:text-[#D4D4D4]",
 };
+/** New options take colours in this order — Notion's own wheel order. */
 export const COLOR_CYCLE = Object.keys(OPTION_COLORS);
 
 export function optionClass(color: string): string {
