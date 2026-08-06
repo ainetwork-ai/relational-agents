@@ -84,7 +84,13 @@ for (const i of withActions) {
       if (bar && Number(getComputedStyle(bar).opacity) > 0.5) lit.push(idx);
     });
     const open = row.querySelector("[aria-label='사이드 보기에서 열기']");
-    return { lit, open: open ? Number(getComputedStyle(open.parentElement).opacity) : null };
+ // the BUTTON's own painted opacity, not its parent's: reading the parent was
+ // reading the cell, which is always 1, and it hid a button that never showed
+    const openOpacity = open
+      ? [open, ...(function up(e) { const out = []; let n = e; while (n && n !== row) { out.push(n); n = n.parentElement; } return out; })(open)]
+          .reduce((acc, n) => acc * Number(getComputedStyle(n).opacity), 1)
+      : null;
+    return { lit, open: openOpacity };
   });
   const ok = state.lit.length === 1 && state.lit[0] === i;
   if (!ok) failures.push(`hover cell #${i}: lit ${JSON.stringify(state.lit)}, expected [${i}]`);

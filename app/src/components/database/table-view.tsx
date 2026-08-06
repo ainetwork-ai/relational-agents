@@ -1186,17 +1186,35 @@ function RowLine({
             <div className="min-w-0 flex-1">
               <PropertyCell prop={p} row={row} />
             </div>
-            <button
-              data-testid={`db-title-open-${row.id}`}
-              onClick={() => db.openRow(row.id)}
-              aria-label="사이드 보기에서 열기"
-              title="사이드 보기에서 열기"
- // opacity-0 alone still intercepts clicks — disable pointer events
- // until hover so the invisible button never swallows a title click
-              className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex h-5 -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1.5 text-[11px] font-medium text-neutral-600 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            {/* 열기, measured on the original's title cell: a white 55×24 pad
+                (radius 6, 2px padding, three-layer shadow) 5px from the cell's
+                right edge, holding a 51×20 button — icon 15px in
+                rgb(142,139,134), label 12px/500 in rgb(125,122,117), 6px apart.
+                Ours was an 11px bordered chip. */}
+            <span
+ // opacity-0 alone still intercepts clicks — disable pointer events until
+ // hover so the invisible button never swallows a title click
+ // /dbrow: 열기 belongs to the ROW — the original shows it whenever the pointer
+ // is anywhere in the row, unlike 댓글/복사 which follow the cell. It was keyed
+ // to /dbcell, a group the title cell does not even declare (it declares
+ // /titlecell), so it never appeared at all.
+              className="pointer-events-none absolute right-[5px] top-1/2 z-10 flex h-6 -translate-y-1/2 items-center rounded-[6px] bg-white p-[2px] opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:bg-neutral-800"
+              style={{
+                boxShadow:
+                  "rgba(25, 25, 25, 0.027) 0px 8px 12px 0px, rgba(25, 25, 25, 0.027) 0px 2px 6px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+              }}
             >
-              <PanelRight size={11} /> 열기
-            </button>
+              <button
+                data-testid={`db-title-open-${row.id}`}
+                onClick={() => db.openRow(row.id)}
+                aria-label="사이드 보기에서 열기"
+                title="사이드 보기에서 열기"
+                className="flex h-5 items-center gap-1.5 rounded-[4px] px-1 text-[12px] font-medium leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-300 dark:hover:bg-neutral-700"
+              >
+                <PanelRight size={15} className="text-[rgb(142,139,134)]" />
+                열기
+              </button>
+            </span>
             {/* the row actions that used to sit in the gutter now hover here,
                 left of 열기 */}
             <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100">
