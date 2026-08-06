@@ -1681,6 +1681,22 @@ export const BlockEditor = forwardRef<
     [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock]
   );
 
+ // Scrolling puts a caret menu somewhere meaningless: its anchor is the caret's
+ // position when it opened, and neither the slash/mention/emoji menu tracks the
+ // text afterwards (re-placing them on scroll moves them 0px — the point is
+ // stale, not the placement). Close them instead, as clicking away does.
+  useEffect(() => {
+    if (!slash && !mention && !emojiSug) return;
+    const onScroll = () => {
+      setSlash(null);
+      setMention(null);
+      setEmojiSug(null);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () =>
+      document.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+  }, [slash, mention, emojiSug]);
+
   const onCompositionStart = useCallback(() => {
     composingRef.current = true;
   }, []);

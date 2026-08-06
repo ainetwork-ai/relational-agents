@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { Filter, X, Plus, ChevronDown, Trash2, ArrowUp, ArrowDown } from "lucide-react";
@@ -70,7 +71,7 @@ function FilterValueEditor({
               onChange={() => toggle(o.id)}
               className="h-3.5 w-3.5 accent-blue-500"
             />
-            <OptionChip color={o.color} title={o.name}>
+            <OptionChip color={o.color} title={o.name} dot={prop.type === "status"}>
               {o.name}
             </OptionChip>
           </label>
@@ -214,21 +215,9 @@ export function FilterBar() {
     return () => setFilterUiOpen(false);
   }, [open, setFilterUiOpen]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(open, () => {
+    setOpen(false);
+  }, ref, popRef);
 
   const groups = db.activeView.config.filterGroups ?? [];
   const totalRules = filters.length + groups.reduce((a, g) => a + g.filters.length, 0);

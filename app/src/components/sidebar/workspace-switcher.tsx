@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -73,17 +74,10 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) {
-        setOpen(false);
+  useDismiss(open, () => {
+    setOpen(false);
         setCreating(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  }, ref, popRef);
 
  // After switching/creating, reload the (workspace-scoped) page tree and
  // navigate straight to the new workspace's first page (/p/<id>) so the URL

@@ -7,8 +7,12 @@ import { fitAnchored, type FitOptions } from "@/lib/popover-position";
  * Place a portalled popover against its trigger and keep it on screen.
  *
  * The panel is measured after it mounts — its height depends on its content —
- * and then `fitAnchored` picks the side. Recomputed on resize and on any
- * ancestor's scroll, since anything that moves the trigger moves the panel.
+ * and then `fitAnchored` picks the side. Recomputed on resize and when the
+ * content grows. NOT on scroll: chasing a scroll from JS leaves the panel
+ * trailing whatever the compositor already drew, so a scroll that moves the
+ * trigger dismisses the panel instead (see useDismiss). Measured: re-placing a
+ * caret menu on scroll moved it by 0px anyway, since its anchor is a point
+ * captured when it opened.
  * The panel must be portalled and `fixed`: left in the page it would be
  * clipped by the table's or the sidebar's own overflow.
  *
@@ -49,11 +53,8 @@ export function useAnchored(
     if (!open) return;
     const onMove = () => place();
     window.addEventListener("resize", onMove);
- // capture: also catches scrolling of an ancestor (the table, the sidebar, a peek)
-    window.addEventListener("scroll", onMove, true);
     return () => {
       window.removeEventListener("resize", onMove);
-      window.removeEventListener("scroll", onMove, true);
     };
   }, [open, place]);
 
@@ -95,10 +96,8 @@ export function useAnchoredAt(
     if (!open) return;
     const onMove = () => place();
     window.addEventListener("resize", onMove);
-    window.addEventListener("scroll", onMove, true);
     return () => {
       window.removeEventListener("resize", onMove);
-      window.removeEventListener("scroll", onMove, true);
     };
   }, [open, place]);
 

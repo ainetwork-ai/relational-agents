@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {useRef, useState} from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { ArrowUpDown, X, Plus } from "lucide-react";
@@ -19,14 +20,9 @@ export function SortBar() {
   const popRef = useRef<HTMLDivElement>(null);
   const sorts = db.activeView.config.sorts ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  useDismiss(open, () => {
+    setOpen(false);
+  }, ref, popRef);
 
   function commit(next: ViewSort[]) {
     db.patchView({ ...db.activeView.config, sorts: next }, { draft: true });

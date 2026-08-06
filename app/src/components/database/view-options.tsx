@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {useRef, useState} from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { Settings2, Eye, EyeOff } from "lucide-react";
@@ -18,21 +19,9 @@ export function ViewOptions() {
   const popRef = useRef<HTMLDivElement>(null);
   const hidden = db.activeView.config.hiddenProperties ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(open, () => {
+    setOpen(false);
+  }, ref, popRef);
 
   function toggle(propId: string) {
     const set = new Set(hidden);

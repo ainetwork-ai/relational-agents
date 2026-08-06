@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { Shuffle } from "lucide-react";
@@ -51,19 +52,16 @@ export function IconPicker({
   const searchRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+
   useEffect(() => {
     if (!open) return;
- // Focus the search input when the picker opens
+ // focus the search box when the picker opens
     requestAnimationFrame(() => searchRef.current?.focus());
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
   }, [open]);
+  useDismiss(open, () => {
+    setOpen(false);
+      setQuery("");
+  }, ref, popRef);
 
  // The ~1.9k emoji catalogue is a separate chunk — nobody needs it until a
  // picker is actually opened, so fetch it here and re-render when it lands
