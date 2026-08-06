@@ -78,6 +78,10 @@ interface DbApi {
   deleteProperty: (id: string) => void;
   patchView: (config: ViewConfig, opts?: { draft?: boolean }) => void;
   openRow: (rowId: string) => void;
+  /** open a column's header menu from somewhere else — the Status menu's
+   * 속성 편집 row, which the original also points at the property editor */
+  editProperty: (propId: string | null) => void;
+  editingPropertyId: string | null;
   /** true while the toolbar Filter popover (advanced panel) is open — the
  * chips row suppresses its auto-open-editor so both surfaces never show
  * the same filter editor at once */
@@ -315,6 +319,7 @@ export function DatabaseBlock({
   }, [viewMenuOpen]);
   const [addViewOpen, setAddViewOpen] = useState(false);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [filterUiOpen, setFilterUiOpen] = useState(false);
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [viewNameDraft, setViewNameDraft] = useState("");
@@ -940,10 +945,12 @@ export function DatabaseBlock({
       deleteProperty,
       patchView: patchViewConfig,
       openRow,
+      editProperty: setEditingPropertyId,
+      editingPropertyId,
       filterUiOpen,
       setFilterUiOpen,
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName, fullPage, hostPageIcon]
+    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, editingPropertyId, filterUiOpen, database?.itemName, fullPage, hostPageIcon]
   );
 
   if (!database || !activeView) {

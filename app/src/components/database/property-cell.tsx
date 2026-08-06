@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDismiss } from "@/hooks/use-dismiss";
+import { StatusPicker } from "./status-picker";
 import { useAnchored } from "@/hooks/use-anchored";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
@@ -810,17 +811,30 @@ function SelectCell({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const cellRef = useRef<HTMLElement | null>(null);
   const current = findOption(prop, value);
   const options = prop.config.options ?? [];
 
   const popRef = useRef<HTMLDivElement>(null);
+ // A status property gets its own menu (StatusPicker), which anchors and
+ // dismisses itself. Leaving these two running would close it on the first
+ // mousedown INSIDE it — its portal is outside both refs below — and the click
+ // would never reach the option. That is the person-picker bug, again.
+  const plainOpen = open && prop.type !== "status";
  // portalled to the body, so the cell's one-line clipping cannot cut it and it
  // flips above the cell near the bottom of the window
-  useAnchored(open, ref, popRef);
-  useDismiss(open, () => setOpen(false), ref, popRef);
+  useAnchored(plainOpen, ref, popRef);
+  useDismiss(plainOpen, () => setOpen(false), ref, popRef);
 
   return (
-    <div ref={ref} className="relative min-w-0 px-1.5 py-1">
+    <div
+      ref={(el) => {
+        ref.current = el;
+ // the menu covers the CELL, not this padded box inside it
+        cellRef.current = (el?.closest("[data-cellnav]") as HTMLElement | null) ?? el;
+      }}
+      className="relative min-w-0 px-1.5 py-1"
+    >
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
@@ -834,7 +848,17 @@ function SelectCell({
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open &&
+      {open && prop.type === "status" && (
+        <StatusPicker
+          prop={prop}
+          value={value}
+          slug={testid.replace("db-cell-", "")}
+          anchorRef={cellRef}
+          onSet={onSet}
+          onClose={() => setOpen(false)}
+        />
+      )}
+      {plainOpen &&
         createPortal(
           <div
             ref={popRef}
@@ -863,7 +887,7 @@ function SelectCell({
           {options
             .filter((o) => o.name.toLowerCase().includes(q.toLowerCase()))
             .map((o) => (
-              <div key={o.id} className="flex items-center gap-1">
+              <div key={o.id}>
                 <button
                   data-testid={`db-option-${prop.id}-${o.id}`}
                   onClick={() => {
@@ -876,28 +900,6 @@ function SelectCell({
                     {o.name}
                   </OptionChip>
                 </button>
-                {prop.type === "status" && (
-                  <select
-                    data-testid={`status-group-${o.id}`}
-                    value={o.group ?? "todo"}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) =>
-                      db.updateProperty(prop.id, {
-                        config: {
-                          ...prop.config,
-                          options: options.map((x) =>
-                            x.id === o.id ? { ...x, group: e.target.value } : x
-                          ),
-                        },
-                      })
-                    }
-                    className="shrink-0 rounded border border-neutral-200 bg-transparent px-0.5 py-0.5 text-[10px] text-neutral-400 outline-none dark:border-neutral-600"
-                  >
-                    <option value="todo">To-do</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="complete">Complete</option>
-                  </select>
-                )}
               </div>
             ))}
           {q && !options.some((o) => o.name.toLowerCase() === q.toLowerCase()) && (

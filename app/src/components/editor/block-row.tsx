@@ -601,6 +601,9 @@ function CalloutBlock({ block }: { block: EBlock }) {
   const icon = (block.content.icon as string | null | undefined) ?? "💡";
   const color = (block.content.color as string) ?? "default";
 
+ // dismiss:manual — the callout's colour menu is `absolute` inside `ref`, not
+ // portalled, so a click on it really is inside the ref. (The block menu above
+ // IS portalled and uses useDismiss with both refs.)
   useEffect(() => {
     if (!colorOpen) return;
     const close = (e: MouseEvent) => {

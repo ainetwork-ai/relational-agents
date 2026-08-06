@@ -32,6 +32,7 @@ import { fetchDatabaseSnapshot } from "@/lib/db-relation";
 import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { RowMenu } from "./row-menu";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { TYPE_ICON } from "./memory-select";
 
 const NO_GROUP = "__nogroup__";
@@ -65,6 +66,11 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
       const c = column.getBoundingClientRect();
       const inset = Math.max(0, Math.round(c.left - h.left));
       el.style.marginLeft = `${-inset}px`;
+ // clientWidth, not the bounding rect: the rect is the border box and includes
+ // the host's own vertical scrollbar (8px here — globals.css draws classic, not
+ // overlay, bars). Sizing to it makes the table 8px wider than the host can
+ // hold, so `main` grows a native horizontal scrollbar right under the floating
+ // pill and you see two bars. That is exactly the bug this hunt was about.
       el.style.width = `${Math.round(h.width)}px`;
       el.style.paddingLeft = `${inset}px`;
     };
@@ -1104,7 +1110,14 @@ function ColumnHeader({
   frozenLeft?: number | null;
 }) {
   const db = useDb();
-  const [open, setOpen] = useState(false);
+  const [selfOpen, setSelfOpen] = useState(false);
+ // the Status menu's 속성 편집 asks for THIS column's menu by id; derived rather
+ // than copied into state, so no effect has to sync the two
+  const open = selfOpen || db.editingPropertyId === prop.id;
+  const setOpen = (v: boolean) => {
+    setSelfOpen(v);
+    if (!v && db.editingPropertyId === prop.id) db.editProperty(null);
+  };
  // two-step confirm before the irreversible property delete
   const [delArmed, setDelArmed] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -1113,14 +1126,7 @@ function ColumnHeader({
   const [draft, setDraft] = useState(prop.name);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  useDismiss(open, () => setOpen(false), ref);
 
   function sortBy(dir: "asc" | "desc") {
     db.patchView({ ...view.config, sorts: [{ propertyId: prop.id, dir }] });
@@ -1213,7 +1219,7 @@ function ColumnHeader({
       ) : (
         <button
           data-testid={`db-prop-header-${prop.id}`}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(!open)}
           className="flex w-full items-center gap-1 px-2 py-1 text-left text-xs font-medium text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
         >
           <span className="w-3.5 shrink-0 text-center text-[10px] text-neutral-400">

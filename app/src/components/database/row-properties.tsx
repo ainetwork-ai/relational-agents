@@ -119,6 +119,10 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       deleteProperty: () => {},
       patchView: () => {},
       openRow: () => {},
+ // this surface has no column headers to open, so the Status menu's 속성 편집
+ // has nowhere to go here
+      editProperty: () => {},
+      editingPropertyId: null,
       filterUiOpen: false,
       setFilterUiOpen: () => {},
     };
