@@ -8,8 +8,13 @@ import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { X } from "lucide-react";
 
-/** the person picker's height cap — the original's is 333px, list scrolling inside */
+/** The person picker, measured on the original (e2e/fixtures/notion-person-picker.json):
+ *  the box is always 333 tall with the list scrolling inside, and its width is the
+ *  cell's — but never under 240 (a 117px Sherpa cell still opens a 240 menu). */
 const POPOVER_MAX_H = 333;
+const PICKER_MIN_W = 240;
+const PICKER_SHADOW =
+  "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px";
 import { createPortal } from "react-dom";
 import { findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
@@ -1028,16 +1033,17 @@ function PersonCell({
   );
 
   const openAt = () => {
-    const box = ref.current?.getBoundingClientRect();
+ // Anchored to the CELL and covering it, the original's way: box.left−1,
+ // box.top−1, width max(240, cell), height a fixed 333 with the list scrolling
+ // inside (e2e/fixtures/notion-person-picker.json). A 117px cell still gets
+ // 240 — the width follows the cell only once the cell is wider than that.
+    const cell = (ref.current?.closest("[data-cellnav]") as HTMLElement | null) ?? ref.current;
+    const box = cell?.getBoundingClientRect();
     if (box) {
- // over the cell, not under it: the original's picker starts at the cell's own
- // top-left, its chips row standing where the cell's people were
- // the original's picker is exactly the cell's width and is capped at 333px
- // tall, with its list scrolling inside that
-      const width = Math.max(220, Math.round(box.width));
+      const width = Math.max(PICKER_MIN_W, Math.round(box.width));
       setAnchor({
-        left: Math.round(Math.min(box.left, window.innerWidth - width - 8)),
-        top: Math.round(Math.min(box.top, window.innerHeight - POPOVER_MAX_H - 8)),
+        left: Math.round(Math.min(box.left - 1, window.innerWidth - width - 8)),
+        top: Math.round(Math.min(box.top - 1, window.innerHeight - POPOVER_MAX_H - 8)),
         width,
       });
     }
@@ -1045,8 +1051,6 @@ function PersonCell({
     setOpen((v) => !v);
   };
 
- // both refs: the popover is portalled, so it is not inside `ref` (see
- // useDismiss — leaving the portal out is what made picking a person do nothing)
   useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(id: string) {
@@ -1088,59 +1092,69 @@ function PersonCell({
           <div
             ref={popRef}
             data-testid={`db-person-popover-${slug}`}
-            style={{ left: anchor.left, top: anchor.top, width: anchor.width, maxHeight: POPOVER_MAX_H }}
-            className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+            style={{
+              left: anchor.left,
+              top: anchor.top,
+              width: anchor.width,
+              height: POPOVER_MAX_H,
+              boxShadow: PICKER_SHADOW,
+            }}
+            className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-[6px] bg-white dark:bg-neutral-800"
           >
-            {/* the people already in the cell, each with its own remove — the
-                original puts them above the search box as chips */}
-            {people.length > 0 && (
-              <div className="flex shrink-0 flex-wrap gap-1 px-2 pb-1.5">
+            {/* The bar: whoever is already in the cell, then the caret. The
+                original draws them as avatar + name + a 항목 제거 button, with
+                no pill behind them, and lets the input take what is left of
+                the line. Rows are 24 apart, the first at y=9, 10px at the
+                bottom — an empty bar is exactly 39 tall. */}
+            <div
+              className="shrink-0 overflow-y-auto rounded-[6px] bg-[rgba(242,241,238,0.6)] px-3 pb-[10px] pt-[9px] dark:bg-neutral-700/40"
+              style={{ maxHeight: 240 }}
+            >
+              <div className="flex flex-wrap items-center gap-x-[6px] gap-y-1">
                 {people.map((p) => (
-                  <span
-                    key={p.id}
-                    className="flex items-center gap-1 rounded bg-neutral-100 py-0.5 pl-0.5 pr-1 dark:bg-neutral-700"
-                  >
-                    <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={18} />
-                    <span className="max-w-[9rem] truncate text-xs text-neutral-700 dark:text-neutral-200">
+                  <span key={p.id} className="flex h-5 items-center">
+                    <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
+                    <span className="ml-[6px] max-w-[12rem] truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
                       {p.label}
                     </span>
                     <button
                       data-testid={`db-person-${slug}-remove-${p.id}`}
                       aria-label="항목 제거"
                       onClick={() => toggle(p.id)}
-                      className="text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
+                      className="ml-[2px] flex h-5 w-5 items-center justify-center text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
                       <X size={12} />
                     </button>
                   </span>
                 ))}
+                <input
+                  data-testid={`db-person-${slug}-search`}
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-5 min-w-[40px] flex-1 bg-transparent text-[14px] leading-5 text-[rgb(44,44,43)] outline-none dark:text-neutral-100"
+                />
               </div>
-            )}
-            <div className="shrink-0 px-2 pb-1.5">
-              <input
-                data-testid={`db-person-${slug}-search`}
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full rounded bg-neutral-100 px-2 py-1 text-sm outline-none placeholder:text-neutral-400 dark:bg-neutral-700 dark:text-neutral-100"
-              />
             </div>
-            <p className="shrink-0 px-3 pb-1 pt-0.5 text-[11px] text-neutral-400">원하는 만큼 선택</p>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-            {candidates.length === 0 && (
-              <p className="px-3 py-2 text-xs text-neutral-400">결과 없음</p>
-            )}
+            {/* the padding lives on the wrapper: in the original the label's own
+                box starts 10px under the bar and 12px in, so the text element —
+                not its padding — is what has to land there */}
+            <div className="shrink-0 px-3 pt-[10px] text-[12px] leading-[14px]">
+              <span className="font-medium text-[rgb(125,122,117)]">원하는 만큼 선택</span>
+            </div>
+            <div className="mt-[9px] min-h-0 flex-1 overflow-y-auto">
             {candidates.map((m) => (
               <button
                 key={m.id}
                 data-testid={`db-person-${slug}-${m.id}`}
                 onClick={() => toggle(m.id)}
-                className="flex w-full items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                className="mx-1 flex h-7 items-center gap-2 rounded-[6px] px-2 text-left transition-colors hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
+                style={{ width: "calc(100% - 8px)" }}
               >
                 <UserAvatar user={m} size={20} />
-                <span className="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-200">
+                <span className="flex-1 truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
                   {m.displayName || m.email || "이름 없음"}
-                  {m.id === db.me && <span className="text-neutral-400">(나)</span>}
+                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">(나)</span>}
                 </span>
               </button>
             ))}

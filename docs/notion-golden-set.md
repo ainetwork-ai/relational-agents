@@ -67,6 +67,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | 명령 | 무엇을 대조하나 |
 |---|---|
 | `node e2e/golden.check.mjs` | 원본에 붙을 수 있나 (다른 것보다 먼저) |
+| `node e2e/person-picker.check.mjs` | 사람 피커의 박스·바·선택항목·라벨·후보 행 |
 | `node e2e/status-dropdown.check.mjs` | Status 셀 메뉴의 박스·바·칩·그룹·구분선·푸터·검색 2종 |
 | `node e2e/chip-consistency.check.mjs` | 같은 값의 칩이 셀과 메뉴에서 같은 모양인지 |
 | `node e2e/view-columns.check.mjs` | 표의 열 순서·폭 13개 |
