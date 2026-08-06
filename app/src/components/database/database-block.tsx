@@ -955,6 +955,9 @@ export function DatabaseBlock({
  // No width cap on a full-page database: the original gives it the whole
  // content area, and a cap centred the block, so where the table rested — and
  // where its horizontal scroll began — moved with the window.
+ //
+ // -ml-9 takes back the 44px the page adds for text: measured from the
+ // original's padding edge, its title sits at +44 and its collection at +8.
   const wrapperTestId = fullPage
     ? "db-fullpage"
     : linkedViewId
@@ -966,7 +969,7 @@ export function DatabaseBlock({
       <div
         data-testid={`database-${databaseId}`}
         {...(wrapperTestId ? { "data-variant": fullPage ? "fullpage" : "linked" } : {})}
-        className="my-2 w-full"
+        className={`my-2 w-full ${fullPage ? "-ml-9" : ""}`}
       >
         {/* A marker for tests to tell the two embeddings apart. It used to also
             print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
