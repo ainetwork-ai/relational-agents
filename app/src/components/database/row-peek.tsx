@@ -11,8 +11,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Block, DbProperty, Page } from "@/lib/db/schema";
-import { useDb, PROP_TYPES } from "./database-block";
+import type { Block, Page } from "@/lib/db/schema";
+import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { BlockEditor } from "@/components/editor/block-editor";
 import { IconPicker } from "@/components/page/icon-picker";
@@ -25,6 +25,10 @@ import { usePagesStore } from "@/stores/pages";
 
 const MIN_WIDTH = 420;
 const DEFAULT_FRACTION = 0.51; // what the capture's 861px is of its window
+
+/** How many properties sit above the body rather than in the 속성 panel. The
+ *  original pins four (TL · Assignee · End date · Evaluation). */
+const PINNED_COUNT = 4;
 
 /** Does this cell hold anything? Empty string, empty list and a date object
  *  with no start all count as blank — the same states the table draws as an
@@ -73,23 +77,31 @@ export function RowPeek({
  // that belong to another page
   const fetched = loaded && loaded.pageId === bodyPageId ? loaded : null;
   const blocks = fetched?.blocks ?? null;
-  const [addPropOpen, setAddPropOpen] = useState(false);
- // A row's page lists the properties that HAVE a value, not every column the
- // database owns. Measured on the original (docs/database_tableview_newpage.html):
- // a freshly created row's peek contains no property name at all — the whole
- // panel is 아이콘 추가 / 커버 추가 / 레이아웃 사용자 지정 / Add a property / 댓글.
- // We were drawing all thirteen, so a new entry opened onto a wall of blanks.
+ // How the original lays a row's page out (measured 2026-08-06 by creating a
+ // row in it and capturing: docs/database_tableview_newpage2.html and
+ // …_details.html, plus screenshots of the collapsed state):
  //
- // The 더 보기 toggle is ours, not the original's: the original reaches hidden
- // properties through 레이아웃 사용자 지정, which we do not have, and without some
- // way back the page could never set a value it does not already hold.
-  const [showEmptyProps, setShowEmptyProps] = useState(false);
-  const propsWithValue = db.properties.filter(
-    (p) => p.type !== "title" && hasValue(row?.values[p.id])
-  );
-  const emptyProps = db.properties.filter(
-    (p) => p.type !== "title" && !hasValue(row?.values[p.id])
-  );
+ //   신규 프로젝트            ← title, placeholder is 신규 + the item name
+ //   세부 정보 보기            ← toggle
+ //   TL   Assignee   End date   Evaluation      ← a few pinned properties,
+ //   비어 있음 비어 있음 비어 있음  비어 있음          side by side, label over value
+ //   댓글
+ //   (body)
+ //
+ // and 세부 정보 보기 opens a 380px panel down the peek's right edge headed 속성,
+ // holding every other property plus Add a property. Nothing is hidden for
+ // being empty — the split is pinned vs not.
+ //
+ // An earlier pass here read the FIRST capture of this screen as "a new row
+ // shows no properties at all" and hid the empty ones. That capture had been
+ // saved before the properties rendered; the live original shows them.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const nonTitle = db.properties.filter((p) => p.type !== "title");
+ // Which four are pinned is a per-database layout in the original (레이아웃
+ // 사용자 지정 — TL, Assignee, End date, Evaluation there). We have no such
+ // setting yet, so the first four columns stand in for it.
+  const pinnedProps = nonTitle.slice(0, PINNED_COUNT);
+  const restProps = nonTitle.slice(PINNED_COUNT);
  // the store carries live edits (favourite, icon, cover) for pages it knows
   const storePage = usePagesStore((s) => (bodyPageId ? s.pages[bodyPageId] : undefined));
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -249,6 +261,9 @@ export function RowPeek({
           </div>
         </div>
 
+        {/* body beside the 속성 panel: the peek keeps its width, so opening the
+            panel narrows the page column rather than widening the peek */}
+        <div className="flex min-h-0 flex-1">
         <div className="flex-1 overflow-y-auto pb-[120px]">
           {page?.coverUrl && bodyPageId && (
             <CoverControls
@@ -290,6 +305,18 @@ export function RowPeek({
                     onSet={(url) => updatePage(bodyPageId, { coverUrl: url })}
                   />
                 )}
+                {/* In the capture, beside 커버 추가. It is what chooses which
+                    properties are pinned; we have no such setting yet, so it
+                    shows disabled rather than being quietly absent. */}
+                <button
+                  data-testid="db-peek-customize-layout"
+                  disabled
+                  aria-disabled="true"
+                  data-tip="아직 만들지 않았습니다"
+                  className="flex cursor-not-allowed items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-300 dark:text-neutral-600"
+                >
+                  레이아웃 사용자 지정
+                </button>
               </div>
             )}
 
@@ -299,65 +326,53 @@ export function RowPeek({
               <PeekTitle
                 value={String(row.values[titleProp.id] ?? "")}
                 autoFocus={autoFocusTitle}
+ // 신규 + what one row is called: the original's Projects reads 신규 프로젝트
+                placeholder={`신규 ${db.itemName.replace(/^새\s*/, "")}`}
                 onCommit={(v) => db.updateRow(rowId, { [titleProp.id]: v })}
               />
             )}
 
+            {/* 세부 정보 보기 / 숨기기 — the original's toggle, directly under
+                the title (docs/database_tableview_newpage_details.html). */}
+            <button
+              data-testid="db-peek-details-toggle"
+              onClick={() => setDetailsOpen((v) => !v)}
+              className={`mt-1 rounded px-1.5 py-0.5 text-[13px] leading-[18px] transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                detailsOpen
+                  ? "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                  : "text-neutral-500 dark:text-neutral-400"
+              }`}
+            >
+              {detailsOpen ? "세부 정보 숨기기" : "세부 정보 보기"}
+            </button>
+
+            {/* The pinned band: a few properties laid out side by side, label
+                over value, scrolling sideways rather than wrapping
+                (`data-pinned-row` … `min-width: max-content` in the capture).
+                Everything else lives in the 속성 panel. */}
             <div
-              className="mt-3 space-y-0.5"
+              data-pinned-row=""
+              data-testid="db-peek-props"
               role="group"
               aria-label="페이지 속성"
-              data-testid="db-peek-props"
+              className="no-native-scrollbar mt-2.5 overflow-x-auto"
+              style={{ scrollbarWidth: "none" }}
             >
-              {(showEmptyProps ? propsWithValue.concat(emptyProps) : propsWithValue).map((p) => (
-                <div key={p.id} className="flex items-start gap-2">
-                  <span className="mt-1.5 w-32 shrink-0 truncate text-sm text-neutral-400">
-                    {p.name}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <PropertyCell prop={p} row={row} />
+              <div className="flex min-w-max flex-row items-stretch gap-2">
+                {pinnedProps.map((p) => (
+                  <div key={p.id} data-testid={`db-peek-pinned-${p.id}`} className="min-w-[120px] px-1.5">
+                    <div className="truncate text-sm text-neutral-400">{p.name}</div>
+                    <div className="mt-0.5 min-w-0">
+                      {hasValue(row.values[p.id]) ? (
+                        <PropertyCell prop={p} row={row} />
+                      ) : (
+                        <span className="text-sm text-neutral-300 dark:text-neutral-600">
+                          비어 있음
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {emptyProps.length > 0 && (
-                <button
-                  data-testid="db-peek-more-props"
-                  onClick={() => setShowEmptyProps((v) => !v)}
-                  className="flex h-[34px] items-center gap-1.5 rounded px-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
-                >
-                  {showEmptyProps
-                    ? `속성 ${emptyProps.length}개 숨기기`
-                    : `속성 ${emptyProps.length}개 더 보기`}
-                </button>
-              )}
-              <div className="relative">
-                <button
-                  data-testid="db-peek-add-prop"
-                  onClick={() => setAddPropOpen((v) => !v)}
-                  className="flex h-[34px] items-center gap-1.5 rounded px-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
-                >
-                  <Plus size={14} /> Add a property
-                </button>
-                {addPropOpen && (
-                  <div
-                    data-testid="db-peek-add-prop-menu"
-                    className="popover-anim absolute left-0 top-9 z-40 w-40 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-                  >
-                    {PROP_TYPES.map((pt: { type: DbProperty["type"]; label: string }) => (
-                      <button
-                        key={pt.type}
-                        data-testid={`db-peek-add-prop-${pt.type}`}
-                        onClick={async () => {
-                          setAddPropOpen(false);
-                          await db.addProperty(pt.label, pt.type);
-                        }}
-                        className="block w-full px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                      >
-                        {pt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
             </div>
 
@@ -391,6 +406,54 @@ export function RowPeek({
             </div>
           </div>
         </div>
+        {detailsOpen && (
+          <aside
+            data-testid="db-peek-details"
+            aria-label="속성"
+ // 380px, fixed, its own scroller, a hairline down its leading edge — the
+ // capture's `width: 380px; flex-shrink: 0; border-inline-start: 1px`. The peek
+ // itself keeps its width, so the page column narrows rather than the panel
+ // hanging outside.
+            className="w-[380px] shrink-0 overflow-y-auto border-l border-neutral-200 pb-6 pl-5 pr-4 dark:border-neutral-700"
+          >
+            <div className="sticky top-0 bg-white py-2 text-[13px] font-medium leading-[18px] text-neutral-500 dark:bg-[#191919] dark:text-neutral-400">
+              속성
+            </div>
+            <div className="space-y-0.5">
+              {restProps.map((p) => (
+                <div key={p.id} className="flex items-start gap-2">
+                  <span className="mt-1.5 w-32 shrink-0 truncate text-sm text-neutral-400">
+                    {p.name}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {hasValue(row.values[p.id]) ? (
+                      <PropertyCell prop={p} row={row} />
+                    ) : (
+                      <div className="px-1.5 py-1">
+                        <span className="text-sm text-neutral-300 dark:text-neutral-600">
+                          비어 있음
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {/* Present but inert: adding a property from here is not built
+                  yet, and a button that silently does nothing is worse than one
+                  that says so. */}
+              <button
+                data-testid="db-peek-add-prop"
+                disabled
+                aria-disabled="true"
+                data-tip="아직 만들지 않았습니다"
+                className="flex h-[34px] cursor-not-allowed items-center gap-1.5 rounded px-1.5 text-sm text-neutral-300 dark:text-neutral-600"
+              >
+                <Plus size={14} /> Add a property
+              </button>
+            </div>
+          </aside>
+        )}
+        </div>
         {bodyPageId && <CommentThreadPanel pageId={bodyPageId} />}
       </div>
     </div>
@@ -403,10 +466,12 @@ function PeekTitle({
   value,
   onCommit,
   autoFocus,
+  placeholder,
 }: {
   value: string;
   onCommit: (v: string) => void;
   autoFocus?: boolean;
+  placeholder: string;
 }) {
   const [draft, setDraft] = useState(value);
   const seen = useRef(value);
@@ -428,7 +493,7 @@ function PeekTitle({
       ref={ref}
       data-testid="db-peek-title"
       value={draft}
-      placeholder="새 페이지"
+      placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== value && onCommit(draft)}
       onKeyDown={(e) => {

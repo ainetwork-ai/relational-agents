@@ -23,6 +23,8 @@
 | `teamspace_add_popup_member_search_list.html` (22KB) | 1단계에서 **멤버 선택 목록**을 펼친 상태 | `사용자 선택` 헤더, 로딩 문구 `불러오는 중...`, 이름 + `게스트` 배지 |
 | `teamspace_add_process_popup_1.html` (8KB) | **팀스페이스 만들기 2단계** (멤버 초대) | `초대할 팀스페이스:` + 아이콘 + 이름, 검색 placeholder `사용자나 그룹을 검색하세요`, 역할 드롭다운 `팀스페이스 멤버`, 하단 `초대 링크 복사` · **`건너뛰기`** |
 | `after_teamspace_popup_body1.html` (633KB) | 2단계에서 **`건너뛰기`를 누른 직후** | 팀스페이스는 이미 만들어져 있다(건너뛰기가 취소하지 않는다). 사이드바에 새 팀스페이스가 뜨고 그 아래 **`🏠 팀스페이스 홈`** 페이지 하나, 목록 맨 끝에 **`새로 추가`** 행 |
+| `database_tableview_newpage2.html` (2.1MB) | 표 뷰에서 **`새로 만들기`로 행을 만든 직후**의 사이드 피크 (2026-08-06) | 피크 폭 **1141px**. 제목 placeholder **`신규 프로젝트`**(= 신규 + 항목 이름). 제목 아래 **`세부 정보 보기/숨기기`** 토글. 그 아래 **고정 속성 4개**(`TL`·`Assignee`·`End date`·`Evaluation`)가 가로 스크롤 밴드(`data-pinned-row`, `min-width:max-content`, gap 8px)로 라벨 위/값 아래, 빈 값은 **`비어 있음`**. 이어서 `댓글`, 그리고 **기본 템플릿 본문**(Objectives / KPIs ☐할 일 / Action items ☐할 일). 생성 시 자동으로 채워지는 값은 둘뿐 — `Status = In progress`(뷰 필터에서 상속), `Created time` |
+| `database_tableview_newpage_details.html` (2.1MB) | 위 피크에서 **`세부 정보 보기`를 누른 상태** | 피크 **안쪽 오른쪽에 380px 패널**(`width:380px; flex-shrink:0; border-inline-start:1px`, 200ms 전환). 헤더 `속성`, 나머지 속성 18개가 전부 `비어 있음`, 맨 아래 **`Add a property`**(페이지 본문에는 없다). 피크 자체 폭은 그대로라 **본문 칼럼이 좁아진다**. ⚠️ 먼저 받은 `database_tableview_newpage.html`은 속성이 렌더되기 전에 저장돼 속성 이름이 하나도 없다 — 그걸 보고 "새 행은 속성 0개"로 잘못 구현한 적이 있다 |
 | `new_database.html` (666KB) | 빈 페이지에서 **`데이터베이스`** 를 눌러 만들어진 화면 | **페이지 자체가 데이터베이스**가 된다(제목 `<h1>`의 block-id = DB 블록 id). 제목 placeholder `새 데이터베이스`, 뷰 탭 `표` 1개, 컬럼 `이름` 1개, 행 없음, 헤더에 `커버 추가`·`설명 추가`. 사이드바에도 `새 데이터베이스`로 표기 |
 
 ## 이 캡처들로 고친 것 (2026-08-05)
