@@ -29,6 +29,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { fetchDatabaseSnapshot } from "@/lib/db-relation";
 import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
+import { RowMenu } from "./row-menu";
 import { TYPE_ICON } from "./memory-select";
 
 const NO_GROUP = "__nogroup__";
@@ -792,6 +793,7 @@ function RowLine({
   onCheck?: () => void;
 }) {
   const db = useDb();
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   return (
     <div
       data-testid={`db-row-${row.id}`}
@@ -829,8 +831,15 @@ function RowLine({
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               e.preventDefault();
+ // click opens the row menu, drag reorders — the handle does both in the
+ // original, told apart by whether the pointer moved
+              const from = { x: e.clientX, y: e.clientY };
               const onUp = (ev: PointerEvent) => {
                 window.removeEventListener("pointerup", onUp);
+                if (Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 4) {
+                  setMenuAt({ x: Math.round(from.x), y: Math.round(from.y + 12) });
+                  return;
+                }
                 const el = document.elementFromPoint(ev.clientX, ev.clientY);
                 const target = el?.closest(".group\\/dbrow") as HTMLElement | null;
                 const tid = target?.getAttribute("data-testid")?.replace("db-row-", "");
@@ -843,7 +852,7 @@ function RowLine({
               };
               window.addEventListener("pointerup", onUp);
             }}
-            aria-label="Drag to reorder row"
+            aria-label="열 메뉴 / 드래그로 순서 변경"
             className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
             <GripVertical size={16} />
@@ -952,6 +961,7 @@ function RowLine({
           </div>
         )
       )}
+      {menuAt && <RowMenu row={row} x={menuAt.x} y={menuAt.y} onClose={() => setMenuAt(null)} />}
     </div>
   );
 }
