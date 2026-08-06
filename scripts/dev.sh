@@ -55,6 +55,20 @@ status() {
   return 0
 }
 
+# 재시작하면 거의 매번 밟는다: VS Code 원격 포워딩은 죽은 프로세스를 계속 가리키고,
+# 브라우저는 에러도 없이 몇 분씩 스피너만 돈다. 서버는 멀쩡해 보이므로(요청이 아예
+# 도착하지 않는다) 앱 문제로 오해하기 쉬워, 띄운 직후에 먼저 말해 준다.
+forwarding_note() {
+  cat <<TXT
+
+  포트 포워딩을 쓰신다면 지금 갱신하세요 — 서버를 새로 띄웠으므로 옛 포워딩은 죽은
+  프로세스를 가리킵니다 (브라우저는 에러 없이 무한 로딩이 됩니다).
+    · VS Code 하단 PORTS 탭 → $PORT 삭제 후 다시 Forward (또는 Reload Window)
+    · 터널 없이 확인:  http://$(hostname -I | awk '{print $1}'):$PORT
+    · 판별법(서버에서):  ss -tn | grep :$PORT   → 0건이면 브라우저가 서버에 닿지 못한 것
+TXT
+}
+
 start() {
   if status >/dev/null 2>&1; then
     echo "이미 떠 있어서 그대로 씁니다 (새로 띄우지 않음)"
@@ -67,6 +81,7 @@ start() {
   for _ in $(seq 1 60); do
     if curl -fsS -o /dev/null "http://localhost:$PORT/login" 2>/dev/null; then
       status
+      forwarding_note
       return 0
     fi
     sleep 1
