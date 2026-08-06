@@ -334,6 +334,12 @@ export function TableView({ view }: { view: DbView }) {
  * not hold in this page's layout, so the bar is fixed and follows the table's
  * own left edge and width; the table hides its native bar and the two scroll
  * each other. */
+/** Track height and the gap between the thumb and the track's edge — the same
+ * gap on all four sides, so the bar reads as a thumb inside a groove rather
+ * than a stripe with room only above and below it. */
+const BAR_H = 12;
+const BAR_INSET = 2;
+
 function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDivElement | null> }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
@@ -341,6 +347,19 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
   useEffect(() => {
     const sc = scrollerRef.current;
     if (!sc) return;
+ // The bar is fixed to the window, so it would sit ON TOP of whatever row
+ // happens to be at the bottom edge — and the page showed through the gaps
+ // around the thumb. A native scrollbar does not do that: it takes its height
+ // out of the scrollport. A bottom border on the scroll container is the same
+ // thing — the scrollport is the padding box, so content is clipped above the
+ // border and the strip the bar sits in shows only the app background.
+    const host = sc.closest("main") as HTMLElement | null;
+    const reserve = (on: boolean) => {
+      if (!host) return;
+      host.style.borderBottomStyle = on ? "solid" : "";
+      host.style.borderBottomColor = on ? "transparent" : "";
+      host.style.borderBottomWidth = on ? `${BAR_H}px` : "";
+    };
 
  // Drawn rather than delegated to a native scrollbar: this browser renders
  // overlay scrollbars, which appear only mid-scroll — no use as the one thing
@@ -352,6 +371,11 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
       if (!track || !thumb) return;
       const r = sc.getBoundingClientRect();
       const scrollable = sc.scrollWidth - sc.clientWidth;
+ // Reserving depends only on whether the table scrolls sideways, never on
+ // whether the bar is currently on screen: tying it to visibility would make
+ // the reserved strip appear and disappear, resizing the scrollport, which
+ // moves the table, which re-runs this — an oscillation.
+      reserve(scrollable >= 2);
       const onScreen = r.top < window.innerHeight - 40 && r.bottom > 140;
       if (scrollable < 2 || !onScreen) {
         track.style.display = "none";
@@ -360,10 +384,11 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
       track.style.display = "";
       track.style.left = `${Math.round(r.left)}px`;
       track.style.width = `${Math.round(r.width)}px`;
+      const travel = Math.max(0, Math.round(r.width) - BAR_INSET * 2);
       const ratio = sc.clientWidth / sc.scrollWidth;
-      const thumbW = Math.max(40, Math.round(r.width * ratio));
+      const thumbW = Math.max(40, Math.round(travel * ratio));
       thumb.style.width = `${thumbW}px`;
-      thumb.style.transform = `translateX(${Math.round((sc.scrollLeft / scrollable) * (r.width - thumbW))}px)`;
+      thumb.style.transform = `translateX(${Math.round((sc.scrollLeft / scrollable) * (travel - thumbW))}px)`;
     };
 
     layout();
@@ -375,6 +400,7 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
       ro?.disconnect();
       window.removeEventListener("scroll", layout, true);
       window.removeEventListener("resize", layout);
+      reserve(false);
     };
   }, [scrollerRef]);
 
@@ -386,8 +412,11 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
     if (!sc || !track || !thumb) return;
     const r = track.getBoundingClientRect();
     const thumbW = thumb.offsetWidth;
-    const x = Math.min(Math.max(clientX - r.left - grabOffset, 0), r.width - thumbW);
-    sc.scrollLeft = (x / (r.width - thumbW)) * (sc.scrollWidth - sc.clientWidth);
+ // the thumb runs inside the track's inset, not edge to edge
+    const travel = r.width - BAR_INSET * 2 - thumbW;
+    if (travel <= 0) return;
+    const x = Math.min(Math.max(clientX - r.left - BAR_INSET - grabOffset, 0), travel);
+    sc.scrollLeft = (x / travel) * (sc.scrollWidth - sc.clientWidth);
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -407,24 +436,28 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
     window.addEventListener("pointerup", up);
   };
 
- // Flush to the bottom edge, 15px tall, transparent track: the original's bar
- // is a NATIVE one on its page scroller, styled
+ // Flush to the bottom edge, on the window's own edge with nothing under it:
+ // the original's bar is a NATIVE one on its page scroller, styled
  // `* { scrollbar-width: 15px; scrollbar-color: #D3D1CB rgba(0,0,0,0) }`
- // (target.html line 2) — so it sits on the window's own edge with nothing
- // under it. Floating this 8px up as a rounded pill left a strip of page
- // showing beneath the bar, which reads as a widget hovering over the table.
+ // (target.html line 2). Floating it 8px up as a rounded pill left a strip of
+ // page showing beneath, which reads as a widget hovering over the table.
+ //
+ // The track paints the app background rather than nothing: it sits in the
+ // strip reserved above, and a see-through groove shows the clipped edge of
+ // the last row through the gaps around the thumb.
   return (
     <div
       ref={trackRef}
       data-testid="db-hscroll"
       onPointerDown={onPointerDown}
-      style={{ display: "none" }}
-      className="fixed bottom-0 z-30 flex h-[15px] cursor-pointer items-center bg-transparent"
+      style={{ display: "none", height: BAR_H, paddingLeft: BAR_INSET, paddingRight: BAR_INSET }}
+      className="fixed bottom-0 z-30 flex cursor-pointer items-center bg-white dark:bg-[#191919]"
     >
       <div
         ref={thumbRef}
         data-testid="db-hscroll-thumb"
-        className="h-[11px] rounded-full bg-[#D3D1CB] transition-colors hover:bg-[#B9B7B1] dark:bg-[#5A5A5A] dark:hover:bg-[#6E6E6E]"
+        style={{ height: BAR_H - BAR_INSET * 2 }}
+        className="rounded-full bg-neutral-500/35 transition-colors hover:bg-neutral-500/55 dark:bg-neutral-300/25 dark:hover:bg-neutral-300/40"
       />
     </div>
   );
