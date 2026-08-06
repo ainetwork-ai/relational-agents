@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -25,6 +25,7 @@ import type {
 import type { PublicUser } from "@/lib/auth/public-user";
 import { newId } from "@/lib/compat";
 import { usePageSync } from "@/hooks/use-page-sync";
+import { usePagesStore } from "@/stores/pages";
 import { useToastStore } from "@/stores/toast";
 import { COLOR_CYCLE, filterIsActive, resolveDateValue, type RelatedSnapshots,
 } from "@/lib/db-values";
@@ -52,6 +53,11 @@ interface DbApi {
   me: string | null;
   /** what one row is called — the original's Projects says "새 프로젝트" */
   itemName: string;
+  /** the database's icon. Every row of the original's table carries it
+   * (`/icons/iterate_blue.svg` in each title cell) because a row IS a page and
+   * inherits the database's icon; pages nested inside a row do not. For a
+   * full-page database that icon is the page's own. */
+  icon: string | null;
   activeView: DbView;
   /** all databases in the workspace — for the relation target picker */
   allDatabases: { id: string; title: string }[];
@@ -892,6 +898,11 @@ export function DatabaseBlock({
     };
   }, [properties]);
 
+ // a full-page database's icon is the page's own icon
+  const pathname = usePathname();
+  const hostPageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
+  const hostPageIcon = usePagesStore((st) => (hostPageId ? (st.pages[hostPageId]?.icon ?? null) : null));
+
   const api = useMemo<DbApi>(
     () => ({
       databaseId,
@@ -901,6 +912,7 @@ export function DatabaseBlock({
       members,
       me,
       itemName: database?.itemName || "페이지",
+      icon: fullPage ? hostPageIcon : null,
       allDatabases,
       activeView: activeView!,
       updateRow,
@@ -917,7 +929,7 @@ export function DatabaseBlock({
       filterUiOpen,
       setFilterUiOpen,
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName]
+    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, filterUiOpen, database?.itemName, fullPage, hostPageIcon]
   );
 
   if (!database || !activeView) {
