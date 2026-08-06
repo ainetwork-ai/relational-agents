@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useAnchoredAt } from "@/hooks/use-anchored";
 import type { BlockType } from "@/lib/db/schema";
 import { SLASH_ITEMS } from "@/lib/editor/block-defs";
 
@@ -54,15 +55,10 @@ export function SlashMenu({
   const items = filterSlashItems(query);
   const listRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
- // Flip above the caret when the menu would clip past the bottom of the
- // viewport (and there is room above). Measured after render so the flip
- // tracks the filtered item count.
-  const [flip, setFlip] = useState(false);
-  useLayoutEffect(() => {
-    const h = menuRef.current?.offsetHeight ?? 0;
-    const below = anchor.y + 24 + h <= window.innerHeight - 8;
-    setFlip(!below && anchor.y - 8 - h >= 0);
-  }, [anchor.x, anchor.y, query]);
+ // Below the caret, flipped above it when the window's bottom is too close,
+ // and clamped sideways — all of it in useAnchoredAt now, which every other
+ // caret menu uses too (this one used to own its flip and clamp nothing).
+  useAnchoredAt(true, anchor, menuRef, { gap: 2 });
 
   useEffect(() => {
     const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
@@ -75,11 +71,7 @@ export function SlashMenu({
     <div
       data-testid="slash-menu"
       className="popover-anim fixed z-50 max-h-72 w-72 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-      style={
-        flip
-          ? { left: anchor.x, bottom: window.innerHeight - anchor.y + 8 }
-          : { left: anchor.x, top: anchor.y + 24 }
-      }
+      style={{ visibility: "hidden" }}
       ref={menuRef}
     >
       <div ref={listRef}>

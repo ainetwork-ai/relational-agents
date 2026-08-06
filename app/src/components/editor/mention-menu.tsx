@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAnchoredAt } from "@/hooks/use-anchored";
 import { FileText, Calendar } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
@@ -115,13 +116,19 @@ export function MentionMenu({
     onItems(items);
   }, [items, onItems]);
 
+  const menuRef = useRef<HTMLDivElement>(null);
+  useAnchoredAt(true, anchor, menuRef);
+
   if (items.length === 0) return null;
 
   return (
     <div
+      ref={menuRef}
       data-testid="mention-menu"
       className="popover-anim fixed z-50 max-h-72 w-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-      style={{ left: anchor.x, top: anchor.y + 24 }}
+ // placed by useAnchoredAt: below the caret, above it when the window's bottom
+ // is too close (this list ran 250px off the screen there)
+      style={{ visibility: "hidden" }}
     >
       {/*  groups mentions under section headers — no per-row type
           badges (R2#18); rows are ~28px (R2#20) with a parent-path secondary

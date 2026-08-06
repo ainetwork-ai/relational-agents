@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, GripVertical, Plus, Trash2, Copy, Repeat, FileText, MessageSquare, AlignLeft, AlignCenter, Maximize, Check, Link2 } from "lucide-react";
@@ -329,19 +331,14 @@ function BlockHandle({ block }: { block: EBlock }) {
   const pathname = usePathname();
   const pageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
 
- // dismiss:manual — this listener guards the in-place block menu, not the
- // portal; the portalled comment overlay closes itself on its own mousedown.
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setTurnOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+ // the menu is portalled, so `ref` (the handle's box) is not its ancestor:
+ // both count as inside, or the first mousedown on the menu closes it
+  const menuRef = useRef<HTMLDivElement>(null);
+  useAnchored(open, ref, menuRef, { gap: 2 });
+  useDismiss(open, () => {
+    setOpen(false);
+    setTurnOpen(false);
+  }, ref, menuRef);
 
   async function submitComment() {
     const body = draft.trim();
@@ -374,8 +371,16 @@ function BlockHandle({ block }: { block: EBlock }) {
       >
         <GripVertical size={15} />
       </button>
-      {open && (
-        <div className="popover-anim absolute left-5 top-0 z-50 w-44 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+ // portalled and placed by useAnchored: in the page it was `absolute left-5
+ // top-0`, so on a line near the bottom of the window the menu ran 106px past
+ // it and the main scroller clipped what was left
+          <div
+            ref={menuRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <MenuBtn
             testid={`block-delete-${block.id}`}
             icon={<Trash2 size={13} />}
@@ -442,8 +447,9 @@ function BlockHandle({ block }: { block: EBlock }) {
               </div>
             )}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
       {commentOpen &&
         pageId &&
         createPortal(

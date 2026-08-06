@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useAnchoredAt } from "@/hooks/use-anchored";
 import { emojiSetReady, loadEmojiSet, searchEmoji, searchShortcodes } from "@/lib/emoji-data";
 
 export interface EmojiCandidate {
@@ -64,12 +65,16 @@ export function EmojiSuggestMenu({
   }, [ready]);
 
   const items = emojiCandidates(query);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useAnchoredAt(true, anchor, menuRef);
   if (!items.length) return null;
   return (
     <div
+      ref={menuRef}
       data-testid="emoji-suggest-menu"
       className="popover-anim fixed z-50 max-h-64 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-      style={{ left: anchor.x, top: anchor.y + 24 }}
+ // placed by useAnchoredAt — flips above the caret at the bottom of the window
+      style={{ visibility: "hidden" }}
     >
       {items.map((it, i) => (
         <button
