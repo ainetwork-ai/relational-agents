@@ -23,16 +23,17 @@ import {
   targetRowLabel,
   type DbSnapshot,
 } from "@/lib/db-relation";
+import { formatRowTimestamp } from "@/lib/dates";
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
 import { UserAvatar } from "@/components/user-avatar";
 import { OptionChip } from "./option-chip";
 
-/** Format a row timestamp (Date or ISO string over JSON) for display. */
+/** A row timestamp, written the way the original writes it. */
 function fmtTimestamp(v: unknown): string {
   if (!v) return "";
   const d = new Date(v as string | number | Date);
-  return isNaN(d.getTime()) ? "" : d.toLocaleString("en-US");
+  return isNaN(d.getTime()) ? "" : formatRowTimestamp(d);
 }
 
 export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
@@ -54,28 +55,52 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
     case "created_time":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {fmtTimestamp(row.createdAt)}
         </div>
       );
 
     case "last_edited_time":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {fmtTimestamp(row.updatedAt)}
         </div>
       );
 
     case "created_by":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {personLabel(db.members, row.createdBy) || "—"}
         </div>
       );
 
     case "last_edited_by":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {personLabel(db.members, row.updatedBy) || "—"}
         </div>
       );

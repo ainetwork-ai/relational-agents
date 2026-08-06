@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { DbRow } from "@/lib/db/schema";
 import { personLabel } from "@/lib/db-values";
+import { formatRowTimestamp } from "@/lib/dates";
 import { useDb } from "./database-block";
 import { IconPicker } from "@/components/page/icon-picker";
 import { useAnchored } from "@/hooks/use-anchored";
@@ -28,18 +29,6 @@ import { useDismiss } from "@/hooks/use-dismiss";
 // with the reason on hover, rather than missing.
 // ===========================================================================
 
-function fmtEdited(at: string | Date | null | undefined): string {
-  if (!at) return "";
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export function RowMenu({
   row,
@@ -75,7 +64,7 @@ export function RowMenu({
   };
 
   const editedBy = personLabel(db.members, row.updatedBy ?? row.createdBy);
-  const editedAt = fmtEdited(row.updatedAt ?? row.createdAt);
+  const editedAt = formatRowTimestamp(row.updatedAt ?? row.createdAt);
 
   return createPortal(
     <div
