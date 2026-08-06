@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon, ChevronDown} from "lucide-react";
+import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon, ChevronDown, FileText } from "lucide-react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -329,6 +329,12 @@ export function DatabaseBlock({
   const [addViewOpen, setAddViewOpen] = useState(false);
   const addViewBtn = useRef<HTMLButtonElement>(null);
   const addViewPop = useRef<HTMLDivElement>(null);
+ // the blue 새로 만들기 button's caret: the original opens a template menu there
+  const [newMoreOpen, setNewMoreOpen] = useState(false);
+  const newMoreBtn = useRef<HTMLButtonElement>(null);
+  const newMorePop = useRef<HTMLDivElement>(null);
+  useAnchored(newMoreOpen, newMoreBtn, newMorePop, { align: "end" });
+  useDismiss(newMoreOpen, () => setNewMoreOpen(false), newMoreBtn, newMorePop);
   useAnchored(addViewOpen, addViewBtn, addViewPop, { align: "start" });
   useDismiss(addViewOpen, () => setAddViewOpen(false), addViewBtn, addViewPop);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
@@ -1273,7 +1279,8 @@ export function DatabaseBlock({
               <button
                 data-testid="db-new-row"
                 onClick={() => void addRow({})}
-                className="flex items-center px-3 text-[14px] font-medium leading-5 text-white transition-colors hover:bg-[rgb(35,118,199)]"
+ // 80px in the original for this label — a minimum, so a longer one still fits
+                className="flex min-w-[80px] items-center justify-center px-3 text-[14px] font-medium leading-5 text-white transition-colors hover:bg-[rgb(35,118,199)]"
               >
                 {/* the toolbar's primary reads 새로 만들기 in the original; the
                     item name (새 프로젝트) is what a GROUP's add-row says */}
@@ -1281,15 +1288,79 @@ export function DatabaseBlock({
               </button>
               <span className="w-px bg-white/25" aria-hidden="true" />
               <button
+                ref={newMoreBtn}
                 data-testid="db-new-row-more"
                 aria-label="추가 옵션 더 보기"
-                title="템플릿 메뉴는 아직 없습니다"
-                disabled
-                className="flex w-6 cursor-not-allowed items-center justify-center text-white/70"
+                onClick={() => setNewMoreOpen((v) => !v)}
+                className="flex w-6 items-center justify-center text-white/80 transition-colors hover:bg-[rgb(35,118,199)] hover:text-white"
               >
                 <ChevronDown size={16} />
               </button>
             </div>
+            {newMoreOpen &&
+              createPortal(
+                <div
+                  ref={newMorePop}
+                  data-testid="db-new-row-menu"
+                  style={{ visibility: "hidden" }}
+                  className="popover-anim fixed z-50 w-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                >
+ {/* the original's caret menu, read off it: a 템플릿 heading, the database's
+     own templates under its name, then 기본 → 비어 있음, then 새 템플릿 */}
+                  <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">템플릿</p>
+                  <p className="truncate px-3 pb-0.5 text-[11px] text-neutral-400">
+                    {database.title || "데이터베이스"}
+                  </p>
+                  {rows.filter((r) => r.values.__template).length === 0 && (
+                    <p className="px-3 pb-1 text-[13px] text-neutral-400">템플릿이 아직 없습니다</p>
+                  )}
+                  {rows.filter((r) => r.values.__template).map((t) => (
+                    <button
+                      key={t.id}
+                      data-testid={`db-new-from-template-${t.id}`}
+                      onClick={() => {
+                        const vals: Record<string, unknown> = { ...t.values };
+                        delete vals.__template;
+                        delete vals.__default;
+                        setNewMoreOpen(false);
+                        void addRow(vals);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                    >
+                      <FileText size={15} className="shrink-0 text-neutral-400" />
+                      <span className="truncate">
+                        {String(t.values[properties.find((p) => p.type === "title")?.id ?? ""] ?? "") ||
+                          "제목 없는 템플릿"}
+                      </span>
+                    </button>
+                  ))}
+                  <p className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium text-neutral-400">기본</p>
+                  <button
+                    data-testid="db-new-empty"
+                    onClick={() => {
+                      setNewMoreOpen(false);
+                      void addRow({});
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                  >
+                    <FileText size={15} className="shrink-0 text-neutral-400" />
+                    비어 있음
+                  </button>
+                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
+                  <button
+                    data-testid="db-new-template"
+                    onClick={() => {
+                      setNewMoreOpen(false);
+                      void addRow({ __template: true });
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-500 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                  >
+                    <Plus size={15} className="shrink-0 text-neutral-400" />
+                    새 템플릿
+                  </button>
+                </div>,
+                document.body
+              )}
             {activeView?.type !== "table" && (
             <div className="relative">
               <button
