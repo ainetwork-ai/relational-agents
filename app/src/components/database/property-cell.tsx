@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
-import { Check } from "lucide-react";
+import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { optionClass, findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/lib/db-relation";
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
-import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
 
 /** Format a row timestamp (Date or ISO string over JSON) for display. */
 function fmtTimestamp(v: unknown): string {
@@ -999,6 +1000,31 @@ function PersonCell({
   const picked = personIds(value);
   const people = personLabels(db.members, value);
   const slug = testid.split("db-cell-")[1];
+  const [query, setQuery] = useState("");
+  const [anchor, setAnchor] = useState({ left: 0, top: 0, width: 235 });
+
+ // people not already in the cell, filtered by the search box — the original
+ // lists only the ones you could still add
+  const q = query.trim().toLowerCase();
+  const candidates = db.members.filter(
+    (m) =>
+      !picked.includes(m.id) &&
+      (!q ||
+        (m.displayName ?? "").toLowerCase().includes(q) ||
+        (m.email ?? "").toLowerCase().includes(q))
+  );
+
+  const openAt = () => {
+    const box = ref.current?.getBoundingClientRect();
+    if (box)
+      setAnchor({
+        left: Math.round(Math.min(box.left, window.innerWidth - 250)),
+        top: Math.round(box.bottom + 4),
+        width: Math.max(235, Math.round(box.width)),
+      });
+    setQuery("");
+    setOpen((v) => !v);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -1021,16 +1047,14 @@ function PersonCell({
     <div ref={ref} className="relative px-1.5 py-1">
       <button
         data-testid={testid}
-        onClick={() => setOpen((v) => !v)}
+        onClick={openAt}
         className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
       >
         {people.length ? (
           <>
             {people.map((p) => (
               <span key={p.id} className="flex shrink-0 items-center gap-1">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                  {initial(p.label)}
-                </span>
+                <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
                 <span className="whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-200">
                   {p.label}
                 </span>
@@ -1041,39 +1065,70 @@ function PersonCell({
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {picked.length > 0 && (
-            <button
-              data-testid={`db-person-${slug}-none`}
-              onClick={() => {
-                onSet(null);
-                setOpen(false);
-              }}
-              className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            >
-              모두 지우기
-            </button>
-          )}
-          {db.members.map((m) => (
-            <button
-              key={m.id}
-              data-testid={`db-person-${slug}-${m.id}`}
-              aria-pressed={picked.includes(m.id)}
-              onClick={() => toggle(m.id)}
-              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                {initial(m.displayName)}
-              </span>
-              <span className="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-200">
-                {m.displayName}
-              </span>
-              {picked.includes(m.id) && <Check size={13} className="shrink-0 text-blue-500" />}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        createPortal(
+ // In a portal, positioned against the cell: the table's cells clip their
+ // content to one line, and a popover rendered inside one was cut off.
+          <div
+            data-testid={`db-person-popover-${slug}`}
+            style={{ left: anchor.left, top: anchor.top, width: anchor.width }}
+            className="popover-anim fixed z-50 max-h-[60vh] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
+            {/* the people already in the cell, each with its own remove — the
+                original puts them above the search box as chips */}
+            {people.length > 0 && (
+              <div className="flex flex-wrap gap-1 px-2 pb-1.5">
+                {people.map((p) => (
+                  <span
+                    key={p.id}
+                    className="flex items-center gap-1 rounded bg-neutral-100 py-0.5 pl-0.5 pr-1 dark:bg-neutral-700"
+                  >
+                    <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={18} />
+                    <span className="max-w-[9rem] truncate text-xs text-neutral-700 dark:text-neutral-200">
+                      {p.label}
+                    </span>
+                    <button
+                      data-testid={`db-person-${slug}-remove-${p.id}`}
+                      aria-label="항목 제거"
+                      onClick={() => toggle(p.id)}
+                      className="text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="px-2 pb-1.5">
+              <input
+                data-testid={`db-person-${slug}-search`}
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full rounded bg-neutral-100 px-2 py-1 text-sm outline-none placeholder:text-neutral-400 dark:bg-neutral-700 dark:text-neutral-100"
+              />
+            </div>
+            <p className="px-3 pb-1 pt-0.5 text-[11px] text-neutral-400">원하는 만큼 선택</p>
+            {candidates.length === 0 && (
+              <p className="px-3 py-2 text-xs text-neutral-400">결과 없음</p>
+            )}
+            {candidates.map((m) => (
+              <button
+                key={m.id}
+                data-testid={`db-person-${slug}-${m.id}`}
+                onClick={() => toggle(m.id)}
+                className="flex w-full items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
+              >
+                <UserAvatar user={m} size={20} />
+                <span className="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-200">
+                  {m.displayName || m.email || "이름 없음"}
+                  {m.id === db.me && <span className="text-neutral-400">(나)</span>}
+                </span>
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
