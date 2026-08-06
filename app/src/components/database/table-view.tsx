@@ -1059,7 +1059,10 @@ function RowLine({
             onKeyDown={onCellNavKey}
  // one line per cell: the original's table views all carry `table_wrap: false`,
  // so a cell with five team chips is clipped rather than growing the row
-            className={`flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+ // relative: the hover actions are absolutely placed at this cell's right
+ // edge. Without it they resolved against the row — 2,900px wide — and sat off
+ // screen past the last column, which is why the 댓글 button never showed.
+            className={`relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
               frozenLefts[i] != null ? "sticky z-[2]" : ""
             }`}
           >
