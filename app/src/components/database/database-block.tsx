@@ -87,85 +87,6 @@ export function useDb() {
   return ctx;
 }
 
-/** A full-page database's description sits under the page title, above the view
- * tabs, and can run to paragraphs — the original's Projects keeps 800 characters
- * of prose there (docs/notion-projects-spec.md). Click it to edit; the "설명
- * 숨기기" state lives on the database so it is the same for everyone. */
-function FullPageDescription({
-  database,
-  setDatabase,
-  databaseId,
-}: {
-  database: Database;
-  setDatabase: React.Dispatch<React.SetStateAction<Database | null>>;
-  databaseId: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  const text = database.description ?? "";
-  const visible = database.descriptionVisible !== false;
-
-  const save = (v: string) => {
-    setEditing(false);
-    if (v === text) return;
-    setDatabase((d) => (d ? { ...d, description: v } : d));
-    void fetch(`/api/databases/${databaseId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ description: v }),
-    });
-  };
-
-  if (!visible || (!text && !editing)) return null;
-
-  if (editing)
-    return (
-      <textarea
-        data-testid="db-description"
-        autoFocus
-        defaultValue={text}
-        rows={Math.min(20, Math.max(3, text.split("\n").length + 1))}
-        onBlur={(e) => save(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="mb-3 w-full resize-y rounded bg-transparent px-1 text-sm leading-relaxed text-neutral-700 outline-none ring-1 ring-neutral-200 dark:text-neutral-300 dark:ring-neutral-700"
-      />
-    );
-
-  return (
-    <div
-      data-testid="db-description"
-      role="button"
-      tabIndex={0}
-      onClick={() => setEditing(true)}
-      onKeyDown={(e) => e.key === "Enter" && setEditing(true)}
-      className="mb-3 cursor-text whitespace-pre-wrap px-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
-    >
-      {linkify(text)}
-    </div>
-  );
-}
-
-/** plain text with bare URLs turned into links — the description is stored as
- * text, and the original's ends in a source link. */
-function linkify(text: string): React.ReactNode[] {
-  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
-    /^https?:\/\//.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noreferrer"
-        className="text-blue-600 underline underline-offset-2 dark:text-blue-400"
-      >
-        {part}
-      </a>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  );
-}
-
 /**
  * Expand an inline database into a full page.
  *
@@ -1022,7 +943,6 @@ export function DatabaseBlock({
             print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
             that reached users and that Notion has no equivalent of. */}
         {wrapperTestId && <div data-testid={wrapperTestId} hidden />}
-        {fullPage && <FullPageDescription database={database} setDatabase={setDatabase} databaseId={databaseId} />}
         <div className="mb-1.5 flex items-center gap-1 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
           {/* Inline databases carry their name here, as Notion's do. A full-page
               one must not: the page title above IS the database name, and
