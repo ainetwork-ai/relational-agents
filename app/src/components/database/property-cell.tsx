@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { X } from "lucide-react";
+
+/** the person picker's height cap — the original's is 333px, list scrolling inside */
+const POPOVER_MAX_H = 333;
 import { createPortal } from "react-dom";
 import { optionClass, findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
@@ -1019,10 +1022,12 @@ function PersonCell({
     if (box) {
  // over the cell, not under it: the original's picker starts at the cell's own
  // top-left, its chips row standing where the cell's people were
-      const width = Math.max(235, Math.round(box.width));
+ // the original's picker is exactly the cell's width and is capped at 333px
+ // tall, with its list scrolling inside that
+      const width = Math.max(220, Math.round(box.width));
       setAnchor({
         left: Math.round(Math.min(box.left, window.innerWidth - width - 8)),
-        top: Math.round(Math.min(box.top, window.innerHeight - 220)),
+        top: Math.round(Math.min(box.top, window.innerHeight - POPOVER_MAX_H - 8)),
         width,
       });
     }
@@ -1048,11 +1053,13 @@ function PersonCell({
  // the column — the real table has no "N개 더 보기" in a cell (that pill is a
  // filter chip in the toolbar, which is where `target.html` has it).
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div ref={ref} className="relative h-full w-full">
       <button
         data-testid={testid}
         onClick={openAt}
-        className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
+ // the whole cell opens the picker, as the original's does — its cell carries
+ // `cursor: pointer` across its full width, not just over the names
+        className="flex h-full min-h-[1.5rem] w-full cursor-pointer items-center gap-1 overflow-hidden px-1.5 py-1"
       >
         {people.length ? (
           <>
@@ -1075,13 +1082,13 @@ function PersonCell({
  // content to one line, and a popover rendered inside one was cut off.
           <div
             data-testid={`db-person-popover-${slug}`}
-            style={{ left: anchor.left, top: anchor.top, width: anchor.width }}
-            className="popover-anim fixed z-50 max-h-[60vh] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+            style={{ left: anchor.left, top: anchor.top, width: anchor.width, maxHeight: POPOVER_MAX_H }}
+            className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
             {/* the people already in the cell, each with its own remove — the
                 original puts them above the search box as chips */}
             {people.length > 0 && (
-              <div className="flex flex-wrap gap-1 px-2 pb-1.5">
+              <div className="flex shrink-0 flex-wrap gap-1 px-2 pb-1.5">
                 {people.map((p) => (
                   <span
                     key={p.id}
@@ -1103,7 +1110,7 @@ function PersonCell({
                 ))}
               </div>
             )}
-            <div className="px-2 pb-1.5">
+            <div className="shrink-0 px-2 pb-1.5">
               <input
                 data-testid={`db-person-${slug}-search`}
                 autoFocus
@@ -1112,7 +1119,8 @@ function PersonCell({
                 className="w-full rounded bg-neutral-100 px-2 py-1 text-sm outline-none placeholder:text-neutral-400 dark:bg-neutral-700 dark:text-neutral-100"
               />
             </div>
-            <p className="px-3 pb-1 pt-0.5 text-[11px] text-neutral-400">원하는 만큼 선택</p>
+            <p className="shrink-0 px-3 pb-1 pt-0.5 text-[11px] text-neutral-400">원하는 만큼 선택</p>
+            <div className="min-h-0 flex-1 overflow-y-auto">
             {candidates.length === 0 && (
               <p className="px-3 py-2 text-xs text-neutral-400">결과 없음</p>
             )}
@@ -1130,6 +1138,7 @@ function PersonCell({
                 </span>
               </button>
             ))}
+            </div>
           </div>,
           document.body
         )}
