@@ -98,7 +98,7 @@ export function BoardView({ view }: { view: DbView }) {
             className="flex w-60 shrink-0 flex-col rounded-md bg-neutral-50 p-2 dark:bg-neutral-800/40"
           >
             <div className="mb-2 flex items-center gap-1.5 px-1">
-              <OptionChip color={col.color} title={col.name}>
+              <OptionChip color={col.color} title={col.name} dot={groupProp.type === "status"}>
                 {col.name}
               </OptionChip>
               <span className="text-xs text-neutral-400">{cards.length}</span>

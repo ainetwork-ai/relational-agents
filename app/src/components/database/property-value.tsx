@@ -16,7 +16,11 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
     case "select":
     case "status": {
       const o = findOption(prop, v);
-      return o ? <OptionChip color={o.color} title={o.name}>{o.name}</OptionChip> : null;
+      return o ? (
+        <OptionChip color={o.color} title={o.name} dot={prop.type === "status"}>
+          {o.name}
+        </OptionChip>
+      ) : null;
     }
     case "multi_select": {
       const ids: string[] = Array.isArray(v) ? (v as string[]) : [];

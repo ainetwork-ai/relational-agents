@@ -841,7 +841,7 @@ function SelectCell({
         className="flex min-h-[1.5rem] w-full items-center overflow-hidden"
       >
         {current ? (
-          <OptionChip color={current.color} title={current.name}>
+          <OptionChip color={current.color} title={current.name} dot={prop.type === "status"}>
             {current.name}
           </OptionChip>
         ) : (
@@ -896,7 +896,7 @@ function SelectCell({
                   }}
                   className="flex min-w-0 flex-1 items-center rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 >
-                  <OptionChip color={o.color} title={o.name}>
+                  <OptionChip color={o.color} title={o.name} dot={prop.type === "status"}>
                     {o.name}
                   </OptionChip>
                 </button>

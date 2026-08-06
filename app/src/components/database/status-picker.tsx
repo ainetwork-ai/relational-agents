@@ -7,6 +7,7 @@ import type { DbProperty } from "@/lib/db/schema";
 import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useDb } from "./database-block";
+import { OptionChip } from "./option-chip";
 
 // ===========================================================================
 // The menu a Status cell opens.
@@ -36,18 +37,6 @@ import { useDb } from "./database-block";
 // (hovering the chip in the search bar shows no ✕), and a create-option row
 // (typing "zzq" leaves the bar and 속성 편집 with nothing between them).
 // ===========================================================================
-
-/** Notion's light-theme status colours, sampled from the open menu.
- *  Only the five our Status property uses were on screen to measure; anything
- *  else falls back to gray rather than being invented. Dark theme: unmeasured. */
-const CHIP: Record<string, { bg: string; dot: string; text: string }> = {
-  gray: { bg: "rgba(28, 19, 1, 0.11)", dot: "rgb(142, 139, 134)", text: "rgb(73, 72, 70)" },
-  blue: { bg: "rgba(0, 118, 217, 0.204)", dot: "rgb(39, 131, 222)", text: "rgb(38, 74, 114)" },
-  red: { bg: "rgba(206, 24, 0, 0.165)", dot: "rgb(229, 100, 88)", text: "rgb(109, 53, 49)" },
-  yellow: { bg: "rgba(209, 156, 0, 0.282)", dot: "rgb(216, 163, 47)", text: "rgb(101, 81, 33)" },
-  green: { bg: "rgba(0, 96, 38, 0.157)", dot: "rgb(70, 161, 113)", text: "rgb(42, 83, 60)" },
-};
-const chipColors = (color?: string) => CHIP[color ?? "gray"] ?? CHIP.gray;
 
 const SHADOW =
   "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px";
@@ -154,7 +143,9 @@ export function StatusPicker({
       style={{ background: i === active ? HOVER : undefined }}
       className="mx-1 flex h-7 items-center rounded-[6px] px-2 text-left"
     >
-      <Chip option={o} />
+      <OptionChip color={o.color ?? "gray"} title={o.name} dot>
+        {o.name}
+      </OptionChip>
     </button>
   );
 
@@ -176,7 +167,11 @@ export function StatusPicker({
       {/* search bar: the chosen value as a chip, then the caret */}
       <div className="shrink-0 rounded-[6px] bg-[rgba(242,241,238,0.6)] p-1 dark:bg-neutral-700/40">
         <div className="flex max-h-[240px] flex-wrap items-center gap-1.5 overflow-y-auto px-2 pb-[6px] pt-[5px]">
-          {current && <Chip option={current} />}
+          {current && (
+            <OptionChip color={current.color ?? "gray"} title={current.name} dot>
+              {current.name}
+            </OptionChip>
+          )}
           <input
             data-testid={`db-status-search-${slug}`}
             autoFocus
@@ -239,25 +234,4 @@ export function StatusPicker({
     </div>,
     document.body
   );
-}
-
-/** A status value: pill with a dot, 20px tall — the sizes are the original's. */
-export function StatusChip({ name, color }: { name: string; color?: string }) {
-  const c = chipColors(color);
-  return (
-    <span
-      title={name}
-      className="inline-flex h-5 min-w-0 max-w-full items-center rounded-[10px] pl-[7px] pr-[9px]"
-      style={{ background: c.bg }}
-    >
-      <span className="mr-[5px] h-2 w-2 shrink-0 rounded-full" style={{ background: c.dot }} />
-      <span className="truncate text-[14px] leading-5" style={{ color: c.text }}>
-        {name}
-      </span>
-    </span>
-  );
-}
-
-function Chip({ option }: { option: Opt }) {
-  return <StatusChip name={option.name} color={option.color} />;
 }
