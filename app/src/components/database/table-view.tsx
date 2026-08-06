@@ -648,44 +648,43 @@ function GroupMenuItem({
   );
 }
 
-/** What a cell offers on hover, measured on the original: a cell WITH a value
- * shows 댓글 at its right edge (24×20, 7px in), and the types that copy as text
- * — date, number, created time, plain text — show 클립보드에 복사 beside it.
- * `Created time` shows only the copy button, being read-only. An EMPTY cell
- * shows nothing. The title cell is separate: it keeps 열기 and the comment count. */
-const COPYABLE: PropertyType[] = [
+/** What a cell offers on hover — only what was actually measured on the
+ * original (docs/notion-projects-spec.md). A cell WITH a value shows 댓글 at its
+ * right edge (24×20, 7px in); date and number also show 클립보드에 복사;
+ * `Created time`, read-only, shows the copy button alone. An EMPTY cell shows
+ * nothing, and so does any type not in these lists — text, url, checkbox,
+ * relation and the rest are unmeasured, and guessing at them is how the wrong
+ * things ended up here before. */
+const COMMENT_TYPES: PropertyType[] = [
+  "person",
+  "status",
+  "select",
+  "multi_select",
   "date",
   "number",
-  "created_time",
-  "last_edited_time",
-  "text",
-  "url",
-  "email",
-  "phone",
-  "formula",
-  "rollup",
 ];
-const NO_COMMENT: PropertyType[] = ["created_time", "last_edited_time", "created_by", "last_edited_by"];
+const COPY_TYPES: PropertyType[] = ["date", "number", "created_time"];
 
 function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const [copied, setCopied] = useState(false);
-  if (prop.type === "title") return null;
+  const canComment = COMMENT_TYPES.includes(prop.type);
+  const canCopy = COPY_TYPES.includes(prop.type);
   const value = row.values[prop.id];
-  const readOnly = NO_COMMENT.includes(prop.type);
   const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
-  if (empty && !readOnly) return null;
+ // created_time has no stored value but always reads as filled
+  const filled = prop.type === "created_time" ? true : !empty;
+  if ((!canComment && !canCopy) || !filled) return null;
 
   const copy = (e: React.MouseEvent) => {
     const cell = (e.currentTarget as HTMLElement).closest("[data-cellnav]");
-    const text = (cell?.textContent ?? String(value ?? "")).trim();
-    void navigator.clipboard?.writeText(text);
+    void navigator.clipboard?.writeText((cell?.textContent ?? String(value ?? "")).trim());
     setCopied(true);
     setTimeout(() => setCopied(false), 900);
   };
 
   return (
     <div className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100">
-      {!readOnly && (
+      {canComment && (
         <button
           data-testid={`db-cell-comment-${row.id}-${prop.id}`}
           aria-label="댓글"
@@ -696,7 +695,7 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
           <MessageSquare size={12} />
         </button>
       )}
-      {COPYABLE.includes(prop.type) && (
+      {canCopy && (
         <button
           data-testid={`db-cell-copy-${row.id}-${prop.id}`}
           aria-label="클립보드에 복사"
