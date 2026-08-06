@@ -1,0 +1,19 @@
+{
+  "_source": "collection_view 2d5d8655-2212-800e-a1c2-000c28ed221f (ComCom > Projects, table view \"on-going projects\") → format.table_properties, captured 2026-08-06. Widths are Notion's own, not screen readings.",
+  "view": "on-going projects",
+  "columns": [
+    { "name": "TL", "width": 250 },
+    { "name": "Project name", "width": 565 },
+    { "name": "Assignee", "width": 469 },
+    { "name": "Status", "width": 136 },
+    { "name": "Start date", "width": 113 },
+    { "name": "End date", "width": 130 },
+    { "name": "Evaluation", "width": 121 },
+    { "name": "Team", "width": 179 },
+    { "name": "Sherpa", "width": 117 },
+    { "name": "Evaluator", "width": 200 },
+    { "name": "Created time", "width": 200 },
+    { "name": "Effort", "width": 200 },
+    { "name": "Bonus 지급 여부", "width": 200 }
+  ]
+}
