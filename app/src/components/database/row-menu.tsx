@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import {
   Star,
   Smile,
@@ -16,6 +17,8 @@ import type { DbRow } from "@/lib/db/schema";
 import { personLabel } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { IconPicker } from "@/components/page/icon-picker";
+import { useAnchored } from "@/hooks/use-anchored";
+import { useDismiss } from "@/hooks/use-dismiss";
 
 // ===========================================================================
 // The menu behind a row's ⠿ handle. Its items are the original's, read off the
@@ -40,13 +43,14 @@ function fmtEdited(at: string | Date | null | undefined): string {
 
 export function RowMenu({
   row,
-  x,
-  y,
+  triggerRef,
   onClose,
 }: {
   row: DbRow;
-  x: number;
-  y: number;
+ /** the ⠿ handle: the menu hangs off ITS box, not off where the pointer was,
+  * so the same handle always opens the menu in the same place (and counts as
+  * "inside" for dismissal, which is what lets a second click close it) */
+  triggerRef: RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
   const db = useDb();
@@ -54,19 +58,8 @@ export function RowMenu({
   const [iconOpen, setIconOpen] = useState(false);
   const pageId = typeof row.values.__page === "string" ? row.values.__page : null;
   const icon = typeof row.values.__icon === "string" ? row.values.__icon : null;
-
-  useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [onClose]);
+  useAnchored(true, triggerRef, ref, { gap: 4, margin: 8 });
+  useDismiss(true, onClose, ref, triggerRef);
 
   const duplicate = () => {
     const values = { ...row.values };
@@ -84,12 +77,15 @@ export function RowMenu({
   const editedBy = personLabel(db.members, row.updatedBy ?? row.createdBy);
   const editedAt = fmtEdited(row.updatedAt ?? row.createdAt);
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       data-testid={`db-row-menu-${row.id}`}
-      style={{ left: x, top: y }}
-      className="popover-anim fixed z-50 w-60 rounded-lg border border-neutral-200 bg-white py-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+ // hidden until useAnchored has placed it, or the first paint lands at 0,0.
+ // overflow-y-auto so a window too short to hold the menu scrolls it instead
+ // of cutting it off.
+      style={{ visibility: "hidden" }}
+      className="popover-anim fixed z-50 w-60 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
     >
       <Item
         testid="row-menu-favorite"
@@ -186,7 +182,8 @@ export function RowMenu({
           {editedAt && <div>{editedAt}</div>}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 

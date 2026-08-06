@@ -910,7 +910,11 @@ function RowLine({
   onCheck?: () => void;
 }) {
   const db = useDb();
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+ // the ⠿ handle is the menu's anchor AND its toggle: a boolean, not a pointer
+ // position, so the menu opens in the same place however precisely you click
+ // and a second click on the handle closes it instead of reopening 1px over
+  const [menuOpen, setMenuOpen] = useState(false);
+  const dragRef = useRef<HTMLButtonElement>(null);
   return (
     <div
       data-testid={`db-row-${row.id}`}
@@ -947,6 +951,7 @@ function RowLine({
           />
           <button
             data-testid={`db-row-drag-${row.id}`}
+            ref={dragRef}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               e.preventDefault();
@@ -956,7 +961,7 @@ function RowLine({
               const onUp = (ev: PointerEvent) => {
                 window.removeEventListener("pointerup", onUp);
                 if (Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 4) {
-                  setMenuAt({ x: Math.round(from.x), y: Math.round(from.y + 12) });
+                  setMenuOpen((v) => !v);
                   return;
                 }
                 const el = document.elementFromPoint(ev.clientX, ev.clientY);
@@ -1082,7 +1087,9 @@ function RowLine({
           </div>
         )
       )}
-      {menuAt && <RowMenu row={row} x={menuAt.x} y={menuAt.y} onClose={() => setMenuAt(null)} />}
+      {menuOpen && (
+        <RowMenu row={row} triggerRef={dragRef} onClose={() => setMenuOpen(false)} />
+      )}
     </div>
   );
 }
