@@ -655,9 +655,7 @@ function FrozenBg({ checked }: { checked?: boolean }) {
       <span
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 -z-10 ${
-          checked
-            ? "bg-blue-50/70 dark:bg-blue-900/20"
-            : "group-hover/dbrow:bg-neutral-50/60 dark:group-hover/dbrow:bg-neutral-800/30"
+          checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
         }`}
       />
     </>
@@ -845,7 +843,9 @@ function RowLine({
     <div
       data-testid={`db-row-${row.id}`}
       data-dbrow
-      className={`group/dbrow relative flex border-b border-neutral-100 hover:bg-neutral-50/60 dark:border-neutral-800 dark:hover:bg-neutral-800/30 ${
+ // no tint on hover: the original leaves a hovered row exactly as it was and
+ // only brings out its controls (checked rows still tint, to show a selection)
+      className={`group/dbrow relative flex border-b border-neutral-100 dark:border-neutral-800 ${
         checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
       }`}
     >

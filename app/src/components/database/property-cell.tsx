@@ -1016,12 +1016,16 @@ function PersonCell({
 
   const openAt = () => {
     const box = ref.current?.getBoundingClientRect();
-    if (box)
+    if (box) {
+ // over the cell, not under it: the original's picker starts at the cell's own
+ // top-left, its chips row standing where the cell's people were
+      const width = Math.max(235, Math.round(box.width));
       setAnchor({
-        left: Math.round(Math.min(box.left, window.innerWidth - 250)),
-        top: Math.round(box.bottom + 4),
-        width: Math.max(235, Math.round(box.width)),
+        left: Math.round(Math.min(box.left, window.innerWidth - width - 8)),
+        top: Math.round(Math.min(box.top, window.innerHeight - 220)),
+        width,
       });
+    }
     setQuery("");
     setOpen((v) => !v);
   };
