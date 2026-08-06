@@ -35,7 +35,7 @@ import { useDb, PROP_TYPES } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { RowMenu } from "./row-menu";
 import { useDismiss } from "@/hooks/use-dismiss";
-import { TYPE_ICON } from "./memory-select";
+import { PropertyTypeIcon } from "./property-type-icon";
 
 const NO_GROUP = "__nogroup__";
 
@@ -866,9 +866,7 @@ function PropertyVisibilityHeader() {
                   onChange={() => toggle(p.id)}
                   className="h-3.5 w-3.5 accent-blue-500"
                 />
-                <span className="w-3.5 shrink-0 text-center text-[10px] text-neutral-400">
-                  {TYPE_ICON[p.type] ?? "•"}
-                </span>
+                <PropertyTypeIcon type={p.type} />
                 <span className="truncate">{p.name}</span>
               </label>
             ))}
@@ -1383,11 +1381,10 @@ function ColumnHeader({
           ref={headerBtn}
           data-testid={`db-prop-header-${prop.id}`}
           onClick={() => setOpen(!open)}
-          className="flex w-full items-center gap-1 px-2 py-1 text-left text-xs font-medium text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+ // 9px in from the cell, 7px from icon to label, both measured
+          className="flex w-full items-center gap-[7px] py-1 pl-[9px] pr-2 text-left text-xs font-medium text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
         >
-          <span className="w-3.5 shrink-0 text-center text-[10px] text-neutral-400">
-            {TYPE_ICON[prop.type] ?? "•"}
-          </span>
+          <PropertyTypeIcon type={prop.type} />
           <span className="truncate">{prop.name}</span>
         </button>
       )}

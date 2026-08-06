@@ -12,6 +12,7 @@ import { sealData } from "iron-session";
 import pg from "pg";
 
 const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-header-tail.json", import.meta.url)));
+const ICONS = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-header-icons.json", import.meta.url)));
 const BASE = process.env.BASE ?? "http://localhost:3110";
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const val = (k) => env.match(new RegExp(`^${k}=(.+)$`, "m"))?.[1]?.trim();
@@ -91,11 +92,27 @@ const got = await page.evaluate(`(() => {
     }
     return null;
   })();
+  const typeIcon = (() => {
+    const btn = document.querySelector('[data-testid^="db-prop-header-"]');
+    if (!btn) return null;
+    const svg = btn.querySelector("svg");
+    if (!svg) return "no icon";
+    const r = svg.getBoundingClientRect(), br = btn.getBoundingClientRect();
+    const label = btn.querySelector("span");
+    const lr = label && label.getBoundingClientRect();
+    return {
+      size: Math.round(r.width) + "x" + Math.round(r.height),
+      color: getComputedStyle(svg).color,
+      insetLeftInCell: Math.round(r.left - br.left),
+      gapToLabel: lr ? Math.round(lr.left - r.right) : null,
+    };
+  })();
   const heads = Array.from(document.querySelectorAll('[data-testid^="db-prop-header-"]'))
     .map((e) => e.closest("[style]")?.getBoundingClientRect() ?? e.getBoundingClientRect())
     .filter((r) => r.width > 0)
     .sort((a, b) => a.x - b.x);
   return {
+    typeIcon,
     row: rowBox,
     bodyEdge,
     plus: box('[data-testid="db-add-prop"]'),
@@ -133,6 +150,18 @@ if (got.row) {
 }
 if (!got.bodyEdge) diffs.push("no line between the last column and the tail in the data rows");
 
+const I = ICONS.metrics;
+if (!got.typeIcon || typeof got.typeIcon === "string") diffs.push(`property type icon: ${got.typeIcon ?? "no header"}`);
+else {
+  if (got.typeIcon.size !== `${I.size}x${I.size}`) diffs.push(`type icon ${got.typeIcon.size} ≠ ${I.size}x${I.size}`);
+  if (got.typeIcon.color !== I.fill) diffs.push(`type icon colour ${got.typeIcon.color} ≠ ${I.fill}`);
+  if (Math.abs(got.typeIcon.insetLeftInCell - I.insetLeftInCell) > 1)
+    diffs.push(`type icon sits ${got.typeIcon.insetLeftInCell}px in; the original's is ${I.insetLeftInCell}`);
+  if (got.typeIcon.gapToLabel !== null && Math.abs(got.typeIcon.gapToLabel - I.gapToLabel) > 1)
+    diffs.push(`icon→label gap ${got.typeIcon.gapToLabel} ≠ ${I.gapToLabel}`);
+}
+
+console.log(`type icon ${JSON.stringify(got.typeIcon)}`);
 console.log(`row ${JSON.stringify(got.row)}\nbody edge ${JSON.stringify(got.bodyEdge)}`);
 console.log(`+ ${JSON.stringify(got.plus)}\n⋯ ${JSON.stringify(got.dots)}\nlast column ends at ${got.lastColumnRight}`);
 if (diffs.length) {
