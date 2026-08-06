@@ -12,6 +12,9 @@ import {
   useState,
 } from "react";
 import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon } from "lucide-react";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import type {
   Database,
   DbProperty,
@@ -308,6 +311,8 @@ export function DatabaseBlock({
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [addPropOpen, setAddPropOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const viewMenuBtn = useRef<HTMLButtonElement>(null);
+  const viewMenuPop = useRef<HTMLDivElement>(null);
   const [tabMenuViewId, setTabMenuViewId] = useState<string | null>(null);
   useEffect(() => {
     if (!viewMenuOpen) return;
@@ -317,7 +322,15 @@ export function DatabaseBlock({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [viewMenuOpen]);
+ // portalled and placed: measured at 1280x480 with the toolbar low in the
+ // window, the page's scroller cut the Add-view list by 209px
+  useAnchored(viewMenuOpen, viewMenuBtn, viewMenuPop, { align: "end" });
+  useDismiss(viewMenuOpen, () => setViewMenuOpen(false), viewMenuBtn, viewMenuPop);
   const [addViewOpen, setAddViewOpen] = useState(false);
+  const addViewBtn = useRef<HTMLButtonElement>(null);
+  const addViewPop = useRef<HTMLDivElement>(null);
+  useAnchored(addViewOpen, addViewBtn, addViewPop, { align: "start" });
+  useDismiss(addViewOpen, () => setAddViewOpen(false), addViewBtn, addViewPop);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [filterUiOpen, setFilterUiOpen] = useState(false);
@@ -1171,6 +1184,7 @@ export function DatabaseBlock({
           )}
           <div className="relative">
             <button
+              ref={addViewBtn}
               data-testid="db-add-view"
               onClick={() => setAddViewOpen((v) => !v)}
               aria-label="Add view"
@@ -1179,8 +1193,13 @@ export function DatabaseBlock({
             >
               <Plus size={12} />
             </button>
-            {addViewOpen && (
-              <div className="popover-anim absolute left-0 top-8 z-40 w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+            {addViewOpen &&
+              createPortal(
+                <div
+                  ref={addViewPop}
+                  style={{ visibility: "hidden" }}
+                  className="popover-anim fixed z-50 w-36 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                >
                 {(["table", "board", "list", "gallery", "calendar", "timeline", "chart", "dashboard"] as const).map((t) => (
                   <button
                     key={t}
@@ -1194,8 +1213,9 @@ export function DatabaseBlock({
                     {t}
                   </button>
                 ))}
-              </div>
-            )}
+                </div>,
+                document.body
+              )}
           </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -1206,6 +1226,7 @@ export function DatabaseBlock({
             {/* overflow: secondary view actions live behind ⋯ */}
             <div className="relative">
               <button
+                ref={viewMenuBtn}
                 data-testid="db-view-menu"
                 onClick={() => setViewMenuOpen((v) => !v)}
                 aria-label="View options"
@@ -1214,12 +1235,18 @@ export function DatabaseBlock({
               >
                 ⋯
               </button>
-              {viewMenuOpen && (
-                <div className="popover-anim absolute right-0 top-8 z-40 flex w-44 flex-col items-stretch gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                  {!fullPage && !linkedViewId && <DbSourceControls />}
-                  <TemplateMenu />
-                </div>
-              )}
+              {viewMenuOpen &&
+                createPortal(
+                  <div
+                    ref={viewMenuPop}
+                    style={{ visibility: "hidden" }}
+                    className="popover-anim fixed z-50 flex w-44 flex-col items-stretch gap-0.5 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                  >
+                    {!fullPage && !linkedViewId && <DbSourceControls />}
+                    <TemplateMenu />
+                  </div>,
+                  document.body
+                )}
             </div>
             <button
               data-testid="db-new-row"

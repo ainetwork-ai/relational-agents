@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useAnchored } from "@/hooks/use-anchored";
 import {
   Plus,
   Trash2,
@@ -746,17 +748,16 @@ function AddPropertyHeader() {
   const db = useDb();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled and placed: this list of property types is 618px tall, and the
+ // table's own horizontal scroller cut 454px of it off
+  useAnchored(open, btnRef, popRef, { align: "end" });
+  useDismiss(open, () => setOpen(false), btnRef, popRef);
   return (
     <div ref={ref} className="relative shrink-0">
       <button
+        ref={btnRef}
         data-testid="db-add-prop"
         onClick={() => setOpen((v) => !v)}
         aria-label="Add property"
@@ -765,8 +766,11 @@ function AddPropertyHeader() {
       >
         <Plus size={14} />
       </button>
-      {open && (
-        <div className="popover-anim absolute right-0 top-8 z-40 w-40 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+        <div ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-40 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {PROP_TYPES.map((pt) => (
             <button
               key={pt.type}
@@ -780,8 +784,9 @@ function AddPropertyHeader() {
               {pt.label}
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -1111,9 +1116,14 @@ function ColumnHeader({
 }) {
   const db = useDb();
   const [selfOpen, setSelfOpen] = useState(false);
+  const headerBtn = useRef<HTMLButtonElement>(null);
+  const headerPop = useRef<HTMLDivElement>(null);
  // the Status menu's 속성 편집 asks for THIS column's menu by id; derived rather
  // than copied into state, so no effect has to sync the two
   const open = selfOpen || db.editingPropertyId === prop.id;
+ // portalled and placed: on a right-hand column this menu hung 94px past the
+ // window, and inside the table's scroller it had nowhere to go
+  useAnchored(open, headerBtn, headerPop, { align: "start" });
   const setOpen = (v: boolean) => {
     setSelfOpen(v);
     if (!v && db.editingPropertyId === prop.id) db.editProperty(null);
@@ -1218,6 +1228,7 @@ function ColumnHeader({
         />
       ) : (
         <button
+          ref={headerBtn}
           data-testid={`db-prop-header-${prop.id}`}
           onClick={() => setOpen(!open)}
           className="flex w-full items-center gap-1 px-2 py-1 text-left text-xs font-medium text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
@@ -1228,8 +1239,13 @@ function ColumnHeader({
           <span className="truncate">{prop.name}</span>
         </button>
       )}
-      {open && (
-        <div className="popover-anim absolute left-0 top-7 z-40 w-40 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+        <div
+          ref={headerPop}
+          style={{ visibility: "hidden" }}
+          className="popover-anim fixed z-50 w-40 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+        >
           <MenuItem
             testid={`db-prop-rename-${prop.id}`}
             icon={<Pencil size={12} />}
@@ -1286,8 +1302,9 @@ function ColumnHeader({
             prop.type === "rollup") && <PropConfigEditor prop={prop} />}
           {prop.type === "number" && <NumberConfigEditor prop={prop} />}
           {prop.type === "date" && <DateConfigEditor prop={prop} />}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }
