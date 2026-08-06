@@ -492,7 +492,12 @@ function HeaderRow({
       {cols.map((p, i) => (
         <ColumnHeader key={p.id} prop={p} view={view} frozenLeft={frozenLefts[i]} />
       ))}
-      <AddPropertyHeader />
+ {/* the column grid ends here — the original closes it with the table's own
+     right edge and puts + / ⋯ BEYOND that line, with no cell borders of their
+     own (e2e/fixtures/notion-header-tail.json). Ours had the + inside the grid,
+     which is why it read as part of the last property's column. */}
+      <div className="w-px shrink-0 self-stretch bg-neutral-200 dark:bg-neutral-700" />
+      <HeaderTail />
     </div>
   );
 }
@@ -789,6 +794,82 @@ function FrozenBg({ checked }: { checked?: boolean }) {
 
 /**  places "add a property" as a "+" header cell at the right end of
  * the table, not in the toolbar. */
+/** The header row's tail: add a property, and show/hide properties. Measured
+ *  from the original — two 28x28 controls with 16px icons, sitting outside the
+ *  column grid (e2e/fixtures/notion-header-tail.json). */
+function HeaderTail() {
+  return (
+    <div className="flex shrink-0 items-center gap-0 px-0 py-1">
+      <AddPropertyHeader />
+      <PropertyVisibilityHeader />
+    </div>
+  );
+}
+
+/** The ⋯ beside it. In the original its tooltip is "속성 표시 또는 숨기기", and it
+ *  opens exactly that list — so it opens ours (the same toggles the view
+ *  settings panel carries), anchored to itself. */
+function PropertyVisibilityHeader() {
+  const db = useDb();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  useAnchored(open, btnRef, popRef, { align: "end" });
+  useDismiss(open, () => setOpen(false), btnRef, popRef);
+  const hidden = db.activeView.config.hiddenProperties ?? [];
+  const toggle = (id: string) =>
+    db.patchView({
+      ...db.activeView.config,
+      hiddenProperties: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id],
+    });
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={btnRef}
+        data-testid="db-header-props"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="속성 표시 또는 숨기기"
+        data-tip="속성 표시 또는 숨기기"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            data-testid="db-header-props-popover"
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
+            <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
+              속성 표시 또는 숨기기
+            </p>
+            {db.properties.map((p) => (
+              <label
+                key={p.id}
+                data-testid={`db-header-prop-${p.id}`}
+                className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={!hidden.includes(p.id)}
+                  onChange={() => toggle(p.id)}
+                  className="h-3.5 w-3.5 accent-blue-500"
+                />
+                <span className="w-3.5 shrink-0 text-center text-[10px] text-neutral-400">
+                  {TYPE_ICON[p.type] ?? "•"}
+                </span>
+                <span className="truncate">{p.name}</span>
+              </label>
+            ))}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
 function AddPropertyHeader() {
   const db = useDb();
   const [open, setOpen] = useState(false);
@@ -805,11 +886,11 @@ function AddPropertyHeader() {
         ref={btnRef}
         data-testid="db-add-prop"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Add property"
-        data-tip="Add property"
-        className="flex h-full w-9 items-center justify-center text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+        aria-label="속성 추가"
+        data-tip="속성 추가"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
-        <Plus size={14} />
+        <Plus size={16} />
       </button>
       {open &&
         createPortal(
