@@ -304,6 +304,11 @@ export interface PropertyConfig {
   numberFormat?: string;
   /** number: how to render the value — "number" | "bar" (progress) */
   display?: string;
+  /** show this property above a row page's body rather than in its 속성 panel
+   * — what the original's 레이아웃 사용자 지정 chooses. Lives on the property
+   * because `config` is already JSON: pinning needed no new column. Undefined
+   * on every property means nobody has chosen, and the first few stand in. */
+  pinned?: boolean;
   [key: string]: unknown;
 }
 

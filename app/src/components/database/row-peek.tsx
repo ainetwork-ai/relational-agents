@@ -11,7 +11,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Block, Page, PropertyType } from "@/lib/db/schema";
+import type { Block, DbProperty, Page, PropertyType } from "@/lib/db/schema";
 import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { BlockEditor } from "@/components/editor/block-editor";
@@ -126,11 +126,14 @@ export function RowPeek({
  // saved before the properties rendered; the live original shows them.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const nonTitle = db.properties.filter((p) => p.type !== "title");
- // Which four are pinned is a per-database layout in the original (레이아웃
- // 사용자 지정 — TL, Assignee, End date, Evaluation there). We have no such
- // setting yet, so the first four columns stand in for it.
-  const pinnedProps = nonTitle.slice(0, PINNED_COUNT);
-  const restProps = nonTitle.slice(PINNED_COUNT);
+ // Which properties are pinned is a choice (레이아웃 사용자 지정), kept on each
+ // property. Until somebody makes it, the first few stand in — so a database
+ // nobody has configured still opens onto something rather than a bare title.
+  const chosen = nonTitle.some((p) => p.config?.pinned !== undefined);
+  const isPinned = (p: DbProperty, i: number) =>
+    chosen ? !!p.config?.pinned : i < PINNED_COUNT;
+  const pinnedProps = nonTitle.filter(isPinned);
+  const restProps = nonTitle.filter((p, i) => !isPinned(p, i));
  // the store carries live edits (favourite, icon, cover) for pages it knows
   const storePage = usePagesStore((s) => (bodyPageId ? s.pages[bodyPageId] : undefined));
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -334,18 +337,8 @@ export function RowPeek({
                     onSet={(url) => updatePage(bodyPageId, { coverUrl: url })}
                   />
                 )}
-                {/* In the capture, beside 커버 추가. It is what chooses which
-                    properties are pinned; we have no such setting yet, so it
-                    shows disabled rather than being quietly absent. */}
-                <button
-                  data-testid="db-peek-customize-layout"
-                  disabled
-                  aria-disabled="true"
-                  data-tip="아직 만들지 않았습니다"
-                  className="flex cursor-not-allowed items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-300 dark:text-neutral-600"
-                >
-                  레이아웃 사용자 지정
-                </button>
+                {/* In the capture, beside 커버 추가 */}
+                <CustomizeLayout />
               </div>
             )}
 
@@ -476,6 +469,99 @@ export function RowPeek({
         </div>
         {bodyPageId && <CommentThreadPanel pageId={bodyPageId} />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 레이아웃 사용자 지정 — which properties sit above the body and which go in the
+ * 속성 panel.
+ *
+ * The original reaches the same choice through a fuller layout editor; this is
+ * only the part of it that the row page actually depends on. It exists so the
+ * original's own arrangement (TL · Assignee · End date · Evaluation pinned) is
+ * something you can produce here, rather than something we hardcode: the
+ * defaults need not match, the capability does.
+ *
+ * Stored per property (`config.pinned`) — `config` is already jsonb, so this
+ * needed no column and no migration.
+ */
+function CustomizeLayout() {
+  const db = useDb();
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const nonTitle = db.properties.filter((p) => p.type !== "title");
+  const chosen = nonTitle.some((p) => p.config?.pinned !== undefined);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (e.preventDefault(), setOpen(false));
+    const onDown = (e: MouseEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const toggle = (p: DbProperty, i: number) => {
+    const now = chosen ? !!p.config?.pinned : i < PINNED_COUNT;
+ // the first change writes an explicit value for EVERY property, so the
+ // "nobody has chosen yet" fallback stops applying all at once rather than
+ // half the list following the default and half the choice
+    if (!chosen) {
+      nonTitle.forEach((q, qi) => {
+        const want = q.id === p.id ? !now : qi < PINNED_COUNT;
+        db.updateProperty(q.id, { config: { ...q.config, pinned: want } });
+      });
+      return;
+    }
+    db.updateProperty(p.id, { config: { ...p.config, pinned: !now } });
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        data-testid="db-peek-customize-layout"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+      >
+        레이아웃 사용자 지정
+      </button>
+      {open && (
+        <div
+          data-testid="db-peek-layout-menu"
+          className="popover-anim absolute left-0 top-8 z-50 max-h-[380px] w-[260px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          <div className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
+            페이지 상단에 표시할 속성
+          </div>
+          {nonTitle.map((p, i) => {
+            const on = chosen ? !!p.config?.pinned : i < PINNED_COUNT;
+            return (
+              <button
+                key={p.id}
+                data-testid={`db-peek-pin-${p.id}`}
+                aria-pressed={on}
+                onClick={() => toggle(p, i)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                <span className="truncate">{p.name}</span>
+                <span
+                  className={`h-3.5 w-3.5 shrink-0 rounded-sm border ${
+                    on
+                      ? "border-blue-500 bg-blue-500"
+                      : "border-neutral-300 dark:border-neutral-600"
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
