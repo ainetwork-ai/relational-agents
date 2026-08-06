@@ -683,7 +683,11 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
   };
 
   return (
-    <div className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100">
+    // These belong to the ONE cell the pointer is in, not to the row: the
+    // original shows 댓글 for the hovered COLUMN only, while 열기 (a row-level
+    // action) is what follows the row. Keyed to /dbrow, every qualifying cell
+    // in the row lit up at once.
+    <div className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100">
       {canComment && (
         <button
           data-testid={`db-cell-comment-${row.id}-${prop.id}`}
@@ -1028,13 +1032,13 @@ function RowLine({
               title="사이드 보기에서 열기"
  // opacity-0 alone still intercepts clicks — disable pointer events
  // until hover so the invisible button never swallows a title click
-              className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex h-5 -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1.5 text-[11px] font-medium text-neutral-600 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex h-5 -translate-y-1/2 items-center gap-0.5 rounded border border-neutral-200 bg-white px-1.5 text-[11px] font-medium text-neutral-600 opacity-0 shadow-sm transition-opacity hover:bg-neutral-50 group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
               <PanelRight size={11} /> 열기
             </button>
             {/* the row actions that used to sit in the gutter now hover here,
                 left of 열기 */}
-            <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100">
+            <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100">
               <button
                 data-testid={`db-subitem-add-${row.id}`}
                 onClick={onAddSub}
@@ -1062,7 +1066,7 @@ function RowLine({
  // relative: the hover actions are absolutely placed at this cell's right
  // edge. Without it they resolved against the row — 2,900px wide — and sat off
  // screen past the last column, which is why the 댓글 button never showed.
-            className={`relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
+            className={`group/dbcell relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
               frozenLefts[i] != null ? "sticky z-[2]" : ""
             }`}
           >
