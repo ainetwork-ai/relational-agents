@@ -166,8 +166,14 @@ function cssAnchor(
   panel.style.top = opts.cover ? "anchor(top)" : `calc(anchor(bottom) + ${gap}px)`;
   panel.style.bottom = "auto";
   if (opts.align === "end") {
+ // `right: anchor(right)` IS the alignment: in an inset property, anchor()
+ // resolves to the distance from the containing block's matching edge to the
+ // anchor's, so this puts our right edge on the trigger's right edge. The
+ // calc(… * -1 + 100%) I had here instead was nonsense — it measured from the
+ // wrong side, and a trigger at the far right of a scrolled table (Add
+ // property) opened its menu 1084px away, over the sidebar.
     panel.style.left = "auto";
-    panel.style.right = `calc(anchor(right) * -1 + 100%)`;
+    panel.style.right = "anchor(right)";
   } else {
     panel.style.left = "anchor(left)";
     panel.style.right = "auto";
