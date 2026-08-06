@@ -82,7 +82,8 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       addRow: async () => null,
       deleteRow: () => {},
       moveRow: () => {},
-      addProperty: async () => {},
+      // DbApi hands back the property it made; this surface makes none
+      addProperty: async () => null,
       addSelectOption: async (prop: DbProperty, name: string) => {
         const opt: SelectOption = {
           id: newId(),

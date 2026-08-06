@@ -75,6 +75,11 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
  // pill and you see two bars. That is exactly the bug this hunt was about.
       el.style.width = `${host.clientWidth}px`;
       el.style.paddingLeft = `${inset}px`;
+ // and the same inset on the RIGHT: scrolled fully across, the original leaves
+ // ~96px of page margin after the last column (measured: its last column ends
+ // at 1617 with the scroller's content edge at 1713). Without it our table ran
+ // flush into the window edge — there was no "end" to scroll to.
+      el.style.paddingRight = `${inset}px`;
  // the row gutter needs it too: a sticky child clamps to the scrollport's
  // CONTENT box, which this padding pushes inward, so the gutter has to subtract
  // it to reach the scroller's visible left edge
@@ -90,6 +95,7 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
       el.style.marginLeft = "";
       el.style.width = "";
       el.style.paddingLeft = "";
+      el.style.paddingRight = "";
       el.style.removeProperty("--db-inset");
     };
   }, [ref, on]);
@@ -1145,9 +1151,13 @@ function RowLine({
             tabIndex={0}
             data-cellnav
             onKeyDown={onCellNavKey}
-            className={`group/titlecell relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              frozenLefts[i] != null ? "sticky z-[2]" : ""
-            }`}
+            className={`group/titlecell relative flex h-[37px] shrink-0 items-center overflow-hidden ${
+ // no rule down the outside of the table: the original closes a row with the
+ // horizontal line only (measured on it at 4×). `first:border-l-0` could not
+ // do this — a row's first child is the sticky checkbox gutter, so the rule
+ // landed there and every first cell kept its border.
+              i === 0 ? "" : "border-l border-neutral-100 dark:border-neutral-800"
+            } ${frozenLefts[i] != null ? "sticky z-[2]" : ""}`}
           >
             {frozenLefts[i] != null && <FrozenBg checked={checked} />}
             {/* sub-item indent and its toggle sit inside the title cell */}
@@ -1219,9 +1229,9 @@ function RowLine({
  // relative: the hover actions are absolutely placed at this cell's right
  // edge. Without it they resolved against the row — 2,900px wide — and sat off
  // screen past the last column, which is why the 댓글 button never showed.
-            className={`group/dbcell relative flex h-[37px] shrink-0 items-center overflow-hidden border-l border-neutral-100 first:border-l-0 dark:border-neutral-800 ${
-              frozenLefts[i] != null ? "sticky z-[2]" : ""
-            }`}
+            className={`group/dbcell relative flex h-[37px] shrink-0 items-center overflow-hidden ${
+              i === 0 ? "" : "border-l border-neutral-100 dark:border-neutral-800"
+            } ${frozenLefts[i] != null ? "sticky z-[2]" : ""}`}
           >
             {frozenLefts[i] != null && <FrozenBg checked={checked} />}
             {/* min-w-0: a flex item's automatic minimum is its content, so a
