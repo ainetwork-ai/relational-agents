@@ -332,6 +332,9 @@ export function DatabaseBlock({
   useAnchored(addViewOpen, addViewBtn, addViewPop, { align: "start" });
   useDismiss(addViewOpen, () => setAddViewOpen(false), addViewBtn, addViewPop);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+ // the peek opened because the row was just created, so the title takes the
+ // caret — opening an existing row to read it must not
+  const [openedNewRow, setOpenedNewRow] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [filterUiOpen, setFilterUiOpen] = useState(false);
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
@@ -528,6 +531,7 @@ export function DatabaseBlock({
  // definition is not an entry you were about to write, so it stays put.
       if (!parentRowId && !seeded.__template) {
         await ensureRowPage(row as DbRow);
+        setOpenedNewRow(true);
         setOpenRowId(row.id as string);
       }
       return row as DbRow;
@@ -586,6 +590,7 @@ export function DatabaseBlock({
       const row = rowsRef.current.find((r) => r.id === rowId);
       if (!row) return;
       await ensureRowPage(row);
+      setOpenedNewRow(false);
       setOpenRowId(rowId);
     },
     [ensureRowPage]
@@ -1355,7 +1360,16 @@ export function DatabaseBlock({
           <TableView view={activeView} />
         )}
 
-        {openRowId && <RowPeek rowId={openRowId} onClose={() => setOpenRowId(null)} />}
+        {openRowId && (
+          <RowPeek
+            rowId={openRowId}
+            autoFocusTitle={openedNewRow}
+            onClose={() => {
+              setOpenRowId(null);
+              setOpenedNewRow(false);
+            }}
+          />
+        )}
       </div>
     </DbCtx.Provider>
   );

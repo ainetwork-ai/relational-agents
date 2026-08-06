@@ -185,7 +185,10 @@ body {
 }
 [contenteditable]:focus,
 [contenteditable]:focus-visible,
-textarea[data-testid="page-title"]:focus-visible {
+textarea[data-testid="page-title"]:focus-visible,
+/* the row peek's title is a page title too — creating a row focuses it, and a
+   blue box around the empty title is not what the original shows (caret only) */
+input[data-testid="db-peek-title"]:focus-visible {
   outline: none;
 }
 

@@ -26,6 +26,17 @@ import { usePagesStore } from "@/stores/pages";
 const MIN_WIDTH = 420;
 const DEFAULT_FRACTION = 0.51; // what the capture's 861px is of its window
 
+/** Does this cell hold anything? Empty string, empty list and a date object
+ *  with no start all count as blank — the same states the table draws as an
+ *  empty cell. */
+function hasValue(v: unknown): boolean {
+  if (v === null || v === undefined || v === "") return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "object")
+    return Object.values(v as Record<string, unknown>).some((x) => x !== null && x !== undefined && x !== "");
+  return true;
+}
+
 /**
  * A database row opened as a page, in Notion's SIDE PEEK: a panel docked to the
  * right edge for the window's full height, resizable by its left edge, with the
@@ -36,7 +47,17 @@ const DEFAULT_FRACTION = 0.51; // what the capture's 861px is of its window
  * right; then 아이콘 추가 / 커버 추가, a 32px title, the row's properties with
  * Add a property, a 댓글 section, and the page body.
  */
-export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void }) {
+export function RowPeek({
+  rowId,
+  onClose,
+  autoFocusTitle,
+}: {
+  rowId: string;
+  onClose: () => void;
+ // set when the peek was opened by creating the row: the original lands you in
+ // the title with the caret already there, ready to be named
+  autoFocusTitle?: boolean;
+}) {
   const db = useDb();
   const router = useRouter();
   const row = db.rows.find((r) => r.id === rowId);
@@ -53,6 +74,22 @@ export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void
   const fetched = loaded && loaded.pageId === bodyPageId ? loaded : null;
   const blocks = fetched?.blocks ?? null;
   const [addPropOpen, setAddPropOpen] = useState(false);
+ // A row's page lists the properties that HAVE a value, not every column the
+ // database owns. Measured on the original (docs/database_tableview_newpage.html):
+ // a freshly created row's peek contains no property name at all — the whole
+ // panel is 아이콘 추가 / 커버 추가 / 레이아웃 사용자 지정 / Add a property / 댓글.
+ // We were drawing all thirteen, so a new entry opened onto a wall of blanks.
+ //
+ // The 더 보기 toggle is ours, not the original's: the original reaches hidden
+ // properties through 레이아웃 사용자 지정, which we do not have, and without some
+ // way back the page could never set a value it does not already hold.
+  const [showEmptyProps, setShowEmptyProps] = useState(false);
+  const propsWithValue = db.properties.filter(
+    (p) => p.type !== "title" && hasValue(row?.values[p.id])
+  );
+  const emptyProps = db.properties.filter(
+    (p) => p.type !== "title" && !hasValue(row?.values[p.id])
+  );
  // the store carries live edits (favourite, icon, cover) for pages it knows
   const storePage = usePagesStore((s) => (bodyPageId ? s.pages[bodyPageId] : undefined));
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -261,6 +298,7 @@ export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void
             {titleProp && (
               <PeekTitle
                 value={String(row.values[titleProp.id] ?? "")}
+                autoFocus={autoFocusTitle}
                 onCommit={(v) => db.updateRow(rowId, { [titleProp.id]: v })}
               />
             )}
@@ -271,18 +309,27 @@ export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void
               aria-label="페이지 속성"
               data-testid="db-peek-props"
             >
-              {db.properties
-                .filter((p) => p.type !== "title")
-                .map((p) => (
-                  <div key={p.id} className="flex items-start gap-2">
-                    <span className="mt-1.5 w-32 shrink-0 truncate text-sm text-neutral-400">
-                      {p.name}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <PropertyCell prop={p} row={row} />
-                    </div>
+              {(showEmptyProps ? propsWithValue.concat(emptyProps) : propsWithValue).map((p) => (
+                <div key={p.id} className="flex items-start gap-2">
+                  <span className="mt-1.5 w-32 shrink-0 truncate text-sm text-neutral-400">
+                    {p.name}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <PropertyCell prop={p} row={row} />
                   </div>
-                ))}
+                </div>
+              ))}
+              {emptyProps.length > 0 && (
+                <button
+                  data-testid="db-peek-more-props"
+                  onClick={() => setShowEmptyProps((v) => !v)}
+                  className="flex h-[34px] items-center gap-1.5 rounded px-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+                >
+                  {showEmptyProps
+                    ? `속성 ${emptyProps.length}개 숨기기`
+                    : `속성 ${emptyProps.length}개 더 보기`}
+                </button>
+              )}
               <div className="relative">
                 <button
                   data-testid="db-peek-add-prop"
@@ -352,17 +399,33 @@ export function RowPeek({ rowId, onClose }: { rowId: string; onClose: () => void
 
 /** The row's title, at page scale (32px/700 in the capture) with Notion's
  *  placeholder. Not PropertyCell: a table cell is 14px by design. */
-function PeekTitle({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+function PeekTitle({
+  value,
+  onCommit,
+  autoFocus,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  autoFocus?: boolean;
+}) {
   const [draft, setDraft] = useState(value);
   const seen = useRef(value);
+  const ref = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (value !== seen.current) {
       seen.current = value;
       setDraft(value);
     }
   }, [value]);
+ // 새 프로젝트 → the caret is already in the title, so the name can just be
+ // typed. Only on creation: focusing a row you opened to read would steal the
+ // caret from the page body.
+  useEffect(() => {
+    if (autoFocus) ref.current?.focus();
+  }, [autoFocus]);
   return (
     <input
+      ref={ref}
       data-testid="db-peek-title"
       value={draft}
       placeholder="새 페이지"
