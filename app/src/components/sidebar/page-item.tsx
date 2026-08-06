@@ -14,7 +14,6 @@ import {
   StarOff,
   Trash2,
   Pencil,
-  GripVertical,
   Table2,
 } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
@@ -82,6 +81,9 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
  // onto the middle of a row → nest as a child). Persists position/parentPageId.
   function onGripPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
+ // the original has no grip in the sidebar: you drag the row itself. Buttons
+ // and the rename input inside it keep their own clicks.
+    if ((e.target as HTMLElement).closest("button,input")) return;
     e.preventDefault();
  // live three-zone preview (above / inside / below) while dragging
     const onMove = (ev: PointerEvent) => {
@@ -143,6 +145,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-700/50 dark:text-neutral-100"
             : "text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
+        onPointerDown={onGripPointerDown}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
         {dropHint === "before" && (
@@ -154,14 +157,6 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
         {dropHint === "inside" && (
           <span data-testid={`page-drop-hint-${page.id}`} className="pointer-events-none absolute inset-0 rounded-md bg-blue-500/10 ring-2 ring-inset ring-blue-400/70" />
         )}
-        <button
-          data-testid={`page-drag-${page.id}`}
-          onPointerDown={onGripPointerDown}
-          aria-label="Drag to reorder"
-          className="flex h-5 w-3 shrink-0 cursor-grab items-center justify-center text-neutral-300 opacity-40 transition-opacity hover:text-neutral-500 group-hover:opacity-100 dark:text-neutral-600"
-        >
-          <GripVertical size={12} />
-        </button>
         <button
           data-testid={`page-tree-toggle-${page.id}`}
           onClick={() => toggleExpanded(page.id)}
@@ -177,7 +172,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             )}
           </span>
           <ChevronRight
-            size={14}
+            size={12}
             className={`hidden transition-transform duration-150 group-hover:block ${expanded ? "rotate-90" : ""}`}
           />
         </button>
@@ -207,7 +202,15 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           </Link>
         )}
 
-        <div className="ml-auto hidden shrink-0 items-center gap-0.5 group-hover:flex">
+        {/* while the menu is open these must stay laid out: the panel is anchored
+            to the ⋯ button, and `group-hover:flex` alone removed that button the
+            moment the pointer left the row for the menu — the menu folded away
+            before any item could be clicked */}
+        <div
+          className={`ml-auto shrink-0 items-center gap-0.5 group-hover:flex ${
+            menuOpen ? "flex" : "hidden"
+          }`}
+        >
           <button
             ref={menuBtnRef}
             data-testid={`page-item-menu-${page.id}`}
@@ -215,7 +218,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
             aria-label="Page options"
           >
-            <MoreHorizontal size={14} />
+            <MoreHorizontal size={16} />
           </button>
           <button
             data-testid={`page-add-child-${page.id}`}
@@ -223,7 +226,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
             aria-label="Add sub-page"
           >
-            <Plus size={14} />
+            <Plus size={16} />
           </button>
         </div>
 

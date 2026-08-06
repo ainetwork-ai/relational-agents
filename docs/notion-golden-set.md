@@ -76,6 +76,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/row-gutter.check.mjs` | 가로 스크롤에서 행 컨트롤(체크박스·⠿)이 어디에 붙는지 |
 | `node e2e/title-open.check.mjs` | 제목 셀 호버의 `열기` 버튼 |
 | `node e2e/db-hover-scope.check.mjs` | 호버 시 켜지는 셀이 포인터가 있는 하나뿐인지 |
+| `node e2e/sidebar-row.check.mjs` | 사이드바 행의 호버 버튼과 ⋯ 메뉴 |
 | `pnpm check:dismiss` | 포털 팝오버가 바깥클릭 감지를 직접 짜고 있지 않은지 |
 
 `e2e/*.check.mjs` 는 dev 서버(3110)와 dev DB 를 쓰고, 세션 쿠키를 직접 만들어 붙는다.
