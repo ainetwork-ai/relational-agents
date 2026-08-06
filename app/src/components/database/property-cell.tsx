@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { X } from "lucide-react";
@@ -160,7 +161,11 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     };
   }, [targetDbId]);
 
-  useDismiss(open, () => setOpen(false), ref);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(targetRowId: string) {
     if (mirror) {
@@ -209,8 +214,13 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 max-h-64 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           {!targetDbId ? (
             <div className="px-2 py-1 text-xs text-neutral-400">Pick a target database first</div>
           ) : !snap || snap.rows.length === 0 ? (
@@ -230,8 +240,9 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
               </button>
             ))
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -307,7 +318,11 @@ function MultiSelectCell({
   const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
   const options = prop.config.options ?? [];
 
-  useDismiss(open, () => setOpen(false), ref);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(id: string) {
     db.toggleMulti(row.id, prop.id, id);
@@ -334,8 +349,13 @@ function MultiSelectCell({
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-48 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <input
             autoFocus
             value={q}
@@ -369,8 +389,9 @@ function MultiSelectCell({
               + Create “{q}”
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -547,7 +568,11 @@ function DateCell({
   const push = (next: Partial<DateParts>) => onSet(buildDateValue({ ...parts, ...next }));
   const idBase = testid.replace("db-cell-", "");
 
-  useDismiss(open, () => setOpen(false), ref);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
  // the CELL is plain text; all editing lives in the popover
   return (
@@ -559,8 +584,13 @@ function DateCell({
       >
         {dateLabel(parts) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-auto rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <MonthGrid
             idBase={idBase}
             selected={parts.date}
@@ -609,8 +639,9 @@ function DateCell({
               Clear
             </button>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -782,7 +813,11 @@ function SelectCell({
   const current = findOption(prop, value);
   const options = prop.config.options ?? [];
 
-  useDismiss(open, () => setOpen(false), ref);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   return (
     <div ref={ref} className="relative min-w-0 px-1.5 py-1">
@@ -799,8 +834,13 @@ function SelectCell({
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-44 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-44 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <input
             autoFocus
             value={q}
@@ -874,8 +914,9 @@ function SelectCell({
               + Create “{q}”
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
