@@ -33,6 +33,12 @@ import { TYPE_ICON } from "./memory-select";
 
 const NO_GROUP = "__nogroup__";
 
+/** a row's own icon, copied from the database when the row was created */
+function rowIcon(row: DbRow): string | null {
+  const v = row.values.__icon;
+  return typeof v === "string" && v ? v : null;
+}
+
 /** Render in chunks and grow as the bottom comes into view. The original loads
  * its rows the same way — 249 rows over 23 groups is 3,600 cells if you draw
  * them all at once, and the page took 12s to show its first row. */
@@ -859,12 +865,12 @@ function RowLine({
             ) : (
               depth > 0 && <span className="ml-1 w-[13px] shrink-0" />
             )}
-            {/* the row's icon. In the original each row *page* stores its own
-                (99 of 100 hold the database's, one was changed by hand); ours
-                have none yet, so the database's stands in. Views can hide it. */}
-            {showIcon && db.icon && (
+            {/* The row's OWN icon, copied from the database when the row was
+                made and changeable per row — see docs/notion-icon-policy.md.
+                Rows that predate the copy fall back to the database's. */}
+            {showIcon && (rowIcon(row) ?? db.icon) && (
               <span className="ml-1 shrink-0 text-[13px] leading-none" aria-hidden="true">
-                {db.icon}
+                {rowIcon(row) ?? db.icon}
               </span>
             )}
             <div className="min-w-0 flex-1">

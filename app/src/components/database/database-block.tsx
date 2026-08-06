@@ -466,6 +466,16 @@ export function DatabaseBlock({
     [updateRow]
   );
 
+ // a full-page database's icon is the page's own icon
+  const pathname = usePathname();
+  const hostPageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
+  const hostPageIcon = usePagesStore((st) => (hostPageId ? (st.pages[hostPageId]?.icon ?? null) : null));
+
+  const hostIconRef = useRef<string | null>(null);
+  useEffect(() => {
+    hostIconRef.current = fullPage ? hostPageIcon : null;
+  }, [fullPage, hostPageIcon]);
+
   const addRow = useCallback(
     async (values: Record<string, unknown> = {}, parentRowId?: string) => {
  // "default template": a template row flagged __default pre-fills
@@ -478,7 +488,13 @@ export function DatabaseBlock({
           templateSeed[k] = v;
         }
       }
-      const seeded = { ...templateSeed, ...seedFromFilters(), ...values };
+ // A new row takes the database's icon, once, at creation — that is how the
+ // original's rows come to carry `/icons/iterate_blue.svg` (99 of 100 do; one
+ // was changed afterwards). It is a copy, not a live link, which is why a page
+ // made *inside* a row doesn't get one. See docs/notion-icon-policy.md.
+      const iconSeed: Record<string, unknown> =
+        hostIconRef.current && !values.__template ? { __icon: hostIconRef.current } : {};
+      const seeded = { ...templateSeed, ...iconSeed, ...seedFromFilters(), ...values };
       const res = await fetch(`/api/databases/${databaseId}/rows`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -897,11 +913,6 @@ export function DatabaseBlock({
       alive = false;
     };
   }, [properties]);
-
- // a full-page database's icon is the page's own icon
-  const pathname = usePathname();
-  const hostPageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
-  const hostPageIcon = usePagesStore((st) => (hostPageId ? (st.pages[hostPageId]?.icon ?? null) : null));
 
   const api = useMemo<DbApi>(
     () => ({
