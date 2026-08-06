@@ -54,14 +54,19 @@ export function useAnchored(
   useEffect(() => {
     if (!open) return;
     const onMove = () => place();
+ // only a panel the browser is NOT keeping attached needs us in the scroll
+ // path — either no CSS anchoring at all, or one applyPlacement handed back
+ // because the browser had put it off-screen
+    const onScroll = () => {
+      if (!CSS_ANCHORING || panelRef.current?.dataset.jsPlaced === "1") place();
+    };
     window.addEventListener("resize", onMove);
- // only engines without CSS anchoring need us in the scroll path
-    if (!CSS_ANCHORING) window.addEventListener("scroll", onMove, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", onMove);
-      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open, place]);
+  }, [open, place, panelRef]);
 
   useReplaceOnGrow(open, panelRef, place);
 }
@@ -181,6 +186,7 @@ function cssAnchor(
  // the browser flips it above / to the other side when it would not fit, and
  // re-evaluates that on every scroll, for free
   panel.style.setProperty("position-try-fallbacks", "flip-block, flip-inline, flip-block flip-inline");
+  panel.dataset.cssAnchored = "1";
  // NOT `position-visibility: no-overflow`: that hides the panel once the anchor
  // scrolls out of view, which is the same "it vanished and I never closed it"
  // the scroll-dismissal caused. A menu closes when the user closes it.
@@ -206,10 +212,45 @@ function applyPlacement(
   );
  // the cap keeps a tall menu scrolling inside itself either way
   panel.style.maxHeight = `${Math.max(at.maxHeight, Math.min(at.maxHeight, window.innerHeight - 16))}px`;
-  if (!(trigger && cssAnchor(trigger, panel, opts))) {
+ // a panel already handed back (below) stays with JS — re-attaching it every
+ // scroll event would only bounce it off-screen and back
+  const useCss = trigger && panel.dataset.jsPlaced !== "1" && cssAnchor(trigger, panel, opts);
+  if (!useCss) {
     panel.style.left = `${at.left}px`;
     panel.style.top = `${at.top}px`;
   }
   panel.dataset.side = at.side;
+ // CSS anchoring picks its fallback from the anchor's UNSCROLLED position and
+ // then translates by the scroll offset — it never re-checks. An anchor inside
+ // a scroll container (every table cell) therefore keeps "below" even when
+ // below runs off the window, and the taller the panel the worse: the 500px
+ // date picker opened 327px past the bottom edge and 149px past the right.
+ // So check the result and, if it really is off-screen, take the JS placement
+ // we already computed. Measured in the user's own Chrome 149 — a minimal
+ // anchor in the same document DOES flip, so this is the scrolled anchor, not
+ // a missing feature.
+  if (panel.dataset.cssAnchored === "1" && offscreen(panel)) {
+    dropCssAnchor(panel, trigger);
+    panel.style.left = `${at.left}px`;
+    panel.style.top = `${at.top}px`;
+  }
   panel.style.visibility = "visible";
+}
+
+/** past any edge of the window by more than a rounding error */
+function offscreen(panel: HTMLElement): boolean {
+  const r = panel.getBoundingClientRect();
+  return r.right > window.innerWidth + 1 || r.bottom > window.innerHeight + 1 || r.left < -1 || r.top < -1;
+}
+
+/** hand placement back to JS: the panel then needs us in the scroll path again,
+ * which `data-js-placed` tells the scroll listener. */
+function dropCssAnchor(panel: HTMLElement, trigger?: HTMLElement | null): void {
+  panel.style.removeProperty("position-anchor");
+  panel.style.removeProperty("position-try-fallbacks");
+  panel.style.right = "auto";
+  panel.style.bottom = "auto";
+  delete panel.dataset.cssAnchored;
+  panel.dataset.jsPlaced = "1";
+  if (trigger) trigger.style.removeProperty("anchor-name");
 }

@@ -5,7 +5,7 @@ import { useAnchoredAt } from "@/hooks/use-anchored";
 import { FileText, Calendar } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
-import { MonthGrid } from "@/components/database/property-cell";
+import { MonthGrid } from "@/components/database/date-picker";
 import { UserAvatar } from "@/components/user-avatar";
 
 export interface MentionItem {

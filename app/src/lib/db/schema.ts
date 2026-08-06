@@ -289,6 +289,11 @@ export interface PropertyConfig {
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
  * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";
+  /** date: how every cell in the column reads — the picker's `날짜 형식` row.
+   * The original keeps this on the property, which is why its Projects table
+   * shows `Start date` as 08/04/2026 and `End date` as 2026년 8월 4일 at the
+   * same time. One of DateFormat; undefined means 전체 날짜. */
+  dateFormat?: string;
   /** relation: the target database whose rows this links to */
   relationDatabaseId?: string;
   /** relation: this prop is a COMPUTED mirror of a relation on another db

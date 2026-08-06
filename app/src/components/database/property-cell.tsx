@@ -24,6 +24,14 @@ import {
   type DbSnapshot,
 } from "@/lib/db-relation";
 import { formatRowTimestamp } from "@/lib/dates";
+import {
+  DatePickerPanel,
+  PANEL_SHADOW,
+  buildDateValue,
+  parseDateValue,
+  type DateParts,
+} from "./date-picker";
+import { DEFAULT_DATE_FORMAT, fmtDateRange, type DateFormat } from "@/lib/date-format";
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
 import { UserAvatar } from "@/components/user-avatar";
@@ -125,7 +133,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
       );
 
     case "date":
-      return <DateCell testid={testid} value={value} onSet={set} />;
+      return <DateCell testid={testid} prop={prop} value={value} onSet={set} />;
 
     case "select":
     case "status":
@@ -461,146 +469,29 @@ function TextCell({
   );
 }
 
-/** A date value is either a plain "YYYY-MM-DD" string (legacy) or an object
- * { start: "YYYY-MM-DD[THH:MM]", end?, includeTime? } for time-of-day/ranges. */
-interface DateParts {
-  date: string;
-  time: string;
-  end: string;
-}
-function parseDateValue(v: unknown): DateParts {
-  if (v && typeof v === "object") {
-    const o = v as { start?: string; end?: string };
-    const [date, time] = (o.start ?? "").split("T");
-    return { date: date ?? "", time: time ?? "", end: o.end ?? "" };
-  }
-  if (typeof v === "string") {
-    const [date, time] = v.split("T");
-    return { date: date ?? "", time: time ?? "", end: "" };
-  }
-  return { date: "", time: "", end: "" };
-}
-function buildDateValue({ date, time, end }: DateParts): unknown {
-  if (!date) return null;
-  const start = time ? `${date}T${time}` : date;
- // an end or a time makes it a structured value; a bare date stays a string.
-  if (end || time) return { start, ...(end ? { end } : {}), includeTime: !!time };
-  return start;
-}
-function dateSummary({ date, time, end }: DateParts): string {
-  if (!date) return "";
-  return `${date}${time ? ` ${time}` : ""}${end ? ` → ${end}` : ""}`;
-}
-
-/** Date cell: start date + optional time-of-day + optional end-date range,
- *. Renders a "start [time] → end" summary. */
-/** Pretty cell label: "Mar 10, 2026 14:30 → Mar 12, 2026". */
-function dateLabel({ date, time, end }: DateParts): string {
-  const fmt = (d: string) => {
-    const [y, m, day] = d.split("-").map(Number);
-    if (!y || !m || !day) return d;
-    return new Date(y, m - 1, day).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-  if (!date) return "";
-  return `${fmt(date)}${time ? ` ${time}` : ""}${end ? ` → ${fmt(end)}` : ""}`;
-}
-
-/** Month grid for the date popover. */
-export function MonthGrid({
-  idBase,
-  selected,
-  onPick,
-}: {
-  idBase: string;
-  selected: string;
-  onPick: (iso: string) => void;
-}) {
-  const today = new Date();
-  const init = selected ? new Date(selected + "T00:00") : today;
-  const [ym, setYm] = useState({ y: init.getFullYear(), m: init.getMonth() });
-  const first = new Date(ym.y, ym.m, 1);
-  const startPad = first.getDay();
-  const daysInMonth = new Date(ym.y, ym.m + 1, 0).getDate();
-  const iso = (d: number) =>
-    `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  return (
-    <div data-testid={`db-date-grid-${idBase}`} className="w-56 select-none">
-      <div className="mb-1 flex items-center justify-between px-1 text-xs text-neutral-600 dark:text-neutral-300">
-        <button
-          data-testid={`db-date-prevmonth-${idBase}`}
-          onClick={() => setYm(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}
-          className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-          aria-label="Previous month"
-        >
-          ‹
-        </button>
-        <span className="font-medium">
-          {first.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-        </span>
-        <button
-          data-testid={`db-date-nextmonth-${idBase}`}
-          onClick={() => setYm(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}
-          className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-          aria-label="Next month"
-        >
-          ›
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-neutral-400">
-        {["S", "M", "T", "W", "T2", "F", "S2"].map((d) => (
-          <span key={d}>{d.replace("2", "")}</span>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {Array.from({ length: startPad }, (_, i) => (
-          <span key={`pad${i}`} />
-        ))}
-        {Array.from({ length: daysInMonth }, (_, i) => {
-          const d = iso(i + 1);
-          const isSel = d === selected;
-          const isToday = d === todayIso;
-          return (
-            <button
-              key={d}
-              data-testid={`db-date-day-${idBase}-${d}`}
-              onClick={() => onPick(d)}
-              className={`rounded p-1 text-xs ${
-                isSel
-                  ? "bg-blue-500 font-medium text-white"
-                  : isToday
-                    ? "font-semibold text-blue-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                    : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              }`}
-            >
-              {i + 1}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
+/**
+ * Date cell. The cell itself is plain text in the column's `날짜 형식`;
+ * everything else lives in the popover (./date-picker.tsx), which is the
+ * original's, measured.
+ */
 function DateCell({
   testid,
+  prop,
   value,
   onSet,
 }: {
   testid: string;
+  prop: DbProperty;
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const db = useDb();
   const parts = parseDateValue(value);
   const [open, setOpen] = useState(false);
-  const [showEnd, setShowEnd] = useState(!!parts.end);
   const ref = useRef<HTMLDivElement>(null);
   const push = (next: Partial<DateParts>) => onSet(buildDateValue({ ...parts, ...next }));
   const idBase = testid.replace("db-cell-", "");
+  const fmt = (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT;
 
   const popRef = useRef<HTMLDivElement>(null);
  // portalled to the body, so the cell's one-line clipping cannot cut it and it
@@ -608,71 +499,36 @@ function DateCell({
   useAnchored(open, ref, popRef);
   useDismiss(open, () => setOpen(false), ref, popRef);
 
- // the CELL is plain text; all editing lives in the popover
   return (
     <div ref={ref} className="relative">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="min-h-[1.75rem] w-full px-2 py-1 text-left text-sm text-neutral-700 dark:text-neutral-200"
+ // the same metrics as every other cell's text (14px/21px, inset 8/10)
+        className="flex h-[37px] w-full items-start pl-[7px] pr-2 pt-[10px] text-left text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
       >
-        {dateLabel(parts) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
+        {fmtDateRange(parts, fmt) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
       </button>
       {open &&
         createPortal(
           <div
             ref={popRef}
-            style={{ visibility: "hidden" }}
-            className="popover-anim fixed z-50 overflow-auto rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+            style={{ visibility: "hidden", boxShadow: PANEL_SHADOW }}
+            className="popover-anim fixed z-50 rounded-md bg-white dark:bg-[#252525]"
           >
-          <MonthGrid
-            idBase={idBase}
-            selected={parts.date}
-            onPick={(d) => push({ date: d })}
-          />
-          <div className="mt-1.5 flex flex-wrap items-center gap-1 border-t border-neutral-100 pt-1.5 text-xs dark:border-neutral-700">
-            <input
-              data-testid={`db-date-input-${idBase}`}
-              type="date"
-              value={parts.date}
-              onChange={(e) => push({ date: e.target.value })}
-              className="bg-transparent outline-none dark:text-neutral-200"
-            />
-            <input
-              data-testid={`db-date-time-${idBase}`}
-              type="time"
-              value={parts.time}
-              onChange={(e) => push({ time: e.target.value })}
-              className="bg-transparent text-neutral-500 outline-none"
-            />
-            <button
-              data-testid={`db-date-endtoggle-${idBase}`}
-              onClick={() => setShowEnd((v) => !v)}
-              aria-label="Toggle end date"
-              className="text-neutral-400 hover:text-neutral-600"
-            >
-              →
-            </button>
-            {showEnd && (
-              <input
-                data-testid={`db-date-end-${idBase}`}
-                type="date"
-                value={parts.end}
-                onChange={(e) => push({ end: e.target.value })}
-                className="bg-transparent outline-none dark:text-neutral-200"
-              />
-            )}
-            <button
-              data-testid={`db-date-clear-${idBase}`}
-              onClick={() => {
+            <DatePickerPanel
+              idBase={idBase}
+              parts={parts}
+              fmt={fmt}
+              onChange={push}
+              onFormat={(f) =>
+                db.updateProperty(prop.id, { config: { ...prop.config, dateFormat: f } })
+              }
+              onClear={() => {
                 onSet(null);
                 setOpen(false);
               }}
-              className="ml-auto rounded px-1.5 py-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-            >
-              Clear
-            </button>
-          </div>
+            />
           </div>,
           document.body
         )}

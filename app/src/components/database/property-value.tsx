@@ -6,6 +6,8 @@ import { findOption, personLabels } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { UserAvatar } from "@/components/user-avatar";
 import { OptionChip } from "./option-chip";
+import { parseDateValue } from "./date-picker";
+import { DEFAULT_DATE_FORMAT, fmtDateRange, type DateFormat } from "@/lib/date-format";
 
 /** Read-only rendering of a property value (for List / Gallery / Calendar). */
 export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
@@ -58,8 +60,13 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
       ) : (
         <span className="text-xs text-neutral-300">☐</span>
       );
-    case "date":
-      return v ? <span className="text-xs text-neutral-500">{String(v)}</span> : null;
+    case "date": {
+      const label = fmtDateRange(
+        parseDateValue(v),
+        (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT
+      );
+      return label ? <span className="text-xs text-neutral-500">{label}</span> : null;
+    }
     default:
       return v ? (
         <span className="text-sm text-neutral-700 dark:text-neutral-300">{String(v)}</span>
