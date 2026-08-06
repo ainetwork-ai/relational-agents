@@ -989,7 +989,12 @@ export function DatabaseBlock({
           <div
             ref={tabsMeasureRef}
             aria-hidden
-            className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-1"
+ // h-0 w-0 overflow-hidden, not just `invisible`: a hidden element still takes
+ // part in layout, so this row (every tab at full width) pushed the PAGE's
+ // scroll width out and gave <main> a second horizontal scrollbar. Zero-sized
+ // and clipped, it contributes nothing while its children keep measuring their
+ // natural width (they are shrink-0).
+            className="pointer-events-none invisible absolute left-0 top-0 flex h-0 w-0 items-center gap-1 overflow-hidden"
           >
             {tabViews.map((v) => (
               <span

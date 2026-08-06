@@ -223,17 +223,21 @@ export function TableView({ view }: { view: DbView }) {
 
           So the box is full width (-mx-16 cancels the page's inset) and the
           resting position comes from padding inside it (pl-16), which scrolls
-          away with the content. Its own scrollbar is hidden; the bar at the
-          bottom of the screen is the one you see and drag. */}
+          away with the content.
+
+          This scroller's own bar is the ONE horizontal bar on the page. Hiding
+          it ([scrollbar-width:none]) never worked — globals.css sets
+          `* { scrollbar-width: thin }` unlayered, which beats any Tailwind
+          utility whatever its specificity — so the page showed two bars: this
+          one and <main>'s. And hiding it would leave nothing to drag: <main>
+          does not scroll the table, this box does. */}
       <div
         ref={scrollerRef}
  // full-page: margin/width/padding are measured against the scroll container
  // (see useFullBleed) because the page is centred with a max width, so a fixed
  // -mx-16 only worked while the window was narrow enough for that centring to
  // be zero — past that the table started further and further right.
-        className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-          db.fullPage ? "" : "-ml-9 w-full pl-9"
-        }`}
+        className={`overflow-x-auto ${db.fullPage ? "" : "-ml-9 w-full pl-9"}`}
       >
       {checked.size > 0 && (
         <div
