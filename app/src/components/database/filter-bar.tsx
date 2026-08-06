@@ -10,10 +10,10 @@ import {
   DATE_TOKENS,
   WITHIN_TOKENS,
   findOption,
-  optionClass,
   personLabel,
   filterIsActive,
 } from "@/lib/db-values";
+import { OptionChip } from "./option-chip";
 import { useDb } from "./database-block";
 import { MemorySelect, TYPE_ICON } from "./memory-select";
 
@@ -68,9 +68,9 @@ function FilterValueEditor({
               onChange={() => toggle(o.id)}
               className="h-3.5 w-3.5 accent-blue-500"
             />
-            <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+            <OptionChip color={o.color} title={o.name}>
               {o.name}
-            </span>
+            </OptionChip>
           </label>
         ))}
       </div>

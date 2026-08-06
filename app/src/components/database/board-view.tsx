@@ -3,10 +3,11 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
-import { applyView, optionClass, statusGroupOf, visibleColumns } from "@/lib/db-values";
+import { applyView, statusGroupOf, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { PropertyValue } from "./property-value";
 import { UserAvatar } from "@/components/user-avatar";
+import { OptionChip } from "./option-chip";
 
 const NONE = "none";
 
@@ -97,9 +98,9 @@ export function BoardView({ view }: { view: DbView }) {
             className="flex w-60 shrink-0 flex-col rounded-md bg-neutral-50 p-2 dark:bg-neutral-800/40"
           >
             <div className="mb-2 flex items-center gap-1.5 px-1">
-              <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(col.color)}`}>
+              <OptionChip color={col.color} title={col.name}>
                 {col.name}
-              </span>
+              </OptionChip>
               <span className="text-xs text-neutral-400">{cards.length}</span>
               {groupProp.type === "status" && col.id !== NONE && statusGroupOf(groupProp, col.id) && (
                 <span

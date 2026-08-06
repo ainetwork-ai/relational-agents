@@ -8,7 +8,7 @@ import { X } from "lucide-react";
 /** the person picker's height cap — the original's is 333px, list scrolling inside */
 const POPOVER_MAX_H = 333;
 import { createPortal } from "react-dom";
-import { optionClass, findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
+import { findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
 import {
   fetchDatabaseSnapshot,
@@ -18,6 +18,7 @@ import {
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
 import { UserAvatar } from "@/components/user-avatar";
+import { OptionChip } from "./option-chip";
 
 /** Format a row timestamp (Date or ISO string over JSON) for display. */
 function fmtTimestamp(v: unknown): string {
@@ -326,19 +327,20 @@ function MultiSelectCell({
   }
 
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div ref={ref} className="relative min-w-0 px-1.5 py-1">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full flex-wrap items-center gap-1"
+        className="flex min-h-[1.5rem] w-full items-center gap-1 overflow-hidden"
       >
         {selected.length ? (
+ // one line, clipped by the column — the capture's cell does not wrap
           selected.map((id) => {
             const o = findOption(prop, id);
             return o ? (
-              <span key={id} className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+              <OptionChip key={id} color={o.color} title={o.name}>
                 {o.name}
-              </span>
+              </OptionChip>
             ) : null;
           })
         ) : (
@@ -363,9 +365,7 @@ function MultiSelectCell({
                 onClick={() => toggle(o.id)}
                 className="flex w-full items-center justify-between rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
               >
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
-                  {o.name}
-                </span>
+                <OptionChip color={o.color}>{o.name}</OptionChip>
                 {selected.includes(o.id) && <span className="text-xs text-blue-500">✓</span>}
               </button>
             ))}
@@ -819,16 +819,16 @@ function SelectCell({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div ref={ref} className="relative min-w-0 px-1.5 py-1">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full items-center"
+        className="flex min-h-[1.5rem] w-full items-center overflow-hidden"
       >
         {current ? (
-          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(current.color)}`}>
+          <OptionChip color={current.color} title={current.name}>
             {current.name}
-          </span>
+          </OptionChip>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
@@ -864,11 +864,11 @@ function SelectCell({
                     onSet(o.id);
                     setOpen(false);
                   }}
-                  className="flex flex-1 items-center rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                  className="flex min-w-0 flex-1 items-center rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 >
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+                  <OptionChip color={o.color} title={o.name}>
                     {o.name}
-                  </span>
+                  </OptionChip>
                 </button>
                 {prop.type === "status" && (
                   <select

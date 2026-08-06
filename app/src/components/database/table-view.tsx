@@ -1004,7 +1004,13 @@ function RowLine({
             }`}
           >
             {frozenLefts[i] != null && <FrozenBg checked={checked} />}
-            <PropertyCell prop={p} row={row} />
+            {/* min-w-0: a flex item's automatic minimum is its content, so a
+                one-line cell (a select chip, a row of team chips) refused to
+                shrink and simply overflowed under the next column, where
+                overflow-hidden cut it without an ellipsis */}
+            <div className="min-w-0 flex-1">
+              <PropertyCell prop={p} row={row} />
+            </div>
           </div>
         )
       )}

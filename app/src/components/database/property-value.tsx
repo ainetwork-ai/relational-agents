@@ -2,9 +2,10 @@
 
 import { Check } from "lucide-react";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
-import { optionClass, findOption, personLabels } from "@/lib/db-values";
+import { findOption, personLabels } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { UserAvatar } from "@/components/user-avatar";
+import { OptionChip } from "./option-chip";
 
 /** Read-only rendering of a property value (for List / Gallery / Calendar). */
 export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
@@ -15,22 +16,18 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
     case "select":
     case "status": {
       const o = findOption(prop, v);
-      return o ? (
-        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
-          {o.name}
-        </span>
-      ) : null;
+      return o ? <OptionChip color={o.color} title={o.name}>{o.name}</OptionChip> : null;
     }
     case "multi_select": {
       const ids: string[] = Array.isArray(v) ? (v as string[]) : [];
       return (
-        <span className="flex flex-wrap gap-1">
+        <span className="flex min-w-0 flex-wrap gap-1">
           {ids.map((id) => {
             const o = findOption(prop, id);
             return o ? (
-              <span key={id} className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+              <OptionChip key={id} color={o.color} title={o.name}>
                 {o.name}
-              </span>
+              </OptionChip>
             ) : null;
           })}
         </span>
