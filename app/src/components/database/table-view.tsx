@@ -165,17 +165,18 @@ export function TableView({ view }: { view: DbView }) {
     db.patchView({ ...view.config, collapsedGroups: keys });
 
   return (
- // A full-page table runs edge to edge: in the original its first column starts
- // at the content area's left edge (x=270 of 1200) while the title sits at 410,
- // and the page's own scroller is what scrolls sideways. -mx-16 cancels the
- // page's 64px inset so ours starts there too, instead of 64px in.
-    <div className={`relative ${db.fullPage ? "-mx-16" : ""}`}>
-      {/* The scroller starts at the content edge, like the original's. Its own
-          scrollbar is hidden — the bar at the bottom of the screen is the one
-          you see and drag. */}
+    <div className="relative">
+      {/* The columns sit where the page's text sits, and the 36px to their left
+          — inside the page's own inset — holds each row's checkbox and grip.
+          That is the original's arrangement: with the content area starting at
+          270, its columns are at 374 and the checkbox zone at 338, one gutter
+          width left of them. -ml-9/pl-9 gives the scroller that gutter without
+          moving the columns (`overflow-x-auto` would clip anything outside it).
+          Its own scrollbar is hidden; the bar at the bottom of the screen is
+          the one you see and drag. */}
       <div
         ref={scrollerRef}
-        className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-ml-9 w-full overflow-x-auto pl-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       {checked.size > 0 && (
         <div
@@ -792,18 +793,23 @@ function RowLine({
           column). A leading gutter column would leave an empty first cell,
           which the real table doesn't have. */}
       <div className="sticky left-0 z-[4] w-0 shrink-0">
-        <div
-          className={`absolute left-0 top-0 flex h-full w-9 items-start justify-center gap-0.5 pt-1 transition-opacity ${
-            checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
-          }`}
-        >
+        {/* 36×36 one gutter-width left of the first column — where the original
+            puts it (338 against columns at 374) — holding a 16px grip and a
+            16px checkbox, revealed while the pointer is anywhere in the row —
+            they sit in the page's inset, so they cover nothing. */}
+        <div className="absolute -left-9 top-0 flex h-9 w-9 items-center justify-center gap-px">
+          <div
+            className={`flex items-center gap-px transition-opacity ${
+              checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
+            }`}
+          >
           <input
             type="checkbox"
             data-testid={`db-row-check-${row.id}`}
             checked={checked}
             onChange={() => onCheck?.()}
             aria-label="Select row"
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-blue-500"
+            className="h-4 w-4 shrink-0 rounded-[3px] accent-blue-500"
           />
           <button
             data-testid={`db-row-drag-${row.id}`}
@@ -827,8 +833,9 @@ function RowLine({
             aria-label="Drag to reorder row"
             className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
-            <GripVertical size={11} />
+            <GripVertical size={16} />
           </button>
+          </div>
         </div>
       </div>
       {cols.map((p, i) =>
