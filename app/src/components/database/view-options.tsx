@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { Settings2, Eye, EyeOff } from "lucide-react";
 import { useDb } from "./database-block";
 import { isGroupable } from "@/lib/db-values";
@@ -12,12 +14,14 @@ export function ViewOptions() {
   const db = useDb();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const hidden = db.activeView.config.hiddenProperties ?? [];
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -37,9 +41,14 @@ export function ViewOptions() {
     db.patchView({ ...db.activeView.config, hiddenProperties: [...set] });
   }
 
+ // portalled and placed — inside the page's scroller this popover was cut off
+ // when its trigger sat low in the window
+  useAnchored(open, btnRef, popRef, { align: "end" });
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         data-testid="db-view-options"
         onClick={() => setOpen((v) => !v)}
         data-tip="View settings"
@@ -53,8 +62,11 @@ export function ViewOptions() {
         <Settings2 size={14} />
         {hidden.length > 0 && <span className="text-[10px] font-semibold">{hidden.length}</span>}
       </button>
-      {open && (
-        <div className="popover-anim absolute right-0 top-8 z-40 w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {/* Group by lives in view options — not a strip above the view */}
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
             Group by
@@ -100,8 +112,9 @@ export function ViewOptions() {
               </button>
             );
           })}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { Filter, X, Plus, ChevronDown, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import type { DbProperty, ViewFilter, ViewFilterGroup, FilterOp } from "@/lib/db/schema";
 import {
@@ -200,6 +202,8 @@ export function FilterBar() {
   const [mode, setMode] = useState<"picker" | "panel">("picker");
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const filters = db.activeView.config.filters ?? [];
 
  // publish open state so the chips row won't auto-open a second editor for a
@@ -213,7 +217,7 @@ export function FilterBar() {
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -261,9 +265,14 @@ export function FilterBar() {
   const propById = (id: string) => db.properties.find((p) => p.id === id);
   const matches = db.properties.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
 
+ // portalled and placed — inside the page's scroller this popover was cut off
+ // when its trigger sat low in the window
+  useAnchored(open, btnRef, popRef, { align: "end" });
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         data-testid="db-filter"
         data-tip="Filter"
         aria-label="Filter"
@@ -278,8 +287,11 @@ export function FilterBar() {
         {totalRules > 0 && <span className="text-[10px] font-semibold">{totalRules}</span>}
       </button>
 
-      {open && mode === "picker" && (
-        <div className="popover-anim absolute right-0 top-8 z-40 w-56 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open && mode === "picker" &&
+        createPortal(
+          <div ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-56 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           <input
             data-testid="db-filter-search"
             autoFocus
@@ -326,8 +338,9 @@ export function FilterBar() {
           >
             <Plus size={12} /> Advanced filter
           </button>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
 
       {open && mode === "panel" && (
         <div className="popover-anim absolute right-0 top-8 z-40 w-[28rem] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">

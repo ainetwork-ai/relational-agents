@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { ArrowUpDown, X, Plus } from "lucide-react";
 import type { ViewSort } from "@/lib/db/schema";
 import { useDb } from "./database-block";
@@ -13,12 +15,14 @@ export function SortBar() {
   const db = useDb();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const sorts = db.activeView.config.sorts ?? [];
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -36,9 +40,14 @@ export function SortBar() {
     commit([...sorts, { propertyId: prop.id, dir: "asc" }]);
   }
 
+ // portalled and placed — inside the page's scroller this popover was cut off
+ // when its trigger sat low in the window
+  useAnchored(open, btnRef, popRef, { align: "end" });
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         data-testid="db-sort"
         data-tip="Sort"
         aria-label="Sort"
@@ -52,8 +61,11 @@ export function SortBar() {
         <ArrowUpDown size={14} />
         {sorts.length > 0 && <span className="text-[10px] font-semibold">{sorts.length}</span>}
       </button>
-      {open && (
-        <div className="popover-anim absolute right-0 top-8 z-40 w-80 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-80 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {sorts.length === 0 && (
             <p className="px-1 py-2 text-xs text-neutral-400">No sorts yet.</p>
           )}
@@ -97,8 +109,9 @@ export function SortBar() {
           >
             <Plus size={12} /> Add sort
           </button>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

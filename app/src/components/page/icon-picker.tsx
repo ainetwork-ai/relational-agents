@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { Shuffle } from "lucide-react";
 import {
   SKIN_TONES,
@@ -44,6 +46,8 @@ export function IconPicker({
   const [urlDraft, setUrlDraft] = useState("");
   const [activeCategory, setActiveCategory] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +56,7 @@ export function IconPicker({
  // Focus the search input when the picker opens
     requestAnimationFrame(() => searchRef.current?.focus());
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) {
+      if (!ref.current?.contains(e.target as Node) && !popRef.current?.contains(e.target as Node)) {
         setOpen(false);
         setQuery("");
       }
@@ -141,9 +145,14 @@ export function IconPicker({
     }
   }
 
+ // portalled and placed — inside the page's scroller this popover was cut off
+ // when its trigger sat low in the window
+  useAnchored(open, btnRef, popRef, { align: "start" });
+
   return (
     <div ref={ref} className="relative inline-block">
       <button
+        ref={btnRef}
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
         className={triggerClassName}
@@ -152,10 +161,13 @@ export function IconPicker({
         <PageIcon icon={icon} fallback={placeholder} className="inline-block h-[1em] w-[1em] rounded object-cover align-[-0.1em]" />
       </button>
 
-      {open && (
-        <div
+      {open &&
+        createPortal(
+          <div
           data-testid={pickerTestid}
-          className="popover-anim absolute left-0 top-full z-40 mt-1 w-80 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+          ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-80 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
         >
           {allowImage && (
             <div className="flex gap-1 border-b border-neutral-100 px-2 py-1.5 text-xs dark:border-neutral-700">
@@ -359,8 +371,9 @@ export function IconPicker({
               </button>
             </div>
           )}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }
