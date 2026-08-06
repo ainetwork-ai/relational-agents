@@ -53,6 +53,8 @@ interface DbApi {
   me: string | null;
   /** what one row is called — the original's Projects says "새 프로젝트" */
   itemName: string;
+  /** rendered as the page itself (not an inline block) */
+  fullPage: boolean;
   /** the database's icon. Every row of the original's table carries it
    * (`/icons/iterate_blue.svg` in each title cell) because a row IS a page and
    * inherits the database's icon; pages nested inside a row do not. For a
@@ -923,6 +925,7 @@ export function DatabaseBlock({
       members,
       me,
       itemName: database?.itemName || "페이지",
+      fullPage: !!fullPage,
       icon: fullPage ? hostPageIcon : null,
       allDatabases,
       activeView: activeView!,

@@ -165,16 +165,17 @@ export function TableView({ view }: { view: DbView }) {
     db.patchView({ ...view.config, collapsedGroups: keys });
 
   return (
-    <div className="relative">
-      {/* -ml-9/pl-9: the scroller keeps 36px of visible padding on its left so
-          the per-row affordances can hang there (`overflow-x-auto` would clip
-          anything outside it), while the negative margin puts the columns back
-          where they were — flush with the page's own left edge. Its own
-          scrollbar is hidden; the bar at the bottom of the screen is the one
+ // A full-page table runs edge to edge: in the original its first column starts
+ // at the content area's left edge (x=270 of 1200) while the title sits at 410,
+ // and the page's own scroller is what scrolls sideways. -mx-16 cancels the
+ // page's 64px inset so ours starts there too, instead of 64px in.
+    <div className={`relative ${db.fullPage ? "-mx-16" : ""}`}>
+      {/* The scroller starts at the content edge, like the original's. Its own
+          scrollbar is hidden — the bar at the bottom of the screen is the one
           you see and drag. */}
       <div
         ref={scrollerRef}
-        className="-ml-9 w-full overflow-x-auto pl-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       {checked.size > 0 && (
         <div
@@ -785,14 +786,14 @@ function RowLine({
         checked ? "bg-blue-50/70 dark:bg-blue-900/20" : ""
       }`}
     >
-      {/* Row affordances live in the page margin *outside* the table, taking no
-          width — Notion hangs them at `inset-inline-start: -36px` off a sticky
-          zero-width anchor, so they follow the frozen column when it scrolls.
-          A leading gutter column would leave an empty first cell, which the
-          real table doesn't have. */}
+      {/* Row affordances take no width and overlay the first cell's left edge,
+          off a sticky zero-width anchor — the original does the same (its
+          checkbox hangs off `inset-inline-start` and floats over the first
+          column). A leading gutter column would leave an empty first cell,
+          which the real table doesn't have. */}
       <div className="sticky left-0 z-[4] w-0 shrink-0">
         <div
-          className={`absolute -left-9 top-0 flex h-full w-9 items-start justify-center gap-0.5 pt-1 transition-opacity ${
+          className={`absolute left-0 top-0 flex h-full w-9 items-start justify-center gap-0.5 pt-1 transition-opacity ${
             checked ? "opacity-100" : "opacity-0 group-hover/dbrow:opacity-100"
           }`}
         >
