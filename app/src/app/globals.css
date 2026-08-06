@@ -162,6 +162,14 @@ body {
 *::-webkit-scrollbar-thumb { background: rgba(120, 119, 116, 0.3); border-radius: 4px; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(120, 119, 116, 0.5); }
 
+/* For a scroller that draws its OWN bar (the database table's floating
+   db-hscroll pill): the native one on top of it reads as two scrollbars.
+   It has to live here rather than as a Tailwind utility — the `*` rule above is
+   unlayered, and unlayered CSS beats any layered utility whatever its
+   specificity, so `[scrollbar-width:none]` on the element never took. */
+.no-native-scrollbar { scrollbar-width: none; }
+.no-native-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 /* R2#97 — native controls (checkboxes, scrollbars) must render dark in dark
    mode; without color-scheme the unchecked checkbox stays a solid white box */
 .dark {

@@ -239,6 +239,10 @@ export function TableView({ view }: { view: DbView }) {
  // (see useFullBleed) because the page is centred with a max width, so a fixed
  // -mx-16 only worked while the window was narrow enough for that centring to
  // be zero — past that the table started further and further right.
+        // inline, not a class: `* { scrollbar-width: thin }` in globals.css is
+        // unlayered and beat the utility, and an inline style beats both — this
+        // one must hold or the page shows the native bar AND the pill below.
+        style={{ scrollbarWidth: "none" }}
         className={`no-native-scrollbar overflow-x-auto ${db.fullPage ? "" : "-ml-9 w-full pl-9"}`}
       >
       {checked.size > 0 && (
