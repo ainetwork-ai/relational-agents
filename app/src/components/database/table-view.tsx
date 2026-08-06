@@ -71,7 +71,7 @@ function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) 
  // overlay, bars). Sizing to it makes the table 8px wider than the host can
  // hold, so `main` grows a native horizontal scrollbar right under the floating
  // pill and you see two bars. That is exactly the bug this hunt was about.
-      el.style.width = `${Math.round(h.width)}px`;
+      el.style.width = `${host.clientWidth}px`;
       el.style.paddingLeft = `${inset}px`;
     };
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => apply()) : null;
