@@ -447,9 +447,6 @@ export const databases = pgTable("databases", {
  // What one row is called, used wherever the UI offers to make one: the
  // original's Projects says "새 프로젝트", not "새 페이지". Null = 페이지.
   itemName: text("item_name"),
- // the database's own icon. Rows without one of their own show it, which is why
- // every row in the original's table carries the same little blue mark.
-  icon: text("icon"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

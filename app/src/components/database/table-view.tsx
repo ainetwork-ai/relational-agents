@@ -720,11 +720,6 @@ function RowLine({
             ) : (
               depth > 0 && <span className="ml-1 w-[13px] shrink-0" />
             )}
-            {db.icon && (
-              <span className="ml-1 shrink-0 text-[13px] leading-none" aria-hidden="true">
-                {db.icon}
-              </span>
-            )}
             <div className="min-w-0 flex-1">
               <PropertyCell prop={p} row={row} />
             </div>
