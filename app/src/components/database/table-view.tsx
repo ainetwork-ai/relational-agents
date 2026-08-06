@@ -334,11 +334,15 @@ export function TableView({ view }: { view: DbView }) {
  * not hold in this page's layout, so the bar is fixed and follows the table's
  * own left edge and width; the table hides its native bar and the two scroll
  * each other. */
-/** Track height and the gap between the thumb and the track's edge — the same
- * gap on all four sides, so the bar reads as a thumb inside a groove rather
- * than a stripe with room only above and below it. */
-const BAR_H = 12;
-const BAR_INSET = 2;
+/** Measured off the original on 2026-08-06 (CDP screenshot of its page
+ * scroller, read pixel by pixel — dpr 2 × clip scale, so divide by 6, not 3):
+ * a 15px track carrying an 8px thumb, i.e. 3.5px of groove on every side.
+ * `el.offsetHeight - el.clientHeight` on `.notion-scroller.vertical.horizontal`
+ * confirms the 15. An earlier pass here put an 11px thumb in that 15px track by
+ * eye and it read as too thick — the original's bar is thinner than it looks,
+ * because most of the 15px is groove. */
+const BAR_H = 15;
+const BAR_INSET = 3.5;
 
 function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDivElement | null> }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -457,7 +461,11 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
         ref={thumbRef}
         data-testid="db-hscroll-thumb"
         style={{ height: BAR_H - BAR_INSET * 2 }}
-        className="rounded-full bg-neutral-500/35 transition-colors hover:bg-neutral-500/55 dark:bg-neutral-300/25 dark:hover:bg-neutral-300/40"
+ // #D3D1CB is the original's thumb, opaque (`scrollbar-color: #D3D1CB
+ // rgba(0,0,0,0)`, and a screenshot reads rgb(211,209,204) off the pixels).
+ // Dark mode is not measured — switching the original's theme would change
+ // the user's own setting — so it keeps a matching neutral.
+        className="rounded-full bg-[#D3D1CB] transition-colors hover:bg-[#B9B7B1] dark:bg-[#5A5A5A] dark:hover:bg-[#6E6E6E]"
       />
     </div>
   );
