@@ -3,7 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // LAN dev access (e.g. http://192.168.1.193): Next 16 blocks cross-origin
   // dev asset/HMR requests unless the origin is allowlisted.
-  allowedDevOrigins: ["192.168.1.193"],
+  // This host answers on .194 now; .193 stays for the machine it used to be.
+  // 127.0.0.1 is here because it is a DIFFERENT origin from localhost: opening
+  // dev on it got /_next/webpack-hmr blocked, and the page then sat there
+  // "compiling" forever with no hydration.
+  allowedDevOrigins: ["192.168.1.193", "192.168.1.194", "127.0.0.1"],
   // Isolated build dir (e2e): a concurrent dev server overwrites the default
   // .next and wipes prod builds (F12), so e2e prod builds go to
   // NEXT_DIST_DIR=.next-e2e. Unset = default .next (dev server), so other
