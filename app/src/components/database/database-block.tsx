@@ -71,7 +71,7 @@ interface DbApi {
   deleteRow: (rowId: string) => void;
   /** manual reorder: fractional position between neighbors (drag a row grip) */
   moveRow: (rowId: string, position: number) => void;
-  addProperty: (name: string, type: PropertyType) => Promise<void>;
+  addProperty: (name: string, type: PropertyType) => Promise<DbProperty | null>;
   addSelectOption: (prop: DbProperty, name: string) => Promise<SelectOption>;
   toggleMulti: (rowId: string, propId: string, optId: string) => void;
   updateProperty: (
@@ -701,9 +701,12 @@ export function DatabaseBlock({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, type, config }),
       });
-      if (!res.ok) return;
+      if (!res.ok) return null;
       const { property } = await res.json();
       setProperties((prev) => [...prev, property]);
+ // returned so a caller can go straight on to editing what it just made —
+ // the row page's Add a property turns into that property's editor
+      return property as DbProperty;
     },
     [databaseId]
   );

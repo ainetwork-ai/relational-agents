@@ -11,7 +11,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Block, Page } from "@/lib/db/schema";
+import type { Block, Page, PropertyType } from "@/lib/db/schema";
 import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { BlockEditor } from "@/components/editor/block-editor";
@@ -29,6 +29,35 @@ const DEFAULT_FRACTION = 0.51; // what the capture's 861px is of its window
 /** How many properties sit above the body rather than in the 속성 panel. The
  *  original pins four (TL · Assignee · End date · Evaluation). */
 const PINNED_COUNT = 4;
+
+/** The 유형 list of the original's Add-a-property popover, in its order and
+ *  wording (docs/database_row_addproperty_menu.html). `type: null` marks the
+ *  three we have no column for — shown, but inert, so the list still reads as
+ *  the same list. */
+const TYPE_CHOICES: { type: PropertyType | null; label: string }[] = [
+  { type: "text", label: "텍스트" },
+  { type: "number", label: "숫자" },
+  { type: "select", label: "선택" },
+  { type: "multi_select", label: "다중 선택" },
+  { type: "status", label: "상태" },
+  { type: "date", label: "날짜" },
+  { type: "person", label: "사람" },
+  { type: "files", label: "파일과 미디어" },
+  { type: "checkbox", label: "체크박스" },
+  { type: "url", label: "URL" },
+  { type: "email", label: "이메일" },
+  { type: "phone", label: "전화번호" },
+  { type: "formula", label: "수식" },
+  { type: "relation", label: "관계형" },
+  { type: "rollup", label: "롤업" },
+  { type: "created_time", label: "생성 일시" },
+  { type: "created_by", label: "생성자" },
+  { type: "last_edited_time", label: "최종 편집 일시" },
+  { type: "last_edited_by", label: "최종 편집자" },
+  { type: null, label: "버튼" },
+  { type: null, label: "장소" },
+  { type: null, label: "ID" },
+];
 
 /** Does this cell hold anything? Empty string, empty list and a date object
  *  with no start all count as blank — the same states the table draws as an
@@ -438,18 +467,9 @@ export function RowPeek({
                   </div>
                 </div>
               ))}
-              {/* Present but inert: adding a property from here is not built
-                  yet, and a button that silently does nothing is worse than one
-                  that says so. */}
-              <button
-                data-testid="db-peek-add-prop"
-                disabled
-                aria-disabled="true"
-                data-tip="아직 만들지 않았습니다"
-                className="flex h-[34px] cursor-not-allowed items-center gap-1.5 rounded px-1.5 text-sm text-neutral-300 dark:text-neutral-600"
-              >
-                <Plus size={14} /> Add a property
-              </button>
+              <AddPropertyControl />
+              {/* 레이아웃 사용자 지정 chooses which properties are pinned; not
+                  built, so the row that would reach it is not drawn here. */}
             </div>
           </aside>
         )}
@@ -457,6 +477,179 @@ export function RowPeek({
         {bodyPageId && <CommentThreadPanel pageId={bodyPageId} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * `Add a property` at the foot of the 속성 panel, and the popover it opens.
+ *
+ * Taken from three captures of the original (docs/database_row_addproperty_*):
+ * the popover leads with a **name** field — not a type search: typing `텍` and
+ * then choosing 텍스트 produced a property called `텍`, and the 유형 list stayed
+ * at all 22 entries throughout. Nothing exists until a type is chosen (the
+ * panel is unchanged while the popover is open); choosing one creates the
+ * property at the END of the list, right above this button, and the same
+ * popover becomes its editor — 유형, AI 자동 채우기, 속성 복제, 속성 삭제.
+ *
+ * AI 자동 채우기 (요약 · 번역), the 연결 section (Google Drive · Figma) and
+ * 속성 복제 are drawn disabled: they are in the original's popover and leaving
+ * them out would misrepresent it, but none of them are built.
+ */
+function AddPropertyControl() {
+  const db = useDb();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+ // set once a type is picked: the popover stops offering types and starts
+ // editing what it just made
+  const [madeId, setMadeId] = useState<string | null>(null);
+  const made = madeId ? db.properties.find((p) => p.id === madeId) ?? null : null;
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  const close = () => {
+    setOpen(false);
+    setName("");
+    setMadeId(null);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const pick = async (type: PropertyType, label: string) => {
+ // an unnamed property takes the type's name, which is what the original
+ // does when you choose without typing
+    const created = await db.addProperty(name.trim() || label, type);
+    if (created) setMadeId(created.id);
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        data-testid="db-peek-add-prop"
+        onClick={() => (open ? close() : setOpen(true))}
+        className="flex h-[34px] items-center gap-1.5 rounded px-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+      >
+        <Plus size={14} /> Add a property
+      </button>
+      {open && (
+        <div
+          data-testid="db-peek-add-prop-menu"
+          className="popover-anim absolute bottom-9 left-0 z-50 max-h-[420px] w-[280px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          <div className="px-2 pb-1 pt-0.5">
+            <input
+              autoFocus
+              data-testid="db-peek-add-prop-name"
+              value={made ? made.name : name}
+              placeholder="속성 이름"
+              onChange={(e) =>
+                made
+                  ? db.updateProperty(made.id, { name: e.target.value })
+                  : setName(e.target.value)
+              }
+              className="w-full rounded border border-neutral-200 px-2 py-1 text-sm outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100"
+            />
+          </div>
+
+          {made ? (
+            <>
+              <div className="flex items-center justify-between px-3 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">
+                <span>유형</span>
+                <span className="text-neutral-700 dark:text-neutral-200">
+                  {TYPE_CHOICES.find((t) => t.type === made.type)?.label ?? made.type}
+                </span>
+              </div>
+              <MenuSection label="AI 자동 채우기" />
+              <MenuRow label="속성 복제" disabled />
+              <MenuRow
+                label="속성 삭제"
+                testid="db-peek-del-prop"
+                onClick={() => {
+                  db.deleteProperty(made.id);
+                  close();
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <MenuSection label="AI 자동 채우기" />
+              <MenuRow label="요약" badge="Basic" disabled />
+              <MenuRow label="번역" badge="Basic" disabled />
+              <MenuSection label="유형" />
+              {TYPE_CHOICES.map((t) => (
+                <MenuRow
+                  key={t.label}
+                  label={t.label}
+                  testid={t.type ? `db-peek-add-prop-${t.type}` : undefined}
+                  disabled={!t.type}
+                  onClick={t.type ? () => void pick(t.type as PropertyType, t.label) : undefined}
+                />
+              ))}
+              <MenuSection label="연결" />
+              <MenuRow label="Google Drive 파일" disabled />
+              <MenuRow label="Figma 파일" disabled />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuSection({ label }: { label: string }) {
+  return (
+    <div className="px-3 pb-0.5 pt-2 text-[11px] font-medium text-neutral-400">{label}</div>
+  );
+}
+
+function MenuRow({
+  label,
+  badge,
+  disabled,
+  onClick,
+  testid,
+}: {
+  label: string;
+  badge?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  testid?: string;
+}) {
+  return (
+    <button
+      data-testid={testid}
+      disabled={disabled}
+      aria-disabled={disabled}
+      data-tip={disabled ? "아직 만들지 않았습니다" : undefined}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm transition-colors ${
+        disabled
+          ? "cursor-not-allowed text-neutral-300 dark:text-neutral-600"
+          : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+      }`}
+    >
+      <span>{label}</span>
+      {badge && (
+        <span className="rounded bg-neutral-100 px-1 text-[10px] text-neutral-400 dark:bg-neutral-700">
+          {badge}
+        </span>
+      )}
+    </button>
   );
 }
 
