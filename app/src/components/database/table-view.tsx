@@ -234,68 +234,91 @@ export function TableView({ view }: { view: DbView }) {
  * own left edge and width; the table hides its native bar and the two scroll
  * each other. */
 function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDivElement | null> }) {
-  const barRef = useRef<HTMLDivElement | null>(null);
-  const spacerRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const sc = scrollerRef.current;
     if (!sc) return;
-    let syncing = false;
 
- // written straight to the DOM: this runs on every scroll, and routing it
- // through state raced with the table's own re-renders and blanked the bar
-    const update = (e?: Event) => {
-      const bar = barRef.current;
-      const spacer = spacerRef.current;
-      if (!bar || !spacer) return;
- // the capture listener sees the BAR's own scroll too; snapping it back to the
- // table here would undo the drag before it reached the table
-      const fromTheBar = !!e && e.target === bar;
+ // Drawn rather than delegated to a native scrollbar: this browser renders
+ // overlay scrollbars, which appear only mid-scroll — no use as the one thing
+ // telling the reader the table continues to the right. Written straight to the
+ // DOM because it runs on every scroll frame.
+    const layout = () => {
+      const track = trackRef.current;
+      const thumb = thumbRef.current;
+      if (!track || !thumb) return;
       const r = sc.getBoundingClientRect();
-      const needed = sc.scrollWidth > sc.clientWidth + 1;
+      const scrollable = sc.scrollWidth - sc.clientWidth;
       const onScreen = r.top < window.innerHeight - 40 && r.bottom > 140;
-      bar.style.display = needed && onScreen ? "" : "none";
-      bar.style.left = `${Math.round(r.left)}px`;
-      bar.style.width = `${Math.round(r.width)}px`;
-      spacer.style.width = `${sc.scrollWidth}px`;
-      if (!syncing && !fromTheBar) {
-        syncing = true;
-        bar.scrollLeft = sc.scrollLeft;
-        syncing = false;
+      if (scrollable < 2 || !onScreen) {
+        track.style.display = "none";
+        return;
       }
-    };
-    const fromBar = () => {
-      const bar = barRef.current;
-      if (!bar || syncing) return;
-      syncing = true;
-      sc.scrollLeft = bar.scrollLeft;
-      syncing = false;
+      track.style.display = "";
+      track.style.left = `${Math.round(r.left)}px`;
+      track.style.width = `${Math.round(r.width)}px`;
+      const ratio = sc.clientWidth / sc.scrollWidth;
+      const thumbW = Math.max(40, Math.round(r.width * ratio));
+      thumb.style.width = `${thumbW}px`;
+      thumb.style.transform = `translateX(${Math.round((sc.scrollLeft / scrollable) * (r.width - thumbW))}px)`;
     };
 
-    update();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => update()) : null;
+    layout();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => layout()) : null;
     ro?.observe(sc);
- // capture: the page scroller and the table both bubble their scrolls here
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    barRef.current?.addEventListener("scroll", fromBar, { passive: true });
-    const bar = barRef.current;
+    window.addEventListener("scroll", layout, true);
+    window.addEventListener("resize", layout);
     return () => {
       ro?.disconnect();
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-      bar?.removeEventListener("scroll", fromBar);
+      window.removeEventListener("scroll", layout, true);
+      window.removeEventListener("resize", layout);
     };
   }, [scrollerRef]);
 
+ // drag the thumb, or click anywhere on the track to jump there
+  const seek = (clientX: number, grabOffset: number) => {
+    const sc = scrollerRef.current;
+    const track = trackRef.current;
+    const thumb = thumbRef.current;
+    if (!sc || !track || !thumb) return;
+    const r = track.getBoundingClientRect();
+    const thumbW = thumb.offsetWidth;
+    const x = Math.min(Math.max(clientX - r.left - grabOffset, 0), r.width - thumbW);
+    sc.scrollLeft = (x / (r.width - thumbW)) * (sc.scrollWidth - sc.clientWidth);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const thumb = thumbRef.current;
+    if (!thumb) return;
+    e.preventDefault();
+    const tr = thumb.getBoundingClientRect();
+    const onThumb = e.clientX >= tr.left && e.clientX <= tr.right;
+    const grab = onThumb ? e.clientX - tr.left : thumb.offsetWidth / 2;
+    seek(e.clientX, grab);
+    const move = (ev: PointerEvent) => seek(ev.clientX, grab);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   return (
     <div
-      ref={barRef}
+      ref={trackRef}
       data-testid="db-hscroll"
+      onPointerDown={onPointerDown}
       style={{ display: "none" }}
-      className="fixed bottom-2 z-30 overflow-x-auto"
+      className="fixed bottom-2 z-30 h-2.5 cursor-pointer rounded-full bg-neutral-500/10 dark:bg-neutral-300/10"
     >
-      <div ref={spacerRef} className="h-1.5" />
+      <div
+        ref={thumbRef}
+        data-testid="db-hscroll-thumb"
+        className="h-2.5 rounded-full bg-neutral-500/45 transition-colors hover:bg-neutral-500/70 dark:bg-neutral-300/40 dark:hover:bg-neutral-300/60"
+      />
     </div>
   );
 }
