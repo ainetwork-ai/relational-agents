@@ -40,6 +40,46 @@ function rowIcon(row: DbRow): string | null {
   return typeof v === "string" && v ? v : null;
 }
 
+/** A full-page table spans the whole scroll container, whatever the window
+ * width: the page is centred with a max width, so the distance from the content
+ * column to the container's edge changes as the window resizes. Measured and
+ * written to the element directly — through state it would race the table's own
+ * re-renders, and it has to hold on every resize.
+ *
+ * The columns still rest where the page's text is: the same distance becomes
+ * padding, which scrolls away with the content (that is how the original does
+ * it — its columns rest at 374 and reach -226 as you scroll). */
+function useFullBleed(ref: React.RefObject<HTMLDivElement | null>, on: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return;
+    const host = (el.closest("main") ?? document.scrollingElement) as HTMLElement | null;
+    const column = el.parentElement;
+    if (!host || !column) return;
+    const apply = () => {
+      el.style.marginLeft = "0px";
+      el.style.width = "auto";
+      const h = host.getBoundingClientRect();
+      const c = column.getBoundingClientRect();
+      const inset = Math.max(0, Math.round(c.left - h.left));
+      el.style.marginLeft = `${-inset}px`;
+      el.style.width = `${Math.round(h.width)}px`;
+      el.style.paddingLeft = `${inset}px`;
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => apply()) : null;
+    ro?.observe(host);
+    ro?.observe(column);
+    window.addEventListener("resize", apply);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", apply);
+      el.style.marginLeft = "";
+      el.style.width = "";
+      el.style.paddingLeft = "";
+    };
+  }, [ref, on]);
+}
+
 /** Render in chunks and grow as the bottom comes into view. The original loads
  * its rows the same way — 249 rows over 23 groups is 3,600 cells if you draw
  * them all at once, and the page took 12s to show its first row. */
@@ -157,6 +197,7 @@ export function TableView({ view }: { view: DbView }) {
     });
   }
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  useFullBleed(scrollerRef, db.fullPage);
   const collapsedGroups = view.config.collapsedGroups ?? [];
   const hideEmptyGroups = view.config.hideEmptyGroups ?? true;
   const shownGroups = hideEmptyGroups ? groups.filter((g) => g.rows.length > 0) : groups;
@@ -186,10 +227,12 @@ export function TableView({ view }: { view: DbView }) {
           bottom of the screen is the one you see and drag. */}
       <div
         ref={scrollerRef}
- // no w-full on the full-page branch: the negative margins have to widen the
- // box, and a fixed 100% would keep it at the inset width and shift it left
+ // full-page: margin/width/padding are measured against the scroll container
+ // (see useFullBleed) because the page is centred with a max width, so a fixed
+ // -mx-16 only worked while the window was narrow enough for that centring to
+ // be zero — past that the table started further and further right.
         className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-          db.fullPage ? "-mx-16 pl-16" : "-ml-9 w-full pl-9"
+          db.fullPage ? "" : "-ml-9 w-full pl-9"
         }`}
       >
       {checked.size > 0 && (
