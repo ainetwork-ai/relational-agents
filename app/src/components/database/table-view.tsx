@@ -407,18 +407,24 @@ function BottomScrollbar({ scrollerRef }: { scrollerRef: React.RefObject<HTMLDiv
     window.addEventListener("pointerup", up);
   };
 
+ // Flush to the bottom edge, 15px tall, transparent track: the original's bar
+ // is a NATIVE one on its page scroller, styled
+ // `* { scrollbar-width: 15px; scrollbar-color: #D3D1CB rgba(0,0,0,0) }`
+ // (target.html line 2) — so it sits on the window's own edge with nothing
+ // under it. Floating this 8px up as a rounded pill left a strip of page
+ // showing beneath the bar, which reads as a widget hovering over the table.
   return (
     <div
       ref={trackRef}
       data-testid="db-hscroll"
       onPointerDown={onPointerDown}
       style={{ display: "none" }}
-      className="fixed bottom-2 z-30 h-2.5 cursor-pointer rounded-full bg-neutral-500/10 dark:bg-neutral-300/10"
+      className="fixed bottom-0 z-30 flex h-[15px] cursor-pointer items-center bg-transparent"
     >
       <div
         ref={thumbRef}
         data-testid="db-hscroll-thumb"
-        className="h-2.5 rounded-full bg-neutral-500/45 transition-colors hover:bg-neutral-500/70 dark:bg-neutral-300/40 dark:hover:bg-neutral-300/60"
+        className="h-[11px] rounded-full bg-[#D3D1CB] transition-colors hover:bg-[#B9B7B1] dark:bg-[#5A5A5A] dark:hover:bg-[#6E6E6E]"
       />
     </div>
   );
@@ -491,14 +497,7 @@ function GroupSection({
   const menuRef = useRef<HTMLDivElement>(null);
   const showCount = view.config.showGroupCount ?? false;
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+  useDismiss(menuOpen, () => setMenuOpen(false), menuRef);
 
  // a person section is headed by that person's own face
   const groupPerson =
