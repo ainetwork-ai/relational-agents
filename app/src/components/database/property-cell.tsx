@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { X } from "lucide-react";
@@ -159,14 +160,7 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     };
   }, [targetDbId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  useDismiss(open, () => setOpen(false), ref);
 
   function toggle(targetRowId: string) {
     if (mirror) {
@@ -313,14 +307,7 @@ function MultiSelectCell({
   const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
   const options = prop.config.options ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  useDismiss(open, () => setOpen(false), ref);
 
   function toggle(id: string) {
     db.toggleMulti(row.id, prop.id, id);
@@ -560,21 +547,7 @@ function DateCell({
   const push = (next: Partial<DateParts>) => onSet(buildDateValue({ ...parts, ...next }));
   const idBase = testid.replace("db-cell-", "");
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(open, () => setOpen(false), ref);
 
  // the CELL is plain text; all editing lives in the popover
   return (
@@ -809,14 +782,7 @@ function SelectCell({
   const current = findOption(prop, value);
   const options = prop.config.options ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  useDismiss(open, () => setOpen(false), ref);
 
   return (
     <div ref={ref} className="relative min-w-0 px-1.5 py-1">
@@ -1036,20 +1002,9 @@ function PersonCell({
     setOpen((v) => !v);
   };
 
-  useEffect(() => {
-    if (!open) return;
- // The popover lives in a portal, so it is NOT inside `ref` — checking only
- // `ref` treated every click on it as an outside click, closed it on mousedown,
- // and the button's click never landed. That is why picking a person did
- // nothing.
-    const close = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (ref.current?.contains(t) || popRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+ // both refs: the popover is portalled, so it is not inside `ref` (see
+ // useDismiss — leaving the portal out is what made picking a person do nothing)
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(id: string) {
     const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];

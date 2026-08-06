@@ -22,6 +22,9 @@ export function TrashModal() {
   const [left, setLeft] = useState(248);
   const ref = useRef<HTMLDivElement>(null);
 
+ // dismiss:manual — the whole modal IS the portal and `ref` is on it, so a
+ // click inside is inside the ref; it also has to let the sidebar Trash button
+ // through, which useDismiss has no way to express.
   useEffect(() => {
     if (!open) return;
     loadArchived();
