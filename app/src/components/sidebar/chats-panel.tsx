@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -41,6 +44,8 @@ export function ChatsPanel() {
   const show = useToastStore((s) => s.show);
 
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuBtn = useRef<HTMLElement | null>(null);
+  const menuPop = useRef<HTMLDivElement>(null);
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [iconFor, setIconFor] = useState<string | null>(null);
@@ -78,6 +83,12 @@ export function ChatsPanel() {
       }
     }
   }
+ // one ref pair for the whole list: the row that opens the menu records its own
+ // button, so the portalled panel can hang off it (in the sidebar's scroller it
+ // was clipped, like the page-row menu was)
+  useAnchored(menuFor !== null, menuBtn, menuPop, { align: "end" });
+  useDismiss(menuFor !== null, () => setMenuFor(null), menuBtn, menuPop);
+
 
   useEffect(() => {
     load();
@@ -196,7 +207,8 @@ export function ChatsPanel() {
 
         <button
           data-testid={`chat-menu-${c.id}`}
-          onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
+          ref={(el) => { if (el) menuBtn.current = el; }}
+              onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
           aria-label="Chat options"
           className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 group-hover/chat:flex dark:hover:bg-neutral-700"
         >
@@ -204,9 +216,12 @@ export function ChatsPanel() {
         </button>
 
         {menuFor === c.id && (
-          <div
+          createPortal(
+              <div
+            ref={menuPop}
             data-testid={`chat-menu-popover-${c.id}`}
-            className="popover-anim absolute right-1 top-7 z-50 w-44 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
             onMouseLeave={() => setMenuFor(null)}
           >
             <button
@@ -269,8 +284,9 @@ export function ChatsPanel() {
             >
               <Trash2 size={13} /> Delete
             </button>
-          </div>
-        )}
+          </div>,
+          document.body
+        ))}
 
         {iconFor === c.id && (
           <div className="absolute right-1 top-7 z-50 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">

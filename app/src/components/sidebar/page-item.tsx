@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, memo } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useAnchored } from "@/hooks/use-anchored";
+import { useDismiss } from "@/hooks/use-dismiss";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -40,6 +43,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(page.title);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const children = usePagesStore(
@@ -50,14 +54,10 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
     s.dropHint?.targetId === page.id ? s.dropHint.zone : null
   );
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+ // portalled and placed: inside the sidebar's scroller this menu was cut off
+ // by 90px on the lower pages. Both refs count as inside for dismissal.
+  useAnchored(menuOpen, menuBtnRef, menuRef);
+  useDismiss(menuOpen, () => setMenuOpen(false), menuBtnRef, menuRef);
 
   function startRenaming() {
     setDraft(page.title);
@@ -209,6 +209,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
 
         <div className="ml-auto hidden shrink-0 items-center gap-0.5 group-hover:flex">
           <button
+            ref={menuBtnRef}
             data-testid={`page-item-menu-${page.id}`}
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
@@ -226,12 +227,14 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           </button>
         </div>
 
-        {menuOpen && (
-          <div
-            ref={menuRef}
-            data-testid={`page-menu-${page.id}`}
-            className="popover-anim absolute left-6 top-7 z-50 w-44 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
-          >
+        {menuOpen &&
+          createPortal(
+            <div
+              ref={menuRef}
+              data-testid={`page-menu-${page.id}`}
+              style={{ visibility: "hidden" }}
+              className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+            >
             <MenuButton
               testid={`page-menu-rename-${page.id}`}
               icon={<Pencil size={14} />}
@@ -264,8 +267,9 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
                 if (isActive) router.push("/");
               }}
             />
-          </div>
-        )}
+            </div>,
+            document.body
+          )}
       </div>
 
       {expanded && (

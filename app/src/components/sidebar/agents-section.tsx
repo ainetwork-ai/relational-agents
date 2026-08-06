@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -43,6 +46,8 @@ export function AgentsSection() {
   const show = useToastStore((s) => s.show);
 
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuBtn = useRef<HTMLElement | null>(null);
+  const menuPop = useRef<HTMLDivElement>(null);
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [iconFor, setIconFor] = useState<string | null>(null);
@@ -54,6 +59,12 @@ export function AgentsSection() {
   const [scopePagesLoaded, setScopePagesLoaded] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const renameRef = useRef<HTMLInputElement>(null);
+ // one ref pair for the whole list: the row that opens the menu records its own
+ // button, so the portalled panel can hang off it (in the sidebar's scroller it
+ // was clipped, like the page-row menu was)
+  useAnchored(menuFor !== null, menuBtn, menuPop, { align: "end" });
+  useDismiss(menuFor !== null, () => setMenuFor(null), menuBtn, menuPop);
+
 
   useEffect(() => {
     load();
@@ -191,6 +202,7 @@ export function AgentsSection() {
 
             <button
               data-testid={`agent-menu-${a.id}`}
+              ref={(el) => { if (el) menuBtn.current = el; }}
               onClick={() => {
                 const next = menuFor === a.id ? null : a.id;
                 closeOverlays();
@@ -203,9 +215,12 @@ export function AgentsSection() {
             </button>
 
             {menuFor === a.id && (
+              createPortal(
               <div
+                ref={menuPop}
                 data-testid={`agent-menu-popover-${a.id}`}
-                className="popover-anim absolute right-1 top-7 z-50 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+                style={{ visibility: "hidden" }}
+                className="popover-anim fixed z-50 w-48 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
                 onMouseLeave={() => setMenuFor(null)}
               >
                 <button
@@ -271,8 +286,9 @@ export function AgentsSection() {
                 >
                   <Trash2 size={13} /> Delete
                 </button>
-              </div>
-            )}
+              </div>,
+              document.body
+            ))}
 
             {iconFor === a.id && (
               <div className="absolute right-1 top-7 z-50 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">

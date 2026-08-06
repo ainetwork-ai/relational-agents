@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {useRef, useState} from "react";
+import { createPortal } from "react-dom";
+import { useAnchored } from "@/hooks/use-anchored";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { MoreHorizontal } from "lucide-react";
 import { useUiStore, type SidebarSort } from "@/stores/ui";
 
@@ -20,31 +23,21 @@ const SORTS: { value: SidebarSort; label: string }[] = [
  */
 export function SectionMenu({ testId, label }: { testId: string; label: string }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const sort = useUiStore((s) => s.sidebarSort);
   const setSort = useUiStore((s) => s.setSidebarSort);
   const collapseAll = useUiStore((s) => s.collapseAll);
 
-  // Click-away and Escape, the same pair the page-row menu uses.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+ // portalled and placed — inside the sidebar's scroller this was cut off near
+ // the bottom of the list. Click-away/Escape via useDismiss, both refs inside.
+  useAnchored(open, btnRef, popRef, { align: "end" });
+  useDismiss(open, () => setOpen(false), btnRef, popRef);
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={btnRef}
         data-testid={testId}
         onClick={() => setOpen((v) => !v)}
         aria-label={`${label} options`}
@@ -54,12 +47,15 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
       >
         <MoreHorizontal size={14} />
       </button>
-      {open && (
-        <div
-          role="menu"
-          data-testid={`${testId}-popover`}
-          className="popover-anim absolute right-0 top-6 z-50 w-44 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-        >
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            role="menu"
+            data-testid={`${testId}-popover`}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">Sort</p>
           {SORTS.map((s) => (
             <button
@@ -89,8 +85,9 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
           >
             Collapse all
           </button>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
