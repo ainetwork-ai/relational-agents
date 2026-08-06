@@ -1030,7 +1030,9 @@ function RowLine({
               };
               window.addEventListener("pointerup", onUp);
             }}
-            aria-label="열 메뉴 / 드래그로 순서 변경"
+            // the original's own words for this handle, read off it (our "열
+            // 메뉴" read as COLUMN menu, which is not what it opens)
+            aria-label="드래그하여 이동하고 클릭하여 메뉴를 여세요"
             className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
             <GripVertical size={16} />
