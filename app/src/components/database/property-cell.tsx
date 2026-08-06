@@ -998,6 +998,7 @@ function PersonCell({
   const db = useDb();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
  // several people per cell (the capture's `Assignee` holds two); the popover
  // toggles them rather than replacing the value
   const picked = personIds(value);
@@ -1037,8 +1038,14 @@ function PersonCell({
 
   useEffect(() => {
     if (!open) return;
+ // The popover lives in a portal, so it is NOT inside `ref` — checking only
+ // `ref` treated every click on it as an outside click, closed it on mousedown,
+ // and the button's click never landed. That is why picking a person did
+ // nothing.
     const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -1081,6 +1088,7 @@ function PersonCell({
  // In a portal, positioned against the cell: the table's cells clip their
  // content to one line, and a popover rendered inside one was cut off.
           <div
+            ref={popRef}
             data-testid={`db-person-popover-${slug}`}
             style={{ left: anchor.left, top: anchor.top, width: anchor.width, maxHeight: POPOVER_MAX_H }}
             className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
