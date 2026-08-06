@@ -487,15 +487,18 @@ function HeaderRow({
   view: DbView;
   frozenLefts: (number | null)[];
 }) {
+ // 36px with everything centred in it, as measured: the label sits 9px down and
+ // the tail's 28px controls 4px down. The ROW owns that height — when the tail
+ // did (28px plus its own padding), the header grew and the labels stayed at the
+ // top, which is exactly what the last change broke.
   return (
-    <div className="flex border-b border-neutral-200 dark:border-neutral-700">
+    <div className="flex h-9 items-center border-b border-neutral-200 dark:border-neutral-700">
       {cols.map((p, i) => (
         <ColumnHeader key={p.id} prop={p} view={view} frozenLeft={frozenLefts[i]} />
       ))}
  {/* the column grid ends here — the original closes it with the table's own
      right edge and puts + / ⋯ BEYOND that line, with no cell borders of their
-     own (e2e/fixtures/notion-header-tail.json). Ours had the + inside the grid,
-     which is why it read as part of the last property's column. */}
+     own (e2e/fixtures/notion-header-tail.json) */}
       <div className="w-px shrink-0 self-stretch bg-neutral-200 dark:bg-neutral-700" />
       <HeaderTail />
     </div>
@@ -799,7 +802,7 @@ function FrozenBg({ checked }: { checked?: boolean }) {
  *  column grid (e2e/fixtures/notion-header-tail.json). */
 function HeaderTail() {
   return (
-    <div className="flex shrink-0 items-center gap-0 px-0 py-1">
+    <div className="flex h-full shrink-0 items-center">
       <AddPropertyHeader />
       <PropertyVisibilityHeader />
     </div>
@@ -1232,6 +1235,11 @@ function RowLine({
           </div>
         )
       )}
+ {/* the same edge the header draws, carried down the body: in the original the
+     grid closes with a line at the last column's right edge and the + / ⋯ area
+     beyond it has none. Ours only had it in the header, so the body rows ran
+     into the tail with nothing between them. */}
+      <div className="w-px shrink-0 self-stretch bg-neutral-100 dark:bg-neutral-800" />
       {menuOpen && (
         <RowMenu row={row} triggerRef={dragRef} onClose={() => setMenuOpen(false)} />
       )}

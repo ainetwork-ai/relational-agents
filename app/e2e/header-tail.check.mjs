@@ -62,11 +62,42 @@ const got = await page.evaluate(`(() => {
       insideAHeaderCell: !!el.closest('[data-testid^="db-col-"], [data-testid^="db-prop-header-"]'),
     };
   };
+  const headerRow = document.querySelector('[data-testid^="db-add-prop"]')?.closest(".flex");
+  const rowBox = (() => {
+    const btn = document.querySelector('[data-testid="db-add-prop"]');
+    const row = btn && btn.closest("div.flex.h-9");
+    if (!row) return null;
+    const r = row.getBoundingClientRect();
+    const label = row.querySelector('[data-testid^="db-prop-header-"] span:last-child, [data-testid^="db-prop-header-"] span');
+    const lr = label && label.getBoundingClientRect();
+    return {
+      height: Math.round(r.height),
+      labelInsetTop: lr ? Math.round(lr.top - r.top) : null,
+      controlInsetTop: Math.round(document.querySelector('[data-testid="db-add-prop"]').getBoundingClientRect().top - r.top),
+    };
+  })();
+  const bodyEdge = (() => {
+ // is there a line at the end of the last column in a DATA row?
+    const btn = document.querySelector('[data-testid="db-add-prop"]');
+    if (!btn) return null;
+    const x = btn.getBoundingClientRect().x;
+    for (const el of document.querySelectorAll("[data-dbrow] div")) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 2 || r.height < 20) continue;
+      if (Math.abs(r.right - x) > 3) continue;
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg === "rgba(0, 0, 0, 0)") continue;
+      return { x: Math.round(r.x), h: Math.round(r.height), bg };
+    }
+    return null;
+  })();
   const heads = Array.from(document.querySelectorAll('[data-testid^="db-prop-header-"]'))
     .map((e) => e.closest("[style]")?.getBoundingClientRect() ?? e.getBoundingClientRect())
     .filter((r) => r.width > 0)
     .sort((a, b) => a.x - b.x);
   return {
+    row: rowBox,
+    bodyEdge,
     plus: box('[data-testid="db-add-prop"]'),
     dots: box('[data-testid="db-header-props"]'),
     lastColumnRight: heads.length ? Math.round(heads[heads.length - 1].right) : null,
@@ -92,6 +123,17 @@ if (got.plus && got.dots) {
     diffs.push(`+ starts at ${got.plus.x}, left of the last column's right edge ${got.lastColumnRight} — it is inside the grid`);
 }
 
+if (got.row) {
+  if (got.row.height !== FIX.headerRow.height) diffs.push(`header row ${got.row.height}px ≠ ${FIX.headerRow.height}px`);
+  const wantControl = Math.round((FIX.headerRow.height - FIX.controls[0].h) / 2);
+  if (Math.abs(got.row.controlInsetTop - wantControl) > 1)
+    diffs.push(`the + sits ${got.row.controlInsetTop}px below the row top; centred would be ${wantControl}`);
+  if (got.row.labelInsetTop !== null && Math.abs(got.row.labelInsetTop - 9) > 2)
+    diffs.push(`a property label sits ${got.row.labelInsetTop}px down; the original's is 9 (centred)`);
+}
+if (!got.bodyEdge) diffs.push("no line between the last column and the tail in the data rows");
+
+console.log(`row ${JSON.stringify(got.row)}\nbody edge ${JSON.stringify(got.bodyEdge)}`);
 console.log(`+ ${JSON.stringify(got.plus)}\n⋯ ${JSON.stringify(got.dots)}\nlast column ends at ${got.lastColumnRight}`);
 if (diffs.length) {
   console.error("\n  ┌─ 헤더 끝의 + / ⋯ 가 원본과 다릅니다 ────────────");
