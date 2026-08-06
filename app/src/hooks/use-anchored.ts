@@ -8,11 +8,13 @@ import { fitAnchored, type FitOptions } from "@/lib/popover-position";
  *
  * The panel is measured after it mounts — its height depends on its content —
  * and then `fitAnchored` picks the side. Recomputed on resize and when the
- * content grows. NOT on scroll: chasing a scroll from JS leaves the panel
- * trailing whatever the compositor already drew, so a scroll that moves the
- * trigger dismisses the panel instead (see useDismiss). Measured: re-placing a
- * caret menu on scroll moved it by 0px anyway, since its anchor is a point
- * captured when it opened.
+ * Scrolling is the browser's job, not ours. Where CSS anchor positioning
+ * exists (Chrome 125+), the panel is tied to its trigger with
+ * `anchor-name`/`position-anchor` and the browser keeps them together — no JS
+ * in the scroll path, so no trailing behind the compositor, and the panel does
+ * NOT close itself just because the row moved. `position-try-fallbacks` does
+ * the flip. Without anchor positioning (Safari, Firefox) we fall back to
+ * re-placing on scroll: a frame behind, but attached and still open.
  * The panel must be portalled and `fixed`: left in the page it would be
  * clipped by the table's or the sidebar's own overflow.
  *
@@ -41,7 +43,7 @@ export function useAnchored(
   const place = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger) return;
-    applyPlacement(panelRef.current, trigger.getBoundingClientRect(), { gap, margin, align, cover });
+    applyPlacement(panelRef.current, trigger.getBoundingClientRect(), { gap, margin, align, cover }, trigger);
   }, [triggerRef, panelRef, gap, margin, align, cover]);
 
  // before the browser paints the open panel
@@ -53,8 +55,11 @@ export function useAnchored(
     if (!open) return;
     const onMove = () => place();
     window.addEventListener("resize", onMove);
+ // only engines without CSS anchoring need us in the scroll path
+    if (!CSS_ANCHORING) window.addEventListener("scroll", onMove, true);
     return () => {
       window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
     };
   }, [open, place]);
 
@@ -135,11 +140,49 @@ function useReplaceOnGrow(
   }, [open, panelRef, place]);
 }
 
+let anchorSeq = 0;
+const CSS_ANCHORING =
+  typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("anchor-name: --a");
+
+/**
+ * Tie the panel to the trigger in CSS so the browser keeps them together.
+ * Returns false when the engine has no anchor positioning and JS must do it.
+ */
+function cssAnchor(
+  trigger: HTMLElement,
+  panel: HTMLElement,
+  opts: FitOptions
+): boolean {
+  if (!CSS_ANCHORING) return false;
+  const name = panel.dataset.anchorName ?? `--pop-${++anchorSeq}`;
+  panel.dataset.anchorName = name;
+  trigger.style.setProperty("anchor-name", name);
+  panel.style.setProperty("position-anchor", name);
+  const gap = opts.gap ?? 4;
+  panel.style.top = `calc(anchor(bottom) + ${gap}px)`;
+  panel.style.bottom = "auto";
+  if (opts.align === "end") {
+    panel.style.left = "auto";
+    panel.style.right = `calc(anchor(right) * -1 + 100%)`;
+  } else {
+    panel.style.left = "anchor(left)";
+    panel.style.right = "auto";
+  }
+ // the browser flips it above / to the other side when it would not fit, and
+ // re-evaluates that on every scroll, for free
+  panel.style.setProperty("position-try-fallbacks", "flip-block, flip-inline, flip-block flip-inline");
+ // NOT `position-visibility: no-overflow`: that hides the panel once the anchor
+ // scrolls out of view, which is the same "it vanished and I never closed it"
+ // the scroll-dismissal caused. A menu closes when the user closes it.
+  return true;
+}
+
 /** Write a fitted position onto the panel. See useAnchored for why it is direct. */
 function applyPlacement(
   panel: HTMLElement | null,
   anchor: { left: number; top: number; right: number; bottom: number; width: number; height: number },
-  opts: FitOptions
+  opts: FitOptions,
+  trigger?: HTMLElement | null
 ): void {
   if (!panel) return;
  // drop a previous cap first, or the panel measures as its capped self and
@@ -151,9 +194,12 @@ function applyPlacement(
     { width: window.innerWidth, height: window.innerHeight },
     opts
   );
-  panel.style.left = `${at.left}px`;
-  panel.style.top = `${at.top}px`;
-  panel.style.maxHeight = `${at.maxHeight}px`;
+ // the cap keeps a tall menu scrolling inside itself either way
+  panel.style.maxHeight = `${Math.max(at.maxHeight, Math.min(at.maxHeight, window.innerHeight - 16))}px`;
+  if (!(trigger && cssAnchor(trigger, panel, opts))) {
+    panel.style.left = `${at.left}px`;
+    panel.style.top = `${at.top}px`;
+  }
   panel.dataset.side = at.side;
   panel.style.visibility = "visible";
 }

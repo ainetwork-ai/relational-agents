@@ -33,26 +33,11 @@ export function useDismiss(
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onDismiss();
     };
- // A scroll that moves the trigger dismisses too. A portalled popover is
- // `fixed` and repositioned from JS, and JS cannot keep up with a scroll the
- // compositor is already drawing — the panel trails the page and jitters
- // ("관성이 있어서 불편해"). Letting go of the anchor is honest and calm; the
- // panel caps its own height and scrolls INSIDE, so nobody needs to scroll the
- // page to read it. Scrolling within the popover itself is not a dismissal.
-    const onScroll = (e: Event) => {
-      const target = e.target as Node | null;
-      if (target && inside.some((r) => r.current?.contains(target))) return;
-      onDismiss();
-    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
- // capture: scrolls of an inner scroller (the page, a table, the sidebar) do
- // not bubble to document
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
     };
  // refs are stable; the rest-array identity changes every render and would
  // resubscribe endlessly
