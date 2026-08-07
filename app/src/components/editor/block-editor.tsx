@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { v5 as uuidv5 } from "uuid";
 import { uploadBlob } from "@/lib/upload";
 import {
   createContext,
@@ -110,7 +111,13 @@ interface EditorApi {
   clearSelection: () => void;
 }
 
-const EditorCtx = createContext<EditorApi | null>(null);
+// Anchored on globalThis like DbCtx (db-context.ts): Turbopack's production
+// build can instantiate a module twice, and a bare module-level createContext
+// then splits into two objects — provider writes one, useEditor reads the
+// other, and the throw below takes the whole tree down. Prod-only; dev keeps
+// modules single-instance. See vercel/next.js#89192 for the bug class.
+const gEditor = globalThis as { __ainmemEditorCtx?: ReturnType<typeof createContext<EditorApi | null>> };
+const EditorCtx = (gEditor.__ainmemEditorCtx ??= createContext<EditorApi | null>(null));
 export function useEditor() {
   const ctx = useContext(EditorCtx);
   if (!ctx) throw new Error("useEditor outside BlockEditor");
@@ -170,6 +177,17 @@ function fromRow(b: Block): EBlock {
   };
 }
 
+// The bootstrap paragraph an empty page starts with is part of the SERVER
+// render, so its id must come out identical on server and client — newId()
+// there minted a fresh uuid per render and every empty page hydrated
+// mismatched (server block-<a>, client block-<b>). Derived from the pageId
+// instead: same page, same id, on both sides. The namespace is arbitrary but
+// must never change.
+const BOOTSTRAP_NS = "9a3c5e88-0b5d-4b6a-9f3e-2f1c7a4d8e01";
+function bootstrapParagraph(pageId: string): EBlock {
+  return { ...freshParagraph(null, 1), id: uuidv5(pageId, BOOTSTRAP_NS) };
+}
+
 function freshParagraph(parentBlockId: string | null, position: number): EBlock {
   return {
     id: newId(),
@@ -197,7 +215,7 @@ export const BlockEditor = forwardRef<
 >(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page" }, apiRef) {
   const [blocks, setBlocks] = useState<EBlock[]>(() => {
     const mapped = initialBlocks.map(fromRow);
-    return mapped.length > 0 ? mapped : [freshParagraph(null, 1)];
+    return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
   });
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
