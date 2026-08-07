@@ -1218,7 +1218,13 @@ export const BlockEditor = forwardRef<
         const md = htmlToMarkdownish(htmlClip);
         if (md && looksLikeMarkdown(md)) text = md;
       }
-      if (!text) return; // nothing pasteable — let the browser default run
+      if (!text) {
+ // rich HTML we could not convert must NOT fall through to the browser
+ // default — that dumps the clipboard's raw styled DOM (a whole Notion
+ // page, sidebar and all) into this one contenteditable block
+        if (htmlClip) e.preventDefault();
+        return;
+      }
 
  // 2) Markdown / multi-line text → parse and split the current block.
       if (looksLikeMarkdown(text)) {
