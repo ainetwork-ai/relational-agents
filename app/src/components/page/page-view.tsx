@@ -367,7 +367,13 @@ export function PageView({
  // the original's offsets from its own padding edge (title 410, table 374,
  // padding edge 366). The 44 is applied here and the editor takes 36 back.
             ? "max-w-none px-24 pl-[calc(6rem+44px)]"
-            : page.fullWidth
+            : isPeek
+ // the center peek uses the original's own peek layout: margins FIXED at
+ // 126px and the content takes the rest, uncapped (`.layout-center-peek
+ // { --content-width: 1fr; --margin-width: 126px }` read from Notion's
+ // stylesheet over CDP) — 723px of content in the 975px panel.
+              ? "max-w-none px-[126px]"
+              : page.fullWidth
  // 전체 너비 in the original: no width cap, the same 96px inset every page
  // carries (measured off the user's capture: 1521px blocks in a 1728px
  // window = 2×96 + scrollbar). We had a 1500px cap and 64px insets.
