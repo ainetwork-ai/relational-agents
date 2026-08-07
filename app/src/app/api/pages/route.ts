@@ -175,11 +175,28 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const body = await req.json().catch(() => ({}));
-  const { title = "", parentPageId = null, icon = null, teamspaceId = null } = body ?? {};
+  let { parentPageId = null } = body ?? {};
+  const { title = "", icon = null, teamspaceId = null } = body ?? {};
 
   const workspaceId = await getDefaultWorkspaceId(auth.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  }
+
+ // A database row's body page belongs UNDER the page hosting the database —
+ // that's what the breadcrumb walks. The client minting it (ensureRowPage)
+ // only knows the database id, and a linked view can host the same database
+ // on several pages, so resolve here: prefer the full-page host.
+  if (typeof body?.rowForDatabaseId === "string") {
+    const hosts = await db
+      .select({
+        pageId: blocks.pageId,
+        fullPage: sql<string | null>`${blocks.content}->>'fullPage'`,
+      })
+      .from(blocks)
+      .where(and(eq(blocks.type, "database"), sql`${blocks.content}->>'databaseId' = ${body.rowForDatabaseId}`));
+    const host = hosts.find((h) => h.fullPage === "true") ?? hosts[0];
+    if (host) parentPageId = host.pageId;
   }
 
   const [{ maxPos }] = await db

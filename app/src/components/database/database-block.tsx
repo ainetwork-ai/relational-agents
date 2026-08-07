@@ -491,11 +491,13 @@ export function DatabaseBlock({
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title }),
+ // rowForDatabaseId → the server parents the page under the database's
+ // host page, which is what the full-page breadcrumb walks
+        body: JSON.stringify({ title, rowForDatabaseId: databaseId }),
       });
       if (res.ok) updateRow(row.id, { __page: (await res.json()).page.id as string });
     },
-    [updateRow]
+    [updateRow, databaseId]
   );
 
  // a full-page database's icon is the page's own icon

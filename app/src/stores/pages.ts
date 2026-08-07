@@ -40,6 +40,10 @@ function derive(pages: Record<string, Page>) {
   for (const p of Object.values(pages)) {
     if (p.isFavorite) favorites.push(p);
     const top = isRoot(p, pages);
+ // A database ENTRY's page never renders in the sidebar tree — not at the
+ // root (below) and, now that it is parented under the database's host page
+ // for the breadcrumb's sake, not as that page's child either.
+    if ((p as PageRow).isRow) continue;
  // A teamspace's rows are its TOP-LEVEL pages; deeper ones already appear
  // nested under their parent, so listing them here too would duplicate them.
     if (p.teamspaceId && top) {

@@ -288,7 +288,7 @@ export function PageView({
             </span>
           </div>
         ) : (
-          <Breadcrumbs pageId={initialPage.id} />
+          <Breadcrumbs pageId={initialPage.id} current={page} />
         )}
         <div className="flex items-center gap-1">
         <PresenceBar self={self} others={others} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
 import { Sparkles, FileText, Table2, ClipboardList, LayoutTemplate } from "lucide-react";
 import type { BlockType } from "@/lib/db/schema";
 
@@ -57,8 +58,57 @@ export function EmptyPageStarter({
   onPick: (type: BlockType, preset?: Record<string, unknown>) => void;
   onTemplates: () => void;
 }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [top, setTop] = useState<number | null>(null);
+
+ // The original pins this menu to the BOTTOM of the visible area, not under
+ // the first line (page_add_popup.html: `top: calc(-442px + 100vh)` with
+ // `padding-bottom: min(48px, 5vh)`). Its 100vh math assumes the layout
+ // starts at the viewport top; ours starts wherever the title block ends —
+ // and in a peek the visible bottom is the panel's, not the window's — so
+ // measure instead: bottom of the nearest scroller, minus the padding,
+ // minus this menu's own height, expressed in the editor's coordinates.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const host = el.offsetParent as HTMLElement | null; // editor-root (relative)
+    if (!host) return;
+    const update = () => {
+      let sc: HTMLElement | null = host;
+      while (sc && sc !== document.body) {
+        const o = getComputedStyle(sc).overflowY;
+        if (o === "auto" || o === "scroll") break;
+        sc = sc.parentElement;
+      }
+      const visibleBottom =
+        sc && sc !== document.body
+          ? sc.getBoundingClientRect().top + sc.clientHeight
+          : window.innerHeight;
+      const pad = Math.min(48, window.innerHeight * 0.05);
+      const t = visibleBottom - pad - el.offsetHeight - host.getBoundingClientRect().top;
+      setTop(Math.max(0, Math.round(t)));
+    };
+    update();
+    window.addEventListener("resize", update);
+    const ro = new ResizeObserver(update);
+    ro.observe(host);
+ // the content column above (title/cover) growing moves the editor down
+    if (host.parentElement) ro.observe(host.parentElement);
+    return () => {
+      window.removeEventListener("resize", update);
+      ro.disconnect();
+    };
+  }, []);
+
   return (
-    <div data-testid="empty-page-starter" role="menu" aria-label="시작하기" className="mt-1">
+    <div
+      ref={ref}
+      data-testid="empty-page-starter"
+      role="menu"
+      aria-label="시작하기"
+      className="absolute inset-x-0 transition-[top] duration-200"
+      style={top === null ? { visibility: "hidden", top: 0 } : { top }}
+    >
       <p className="px-1 pb-1.5 text-sm font-medium text-neutral-400">시작하기</p>
       <div className="flex flex-wrap gap-2">
         {ITEMS.map((item) => {

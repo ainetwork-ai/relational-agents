@@ -9,8 +9,10 @@ import type { Page } from "@/lib/db/schema";
 import { pageLabel, type PageRow } from "@/lib/page-label";
 import { PageIcon } from "@/components/page-icon";
 
-/** Page ancestry chain (Home › Parent › … › Current), shown in the page header. */
-export function Breadcrumbs({ pageId }: { pageId: string }) {
+/** Page ancestry chain (Home › Parent › … › Current), shown in the page header.
+ *  `current` is the SSR page record — the fallback start of the chain when the
+ *  store hasn't picked the page up yet (a row's body page minted this session). */
+export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Page }) {
   const pages = usePagesStore((s) => s.pages);
   const teamspaces = useTeamspacesStore((s) => s.list);
   const loadTeamspaces = useTeamspacesStore((s) => s.load);
@@ -23,7 +25,7 @@ export function Breadcrumbs({ pageId }: { pageId: string }) {
  // walk up parentPageId to the root, guarding against cycles
   const chain: { id: string; title: string; icon: string | null }[] = [];
   const seen = new Set<string>();
-  let cur: Page | undefined = pages[pageId];
+  let cur: Page | undefined = pages[pageId] ?? current;
   let rootPage: Page | undefined;
   while (cur && !seen.has(cur.id)) {
     seen.add(cur.id);
