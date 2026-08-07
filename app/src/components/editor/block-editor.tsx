@@ -1469,6 +1469,58 @@ export const BlockEditor = forwardRef<
     clearSelection();
   }, [mutate, positionAfter, visualOrder, clearSelection]);
 
+ // A drag that crosses a block boundary becomes BLOCK selection, live, the
+ // way the original does it. This can't ride on the native selection: every
+ // block is its own contenteditable, and the browser CLAMPS a selection to
+ // the editable the drag started in — dragging over several blocks selected
+ // nothing beyond the first, and Backspace silently did nothing.
+  const onEditorMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      const t = e.target as HTMLElement;
+ // buttons, checkboxes and the drag grip keep their own gestures
+      if (t.closest("button, input, textarea, [draggable='true']")) return;
+ // a row peek nests another editor inside a database block — each editor
+ // only converts drags over its OWN blocks (the event bubbles to both)
+      if (t.closest('[data-testid="editor-root"]') !== e.currentTarget) return;
+      const root = e.currentTarget as HTMLElement;
+      const tid = t.closest("[data-block-type]")?.getAttribute("data-testid");
+      if (!tid?.startsWith("block-")) return;
+      const anchor = tid.slice("block-".length);
+      let active = false;
+      const onMove = (ev: MouseEvent) => {
+        const overEl = document
+          .elementFromPoint(ev.clientX, ev.clientY)
+          ?.closest?.("[data-block-type]");
+        const overTid =
+          overEl && overEl.closest('[data-testid="editor-root"]') === root
+            ? overEl.getAttribute("data-testid")
+            : null;
+        const over = overTid?.startsWith("block-") ? overTid.slice("block-".length) : null;
+        if (!active && (!over || over === anchor)) return;
+        if (!active) {
+          active = true;
+          (document.activeElement as HTMLElement | null)?.blur?.();
+        }
+ // once block selection is live, the pointer drives the focus edge; off
+ // any block (margins) the last range simply holds
+        if (!over) return;
+        window.getSelection()?.removeAllRanges();
+        selAnchorRef.current = anchor;
+        selFocusRef.current = over;
+        setSelectedIds(rangeIds(anchor, over));
+        ev.preventDefault();
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [rangeIds]
+  );
+
  // In selection mode the caret is blurred, so keys are handled at the window.
   useEffect(() => {
     if (selectedIds.size === 0) return;
@@ -1697,6 +1749,28 @@ export const BlockEditor = forwardRef<
         return;
       }
 
+ // Ctrl/Cmd+A: the first press keeps the browser default (select this
+ // block's text). Once that covers the whole block — or the block is
+ // empty — the next press escalates to selecting EVERY block, as the
+ // original does; Backspace then deletes them via selection mode.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+        const sel = window.getSelection();
+        const whole = (el.textContent ?? "").trim();
+        const covered = whole === "" || (sel?.toString().trim() ?? "") === whole;
+        if (covered) {
+          e.preventDefault();
+          const order = visualOrder();
+          if (order.length) {
+            el.blur();
+            sel?.removeAllRanges();
+            selAnchorRef.current = order[0];
+            selFocusRef.current = order[order.length - 1];
+            setSelectedIds(new Set(order));
+          }
+          return;
+        }
+      }
+
       if (e.key === "/" && !slash) {
         const rect = caretRect() ?? el.getBoundingClientRect();
         setSlash({
@@ -1757,7 +1831,7 @@ export const BlockEditor = forwardRef<
         }
       }
     },
-    [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock]
+    [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock, visualOrder]
   );
 
   const onCompositionStart = useCallback(() => {
@@ -2272,6 +2346,7 @@ export const BlockEditor = forwardRef<
         data-testid="editor-root"
         data-save-state={saveState}
         className="relative mt-2 min-h-[40vh] pb-8"
+        onMouseDown={onEditorMouseDown}
         onDragOver={(e) => {
  // OS file drag → allow dropping (else the browser navigates away)
           if (e.dataTransfer.types.includes("Files")) e.preventDefault();
