@@ -487,7 +487,12 @@ export function PageView({
               e.preventDefault();
               window.open(href, "_blank", "noopener,noreferrer");
             }}
-            className="mb-3 mt-1.5 max-w-[780px] whitespace-pre-wrap break-words pb-1 pl-3 pt-[3px] text-sm leading-[1.5] text-neutral-800 outline-none dark:text-neutral-200"
+ // -ml-9 + pl-2, not pl-3: the description's text starts where the table's
+ // first-column CONTENT starts (the original keeps these two flush). The
+ // database block below takes the same -ml-9 back to the table edge, and a
+ // cell insets its content 8px — so the description does exactly that too.
+ // pl-3 measured it from the TEXT column instead, which put it 40px adrift.
+            className="-ml-9 mb-3 mt-1.5 max-w-[780px] whitespace-pre-wrap break-words pb-1 pl-2 pt-[3px] text-sm leading-[1.5] text-neutral-800 outline-none dark:text-neutral-200"
           />
         )}
 
