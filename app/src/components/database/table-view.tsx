@@ -1304,7 +1304,10 @@ function ColumnHeader({
   const [draft, setDraft] = useState(prop.name);
   const ref = useRef<HTMLDivElement>(null);
 
-  useDismiss(open, () => setOpen(false), ref);
+ // headerPop too: the menu is portalled, so it is NOT a descendant of ref —
+ // without it, mousedown on any menu item counted as an outside click and
+ // closed the menu before the item's onClick could arrive (Rename did nothing)
+  useDismiss(open, () => setOpen(false), ref, headerPop);
 
   function sortBy(dir: "asc" | "desc") {
     db.patchView({ ...view.config, sorts: [{ propertyId: prop.id, dir }] });
