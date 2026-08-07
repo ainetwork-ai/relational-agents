@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon, ChevronDown, FileText } from "lucide-react";
+import { Table2, KanbanSquare, List as ListIcon, LayoutGrid, LayoutDashboard, BarChart3, Plus, Maximize, Link as LinkIcon, ChevronDown, ChevronRight, FileText, Pencil, Paintbrush, SlidersHorizontal, Database as DatabaseGlyph, Copy as CopyIcon, Trash2, CalendarDays } from "lucide-react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -51,6 +51,53 @@ import { RowPeek } from "./row-peek";
 export { DbCtx, useDb } from "./db-context";
 export type { DbApi } from "./db-context";
 import { DbCtx, useDb, type DbApi } from "./db-context";
+
+/** One row of the view tab's menu, in the original's proportions: a 28px row
+ *  inset 4px from the panel edge, 8px inner padding, 6px radius, a 20px icon
+ *  slot and a 14px label. `soon` marks what this app cannot do yet — rendered
+ *  disabled with the reason as the tooltip, like the 시작하기 row. */
+function TabMenuItem({
+  testid,
+  icon,
+  label,
+  onClick,
+  soon,
+  right,
+}: {
+  testid: string;
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  soon?: string;
+  right?: React.ReactNode;
+}) {
+  const disabled = !onClick;
+  return (
+    <button
+      role="menuitem"
+      data-testid={testid}
+      disabled={disabled}
+      title={soon}
+      aria-disabled={disabled}
+      onClick={onClick}
+      className={`mx-1 flex h-7 items-center gap-2 rounded-md px-2 text-left text-sm ${
+        disabled
+          ? "cursor-not-allowed text-neutral-400 opacity-60 dark:text-neutral-500"
+          : "text-neutral-800 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+      }`}
+    >
+      <span
+        className={`flex w-5 shrink-0 items-center justify-center ${
+          disabled ? "" : "text-neutral-500 dark:text-neutral-400"
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {right}
+    </button>
+  );
+}
 
 /**
  * Expand an inline database into a full page.
@@ -264,6 +311,12 @@ export function DatabaseBlock({
   const viewMenuBtn = useRef<HTMLButtonElement>(null);
   const viewMenuPop = useRef<HTMLDivElement>(null);
   const [tabMenuViewId, setTabMenuViewId] = useState<string | null>(null);
+ // the tab the menu hangs under — set by whichever gesture opened it (clicking
+ // the active tab, or right-clicking any tab, as the original allows)
+  const tabMenuAnchor = useRef<HTMLElement | null>(null);
+  const tabMenuPop = useRef<HTMLDivElement>(null);
+  useAnchored(tabMenuViewId !== null, tabMenuAnchor, tabMenuPop, { align: "start" });
+  useDismiss(tabMenuViewId !== null, () => setTabMenuViewId(null), tabMenuAnchor, tabMenuPop);
   useEffect(() => {
     if (!viewMenuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1014,11 +1067,18 @@ export function DatabaseBlock({
               key={v.id}
               data-testid={`db-view-tab-${v.id}`}
               data-view-type={v.type}
-              onClick={() =>
-                v.id === activeView.id
-                  ? setTabMenuViewId((cur) => (cur === v.id ? null : v.id))
-                  : setActiveViewId(v.id)
-              }
+              onClick={(e) => {
+                if (v.id === activeView.id) {
+                  tabMenuAnchor.current = e.currentTarget;
+                  setTabMenuViewId((cur) => (cur === v.id ? null : v.id));
+                } else setActiveViewId(v.id);
+              }}
+ // right-click opens the same menu on ANY tab, as the original does
+              onContextMenu={(e) => {
+                e.preventDefault();
+                tabMenuAnchor.current = e.currentTarget;
+                setTabMenuViewId((cur) => (cur === v.id ? null : v.id));
+              }}
               onDoubleClick={() => {
                 setViewNameDraft(v.name);
                 setRenamingViewId(v.id);
@@ -1057,53 +1117,114 @@ export function DatabaseBlock({
                   data-testid={`db-view-tabmenu-${v.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    tabMenuAnchor.current = (e.currentTarget as HTMLElement).closest("button");
                     setTabMenuViewId((cur) => (cur === v.id ? null : v.id));
                   }}
                   className="hidden"
                 />
               )}
-              {tabMenuViewId === v.id && (
-                <span
-                  className="popover-anim absolute left-0 top-7 z-50 flex w-36 flex-col rounded-lg border border-neutral-200 bg-white py-1 text-left shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+              {/* The tab's menu, as the original builds it (user-supplied DOM
+                  capture): a 220px dialog under the tab, items in sections
+                  split by hairlines — 이름 바꾸기 / 다음과 같이 표시 / 보기 편집 /
+                  데이터베이스 ‖ 보기 링크 복사 ‖ 보기 복제 / 보기 삭제 ‖ 캘린더에서
+                  관리하기. What this app cannot do yet stays visible but
+                  disabled, with the reason as the tooltip (the 시작하기 row's
+                  rule): dropping rows would misrepresent both this app and
+                  the design being copied. */}
+              {tabMenuViewId === v.id &&
+                createPortal(
+                <div
+                  ref={tabMenuPop}
+                  style={{ visibility: "hidden" }}
+                  data-testid={`db-view-tabmenu-pop-${v.id}`}
+                  role="menu"
+                  className="popover-anim fixed z-50 flex w-[220px] cursor-default flex-col rounded-[10px] border border-neutral-200 bg-white text-left font-normal shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
                   onClick={(e) => e.stopPropagation()}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                 >
-                  <span
-                    role="button"
-                    data-testid={`db-view-rename-${v.id}`}
-                    onClick={() => {
-                      setTabMenuViewId(null);
-                      setViewNameDraft(v.name);
-                      setRenamingViewId(v.id);
-                    }}
-                    className="px-3 py-1 text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                  >
-                    Rename
-                  </span>
-                  <span
-                    role="button"
-                    data-testid={`db-view-duplicate-${v.id}`}
-                    onClick={() => {
-                      setTabMenuViewId(null);
-                      void duplicateView(v.id);
-                    }}
-                    className="px-3 py-1 text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                  >
-                    Duplicate view
-                  </span>
-                  {tabViews.length > 1 && (
-                    <span
-                      role="button"
-                      data-testid={`db-view-delete-${v.id}`}
+                  <div className="flex flex-col py-1">
+                    <TabMenuItem
+                      testid={`db-view-rename-${v.id}`}
+                      icon={<Pencil size={18} />}
+                      label="이름 바꾸기"
                       onClick={() => {
                         setTabMenuViewId(null);
-                        void deleteView(v.id);
+                        setViewNameDraft(v.name);
+                        setRenamingViewId(v.id);
                       }}
-                      className="px-3 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      Delete view
-                    </span>
-                  )}
-                </span>
+                    />
+                    <TabMenuItem
+                      testid={`db-view-showas-${v.id}`}
+                      icon={<Paintbrush size={18} />}
+                      label="다음과 같이 표시"
+                      soon="보기 타입 변경은 아직 없습니다 — +로 새 보기를 추가하세요"
+                      right={<ChevronRight size={14} className="shrink-0 text-neutral-400" />}
+                    />
+                    <TabMenuItem
+                      testid={`db-view-edit-${v.id}`}
+                      icon={<SlidersHorizontal size={18} />}
+                      label="보기 편집"
+                      soon="여기서는 아직 못 엽니다 — 툴바의 보기 설정을 쓰세요"
+                    />
+                    <TabMenuItem
+                      testid={`db-view-source-${v.id}`}
+                      icon={<DatabaseGlyph size={18} />}
+                      label="데이터베이스"
+                      soon="원본 데이터베이스로 이동은 아직 없습니다"
+                      right={
+                        <span className="flex min-w-0 shrink items-center gap-1 text-xs text-neutral-400">
+                          <span className="truncate">{database.title || "제목 없음"}</span>
+                          <ChevronRight size={14} className="shrink-0" />
+                        </span>
+                      }
+                    />
+                  </div>
+                  <div className="flex flex-col border-t border-neutral-100 py-1 dark:border-neutral-700/60">
+                    <TabMenuItem
+                      testid={`db-view-copylink-${v.id}`}
+                      icon={<LinkIcon size={18} />}
+                      label="보기 링크 복사"
+                      soon="보기 링크는 아직 없습니다"
+                    />
+                  </div>
+                  <div className="flex flex-col border-t border-neutral-100 py-1 dark:border-neutral-700/60">
+                    <TabMenuItem
+                      testid={`db-view-duplicate-${v.id}`}
+                      icon={<CopyIcon size={18} />}
+                      label="보기 복제"
+                      onClick={() => {
+                        setTabMenuViewId(null);
+                        void duplicateView(v.id);
+                      }}
+                    />
+                    <TabMenuItem
+                      testid={`db-view-delete-${v.id}`}
+                      icon={<Trash2 size={18} />}
+                      label="보기 삭제"
+                      soon={tabViews.length <= 1 ? "마지막 보기는 삭제할 수 없습니다" : undefined}
+                      onClick={
+                        tabViews.length > 1
+                          ? () => {
+                              setTabMenuViewId(null);
+                              void deleteView(v.id);
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <div className="flex flex-col border-t border-neutral-100 py-1 dark:border-neutral-700/60">
+                    <TabMenuItem
+                      testid={`db-view-calendar-${v.id}`}
+                      icon={<CalendarDays size={18} />}
+                      label="캘린더에서 관리하기"
+                      soon="캘린더 연동은 아직 없습니다"
+                    />
+                  </div>
+                </div>,
+                document.body
               )}
             </button>
             )
