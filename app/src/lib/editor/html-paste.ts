@@ -1,5 +1,14 @@
-// Rich-HTML paste (web pages / Google Docs / Notion) → markdown-ish text that
-// the editor's existing markdown-paste pipeline turns into typed blocks.
+// Rich-HTML paste → blocks.
+//
+// Two sources, two shapes:
+// - Notion (copying inside notion.so puts Notion's LIVE DOM on the clipboard):
+//   `htmlToNotionBlocks` walks that DOM into a TYPED TREE — headings, to-dos
+//   with their checked state, toggles, callouts with icons, tables, nesting.
+// - anything else (web pages / Google Docs): `htmlToMarkdownish` flattens tags
+//   to markdown-ish text for the editor's markdown-paste pipeline.
+
+import type { BlockType, BlockContent } from "@/lib/db/schema";
+import { mdInlineToHtml, mdInlinePlain } from "@/lib/memory-parse";
 
 function inline(el: Node): string {
   if (el.nodeType === Node.TEXT_NODE) return el.textContent ?? "";
@@ -31,7 +40,9 @@ function inline(el: Node): string {
   }
 }
 
-function walk(el: Element, out: string[], listPrefix = ""): void {
+// ---- generic web HTML → markdown-ish ---------------------------------------
+
+function walk(el: Element, out: string[]): void {
   for (const node of Array.from(el.children)) {
     const tag = node.tagName;
     if (tag === "H1") out.push(`# ${inline(node)}`);
@@ -50,7 +61,7 @@ function walk(el: Element, out: string[], listPrefix = ""): void {
     else if (tag === "HR") out.push("---");
     else if (tag === "P" || tag === "DIV" || tag === "SECTION" || tag === "ARTICLE") {
  // containers with their own block children recurse; leaves emit a line
-      if (node.querySelector("h1,h2,h3,h4,ul,ol,p,blockquote,pre")) walk(node, out, listPrefix);
+      if (node.querySelector("h1,h2,h3,h4,ul,ol,p,blockquote,pre")) walk(node, out);
       else {
         const t = inline(node).trim();
         if (t) out.push(t);
@@ -69,12 +80,29 @@ function walk(el: Element, out: string[], listPrefix = ""): void {
   }
 }
 
-// ---- Notion ----------------------------------------------------------------
-// Copying inside notion.so puts Notion's LIVE DOM on the clipboard: every
-// block is a `div.notion-selectable.notion-<type>-block`, its text sits in a
-// `[data-content-editable-leaf]`, and child blocks nest INSIDE the parent's
-// div. The generic walker above saw only anonymous divs and flattened whole
-// pages into plain paragraphs — headings, to-dos, callouts, everything.
+/** Convert clipboard HTML to markdown-ish text ("" when nothing structured).
+ * Notion DOM should go through `htmlToNotionBlocks` instead. */
+export function htmlToMarkdownish(html: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const out: string[] = [];
+    walk(doc.body, out);
+    return out.join("\n").trim();
+  } catch {
+    return "";
+  }
+}
+
+// ---- Notion DOM → typed block tree -----------------------------------------
+// Every Notion block is a `div.notion-selectable.notion-<type>-block`, its
+// text sits in a `[data-content-editable-leaf]`, and CHILD blocks nest inside
+// the parent's own div — so depth falls out of the walk.
+
+export interface PastedBlock {
+  type: BlockType;
+  content: BlockContent;
+  depth: number;
+}
 
 const NOTION_BLOCK_SEL = '[class*="notion-selectable"][class*="-block"]';
 
@@ -102,100 +130,152 @@ function ownCheckbox(block: Element): Element | null {
   return null;
 }
 
-/** Walk Notion's DOM emitting one markdown line per block. `consumed` leaves
- * were already folded into an earlier line (a callout's first inner text).
- * Child blocks nest inside their parent's div, so each handled block also
- * recurses — flattened, since the markdown pipeline has no nesting. */
-function walkNotion(el: Element, out: string[], consumed: Set<Element>): void {
+/** inline markdown → {text, html?} the way parseMarkdown stores blocks */
+function typed(type: BlockType, md: string, extra: BlockContent = {}): PastedBlock {
+  const html = mdInlineToHtml(md);
+  const content: BlockContent = html
+    ? { ...extra, html, text: mdInlinePlain(md) }
+    : { ...extra, text: md };
+  return { type, content, depth: 0 };
+}
+
+/** Notion's /image/<encoded upstream url> proxy — decode it; their private
+ * storage needs auth we don't have, so only publicly fetchable hosts pass. */
+function usableImageUrl(src: string | null): string | null {
+  if (!src) return null;
+  let url = src;
+  const m = src.match(/^\/image\/(.+?)(?:\?|$)/);
+  if (m) {
+    try {
+      url = decodeURIComponent(m[1]);
+    } catch {
+      return null;
+    }
+  }
+  if (!/^https?:\/\//.test(url)) return null;
+  if (/notion-static\.com|notionusercontent\.com/.test(url)) return null;
+  return url;
+}
+
+function collectNotion(
+  el: Element,
+  out: PastedBlock[],
+  depth: number,
+  consumed: Set<Element>
+): void {
   for (const node of Array.from(el.children)) {
     const type = notionType(node);
     if (!type) {
-      walkNotion(node, out, consumed);
+      collectNotion(node, out, depth, consumed);
       continue;
     }
     const leaf = ownLeaf(node);
-    const text = leaf && !consumed.has(leaf) ? inline(leaf).replace(/\s+/g, " ").trim() : "";
+    const md = leaf && !consumed.has(leaf) ? inline(leaf).replace(/\s+/g, " ").trim() : "";
+    let emitted: PastedBlock | null = null;
     switch (type) {
- // a nested page block's OWN line is its h1 title; pasted with noTitle it
- // stays a heading block rather than becoming the page title
+ // a page block's own line is its title; pasting keeps it a heading block
       case "page":
       case "header":
-        if (text) out.push(`# ${text}`);
+        if (md) emitted = typed("heading1", md);
         break;
       case "sub_header":
-        if (text) out.push(`## ${text}`);
+        if (md) emitted = typed("heading2", md);
         break;
       case "sub_sub_header":
-        if (text) out.push(`### ${text}`);
+        if (md) emitted = typed("heading3", md);
         break;
       case "to_do": {
         const checked = ownCheckbox(node)?.hasAttribute("checked") ?? false;
-        if (text) out.push(`- [${checked ? "x" : " "}] ${text}`);
+        if (md) emitted = typed("todo", md, { checked });
         break;
       }
       case "bulleted_list":
-        if (text) out.push(`- ${text}`);
+        if (md) emitted = typed("bulleted_list", md);
         break;
       case "numbered_list":
-        if (text) out.push(`1. ${text}`);
+        if (md) emitted = typed("numbered_list", md);
         break;
- // no markdown form for a toggle — its text survives as a bullet
       case "toggle":
-        if (text) out.push(`- ${text}`);
+        if (md) emitted = typed("toggle", md);
         break;
       case "quote":
-        if (text) out.push(`> ${text}`);
+        if (md) emitted = typed("quote", md);
         break;
       case "callout": {
- // `> 💬 text` is the parser's callout form: icon + the callout's FIRST
- // inner text block on one line. That leaf is marked consumed so the
- // recursion below doesn't emit it again; further inner blocks become
- // their own lines.
+ // icon + the callout's FIRST inner text block become the callout itself;
+ // that leaf is marked consumed so the recursion below nests the REST of
+ // the callout's blocks as its children instead of repeating the first.
         const icon =
           node.querySelector(".notion-record-icon")?.textContent?.trim() || "💡";
         const inner = Array.from(node.querySelectorAll("[data-content-editable-leaf]")).find(
           (l) => l.parentElement?.closest(NOTION_BLOCK_SEL) !== node
         );
-        const first = inner ? inline(inner).replace(/\s+/g, " ").trim() : text;
-        if (first || icon) out.push(`> ${icon} ${first}`.trimEnd());
+        const first = inner ? inline(inner).replace(/\s+/g, " ").trim() : md;
+        emitted = typed("callout", first, { icon });
         if (inner) consumed.add(inner);
         break;
       }
       case "code":
-        out.push("```", node.textContent ?? "", "```");
+        emitted = {
+          type: "code",
+          content: { text: node.textContent ?? "", language: "plain" },
+          depth: 0,
+        };
         break;
       case "divider":
-        out.push("---");
+        emitted = { type: "divider", content: {}, depth: 0 };
         break;
-      case "table":
+      case "table": {
+ // Notion's simple table renders a real <table>
+        const t = node.querySelector("table");
+        if (t) {
+          const cells = Array.from(t.querySelectorAll("tr")).map((tr) =>
+            Array.from(tr.children).map((c) => (c.textContent ?? "").trim())
+          );
+          if (cells.length)
+            emitted = {
+              type: "table",
+              content: { table: { cells, headerRow: !!t.querySelector("th") } },
+              depth: 0,
+            };
+        }
+        out.push(...(emitted ? [{ ...emitted, depth }] : []));
+        continue; // never walk INTO a table looking for blocks
+      }
+      case "image": {
+        const url = usableImageUrl(node.querySelector("img")?.getAttribute("src") ?? null);
+        if (url) emitted = { type: "image", content: { url, text: "" }, depth: 0 };
+        break;
+      }
+ // database views need a real database + rows on our side — a paste can't
+ // create one faithfully, so these drop rather than leave broken shells
       case "collection_view":
       case "collection_view_page":
-      case "image":
- // no faithful markdown form from the DOM — drop rather than emit garbage
-        break;
+        continue;
       default:
-        if (text) out.push(text);
+        if (md) emitted = typed("paragraph", md);
     }
-    walkNotion(node, out, consumed);
+    if (emitted) out.push({ ...emitted, depth });
+ // child blocks nest inside the parent's div; they belong UNDER the line we
+ // just emitted (or at this level, when the block itself contributed none)
+    collectNotion(node, out, emitted ? depth + 1 : depth, consumed);
   }
 }
 
-/** Convert clipboard HTML to markdown-ish text ("" when nothing structured). */
-export function htmlToMarkdownish(html: string): string {
+/** Notion clipboard DOM → typed tree; null when the HTML is not Notion's. */
+export function htmlToNotionBlocks(html: string): PastedBlock[] | null {
   try {
+    if (!html.includes("notion-selectable")) return null;
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const out: string[] = [];
-    if (doc.querySelector(NOTION_BLOCK_SEL)) {
+    if (!doc.querySelector(NOTION_BLOCK_SEL)) return null;
  // whole-page copies drag Notion's chrome along — and every sidebar row is
  // itself a notion-page-block. <main> holds just the page (title + body);
  // partial-selection copies have no <main> and no chrome, so body is safe.
-      const scope = doc.querySelector("main") ?? doc.body;
-      walkNotion(scope, out, new Set());
-    } else {
-      walk(doc.body, out);
-    }
-    return out.join("\n").trim();
+    const scope = doc.querySelector("main") ?? doc.body;
+    const out: PastedBlock[] = [];
+    collectNotion(scope, out, 0, new Set());
+    return out;
   } catch {
-    return "";
+    return null;
   }
 }

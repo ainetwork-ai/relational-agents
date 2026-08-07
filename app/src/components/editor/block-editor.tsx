@@ -19,7 +19,7 @@ import type { Block, BlockContent, BlockType, ButtonAction, TableData } from "@/
 import { MARKDOWN_SHORTCUTS, TEXT_TYPES } from "@/lib/editor/block-defs";
 import { caretOffset, caretRect, setCaret } from "@/lib/editor/caret";
 import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
-import { htmlToMarkdownish } from "@/lib/editor/html-paste";
+import { htmlToMarkdownish, htmlToNotionBlocks } from "@/lib/editor/html-paste";
 import { newId } from "@/lib/compat";
 import { sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
@@ -1215,6 +1215,61 @@ export const BlockEditor = forwardRef<
  // structure to markdown and reuse the markdown pipeline below
       const htmlClip = cd.getData("text/html");
       if (htmlClip) {
+ // Notion's clipboard DOM converts to a typed TREE: toggles keep their
+ // type and nested blocks keep their parents — structure the flat
+ // markdown pipeline below cannot carry.
+        const tree = htmlToNotionBlocks(htmlClip);
+        if (tree && tree.length) {
+          e.preventDefault();
+          mutate((prev) => {
+            const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
+            const cur = next.find((b) => b.id === id);
+            if (!cur) return prev;
+            const rootParent = cur.parentBlockId ?? null;
+            const lastAt: EBlock[] = [];
+            let anchorTop: EBlock = cur;
+            let start = 0;
+ // an empty target block becomes the first pasted block (no blank lead)
+            if (normalize(el).trim() === "" && cur.type === "paragraph" && tree[0].depth === 0) {
+              cur.type = tree[0].type;
+              cur.content = { ...tree[0].content };
+              cur.version++;
+              lastAt[0] = cur;
+              start = 1;
+            }
+            for (let k = start; k < tree.length; k++) {
+              const pb = tree[k];
+ // clamp: a child can only hang off a block that actually got emitted
+              const d = Math.min(pb.depth, lastAt.length);
+              let parentBlockId: string | null;
+              let position: number;
+              if (d === 0) {
+                parentBlockId = rootParent;
+                position = positionAfter(next, anchorTop);
+              } else {
+                const parent = lastAt[d - 1];
+                parentBlockId = parent.id;
+                position =
+                  Math.max(0, ...next.filter((b) => b.parentBlockId === parent.id).map((b) => b.position)) + 1;
+              }
+              const nb: EBlock = {
+                id: newId(),
+                type: pb.type,
+                content: { ...pb.content },
+                parentBlockId,
+                position,
+                version: 0,
+              };
+              next.push(nb);
+              lastAt.length = d + 1;
+              lastAt[d] = nb;
+              if (d === 0) anchorTop = nb;
+            }
+            pendingFocus.current = { id: anchorTop.id, pos: "end" };
+            return next;
+          });
+          return;
+        }
         const md = htmlToMarkdownish(htmlClip);
         if (md && looksLikeMarkdown(md)) text = md;
       }

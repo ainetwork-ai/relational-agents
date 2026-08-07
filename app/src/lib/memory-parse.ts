@@ -73,7 +73,7 @@ export function mdInlineToHtml(text: string): string | undefined {
 }
 
 /** Strip inline markers for the plain-text mirror. */
-function mdInlinePlain(text: string): string {
+export function mdInlinePlain(text: string): string {
   return text
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
