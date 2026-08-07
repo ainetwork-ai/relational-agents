@@ -5,6 +5,7 @@ import type { Block, Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { useDebounced } from "@/hooks/use-debounced";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { IconPicker } from "./icon-picker";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { SharePopover } from "./share-popover";
@@ -39,6 +40,7 @@ export function PageView({
    *  "추가 대상 🏠 <parent>" — and gains a ✕. */
   peek?: { parent: Page | null; onClose: () => void };
 }) {
+  const router = useRouter();
   const storePage = usePagesStore((s) => s.pages[initialPage.id]);
   const updatePage = usePagesStore((s) => s.updatePage);
   const openComments = useCommentUi((s) => s.open);
@@ -235,7 +237,20 @@ export function PageView({
           <div className="flex min-w-0 items-center">
             <Link
               href={`/p/${initialPage.id}`}
-              onClick={peek.onClose}
+ // NO prefetch: the Link would prefetch this route the moment the peek
+ // opens — before anything was typed — and the click then rendered that
+ // stale snapshot: an Untitled page without the content just written.
+              prefetch={false}
+              onClick={(e) => {
+ // the title save is debounced 300ms; expanding right after typing let
+ // the full page SSR read the OLD title. Land the save, then navigate.
+                e.preventDefault();
+                saveTitle.cancel();
+                peek.onClose();
+                void updatePage(initialPage.id, { title }).then(() => {
+                  router.push(`/p/${initialPage.id}`);
+                });
+              }}
               data-testid="peek-open-full"
               aria-label="전체 페이지로 열기"
               data-tip="전체 페이지로 열기"

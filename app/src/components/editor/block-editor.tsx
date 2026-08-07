@@ -395,6 +395,18 @@ export const BlockEditor = forwardRef<
  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+ // flush on unmount: expanding a peek to the full page (or any client-side
+ // navigation) inside the 500ms save window otherwise let the destination's
+ // SSR read the page WITHOUT the edits just made.
+  useEffect(
+    () => () => {
+      if (dirtyRef.current) save.flush(blocksRef.current);
+    },
+ // save is stable (useMemo on ms); refs carry the latest state
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
  // crash recovery: a local draft newer than this mount means edits never
  // reached the server (tab closed while offline) — restore and resave it
   useEffect(() => {
@@ -1485,8 +1497,13 @@ export const BlockEditor = forwardRef<
       if (t.closest('[data-testid="editor-root"]') !== e.currentTarget) return;
       const root = e.currentTarget as HTMLElement;
       const tid = t.closest("[data-block-type]")?.getAttribute("data-testid");
-      if (!tid?.startsWith("block-")) return;
-      const anchor = tid.slice("block-".length);
+ // no anchor yet is fine: a drag can start in the empty space below the
+ // last block (the usual bottom-up sweep) — the first block the pointer
+ // enters becomes the anchor
+      let anchor: string | null = tid?.startsWith("block-")
+        ? tid.slice("block-".length)
+        : null;
+      const startedOnBlock = anchor !== null;
       let active = false;
       const onMove = (ev: MouseEvent) => {
         const overEl = document
@@ -1497,7 +1514,9 @@ export const BlockEditor = forwardRef<
             ? overEl.getAttribute("data-testid")
             : null;
         const over = overTid?.startsWith("block-") ? overTid.slice("block-".length) : null;
-        if (!active && (!over || over === anchor)) return;
+ // within the starting block, native text selection stays in charge
+        if (!active && startedOnBlock && (!over || over === anchor)) return;
+        if (!over && !active) return;
         if (!active) {
           active = true;
           (document.activeElement as HTMLElement | null)?.blur?.();
@@ -1505,6 +1524,7 @@ export const BlockEditor = forwardRef<
  // once block selection is live, the pointer drives the focus edge; off
  // any block (margins) the last range simply holds
         if (!over) return;
+        anchor ??= over;
         window.getSelection()?.removeAllRanges();
         selAnchorRef.current = anchor;
         selFocusRef.current = over;
