@@ -105,7 +105,13 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
             handles along with its child, and a row peek — which renders inside
             the database block — showed handles on all of its lines at once.
             This keys off the nearest block instead: hovered, and not
-            containing another hovered block. */}
+            containing another hovered block.
+
+            A full-page database gets no gutter at all: it IS the page, not a
+            line you can reorder or add below, and Notion shows nothing there.
+            It is also the one block that reclaims the page's left inset
+            (-ml-9), so these controls landed ON its view tabs. */}
+        {!(block.type === "database" && (block.content as { fullPage?: boolean }).fullPage === true) && (
         <div
           className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
           style={{ left: depth * 24 - 40 }} /* hug the block */
@@ -121,6 +127,7 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
           </button>
           <BlockHandle block={block} />
         </div>
+        )}
 
         <BlockCommentAnchor blockId={block.id}>
           <BlockBody block={block} depth={depth} />
