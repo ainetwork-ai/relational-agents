@@ -353,8 +353,14 @@ export function PageView({
  // padding edge 366). The 44 is applied here and the editor takes 36 back.
             ? "max-w-none px-24 pl-[calc(6rem+44px)]"
             : page.fullWidth
-              ? "max-w-[1500px] px-16"
-              : "max-w-[calc(708px+8rem)] px-16"
+ // 전체 너비 in the original: no width cap, the same 96px inset every page
+ // carries (measured off the user's capture: 1521px blocks in a 1728px
+ // window = 2×96 + scrollbar). We had a 1500px cap and 64px insets.
+              ? "max-w-none px-24"
+ // a default page: 708px of content inside the 96px insets. px-16 made our
+ // text column wider than the original's whenever the window was narrow
+ // enough for the margins to touch.
+              : "max-w-[calc(708px+12rem)] px-24"
         }`}
       >
         {/* icon first so its -mt-9 really overlaps the cover,
