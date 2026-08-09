@@ -55,10 +55,11 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   }
 
   const isDrop = editor.dropTarget?.id === block.id;
- // Toggle manages its own children (gated by expand); every other block
- // renders its indented children here so Tab-nesting works for all types.
+ // Toggle manages its own children (gated by expand) and callout draws them
+ // inside its colored box; every other block renders its indented children
+ // here so Tab-nesting works for all types.
   const nestedChildren =
-    block.type === "toggle" ? [] : editor.childrenOf(block.id);
+    block.type === "toggle" || block.type === "callout" ? [] : editor.childrenOf(block.id);
 
   return (
     <div
@@ -233,7 +234,9 @@ function FileBlockBody({ block }: { block: EBlock }) {
       data-testid={`file-drop-${block.id}`}
       className="my-0.5 flex w-full cursor-pointer items-center gap-2 rounded-md border border-dashed border-neutral-200 px-2 py-2 text-sm text-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
     >
-      📎 Upload a file…
+      {/* a paste can carry a file's NAME without a fetchable url (Notion
+          attachments live behind their auth) — keep the name visible */}
+      📎 {block.content.text ? `${block.content.text} — upload again…` : "Upload a file…"}
       <input
         data-testid={`file-input-${block.id}`}
         type="file"
@@ -600,13 +603,18 @@ const calloutBg = (color?: string) =>
   (CALLOUT_COLORS.find((c) => c.name === color) ?? CALLOUT_COLORS[0]).bg;
 
 /** Callout: a pickable emoji icon (any emoji, via the full IconPicker) + a
- * background color (was a hardcoded 💡 on neutral). */
+ * background color (was a hardcoded 💡 on neutral). Child blocks render
+ * INSIDE the colored box, under the first line — the way Notion draws a
+ * multi-block callout. An explicit `icon: null` means "no icon" (Notion
+ * callouts can drop theirs); only a missing key falls back to 💡. */
 function CalloutBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [colorOpen, setColorOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const icon = (block.content.icon as string | null | undefined) ?? "💡";
+  const icon =
+    block.content.icon === null ? null : ((block.content.icon as string | undefined) ?? "💡");
   const color = (block.content.color as string) ?? "default";
+  const children = editor.childrenOf(block.id);
 
  // dismiss:manual — the callout's colour menu is `absolute` inside `ref`, not
  // portalled, so a click on it really is inside the ref. (The block menu above
@@ -624,17 +632,20 @@ function CalloutBlock({ block }: { block: EBlock }) {
     <div
       data-testid={`callout-${block.id}`}
       data-color={color}
-      className={`group/callout relative my-1 flex w-full items-start gap-2.5 rounded-md px-3.5 py-3 ${calloutBg(color)}`}
+      className={`group/callout relative my-1 w-full rounded-md px-3.5 py-3 ${calloutBg(color)}`}
     >
-      <IconPicker
-        icon={icon}
-        onChange={(v) => editor.setImageMeta(block.id, { icon: v ?? "💡" })}
-        testid={`callout-icon-${block.id}`}
-        pickerTestid={`callout-icon-picker-${block.id}`}
-        triggerClassName="shrink-0 select-none rounded p-0.5 text-lg leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-        placeholder="💡"
-        allowRemove={false}
-      />
+      <div className="flex w-full items-start gap-2.5">
+      {icon !== null && (
+        <IconPicker
+          icon={icon}
+          onChange={(v) => editor.setImageMeta(block.id, { icon: v ?? "💡" })}
+          testid={`callout-icon-${block.id}`}
+          pickerTestid={`callout-icon-picker-${block.id}`}
+          triggerClassName="shrink-0 select-none rounded p-0.5 text-lg leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+          placeholder="💡"
+          allowRemove={false}
+        />
+      )}
       <Editable
         block={block}
         className="flex-1 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
@@ -671,6 +682,17 @@ function CalloutBlock({ block }: { block: EBlock }) {
           </div>
         )}
       </div>
+      </div>
+      {children.length > 0 && (
+ // children start where the first line's text starts (past the icon column);
+ // depth resets to 0 — a BlockRow pads itself by depth*24, and the box's own
+ // position already carries the callout's depth
+        <div style={{ marginLeft: icon !== null ? 38 : 0 }}>
+          {children.map((c) => (
+            <BlockRow key={c.id} block={c} depth={0} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

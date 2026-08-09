@@ -20,6 +20,7 @@ import { MARKDOWN_SHORTCUTS, TEXT_TYPES } from "@/lib/editor/block-defs";
 import { caretOffset, caretRect, setCaret } from "@/lib/editor/caret";
 import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
 import { htmlToMarkdownish, htmlToNotionBlocks } from "@/lib/editor/html-paste";
+import { notionClipboardToBlocks } from "@/lib/editor/notion-clipboard";
 import { newId } from "@/lib/compat";
 import { sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
@@ -1226,11 +1227,19 @@ export const BlockEditor = forwardRef<
  // 1.5) rich HTML from outside (web / Google Docs): convert the block
  // structure to markdown and reuse the markdown pipeline below
       const htmlClip = cd.getData("text/html");
-      if (htmlClip) {
- // Notion's clipboard DOM converts to a typed TREE: toggles keep their
- // type and nested blocks keep their parents — structure the flat
- // markdown pipeline below cannot carry.
-        const tree = htmlToNotionBlocks(htmlClip);
+      {
+ // Notion's clipboard converts to a typed TREE: toggles keep their type
+ // and nested blocks keep their parents — structure the flat markdown
+ // pipeline below cannot carry. The `text/_notion-blocks-v3-*` payload is
+ // the real block records (icons, colors, checked, bold runs, collapsed
+ // toggle children) and always beats the lossy HTML flavor; the HTML
+ // walker still covers older notion.so DOM-on-clipboard copies.
+        const notionType = Array.from(cd.types ?? []).find((t) =>
+          t.startsWith("text/_notion-blocks-")
+        );
+        const tree =
+          (notionType ? notionClipboardToBlocks(cd.getData(notionType)) : null) ??
+          (htmlClip ? htmlToNotionBlocks(htmlClip) : null);
         if (tree && tree.length) {
           e.preventDefault();
           mutate((prev) => {
@@ -1282,8 +1291,10 @@ export const BlockEditor = forwardRef<
           });
           return;
         }
-        const md = htmlToMarkdownish(htmlClip);
-        if (md && looksLikeMarkdown(md)) text = md;
+        if (htmlClip) {
+          const md = htmlToMarkdownish(htmlClip);
+          if (md && looksLikeMarkdown(md)) text = md;
+        }
       }
       if (!text) {
  // rich HTML we could not convert must NOT fall through to the browser
