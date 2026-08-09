@@ -16,7 +16,9 @@
 //
 // 페이로드가 없으면(캡처는 커밋되지 않는다) 측정 불가로 exit 1 — 추론으로 메우지
 // 않는다. 다시 뜨는 법: docs/notion-golden-set.md 절차로 원본을 열고
-// scratchpad 의 capture-clipboard 스크립트를 돌리거나, 사람이 복사해서 채운다.
+//   node scratchpad/capture-clipboard.mjs docs/notion-clip-flow-page   # Cmd+A×2 복사 캡처
+//   node scratchpad/probe-paste-types.mjs docs/notion-clip-flow-page   # paste 이벤트 4종 MIME
+// 를 돌리거나, 사람이 복사해서 채운다.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
