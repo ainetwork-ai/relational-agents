@@ -78,6 +78,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/db-hover-scope.check.mjs` | 호버 시 켜지는 셀이 포인터가 있는 하나뿐인지 |
 | `node e2e/sidebar-row.check.mjs` | 사이드바 행의 호버 버튼과 ⋯ 메뉴 |
 | `node e2e/notion-paste.check.mjs` | 노션 전체 복사 → 붙여넣기 (콜아웃·토글·볼드 런·체크·중첩·저장까지) |
+| `node e2e/peek-inset.check.mjs` | 행 피크(사이드 페이지)의 폭 규칙과 콘텐츠 여백 76px |
 | `pnpm check:dismiss` | 포털 팝오버가 바깥클릭 감지를 직접 짜고 있지 않은지 |
 
 `e2e/*.check.mjs` 는 dev 서버(3110)와 dev DB 를 쓰고, 세션 쿠키를 직접 만들어 붙는다.

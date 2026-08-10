@@ -23,8 +23,10 @@ import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { usePagesStore } from "@/stores/pages";
 
-const MIN_WIDTH = 420;
-const DEFAULT_FRACTION = 0.51; // what the capture's 861px is of its window
+// 2026-08-10 원본 실측(Projects 행 피크, 창 1000/1200/1500/1800): 피크 폭은
+// 정확히 창의 50%, 바닥은 564px (창 1000에서 564가 나왔다).
+const MIN_WIDTH = 564;
+const DEFAULT_FRACTION = 0.5;
 
 /** How many properties sit above the body rather than in the 속성 panel. The
  *  original pins four (TL · Assignee · End date · Evaluation). */
@@ -303,7 +305,9 @@ export function RowPeek({
               onSet={(url) => updatePage(bodyPageId, { coverUrl: url })}
             />
           )}
-          <div className="group/peekhead px-10">
+          {/* 본문 인셋: 원본은 피크 폭과 무관하게 좌우 76px 고정 (창
+              1000~1800 실측 전부 76 — 우측의 +16 은 에뮬레이션 스크롤바였다) */}
+          <div className="group/peekhead px-[76px]">
             {page?.icon && bodyPageId && (
               <div className={page.coverUrl ? "-mt-8" : "pt-8"}>
                 <IconPicker
