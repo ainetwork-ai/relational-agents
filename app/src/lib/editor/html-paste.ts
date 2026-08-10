@@ -9,6 +9,7 @@
 
 import type { BlockType, BlockContent } from "@/lib/db/schema";
 import { mdInlineToHtml, mdInlinePlain } from "@/lib/memory-parse";
+import { firstGlyphs, isEmojiGlyph } from "@/lib/glyph";
 
 function inline(el: Node): string {
   if (el.nodeType === Node.TEXT_NODE) return el.textContent ?? "";
@@ -259,6 +260,159 @@ function collectNotion(
  // child blocks nest inside the parent's div; they belong UNDER the line we
  // just emitted (or at this level, when the block itself contributed none)
     collectNotion(node, out, emitted ? depth + 1 : depth, consumed);
+  }
+}
+
+// ---- Notion's markdown-export HTML → typed block tree -----------------------
+// The new Notion (app.notion.com) puts a markdown ROUND-TRIP on text/html —
+// no notion-selectable DOM. When the typed JSON flavor (notion-clipboard.ts)
+// isn't on the DataTransfer (non-Chromium clipboard pipe, some copy paths),
+// this flavor is all we get, and it is lossy in specific, recognizable ways:
+//   · callouts arrive as literal "<aside>" / "</aside>" text lines
+//     (the close marker sometimes rides INSIDE the last list item's text)
+//   · to-dos are list items whose text starts with "[x] " / "[ ] "
+//   · bold that starts or ends on a space leaks literal `**` / `****`
+//   · toggles are plain bullets — the fold is genuinely gone, nothing to restore
+// The document is signed with an HTML comment: `<!-- notionvc: … -->`.
+
+/** strips the `**` runs mdInlineToHtml could not pair — they are serializer
+ * junk, never content, in this flavor. Newlines become <br> (the html side
+ * is what a contenteditable renders; a bare \n collapses). */
+function exportTyped(type: BlockType, md: string, extra: BlockContent = {}): PastedBlock {
+  let html = mdInlineToHtml(md);
+  if (!html && md.includes("\n"))
+    html = md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  html = html?.replace(/\*\*/g, "").replace(/\n/g, "<br>");
+  const text = mdInlinePlain(md).replace(/\*\*/g, "");
+  return { type, content: html ? { ...extra, html, text } : { ...extra, text }, depth: 0 };
+}
+
+const ASIDE_OPEN = /^<aside>\s*/;
+const ASIDE_CLOSE = /\s*<\/aside>\s*$/;
+const TODO_RE = /^\[( |x)\]\s+/i;
+/** a paragraph that IS a single Notion attachment link → its file name */
+const ATTACHMENT_RE = /^\[([^\]]+)\]\(attachment:[^)]*\)$/;
+
+interface ExportCtx {
+  out: PastedBlock[];
+  /** +1 per open callout — content between the markers nests inside it */
+  boost: number;
+}
+
+function exportEmit(ctx: ExportCtx, depth: number, block: PastedBlock): void {
+  ctx.out.push({ ...block, depth: depth + ctx.boost });
+}
+
+/** paragraph-ish text: handle aside markers, files, or a plain paragraph */
+function exportPara(ctx: ExportCtx, depth: number, md: string): void {
+  let t = md.trim();
+  if (!t) return;
+  const open = ASIDE_OPEN.test(t);
+  if (open) {
+    // `<aside>` alone, or `<aside>\n💬` when the callout has an emoji icon
+    const rest = t.replace(ASIDE_OPEN, "").trim();
+    const icon = rest && isEmojiGlyph(firstGlyphs(rest, 1)) ? firstGlyphs(rest, 1) : null;
+    exportEmit(ctx, depth, { type: "callout", content: { text: "", icon }, depth: 0 });
+    ctx.boost++;
+    t = icon ? rest.slice(icon.length).trim() : rest;
+    if (!t) return;
+  }
+  const closes = ASIDE_CLOSE.test(t);
+  if (closes) t = t.replace(ASIDE_CLOSE, "").trim();
+  if (t === "<aside>" || t === "</aside>") t = "";
+  if (t) {
+    const file = t.match(ATTACHMENT_RE);
+    if (file) exportEmit(ctx, depth, { type: "file", content: { text: file[1] }, depth: 0 });
+    else exportEmit(ctx, depth, exportTyped("paragraph", t));
+  }
+  if (closes) ctx.boost = Math.max(0, ctx.boost - 1);
+}
+
+function exportList(ctx: ExportCtx, depth: number, list: Element): void {
+  const ordered = list.tagName === "OL";
+  for (const li of Array.from(list.children).filter((c) => c.tagName === "LI")) {
+    // the item's own line: its first <p>, or the li minus nested lists
+    const ps = Array.from(li.children).filter((c) => c.tagName === "P");
+    let lineMd: string;
+    let rest: Element[];
+    if (ps.length) {
+      lineMd = inline(ps[0]);
+      rest = Array.from(li.children).filter((c) => c !== ps[0]);
+    } else {
+      const clone = li.cloneNode(true) as Element;
+      for (const nested of Array.from(clone.querySelectorAll("ul,ol"))) nested.remove();
+      lineMd = inline(clone);
+      rest = Array.from(li.children).filter((c) => c.tagName === "UL" || c.tagName === "OL");
+    }
+    let t = lineMd.replace(/\s+/g, " ").trim();
+    const closes = ASIDE_CLOSE.test(t);
+    if (closes) t = t.replace(ASIDE_CLOSE, "").trim();
+    const todo = t.match(TODO_RE);
+    if (todo) {
+      exportEmit(ctx, depth, exportTyped("todo", t.replace(TODO_RE, ""), { checked: todo[1].toLowerCase() === "x" }));
+    } else if (t) {
+      exportEmit(ctx, depth, exportTyped(ordered ? "numbered_list" : "bulleted_list", t));
+    }
+    for (const child of rest) exportNode(ctx, depth + 1, child);
+    if (closes) ctx.boost = Math.max(0, ctx.boost - 1);
+  }
+}
+
+function exportNode(ctx: ExportCtx, depth: number, node: Element): void {
+  switch (node.tagName) {
+    case "H1": exportEmit(ctx, depth, exportTyped("heading1", inline(node).trim())); return;
+    case "H2": exportEmit(ctx, depth, exportTyped("heading2", inline(node).trim())); return;
+    case "H3": case "H4": case "H5": case "H6":
+      exportEmit(ctx, depth, exportTyped("heading3", inline(node).trim())); return;
+    case "UL": case "OL": exportList(ctx, depth, node); return;
+    case "P": exportPara(ctx, depth, inline(node).replace(/[ \t]+/g, " ").trim()); return;
+    case "BLOCKQUOTE": exportEmit(ctx, depth, exportTyped("quote", inline(node).trim())); return;
+    case "PRE":
+      exportEmit(ctx, depth, { type: "code", content: { text: node.textContent ?? "", language: "plain" }, depth: 0 });
+      return;
+    case "HR": exportEmit(ctx, depth, { type: "divider", content: {}, depth: 0 }); return;
+    case "TABLE": {
+      const cells = Array.from(node.querySelectorAll("tr")).map((tr) =>
+        Array.from(tr.children).map((c) => (c.textContent ?? "").trim())
+      );
+      if (cells.length)
+        exportEmit(ctx, depth, {
+          type: "table",
+          content: { table: { cells, headerRow: !!node.querySelector("th") } },
+          depth: 0,
+        });
+      return;
+    }
+    case "IMG": {
+      const url = usableImageUrl(node.getAttribute("src"));
+      if (url) exportEmit(ctx, depth, { type: "image", content: { url, text: "" }, depth: 0 });
+      return;
+    }
+    default:
+      for (const child of Array.from(node.children)) exportNode(ctx, depth, child);
+  }
+}
+
+/** Notion's markdown-export HTML → typed tree; null when not that flavor. */
+export function htmlToNotionExportBlocks(html: string): PastedBlock[] | null {
+  try {
+    if (!html.includes("notionvc:")) return null;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const ctx: ExportCtx = { out: [], boost: 0 };
+    for (const child of Array.from(doc.body.children)) exportNode(ctx, 0, child);
+    // a callout's line is its first inner text block (same rule as the live
+    // JSON flavor) — absorb it so the box doesn't start with an empty line
+    for (let i = 0; i < ctx.out.length; i++) {
+      const c = ctx.out[i];
+      const next = ctx.out[i + 1];
+      if (c.type === "callout" && !c.content.text && next?.type === "paragraph" && next.depth === c.depth + 1) {
+        c.content = { ...next.content, icon: c.content.icon ?? null };
+        ctx.out.splice(i + 1, 1);
+      }
+    }
+    return ctx.out.length ? ctx.out : null;
+  } catch {
+    return null;
   }
 }
 

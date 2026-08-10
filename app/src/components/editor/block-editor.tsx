@@ -19,7 +19,11 @@ import type { Block, BlockContent, BlockType, ButtonAction, TableData } from "@/
 import { MARKDOWN_SHORTCUTS, TEXT_TYPES } from "@/lib/editor/block-defs";
 import { caretOffset, caretRect, setCaret } from "@/lib/editor/caret";
 import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
-import { htmlToMarkdownish, htmlToNotionBlocks } from "@/lib/editor/html-paste";
+import {
+  htmlToMarkdownish,
+  htmlToNotionBlocks,
+  htmlToNotionExportBlocks,
+} from "@/lib/editor/html-paste";
 import { notionClipboardToBlocks } from "@/lib/editor/notion-clipboard";
 import { newId } from "@/lib/compat";
 import { sanitizeInline } from "@/lib/rich-text";
@@ -1239,7 +1243,7 @@ export const BlockEditor = forwardRef<
         );
         const tree =
           (notionType ? notionClipboardToBlocks(cd.getData(notionType)) : null) ??
-          (htmlClip ? htmlToNotionBlocks(htmlClip) : null);
+          (htmlClip ? (htmlToNotionBlocks(htmlClip) ?? htmlToNotionExportBlocks(htmlClip)) : null);
         if (tree && tree.length) {
           e.preventDefault();
           mutate((prev) => {

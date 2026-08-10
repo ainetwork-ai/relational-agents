@@ -56,17 +56,23 @@ const secret =
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
 
 // ---- 대조용 페이지 생성 (dev DB — 소모품) -----------------------------------
-const created = await fetch(`${BASE}/api/pages`, {
-  method: "POST",
-  headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
-  body: JSON.stringify({ title: `notion-paste.check ${new Date().toISOString().slice(0, 16)}` }),
-});
-if (created.status !== 201) {
-  console.error("페이지 생성 실패:", created.status, await created.text());
-  process.exit(1);
-}
-const pageId = (await created.json()).page.id;
-console.log(`대조 페이지: ${BASE}/p/${pageId}`);
+const madePages = [];
+const createPage = async (label) => {
+  const created = await fetch(`${BASE}/api/pages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
+    body: JSON.stringify({ title: `notion-paste.check ${label} ${new Date().toISOString().slice(0, 16)}` }),
+  });
+  if (created.status !== 201) {
+    console.error("페이지 생성 실패:", created.status, await created.text());
+    process.exit(1);
+  }
+  const id = (await created.json()).page.id;
+  madePages.push(id);
+  console.log(`대조 페이지(${label}): ${BASE}/p/${id}`);
+  return id;
+};
+const pageId = await createPage("json");
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -129,6 +135,7 @@ const ok = (cond, label) => {
   console.log(`${cond ? "✓" : "✗"} ${label}`);
   if (!cond) fails.push(label);
 };
+const TODO_LIT = /^\[( |x)\]\s/i;
 
 // 기대 트리 → "화면에 보여야 하는" 시퀀스. 접힌 토글의 자식은 안 보인다.
 const visibleExpected = (tree) => {
@@ -256,14 +263,60 @@ await page.waitForTimeout(1200);
 got = await page.evaluate(READ_TREE);
 compare(got, EXPECTED, "새로고침 후(토글 펼친 상태 저장됨)");
 
+// ---- 6) 커스텀 MIME 없이 (text/html + text/plain 만) -------------------------
+// 클립보드 파이프가 Chromium 계열이 아니면(또는 일부 복사 경로) 커스텀 포맷이
+// 안 실려 온다 — 그때는 노션의 마크다운-왕복 HTML을 복원해야 한다. 이 플레이버
+// 에서 토글의 접힘은 정보가 아예 없어 불릿으로 남는 것이 물리적 한계다.
+const pageId2 = await createPage("html-only");
+await page.goto(`${BASE}/p/${pageId2}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+await page.waitForSelector("[data-block-type='paragraph'] [contenteditable]", { timeout: 60_000 });
+await page.evaluate((payload) => {
+  const el = document.querySelector("[data-block-type='paragraph'] [contenteditable]");
+  el.focus();
+  const dt = new DataTransfer();
+  dt.setData("text/plain", payload["text/plain"]);
+  dt.setData("text/html", payload["text/html"]);
+  el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+}, PAYLOAD);
+await page.waitForTimeout(1500);
+got = await page.evaluate(READ_TREE);
+
+const count = (ty) => got.filter((b) => b.type === ty).length;
+ok(count("heading3") === 4, `html-only: heading3 4개 (${count("heading3")})`);
+ok(count("callout") === 3, `html-only: 콜아웃 3개 (${count("callout")})`);
+ok(count("todo") === 15, `html-only: 투두 15개 (${count("todo")})`);
+ok(count("file") === 3, `html-only: 파일 3개 (${count("file")})`);
+ok(count("numbered_list") === 2, `html-only: 번호 목록 2개 (${count("numbered_list")})`);
+const checkedN = got.filter((b) => b.type === "todo" && b.checked).length;
+ok(checkedN === 7, `html-only: 체크된 투두 7개 (${checkedN})`);
+const junk = got.filter(
+  (b) => b.text.includes("**") || b.text.includes("<aside>") || TODO_LIT.test(b.text)
+);
+ok(junk.length === 0, `html-only: 리터럴 '**'/'<aside>'/'[x]' 없음 (발견 ${junk.length})`);
+const bold2 = got.find((b) => b.text.includes("분리하여"));
+ok(!!bold2 && /<b>/.test(bold2.html) && !bold2.html.includes("**"), "html-only: 볼드 <b> 복원");
+const firstCallout = got.find((b) => b.type === "callout");
+const cIcon = await page.evaluate(() => {
+  const boxes = [...document.querySelectorAll("[data-testid^='callout-'][data-color]")];
+  return boxes.map((b) => b.querySelector("[data-testid^='callout-icon-']")?.textContent?.trim() ?? null);
+});
+ok(!!firstCallout && cIcon[0] === "💬", `html-only: 첫 콜아웃 아이콘 💬 (${cIcon[0]})`);
+ok(cIcon.slice(1).every((i) => i === null), `html-only: 나머지 콜아웃 아이콘 없음 (${JSON.stringify(cIcon.slice(1))})`);
+const scenario = got.find((b) => b.type === "callout" && b.text.includes("[시나리오 활용방법]"));
+ok(!!scenario, "html-only: '[시나리오 활용방법]'이 콜아웃 본문으로 흡수");
+const tl = got.find((b) => b.text.startsWith("커뮤니케이션 타임라인"));
+ok(tl?.type === "bulleted_list" && tl?.depth === 1, `html-only: 토글이던 항목은 불릿으로 (한계, ${tl?.type}@${tl?.depth})`);
+
 await browser.close();
 if (process.env.ARCHIVE === "1") {
-  const r = await fetch(`${BASE}/api/pages/${pageId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
-    body: JSON.stringify({ isArchived: true }),
-  });
-  console.log(`대조 페이지 아카이브: ${r.status}`);
+  for (const id of madePages) {
+    const r = await fetch(`${BASE}/api/pages/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
+      body: JSON.stringify({ isArchived: true }),
+    });
+    console.log(`대조 페이지 아카이브(${id.slice(0, 8)}): ${r.status}`);
+  }
 }
 if (fails.length) {
   console.error(`\n${fails.length}개 실패`);
