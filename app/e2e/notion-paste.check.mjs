@@ -45,7 +45,12 @@ const PAYLOAD = {
 };
 const EXPECTED = JSON.parse(need("expected-tree.json")).blocks;
 
-const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+// ENV_FILE/USER_ID 를 주면 prod 에도 겨눌 수 있다 (배포 검증). 만드는 페이지는
+// ARCHIVE=1 이면 끝나고 아카이브한다 — prod 사이드바에 잔재를 남기지 않기 위해.
+const envPath = process.env.ENV_FILE
+  ? new URL(process.env.ENV_FILE, `file://${process.cwd()}/`)
+  : new URL("../.env.local", import.meta.url);
+const env = fs.readFileSync(envPath, "utf8");
 const secret =
   env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -61,6 +66,7 @@ if (created.status !== 201) {
   process.exit(1);
 }
 const pageId = (await created.json()).page.id;
+console.log(`대조 페이지: ${BASE}/p/${pageId}`);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -251,6 +257,14 @@ got = await page.evaluate(READ_TREE);
 compare(got, EXPECTED, "새로고침 후(토글 펼친 상태 저장됨)");
 
 await browser.close();
+if (process.env.ARCHIVE === "1") {
+  const r = await fetch(`${BASE}/api/pages/${pageId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
+    body: JSON.stringify({ isArchived: true }),
+  });
+  console.log(`대조 페이지 아카이브: ${r.status}`);
+}
 if (fails.length) {
   console.error(`\n${fails.length}개 실패`);
   process.exit(1);
