@@ -133,6 +133,13 @@ body {
 }
 .peek-anim-right { animation: peek-in-right 200ms ease; }
 
+/* The 속성 편집 sidebar docks under the view toolbar and slides in the same
+   way (the original transitions transform+opacity over 200ms ease). */
+@keyframes prop-panel-in {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 /* #80 styled instant tooltips via data-tip (delay ≈ Notion's 300ms) */
 @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
 [data-tip] { position: relative; }

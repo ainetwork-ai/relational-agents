@@ -1287,8 +1287,9 @@ function ColumnHeader({
   const headerBtn = useRef<HTMLButtonElement>(null);
   const headerPop = useRef<HTMLDivElement>(null);
  // the Status menu's 속성 편집 asks for THIS column's menu by id; derived rather
- // than copied into state, so no effect has to sync the two
-  const open = selfOpen || db.editingPropertyId === prop.id;
+ // than copied into state, so no effect has to sync the two. Status properties
+ // route to the 속성 편집 sidebar (property-edit-panel.tsx) instead.
+  const open = selfOpen || (db.editingPropertyId === prop.id && prop.type !== "status");
  // portalled and placed: on a right-hand column this menu hung 94px past the
  // window, and inside the table's scroller it had nowhere to go
   useAnchored(open, headerBtn, headerPop, { align: "start" });

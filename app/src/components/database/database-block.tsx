@@ -43,6 +43,7 @@ import { ViewOptions } from "./view-options";
 import { FilterBar, FilterChips } from "./filter-bar";
 import { SortBar } from "./sort-bar";
 import { RowPeek } from "./row-peek";
+import { PropertyEditPanel } from "./property-edit-panel";
 
 // The context lives in its own module (see the note there) and is re-exported
 // so the many `from "./database-block"` importers keep working. It is still
@@ -351,6 +352,9 @@ export function DatabaseBlock({
  // View-tab overflow: tabs that don't fit collapse behind an
  // "N more" dropdown. Widths come from an invisible measurement row.
   const tabsAreaRef = useRef<HTMLDivElement | null>(null);
+  // the view-tabs/toolbar row — the 속성 편집 sidebar docks against its
+  // bottom-right corner, as the original docks under its sticky toolbar
+  const viewBarRef = useRef<HTMLDivElement | null>(null);
   const tabsMeasureRef = useRef<HTMLDivElement | null>(null);
   const [visibleTabCount, setVisibleTabCount] = useState(Number.MAX_SAFE_INTEGER);
   const [moreTabsOpen, setMoreTabsOpen] = useState(false);
@@ -528,7 +532,13 @@ export function DatabaseBlock({
  // made *inside* a row doesn't get one. See docs/notion-icon-policy.md.
       const iconSeed: Record<string, unknown> =
         hostIconRef.current && !values.__template ? { __icon: hostIconRef.current } : {};
-      const seeded = { ...templateSeed, ...iconSeed, ...seedFromFilters(), ...values };
+ // a status property's 기본 option (속성 편집's "기본으로 설정") pre-fills new
+ // rows — the original's new pages never start with an empty Status
+      const statusSeed: Record<string, unknown> = {};
+      for (const p of propsRef.current) {
+        if (p.type === "status" && p.config.defaultOptionId) statusSeed[p.id] = p.config.defaultOptionId;
+      }
+      const seeded = { ...statusSeed, ...templateSeed, ...iconSeed, ...seedFromFilters(), ...values };
       const res = await fetch(`/api/databases/${databaseId}/rows`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1014,7 +1024,7 @@ export function DatabaseBlock({
             print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
             that reached users and that Notion has no equivalent of. */}
         {wrapperTestId && <div data-testid={wrapperTestId} hidden />}
-        <div className="mb-1.5 flex items-center gap-1 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
+        <div ref={viewBarRef} data-testid="db-view-bar" className="mb-1.5 flex items-center gap-1 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
           {/* Inline databases carry their name here, as Notion's do. A full-page
               one must not: the page title above IS the database name, and
               printing it twice reads as a bug. */}
@@ -1544,6 +1554,18 @@ export function DatabaseBlock({
             }}
           />
         )}
+        {/* 속성 편집 — the sidebar the Status menu's footer opens. Only status
+            properties get it; every other type keeps the column-header menu. */}
+        {(() => {
+          const editing = properties.find((p) => p.id === editingPropertyId);
+          return editing && editing.type === "status" ? (
+            <PropertyEditPanel
+              prop={editing}
+              anchorRef={viewBarRef}
+              onClose={() => setEditingPropertyId(null)}
+            />
+          ) : null;
+        })()}
       </div>
     </DbCtx.Provider>
   );
