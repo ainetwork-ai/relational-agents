@@ -515,6 +515,27 @@ NextResponse.redirect(new URL("/", req.url))   // req.url = http://0.0.0.0:3000/
 (`X-Forwarded-Host`)를 신뢰하지 않아도 된다. 앱에서 요청으로부터 절대 URL을 만드는
 곳은 여기뿐이라는 것도 확인했다.
 
+### 4.12 프로세스는 살았는데 리슨 소켓만 죽는다 — unhealthy는 아무도 안 고친다
+
+2026-08-13 10:17:53Z, `ainmem_prod_app`의 next-server(PID 1)가 **살아 있는 채로
+3000 리슨 소켓만 사라졌다**. 이후 ~70분간 502. 진단 당시의 모습:
+
+- 컨테이너 `Up (unhealthy)`, healthcheck 연속 실패 142회 — 그런데 아무 일도
+  일어나지 않았다. `restart: unless-stopped`는 **프로세스 종료**에만 반응하고,
+  docker 는 unhealthy 상태에 어떤 조치도 하지 않는다.
+- 컨테이너 안 `/proc/net/tcp`에 3000 LISTEN 없음, 밖에서 `wget` → refused.
+  nginx 에러 로그는 `recv() failed (104: Connection reset by peer)` 530건 —
+  111(refused)이 아니라 104인 이유는 docker-proxy 가 먼저 accept 하기 때문이다.
+- 근본 원인은 **못 찾았다**: 앱 로그는 컨테이너 3일 수명 동안 13줄(배너 +
+  Server Action 스팸)뿐이고, OOM 아님, fd 26/1048576, 커널 로그 조용함.
+  54초 전 같은 호스트의 무관한 컨테이너(multica) 재시작이 있었지만 인과 불명.
+
+조치: `docker restart ainmem_prod_app` 으로 즉시 복구 + 재발 대비로
+`scripts/watchdog-prod.sh` 를 cron(1분)에 걸었다 — unhealthy 면 재시작하되,
+/api/health 는 스키마 드리프트로도 실패하므로(§3.6) 10분 쿨다운으로 무한
+재시작을 막고 `~/ainmem-backups/watchdog.log` 에 남긴다. **로그에 restart 가
+반복되면 재시작으로 낫지 않는 문제라는 신호다.**
+
 ## 5. dev ↔ prod 격리 현황
 
 | 자원 | 상태 |
