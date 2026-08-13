@@ -286,6 +286,13 @@ export interface PropertyConfig {
    * `To-do · In progress · Complete`, and one of its views filters by the
    * GROUP rather than by an option (docs/notion-projects-spec.md) */
   optionGroups?: { id: string; name: string; color?: string; optionIds: string[] }[];
+  /** status: the option new rows start on — the original tags it `기본` in the
+   * property editor and applies it to every page created without a value */
+  defaultOptionId?: string;
+  /** status/select: the property editor's 콘텐츠 줄바꿈하기 switch. Stored so the
+   * toggle round-trips; table cells still clip to one line (table_wrap: false
+   * in every capture), so nothing reads it yet. */
+  wrapContent?: boolean;
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
  * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";

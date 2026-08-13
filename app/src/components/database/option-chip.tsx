@@ -23,6 +23,11 @@
 
 /** Chip colours as Notion paints them — translucent overlays, hence the alpha. */
 const MEASURED: Record<string, { bg: string; text: string; dot: string }> = {
+  // `default` is what Notion stores for Status's "Not started" — its CHIP paints
+  // exactly like gray (measured on the property editor, 2026-08-10), but the
+  // colour menu lists 기본 and 회색 as two rows with two swatches, so the two
+  // names must survive storage to put the ✓ on the right row.
+  default: { bg: "rgba(28, 19, 1, 0.11)", text: "rgb(73, 72, 70)", dot: "rgb(142, 139, 134)" },
   gray: { bg: "rgba(28, 19, 1, 0.11)", text: "rgb(73, 72, 70)", dot: "rgb(142, 139, 134)" },
   brown: { bg: "rgba(127, 51, 0, 0.157)", text: "rgb(88, 68, 55)", dot: "rgb(158, 111, 78)" },
   orange: { bg: "rgba(196, 88, 0, 0.204)", text: "rgb(106, 66, 34)", dot: "rgb(217, 115, 13)" },

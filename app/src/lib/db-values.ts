@@ -253,6 +253,10 @@ export function withinRange(token: unknown): [string, string] {
  * any single one.
  */
 export const OPTION_COLORS: Record<string, string> = {
+  // Notion stores `default` and `gray` as two different colours (both appear in
+  // e2e/fixtures/notion-option-colors.json); their chips paint the same today,
+  // but the property editor's colour menu shows them as two rows.
+  default: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
   gray: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
   brown: "bg-[#EEE0DA] text-[#32302C] dark:bg-[#603B2C] dark:text-[#D4D4D4]",
   orange: "bg-[#FADEC9] text-[#32302C] dark:bg-[#854C1D] dark:text-[#D4D4D4]",
@@ -263,8 +267,9 @@ export const OPTION_COLORS: Record<string, string> = {
   pink: "bg-[#F5E0E9] text-[#32302C] dark:bg-[#69314C] dark:text-[#D4D4D4]",
   red: "bg-[#FFE2DD] text-[#32302C] dark:bg-[#6E3630] dark:text-[#D4D4D4]",
 };
-/** New options take colours in this order — Notion's own wheel order. */
-export const COLOR_CYCLE = Object.keys(OPTION_COLORS);
+/** New options take colours in this order — Notion's own wheel order.
+ * `default` is what you get by NOT picking, so the cycle skips it. */
+export const COLOR_CYCLE = Object.keys(OPTION_COLORS).filter((c) => c !== "default");
 
 export function optionClass(color: string): string {
   return OPTION_COLORS[color] ?? OPTION_COLORS.gray;

@@ -16,9 +16,11 @@ const WRITE = process.argv.includes("--write");
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const url = env.match(/^POSTGRES_URL=(.+)$/m)?.[1]?.trim();
 
-/** Notion's palette → ours. `default` is Notion's neutral chip, which is our gray. */
+/** Notion's palette → ours, 1:1 since the property editor landed: `default`
+ * and `gray` are separate stored colours there (two rows in its colour menu,
+ * ✓ on the one the option carries), even though their chips paint alike. */
 const MAP = {
-  default: "gray", gray: "gray", brown: "brown", orange: "orange", yellow: "yellow",
+  default: "default", gray: "gray", brown: "brown", orange: "orange", yellow: "yellow",
   green: "green", blue: "blue", purple: "purple", pink: "pink", red: "red",
 };
 
