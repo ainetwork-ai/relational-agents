@@ -48,8 +48,20 @@ export function useAnchored(
 
  // before the browser paints the open panel
   useLayoutEffect(() => {
-    if (open) place();
-  }, [open, place]);
+    if (!open) return;
+ // The anchor can be momentarily null when the panel mounts in the same
+ // commit that re-renders its trigger with an unstable ref callback: React
+ // detaches the old ref (null) in the mutation phase and this child layout
+ // effect runs before the ancestor's ref re-attaches. A silent bail here
+ // left the panel visibility:hidden forever on production builds (dev's
+ // StrictMode re-run masked it). Retry once after the commit settles.
+    if (triggerRef.current) {
+      place();
+      return;
+    }
+    const raf = requestAnimationFrame(place);
+    return () => cancelAnimationFrame(raf);
+  }, [open, place, triggerRef]);
 
   useEffect(() => {
     if (!open) return;

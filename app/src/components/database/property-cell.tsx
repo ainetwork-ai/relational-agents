@@ -715,13 +715,20 @@ function SelectCell({
   useAnchored(plainOpen, ref, popRef);
   useDismiss(plainOpen, () => setOpen(false), ref, popRef);
 
+ // A STABLE callback: an inline arrow gets a new identity every render, so
+ // React detaches the old ref (nulling cellRef) and re-attaches on every
+ // commit — including the commit that mounts StatusPicker, whose layout
+ // effect then reads cellRef mid-detach and the menu never gets placed.
+ // Dev's StrictMode re-runs the effect and hid this; production did not.
+  const attachRef = useCallback((el: HTMLDivElement | null) => {
+    ref.current = el;
+ // the menu covers the CELL, not this padded box inside it
+    cellRef.current = (el?.closest("[data-cellnav]") as HTMLElement | null) ?? el;
+  }, []);
+
   return (
     <div
-      ref={(el) => {
-        ref.current = el;
- // the menu covers the CELL, not this padded box inside it
-        cellRef.current = (el?.closest("[data-cellnav]") as HTMLElement | null) ?? el;
-      }}
+      ref={attachRef}
       className="relative min-w-0 py-1 pl-[7px] pr-1.5"
     >
       <button
