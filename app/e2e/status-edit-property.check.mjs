@@ -1,8 +1,10 @@
 // The 속성 편집 sidebar (Status 메뉴의 푸터가 여는 것), measured against the
 // original's numbers in `fixtures/notion-status-edit-property.json`.
 //
-// The original is NOT a popover: it docks under the view toolbar, 387px left
-// of the toolbar's right edge, down to the bottom of the window. This script
+// The original is NOT a popover: it docks under the view toolbar with the
+// 290px menu column right-aligned to the toolbar's controls (the original's
+// raw -387 includes Notion's 96px page margin baked into its toolbar node —
+// see the fixture's dock note), down to the bottom of the window. This script
 // walks ours the same way the original was read (2026-08-10):
 //
 //   1. panel geometry — dock offsets, header, name row, 유형 row, the three

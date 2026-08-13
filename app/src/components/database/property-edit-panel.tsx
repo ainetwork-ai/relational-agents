@@ -154,13 +154,19 @@ export function PropertyEditPanel({
   const byId = (id: string) => options.find((o) => o.id === id);
 
   // ---- placement: docked under the toolbar row, out to the window's edge ----
+  // The original's -387 is measured against a toolbar NODE that includes the
+  // page's 96px right margin (its sidebar bleeds with inset -96 / padding 96).
+  // Our view bar ends at the 새로 만들기 button, so the rule that survives the
+  // translation is the visible one: the 290px menu column's right edge sits on
+  // the toolbar's right edge (-291 = 290 + 1px border), and only the white
+  // background continues to the window edge.
   const place = useCallback(() => {
     const bar = anchorRef.current;
     const el = panelRef.current;
     if (!bar || !el) return;
     const r = bar.getBoundingClientRect();
     el.style.top = `${Math.max(Math.round(r.bottom), 0)}px`;
-    el.style.left = `${Math.round(r.right - 387)}px`;
+    el.style.left = `${Math.round(r.right - 291)}px`;
     el.style.visibility = "visible";
   }, [anchorRef]);
   useLayoutEffect(place, [place]);

@@ -176,9 +176,13 @@ filter: Status is 그룹 "In progress"
 ## 속성 편집(Status) — 원본 수치와 대조 (2026-08-10)
 
 Status 메뉴의 `속성 편집` 푸터가 여는 것은 **팝오버가 아니라 사이드바다**: 뷰 툴바
-아래(`top = 툴바 bottom`)에 도킹되고, 왼쪽 모서리는 툴바 오른쪽 끝에서 −387px,
-오른쪽/아래는 창 끝까지. 흰 배경, 그림자 없음, 왼쪽 1px 보더(위 12px는 배경으로
-페이드), 200ms 슬라이드인. 콘텐츠 칼럼은 290px이고 나머지는 자체 여백이다.
+아래(`top = 툴바 bottom`)에 도킹되고, 290px 메뉴 칼럼의 오른쪽 끝이 툴바 컨트롤
+(새로 만들기)의 오른쪽 끝에 정렬되며, 흰 배경만 창 오른쪽/아래 끝까지 번진다.
+(원본 raw 수치는 −387이지만 노션의 툴바 노드는 페이지 오른쪽 여백 96px을 포함한다
+— 사이드바가 `inset -96 / padding 96`으로 번지는 구조. 우리 `db-view-bar`는
+버튼에서 끝나므로 같은 규칙이 −291 = 290 + 보더 1px 이다. 처음에 −387을 그대로
+옮겼다가 칼럼 오른쪽에 ~100px 죽은 여백이 생겼었다.) 흰 배경, 그림자 없음,
+왼쪽 1px 보더(위 12px는 배경으로 페이드), 200ms 슬라이드인.
 원본 수치는 `app/e2e/fixtures/notion-status-edit-property.json`, 대조는
 `node app/e2e/status-edit-property.check.mjs`, 구현은
 `components/database/property-edit-panel.tsx`.

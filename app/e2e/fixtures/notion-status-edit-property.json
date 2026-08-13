@@ -2,7 +2,7 @@
   "_source": "app.notion.com ComCom > Projects — Status 셀 메뉴 → 속성 편집 사이드바, 옵션 클릭 메뉴, 그룹화 서브메뉴 (2026-08-10). 원본 덤프: scratchpad/status-edit-capture/{panel,option-submenu,group-submenu}-nodes.json + 스크린샷.",
   "_why": "그 전까지 속성 편집은 노션과 무관한 임시 헤더 메뉴로 떨어졌고, status 옵션을 관리(추가/이름/색/그룹/기본/삭제)할 길이 없었다. 원본은 팝오버가 아니라 뷰 툴바 오른쪽 밑에 도킹되는 사이드바다.",
   "panel": {
-    "dock": { "leftFromBarRight": -387, "topFromBarBottom": 0 },
+    "dock": { "leftFromBarRight": -291, "topFromBarBottom": 0, "_": "원본 수치는 -387이지만 노션의 툴바 노드는 페이지 오른쪽 여백 96px을 포함한다(사이드바가 inset -96/padding 96으로 번짐). 눈에 보이는 규칙은 '메뉴 칼럼(290) 오른쪽 끝 = 툴바 컨트롤 오른쪽 끝'이고, 우리 db-view-bar는 새로 만들기에서 끝나므로 -291(290+보더1)이 같은 규칙이다." },
     "bg": "rgb(255, 255, 255)",
     "borderLeft": "rgba(42, 28, 0, 0.07)",
     "header": {
