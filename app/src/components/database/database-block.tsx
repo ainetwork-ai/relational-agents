@@ -384,7 +384,9 @@ export function DatabaseBlock({
     (async () => {
       const [snap, mem, meRes, dbs] = await Promise.all([
         fetch(`/api/databases/${databaseId}`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`/api/workspace/members`).then((r) => (r.ok ? r.json() : { members: [] })),
+ // the DATABASE's workspace roster — the switcher's active workspace may be
+ // a different one, and person ids must still resolve to names
+        fetch(`/api/databases/${databaseId}/members`).then((r) => (r.ok ? r.json() : { members: [] })),
         fetch(`/api/auth/me`).then((r) => (r.ok ? r.json() : { user: null })),
         fetch(`/api/databases`).then((r) => (r.ok ? r.json() : { databases: [] })),
       ]);

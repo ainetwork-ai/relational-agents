@@ -29,7 +29,8 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       if (!alive || !r.ref) return;
       const [snap, mem, meRes, dbs] = await Promise.all([
         fetch(`/api/databases/${r.ref.databaseId}`).then((x) => (x.ok ? x.json() : null)),
-        fetch(`/api/workspace/members`).then((x) => (x.ok ? x.json() : { members: [] })),
+ // the database's own workspace roster, not the switcher's active workspace
+        fetch(`/api/databases/${r.ref.databaseId}/members`).then((x) => (x.ok ? x.json() : { members: [] })),
         fetch(`/api/auth/me`).then((x) => (x.ok ? x.json() : { user: null })),
         fetch(`/api/databases`).then((x) => (x.ok ? x.json() : { databases: [] })),
       ]);
