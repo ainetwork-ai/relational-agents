@@ -48,6 +48,9 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   const children = usePagesStore(
     useShallow((s) => s.childrenOf.get(page.id) ?? EMPTY_CHILDREN)
   );
+ // the whole tree is loaded up front (stores/pages.ts), so leaf-ness is known
+ // at render time — no lazy fetch to wait for
+  const hasChildren = children.length > 0;
   const isActive = pathname === `/p/${page.id}`;
   const dropHint = useUiStore((s) =>
     s.dropHint?.targetId === page.id ? s.dropHint.zone : null
@@ -159,22 +162,26 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
         )}
         <button
           data-testid={`page-tree-toggle-${page.id}`}
-          onClick={() => toggleExpanded(page.id)}
+          onClick={hasChildren ? () => toggleExpanded(page.id) : undefined}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-          aria-label={expanded ? "Collapse" : "Expand"}
+          aria-label={hasChildren ? (expanded ? "Collapse" : "Expand") : undefined}
         >
-          {/* Swap the page icon for the chevron on row hover */}
-          <span className="text-[15px] leading-none group-hover:hidden">
+          {/* Swap the page icon for the chevron on row hover. A leaf keeps its
+              icon — a deliberate divergence from the original, which offers the
+              chevron (and "No pages inside") on every page (comcom, 2026-08-19) */}
+          <span className={`text-[15px] leading-none ${hasChildren ? "group-hover:hidden" : ""}`}>
             {(page as PageRow).isDatabase && !page.icon ? (
               <Table2 size={13} className="shrink-0 text-neutral-400" aria-label="데이터베이스" />
             ) : (
               <PageIcon icon={page.icon} fallback="📄" />
             )}
           </span>
-          <ChevronRight
-            size={12}
-            className={`hidden transition-transform duration-150 group-hover:block ${expanded ? "rotate-90" : ""}`}
-          />
+          {hasChildren && (
+            <ChevronRight
+              size={12}
+              className={`hidden transition-transform duration-150 group-hover:block ${expanded ? "rotate-90" : ""}`}
+            />
+          )}
         </button>
 
         {renaming ? (
@@ -275,25 +282,18 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           )}
       </div>
 
-      {expanded && (
+      {/* a stale expanded flag (last child deleted) renders nothing — the
+          toggle is gone with the children, so there'd be no way to collapse */}
+      {expanded && hasChildren && (
         <div className="relative">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute bottom-0 top-0 w-px bg-neutral-200/80 dark:bg-neutral-700/60"
             style={{ left: `${depth * 12 + 26}px` }}
           />
-          {children.length === 0 ? (
-            <p
-              className="py-1 text-xs text-neutral-400"
-              style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
-            >
-              No pages inside
-            </p>
-          ) : (
-            children.map((child) => (
-              <PageItem key={child.id} page={child} depth={depth + 1} />
-            ))
-          )}
+          {children.map((child) => (
+            <PageItem key={child.id} page={child} depth={depth + 1} />
+          ))}
         </div>
       )}
     </div>
