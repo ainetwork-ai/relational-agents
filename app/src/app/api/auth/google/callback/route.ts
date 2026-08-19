@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { exchangeCode, googleConfig, type GoogleIdentity } from "@/lib/auth/google";
+import { safeReturnTo } from "@/lib/auth/return-to";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,11 @@ function siteUrl(req: NextRequest, path: string): URL {
   return new URL(path, base);
 }
 
-/** Every failure lands the visitor back on /login with a reason in the URL. */
-function back(req: NextRequest, reason: string) {
-  const url = siteUrl(req, "/login");
+/** Every failure lands the visitor where they can retry with a reason in the
+ * URL: the page that sent them into the sign-in (an invite page carries its
+ * token in its own URL, so nothing is lost), or /login when none did. */
+function back(req: NextRequest, reason: string, returnTo?: string) {
+  const url = siteUrl(req, returnTo ?? "/login");
   url.searchParams.set("error", reason);
   return NextResponse.redirect(url);
 }
@@ -84,18 +87,21 @@ export async function GET(req: NextRequest) {
   if (!cfg) return back(req, "not_configured");
 
   const params = req.nextUrl.searchParams;
+  const session = await getSession();
+  const expected = session.oauthState;
+  const returnTo = safeReturnTo(session.returnTo);
+  // Single use: whether this succeeds or fails, neither can be replayed.
+  session.oauthState = undefined;
+  session.returnTo = undefined;
+  await session.save();
+
   // The user pressed "cancel" on the consent screen, or Google refused.
-  if (params.get("error")) return back(req, "cancelled");
+  if (params.get("error")) return back(req, "cancelled", returnTo);
 
   const code = params.get("code");
   const state = params.get("state");
-  const session = await getSession();
-  const expected = session.oauthState;
-  // Single use: whether this succeeds or fails, the state cannot be replayed.
-  session.oauthState = undefined;
-  await session.save();
-
-  if (!code || !state || !expected || state !== expected) return back(req, "bad_state");
+  if (!code || !state || !expected || state !== expected)
+    return back(req, "bad_state", returnTo);
 
   try {
     const identity = await exchangeCode(cfg, code);
@@ -106,14 +112,15 @@ export async function GET(req: NextRequest) {
     await session.save();
 
     // First sign-in has nowhere to land otherwise — same guarantee the wallet
-    // logins gave (lib/auth/provision.ts).
+    // logins gave (lib/auth/provision.ts). Runs BEFORE any invite-join returnTo,
+    // so an invited first-timer still gets their personal workspace.
     await ensureWorkspace(user.id, user.displayName);
 
-    return NextResponse.redirect(siteUrl(req, "/"));
+    return NextResponse.redirect(siteUrl(req, returnTo ?? "/"));
   } catch (err) {
     // The reason (redirect_uri_mismatch, invalid_client, …) belongs in the
     // server log, not in a query string on a public page.
     console.error("google sign-in failed:", err);
-    return back(req, "signin_failed");
+    return back(req, "signin_failed", returnTo);
   }
 }

@@ -7,6 +7,9 @@ export interface SessionData {
   activeWorkspaceId?: string;
   /** CSRF state for an in-flight Google sign-in; cleared by the callback */
   oauthState?: string;
+  /** same-origin path to land on after the in-flight sign-in (an invite page
+   * must survive the login round-trip); single-use, cleared by the callback */
+  returnTo?: string;
 }
 // `ainAddress` and `challenge` lived here for the wallet logins. Both are gone:
 // the address was a copy of users.ainAddress that nothing read back, and the
