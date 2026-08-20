@@ -20,6 +20,7 @@ import { domToPlainText, plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
 import { Breadcrumbs } from "./breadcrumbs";
 import { RowPropertiesPanel } from "@/components/database/row-properties";
+import { DatabaseBlock } from "@/components/database/database-block";
 import { PresenceBar } from "@/components/presence/presence-bar";
 import { LiveCursors } from "@/components/presence/live-cursors";
 import { usePresence } from "@/hooks/use-presence";
@@ -531,6 +532,11 @@ export function PageView({
 
         {page.isLocked ? (
           <ReadOnlyBlocks blocks={initialBlocks} />
+        ) : fullPageDb && databaseId ? (
+ // 원본(2026-08-20 실측): full-page 데이터베이스 페이지에는 블록 캔버스가
+ // 없다 — 편집 가능한 곳은 제목과 설명뿐. 에디터를 안 그리므로 드롭도 블록
+ // 추가도 여기서는 불가능하고, 과거에 잘못 붙은 블록이 있어도 렌더되지 않는다.
+          <DatabaseBlock databaseId={databaseId} fullPage />
         ) : (
           <BlockEditor
             ref={editorRef}
