@@ -285,12 +285,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
       {/* a stale expanded flag (last child deleted) renders nothing — the
           toggle is gone with the children, so there'd be no way to collapse */}
       {expanded && hasChildren && (
-        <div className="relative">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 top-0 w-px bg-neutral-200/80 dark:bg-neutral-700/60"
-            style={{ left: `${depth * 12 + 26}px` }}
-          />
+        <div>
           {children.map((child) => (
             <PageItem key={child.id} page={child} depth={depth + 1} />
           ))}
