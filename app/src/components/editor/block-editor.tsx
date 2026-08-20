@@ -2420,6 +2420,11 @@ export const BlockEditor = forwardRef<
           );
           if (!files.length) return; // internal block drags keep their handlers
           e.preventDefault();
+ // a row-peek's editor sits INSIDE the host page's editor (React tree), so
+ // without this the host would re-handle the same drop: a second upload of
+ // the same bytes, appended to the host page (how images ended up under the
+ // Projects database, 2026-08-19)
+          e.stopPropagation();
           void (async () => {
             for (const f of files) {
               const up = await uploadBlob(f);
