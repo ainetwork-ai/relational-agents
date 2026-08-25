@@ -3,7 +3,7 @@
 import { subscribeSse } from "@/lib/sse-share";
 import { useEffect, useRef, useState } from "react";
 import { newId } from "@/lib/compat";
-import { caretRect } from "@/lib/editor/caret";
+import { caretOffset } from "@/lib/editor/caret";
 import type { PublicUser } from "@/lib/auth/public-user";
 import type { CursorInfo } from "@/lib/realtime";
 import { useMe } from "@/stores/me";
@@ -95,21 +95,21 @@ export function usePresence(pageId: string): {
     let cancelled = false;
     const label = self.displayName;
 
+    // a DOCUMENT position (block + character offset), never viewport x/y: the
+    // receiver draws it against its own DOM. Caret outside any block (sidebar,
+    // title, nothing focused) → no blockId → the receiver draws no caret at all
     const cursorFor = (): CursorInfo => {
-      const rect = caretRect();
       let blockId: string | undefined;
+      let offset: number | undefined;
       const node = window.getSelection()?.anchorNode ?? null;
       const el = node instanceof HTMLElement ? node : node?.parentElement ?? null;
       const be = el?.closest('[data-testid^="block-editable-"]');
       const tid = be?.getAttribute("data-testid");
-      if (tid) blockId = tid.replace("block-editable-", "");
-      return {
-        label,
-        color,
-        blockId,
-        x: rect ? Math.round(rect.left) : undefined,
-        y: rect ? Math.round(rect.top) : undefined,
-      };
+      if (be instanceof HTMLElement && tid) {
+        blockId = tid.replace("block-editable-", "");
+        offset = caretOffset(be);
+      }
+      return { label, color, blockId, offset };
     };
 
     const send = async () => {
