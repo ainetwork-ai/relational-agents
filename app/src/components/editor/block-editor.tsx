@@ -1140,6 +1140,27 @@ export const BlockEditor = forwardRef<
             pendingFocus.current = { id, pos: "start" };
             return;
           }
+ // "---" becomes a divider on the third dash — the original converts
+ // immediately, no space ("- " is already the bullet shortcut, so a
+ // space-terminated form could never be reached). Same shape as the slash
+ // menu's divider: the line turns into the rule, the caret lands on a fresh
+ // paragraph below it.
+          if (text === "---") {
+            mutate((prev) => {
+              const next = prev.map((b) => ({ ...b }));
+              const cur = next.find((b) => b.id === id);
+              if (!cur) return prev;
+              cur.type = "divider" as BlockType;
+              cur.content = {};
+              cur.version++;
+              const nb = freshParagraph(cur.parentBlockId, 0);
+              nb.position = positionAfter(next, cur);
+              next.push(nb);
+              pendingFocus.current = { id: nb.id, pos: "start" };
+              return next;
+            });
+            return;
+          }
           for (const s of MARKDOWN_SHORTCUTS) {
             if (text === s.prefix + " " || text === s.prefix + " ") {
               mutate((prev) =>
@@ -1177,7 +1198,7 @@ export const BlockEditor = forwardRef<
         { coalesce: true }
       );
     },
-    [slash, mention, emojiSug, pasteLink, blocks, mutate]
+    [slash, mention, emojiSug, pasteLink, blocks, mutate, positionAfter]
   );
 
  // Smart paste: clipboard image → upload + image block; markdown/multi-line
