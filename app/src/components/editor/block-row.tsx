@@ -24,8 +24,23 @@ import { PageIcon } from "@/components/page-icon";
 import { ensureKatex, renderTex, renderTexInline } from "@/lib/katex-loader";
 import { MemorySelect } from "@/components/database/memory-select";
 
+const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
+const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
+
 export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   const editor = useEditor();
+ // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
+ // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
+ // 여백은 전부 블록 자신의 padding 이다.
+  const sibs = editor.childrenOf(block.parentBlockId ?? null);
+  const prev = sibs[sibs.findIndex((b) => b.id === block.id) - 1];
+  const listRun = LIST_RUN.has(block.type);
+  const listFirst = !(prev && LIST_RUN.has(prev.type));
+ // 거터(+, 6점)의 세로 위치: 원본은 24px 컨트롤을 첫 텍스트 줄(line box)의 중앙에
+ // 맞춘다 — 문단 8, H1 39.5, H2 31.6, H3 25, 리스트 첫 항목 8 / 이후 3, 인용 8.
+  const handleTop = HANDLE_TOP[block.type] ?? (listRun ? (listFirst ? 8 : 3) : 2);
+ // 하이라이트의 상하 inset 은 min(2px, 그 쪽 padding): 리스트 항목은 1px 패딩이라 1.
+  const halo = { top: listRun && !listFirst ? 1 : 2, bottom: listRun && block.type !== "toggle" ? 1 : 2 };
 
  // A columns layout renders its column children side-by-side; each column
  // stacks its own children vertically.
@@ -114,24 +129,24 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
             (-ml-9), so these controls landed ON its view tabs. */}
         {!(block.type === "database" && (block.content as { fullPage?: boolean }).fullPage === true) && (
         <div
-          className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
-          style={{ left: depth * 24 - 40 }} /* hug the block */
+          className="absolute flex items-center gap-0 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
+          style={{ left: depth * 24 - 52, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
         >
           <button
             tabIndex={-1}
             data-testid={`block-add-below-${block.id}`}
             onClick={() => editor.insertBelow(block.id)}
-            className="flex h-6 w-5 items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 dark:text-neutral-600 dark:hover:bg-neutral-800"
+            className="flex h-6 w-6 items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 dark:text-neutral-600 dark:hover:bg-neutral-800"
             aria-label="Add block below"
           >
             <Plus size={15} />
           </button>
-          <BlockHandle block={block} />
+          <BlockHandle block={block} halo={halo} />
         </div>
         )}
 
         <BlockCommentAnchor blockId={block.id}>
-          <BlockBody block={block} depth={depth} />
+          <BlockBody block={block} depth={depth} listFirst={listFirst} />
         </BlockCommentAnchor>
       </div>
 
@@ -328,7 +343,7 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
 ];
 
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
-function BlockHandle({ block }: { block: EBlock }) {
+function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
@@ -376,11 +391,26 @@ function BlockHandle({ block }: { block: EBlock }) {
           editor.onDragStart(block.id);
         }}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-6 w-4 cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
+        className="flex h-6 w-[18px] cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
         aria-label="Block actions (drag to reorder)"
       >
         <GripVertical size={15} />
       </button>
+      {open &&
+        (() => {
+          const row = document.querySelector(`[data-testid="block-${block.id}"]`);
+          return row
+            ? createPortal(
+                <div
+                  data-testid={`block-halo-${block.id}`}
+                  aria-hidden="true"
+                  style={{ top: halo.top, bottom: halo.bottom }}
+                  className="pointer-events-none absolute inset-x-0.5 z-0 rounded bg-[rgba(35,131,226,0.14)]"
+                />,
+                row
+              )
+            : null;
+        })()}
       {open &&
         createPortal(
  // portalled and placed by useAnchored: in the page it was `absolute left-5
@@ -724,8 +754,9 @@ function MenuBtn({
   );
 }
 
-function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
+function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; listFirst: boolean }) {
   const editor = useEditor();
+  const listTop = listFirst ? "pt-1.5" : "pt-[1px]";
 
   switch (block.type) {
     case "divider":
@@ -822,7 +853,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "todo":
       return (
-        <div className="flex w-full items-start gap-2">
+        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
           <input
             type="checkbox"
             data-testid={`todo-checkbox-${block.id}`}
@@ -832,7 +863,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
           />
           <Editable
             block={block}
-            className={`flex-1 py-[3px] text-[15px] leading-6 ${
+            className={`flex-1 py-0.5 text-[15px] leading-6 ${
               block.content.checked
                 ? "text-neutral-400 line-through"
                 : "text-neutral-800 dark:text-neutral-200"
@@ -845,7 +876,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
       const children = editor.childrenOf(block.id);
       const expanded = block.content.expanded ?? true;
       return (
-        <div className="w-full">
+        <div className={`w-full pb-1.5 ${listTop}`}>
           <div className="flex items-start gap-0.5">
             <button
               data-testid={`toggle-expand-${block.id}`}
@@ -889,36 +920,36 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "bulleted_list":
       return (
-        <div className="flex w-full items-start gap-2">
+        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
           <span className="mt-0.5 w-4 shrink-0 select-none text-center text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
             •
           </span>
           <Editable
             block={block}
-            className="flex-1 py-[3px] text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "numbered_list":
       return (
-        <div className="flex w-full items-start gap-2">
+        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
           <span className="mt-0.5 w-4 shrink-0 select-none text-right text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
             {editor.numberOf(block)}.
           </span>
           <Editable
             block={block}
-            className="flex-1 py-[3px] text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "quote":
       return (
-        <div className="w-full border-l-[3px] border-neutral-800 py-0.5 pl-3 dark:border-neutral-300">
+        <div className="w-full border-l-[3px] border-neutral-800 py-2 pl-3 dark:border-neutral-300 [&>div]:min-h-6">
           <Editable
             block={block}
-            className="py-0.5 text-[15px] leading-6 text-neutral-700 dark:text-neutral-300"
+            className="py-0 text-[15px] leading-6 text-neutral-700 dark:text-neutral-300"
           />
         </div>
       );
@@ -928,36 +959,44 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "heading1":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 1"
-          className="w-full pb-1 pt-4 text-3xl font-bold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[30px]">
+          <Editable
+            block={block}
+            placeholder="Heading 1"
+            className="w-full py-0.5 text-[30px] font-semibold leading-[39px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
     case "heading2":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 2"
-          className="w-full pb-0.5 pt-3 text-2xl font-semibold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[26px]">
+          <Editable
+            block={block}
+            placeholder="Heading 2"
+            className="w-full py-0.5 text-[24px] font-semibold leading-[31.2px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
     case "heading3":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 3"
-          className="w-full pb-0.5 pt-2 text-xl font-semibold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[22px]">
+          <Editable
+            block={block}
+            placeholder="Heading 3"
+            className="w-full py-0.5 text-[20px] font-semibold leading-[26px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
 
     default:
       return (
-        <Editable
-          block={block}
-          placeholder="Write something, or press '/' for commands"
-          className="w-full py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
-        />
+        <div className="w-full py-1.5">
+          <Editable
+            block={block}
+            placeholder="Write something, or press '/' for commands"
+            className="w-full py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+          />
+        </div>
       );
   }
 }
