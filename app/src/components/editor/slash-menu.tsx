@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAnchoredAt } from "@/hooks/use-anchored";
+import { useT } from "@/i18n/provider";
 import type { BlockType } from "@/lib/db/schema";
 import { SLASH_ITEMS } from "@/lib/editor/block-defs";
 
@@ -56,6 +57,7 @@ export function SlashMenu({
   selectedIndex: number;
   onPick: (type: BlockType, preset?: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const items = filterSlashItems(query);
   const listRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -97,7 +99,7 @@ export function SlashMenu({
                 key={`hdr-${cat}`}
                 className="px-3 pb-1 pt-2.5 text-[12px] font-medium leading-[14.4px] text-[#7d7a75] dark:text-neutral-400"
               >
-                {SECTION_LABEL[cat]}
+                {t(SECTION_LABEL[cat])}
               </p>
             ) : null;
           return (
@@ -133,7 +135,7 @@ export function SlashMenu({
         })}
       </div>
       <div className="flex h-[42px] items-center justify-between border-t border-[rgba(42,28,0,0.07)] px-3 text-[14px] text-[#2c2c2b] dark:border-white/10 dark:text-neutral-200">
-        <span>메뉴 닫기</span>
+        <span>{t("메뉴 닫기")}</span>
         <span className="text-[12px] text-[#a19e99]">esc</span>
       </div>
     </div>

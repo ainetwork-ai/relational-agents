@@ -4,8 +4,22 @@
     "contentLine": "아래에 빈 줄을 새로 만들고 그 줄에서 메뉴가 열린다",
     "emptyLine": "줄을 추가하지 않고 그 줄에서 메뉴가 열린다",
     "noSlashCharacter": true,
-    "caretOffset": 0
+    "caretOffset": 0,
+    "clickOnSameLine": "메뉴 닫힘, 줄은 기본 문구로"
   },
-  "placeholder": { "text": "필터링 기준을 입력하세요.", "pillBg": "rgba(66, 35, 3, 0.03)" },
-  "menu": { "w": 324, "h": 396.8, "leftFromBlock": 0, "gap": 8, "radius": "10px", "listMaxH": "354.8px", "itemH": 32, "footerH": 42 }
+  "placeholder": {
+    "text": "필터링 기준을 입력하세요.",
+    "pillBg": "rgba(66, 35, 3, 0.03)",
+    "defaultText": "AI 기능은 '스페이스 키', 명령어는 '/'를 입력하세요."
+  },
+  "menu": {
+    "w": 324,
+    "h": 396.8,
+    "leftFromBlock": 0,
+    "gap": 8,
+    "radius": "10px",
+    "listMaxH": "354.8px",
+    "itemH": 32,
+    "footerH": 42
+  }
 }

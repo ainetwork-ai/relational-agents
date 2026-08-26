@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/i18n/provider";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import Link from "next/link";
@@ -780,6 +781,7 @@ function MenuBtn({
 
 function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBlock; depth: number; listFirst: boolean; listLast: boolean; inList: boolean }) {
   const editor = useEditor();
+  const t = useT();
   const listTop = listFirst ? "pt-1.5" : "pt-[1px]";
   const listBottom = listLast ? "pb-1.5" : "pb-[1px]";
 
@@ -933,7 +935,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
  // 원본(2026-08-26 실측): 빈 토글의 안내 행은 40px — 문단 한 줄과 같은 키
                   className="ml-6 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.
+                  {t("빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.")}
                 </button>
               ) : (
                 children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />)
@@ -1020,9 +1022,9 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
         <div className={inList ? "w-full py-[1px]" : "w-full py-1.5"}>
           <Editable
             block={block}
- // the gutter + opened the type menu on this empty line: the original shows a
- // filter placeholder there instead of the usual one
-            placeholder={editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "Write something, or press '/' for commands"}
+ // one rule decides the empty line's hint, the dictionary decides the language:
+ // the type menu open on this line → the filter hint, otherwise the usual one
+            placeholder={t(editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "AI 기능은 '스페이스 키', 명령어는 '/'를 입력하세요.")}
             bare={editor.slashBareBlockId === block.id}
             className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
