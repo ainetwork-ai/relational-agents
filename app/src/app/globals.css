@@ -218,14 +218,17 @@ header {
 [data-testid^="db-col-drag-"]:active { cursor: grabbing; }
 [data-testid^="db-col-resize-"] { cursor: col-resize; }
 
-/* 거터 +로 연 타입 메뉴의 필터 플레이스홀더: 원본은 글자 둘레에 옅은 알약 배경
-   (rgba(66,35,3,.03), 2026-08-26 실측) */
+/* 거터 +로 연 타입 메뉴의 필터 플레이스홀더 (2026-08-26 실측): 회색이 아니라
+   본문과 같은 잉크색 글자에, 글자를 감싸는 옅은 알약 배경(rgba(66,35,3,.03)).
+   :focus 색 규칙보다 뒤에 와서 색을 덮어써야 한다. */
 [contenteditable][data-bare-menu]:empty:focus::before {
+  color: #2c2c2b;
   background: rgba(66, 35, 3, 0.03);
-  border-radius: 1px;
-  padding: 0 2px;
-  margin-left: -2px;
+  border-radius: 2px;
+  padding: 1px 4px;
+  margin-left: -4px;
 }
 .dark [contenteditable][data-bare-menu]:empty:focus::before {
-  background: rgba(255, 255, 255, 0.06);
+  color: #e6e6e4;
+  background: rgba(255, 255, 255, 0.055);
 }
