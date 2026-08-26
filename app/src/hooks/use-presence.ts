@@ -210,10 +210,16 @@ export function usePresence(pageId: string): {
     return () => clearInterval(iv);
   }, []);
 
+  // one caret per PERSON: a collaborator with several tabs/devices shows once,
+  // at whichever session reported most recently (their live one) — n sessions
+  // never become n labelled carets of the same name
+  const perUser = new Map<string, PresentClient>();
+  for (const c of Object.values(others)) {
+    const prev = perUser.get(c.user.id);
+    if (!prev || c.at > prev.at) perUser.set(c.user.id, c);
+  }
   return {
-    others: Object.values(others).sort((a, b) =>
-      a.clientId.localeCompare(b.clientId)
-    ),
+    others: [...perUser.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),
     self: { clientId, user: self, color },
   };
 }
