@@ -12,6 +12,7 @@ export function toPublicUser(user: User) {
     status: user.status,
     isAgent: user.isAgent,
     timezone: user.timezone,
+    language: user.language,
     createdAt: user.createdAt,
   };
 }

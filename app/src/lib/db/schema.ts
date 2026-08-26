@@ -54,6 +54,8 @@ export const users = pgTable("users", {
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
   timezone: text("timezone"),
+  // UI language (ko | en); null = follow the browser. Per user, like Notion.
+  language: text("language"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

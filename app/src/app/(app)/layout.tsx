@@ -9,6 +9,8 @@ import { SearchModal } from "@/components/search-modal";
 import { PagePeek } from "@/components/page/page-peek";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
+import { LocaleProvider } from "@/i18n/provider";
+import { getLocale } from "@/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +29,14 @@ export default async function AppLayout({
     .limit(1);
   if (!user) redirect("/login");
 
+  const locale = await getLocale(user.language);
   const workspaceId = await getDefaultWorkspaceId(user.id);
   const [workspace] = workspaceId
     ? await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
     : [];
 
   return (
+    <LocaleProvider locale={locale}>
     <div className="flex h-screen overflow-hidden bg-white dark:bg-[#191919]">
       <Sidebar
         workspace={
@@ -57,5 +61,6 @@ export default async function AppLayout({
       {/* center peek — a page opened over the current one (sidebar + on a page) */}
       <PagePeek />
     </div>
+    </LocaleProvider>
   );
 }

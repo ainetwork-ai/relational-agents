@@ -5,10 +5,13 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { normalizeDisplayName, setUserDisplayName } from "@/lib/auth/display-name";
+import { LANG_COOKIE, isLocale } from "@/i18n/locales";
 
 export const dynamic = "force-dynamic";
 
-/** PATCH { displayName?, avatarUrl?, homeCoverUrl? } → { user }. avatarUrl
+/** PATCH { displayName?, avatarUrl?, homeCoverUrl?, language? } → { user }.
+ * language is "ko" | "en" | "" (clear → follow the browser); it is also copied
+ * into the `lang` cookie so the next server render paints in it at once. avatarUrl
  * must be an /uploads/* path (from POST /api/upload) or "" to clear the photo;
  * homeCoverUrl additionally accepts built-in /covers/* and "" resets to the
  * default cover. */
@@ -18,7 +21,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const patch: { avatarUrl?: string | null; homeCoverUrl?: string | null } = {};
+  const patch: { avatarUrl?: string | null; homeCoverUrl?: string | null; language?: string | null } = {};
   let renamed: Awaited<ReturnType<typeof setUserDisplayName>> = null;
 
   if (typeof body?.displayName === "string") {
@@ -42,6 +45,11 @@ export async function PATCH(req: Request) {
       );
     patch.homeCoverUrl = body.homeCoverUrl === "" ? null : body.homeCoverUrl;
   }
+  if (typeof body?.language === "string") {
+    if (body.language !== "" && !isLocale(body.language))
+      return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
+    patch.language = body.language === "" ? null : body.language;
+  }
   if (Object.keys(patch).length === 0) {
     if (renamed) return NextResponse.json({ user: toPublicUser(renamed) });
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -53,7 +61,13 @@ export async function PATCH(req: Request) {
     .where(eq(users.id, session.userId))
     .returning();
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  return NextResponse.json({ user: toPublicUser(user) });
+  const res = NextResponse.json({ user: toPublicUser(user) });
+  if ("language" in patch) {
+    if (patch.language)
+      res.cookies.set(LANG_COOKIE, patch.language, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
+    else res.cookies.set(LANG_COOKIE, "", { path: "/", maxAge: 0 });
+  }
+  return res;
 }
 
 export async function GET() {
