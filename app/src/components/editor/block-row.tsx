@@ -87,7 +87,7 @@ export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: n
     <div
       data-testid={`block-${block.id}`}
       data-block-type={block.type}
-      className="group/block relative"
+      className="group/block relative -mx-1.5 px-1.5"
       onDragOver={(e) => editor.onDragOverRow(e, block.id)}
       onDrop={(e) => editor.onDropRow(e, block.id)}
       onContextMenu={(e) => {
@@ -117,6 +117,10 @@ export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: n
       )}
 
       <div
+ // the original's block box is 6px wider than the text column on each side
+ // (720 vs 708): the grip highlight reaches 4px past the glyphs, and the
+ // gutter is measured from that wider edge. Bleed the row out by 6 and pad
+ // it back so the text stays put (2026-08-26, m-halo-text)
         className={`relative flex items-start rounded ${
           editor.selectedIds.has(block.id) ? "bg-blue-100/80 ring-1 ring-inset ring-blue-300/70 dark:bg-blue-500/25 dark:ring-blue-500/50" : ""
         }`}
@@ -137,7 +141,7 @@ export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: n
         {!(block.type === "database" && (block.content as { fullPage?: boolean }).fullPage === true) && (
         <div
           className="absolute flex items-center gap-0 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
-          style={{ left: depth * 24 - 52, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
+          style={{ left: depth * 24 - 58, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
         >
           <button
             tabIndex={-1}
@@ -570,7 +574,7 @@ function CodeBlock({ block }: { block: EBlock }) {
     // 원본(2026-08-26 실측): wrapper 8, 컨테이너 r10 bg rgba(66,35,3,.03) 에 24/22 패딩,
     // 그 안에서 편집 영역이 12/12 — 한 줄 코드가 108.4. 언어·복사는 hover 때만
     // 컨테이너 위에 뜨고, 캡션은 있을 때만 자리를 차지한다.
-    <div className="w-full p-2">
+    <div className="w-full px-0.5 py-2">
     <div className="group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06]">
       <div className="absolute left-3 right-3 top-2 flex items-center justify-between opacity-0 transition-opacity group-hover/code:opacity-100">
         <MemorySelect
@@ -676,7 +680,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
     <div
       data-testid={`callout-${block.id}`}
       data-color={color}
-      className="w-full p-2"
+      className="w-full px-0.5 py-2"
     >
     {/* 원본(2026-08-26 실측): 82 = 8 + (1+12 + 6+28+6 + 12+1) + 8 */}
     <div className={`group/callout relative w-full rounded-[10px] border border-transparent p-3 ${calloutBg(color)}`}>
@@ -692,10 +696,23 @@ function CalloutBlock({ block }: { block: EBlock }) {
           allowRemove={false}
         />
       )}
+      <div className="min-w-0 flex-1">
+      {/* the original's callout is a container: once its text lives in a first
+          child paragraph (Enter did that), the box shows only children */}
+      {!((block.content.text ?? "") === "" && children.length > 0) && (
       <Editable
         block={block}
-        className="m-1.5 flex-1 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+        className="m-1.5 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
+      )}
+      {children.length > 0 && (
+        <div>
+          {children.map((c) => (
+            <BlockRow key={c.id} block={c} depth={0} parentType="callout" />
+          ))}
+        </div>
+      )}
+      </div>
       {/* color menu */}
       <div ref={ref} className="relative shrink-0">
         <button
@@ -729,16 +746,6 @@ function CalloutBlock({ block }: { block: EBlock }) {
         )}
       </div>
       </div>
-      {children.length > 0 && (
- // children start where the first line's text starts (past the icon column);
- // depth resets to 0 — a BlockRow pads itself by depth*24, and the box's own
- // position already carries the callout's depth
-        <div style={{ marginLeft: icon !== null ? 38 : 0 }}>
-          {children.map((c) => (
-            <BlockRow key={c.id} block={c} depth={0} />
-          ))}
-        </div>
-      )}
     </div>
     </div>
   );
@@ -779,7 +786,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
   switch (block.type) {
     case "divider":
       return (
-        <div className="w-full px-2 py-1.5">
+        <div className="w-full px-0.5 py-1.5">
           <hr className="h-px border-0 bg-[rgba(28,19,1,0.11)] dark:bg-white/15" />
         </div>
       );
@@ -871,17 +878,17 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
 
     case "todo":
       return (
-        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
           <input
             type="checkbox"
             data-testid={`todo-checkbox-${block.id}`}
             checked={block.content.checked ?? false}
             onChange={(e) => editor.setChecked(block.id, e.target.checked)}
-            className="mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
+            className="mx-1 mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
           />
           <Editable
             block={block}
-            className={`flex-1 py-0.5 text-base leading-6 ${
+            className={`flex-1 px-1.5 py-0.5 text-base leading-6 ${
               block.content.checked
                 ? "text-neutral-400 line-through"
                 : "text-neutral-800 dark:text-neutral-200"
@@ -914,7 +921,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
             </button>
             <Editable
               block={block}
-              className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+              className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
             />
           </div>
           {expanded && (
@@ -939,36 +946,36 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
 
     case "bulleted_list":
       return (
-        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
-          <span className="mt-0.5 w-4 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
+          <span className="mt-0.5 w-6 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
             •
           </span>
           <Editable
             block={block}
-            className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "numbered_list":
       return (
-        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
-          <span className="mt-0.5 w-4 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
+          <span className="mt-0.5 w-6 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
             {editor.numberOf(block)}.
           </span>
           <Editable
             block={block}
-            className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "quote":
       return (
-        <div className="w-full border-l-[3px] border-neutral-800 py-2 pl-3 dark:border-neutral-300 [&>div]:min-h-6">
+        <div className="w-full border-l-[3px] border-neutral-800 py-2 pl-4 dark:border-neutral-300 [&>div]:min-h-6">
           <Editable
             block={block}
-            className="py-0 text-base leading-6 text-neutral-700 dark:text-neutral-300"
+            className="px-2 py-0 text-base leading-6 text-neutral-700 dark:text-neutral-300"
           />
         </div>
       );
@@ -982,7 +989,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
           <Editable
             block={block}
             placeholder="Heading 1"
-            className="w-full py-0.5 text-[30px] font-semibold leading-[39px] text-neutral-900 dark:text-neutral-100"
+            className="w-full px-0.5 py-0.5 text-[30px] font-semibold leading-[39px] text-neutral-900 dark:text-neutral-100"
           />
         </div>
       );
@@ -992,7 +999,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
           <Editable
             block={block}
             placeholder="Heading 2"
-            className="w-full py-0.5 text-[24px] font-semibold leading-[31.2px] text-neutral-900 dark:text-neutral-100"
+            className="w-full px-0.5 py-0.5 text-[24px] font-semibold leading-[31.2px] text-neutral-900 dark:text-neutral-100"
           />
         </div>
       );
@@ -1002,7 +1009,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
           <Editable
             block={block}
             placeholder="Heading 3"
-            className="w-full py-0.5 text-[20px] font-semibold leading-[26px] text-neutral-900 dark:text-neutral-100"
+            className="w-full px-0.5 py-0.5 text-[20px] font-semibold leading-[26px] text-neutral-900 dark:text-neutral-100"
           />
         </div>
       );
@@ -1014,7 +1021,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
           <Editable
             block={block}
             placeholder="Write something, or press '/' for commands"
-            className="w-full py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+            className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );

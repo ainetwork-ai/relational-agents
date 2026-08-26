@@ -968,6 +968,18 @@ export const BlockEditor = forwardRef<
         const cur = next.find((b) => b.id === id);
         if (!cur) return prev;
 
+ // Enter on an empty paragraph inside a callout leaves the callout: the
+ // paragraph goes, a fresh one lands right after the callout (the original)
+        const host = cur.parentBlockId ? next.find((b) => b.id === cur.parentBlockId) : undefined;
+        if (cur.type === "paragraph" && text === "" && host?.type === "callout") {
+          const out = freshParagraph(host.parentBlockId, 0);
+          out.position = positionAfter(next, host);
+          deletedIds.current.add(cur.id);
+          const rest = next.filter((b) => b.id !== cur.id);
+          rest.push(out);
+          pendingFocus.current = { id: out.id, pos: "start" };
+          return rest;
+        }
  // Enter on an empty continuing block exits the list instead of adding.
         if (CONTINUING.includes(cur.type) && text === "") {
           cur.type = "paragraph";
@@ -984,8 +996,26 @@ export const BlockEditor = forwardRef<
  // first child — the original's behaviour (2026-08-26 input cases). A
  // collapsed toggle, or a split mid-title, keeps the sibling behaviour.
         const intoToggle = cur.type === "toggle" && cur.content.expanded !== false && after === "";
-        const nb = freshParagraph(intoToggle ? cur.id : cur.parentBlockId, 0);
-        if (intoToggle) {
+ // A callout is a container in the original: its text IS its first child
+ // paragraph. Enter at the end of the callout's own text adopts that model —
+ // the text moves into a real first child, and the new line becomes the
+ // second — so Tab/Backspace/Enter inside behave exactly as there.
+        const intoCallout = cur.type === "callout" && after === "";
+        let firstPos = 1;
+        if (intoCallout && (cur.content.text ?? "") !== "") {
+          const p1 = freshParagraph(cur.id, 0);
+          const kids = next.filter((b) => b.parentBlockId === cur.id);
+          p1.position = kids.length ? Math.min(...kids.map((k) => k.position)) - 2 : 0;
+          p1.content.text = cur.content.text ?? "";
+          p1.content.html = cur.content.html;
+          cur.content.text = "";
+          cur.content.html = undefined;
+          next.push(p1);
+          firstPos = p1.position + 1;
+        }
+        const nb = freshParagraph(intoToggle || intoCallout ? cur.id : cur.parentBlockId, 0);
+        if (intoCallout) nb.position = firstPos;
+        else if (intoToggle) {
           const kids = next.filter((b) => b.parentBlockId === cur.id);
           nb.position = kids.length ? Math.min(...kids.map((k) => k.position)) - 1 : 1;
         } else nb.position = positionAfter(next, cur);
@@ -1025,7 +1055,27 @@ export const BlockEditor = forwardRef<
       const sibs = childrenOf(block.parentBlockId ?? null);
       const idx = sibs.findIndex((s) => s.id === id);
       const prevSib = sibs[idx - 1];
-      if (!prevSib) return false;
+ // First child of a toggle: Backspace at its start folds it back into the
+ // toggle's title — the original's behaviour (Enter into an open toggle, then
+ // Backspace, leaves you typing at the end of the title; 2026-08-26 cases)
+      if (!prevSib) {
+        const parent = block.parentBlockId ? blocks.find((b) => b.id === block.parentBlockId) : undefined;
+        if (!parent || parent.type !== "toggle") return false;
+        const parentLen = (parent.content.text ?? "").length;
+        const curHtml = block.content.html ?? escapeHtml(text);
+        deletedIds.current.add(id);
+        mutate((prev) =>
+          prev
+            .filter((b) => b.id !== id)
+            .map((b) =>
+              b.id === parent.id
+                ? { ...b, content: { ...b.content, text: (b.content.text ?? "") + text, html: sanitizeInline((b.content.html ?? escapeHtml(b.content.text ?? "")) + curHtml) }, version: b.version + 1 }
+                : b
+            )
+        );
+        pendingFocus.current = { id: parent.id, pos: parentLen };
+        return true;
+      }
 
  // Previous block is non-text (divider/image) → remove it instead.
       if (!TEXT_TYPES.includes(prevSib.type) && prevSib.type !== "code") {
