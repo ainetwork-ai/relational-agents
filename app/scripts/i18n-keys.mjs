@@ -33,7 +33,7 @@ const enSrc = fs.readFileSync(path.join(root, "i18n/en.ts"), "utf8");
 const enKeys = new Set();
 for (const m of enSrc.matchAll(/^\s*(?:"((?:\\.|[^"\\])*)"|([\p{L}\p{N}_ ()]+))\s*:/gmu)) enKeys.add((m[1] ?? m[2]).replace(/\\"/g, '"').trim());
 
-const missing = [...keys.keys()].filter((k) => !enKeys.has(k)).sort();
+const missing = [...keys.keys()].filter((k) => !enKeys.has(k) && !enKeys.has(k.trim())).sort();
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ keys: [...keys.keys()].sort(), missing }, null, 2));
 } else {

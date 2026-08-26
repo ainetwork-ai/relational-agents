@@ -60,3 +60,12 @@
   행↔페이지 작업과 같이 가야 한다 (`target.html`)
 
 | `settings_my_settings.html` (74KB) | **설정과 멤버** 모달, `기본 설정` 탭 (2026-08-26, 개인 워크스페이스) | 진입: 좌상단 워크스페이스 스위처 → `설정`. 사이드바에는 `설정` 행이 없다. 모달 `.notion-dialog` 90vw·max 1512·높이 calc(100%-100px)·r12, 좌측 nav 240px(`role=tablist`, 섹션 라벨 `계정`/`워크스페이스`/…, 탭 28px). `언어 및 시간` 섹션(제목 16/24 500) → `언어` 행(라벨 14/20 500, 설명 13/18 `rgb(125,122,117)`), 우측 끝에 드롭다운 버튼 `한국어` 69×28 r6 테두리 `rgba(28,19,1,.11)` 14px. 드롭다운 216px 폭, 항목 43px, 22개 언어 `원어 | 한국어명` 2줄 |
+
+## 영어판 캡처 — `docs/en/` (2026-08-26, 계정 언어 English (US))
+
+`en.ts` 의 어휘 기준. 텍스트 요약은 `docs/en/_texts.json`(화면별 innerText), HTML 은 화면별 파일.
+설정 모달 3탭(`settings_*`), 언어 목록, 스위처 메뉴, 페이지 `⋯`(`page_more_menu`), 사이드바 행/섹션 메뉴,
+공유 팝업, 검색, 페이지 hover 컨트롤(`Add icon / Add cover / Add comment`), Projects 표(`projects_table.html`)의
+속성 헤더 메뉴(`header_menu_*`), Status/날짜/사람 셀 피커(`cell_*`), 속성 편집(`edit_property_*`), 유형 목록
+(`change_type_submenu`), 템플릿 메뉴(`new_more_options`), 그룹 옵션, 선택 툴바(`bulk_toolbar`).
+필터/정렬/보기 설정 패널은 오버레이가 아니라 프레임 안에 열려 텍스트 diff 로만 일부 잡혔다.
