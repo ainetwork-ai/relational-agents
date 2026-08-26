@@ -511,7 +511,7 @@ export function DatabaseBlock({
     async (row: DbRow) => {
       if (typeof row.values["__page"] === "string") return;
       const titleProp = propsRef.current.find((p) => p.type === "title");
-      const title = (titleProp && (row.values[titleProp.id] as string)) || "Untitled";
+      const title = (titleProp && (row.values[titleProp.id] as string)) || "";
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "content-type": "application/json" },

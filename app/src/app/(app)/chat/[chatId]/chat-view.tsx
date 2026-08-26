@@ -481,7 +481,8 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   async function createPageFromContent(content: string) {
     try {
-      const title = chat?.title || t("제목 없음");
+      // an untitled page stores "" and is displayed as 제목 없음 in the current language (Notion)
+      const title = chat?.title || "";
       const pageRes = await fetch("/api/pages", {
         method: "POST",
         headers: { "content-type": "application/json" },

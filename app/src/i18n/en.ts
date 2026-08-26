@@ -5,6 +5,13 @@
  *  `node scripts/i18n-keys.mjs`. */
 export const en: Record<string, string> = {
   "한국어": "Korean",
+  "담당자": "Assignee",
+  "마감일": "Due",
+  "보드": "Board",
+  "작업": "Tasks",
+  "진행 중": "In progress",
+  "표": "Table",
+  "할 일": "To-do",
   "데이터베이스": "Database",
   "메뉴 닫기": "Close menu",
   "빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.": "Empty toggle. Click or drag blocks inside.",
