@@ -1,5 +1,6 @@
 "use client";
 
+import { EmojiFaceIcon } from "@/components/icons/page-controls";
 import { useEffect, useRef, useState } from "react";
 import {
   X,
@@ -330,7 +331,7 @@ export function RowPeek({
                   <IconPicker
                     icon={null}
                     allowImage
-                    placeholder={<span className="text-sm text-neutral-400">😀 아이콘 추가</span>}
+                    placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> 아이콘 추가</span>}
                     triggerClassName="rounded px-1.5 py-0.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                     onChange={(icon) => updatePage(bodyPageId, { icon })}
                   />

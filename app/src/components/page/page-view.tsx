@@ -1,5 +1,6 @@
 "use client";
 
+import { CommentIcon, EmojiFaceIcon, PhotoIcon } from "@/components/icons/page-controls";
 import { useEffect, useRef, useState } from "react";
 import type { Block, Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
@@ -407,7 +408,7 @@ export function PageView({
             <IconPicker
               icon={page.icon}
               allowImage
-              placeholder={<span className="text-sm text-neutral-400">😀 Add icon</span>}
+              placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> Add icon</span>}
               triggerClassName="rounded px-1.5 py-0.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               onChange={(icon) => updatePage(initialPage.id, { icon })}
             />
@@ -421,9 +422,9 @@ export function PageView({
           <button
             data-testid="page-head-comment"
             onClick={() => openComments(PAGE_ANCHOR)}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
-            💬 Add comment
+            <CommentIcon /> Add comment
           </button>
           {/* 설명 추가 / 설명 숨기기 / 설명 표시 — only a database page has a
               description, and the row it sits in is the same hover row as
@@ -772,9 +773,9 @@ export function CoverControls({
           setDraft("");
           setEditing(true);
         }}
-        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+        className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        🖼 커버 추가
+        <PhotoIcon /> 커버 추가
       </button>
       {editor}
     </div>
