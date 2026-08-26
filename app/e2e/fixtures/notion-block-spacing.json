@@ -1,6 +1,6 @@
 {
   "_source": "app.notion.com 새 페이지(3c7adf31…), 2026-08-25 실측. scratchpad/m-blocks-2.mjs, m-handle-2/4.mjs",
-  "_model": "블록 사이 gap 은 0. 여백은 전부 블록 자신의 padding: pre = wrapper 상단→leaf 상단, post = leaf 하단→wrapper 하단. leaf 는 contenteditable 박스(텍스트류는 내부 2/2 패딩 포함).",
+  "_model": "블록 사이 gap 은 0. 여백은 전부 블록 자신의 padding: pre = wrapper 상단→leaf 상단, post = leaf 하단→wrapper 하단. leaf 는 contenteditable 박스(텍스트류는 내부 2/2 패딩 포함). 리스트류 런: 첫 항목 상단 6, 마지막 항목 하단 6, 그 사이 1 (단독 항목 = 40). 2026-08-26 케이스 실측.",
   "gap": 0,
   "box": {
     "paragraph": {
@@ -64,6 +64,26 @@
     "callout": {
       "h": 82,
       "note": "8 + [1+12 + (6 + 28 + 6) + 12+1] + 8, 한 줄"
+    },
+    "list_last": {
+      "h": 35,
+      "pre": 1,
+      "leaf": 28,
+      "post": 6
+    },
+    "list_single": {
+      "h": 40,
+      "pre": 6,
+      "leaf": 28,
+      "post": 6
+    },
+    "toggle_last": {
+      "pre": 1,
+      "leaf": 28
+    },
+    "toggle_single": {
+      "pre": 6,
+      "leaf": 28
     }
   },
   "type": {
@@ -107,7 +127,11 @@
       "quote": 8,
       "divider": 2,
       "code": 2,
-      "callout": 2
+      "callout": 2,
+      "list_last": 3,
+      "list_single": 8,
+      "toggle_last": 3,
+      "toggle_single": 8
     }
   },
   "halo": {
@@ -130,10 +154,26 @@
       ],
       "toggle_first": [
         2,
-        2
+        1
       ],
       "toggle_next": [
         1,
+        1
+      ],
+      "list_last": [
+        1,
+        2
+      ],
+      "list_single": [
+        2,
+        2
+      ],
+      "toggle_last": [
+        1,
+        2
+      ],
+      "toggle_single": [
+        2,
         2
       ]
     }

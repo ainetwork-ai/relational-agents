@@ -50,15 +50,16 @@ await page.waitForTimeout(500);
 
 const fails = []; let checks = 0;
 const eq = (label, got, want, tol = 0.5) => { checks++; const ok = typeof want === "number" ? Math.abs(got - want) <= tol : got === want; if (!ok) fails.push(`${label}: ${got} ≠ ${want}`); };
-const roleOf = (type, prevType) => {
+const roleOf = (type, prevType, nextType) => {
   if (!LIST.has(type)) return type;
-  const first = !(prevType && LIST.has(prevType));
-  return type === "toggle" ? (first ? "toggle_first" : "toggle_next") : (first ? "list_first" : "list_next");
+  const first = !(prevType && LIST.has(prevType)); const last = !(nextType && LIST.has(nextType));
+  const k = first && last ? "single" : first ? "first" : last ? "last" : "next";
+  return (type === "toggle" ? "toggle_" : "list_") + k;
 };
 const tops = blocks.filter((b) => !b.parentBlockId).sort((a, b) => a.position - b.position);
 let prevId = null, prevType = null;
-for (const b of tops) {
-  const role = roleOf(b.type, prevType);
+for (const [i, b] of tops.entries()) {
+  const role = roleOf(b.type, prevType, tops[i + 1]?.type);
   const sel = `[data-testid="block-${b.id}"]`;
   await page.locator(sel).scrollIntoViewIfNeeded();
   const m = await page.evaluate(([sel, prevSel]) => {

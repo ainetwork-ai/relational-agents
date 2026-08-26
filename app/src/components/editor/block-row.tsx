@@ -36,11 +36,14 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   const prev = sibs[sibs.findIndex((b) => b.id === block.id) - 1];
   const listRun = LIST_RUN.has(block.type);
   const listFirst = !(prev && LIST_RUN.has(prev.type));
+  const next = sibs[sibs.findIndex((b) => b.id === block.id) + 1];
+ // …그리고 런의 마지막 항목은 하단 6 (단독 항목 = 6+28+6 = 40). 둘 다 이웃으로 정해진다.
+  const listLast = !(next && LIST_RUN.has(next.type));
  // 거터(+, 6점)의 세로 위치: 원본은 24px 컨트롤을 첫 텍스트 줄(line box)의 중앙에
  // 맞춘다 — 문단 8, H1 39.5, H2 31.6, H3 25, 리스트 첫 항목 8 / 이후 3, 인용 8.
   const handleTop = HANDLE_TOP[block.type] ?? (listRun ? (listFirst ? 8 : 3) : 2);
  // 하이라이트의 상하 inset 은 min(2px, 그 쪽 padding): 리스트 항목은 1px 패딩이라 1.
-  const halo = { top: listRun && !listFirst ? 1 : 2, bottom: listRun && block.type !== "toggle" ? 1 : 2 };
+  const halo = { top: listRun && !listFirst ? 1 : 2, bottom: listRun && !listLast ? 1 : 2 };
 
  // A columns layout renders its column children side-by-side; each column
  // stacks its own children vertically.
@@ -146,7 +149,7 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
         )}
 
         <BlockCommentAnchor blockId={block.id}>
-          <BlockBody block={block} depth={depth} listFirst={listFirst} />
+          <BlockBody block={block} depth={depth} listFirst={listFirst} listLast={listLast} />
         </BlockCommentAnchor>
       </div>
 
@@ -764,9 +767,10 @@ function MenuBtn({
   );
 }
 
-function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; listFirst: boolean }) {
+function BlockBody({ block, depth, listFirst, listLast }: { block: EBlock; depth: number; listFirst: boolean; listLast: boolean }) {
   const editor = useEditor();
   const listTop = listFirst ? "pt-1.5" : "pt-[1px]";
+  const listBottom = listLast ? "pb-1.5" : "pb-[1px]";
 
   switch (block.type) {
     case "divider":
@@ -863,7 +867,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
 
     case "todo":
       return (
-        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
+        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
           <input
             type="checkbox"
             data-testid={`todo-checkbox-${block.id}`}
@@ -886,7 +890,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
       const children = editor.childrenOf(block.id);
       const expanded = block.content.expanded ?? true;
       return (
-        <div className={`w-full pb-1.5 ${listTop}`}>
+        <div className={`w-full ${listTop} ${listBottom}`}>
           <div className="flex items-start gap-0.5">
             <button
               data-testid={`toggle-expand-${block.id}`}
@@ -915,9 +919,10 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
                 <button
                   data-testid="toggle-add-inside"
                   onClick={() => editor.addInsideToggle(block.id)}
-                  className="ml-6 rounded px-1.5 py-1 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+ // 원본(2026-08-26 실측): 빈 토글의 안내 행은 40px — 문단 한 줄과 같은 키
+                  className="ml-6 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  Empty toggle. Click or drop blocks inside.
+                  빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.
                 </button>
               ) : (
                 children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} />)
@@ -930,7 +935,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
 
     case "bulleted_list":
       return (
-        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
+        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
           <span className="mt-0.5 w-4 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
             •
           </span>
@@ -943,7 +948,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
 
     case "numbered_list":
       return (
-        <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
+        <div className={`flex w-full items-start gap-2 ${listTop} ${listBottom}`}>
           <span className="mt-0.5 w-4 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
             {editor.numberOf(block)}.
           </span>

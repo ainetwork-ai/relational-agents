@@ -61,7 +61,9 @@ export const MARKDOWN_SHORTCUTS: { prefix: string; type: BlockType }[] = [
   { prefix: "*", type: "bulleted_list" },
   { prefix: "1.", type: "numbered_list" },
   { prefix: "[]", type: "todo" },
-  { prefix: ">", type: "quote" },
+  // 원본: ">" 는 토글, '"' 가 인용 (2026-08-26 실측)
+  { prefix: ">", type: "toggle" },
+  { prefix: '"', type: "quote" },
   { prefix: "```", type: "code" },
 ];
 
