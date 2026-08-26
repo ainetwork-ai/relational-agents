@@ -140,7 +140,7 @@ export function SlashMenu({
               })()}
             </span>
             <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[#2c2c2b] dark:text-neutral-200">
-              {item.label}
+              {t(item.label)}
             </span>
             {item.md && (
               <kbd className="shrink-0 pr-1 font-sans text-[12px] text-[#a19e99]">
