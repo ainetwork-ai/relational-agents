@@ -234,6 +234,20 @@ export const BlockEditor = forwardRef<
     return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
   });
   const [slash, setSlash] = useState<SlashState | null>(null);
+ // the original locks background scroll while the type menu is open, so the
+ // menu (anchored to a fixed point) can't drift away from its line. Freeze the
+ // nearest scroll container at its current offset for as long as the menu lives.
+  useEffect(() => {
+    if (!slash) return;
+    const el = editables.current.get(slash.blockId);
+    let sc: HTMLElement | null = el?.parentElement ?? null;
+    while (sc && sc.scrollHeight <= sc.clientHeight) sc = sc.parentElement;
+    if (!sc) return;
+    const prev = sc.style.overflowY;
+    sc.style.overflowY = "hidden";
+    return () => { sc.style.overflowY = prev; };
+  }, [slash]);
+
  // the original closes the type menu on a mousedown anywhere outside the
  // menu — the line it belongs to included (measured 2026-08-26: clicking the
  // line closes the menu and the line goes back to its usual placeholder)
