@@ -188,6 +188,10 @@ function fromRow(b: Block): EBlock {
 // mismatched (server block-<a>, client block-<b>). Derived from the pageId
 // instead: same page, same id, on both sides. The namespace is arbitrary but
 // must never change.
+// blocks that take no children in the original — Tab never nests under them
+const NO_CHILDREN = new Set<string>(["heading1", "heading2", "heading3", "divider", "code", "image", "file", "video", "bookmark", "embed", "equation", "table", "database"]);
+// where a markdown prefix converts the block (the original converts an EMPTY list item too)
+const SHORTCUT_HOSTS = new Set<string>(["paragraph", "bulleted_list", "numbered_list", "todo", "toggle"]);
 const BOOTSTRAP_NS = "9a3c5e88-0b5d-4b6a-9f3e-2f1c7a4d8e01";
 function bootstrapParagraph(pageId: string): EBlock {
   return { ...freshParagraph(null, 1), id: uuidv5(pageId, BOOTSTRAP_NS) };
@@ -976,8 +980,15 @@ export const BlockEditor = forwardRef<
         cur.content.html = beforeHtml;
         cur.version++;
 
-        const nb = freshParagraph(cur.parentBlockId, 0);
-        nb.position = positionAfter(next, cur);
+ // Enter at the end of an OPEN toggle puts the new line inside it, as its
+ // first child — the original's behaviour (2026-08-26 input cases). A
+ // collapsed toggle, or a split mid-title, keeps the sibling behaviour.
+        const intoToggle = cur.type === "toggle" && cur.content.expanded !== false && after === "";
+        const nb = freshParagraph(intoToggle ? cur.id : cur.parentBlockId, 0);
+        if (intoToggle) {
+          const kids = next.filter((b) => b.parentBlockId === cur.id);
+          nb.position = kids.length ? Math.min(...kids.map((k) => k.position)) - 1 : 1;
+        } else nb.position = positionAfter(next, cur);
         nb.content.text = after;
         nb.content.html = afterHtml;
         if (CONTINUING.includes(cur.type)) {
@@ -1002,9 +1013,12 @@ export const BlockEditor = forwardRef<
       if (block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
         mutate((prev) =>
           prev.map((b) =>
-            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version } : b
+            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
           )
         );
+ // the row re-mounts as a paragraph; without this the caret is gone and the
+ // next keystroke lands nowhere (2026-08-26 input cases)
+        pendingFocus.current = { id, pos: "start" };
         return true;
       }
 
@@ -1120,9 +1134,11 @@ export const BlockEditor = forwardRef<
           setSlash({ ...slash, query, selected: 0 });
         }
       } else {
- // markdown shortcuts only on plain paragraphs
+ // markdown shortcuts on a plain paragraph — and, as the original does, on a
+ // list item whose whole text is the prefix (an empty bullet turning into a
+ // heading, a toggle, a divider…; 2026-08-26 input cases)
         const block = blocks.find((b) => b.id === id);
-        if (block?.type === "paragraph") {
+        if (block && SHORTCUT_HOSTS.has(block.type)) {
  // we convert on the third backtick immediately, no space needed
           if (text === "```") {
             mutate((prev) =>
@@ -1162,6 +1178,7 @@ export const BlockEditor = forwardRef<
             return;
           }
           for (const s of MARKDOWN_SHORTCUTS) {
+            if (s.type === block.type) continue; // the original leaves "- " in a bullet as text
             if (text === s.prefix + " " || text === s.prefix + " ") {
               mutate((prev) =>
                 prev.map((b) =>
@@ -1623,6 +1640,7 @@ export const BlockEditor = forwardRef<
         const idx = sibs.findIndex((s) => s.id === id);
         const prevSib = sibs[idx - 1];
         if (!prevSib) return prev; // first child can't indent
+        if (NO_CHILDREN.has(prevSib.type)) return prev; // the original: a heading (divider, code…) takes no children
         const kids = next
           .filter((b) => b.parentBlockId === prevSib.id)
           .sort((a, b) => a.position - b.position);

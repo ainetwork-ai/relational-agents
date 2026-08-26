@@ -27,7 +27,7 @@ import { MemorySelect } from "@/components/database/memory-select";
 const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
 
-export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
+export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string }) {
   const editor = useEditor();
  // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
  // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
@@ -35,10 +35,14 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   const sibs = editor.childrenOf(block.parentBlockId ?? null);
   const prev = sibs[sibs.findIndex((b) => b.id === block.id) - 1];
   const listRun = LIST_RUN.has(block.type);
-  const listFirst = !(prev && LIST_RUN.has(prev.type));
+ // …but INSIDE a list-ish block (a bullet's or toggle's children) there is no
+ // run boundary at all: nested items are 1/1 (nested bullet 30, nested open
+ // empty toggle 70 — 2026-08-26 input cases)
+  const nested = !!parentType && LIST_RUN.has(parentType);
+  const listFirst = !nested && !(prev && LIST_RUN.has(prev.type));
   const next = sibs[sibs.findIndex((b) => b.id === block.id) + 1];
  // …그리고 런의 마지막 항목은 하단 6 (단독 항목 = 6+28+6 = 40). 둘 다 이웃으로 정해진다.
-  const listLast = !(next && LIST_RUN.has(next.type));
+  const listLast = !nested && !(next && LIST_RUN.has(next.type));
  // 거터(+, 6점)의 세로 위치: 원본은 24px 컨트롤을 첫 텍스트 줄(line box)의 중앙에
  // 맞춘다 — 문단 8, H1 39.5, H2 31.6, H3 25, 리스트 첫 항목 8 / 이후 3, 인용 8.
   const handleTop = HANDLE_TOP[block.type] ?? (listRun ? (listFirst ? 8 : 3) : 2);
@@ -149,14 +153,14 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
         )}
 
         <BlockCommentAnchor blockId={block.id}>
-          <BlockBody block={block} depth={depth} listFirst={listFirst} listLast={listLast} />
+          <BlockBody block={block} depth={depth} listFirst={listFirst} listLast={listLast} inList={!!parentType && parentType !== "toggle" && LIST_RUN.has(parentType)} />
         </BlockCommentAnchor>
       </div>
 
       {nestedChildren.length > 0 && (
         <div>
           {nestedChildren.map((c) => (
-            <BlockRow key={c.id} block={c} depth={depth + 1} />
+            <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />
           ))}
         </div>
       )}
@@ -767,7 +771,7 @@ function MenuBtn({
   );
 }
 
-function BlockBody({ block, depth, listFirst, listLast }: { block: EBlock; depth: number; listFirst: boolean; listLast: boolean }) {
+function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBlock; depth: number; listFirst: boolean; listLast: boolean; inList: boolean }) {
   const editor = useEditor();
   const listTop = listFirst ? "pt-1.5" : "pt-[1px]";
   const listBottom = listLast ? "pb-1.5" : "pb-[1px]";
@@ -925,7 +929,7 @@ function BlockBody({ block, depth, listFirst, listLast }: { block: EBlock; depth
                   빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.
                 </button>
               ) : (
-                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} />)
+                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />)
               )}
             </div>
           )}
@@ -1005,7 +1009,8 @@ function BlockBody({ block, depth, listFirst, listLast }: { block: EBlock; depth
 
     default:
       return (
-        <div className="w-full py-1.5">
+ // 원본(2026-08-26 실측): 리스트 항목 안에 중첩된 문단은 30 = 1 + 28 + 1
+        <div className={inList ? "w-full py-[1px]" : "w-full py-1.5"}>
           <Editable
             block={block}
             placeholder="Write something, or press '/' for commands"
