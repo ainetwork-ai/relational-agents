@@ -678,7 +678,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
       )}
       <Editable
         block={block}
-        className="flex-1 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+        className="flex-1 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
       {/* color menu */}
       <div ref={ref} className="relative shrink-0">
@@ -863,7 +863,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
           />
           <Editable
             block={block}
-            className={`flex-1 py-0.5 text-[15px] leading-6 ${
+            className={`flex-1 py-0.5 text-base leading-6 ${
               block.content.checked
                 ? "text-neutral-400 line-through"
                 : "text-neutral-800 dark:text-neutral-200"
@@ -896,7 +896,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
             </button>
             <Editable
               block={block}
-              className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+              className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
             />
           </div>
           {expanded && (
@@ -921,12 +921,12 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
     case "bulleted_list":
       return (
         <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
-          <span className="mt-0.5 w-4 shrink-0 select-none text-center text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
+          <span className="mt-0.5 w-4 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
             •
           </span>
           <Editable
             block={block}
-            className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
@@ -934,12 +934,12 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
     case "numbered_list":
       return (
         <div className={`flex w-full items-start gap-2 pb-[1px] ${listTop}`}>
-          <span className="mt-0.5 w-4 shrink-0 select-none text-right text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
+          <span className="mt-0.5 w-4 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
             {editor.numberOf(block)}.
           </span>
           <Editable
             block={block}
-            className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
@@ -949,7 +949,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
         <div className="w-full border-l-[3px] border-neutral-800 py-2 pl-3 dark:border-neutral-300 [&>div]:min-h-6">
           <Editable
             block={block}
-            className="py-0 text-[15px] leading-6 text-neutral-700 dark:text-neutral-300"
+            className="py-0 text-base leading-6 text-neutral-700 dark:text-neutral-300"
           />
         </div>
       );
@@ -994,7 +994,7 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
           <Editable
             block={block}
             placeholder="Write something, or press '/' for commands"
-            className="w-full py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="w-full py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
