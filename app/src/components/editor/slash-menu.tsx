@@ -1,10 +1,30 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse,
+  TextQuote, Minus, ListTree, Link2, Paperclip, Sparkles, Sigma, MousePointerClick,
+  LayoutTemplate, Code, Info, Table, Database, Image, Bookmark, Video, AppWindow,
+  LayoutDashboard, FileText, Columns2, type LucideIcon,
+} from "lucide-react";
 import { useAnchoredAt } from "@/hooks/use-anchored";
 import { useT } from "@/i18n/provider";
 import type { BlockType } from "@/lib/db/schema";
 import { SLASH_ITEMS } from "@/lib/editor/block-defs";
+
+/** One line-drawn icon per slash item — keyed by id first, then block type, so
+ * "dashboard" and "database" (both type `database`) get their own. Replaces the
+ * emoji/text glyphs, which rendered at a different weight and colour than the
+ * SVG ones beside them. */
+const ITEM_ICON: Record<string, LucideIcon> = {
+  paragraph: Type, heading1: Heading1, heading2: Heading2, heading3: Heading3,
+  bulleted_list: List, numbered_list: ListOrdered, todo: ListChecks, toggle: ListCollapse,
+  quote: TextQuote, divider: Minus, toc: ListTree, link_to_page: Link2, child_page: FileText,
+  file: Paperclip, ai_prompt: Sparkles, equation: Sigma, button: MousePointerClick,
+  template_button: LayoutTemplate, code: Code, callout: Info, table: Table, database: Database,
+  dashboard: LayoutDashboard, image: Image, bookmark: Bookmark, video: Video,
+  embed: AppWindow, column_list: Columns2,
+};
 
 const CATEGORY_ORDER: Record<string, number> = {
   basic: 0,
@@ -24,22 +44,6 @@ export function filterSlashItems(query: string) {
     (a, b) =>
       (CATEGORY_ORDER[a.category ?? "basic"] ?? 0) - (CATEGORY_ORDER[b.category ?? "basic"] ?? 0)
   );
-}
-
-/** Named SVG icons for items whose tile outgrows a text glyph. */
-function ItemIcon({ name }: { name: "dashboard" }) {
-  if (name === "dashboard") {
- // panel grid — a generic dashboard (any subject, not domain-specific)
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="3" y="3" width="8" height="10" rx="1.5" />
-        <rect x="14" y="3" width="7" height="6" rx="1.5" />
-        <rect x="14" y="12" width="7" height="9" rx="1.5" />
-        <rect x="3" y="16" width="8" height="5" rx="1.5" />
-      </svg>
-    );
-  }
-  return null;
 }
 
 export function SlashMenu({
@@ -95,12 +99,19 @@ export function SlashMenu({
           const prevCat = i > 0 ? (items[i - 1].category ?? "basic") : null;
           const header =
             cat !== prevCat ? (
-              <p
-                key={`hdr-${cat}`}
-                className="px-3 pb-1 pt-2.5 text-[12px] font-medium leading-[14.4px] text-[#7d7a75] dark:text-neutral-400"
-              >
-                {t(SECTION_LABEL[cat])}
-              </p>
+              <>
+                {/* a section rule between groups (never above the first) — 1px,
+                    rgba(42,28,0,.07), inset 12px, matching the original */}
+                {i > 0 && (
+                  <div key={`sep-${cat}`} className="mx-3 my-1.5 h-px bg-[rgba(42,28,0,0.07)] dark:bg-white/10" />
+                )}
+                <p
+                  key={`hdr-${cat}`}
+                  className="px-3 pb-1 pt-2.5 text-[12px] font-medium leading-[14.4px] text-[#7d7a75] dark:text-neutral-400"
+                >
+                  {t(SECTION_LABEL[cat])}
+                </p>
+              </>
             ) : null;
           return (
           <div key={item.id ?? item.type}>
@@ -118,8 +129,15 @@ export function SlashMenu({
                 : "hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-white/10"
             }`}
           >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[13px] text-neutral-500">
-              {item.icon ? <ItemIcon name={item.icon} /> : (item.glyph ?? item.label.slice(0, 2))}
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[#37352f] dark:text-neutral-300">
+              {(() => {
+                const Icon = ITEM_ICON[item.id ?? item.type] ?? ITEM_ICON[item.type];
+                return Icon ? (
+                  <Icon size={17} strokeWidth={1.75} aria-hidden="true" />
+                ) : (
+                  <span className="text-[13px] text-neutral-500">{item.glyph ?? item.label.slice(0, 2)}</span>
+                );
+              })()}
             </span>
             <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[#2c2c2b] dark:text-neutral-200">
               {item.label}
