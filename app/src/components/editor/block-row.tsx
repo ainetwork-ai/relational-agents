@@ -1022,7 +1022,8 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
             block={block}
  // the gutter + opened the type menu on this empty line: the original shows a
  // filter placeholder there instead of the usual one
-            placeholder={editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요..." : "Write something, or press '/' for commands"}
+            placeholder={editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "Write something, or press '/' for commands"}
+            bare={editor.slashBareBlockId === block.id}
             className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
@@ -1284,10 +1285,13 @@ function Editable({
   block,
   className,
   placeholder,
+  bare,
 }: {
   block: EBlock;
   className?: string;
   placeholder?: string;
+  /** the gutter + menu is open on this block: filter placeholder gets the original's pill */
+  bare?: boolean;
 }) {
   const editor = useEditor();
   const ref = useRef<HTMLDivElement>(null);
@@ -1349,6 +1353,7 @@ function Editable({
       suppressContentEditableWarning
       spellCheck={false}
       data-testid={`block-editable-${block.id}`}
+      data-bare-menu={bare ? "" : undefined}
       data-placeholder={placeholder}
       onInput={(e) => editor.onInput(block.id, e.currentTarget)}
       onKeyDown={(e) => editor.onKeyDown(block.id, e, e.currentTarget)}

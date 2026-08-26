@@ -43,11 +43,15 @@ function ItemIcon({ name }: { name: "dashboard" }) {
 
 export function SlashMenu({
   anchor,
+  gap = 2,
+  anchorHeight,
   query,
   selectedIndex,
   onPick,
 }: {
   anchor: { x: number; y: number };
+  gap?: number;
+  anchorHeight?: number;
   query: string;
   selectedIndex: number;
   onPick: (type: BlockType, preset?: Record<string, unknown>) => void;
@@ -58,7 +62,7 @@ export function SlashMenu({
  // Below the caret, flipped above it when the window's bottom is too close,
  // and clamped sideways — all of it in useAnchoredAt now, which every other
  // caret menu uses too (this one used to own its flip and clamp nothing).
-  useAnchoredAt(true, anchor, menuRef, { gap: 2 });
+  useAnchoredAt(true, anchor, menuRef, { gap, ...(anchorHeight ? { lineHeight: anchorHeight } : {}) });
 
   useEffect(() => {
     const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
@@ -70,17 +74,19 @@ export function SlashMenu({
   return (
     <div
       data-testid="slash-menu"
-      className="popover-anim fixed z-50 max-h-72 w-72 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+ // 원본(2026-08-26 실측): 324 wide, radius 10, layered shadow, no border; a
+ // scrolling list of 32px rows capped at 354.8, then a 42px "메뉴 닫기 esc" footer
+      className="popover-anim fixed z-50 w-[324px] overflow-hidden rounded-[10px] bg-white shadow-[0_20px_24px_rgba(25,25,25,0.05),0_5px_8px_rgba(25,25,25,0.027),0_0_0_1px_rgba(42,28,0,0.07)] dark:bg-neutral-800 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
       style={{ visibility: "hidden" }}
       ref={menuRef}
     >
-      <div ref={listRef}>
+      <div ref={listRef} className="max-h-[354.8px] overflow-y-auto pb-1">
         {items.map((item, i) => {
           const SECTION_LABEL: Record<string, string> = {
-            basic: "Basic blocks",
-            media: "Media",
-            database: "Database",
-            advanced: "Advanced",
+            basic: "기본 블록",
+            media: "미디어",
+            database: "데이터베이스",
+            advanced: "고급 블록",
             ai: "AI",
           };
           const cat = item.category ?? "basic";
@@ -89,7 +95,7 @@ export function SlashMenu({
             cat !== prevCat ? (
               <p
                 key={`hdr-${cat}`}
-                className="sticky top-0 bg-white/95 px-3 pb-1 pt-1.5 text-xs font-medium text-neutral-400 backdrop-blur dark:bg-neutral-800/95"
+                className="px-3 pb-1 pt-2.5 text-[12px] font-medium leading-[14.4px] text-[#7d7a75] dark:text-neutral-400"
               >
                 {SECTION_LABEL[cat]}
               </p>
@@ -104,25 +110,20 @@ export function SlashMenu({
               e.preventDefault();
               onPick(item.type, item.preset);
             }}
-            className={`flex w-full items-center gap-3 px-3 py-1.5 text-left transition-colors ${
+            className={`mx-1 flex h-8 w-[calc(100%-8px)] items-center gap-2 rounded-md px-2 text-left transition-colors ${
               i === selectedIndex
-                ? "bg-neutral-100 dark:bg-neutral-700"
-                : "hover:bg-neutral-50 dark:hover:bg-neutral-700/60"
+                ? "bg-[rgba(33,27,23,0.05)] dark:bg-white/10"
+                : "hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-white/10"
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-neutral-200 bg-white text-sm text-neutral-500 dark:border-neutral-600 dark:bg-neutral-800">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[13px] text-neutral-500">
               {item.icon ? <ItemIcon name={item.icon} /> : (item.glyph ?? item.label.slice(0, 2))}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-neutral-800 dark:text-neutral-200">
-                {item.label}
-              </span>
-              <span className="block truncate text-xs text-neutral-400">
-                {item.hint}
-              </span>
+            <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[#2c2c2b] dark:text-neutral-200">
+              {item.label}
             </span>
             {item.md && (
-              <kbd className="shrink-0 rounded border border-neutral-200 px-1 text-[10px] text-neutral-400 dark:border-neutral-600">
+              <kbd className="shrink-0 pr-1 font-sans text-[12px] text-[#a19e99]">
                 {item.md}
               </kbd>
             )}
@@ -130,6 +131,10 @@ export function SlashMenu({
           </div>
           );
         })}
+      </div>
+      <div className="flex h-[42px] items-center justify-between border-t border-[rgba(42,28,0,0.07)] px-3 text-[14px] text-[#2c2c2b] dark:border-white/10 dark:text-neutral-200">
+        <span>메뉴 닫기</span>
+        <span className="text-[12px] text-[#a19e99]">esc</span>
       </div>
     </div>
   );

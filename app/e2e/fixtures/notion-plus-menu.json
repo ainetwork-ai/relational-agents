@@ -1,0 +1,11 @@
+{
+  "_source": "app.notion.com 샌드박스 페이지, 2026-08-26 실측 (scratchpad/m-plus-4/5/6.mjs, Page.bringToFront 후 + 클릭)",
+  "behaviour": {
+    "contentLine": "아래에 빈 줄을 새로 만들고 그 줄에서 메뉴가 열린다",
+    "emptyLine": "줄을 추가하지 않고 그 줄에서 메뉴가 열린다",
+    "noSlashCharacter": true,
+    "caretOffset": 0
+  },
+  "placeholder": { "text": "필터링 기준을 입력하세요.", "pillBg": "rgba(66, 35, 3, 0.03)" },
+  "menu": { "w": 324, "h": 396.8, "leftFromBlock": 0, "gap": 8, "radius": "10px", "listMaxH": "354.8px", "itemH": 32, "footerH": 42 }
+}

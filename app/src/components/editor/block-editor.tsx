@@ -56,6 +56,8 @@ interface SlashState {
   /** opened from the gutter +: no "/" character in the block, the whole
    * text is the filter, and the block shows a filter placeholder (original) */
   bare?: boolean;
+  /** bare mode anchors to the block box (left edge, full height), not the caret */
+  anchorHeight?: number;
   query: string;
   selected: number;
   anchor: { x: number; y: number };
@@ -2129,19 +2131,24 @@ export const BlockEditor = forwardRef<
     (id: string) => {
  // standard behavior: + inserts a block AND opens the type menu — a silent
  // empty block reads as "nothing happened".
- // the original: + makes an EMPTY line (no "/" to delete afterwards) with a
- // filter placeholder, the caret at its start, and the type menu open
-      const nb = freshParagraph(null, 0);
-      mutate((prev) => {
-        const next = prev.map((b) => ({ ...b }));
-        const cur = next.find((b) => b.id === id);
-        if (!cur) return prev;
-        nb.parentBlockId = cur.parentBlockId;
-        nb.position = positionAfter(next, cur);
-        next.push(nb);
-        return next;
-      });
-      pendingFocus.current = { id: nb.id, pos: "end" };
+ // the original: + opens the type menu on an EMPTY line — this one if it is
+ // already an empty paragraph, otherwise a new one below — with a filter
+ // placeholder, the caret at its start, and no "/" to delete afterwards
+      const here = blocks.find((b) => b.id === id);
+      const reuse = !!here && here.type === "paragraph" && (here.content.text ?? "") === "";
+      const nb = reuse ? here : freshParagraph(null, 0);
+      if (!reuse) {
+        mutate((prev) => {
+          const next = prev.map((b) => ({ ...b }));
+          const cur = next.find((b) => b.id === id);
+          if (!cur) return prev;
+          nb.parentBlockId = cur.parentBlockId;
+          nb.position = positionAfter(next, cur);
+          next.push(nb);
+          return next;
+        });
+      }
+      pendingFocus.current = { id: nb.id, pos: "start" };
  // The new block's editable may take more than one frame to mount on
  // slow renders — retry briefly instead of silently leaving a bare "/".
       const openMenu = (attempt: number) => {
@@ -2150,7 +2157,13 @@ export const BlockEditor = forwardRef<
           if (attempt < 10) requestAnimationFrame(() => openMenu(attempt + 1));
           return;
         }
-        const rect = caretRect() ?? el.getBoundingClientRect();
+ // reusing the line changes no state, so pendingFocus is never consumed —
+ // put the caret there ourselves (the placeholder pill needs :focus)
+        if (reuse) setCaret(el, "start");
+        const row = document.querySelector(`[data-testid="block-${nb.id}"]`) as HTMLElement | null;
+        const rect = row?.getBoundingClientRect() ?? el.getBoundingClientRect();
+ // the original's + menu: left edge on the block box, 8px below the line (or
+ // above it when the window's bottom is too close)
         setSlash({
           blockId: nb.id,
           offset: 0,
@@ -2158,11 +2171,12 @@ export const BlockEditor = forwardRef<
           selected: 0,
           bare: true,
           anchor: { x: rect.left, y: rect.top },
+          anchorHeight: rect.height,
         });
       };
       requestAnimationFrame(() => openMenu(0));
     },
-    [mutate, positionAfter]
+    [blocks, mutate, positionAfter]
   );
 
   const deleteBlock = useCallback(
@@ -2648,6 +2662,8 @@ export const BlockEditor = forwardRef<
         {slash && (
           <SlashMenu
             anchor={slash.anchor}
+            gap={slash.bare ? 8 : 2}
+            anchorHeight={slash.anchorHeight}
             query={slash.query}
             selectedIndex={slash.selected}
             onPick={applySlashPick}

@@ -217,3 +217,15 @@ header {
 [data-testid^="block-drag-"]:active,
 [data-testid^="db-col-drag-"]:active { cursor: grabbing; }
 [data-testid^="db-col-resize-"] { cursor: col-resize; }
+
+/* 거터 +로 연 타입 메뉴의 필터 플레이스홀더: 원본은 글자 둘레에 옅은 알약 배경
+   (rgba(66,35,3,.03), 2026-08-26 실측) */
+[contenteditable][data-bare-menu]:empty:focus::before {
+  background: rgba(66, 35, 3, 0.03);
+  border-radius: 1px;
+  padding: 0 2px;
+  margin-left: -2px;
+}
+.dark [contenteditable][data-bare-menu]:empty:focus::before {
+  background: rgba(255, 255, 255, 0.06);
+}
