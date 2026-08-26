@@ -7,12 +7,14 @@ import { createPortal } from "react-dom";
 import { Settings2, Eye, EyeOff } from "lucide-react";
 import { useDb } from "./database-block";
 import { isGroupable } from "@/lib/db-values";
+import { useT } from "@/i18n/provider";
 
 /** Per-view property visibility: toggle any property shown/hidden in the
  * active view. Persisted in ViewConfig.hiddenProperties; every view
  * (table/board/list/gallery/calendar) respects it. */
 export function ViewOptions() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -40,8 +42,8 @@ export function ViewOptions() {
         ref={btnRef}
         data-testid="db-view-options"
         onClick={() => setOpen((v) => !v)}
-        data-tip="View settings"
-        aria-label="Properties"
+        data-tip={t("보기 설정")}
+        aria-label={t("속성")}
                 // 28×28, radius 6, 16px icon — and ACTIVE means a blue icon, not a
         // blue chip: the original never fills these (measured toolbar, six of
         // them at a 28px pitch)
@@ -60,7 +62,7 @@ export function ViewOptions() {
             className="popover-anim fixed z-50 overflow-y-auto w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {/* Group by lives in view options — not a strip above the view */}
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-            Group by
+            {t("그룹화")}
           </span>
           <select
             data-testid="db-group-by-select"
@@ -73,7 +75,7 @@ export function ViewOptions() {
             }
             className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded border border-neutral-200 bg-transparent px-1 py-0.5 text-xs text-neutral-600 outline-none dark:border-neutral-600 dark:text-neutral-300"
           >
-            <option value="">None</option>
+            <option value="">{t("없음")}</option>
             {db.properties
               .filter((p) => isGroupable(p) || (p.config.options?.length ?? 0) > 0)
               .map((p) => (
@@ -83,7 +85,7 @@ export function ViewOptions() {
               ))}
           </select>
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-            Properties
+            {t("속성")}
           </span>
           {db.properties.map((p) => {
             const isHidden = hidden.includes(p.id);

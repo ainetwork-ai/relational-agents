@@ -7,6 +7,7 @@ import { useAnchored } from "@/hooks/use-anchored";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { X } from "lucide-react";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 /** The person picker, measured on the original (e2e/fixtures/notion-person-picker.json):
  *  the box is always 333 tall with the list scrolling inside, and its width is the
@@ -38,13 +39,14 @@ import { UserAvatar } from "@/components/user-avatar";
 import { OptionChip } from "./option-chip";
 
 /** A row timestamp, written the way the original writes it. */
-function fmtTimestamp(v: unknown): string {
+function fmtTimestamp(v: unknown, locale: string): string {
   if (!v) return "";
   const d = new Date(v as string | number | Date);
-  return isNaN(d.getTime()) ? "" : formatRowTimestamp(d);
+  return isNaN(d.getTime()) ? "" : formatRowTimestamp(d, locale);
 }
 
 export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
+  const intl = useIntlLocale();
   const db = useDb();
   const value = row.values[prop.id];
   const testid = `db-cell-${row.id}-${prop.id}`;
@@ -70,7 +72,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
  // (e2e/fixtures/notion-created-time.json)
           className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
         >
-          {fmtTimestamp(row.createdAt)}
+          {fmtTimestamp(row.createdAt, intl)}
         </div>
       );
 
@@ -83,7 +85,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
  // (e2e/fixtures/notion-created-time.json)
           className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
         >
-          {fmtTimestamp(row.updatedAt)}
+          {fmtTimestamp(row.updatedAt, intl)}
         </div>
       );
 
@@ -161,6 +163,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
 function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [snap, setSnap] = useState<DbSnapshot | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -261,9 +264,9 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
             className="popover-anim fixed z-50 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
           {!targetDbId ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">Pick a target database first</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("먼저 대상 데이터베이스를 선택하세요")}</div>
           ) : !snap || snap.rows.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">No rows to link</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("연결할 행이 없습니다")}</div>
           ) : (
             snap.rows.map((tr) => (
               <button
@@ -350,6 +353,7 @@ function MultiSelectCell({
   row: DbRow;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -402,7 +406,7 @@ function MultiSelectCell({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search or create…"
+            placeholder={t("검색 또는 생성…")}
             className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
           />
           {options
@@ -428,7 +432,7 @@ function MultiSelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              + Create “{q}”
+              {t("생성 “{q}”", { q })}
             </button>
           )}
           </div>,
@@ -492,6 +496,8 @@ function DateCell({
   const push = (next: Partial<DateParts>) => onSet(buildDateValue({ ...parts, ...next }));
   const idBase = testid.replace("db-cell-", "");
   const fmt = (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT;
+  const t = useT();
+  const dateOpts = { locale: useIntlLocale(), t };
 
   const popRef = useRef<HTMLDivElement>(null);
  // portalled to the body, so the cell's one-line clipping cannot cut it and it
@@ -507,7 +513,7 @@ function DateCell({
  // the same metrics as every other cell's text (14px/21px, inset 8/10)
         className="flex h-[37px] w-full items-start pl-[7px] pr-2 pt-[10px] text-left text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
       >
-        {fmtDateRange(parts, fmt) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
+        {fmtDateRange(parts, fmt, dateOpts) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
       </button>
       {open &&
         createPortal(
@@ -537,14 +543,14 @@ function DateCell({
 }
 
 /** Format a number per the column's numberFormat config. */
-function formatNumber(n: number, fmt?: string): string {
+function formatNumber(n: number, fmt: string | undefined, locale: string): string {
   switch (fmt) {
     case "percent":
       return `${n}%`;
     case "currency":
-      return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+      return n.toLocaleString(locale, { style: "currency", currency: "USD" });
     case "comma":
-      return n.toLocaleString();
+      return n.toLocaleString(locale);
     default:
       return String(n);
   }
@@ -563,6 +569,7 @@ function NumberCell({
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const intl = useIntlLocale();
   const [editing, setEditing] = useState(false);
   const num = value === undefined || value === null || value === "" ? null : Number(value);
   const asBar = prop.config.display === "bar";
@@ -596,7 +603,7 @@ function NumberCell({
           className="block h-full rounded-full bg-blue-500"
         />
       </span>
-      <span className="shrink-0 text-xs text-neutral-500">{formatNumber(num, prop.config.numberFormat)}</span>
+      <span className="shrink-0 text-xs text-neutral-500">{formatNumber(num, prop.config.numberFormat, intl)}</span>
     </button>
   );
 }
@@ -612,6 +619,7 @@ function UrlCell({
   value: string;
   onCommit: (v: string) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const ref = useRef(value);
@@ -667,8 +675,8 @@ function UrlCell({
             }, 1200);
           }
         }}
-        aria-label="Copy URL"
-        data-tip="Copy link"
+        aria-label={t("URL 복사")}
+        data-tip={t("링크 복사")}
         className="shrink-0 rounded px-1 text-xs text-neutral-400 opacity-0 transition-opacity hover:text-neutral-600 group-hover/urlcell:opacity-100"
       >
         ⧉
@@ -676,7 +684,7 @@ function UrlCell({
       <button
         data-testid={`db-url-edit-${testid}`}
         onClick={() => setEditing(true)}
-        aria-label="Edit URL"
+        aria-label={t("URL 편집")}
         className="ml-auto shrink-0 px-1 text-xs text-neutral-400 hover:text-neutral-600"
       >
         ✎
@@ -697,6 +705,7 @@ function SelectCell({
   onSet: (v: unknown) => void;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -765,7 +774,7 @@ function SelectCell({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search or create…"
+            placeholder={t("검색 또는 생성…")}
             className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
           />
           {!!value && (
@@ -777,7 +786,7 @@ function SelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
             >
-              Clear
+              {t("지우기")}
             </button>
           )}
           {options
@@ -809,7 +818,7 @@ function SelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              + Create “{q}”
+              {t("생성 “{q}”", { q })}
             </button>
           )}
           </div>,
@@ -830,6 +839,7 @@ function FilesCell({
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const t = useT();
   const urls: string[] = Array.isArray(value) ? (value as string[]).filter((u) => typeof u === "string") : [];
   const [draft, setDraft] = useState("");
   const add = () => {
@@ -854,13 +864,13 @@ function FilesCell({
             data-testid={`db-file-remove-${i}`}
             onClick={() => removeAt(i)}
             className="text-neutral-400 hover:text-red-500"
-            aria-label="Remove file"
+            aria-label={t("파일 제거")}
           >
             ×
           </button>
         </span>
       ))}
-      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title="Upload a file">
+      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title={t("파일 업로드")}>
         ⬆
         <input
           data-testid={`${testid}-upload`}
@@ -884,7 +894,7 @@ function FilesCell({
           if (e.key === "Enter") add();
         }}
         onBlur={add}
-        placeholder="Add file URL…"
+        placeholder={t("파일 URL 추가…")}
         className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 text-xs outline-none dark:text-neutral-200"
       />
     </div>
@@ -901,6 +911,7 @@ function PersonCell({
   onSet: (v: unknown) => void;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -1010,7 +1021,7 @@ function PersonCell({
                     </span>
                     <button
                       data-testid={`db-person-${slug}-remove-${p.id}`}
-                      aria-label="항목 제거"
+                      aria-label={t("항목 제거")}
                       onClick={() => toggle(p.id)}
                       className="ml-[2px] flex h-5 w-5 items-center justify-center text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
@@ -1031,7 +1042,7 @@ function PersonCell({
                 box starts 10px under the bar and 12px in, so the text element —
                 not its padding — is what has to land there */}
             <div className="shrink-0 px-3 pt-[10px] text-[12px] leading-[14px]">
-              <span className="font-medium text-[rgb(125,122,117)]">원하는 만큼 선택</span>
+              <span className="font-medium text-[rgb(125,122,117)]">{t("원하는 만큼 선택")}</span>
             </div>
             <div className="mt-[9px] min-h-0 flex-1 overflow-y-auto">
             {candidates.map((m) => (
@@ -1044,8 +1055,8 @@ function PersonCell({
               >
                 <UserAvatar user={m} size={20} />
                 <span className="flex-1 truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
-                  {m.displayName || m.email || "이름 없음"}
-                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">(나)</span>}
+                  {m.displayName || m.email || t("이름 없음")}
+                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">{t("(나)")}</span>}
                 </span>
               </button>
             ))}

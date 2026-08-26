@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { useT } from "@/i18n/provider";
 
 /**
  * What this relationship's agent should be.
@@ -35,6 +36,8 @@ interface AgentConfigShape {
 }
 
 const TONES = ["warm", "concise", "playful", "formal"];
+// display only — the tone key itself is what gets saved
+const TONE_LABEL: Record<string, string> = { warm: "따뜻하게", concise: "간결하게", playful: "장난스럽게", formal: "격식 있게" };
 
 export function AgentSettings({
   roomId,
@@ -54,6 +57,7 @@ export function AgentSettings({
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const downOnOverlay = useRef(false);
+  const t = useT();
 
   // Escape closes, and focus starts inside — the rest of the app's dialogs
   // behave this way, and a modal you can only leave with the mouse is a trap.
@@ -121,12 +125,12 @@ export function AgentSettings({
     });
     setSaving(false);
     if (!res.ok) {
-      setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save");
+      setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? t("저장할 수 없습니다"));
       return;
     }
     onSaved?.();
     onClose();
-  }, [roomId, name, config, active, profiles, personaName, tone, proactive, whisper, onClose, onSaved]);
+  }, [roomId, name, config, active, profiles, personaName, tone, proactive, whisper, onClose, onSaved, t]);
 
   return (
     <div
@@ -146,28 +150,28 @@ export function AgentSettings({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Agent settings"
+        aria-label={t("에이전트 설정")}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-neutral-900"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold">Agent settings</h2>
+            <h2 className="text-base font-semibold">{t("에이전트 설정")}</h2>
             <p className="text-xs text-neutral-500">
-              What this agent keeps, and how it speaks. Any member can change it.
+              {t("이 에이전트가 무엇을 기록하고 어떻게 말할지 정합니다. 멤버 누구나 바꿀 수 있습니다.")}
             </p>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("닫기")}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <X size={16} />
           </button>
         </div>
 
-        <label className="mb-1 block text-xs font-medium text-neutral-500">Relationship</label>
+        <label className="mb-1 block text-xs font-medium text-neutral-500">{t("관계")}</label>
         <div className="mb-4 flex flex-col gap-2">
           {(profiles ?? []).map((p) => {
             const on = p.key === active?.key;
@@ -198,14 +202,13 @@ export function AgentSettings({
 
         {/* switching is safe, but only because nothing is thrown away — say so */}
         <p className="mb-4 rounded-md bg-neutral-50 px-3 py-2 text-[11px] text-neutral-500 dark:bg-neutral-800/50">
-          Changing this renames sections and may add new ones. Nothing already written is moved or
-          deleted — a section the new profile does not use stays in the document.
+          {t("바꾸면 섹션 이름이 바뀌고 새 섹션이 추가될 수 있습니다. 이미 쓴 내용은 옮기거나 지우지 않으며, 새 프로필이 쓰지 않는 섹션도 문서에 그대로 남습니다.")}
         </p>
 
         <div className="mb-4 grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="agent-name">
-              Name
+              {t("이름")}
             </label>
             <input
               id="agent-name"
@@ -216,7 +219,7 @@ export function AgentSettings({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="agent-tone">
-              Tone
+              {t("말투")}
             </label>
             <select
               id="agent-tone"
@@ -229,9 +232,9 @@ export function AgentSettings({
               }
               className="w-full rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
             >
-              {TONES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {TONES.map((tone) => (
+                <option key={tone} value={tone}>
+                  {t(TONE_LABEL[tone] ?? tone)}
                 </option>
               ))}
             </select>
@@ -248,9 +251,9 @@ export function AgentSettings({
             className="mt-0.5"
           />
           <span>
-            Speak up unasked
+            {t("먼저 말하기")}
             <span className="block text-xs text-neutral-500">
-              Only when you both need to know something — a clash, a promise it remembers.
+              {t("두 사람 모두 알아야 할 때만 — 일정 충돌, 기억하고 있는 약속 같은 것.")}
             </span>
           </span>
         </label>
@@ -268,22 +271,22 @@ export function AgentSettings({
             className="mt-0.5"
           />
           <span>
-            Whisper on calls
+            {t("질문에 귓속말")}
             <span className="block text-xs text-neutral-500">
-              When you are asked something, it tells you privately what the record says.
+              {t("질문을 받으면 기록에 있는 내용을 나에게만 조용히 알려줍니다.")}
             </span>
           </span>
         </label>
 
         <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="agent-extra">
-          Extra instructions
+          {t("추가 지침")}
         </label>
         <textarea
           id="agent-extra"
           rows={3}
           value={config.systemPrompt ?? ""}
           onChange={(e) => setConfig((c) => ({ ...c, systemPrompt: e.target.value }))}
-          placeholder="e.g. Always put anything we promise into Action items."
+          placeholder={t("예: 우리가 약속한 것은 항상 할 일 항목에 적어 줘.")}
           className="mb-4 w-full resize-y rounded-md border border-neutral-200 px-2.5 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
         />
 
@@ -294,7 +297,7 @@ export function AgentSettings({
             onClick={onClose}
             className="rounded-md px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
-            Cancel
+            {t("취소")}
           </button>
           <button
             data-testid="agent-settings-save"
@@ -302,7 +305,7 @@ export function AgentSettings({
             disabled={saving || !profiles}
             className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("저장 중…") : t("저장")}
           </button>
         </div>
       </div>

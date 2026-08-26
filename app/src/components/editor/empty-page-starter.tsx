@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Sparkles, FileText, Table2, ClipboardList, LayoutTemplate } from "lucide-react";
 import type { BlockType } from "@/lib/db/schema";
+import { useT } from "@/i18n/provider";
 
 interface StarterItem {
   key: string;
@@ -58,6 +59,7 @@ export function EmptyPageStarter({
   onPick: (type: BlockType, preset?: Record<string, unknown>) => void;
   onTemplates: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement | null>(null);
   const [top, setTop] = useState<number | null>(null);
 
@@ -105,11 +107,11 @@ export function EmptyPageStarter({
       ref={ref}
       data-testid="empty-page-starter"
       role="menu"
-      aria-label="시작하기"
+      aria-label={t("시작하기")}
       className="absolute inset-x-0 transition-[top] duration-200"
       style={top === null ? { visibility: "hidden", top: 0 } : { top }}
     >
-      <p className="px-1 pb-1.5 text-sm font-medium text-neutral-400">시작하기</p>
+      <p className="px-1 pb-1.5 text-sm font-medium text-neutral-400">{t("시작하기")}</p>
       <div className="flex flex-wrap gap-2">
         {ITEMS.map((item) => {
           const isTemplate = item.key === "template";
@@ -120,7 +122,7 @@ export function EmptyPageStarter({
               role="menuitem"
               data-testid={`starter-${item.key}`}
               disabled={disabled}
-              title={item.soon}
+              title={item.soon ? t(item.soon) : undefined}
               aria-disabled={disabled}
               onClick={() => {
                 if (isTemplate) return onTemplates();
@@ -129,7 +131,7 @@ export function EmptyPageStarter({
               className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               <span className="text-neutral-400">{item.icon}</span>
-              {item.label}
+              {t(item.label)}
             </button>
           );
         })}

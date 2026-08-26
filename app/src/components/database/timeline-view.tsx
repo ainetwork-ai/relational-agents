@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DbRow, DbView, TimelineZoom } from "@/lib/db/schema";
 import { applyView, dateStart, dateEnd, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
+import { useT } from "@/i18n/provider";
 import { PropertyValue } from "./property-value";
 
 // ===========================================================================
@@ -58,6 +59,7 @@ const LANE = 32; // px per row — the side table and the bars share it
 
 export function TimelineView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const dateProps = db.properties.filter((p) => p.type === "date");
   const datePropId = view.config.calendarDatePropertyId ?? dateProps[0]?.id ?? "";
   const dateProp = db.properties.find((p) => p.id === datePropId);
@@ -110,7 +112,7 @@ export function TimelineView({ view }: { view: DbView }) {
     };
   };
 
-  const label = (row: DbRow) => (titleProp && (row.values[titleProp.id] as string)) || "제목 없음";
+  const label = (row: DbRow) => (titleProp && (row.values[titleProp.id] as string)) || t("제목 없음");
 
   return (
     <div data-testid="db-timeline" className="w-full">
@@ -118,7 +120,7 @@ export function TimelineView({ view }: { view: DbView }) {
         <button
           data-testid="db-timeline-prev"
           onClick={() => setCursor((d) => win.step(d, -1))}
-          aria-label="이전"
+          aria-label={t("이전")}
           className="rounded p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronLeft size={16} />
@@ -129,7 +131,7 @@ export function TimelineView({ view }: { view: DbView }) {
         <button
           data-testid="db-timeline-next"
           onClick={() => setCursor((d) => win.step(d, 1))}
-          aria-label="다음"
+          aria-label={t("다음")}
           className="rounded p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronRight size={16} />
@@ -140,9 +142,9 @@ export function TimelineView({ view }: { view: DbView }) {
           onChange={(e) => db.patchView({ ...view.config, timelineZoom: e.target.value as TimelineZoom })}
           className="rounded border border-neutral-200 bg-transparent px-1 py-0.5 text-xs dark:border-neutral-700"
         >
-          <option value="month">월</option>
-          <option value="quarter">분기</option>
-          <option value="year">연</option>
+          <option value="month">{t("월")}</option>
+          <option value="quarter">{t("분기")}</option>
+          <option value="year">{t("연")}</option>
         </select>
         {dateProps.length > 1 && (
           <select
@@ -163,7 +165,7 @@ export function TimelineView({ view }: { view: DbView }) {
           onClick={() => db.patchView({ ...view.config, timelineShowTable: !showTable })}
           className="ml-auto rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          {showTable ? "표 숨기기" : "표 보기"}
+          {showTable ? t("표 숨기기") : t("표 보기")}
         </button>
       </div>
 
@@ -222,7 +224,7 @@ export function TimelineView({ view }: { view: DbView }) {
               ))}
             </div>
             {rows.length === 0 && (
-              <p className="py-4 text-center text-sm text-neutral-400">이 기간에 날짜가 있는 행이 없습니다.</p>
+              <p className="py-4 text-center text-sm text-neutral-400">{t("이 기간에 날짜가 있는 행이 없습니다.")}</p>
             )}
             {rows.map((row) => {
               const bar = barOf(row);

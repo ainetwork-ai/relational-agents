@@ -19,6 +19,8 @@ import {
 import { OptionChip } from "./option-chip";
 import { useDb } from "./database-block";
 import { MemorySelect, TYPE_ICON } from "./memory-select";
+import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n/translate";
 
 const selectCls =
   "rounded border border-neutral-200 bg-white px-1.5 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200";
@@ -29,7 +31,70 @@ const DATEISH = ["date", "created_time", "last_edited_time"];
 
 const propOptions = (props: DbProperty[]) =>
   props.map((p) => ({ value: p.id, label: p.name, icon: TYPE_ICON[p.type] ?? "•" }));
-const opOptions = (ops: FilterOp[]) => ops.map((op) => ({ value: op, label: OP_LABEL[op] }));
+const opOptions = (t: T, ops: FilterOp[]) =>
+  ops.map((op) => ({ value: op, label: t(opLabel(op)) }));
+
+// display-only Korean for the operator / relative-date tables in db-values —
+// the English there is also what tests and older configs know, so it stays
+const OP_KO: Partial<Record<FilterOp, string>> = {
+  equals: "이(가) 다음과 같음",
+  not_equals: "이(가) 다음과 같지 않음",
+  contains: "포함",
+  not_contains: "포함하지 않음",
+  starts_with: "다음으로 시작",
+  ends_with: "다음으로 끝남",
+  is_me: "나",
+  not_empty: "비어 있지 않음",
+  is_empty: "비어 있음",
+  before: "이전",
+  after: "이후",
+  on_or_before: "당일 또는 이전",
+  on_or_after: "당일 또는 이후",
+  within: "다음 기간 내",
+  checked: "체크됨",
+  unchecked: "체크되지 않음",
+};
+const opLabel = (op: FilterOp) => OP_KO[op] ?? OP_LABEL[op];
+const TOKEN_KO: Record<string, string> = {
+  "@today": "오늘",
+  "@yesterday": "어제",
+  "@tomorrow": "내일",
+  "@one_week_ago": "1주 전",
+  "@one_week_from_now": "1주 후",
+  "@one_month_ago": "1개월 전",
+  "@one_month_from_now": "1개월 후",
+  today: "오늘",
+  past_week: "지난 1주",
+  past_month: "지난 1개월",
+  past_year: "지난 1년",
+  next_week: "다음 1주",
+  next_month: "다음 1개월",
+  next_year: "다음 1년",
+};
+const tokenLabel = (x: { token: string; label: string }) => TOKEN_KO[x.token] ?? x.label;
+// property-type caption in the picker (Notion's Korean type names)
+const TYPE_KO: Record<string, string> = {
+  title: "제목",
+  text: "텍스트",
+  number: "숫자",
+  select: "선택",
+  multi_select: "다중 선택",
+  status: "상태",
+  date: "날짜",
+  person: "사람",
+  checkbox: "체크박스",
+  url: "URL",
+  relation: "관계형",
+  formula: "수식",
+  rollup: "롤업",
+  email: "이메일",
+  phone: "전화번호",
+  files: "파일과 미디어",
+  created_time: "생성 일시",
+  last_edited_time: "최종 편집 일시",
+  created_by: "생성자",
+  last_edited_by: "최종 편집자",
+};
 
 /** The ONE type-aware filter-value editor (a single editing
  * surface): multi-checkbox "is any of" for select/status/person, relative
@@ -50,6 +115,7 @@ function FilterValueEditor({
   onCommit?: () => void;
 }) {
   const db = useDb();
+  const t = useT();
   const arr: unknown[] = Array.isArray(f.value) ? f.value : f.value === undefined ? [] : [f.value];
   const toggle = (id: string) => {
     const next = arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id];
@@ -103,7 +169,7 @@ function FilterValueEditor({
                 className="h-3.5 w-3.5 accent-blue-500"
               />
               <span className="truncate text-xs text-neutral-700 dark:text-neutral-200">
-                {String((titleP && r.values[titleP.id]) || "Untitled")}
+                {String((titleP && r.values[titleP.id]) || t("제목 없음"))}
               </span>
             </label>
           ))}
@@ -141,9 +207,9 @@ function FilterValueEditor({
         onChange={(e) => update(i, { value: e.target.value })}
         className={`${selectCls} w-full min-w-36`}
       >
-        {WITHIN_TOKENS.map((t) => (
-          <option key={t.token} value={t.token}>
-            {t.label}
+        {WITHIN_TOKENS.map((x) => (
+          <option key={x.token} value={x.token}>
+            {t(tokenLabel(x))}
           </option>
         ))}
       </select>
@@ -161,10 +227,10 @@ function FilterValueEditor({
           }
           className={`${selectCls} w-full`}
         >
-          <option value="exact">Exact date…</option>
-          {DATE_TOKENS.map((t) => (
-            <option key={t.token} value={t.token}>
-              {t.label}
+          <option value="exact">{t("정확한 날짜…")}</option>
+          {DATE_TOKENS.map((x) => (
+            <option key={x.token} value={x.token}>
+              {t(tokenLabel(x))}
             </option>
           ))}
         </select>
@@ -188,7 +254,7 @@ function FilterValueEditor({
       value={(f.value as string) ?? ""}
       onChange={(e) => update(i, { value: e.target.value || undefined })}
       onKeyDown={(e) => e.key === "Enter" && onCommit?.()}
-      placeholder="Value"
+      placeholder={t("값")}
       className={`${selectCls} w-full min-w-28`}
     />
   );
@@ -199,6 +265,7 @@ function FilterValueEditor({
  * "Advanced filter" mode lists every rule in one panel. */
 export function FilterBar() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"picker" | "panel">("picker");
   const [q, setQ] = useState("");
@@ -263,8 +330,8 @@ export function FilterBar() {
       <button
         ref={btnRef}
         data-testid="db-filter"
-        data-tip="Filter"
-        aria-label="Filter"
+        data-tip={t("필터")}
+        aria-label={t("필터")}
         onClick={toggleOpen}
                 // 28×28, radius 6, 16px icon — and ACTIVE means a blue icon, not a
         // blue chip: the original never fills these (measured toolbar, six of
@@ -297,7 +364,7 @@ export function FilterBar() {
                 setOpen(false);
               }
             }}
-            placeholder="Filter by…"
+            placeholder={t("필터 기준…")}
             className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
           />
           <div className="max-h-56 overflow-y-auto">
@@ -317,7 +384,7 @@ export function FilterBar() {
                 </span>
                 <span className="truncate">{p.name}</span>
                 <span className="ml-auto shrink-0 pl-2 text-[10px] text-neutral-400">
-                  {p.type.replace("_", " ")}
+                  {TYPE_KO[p.type] ? t(TYPE_KO[p.type]) : p.type.replace("_", " ")}
                 </span>
               </button>
             ))}
@@ -327,7 +394,7 @@ export function FilterBar() {
             onClick={() => setMode("panel")}
             className="mt-1 flex w-full items-center gap-1 rounded border-t border-neutral-100 px-2 pb-1 pt-1.5 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> Advanced filter
+            <Plus size={12} /> {t("고급 필터")}
           </button>
         </div>,
           document.body
@@ -336,11 +403,11 @@ export function FilterBar() {
       {open && mode === "panel" && (
         <div className="popover-anim absolute right-0 top-8 z-40 w-[28rem] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {filters.length === 0 && groups.length === 0 && (
-            <p className="px-1 py-2 text-xs text-neutral-400">No filters yet.</p>
+            <p className="px-1 py-2 text-xs text-neutral-400">{t("필터가 없습니다.")}</p>
           )}
           {filters.length + groups.length >= 2 && (
             <div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-neutral-400">
-              <span>Match</span>
+              <span>{t("일치")}</span>
               <select
                 data-testid="db-filter-conjunction"
                 value={db.activeView.config.filterConjunction ?? "and"}
@@ -355,10 +422,10 @@ export function FilterBar() {
                 }
                 className={selectCls}
               >
-                <option value="and">All (AND)</option>
-                <option value="or">Any (OR)</option>
+                <option value="and">{t("모두 (AND)")}</option>
+                <option value="or">{t("하나라도 (OR)")}</option>
               </select>
-              <span>of the conditions</span>
+              <span>{t("조건")}</span>
             </div>
           )}
           {filters.map((f, i) => {
@@ -369,7 +436,7 @@ export function FilterBar() {
                 <MemorySelect
                   testid={`db-filter-prop-${i}`}
                   value={prop ? f.propertyId : undefined}
-                  placeholder="(deleted property)"
+                  placeholder={t("(삭제된 속성)")}
                   options={propOptions(db.properties)}
                   onChange={(v) => {
                     const np = propById(v)!;
@@ -379,7 +446,7 @@ export function FilterBar() {
                 <MemorySelect
                   testid={`db-filter-op-${i}`}
                   value={f.op}
-                  options={opOptions(ops)}
+                  options={opOptions(t, ops)}
                   searchable={false}
                   onChange={(v) => update(i, { op: v as FilterOp, value: undefined })}
                 />
@@ -392,7 +459,7 @@ export function FilterBar() {
                   data-testid={`db-filter-remove-${i}`}
                   onClick={() => commit(filters.filter((_, idx) => idx !== i))}
                   className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-                  aria-label="Remove filter"
+                  aria-label={t("필터 제거")}
                 >
                   <X size={12} />
                 </button>
@@ -406,7 +473,7 @@ export function FilterBar() {
               className="mb-1 rounded-md border border-neutral-200 p-1.5 dark:border-neutral-600"
             >
               <div className="mb-1 flex items-center gap-1.5 text-xs text-neutral-400">
-                <span>Group — match</span>
+                <span>{t("그룹 — 일치")}</span>
                 <select
                   data-testid={`db-fgroup-conj-${gi}`}
                   value={g.conjunction ?? "and"}
@@ -419,14 +486,14 @@ export function FilterBar() {
                   }
                   className={selectCls}
                 >
-                  <option value="and">All (AND)</option>
-                  <option value="or">Any (OR)</option>
+                  <option value="and">{t("모두 (AND)")}</option>
+                  <option value="or">{t("하나라도 (OR)")}</option>
                 </select>
                 <button
                   data-testid={`db-fgroup-del-${gi}`}
                   onClick={() => commitGroups(groups.filter((_, xi) => xi !== gi))}
                   className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-                  aria-label="Delete group"
+                  aria-label={t("그룹 삭제")}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -439,7 +506,7 @@ export function FilterBar() {
                     <MemorySelect
                       testid={`db-fgroup-prop-${gi}-${ri}`}
                       value={prop ? f.propertyId : undefined}
-                      placeholder="(deleted property)"
+                      placeholder={t("(삭제된 속성)")}
                       options={propOptions(db.properties)}
                       onChange={(v) => {
                         const np = propById(v)!;
@@ -453,7 +520,7 @@ export function FilterBar() {
                     <MemorySelect
                       testid={`db-fgroup-op-${gi}-${ri}`}
                       value={f.op}
-                      options={opOptions(ops)}
+                      options={opOptions(t, ops)}
                       searchable={false}
                       onChange={(v) =>
                         updateGroupRule(gi, ri, { op: v as FilterOp, value: undefined })
@@ -481,7 +548,7 @@ export function FilterBar() {
                         )
                       }
                       className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-                      aria-label="Remove rule"
+                      aria-label={t("규칙 제거")}
                     >
                       <X size={12} />
                     </button>
@@ -506,7 +573,7 @@ export function FilterBar() {
                 }}
                 className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
               >
-                <Plus size={12} /> Add to group
+                <Plus size={12} /> {t("그룹에 추가")}
               </button>
             </div>
           ))}
@@ -515,14 +582,14 @@ export function FilterBar() {
             onClick={() => addFilter()}
             className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> Add filter
+            <Plus size={12} /> {t("필터 추가")}
           </button>
           <button
             data-testid="db-filter-add-group"
             onClick={() => commitGroups([...groups, { conjunction: "and", filters: [] }])}
             className="mt-0.5 flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> Add filter group
+            <Plus size={12} /> {t("필터 그룹 추가")}
           </button>
         </div>
       )}
@@ -539,6 +606,7 @@ export function FilterBar() {
 
 /** Human summary of a filter's value for its chip label. */
 function valueSummary(
+  t: T,
   prop: DbProperty,
   f: ViewFilter,
   members: { id: string; displayName: string }[]
@@ -551,8 +619,8 @@ function valueSummary(
     if (PERSONISH.includes(prop.type))
       return members.find((m) => m.id === v)?.displayName ?? String(v);
     if (DATEISH.includes(prop.type)) {
-      const t = DATE_TOKENS.find((x) => x.token === v) ?? WITHIN_TOKENS.find((x) => x.token === v);
-      return t?.label ?? String(v);
+      const tok = DATE_TOKENS.find((x) => x.token === v) ?? WITHIN_TOKENS.find((x) => x.token === v);
+      return tok ? t(tokenLabel(tok)) : String(v);
     }
     return String(v);
   };
@@ -561,6 +629,7 @@ function valueSummary(
 
 export function FilterChips() {
   const db = useDb();
+  const t = useT();
   const config = db.activeView.config;
   const filters = config.filters ?? [];
   const sorts = config.sorts ?? [];
@@ -619,10 +688,10 @@ export function FilterChips() {
             db.patchView({ ...config, filterConjunction: e.target.value as "and" | "or" }, { draft: true })
           }
           className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] text-neutral-500 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
-          aria-label="Filter match mode"
+          aria-label={t("필터 일치 방식")}
         >
-          <option value="and">Match all</option>
-          <option value="or">Match any</option>
+          <option value="and">{t("모두 일치")}</option>
+          <option value="or">{t("하나라도 일치")}</option>
         </select>
       )}
       {filters.map((f, i) => {
@@ -636,11 +705,11 @@ export function FilterChips() {
               data-testid={`db-filter-chip-${i}`}
               className="flex items-center gap-1 rounded-full border border-dashed border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-400 dark:border-neutral-600"
             >
-              Deleted property
+              {t("삭제된 속성")}
               <button
                 data-testid={`db-fchip-remove-${i}`}
                 onClick={() => commit(filters.filter((_, idx) => idx !== i))}
-                aria-label="Remove filter"
+                aria-label={t("필터 제거")}
                 className="hover:text-red-500"
               >
                 <X size={11} />
@@ -660,10 +729,10 @@ export function FilterChips() {
               }`}
             >
               <span className="font-medium">{prop.name}</span>
-              <span className="opacity-80">{OP_LABEL[f.op]}</span>
+              <span className="opacity-80">{t(opLabel(f.op))}</span>
               {opNeedsValue(f.op) && (
                 <span className="max-w-[12rem] truncate font-medium">
-                  {valueSummary(prop, f, db.members)}
+                  {valueSummary(t, prop, f, db.members)}
                 </span>
               )}
               <ChevronDown size={11} className="opacity-60" />
@@ -691,7 +760,7 @@ export function FilterChips() {
         }}
         className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <Plus size={11} /> Filter
+        <Plus size={11} /> {t("필터")}
       </button>
 
       {/* active sorts share the rule bar */}
@@ -717,7 +786,7 @@ export function FilterChips() {
                   { draft: true }
                 )
               }
-              aria-label="Toggle sort direction"
+              aria-label={t("정렬 방향 전환")}
               className="flex items-center gap-1 font-medium hover:opacity-70"
             >
               {s.dir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
@@ -728,7 +797,7 @@ export function FilterChips() {
               onClick={() =>
                 db.patchView({ ...config, sorts: sorts.filter((_, idx) => idx !== i) }, { draft: true })
               }
-              aria-label="Remove sort"
+              aria-label={t("정렬 제거")}
               className="hover:text-red-500"
             >
               <X size={11} />
@@ -757,6 +826,7 @@ function ChipEditor({
   close: () => void;
 }) {
   const db = useDb();
+  const t = useT();
   const filters = db.activeView.config.filters ?? [];
   const ops = opsForType(prop.type);
 
@@ -775,7 +845,7 @@ function ChipEditor({
         <MemorySelect
           testid={`db-fchip-op-${i}`}
           value={f.op}
-          options={opOptions(ops)}
+          options={opOptions(t, ops)}
           searchable={false}
           onChange={(v) => update(i, { op: v as FilterOp, value: undefined })}
         />
@@ -793,7 +863,7 @@ function ChipEditor({
         }}
         className="mt-1.5 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
       >
-        <Trash2 size={12} /> Delete filter
+        <Trash2 size={12} /> {t("필터 삭제")}
       </button>
     </div>
   );

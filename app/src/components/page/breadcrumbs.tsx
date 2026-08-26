@@ -8,11 +8,13 @@ import { useTeamspacesStore } from "@/stores/teamspaces";
 import type { Page } from "@/lib/db/schema";
 import { pageLabel, type PageRow } from "@/lib/page-label";
 import { PageIcon } from "@/components/page-icon";
+import { useT } from "@/i18n/provider";
 
 /** Page ancestry chain (Home › Parent › … › Current), shown in the page header.
  *  `current` is the SSR page record — the fallback start of the chain when the
  *  store hasn't picked the page up yet (a row's body page minted this session). */
 export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Page }) {
+  const t = useT();
   const pages = usePagesStore((s) => s.pages);
   const teamspaces = useTeamspacesStore((s) => s.list);
   const loadTeamspaces = useTeamspacesStore((s) => s.load);
@@ -29,7 +31,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
   let rootPage: Page | undefined;
   while (cur && !seen.has(cur.id)) {
     seen.add(cur.id);
-    chain.unshift({ id: cur.id, title: pageLabel(cur as PageRow), icon: cur.icon });
+    chain.unshift({ id: cur.id, title: t(pageLabel(cur as PageRow)), icon: cur.icon });
     rootPage = cur;
     cur = cur.parentPageId ? pages[cur.parentPageId] : undefined;
   }
@@ -39,7 +41,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
  // teamspace comes from the topmost ancestor, since only top-level pages carry
  // the id; children inherit their place from it.
   const teamspace = rootPage?.teamspaceId
-    ? teamspaces.find((t) => t.id === rootPage.teamspaceId)
+    ? teamspaces.find((ts) => ts.id === rootPage.teamspaceId)
     : undefined;
 
   return (
@@ -63,7 +65,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
           data-testid="breadcrumb-home"
           className="shrink-0 rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          Home
+          {t("홈")}
         </Link>
       )}
       {(expanded || chain.length <= 3
@@ -77,7 +79,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
               data-testid="breadcrumb-ellipsis"
               onClick={() => setExpanded(true)}
               className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              aria-label="Show full path"
+              aria-label={t("전체 경로 표시")}
             >
               …
             </button>

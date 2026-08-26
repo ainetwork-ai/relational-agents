@@ -6,7 +6,7 @@ import type { Page } from "@/lib/db/schema";
 export type PageRow = Page & { isDatabase?: boolean; isRow?: boolean };
 
 /**
- * What to call an untitled page.
+ * What to call an untitled page. Returns the Korean source key — wrap in t() at the render site.
  *
  * Notion names an untitled database page 새 데이터베이스 rather than Untitled, in
  * the sidebar as well as in the title field, because "Untitled" would describe
@@ -15,7 +15,7 @@ export type PageRow = Page & { isDatabase?: boolean; isRow?: boolean };
  */
 export function pageLabel(page: { title: string; isDatabase?: boolean }): string {
   if (page.title) return page.title;
-  return page.isDatabase ? "새 데이터베이스" : "Untitled";
+  return page.isDatabase ? "새 데이터베이스" : "제목 없음";
 }
 
 /** Fallback glyph when a page has no icon of its own. */

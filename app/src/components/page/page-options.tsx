@@ -16,11 +16,13 @@ import type { Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { PageHistoryModal } from "./page-history-modal";
+import { useT } from "@/i18n/provider";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The  page "..." menu: Full width, Lock, Duplicate, Move to, Export. */
 export function PageOptionsMenu({ page }: { page: Page }) {
+  const t = useT();
   const router = useRouter();
   const updatePage = usePagesStore((s) => s.updatePage);
   const allPages = usePagesStore((s) => s.pages);
@@ -64,7 +66,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
       }
       return true;
     })
-    .filter((p) => (p.title || "Untitled").toLowerCase().includes(q.toLowerCase()))
+    .filter((p) => (p.title || t("제목 없음")).toLowerCase().includes(q.toLowerCase()))
     .slice(0, 12);
 
   const item =
@@ -74,9 +76,9 @@ export function PageOptionsMenu({ page }: { page: Page }) {
     <div ref={ref} className="relative">
       <button
         data-testid="page-options"
-        data-tip="More actions"
+        data-tip={t("더 보기")}
         onClick={toggle}
-        aria-label="Page options"
+        aria-label={t("페이지 옵션")}
         className="flex items-center rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <MoreHorizontal size={16} />
@@ -88,8 +90,8 @@ export function PageOptionsMenu({ page }: { page: Page }) {
             onClick={() => void updatePage(page.id, { fullWidth: !page.fullWidth })}
             className={item}
           >
-            <Maximize size={14} /> Full width
-            <span className="ml-auto text-xs text-neutral-400">{page.fullWidth ? "On" : "Off"}</span>
+            <Maximize size={14} /> {t("전체 너비")}
+            <span className="ml-auto text-xs text-neutral-400">{page.fullWidth ? t("켜짐") : t("꺼짐")}</span>
           </button>
           <button
             data-testid="page-opt-lock"
@@ -100,7 +102,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
             className={item}
           >
             {page.isLocked ? <Unlock size={14} /> : <Lock size={14} />}
-            {page.isLocked ? "Unlock page" : "Lock page"}
+            {page.isLocked ? t("페이지 잠금 해제") : t("페이지 잠금")}
           </button>
           <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
           {isPostgres && (
@@ -116,7 +118,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
               }}
               className={item}
             >
-              <Copy size={14} /> Duplicate
+              <Copy size={14} /> {t("복제")}
             </button>
           )}
           {isPostgres && (
@@ -125,7 +127,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
               onClick={() => setMoveOpen((v) => !v)}
               className={item}
             >
-              <CornerUpRight size={14} /> Move to
+              <CornerUpRight size={14} /> {t("옮기기")}
             </button>
           )}
           {moveOpen && (
@@ -135,7 +137,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Move page to…"
+                placeholder={t("페이지 이동 위치…")}
                 className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
               />
               <div className="max-h-44 overflow-y-auto">
@@ -147,7 +149,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
                   }}
                   className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 >
-                  Workspace root
+                  {t("워크스페이스 최상위")}
                 </button>
                 {candidates.map((p) => (
                   <button
@@ -160,7 +162,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
                     className="block w-full truncate rounded px-2 py-1 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                   >
                     {p.icon ? <><PageIcon icon={p.icon} />{" "}</> : ""}
-                    {p.title || "Untitled"}
+                    {p.title || t("제목 없음")}
                   </button>
                 ))}
               </div>
@@ -174,7 +176,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
             onClick={() => setOpen(false)}
             className={item}
           >
-            <Download size={14} /> Export Markdown
+            <Download size={14} /> {t("Markdown 내보내기")}
           </a>
           <a
             data-testid="page-opt-export-pdf"
@@ -183,7 +185,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
             onClick={() => setOpen(false)}
             className={item}
           >
-            <Download size={14} /> Export PDF
+            <Download size={14} /> {t("PDF 내보내기")}
           </a>
           <button
             data-testid="page-opt-history"
@@ -193,7 +195,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
             }}
             className={item}
           >
-            <History size={14} /> Page history
+            <History size={14} /> {t("페이지 기록")}
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import type { TableData } from "@/lib/db/schema";
+import { useT } from "@/i18n/provider";
 import { useEditor, type EBlock } from "./block-editor";
 
 /** Inline page links in cells: `[Label](/p/<uuid>)` renders as a mention chip
@@ -30,6 +31,7 @@ const EMPTY: TableData = { cells: [["", ""], ["", ""]], headerRow: true };
  */
 export function TableBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
+  const t = useT();
   const table = block.content.table ?? EMPTY;
   const cells = table.cells.length ? table.cells : EMPTY.cells;
   const nRows = cells.length;
@@ -73,7 +75,7 @@ export function TableBlock({ block }: { block: EBlock }) {
               data-testid={`table-del-col-${block.id}-${c}`}
               onClick={() => delCol(c)}
               disabled={nCols <= 1}
-              aria-label="Delete column"
+              aria-label={t("열 삭제")}
               className="flex h-3.5 w-6 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-200 group-hover/col:opacity-100 disabled:opacity-0 dark:hover:bg-neutral-700"
             >
               <X size={11} />
@@ -92,7 +94,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                   data-testid={`table-del-row-${block.id}-${r}`}
                   onClick={() => delRow(r)}
                   disabled={nRows <= 1}
-                  aria-label="Delete row"
+                  aria-label={t("행 삭제")}
                   className="flex h-6 w-4 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-200 group-hover/row:opacity-100 disabled:opacity-0 dark:hover:bg-neutral-700"
                 >
                   <X size={11} />
@@ -119,7 +121,7 @@ export function TableBlock({ block }: { block: EBlock }) {
         <button
           data-testid={`table-add-col-${block.id}`}
           onClick={addCol}
-          aria-label="Add column"
+          aria-label={t("열 추가")}
           className="ml-0.5 flex w-6 shrink-0 items-center justify-center self-stretch rounded text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <Plus size={14} />
@@ -130,7 +132,7 @@ export function TableBlock({ block }: { block: EBlock }) {
       <button
         data-testid={`table-add-row-${block.id}`}
         onClick={addRow}
-        aria-label="Add row"
+        aria-label={t("행 추가")}
         className="ml-5 mt-0.5 flex h-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         style={{ width: `calc(100% - 1.25rem - 1.5rem)` }}
       >

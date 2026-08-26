@@ -10,11 +10,13 @@ import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { SectionMenu, sortRows } from "./section-menu";
 import { TeamspaceCreateModal } from "./teamspace-create-modal";
 import { useTeamspacesStore } from "@/stores/teamspaces";
+import { useT } from "@/i18n/provider";
 
 /** Sidebar "Teamspaces" section: create a teamspace, list them, expand each to
  * its pages. A page created here belongs to the teamspace (pages.teamspaceId). */
 export function TeamspacesSection({ workspaceId }: { workspaceId: string | null }) {
   const router = useRouter();
+  const t = useT();
   const teamspaces = useTeamspacesStore((s) => s.list);
   const reloadTeamspaces = useTeamspacesStore((s) => s.reload);
   const [creating, setCreating] = useState(false);
@@ -59,15 +61,15 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
           onClick={toggleCollapsed}
           className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
         >
-          Teamspaces
+          {t("팀스페이스")}
         </button>
         <div className="flex items-center gap-0.5">
-          <SectionMenu testId="teamspaces-section-menu" label="Teamspaces" />
+          <SectionMenu testId="teamspaces-section-menu" label={t("팀스페이스")} />
           <button
             data-testid="teamspace-create"
             onClick={() => setCreating((v) => !v)}
             className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
-            aria-label="New teamspace"
+            aria-label={t("새 팀스페이스")}
           >
             <Plus size={14} />
           </button>
@@ -79,7 +81,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
       )}
 
       {teamspaces.length === 0 && !creating && (
-        <p className="px-2 py-1 text-xs text-neutral-400">No teamspaces yet</p>
+        <p className="px-2 py-1 text-xs text-neutral-400">{t("팀스페이스가 없습니다")}</p>
       )}
 
       {!sectionCollapsed &&
@@ -111,7 +113,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                 data-testid={`teamspace-add-page-${ts.id}`}
                 onClick={() => void addPage(ts.id)}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-all hover:bg-neutral-300/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/row:opacity-100 dark:hover:bg-neutral-700"
-                aria-label="Add page"
+                aria-label={t("페이지 추가")}
               >
                 <Plus size={14} />
               </button>
@@ -131,7 +133,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                   style={{ paddingLeft: "36px" }}
                 >
                   <Plus size={14} className="shrink-0" />
-                  새로 추가
+                  {t("새로 추가")}
                 </button>
               </>
             )}

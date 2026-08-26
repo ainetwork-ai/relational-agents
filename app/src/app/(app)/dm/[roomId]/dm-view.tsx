@@ -10,6 +10,7 @@ import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import { AgentSettings } from "@/components/dm/agent-settings";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 /** Block explorer for the chain the relation registry is deployed on. */
 const EXPLORER_BY_CHAIN: Record<string, string> = {
@@ -63,12 +64,12 @@ const TYPING_PING_MS = 2_000;
 const GUARD_DEBOUNCE_MS = 800;
 const MAX_ATTACHMENTS = 8;
 
-function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+function timeLabel(iso: string, locale: string): string {
+  return new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
 
-function dateLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+function dateLabel(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -81,6 +82,8 @@ function dateLabel(iso: string): string {
  * (relationship-doc creation), all in one screen. */
 export function DmView({ roomId }: { roomId: string }) {
   const router = useRouter();
+  const t = useT();
+  const intl = useIntlLocale();
   const show = useToastStore((s) => s.show);
   const markReadLocal = useDmRoomsStore((s) => s.markReadLocal);
   const loadRooms = useDmRoomsStore((s) => s.load);
@@ -153,7 +156,7 @@ export function DmView({ roomId }: { roomId: string }) {
     try {
       const res = await fetch(`/api/dm/rooms/${roomId}`);
       if (!res.ok) {
-        setError(res.status === 404 ? "Conversation not found." : "You can't access this conversation.");
+        setError(res.status === 404 ? t("대화를 찾을 수 없습니다.") : t("이 대화에 접근할 수 없습니다."));
         setLoading(false);
         return;
       }
@@ -177,9 +180,9 @@ export function DmView({ roomId }: { roomId: string }) {
     } catch {
  // transient network error: show it on first load, keep the view if already shown (SSE hello retries)
       setLoading(false);
-      if (!loadedRef.current) setError("Could not load the conversation.");
+      if (!loadedRef.current) setError(t("대화를 불러올 수 없습니다."));
     }
-  }, [roomId, markRead]);
+  }, [roomId, markRead, t]);
 
   const refetchMessages = useCallback(async () => {
     const res = await fetch(`/api/dm/rooms/${roomId}/messages`);
@@ -300,7 +303,7 @@ export function DmView({ roomId }: { roomId: string }) {
 
   const others = members.filter((m) => m.id !== meId);
   const title =
-    room?.name || (others.length ? others.map((o) => o.displayName).join(", ") : "(No participants)");
+    room?.name || (others.length ? others.map((o) => o.displayName).join(", ") : t("(참여자 없음)"));
 
   async function send(force = false) {
     const text = input.trim();
@@ -316,7 +319,7 @@ export function DmView({ roomId }: { roomId: string }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(`Failed to send: ${data?.error ?? res.status}`);
+        show(t("보내지 못했습니다: {error}", { error: data?.error ?? res.status }));
         return;
       }
  // dedupe by id — if the partner's refetch races the POST and delivers
@@ -343,7 +346,7 @@ export function DmView({ roomId }: { roomId: string }) {
     if (!files?.length) return;
     const slots = MAX_ATTACHMENTS - pendingAtt.length;
     const picked = [...files].slice(0, slots);
-    if (files.length > slots) show(`You can attach up to ${MAX_ATTACHMENTS} files`);
+    if (files.length > slots) show(t("파일은 최대 {n}개까지 첨부할 수 있습니다", { n: MAX_ATTACHMENTS }));
     setUploading(true);
     try {
       for (const file of picked) {
@@ -352,7 +355,7 @@ export function DmView({ roomId }: { roomId: string }) {
         const res = await fetch("/api/upload", { method: "POST", body: form });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          show(`Upload failed (${file.name}): ${data?.error ?? res.status}`);
+          show(t("업로드 실패 ({name}): {error}", { name: file.name, error: data?.error ?? res.status }));
           continue;
         }
         setPendingAtt((prev) => [...prev, { url: data.url as string, name: data.name as string }]);
@@ -373,11 +376,11 @@ export function DmView({ roomId }: { roomId: string }) {
       .filter((n) => Number.isFinite(n));
     if (!stamps.length) return null;
     const mins = Math.floor((Date.now() - Math.max(...stamps)) / 60_000);
-    if (mins < 1) return "saved just now";
-    if (mins < 60) return `saved ${mins}m ago`;
+    if (mins < 1) return t("방금 저장됨");
+    if (mins < 60) return t("{n}분 전 저장됨", { n: mins });
     const hrs = Math.floor(mins / 60);
-    return hrs < 24 ? `saved ${hrs}h ago` : `saved ${Math.floor(hrs / 24)}d ago`;
-  }, [messages]);
+    return hrs < 24 ? t("{n}시간 전 저장됨", { n: hrs }) : t("{n}일 전 저장됨", { n: Math.floor(hrs / 24) });
+  }, [messages, t]);
 
   /** Mentioning the agent is an ordinary mention: it answers in the room, in
    *  front of both of them — asking it together is what this agent is for.
@@ -482,11 +485,11 @@ export function DmView({ roomId }: { roomId: string }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      show(`Invite failed: ${data?.error ?? res.status}`);
+      show(t("초대 실패: {error}", { error: data?.error ?? res.status }));
       return;
     }
     setInviteOpen(false);
-    show(`Invited ${data.member?.displayName ?? "member"}`);
+    show(t("{name}님을 초대했습니다", { name: data.member?.displayName ?? t("멤버") }));
     void loadAll();
   }
 
@@ -499,7 +502,7 @@ export function DmView({ roomId }: { roomId: string }) {
       headers: { "x-client-id": clientId },
     });
     if (!res.ok) {
-      show("Could not leave the conversation");
+      show(t("대화에서 나갈 수 없습니다"));
       return;
     }
     void loadRooms();
@@ -515,11 +518,11 @@ export function DmView({ roomId }: { roomId: string }) {
       const res = await fetch(`/api/dm/rooms/${roomId}/agent`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(`Agent invite failed: ${data?.error ?? res.status}`);
+        show(t("에이전트 초대 실패: {error}", { error: data?.error ?? res.status }));
         return;
       }
       setHasAgent(true);
-      show(data.alreadyExisted ? "That agent is already here" : "Relationship agent invited");
+      show(data.alreadyExisted ? t("에이전트가 이미 참여 중입니다") : t("관계 에이전트를 초대했습니다"));
       void loadAll();
     } finally {
       setInviting(false);
@@ -533,11 +536,11 @@ export function DmView({ roomId }: { roomId: string }) {
       const res = await fetch(`/api/agent/rooms/${roomId}/run`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(`Could not organize: ${data?.error ?? res.status}`);
+        show(t("정리할 수 없습니다: {error}", { error: data?.error ?? res.status }));
         return;
       }
-      if (data.skipped) show("No new messages to organize");
-      else show(`The agent organized ${data.processed} messages into the doc`);
+      if (data.skipped) show(t("정리할 새 메시지가 없습니다"));
+      else show(t("에이전트가 메시지 {n}개를 문서에 정리했습니다", { n: data.processed }));
       if (data.rootPageId) setRoom((r) => (r ? { ...r, rootPageId: data.rootPageId } : r));
       else void loadAll();
     } finally {
@@ -560,7 +563,7 @@ export function DmView({ roomId }: { roomId: string }) {
       if (/^\/p\//.test(part)) {
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 relationship doc
+            📄 {t("관계 문서")}
           </a>
         );
       }
@@ -601,7 +604,7 @@ export function DmView({ roomId }: { roomId: string }) {
     <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col overflow-hidden px-3 sm:px-6">
       {/* Header — leave room on the left so the fixed mobile hamburger (MobileNavToggle) does not overlap */}
       <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
-        <div className="flex -space-x-2" data-testid="dm-members" aria-label="Room members">
+        <div className="flex -space-x-2" data-testid="dm-members" aria-label={t("방 멤버")}>
           {/* humans lead the stack; the agent tags along at the end */}
           {[...members]
             .sort((a, b) => Number(a.isAgent) - Number(b.isAgent))
@@ -636,8 +639,8 @@ export function DmView({ roomId }: { roomId: string }) {
             </h1>
             <button
               data-testid="dm-rename"
-              aria-label="Rename room"
-              data-tip="Rename"
+              aria-label={t("방 이름 변경")}
+              data-tip={t("이름 변경")}
               onClick={() => {
                 setRenameDraft(room?.name ?? "");
                 setRenaming(true);
@@ -656,13 +659,13 @@ export function DmView({ roomId }: { roomId: string }) {
             <Link
               data-testid="dm-doc-link"
               href={`/p/${room.rootPageId}`}
-              aria-label="Open relationship doc"
-              data-tip="Everything the two of you have recorded"
+              aria-label={t("관계 문서 열기")}
+              data-tip={t("두 사람이 기록한 모든 것")}
               className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 sm:px-2.5 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
               <FileText size={14} />
               <span className="hidden font-medium text-neutral-700 sm:inline dark:text-neutral-200">
-                Record
+                {t("기록")}
               </span>
               {lastRecordedLabel && (
                 <span className="hidden text-neutral-400 sm:inline">· {lastRecordedLabel}</span>
@@ -674,19 +677,19 @@ export function DmView({ roomId }: { roomId: string }) {
               data-testid="dm-invite-agent"
               onClick={() => void inviteAgent()}
               disabled={inviting}
-              data-tip="Invite an agent that remembers this relationship"
+              data-tip={t("이 관계를 기억하는 에이전트 초대")}
               className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 sm:px-2.5 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               <Bot size={14} />{" "}
-              <span className="hidden sm:inline">{inviting ? "Inviting…" : "Invite agent"}</span>
+              <span className="hidden sm:inline">{inviting ? t("초대하는 중…") : t("에이전트 초대")}</span>
             </button>
           )}
           {agentMember && (
             <button
               data-testid="dm-agent-settings"
               onClick={() => setSettingsOpen(true)}
-              aria-label="Agent settings"
-              data-tip="What this agent keeps, and how it speaks"
+              aria-label={t("에이전트 설정")}
+              data-tip={t("이 에이전트가 무엇을 기록하고 어떻게 말할지")}
               className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
               <SlidersHorizontal size={14} />
@@ -698,8 +701,8 @@ export function DmView({ roomId }: { roomId: string }) {
             data-testid="dm-organize"
             onClick={() => void organize()}
             disabled={organizing}
-            aria-label="Ask the agent to file the conversation now"
-            data-tip={organizing ? "Filing…" : "File the conversation now"}
+            aria-label={t("에이전트에게 지금 대화 정리 요청")}
+            data-tip={organizing ? t("정리하는 중…") : t("지금 대화 정리")}
             className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
           >
             <Sparkles size={14} className={organizing ? "animate-pulse" : ""} />
@@ -708,8 +711,8 @@ export function DmView({ roomId }: { roomId: string }) {
           <div className="relative">
             <button
               data-testid="dm-invite"
-              aria-label="Invite people"
-              data-tip="Invite people"
+              aria-label={t("사람 초대")}
+              data-tip={t("사람 초대")}
               onClick={() => void openInvite()}
               className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 dark:hover:bg-neutral-800"
             >
@@ -721,10 +724,10 @@ export function DmView({ roomId }: { roomId: string }) {
                 className="popover-anim absolute right-0 top-8 z-50 w-56 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
               >
                 {candidates === null ? (
-                  <p className="px-2 py-2 text-xs text-neutral-400">Loading…</p>
+                  <p className="px-2 py-2 text-xs text-neutral-400">{t("불러오는 중…")}</p>
                 ) : inviteCandidates.length === 0 ? (
                   <p className="px-2 py-2 text-xs text-neutral-400" data-testid="dm-invite-empty">
-                    No one left to invite.
+                    {t("더 초대할 사람이 없습니다.")}
                   </p>
                 ) : (
                   inviteCandidates.map((u) => (
@@ -746,8 +749,8 @@ export function DmView({ roomId }: { roomId: string }) {
           <div className="relative">
             <button
               data-testid="dm-leave"
-              aria-label="Leave room"
-              data-tip="Leave conversation"
+              aria-label={t("방 나가기")}
+              data-tip={t("대화 나가기")}
               onClick={() => setConfirmLeave((v) => !v)}
               className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-red-50 hover:text-red-600 active:scale-90 dark:hover:bg-red-950/40"
             >
@@ -756,8 +759,7 @@ export function DmView({ roomId }: { roomId: string }) {
             {confirmLeave && (
               <div className="popover-anim absolute right-0 top-8 z-50 w-52 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
                 <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-300">
-                  Leave this conversation? The record and its agent stay for the
-                  others.
+                  {t("이 대화에서 나갈까요? 기록과 에이전트는 다른 멤버에게 남습니다.")}
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -765,14 +767,14 @@ export function DmView({ roomId }: { roomId: string }) {
                     onClick={() => setConfirmLeave(false)}
                     className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    Cancel
+                    {t("취소")}
                   </button>
                   <button
                     data-testid="dm-leave-confirm"
                     onClick={() => void leave()}
                     className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
                   >
-                    Leave
+                    {t("나가기")}
                   </button>
                 </div>
               </div>
@@ -811,7 +813,7 @@ export function DmView({ roomId }: { roomId: string }) {
           </div>
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400" data-testid="dm-empty">
-            No messages yet — say hello 👋
+            {t("아직 메시지가 없습니다 — 인사해 보세요 👋")}
           </p>
         ) : (
           messages.map((m, i) => {
@@ -840,7 +842,7 @@ export function DmView({ roomId }: { roomId: string }) {
                 {newDay && (
                   <div className="my-3 flex items-center gap-3">
                     <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-                    <span className="text-[11px] text-neutral-400">{dateLabel(m.createdAt)}</span>
+                    <span className="text-[11px] text-neutral-400">{dateLabel(m.createdAt, intl)}</span>
                     <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
                   </div>
                 )}
@@ -861,7 +863,7 @@ export function DmView({ roomId }: { roomId: string }) {
                   <div className={`flex min-w-0 max-w-[76%] flex-col ${mine ? "items-end" : "items-start"}`}>
                     {!mine && !grouped && (
                       <p className="mb-1 px-1 text-[11px] font-medium text-neutral-500">
-                        {author?.displayName ?? "Unknown"}
+                        {author?.displayName ?? t("알 수 없음")}
                       </p>
                     )}
                     <div
@@ -901,7 +903,7 @@ export function DmView({ roomId }: { roomId: string }) {
                           className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
                         >
                           <Sparkles size={10} />
-                          Added to your record
+                          {t("기록에 추가됨")}
                         </Link>
                       )}
                       {m.privateToUserId && (
@@ -910,13 +912,13 @@ export function DmView({ roomId }: { roomId: string }) {
                           className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
                         >
                           <Lock size={10} />
-                          Quiet · only you and the agent — not in your shared record
+                          {t("조용히 · 나와 에이전트만 — 공유 기록에 남지 않음")}
                         </p>
                       )}
                     </div>
                   </div>
                   <span className={`shrink-0 pb-0.5 text-[10px] text-neutral-400 ${mine ? "order-first" : ""}`}>
-                    {timeLabel(m.createdAt)}
+                    {timeLabel(m.createdAt, intl)}
                   </span>
                 </div>
               </div>
@@ -935,7 +937,7 @@ export function DmView({ roomId }: { roomId: string }) {
                 />
               ))}
             </span>
-            <span className="text-xs text-neutral-400">{typingNames.join(", ")} is typing…</span>
+            <span className="text-xs text-neutral-400">{t("{names}님이 입력 중…", { names: typingNames.join(", ") })}</span>
           </div>
         )}
         <div ref={bottomRef} />
@@ -953,7 +955,7 @@ export function DmView({ roomId }: { roomId: string }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={a.url} alt={a.name} className="h-14 w-14 rounded-md object-cover" />
               <button
-                aria-label={`Remove ${a.name}`}
+                aria-label={t("{name} 제거", { name: a.name })}
                 data-testid="dm-attachment-remove"
                 onClick={() => setPendingAtt((prev) => prev.filter((x) => x.url !== a.url))}
                 className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-700 text-white hover:bg-neutral-900"
@@ -971,15 +973,15 @@ export function DmView({ roomId }: { roomId: string }) {
           data-testid="dm-guard-card"
           className="mx-3 mb-2 space-y-1.5 rounded-lg border border-amber-300/80 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
         >
-          <div className="font-medium text-amber-800 dark:text-amber-300">⚠️ This conflicts with the record</div>
+          <div className="font-medium text-amber-800 dark:text-amber-300">{t("⚠️ 기록과 충돌합니다")}</div>
           <p className="text-neutral-700 dark:text-neutral-300">{guard?.reason}</p>
           {guard?.evidence?.map((e, i) => (
             <p key={i} className="text-neutral-500">
-              Evidence [{e.section}] “{e.quote}”
+              {t("근거 [{section}] “{quote}”", { section: e.section, quote: e.quote })}
             </p>
           ))}
           {guard?.suggestion && (
-            <p className="text-neutral-700 dark:text-neutral-300">Suggested fix: {guard.suggestion}</p>
+            <p className="text-neutral-700 dark:text-neutral-300">{t("제안: {suggestion}", { suggestion: guard.suggestion })}</p>
           )}
           <button
             type="button"
@@ -987,7 +989,7 @@ export function DmView({ roomId }: { roomId: string }) {
             onClick={() => void send(true)}
             className="rounded border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-500 transition-colors hover:bg-white dark:border-neutral-600 dark:hover:bg-neutral-800"
           >
-            Send anyway
+            {t("그래도 보내기")}
           </button>
         </div>
       )}
@@ -1029,7 +1031,7 @@ export function DmView({ roomId }: { roomId: string }) {
                   </span>
                   {u.isAgent && (
                     <span className="block truncate text-[11px] text-neutral-400">
-                      Ask in the room — answers from your record
+                      {t("방에서 질문 — 기록을 바탕으로 답합니다")}
                     </span>
                   )}
                 </span>
@@ -1052,13 +1054,15 @@ export function DmView({ roomId }: { roomId: string }) {
             <>
               <Lock size={11} className="text-neutral-500 dark:text-neutral-400" />
               <span className="text-neutral-500 dark:text-neutral-400">
-                Quiet — only you and the agent
+                {t("조용히 — 나와 에이전트만")}
               </span>
             </>
           ) : (
             <span>
-              {others.length === 1 ? `Shared with ${others[0].displayName.split(/\s+/)[0]}` : "Shared with the room"}
-              {agentMember ? " · the agent may add it to your record" : ""}
+              {others.length === 1
+                ? t("{name}님과 공유", { name: others[0].displayName.split(/\s+/)[0] })
+                : t("방 전체와 공유")}
+              {agentMember ? t(" · 에이전트가 기록에 추가할 수 있음") : ""}
             </span>
           )}
         </div>
@@ -1075,9 +1079,9 @@ export function DmView({ roomId }: { roomId: string }) {
           <button
             type="button"
             data-testid="dm-quiet-toggle"
-            aria-label="Ask the agent quietly"
+            aria-label={t("에이전트에게 조용히 질문")}
             aria-pressed={quiet}
-            data-tip={quiet ? "Quiet — only you and the agent" : "Ask the agent quietly"}
+            data-tip={quiet ? t("조용히 — 나와 에이전트만") : t("에이전트에게 조용히 질문")}
             onClick={() => {
               setQuiet((q) => !q);
               composerRef.current?.focus();
@@ -1094,8 +1098,8 @@ export function DmView({ roomId }: { roomId: string }) {
         <button
           type="button"
           data-testid="dm-attach"
-          aria-label="Attach image"
-          data-tip="Attach a photo"
+          aria-label={t("이미지 첨부")}
+          data-tip={t("사진 첨부")}
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 disabled:opacity-50 dark:hover:bg-neutral-800"
@@ -1107,7 +1111,7 @@ export function DmView({ roomId }: { roomId: string }) {
           data-testid="dm-composer-input"
           value={input}
           rows={1}
-          placeholder={draftIsPrivate ? "Ask your agent…" : "Type a message…"}
+          placeholder={draftIsPrivate ? t("에이전트에게 물어보기…") : t("메시지 입력…")}
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => (isComposingRef.current = true)}
           onCompositionEnd={() => (isComposingRef.current = false)}
@@ -1152,7 +1156,7 @@ export function DmView({ roomId }: { roomId: string }) {
         <button
           type="submit"
           data-testid="dm-send"
-          aria-label="Send message"
+          aria-label={t("메시지 보내기")}
           disabled={sending || uploading || (!input.trim() && pendingAtt.length === 0)}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 disabled:opacity-40"
         >

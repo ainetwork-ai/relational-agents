@@ -18,6 +18,7 @@ import {
   Bell,
   BellOff,
 } from "lucide-react";
+import { useT } from "@/i18n/provider";
 import { useAiChatsStore, sortChats } from "@/stores/ai-chats";
 import type { AiChat } from "@/lib/db/schema";
 import { useToastStore } from "@/stores/toast";
@@ -29,6 +30,7 @@ import { ChatsToolbar } from "@/components/sidebar/chats-toolbar";
 
 export function ChatsPanel() {
   const router = useRouter();
+  const t = useT();
   const chats = useAiChatsStore((s) => s.chats);
   const loaded = useAiChatsStore((s) => s.loaded);
   const load = useAiChatsStore((s) => s.load);
@@ -58,7 +60,7 @@ export function ChatsPanel() {
   const ordered = sortChats(chats);
   const afterUnread = unreadOnly ? ordered.filter((c) => c.hasUnread) : ordered;
   const visibleChats = q
-    ? afterUnread.filter((c) => (c.title || "New chat").toLowerCase().includes(q))
+    ? afterUnread.filter((c) => (c.title || t("새 채팅")).toLowerCase().includes(q))
     : afterUnread;
   const pinnedChats = visibleChats.filter((c) => c.isPinned);
   const unpinnedChats = visibleChats.filter((c) => !c.isPinned);
@@ -138,7 +140,7 @@ export function ChatsPanel() {
     setConfirmDel(null);
     setMenuFor(null);
     await remove(id);
-    show("Chat deleted");
+    show(t("채팅이 삭제되었습니다"));
   }
 
  // pinned/all share the same row markup — extracted to a helper (no JSX duplication).
@@ -179,7 +181,7 @@ export function ChatsPanel() {
             <span className="shrink-0 text-[15px] leading-none">
               <PageIcon icon={c.icon} fallback="💬" />
             </span>
-            <span className="truncate">{c.title || "New chat"}</span>
+            <span className="truncate">{c.title || t("새 채팅")}</span>
             {c.isPinned && (
               <Pin
                 data-testid={`chat-pinned-icon-${c.id}`}
@@ -198,7 +200,7 @@ export function ChatsPanel() {
             {c.hasUnread && (
               <span
                 data-testid={`chat-unread-${c.id}`}
-                aria-label="Unread response"
+                aria-label={t("읽지 않은 응답")}
                 className="ml-auto h-2 w-2 shrink-0 rounded-full bg-blue-500"
               />
             )}
@@ -209,7 +211,7 @@ export function ChatsPanel() {
           data-testid={`chat-menu-${c.id}`}
           ref={(el) => { if (el) menuBtn.current = el; }}
               onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
-          aria-label="Chat options"
+          aria-label={t("채팅 옵션")}
           className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 group-hover/chat:flex dark:hover:bg-neutral-700"
         >
           <MoreHorizontal size={14} />
@@ -229,7 +231,7 @@ export function ChatsPanel() {
               onClick={() => startRename(c.id, c.title)}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
-              <Pencil size={13} /> Rename
+              <Pencil size={13} /> {t("이름 바꾸기")}
             </button>
             <button
               data-testid={`chat-icon-${c.id}`}
@@ -239,7 +241,7 @@ export function ChatsPanel() {
               }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
-              <Smile size={13} /> Change icon
+              <Smile size={13} /> {t("아이콘 변경")}
             </button>
             <button
               data-testid={`chat-fav-${c.id}`}
@@ -250,7 +252,7 @@ export function ChatsPanel() {
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {c.isFavorite ? <StarOff size={13} /> : <Star size={13} />}
-              {c.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              {c.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
             </button>
             <button
               data-testid={`chat-pin-${c.id}`}
@@ -261,7 +263,7 @@ export function ChatsPanel() {
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {c.isPinned ? <PinOff size={13} /> : <Pin size={13} />}
-              {c.isPinned ? "Unpin" : "Pin"}
+              {c.isPinned ? t("고정 해제") : t("고정")}
             </button>
             <button
               data-testid={`chat-mute-${c.id}`}
@@ -272,7 +274,7 @@ export function ChatsPanel() {
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {muted ? <Bell size={13} /> : <BellOff size={13} />}
-              {muted ? "Unmute" : "Mute"}
+              {muted ? t("알림 켜기") : t("알림 끄기")}
             </button>
             <button
               data-testid={`chat-delete-${c.id}`}
@@ -282,7 +284,7 @@ export function ChatsPanel() {
               }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
             >
-              <Trash2 size={13} /> Delete
+              <Trash2 size={13} /> {t("삭제")}
             </button>
           </div>,
           document.body
@@ -295,7 +297,7 @@ export function ChatsPanel() {
               testid={`chat-iconpicker-trigger-${c.id}`}
               pickerTestid={`chat-iconpicker-${c.id}`}
               triggerClassName="rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-              placeholder="Pick an icon"
+              placeholder={t("아이콘 선택")}
               onChange={(icon) => {
                 void patch(c.id, { icon });
                 setIconFor(null);
@@ -310,7 +312,7 @@ export function ChatsPanel() {
             className="absolute right-1 top-7 z-50 w-52 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
           >
             <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-300">
-              Delete this chat? This cannot be undone.
+              {t("이 채팅을 삭제할까요? 되돌릴 수 없습니다.")}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -318,14 +320,14 @@ export function ChatsPanel() {
                 onClick={() => setConfirmDel(null)}
                 className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                Cancel
+                {t("취소")}
               </button>
               <button
                 data-testid={`chat-delete-confirm-${c.id}`}
                 onClick={() => void doDelete(c.id)}
                 className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
               >
-                Delete
+                {t("삭제")}
               </button>
             </div>
           </div>
@@ -342,13 +344,13 @@ export function ChatsPanel() {
 
       <div className="mt-1 flex items-center justify-between px-2 pb-1 pt-2">
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          AI chats
+          {t("AI 채팅")}
         </h3>
         <button
           data-testid="chat-new"
           onClick={newChat}
-          aria-label="New chat"
-          data-tip="New AI chat"
+          aria-label={t("새 채팅")}
+          data-tip={t("새 AI 채팅")}
           className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-200/70 hover:text-neutral-700 active:scale-90 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
         >
           <Plus size={17} strokeWidth={2.2} />
@@ -361,7 +363,7 @@ export function ChatsPanel() {
             data-testid="chat-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search chats"
+            placeholder={t("채팅 검색")}
             className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
           />
         </div>
@@ -377,17 +379,17 @@ export function ChatsPanel() {
         </div>
       ) : chats.length === 0 ? (
         <p className="px-2 py-6 text-center text-xs text-neutral-400" data-testid="chats-empty">
-          No chats yet.
-          <br />Start a new one.
+          {t("아직 채팅이 없습니다.")}
+          <br />{t("새 채팅을 시작해 보세요.")}
         </p>
       ) : visibleChats.length === 0 ? (
         q ? (
           <p className="px-2 py-6 text-center text-xs text-neutral-400" data-testid="chats-search-empty">
-            No chats match &ldquo;{query}&rdquo;.
+            {t("“{q}”와 일치하는 채팅이 없습니다.", { q: query })}
           </p>
         ) : (
           <p className="px-2 py-6 text-center text-xs text-neutral-400" data-testid="chats-unread-empty">
-            No unread chats.
+            {t("읽지 않은 채팅이 없습니다.")}
           </p>
         )
       ) : (
@@ -414,7 +416,7 @@ export function ChatsPanel() {
               onClick={() => void loadMore()}
               className="mt-1 w-full rounded-md px-2 py-1.5 text-center text-xs text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
-              Show more
+              {t("더 보기")}
             </button>
           )}
         </div>

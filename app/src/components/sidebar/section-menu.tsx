@@ -6,11 +6,12 @@ import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { MoreHorizontal } from "lucide-react";
 import { useUiStore, type SidebarSort } from "@/stores/ui";
+import { useT } from "@/i18n/provider";
 
 const SORTS: { value: SidebarSort; label: string }[] = [
-  { value: "manual", label: "Manual" },
-  { value: "alpha", label: "Name" },
-  { value: "edited", label: "Last edited" },
+  { value: "manual", label: "수동" },
+  { value: "alpha", label: "이름" },
+  { value: "edited", label: "최근 편집일" },
 ];
 
 /**
@@ -22,6 +23,7 @@ const SORTS: { value: SidebarSort; label: string }[] = [
  * placeholders would be worse than no menu.
  */
 export function SectionMenu({ testId, label }: { testId: string; label: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -40,7 +42,7 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
         ref={btnRef}
         data-testid={testId}
         onClick={() => setOpen((v) => !v)}
-        aria-label={`${label} options`}
+        aria-label={t("{label} 옵션", { label })}
         aria-expanded={open}
         aria-haspopup="menu"
         className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
@@ -56,7 +58,7 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
-          <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">Sort</p>
+          <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">{t("정렬")}</p>
           {SORTS.map((s) => (
             <button
               key={s.value}
@@ -69,7 +71,7 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
               }}
               className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
             >
-              {s.label}
+              {t(s.label)}
               {sort === s.value && <span className="text-xs text-neutral-400">✓</span>}
             </button>
           ))}
@@ -83,7 +85,7 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
             }}
             className="w-full rounded px-2 py-1 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
           >
-            Collapse all
+            {t("모두 접기")}
           </button>
           </div>,
           document.body

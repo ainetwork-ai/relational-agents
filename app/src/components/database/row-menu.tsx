@@ -20,6 +20,7 @@ import { useDb } from "./database-block";
 import { IconPicker } from "@/components/page/icon-picker";
 import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 // ===========================================================================
 // The menu behind a row's ⠿ handle. Its items are the original's, read off the
@@ -43,6 +44,7 @@ export function RowMenu({
   onClose: () => void;
 }) {
   const db = useDb();
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [iconOpen, setIconOpen] = useState(false);
   const pageId = typeof row.values.__page === "string" ? row.values.__page : null;
@@ -64,7 +66,7 @@ export function RowMenu({
   };
 
   const editedBy = personLabel(db.members, row.updatedBy ?? row.createdBy);
-  const editedAt = formatRowTimestamp(row.updatedAt ?? row.createdAt);
+  const editedAt = formatRowTimestamp(row.updatedAt ?? row.createdAt, useIntlLocale());
 
   return createPortal(
     <div
@@ -79,14 +81,14 @@ export function RowMenu({
       <Item
         testid="row-menu-favorite"
         icon={<Star size={15} />}
-        label="즐겨찾기에 추가"
-        disabled="행 즐겨찾기는 아직 없습니다"
+        label={t("즐겨찾기에 추가")}
+        disabled={t("행 즐겨찾기는 아직 없습니다")}
       />
       <div className="relative">
         <Item
           testid="row-menu-icon"
           icon={<Smile size={15} />}
-          label="아이콘 편집"
+          label={t("아이콘 편집")}
           onClick={() => setIconOpen((v) => !v)}
           trailing={icon ?? undefined}
         />
@@ -109,7 +111,7 @@ export function RowMenu({
       <Item
         testid="row-menu-properties"
         icon={<SlidersHorizontal size={15} />}
-        label="속성 편집"
+        label={t("속성 편집")}
         onClick={() => {
           db.openRow(row.id);
           onClose();
@@ -118,7 +120,7 @@ export function RowMenu({
       <Item
         testid="row-menu-open"
         icon={<PanelRight size={15} />}
-        label="사이드 보기"
+        label={t("사이드 보기")}
         onClick={() => {
           db.openRow(row.id);
           onClose();
@@ -128,36 +130,36 @@ export function RowMenu({
       <Item
         testid="row-menu-comment"
         icon={<MessageSquare size={15} />}
-        label="댓글"
+        label={t("댓글")}
         shortcut="⌘⇧M"
-        disabled="행 댓글은 아직 없습니다"
+        disabled={t("행 댓글은 아직 없습니다")}
       />
       <Item
         testid="row-menu-copy-link"
         icon={<LinkIcon size={15} />}
-        label="링크 복사"
+        label={t("링크 복사")}
         onClick={pageId ? copyLink : undefined}
-        disabled={pageId ? undefined : "이 행에는 아직 페이지가 없습니다"}
+        disabled={pageId ? undefined : t("이 행에는 아직 페이지가 없습니다")}
       />
       <Item
         testid="row-menu-duplicate"
         icon={<Copy size={15} />}
-        label="복제"
+        label={t("복제")}
         shortcut="⌘D"
         onClick={duplicate}
       />
       <Item
         testid="row-menu-move"
         icon={<CornerUpRight size={15} />}
-        label="옮기기"
+        label={t("옮기기")}
         shortcut="⌘⇧P"
-        disabled="다른 데이터베이스로 옮기기는 아직 없습니다"
+        disabled={t("다른 데이터베이스로 옮기기는 아직 없습니다")}
       />
       <Divider />
       <Item
         testid="row-menu-delete"
         icon={<Trash2 size={15} />}
-        label="휴지통으로 이동"
+        label={t("휴지통으로 이동")}
         shortcut="Del"
         danger
         onClick={() => {
@@ -167,7 +169,7 @@ export function RowMenu({
       />
       {(editedBy || editedAt) && (
         <div className="mt-1 border-t border-neutral-100 px-3 pb-1 pt-1.5 text-[11px] leading-tight text-neutral-400 dark:border-neutral-700">
-          {editedBy && <div>{editedBy} 최종 편집</div>}
+          {editedBy && <div>{t("{name} 최종 편집", { name: editedBy })}</div>}
           {editedAt && <div>{editedAt}</div>}
         </div>
       )}

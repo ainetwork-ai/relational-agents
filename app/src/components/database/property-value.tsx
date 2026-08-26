@@ -8,9 +8,12 @@ import { UserAvatar } from "@/components/user-avatar";
 import { OptionChip } from "./option-chip";
 import { parseDateValue } from "./date-picker";
 import { DEFAULT_DATE_FORMAT, fmtDateRange, type DateFormat } from "@/lib/date-format";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 /** Read-only rendering of a property value (for List / Gallery / Calendar). */
 export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const db = useDb();
   const v = row.values[prop.id];
 
@@ -63,7 +66,8 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
     case "date": {
       const label = fmtDateRange(
         parseDateValue(v),
-        (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT
+        (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT,
+        { locale: intl, t }
       );
       return label ? <span className="text-xs text-neutral-500">{label}</span> : null;
     }

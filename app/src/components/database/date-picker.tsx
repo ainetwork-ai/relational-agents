@@ -21,6 +21,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, ChevronRight as Caret, HelpCircle } from "lucide-react";
+import { useIntlLocale, useT } from "@/i18n/provider";
 import {
   DATE_FORMATS,
   fmtDay,
@@ -130,6 +131,8 @@ export function MonthGrid({
   rangeEnd?: string;
   onPick: (iso: string) => void;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const today = todayIso();
   const base = selected || today;
  // the month on screen is the paged-to one, but it re-follows the value whenever
@@ -147,7 +150,7 @@ export function MonthGrid({
     <div data-testid={`db-date-grid-${idBase}`} className="select-none px-3">
       <div className="flex h-[25px] items-center justify-between">
         <h2 className="text-[14px] font-medium leading-[21px] text-[#2c2c2b] dark:text-neutral-100">
-          {fmtMonth(ym.y, ym.m)}
+          {fmtMonth(ym.y, ym.m, { locale: intl })}
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -155,11 +158,11 @@ export function MonthGrid({
             onClick={() => setYm(monthOf(today))}
             className="rounded px-[10px] text-[12px] leading-5 text-[#8e8b86] hover:bg-[rgba(66,35,3,0.06)] dark:hover:bg-white/10"
           >
-            오늘
+            {t("오늘")}
           </button>
           <button
             data-testid={`db-date-prevmonth-${idBase}`}
-            aria-label="Previous month"
+            aria-label={t("이전 달")}
             onClick={() => setYm(ym.m === 0 ? { y: ym.y - 1, m: 11 } : { y: ym.y, m: ym.m - 1 })}
             className="flex h-5 w-4 items-center justify-center text-[#a5a5a5] hover:text-[#2c2c2b] dark:hover:text-neutral-100"
           >
@@ -167,7 +170,7 @@ export function MonthGrid({
           </button>
           <button
             data-testid={`db-date-nextmonth-${idBase}`}
-            aria-label="Next month"
+            aria-label={t("다음 달")}
             onClick={() => setYm(ym.m === 11 ? { y: ym.y + 1, m: 0 } : { y: ym.y, m: ym.m + 1 })}
             className="flex h-5 w-4 items-center justify-center text-[#a5a5a5] hover:text-[#2c2c2b] dark:hover:text-neutral-100"
           >
@@ -184,8 +187,8 @@ export function MonthGrid({
                 scope="col"
                 className="h-8 w-8 p-0 text-[12px] font-normal leading-[18px] text-[#8b9898]"
               >
-                <span aria-hidden="true">{d}</span>
-                <span className="sr-only">{WEEKDAY_FULL[i]}</span>
+                <span aria-hidden="true">{t(d)}</span>
+                <span className="sr-only">{t(WEEKDAY_FULL[i])}</span>
               </th>
             ))}
           </tr>
@@ -288,6 +291,7 @@ function SubMenu({
   active: string;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   return (
     <div
       data-testid={testid}
@@ -301,7 +305,7 @@ function SubMenu({
           onClick={() => onPick(it.id)}
           className="flex h-7 w-full items-center justify-between rounded-md px-2 text-left text-[14px] leading-[16.8px] text-[#2c2c2b] hover:bg-[rgba(66,35,3,0.04)] dark:text-neutral-100 dark:hover:bg-white/5"
         >
-          <span>{it.label}</span>
+          <span>{t(it.label)}</span>
           {active === it.id && <Check size={14} className="text-[#2c2c2b] dark:text-neutral-100" />}
         </button>
       ))}
@@ -340,7 +344,9 @@ function DateBox({
   onTime: (hm: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (date ? fmtDay(date, fmt) : "");
+  const dateT = useT();
+  const dateIntl = useIntlLocale();
+  const shown = draft ?? (date ? fmtDay(date, fmt, { locale: dateIntl, t: dateT }) : "");
   const ref = useRef<HTMLInputElement>(null);
  // the original opens with the whole date selected, so typing replaces it
   useEffect(() => {
@@ -425,6 +431,7 @@ export function DatePickerPanel({
   onFormat?: (f: DateFormat) => void;
   onClear: () => void;
 }) {
+  const t = useT();
   const [hasEnd, setHasEnd] = useState(!!parts.end);
   const [editing, setEditing] = useState<"start" | "end">("start");
   const [sub, setSub] = useState<"" | "format" | "reminder">("");
@@ -448,7 +455,7 @@ export function DatePickerPanel({
           includeTime={includeTime}
           active={hasEnd && editing === "start"}
           autoFocus
-          placeholder="날짜 입력"
+          placeholder={t("날짜 입력")}
           onFocus={() => setEditing("start")}
           onDate={(iso) => onChange({ date: iso })}
           onTime={(hm) => onChange({ time: hm })}
@@ -461,7 +468,7 @@ export function DatePickerPanel({
             fmt={fmt}
             includeTime={includeTime}
             active={editing === "end"}
-            placeholder="종료일"
+            placeholder={t("종료일")}
             onFocus={() => setEditing("end")}
             onDate={(iso) => onChange({ end: iso })}
             onTime={(hm) => onChange({ endTime: hm })}
@@ -481,7 +488,7 @@ export function DatePickerPanel({
       <div ref={rowsRef} className="relative space-y-px px-1">
         <OptRow
           testid={`db-date-endtoggle-${idBase}`}
-          label="종료일"
+          label={t("종료일")}
           onClick={() => {
             const next = !hasEnd;
             setHasEnd(next);
@@ -496,11 +503,11 @@ export function DatePickerPanel({
         <div className="relative">
           <OptRow
             testid={`db-date-format-${idBase}`}
-            label="날짜 형식"
+            label={t("날짜 형식")}
             onClick={() => setSub((s) => (s === "format" ? "" : "format"))}
           >
             <span className="flex items-center gap-1 text-[#7d7a75]">
-              {DATE_FORMATS.find((f) => f.id === fmt)?.label}
+              {t(DATE_FORMATS.find((f) => f.id === fmt)?.label ?? "")}
               <Caret size={14} />
             </span>
           </OptRow>
@@ -519,7 +526,7 @@ export function DatePickerPanel({
 
         <OptRow
           testid={`db-date-timetoggle-${idBase}`}
-          label="시간 포함"
+          label={t("시간 포함")}
           onClick={() =>
             includeTime
               ? onChange({ time: "", endTime: "" })
@@ -532,11 +539,11 @@ export function DatePickerPanel({
         <div className="relative">
           <OptRow
             testid={`db-date-reminder-${idBase}`}
-            label="리마인더"
+            label={t("리마인더")}
             onClick={() => setSub((s) => (s === "reminder" ? "" : "reminder"))}
           >
             <span className="flex items-center gap-1 text-[#7d7a75]">
-              {REMINDERS.find((r) => r.id === parts.reminder)?.label ?? "알림 없음"}
+              {t(REMINDERS.find((r) => r.id === parts.reminder)?.label ?? "알림 없음")}
               <Caret size={14} />
             </span>
           </OptRow>
@@ -557,7 +564,7 @@ export function DatePickerPanel({
       <Divider />
 
       <div className="px-1">
-        <OptRow testid={`db-date-clear-${idBase}`} label="삭제" onClick={onClear} />
+        <OptRow testid={`db-date-clear-${idBase}`} label={t("삭제")} onClick={onClear} />
       </div>
 
       <Divider />
@@ -565,7 +572,7 @@ export function DatePickerPanel({
       <div className="px-1">
         <div className="flex h-7 items-center gap-3 px-2 text-[14px] leading-[16.8px] text-[#7d7a75]">
           <HelpCircle size={16} />
-          <span>리마인더에 대해 알아보기</span>
+          <span>{t("리마인더에 대해 알아보기")}</span>
         </div>
       </div>
     </div>

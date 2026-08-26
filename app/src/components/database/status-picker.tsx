@@ -6,6 +6,7 @@ import { SlidersHorizontal } from "lucide-react";
 import type { DbProperty } from "@/lib/db/schema";
 import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
+import { useT } from "@/i18n/provider";
 import { useDb } from "./database-block";
 import { OptionChip } from "./option-chip";
 
@@ -75,6 +76,7 @@ export function StatusPicker({
   onClose: () => void;
 }) {
   const db = useDb();
+  const t = useT();
   const popRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
   // -1, not 0: with nothing typed the original highlights NO row (every option
@@ -204,7 +206,7 @@ export function StatusPicker({
                       className="text-[12px] font-medium leading-[14px]"
                       style={{ color: LABEL }}
                     >
-                      {s.label}
+                      {t(s.label)}
                     </span>
                   </div>
                 )}
@@ -228,7 +230,7 @@ export function StatusPicker({
           className="mx-1 flex h-7 w-[232px] items-center gap-2 rounded-[6px] px-2 text-left hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
         >
           <SlidersHorizontal size={20} strokeWidth={1.6} className="shrink-0 text-[rgb(44,44,43)] dark:text-neutral-200" />
-          <span className="text-[14px] text-[rgb(44,44,43)] dark:text-neutral-200">속성 편집</span>
+          <span className="text-[14px] text-[rgb(44,44,43)] dark:text-neutral-200">{t("속성 편집")}</span>
         </button>
       </div>
     </div>,

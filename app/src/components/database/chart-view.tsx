@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Settings2, X } from "lucide-react";
 import type { ChartConfig, DbProperty, DbRow, DbView } from "@/lib/db/schema";
 import { applyView, buildGroups, isGroupable, optionClass } from "@/lib/db-values";
+import { useT } from "@/i18n/provider";
 import { useDb } from "./database-block";
 
 // ===========================================================================
@@ -47,6 +48,7 @@ interface Bar {
 
 export function ChartView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const rows = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const cfg: ChartConfig = view.config.chart ?? {};
   const groupable = db.properties.filter(isGroupable);
@@ -113,9 +115,9 @@ export function ChartView({ view }: { view: DbView }) {
     <div data-testid="db-chart-view" className="w-full">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[11px] font-medium text-neutral-400">
-          {aggregate === "sum" && sumProp ? `Sum of ${sumProp.name}` : "Count"}
+          {aggregate === "sum" && sumProp ? t("{name} 합계", { name: sumProp.name }) : t("개수")}
           {groupProp ? ` · ${groupProp.name}` : ""}
-          {stackProp ? ` · stacked by ${stackProp.name}` : ""}
+          {stackProp ? ` · ${t("{name} 기준으로 쌓기", { name: stackProp.name })}` : ""}
         </p>
         <button
           data-testid="db-chart-settings"
@@ -131,20 +133,20 @@ export function ChartView({ view }: { view: DbView }) {
           data-testid="db-chart-config"
           className="mb-3 grid gap-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3 dark:border-neutral-700 dark:bg-neutral-800/40"
         >
-          <Field label="차트 종류">
+          <Field label={t("차트 종류")}>
             <Select
               testid="db-chart-type"
               value={kind}
               onChange={(v) => patch({ type: v as ChartConfig["type"] })}
               options={[
-                ["column", "세로 막대"],
-                ["bar", "가로 막대"],
-                ["line", "선"],
-                ["donut", "도넛"],
+                ["column", t("세로 막대")],
+                ["bar", t("가로 막대")],
+                ["line", t("선")],
+                ["donut", t("도넛")],
               ]}
             />
           </Field>
-          <Field label="그룹 기준">
+          <Field label={t("그룹 기준")}>
             <Select
               testid="db-chart-groupby"
               value={groupProp?.id ?? ""}
@@ -152,19 +154,19 @@ export function ChartView({ view }: { view: DbView }) {
               options={groupable.map((p) => [p.id, p.name])}
             />
           </Field>
-          <Field label="값">
+          <Field label={t("값")}>
             <Select
               testid="db-chart-aggregate"
               value={aggregate}
               onChange={(v) => patch({ aggregate: v as ChartConfig["aggregate"] })}
               options={[
-                ["count", "개수"],
-                ["sum", "합계"],
+                ["count", t("개수")],
+                ["sum", t("합계")],
               ]}
             />
           </Field>
           {aggregate === "sum" && (
-            <Field label="합계 속성">
+            <Field label={t("합계 속성")}>
               <Select
                 testid="db-chart-sumprop"
                 value={sumProp?.id ?? ""}
@@ -173,23 +175,23 @@ export function ChartView({ view }: { view: DbView }) {
               />
             </Field>
           )}
-          <Field label="쌓기 기준">
+          <Field label={t("쌓기 기준")}>
             <Select
               testid="db-chart-stackby"
               value={stackProp?.id ?? ""}
               onChange={(v) => patch({ stackByPropertyId: v || undefined })}
-              options={[["", "없음"], ...db.properties.filter((p) => isGroupable(p) || p.type === "title").map((p): [string, string] => [p.id, p.name])]}
+              options={[["", t("없음")], ...db.properties.filter((p) => isGroupable(p) || p.type === "title").map((p): [string, string] => [p.id, p.name])]}
             />
           </Field>
-          <Field label="높이">
+          <Field label={t("높이")}>
             <Select
               testid="db-chart-height"
               value={cfg.height ?? "medium"}
               onChange={(v) => patch({ height: v as ChartConfig["height"] })}
               options={[
-                ["small", "작게"],
-                ["medium", "보통"],
-                ["large", "크게"],
+                ["small", t("작게")],
+                ["medium", t("보통")],
+                ["large", t("크게")],
               ]}
             />
           </Field>
@@ -201,7 +203,7 @@ export function ChartView({ view }: { view: DbView }) {
               onChange={(e) => patch({ showDataLabels: e.target.checked })}
               className="h-3.5 w-3.5 accent-blue-500"
             />
-            데이터 라벨 표시
+            {t("데이터 라벨 표시")}
           </label>
           <label className="flex items-center gap-1.5 text-neutral-600 dark:text-neutral-300">
             <input
@@ -211,14 +213,14 @@ export function ChartView({ view }: { view: DbView }) {
               onChange={(e) => patch({ hideEmptyGroups: e.target.checked })}
               className="h-3.5 w-3.5 accent-blue-500"
             />
-            빈 그룹 숨기기
+            {t("빈 그룹 숨기기")}
           </label>
           <Field label="캡션">
             <input
               data-testid="db-chart-caption"
               value={cfg.caption ?? ""}
               onChange={(e) => patch({ caption: e.target.value, showCaption: true })}
-              placeholder="[ in-progress 상태인 것만 표시됨 ]"
+              placeholder={t("[ in-progress 상태인 것만 표시됨 ]")}
               className="w-full rounded border border-neutral-200 bg-transparent px-1.5 py-1 outline-none dark:border-neutral-600"
             />
           </Field>
@@ -226,7 +228,7 @@ export function ChartView({ view }: { view: DbView }) {
       )}
 
       {bars.length === 0 ? (
-        <p className="py-8 text-center text-xs text-neutral-400">표시할 값이 없습니다</p>
+        <p className="py-8 text-center text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>
       ) : kind === "donut" ? (
         <Donut bars={bars} height={height} showLabels={cfg.showDataLabels ?? true} />
       ) : kind === "bar" ? (
@@ -240,7 +242,7 @@ export function ChartView({ view }: { view: DbView }) {
           {legend.map((s) => (
             <span key={s.key} className="flex items-center gap-1 text-[11px] text-neutral-500">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />
-              {s.label || "없음"}
+              {s.label || t("없음")}
             </span>
           ))}
         </div>
@@ -275,6 +277,7 @@ function ColumnBars({
   line: boolean;
   showLabels: boolean;
 }) {
+  const t = useT();
   const W = Math.max(bars.length * 72, 320);
   const pad = { l: 8, r: 8, t: 18, b: 34 };
   const plot = height - pad.t - pad.b;
@@ -305,7 +308,7 @@ function ColumnBars({
                 </text>
               )}
               <text x={cx} y={height - 12} textAnchor="middle" className="fill-neutral-500 text-[10px]">
-                {b.label.length > 10 ? b.label.slice(0, 9) + "…" : b.label || "없음"}
+                {b.label.length > 10 ? b.label.slice(0, 9) + "…" : b.label || t("없음")}
               </text>
             </g>
           );
@@ -324,11 +327,12 @@ function ColumnBars({
 }
 
 function HorizontalBars({ bars, max, showLabels }: { bars: Bar[]; max: number; showLabels: boolean }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1.5">
       {bars.map((b) => (
         <div key={b.key} data-testid={`db-chart-bar-${b.key}`} className="flex items-center gap-2">
-          <span className="w-28 shrink-0 truncate text-[11px] text-neutral-500">{b.label || "없음"}</span>
+          <span className="w-28 shrink-0 truncate text-[11px] text-neutral-500">{b.label || t("없음")}</span>
           <div className="flex h-4 flex-1 overflow-hidden rounded-sm bg-neutral-100 dark:bg-neutral-700/60">
             {b.segments.map((s) => (
               <div key={s.key} style={{ width: `${(s.value / max) * 100}%`, background: s.color }} />
@@ -344,6 +348,7 @@ function HorizontalBars({ bars, max, showLabels }: { bars: Bar[]; max: number; s
 }
 
 function Donut({ bars, height, showLabels }: { bars: Bar[]; height: number; showLabels: boolean }) {
+  const t = useT();
   const total = bars.reduce((a, b) => a + b.total, 0);
   const R = Math.min(height / 2 - 10, 70);
   const C = 2 * Math.PI * R;
@@ -377,7 +382,7 @@ function Donut({ bars, height, showLabels }: { bars: Bar[]; height: number; show
         {bars.slice(0, 10).map((b) => (
           <span key={b.key} className="flex items-center gap-1.5 text-[11px] text-neutral-500">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: b.segments[0]?.color ?? HEX.blue }} />
-            {b.label || "없음"}
+            {b.label || t("없음")}
             {showLabels && <span className="tabular-nums text-neutral-400">{round(b.total)}</span>}
           </span>
         ))}

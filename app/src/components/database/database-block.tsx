@@ -44,6 +44,7 @@ import { FilterBar, FilterChips } from "./filter-bar";
 import { SortBar } from "./sort-bar";
 import { RowPeek } from "./row-peek";
 import { PropertyEditPanel } from "./property-edit-panel";
+import { useT } from "@/i18n/provider";
 
 // The context lives in its own module (see the note there) and is re-exported
 // so the many `from "./database-block"` importers keep working. It is still
@@ -110,6 +111,7 @@ function TabMenuItem({
  */
 function DbExpandButton({ databaseId }: { databaseId: string }) {
   const router = useRouter();
+  const t = useT();
 
   async function openFullPage() {
     const res = await fetch(`/api/databases/${databaseId}/fullpage`, { method: "POST" });
@@ -120,8 +122,8 @@ function DbExpandButton({ databaseId }: { databaseId: string }) {
     <button
       data-testid="db-open-fullpage"
       onClick={() => void openFullPage()}
-      aria-label="Open as full page"
-      data-tip="Open as full page"
+      aria-label={t("전체 페이지로 열기")}
+      data-tip={t("전체 페이지로 열기")}
       className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
     >
       <Maximize size={14} />
@@ -133,6 +135,7 @@ function DbExpandButton({ databaseId }: { databaseId: string }) {
  *  and has no top-level equivalent in Notion's inline toolbar. */
 function DbSourceControls() {
   const db = useDb();
+  const t = useT();
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -150,12 +153,12 @@ function DbSourceControls() {
           onClick={() => setPickerOpen((v) => !v)}
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <LinkIcon size={12} /> Link
+          <LinkIcon size={12} /> {t("연결")}
         </button>
         {pickerOpen && (
           <div className="popover-anim absolute right-0 top-8 z-40 max-h-56 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
             <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-              Link a database
+              {t("데이터베이스 연결")}
             </p>
             {db.allDatabases.map((d) => (
               <button
@@ -164,7 +167,7 @@ function DbSourceControls() {
                 onClick={() => void linkDb(d.id)}
                 className="w-full truncate rounded px-2 py-1 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
               >
-                {d.title || "Untitled"}
+                {d.title || t("제목 없음")}
               </button>
             ))}
           </div>
@@ -179,6 +182,7 @@ function DbSourceControls() {
  * define templates and create a real row pre-filled from one. */
 function TemplateMenu() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const titleProp = db.properties.find((p) => p.type === "title");
   const templates = db.rows.filter((r) => r.values.__template);
@@ -189,7 +193,7 @@ function TemplateMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
       >
-        <Plus size={12} /> Templates
+        <Plus size={12} /> {t("템플릿")}
       </button>
       {open && (
         <div
@@ -197,54 +201,54 @@ function TemplateMenu() {
           className="popover-anim absolute right-0 top-8 z-40 w-64 rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
         >
           {templates.length === 0 && (
-            <p className="px-2 py-1 text-xs text-neutral-400">No templates yet.</p>
+            <p className="px-2 py-1 text-xs text-neutral-400">{t("템플릿이 아직 없습니다")}</p>
           )}
-          {templates.map((t) => (
+          {templates.map((tpl) => (
             <div
-              key={t.id}
-              data-testid={`db-template-${t.id}`}
+              key={tpl.id}
+              data-testid={`db-template-${tpl.id}`}
               className="mb-1 flex items-center gap-1 rounded px-1 py-0.5"
             >
               {titleProp && (
                 <input
-                  data-testid={`db-cell-${t.id}-${titleProp.id}`}
-                  defaultValue={String(t.values[titleProp.id] ?? "")}
-                  placeholder="Template name"
-                  onBlur={(e) => db.updateRow(t.id, { [titleProp.id]: e.target.value })}
+                  data-testid={`db-cell-${tpl.id}-${titleProp.id}`}
+                  defaultValue={String(tpl.values[titleProp.id] ?? "")}
+                  placeholder={t("템플릿 이름")}
+                  onBlur={(e) => db.updateRow(tpl.id, { [titleProp.id]: e.target.value })}
                   className="min-w-0 flex-1 rounded border border-neutral-200 bg-transparent px-1.5 py-1 text-xs outline-none dark:border-neutral-600 dark:text-neutral-200"
                 />
               )}
               <button
-                data-testid={`db-template-default-${t.id}`}
+                data-testid={`db-template-default-${tpl.id}`}
                 onClick={() => {
-                  const making = !t.values.__default;
+                  const making = !tpl.values.__default;
  // single default: clear the flag on every other template
                   for (const other of db.rows.filter(
-                    (r) => r.values.__template && r.values.__default && r.id !== t.id
+                    (r) => r.values.__template && r.values.__default && r.id !== tpl.id
                   ))
                     db.updateRow(other.id, { __default: null });
-                  db.updateRow(t.id, { __default: making ? true : null });
+                  db.updateRow(tpl.id, { __default: making ? true : null });
                 }}
-                title="Use as the default for New rows"
+                title={t("새 행의 기본 템플릿으로 사용")}
                 className={`shrink-0 rounded px-1.5 py-1 text-xs ${
-                  t.values.__default
+                  tpl.values.__default
                     ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"
                     : "text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 }`}
               >
-                Default
+                {t("기본")}
               </button>
               <button
-                data-testid={`db-add-row-template-${t.id}`}
+                data-testid={`db-add-row-template-${tpl.id}`}
                 onClick={() => {
-                  const vals: Record<string, unknown> = { ...t.values };
+                  const vals: Record<string, unknown> = { ...tpl.values };
                   delete vals.__template;
                   void db.addRow(vals);
                   setOpen(false);
                 }}
                 className="shrink-0 rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white hover:bg-blue-600"
               >
-                Use
+                {t("사용")}
               </button>
             </div>
           ))}
@@ -253,7 +257,7 @@ function TemplateMenu() {
             onClick={() => void db.addRow({ __template: true })}
             className="mt-1 flex w-full items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> New template
+            <Plus size={12} /> {t("새 템플릿")}
           </button>
         </div>
       )}
@@ -262,26 +266,39 @@ function TemplateMenu() {
 }
 
 export const PROP_TYPES: { type: PropertyType; label: string }[] = [
-  { type: "text", label: "Text" },
-  { type: "number", label: "Number" },
-  { type: "select", label: "Select" },
-  { type: "multi_select", label: "Multi-select" },
-  { type: "status", label: "Status" },
-  { type: "date", label: "Date" },
-  { type: "person", label: "Person" },
-  { type: "checkbox", label: "Checkbox" },
+  { type: "text", label: "텍스트" },
+  { type: "number", label: "숫자" },
+  { type: "select", label: "선택" },
+  { type: "multi_select", label: "다중 선택" },
+  { type: "status", label: "상태" },
+  { type: "date", label: "날짜" },
+  { type: "person", label: "사람" },
+  { type: "checkbox", label: "체크박스" },
   { type: "url", label: "URL" },
-  { type: "relation", label: "Relation" },
-  { type: "formula", label: "Formula" },
-  { type: "rollup", label: "Rollup" },
-  { type: "email", label: "Email" },
-  { type: "phone", label: "Phone" },
-  { type: "files", label: "Files & media" },
-  { type: "created_time", label: "Created time" },
-  { type: "last_edited_time", label: "Last edited time" },
-  { type: "created_by", label: "Created by" },
-  { type: "last_edited_by", label: "Last edited by" },
+  { type: "relation", label: "관계형" },
+  { type: "formula", label: "수식" },
+  { type: "rollup", label: "롤업" },
+  { type: "email", label: "이메일" },
+  { type: "phone", label: "전화번호" },
+  { type: "files", label: "파일과 미디어" },
+  { type: "created_time", label: "생성 일시" },
+  { type: "last_edited_time", label: "최종 편집 일시" },
+  { type: "created_by", label: "생성자" },
+  { type: "last_edited_by", label: "최종 편집자" },
 ];
+
+/** the Add-view list's labels, by view type (display only — the type string
+ *  itself is what gets stored) */
+const VIEW_TYPE_LABEL: Record<string, string> = {
+  table: "표",
+  board: "보드",
+  list: "리스트",
+  gallery: "갤러리",
+  calendar: "캘린더",
+  timeline: "타임라인",
+  chart: "차트",
+  dashboard: "대시보드",
+};
 
 export function DatabaseBlock({
   databaseId,
@@ -298,6 +315,7 @@ export function DatabaseBlock({
  * exists on first load and open on it */
   initialViewType?: string;
 }) {
+  const t = useT();
   const [database, setDatabase] = useState<Database | null>(null);
   const [properties, setProperties] = useState<DbProperty[]>([]);
   const [rows, setRows] = useState<DbRow[]>([]);
@@ -574,7 +592,7 @@ export function DatabaseBlock({
         if (!isUuidDb) return refreshSnapshot();
       });
       if (gone)
-        useToastStore.getState().show("Row deleted", {
+        useToastStore.getState().show(t("행을 삭제했습니다"), {
           onUndo: async () => {
  // re-create with the same values (a fresh id — references aside,
  // the CONTENT comes back, which is what undo is for)
@@ -587,7 +605,7 @@ export function DatabaseBlock({
           },
         });
     },
-    [databaseId, refreshSnapshot]
+    [databaseId, refreshSnapshot, t]
   );
 
  // Manual reorder. OKF row ids are positional and shift on move — always
@@ -694,7 +712,7 @@ export function DatabaseBlock({
       await fetch(`/api/databases/${databaseId}/views/${viewId}`, { method: "DELETE" });
       void refreshSnapshot();
       if (gone)
-        useToastStore.getState().show(`View "${gone.name}" deleted`, {
+        useToastStore.getState().show(t("\"{name}\" 보기를 삭제했습니다", { name: gone.name }), {
           onUndo: async () => {
             const res = await fetch(`/api/databases/${databaseId}/views`, {
               method: "POST",
@@ -713,7 +731,7 @@ export function DatabaseBlock({
           },
         });
     },
-    [databaseId, views, refreshSnapshot]
+    [databaseId, views, refreshSnapshot, t]
   );
 
   const addProperty = useCallback(
@@ -973,7 +991,7 @@ export function DatabaseBlock({
       rows,
       members,
       me,
-      itemName: database?.itemName || "페이지",
+      itemName: database?.itemName || t("페이지"),
       fullPage: !!fullPage,
       icon: fullPage ? hostPageIcon : null,
       allDatabases,
@@ -994,7 +1012,7 @@ export function DatabaseBlock({
       filterUiOpen,
       setFilterUiOpen,
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, editingPropertyId, filterUiOpen, database?.itemName, fullPage, hostPageIcon]
+    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, editingPropertyId, filterUiOpen, database?.itemName, fullPage, hostPageIcon, t]
   );
 
   if (!database || !activeView) {
@@ -1127,7 +1145,7 @@ export function DatabaseBlock({
               {v.id === activeView.id && (
                 <span
                   role="button"
-                  aria-label="View actions"
+                  aria-label={t("보기 작업")}
                   data-testid={`db-view-tabmenu-${v.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1163,7 +1181,7 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-rename-${v.id}`}
                       icon={<Pencil size={18} />}
-                      label="이름 바꾸기"
+                      label={t("이름 바꾸기")}
                       onClick={() => {
                         setTabMenuViewId(null);
                         setViewNameDraft(v.name);
@@ -1173,24 +1191,24 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-showas-${v.id}`}
                       icon={<Paintbrush size={18} />}
-                      label="다음과 같이 표시"
-                      soon="보기 타입 변경은 아직 없습니다 — +로 새 보기를 추가하세요"
+                      label={t("다음과 같이 표시")}
+                      soon={t("보기 타입 변경은 아직 없습니다 — +로 새 보기를 추가하세요")}
                       right={<ChevronRight size={14} className="shrink-0 text-neutral-400" />}
                     />
                     <TabMenuItem
                       testid={`db-view-edit-${v.id}`}
                       icon={<SlidersHorizontal size={18} />}
-                      label="보기 편집"
-                      soon="여기서는 아직 못 엽니다 — 툴바의 보기 설정을 쓰세요"
+                      label={t("보기 편집")}
+                      soon={t("여기서는 아직 못 엽니다 — 툴바의 보기 설정을 쓰세요")}
                     />
                     <TabMenuItem
                       testid={`db-view-source-${v.id}`}
                       icon={<DatabaseGlyph size={18} />}
-                      label="데이터베이스"
-                      soon="원본 데이터베이스로 이동은 아직 없습니다"
+                      label={t("데이터베이스")}
+                      soon={t("원본 데이터베이스로 이동은 아직 없습니다")}
                       right={
                         <span className="flex min-w-0 shrink items-center gap-1 text-xs text-neutral-400">
-                          <span className="truncate">{database.title || "제목 없음"}</span>
+                          <span className="truncate">{database.title || t("제목 없음")}</span>
                           <ChevronRight size={14} className="shrink-0" />
                         </span>
                       }
@@ -1200,15 +1218,15 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-copylink-${v.id}`}
                       icon={<LinkIcon size={18} />}
-                      label="보기 링크 복사"
-                      soon="보기 링크는 아직 없습니다"
+                      label={t("보기 링크 복사")}
+                      soon={t("보기 링크는 아직 없습니다")}
                     />
                   </div>
                   <div className="flex flex-col border-t border-neutral-100 py-1 dark:border-neutral-700/60">
                     <TabMenuItem
                       testid={`db-view-duplicate-${v.id}`}
                       icon={<CopyIcon size={18} />}
-                      label="보기 복제"
+                      label={t("보기 복제")}
                       onClick={() => {
                         setTabMenuViewId(null);
                         void duplicateView(v.id);
@@ -1217,8 +1235,8 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-delete-${v.id}`}
                       icon={<Trash2 size={18} />}
-                      label="보기 삭제"
-                      soon={tabViews.length <= 1 ? "마지막 보기는 삭제할 수 없습니다" : undefined}
+                      label={t("보기 삭제")}
+                      soon={tabViews.length <= 1 ? t("마지막 보기는 삭제할 수 없습니다") : undefined}
                       onClick={
                         tabViews.length > 1
                           ? () => {
@@ -1233,8 +1251,8 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-calendar-${v.id}`}
                       icon={<CalendarDays size={18} />}
-                      label="캘린더에서 관리하기"
-                      soon="캘린더 연동은 아직 없습니다"
+                      label={t("캘린더에서 관리하기")}
+                      soon={t("캘린더 연동은 아직 없습니다")}
                     />
                   </div>
                 </div>,
@@ -1252,7 +1270,7 @@ export function DatabaseBlock({
                 // overflow button has no caret
                 className="flex h-8 items-center whitespace-nowrap rounded-[20px] px-2.5 text-[14px] leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.03)] dark:text-neutral-400 dark:hover:bg-neutral-800"
               >
-                {tabViews.length - visibleTabCount}개 더 보기
+                {t("{n}개 더 보기", { n: tabViews.length - visibleTabCount })}
               </button>
               {moreTabsOpen && (
                 <div className="popover-anim absolute left-0 top-8 z-40 flex w-44 flex-col rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
@@ -1296,8 +1314,8 @@ export function DatabaseBlock({
               ref={addViewBtn}
               data-testid="db-add-view"
               onClick={() => setAddViewOpen((v) => !v)}
-              aria-label="Add view"
-              data-tip="Add view"
+              aria-label={t("보기 추가")}
+              data-tip={t("보기 추가")}
               className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
               <Plus size={12} />
@@ -1309,17 +1327,17 @@ export function DatabaseBlock({
                   style={{ visibility: "hidden" }}
                   className="popover-anim fixed z-50 w-36 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
                 >
-                {(["table", "board", "list", "gallery", "calendar", "timeline", "chart", "dashboard"] as const).map((t) => (
+                {(["table", "board", "list", "gallery", "calendar", "timeline", "chart", "dashboard"] as const).map((vt) => (
                   <button
-                    key={t}
-                    data-testid={`db-add-view-${t}`}
+                    key={vt}
+                    data-testid={`db-add-view-${vt}`}
                     onClick={async () => {
                       setAddViewOpen(false);
-                      await addView(t);
+                      await addView(vt);
                     }}
                     className="block w-full px-3 py-1.5 text-left text-sm capitalize text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                   >
-                    {t}
+                    {t(VIEW_TYPE_LABEL[vt])}
                   </button>
                 ))}
                 </div>,
@@ -1338,8 +1356,8 @@ export function DatabaseBlock({
                 ref={viewMenuBtn}
                 data-testid="db-view-menu"
                 onClick={() => setViewMenuOpen((v) => !v)}
-                aria-label="View options"
-                data-tip="More view actions"
+                aria-label={t("보기 옵션")}
+                data-tip={t("보기 작업 더 보기")}
                 className="rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 ⋯
@@ -1369,13 +1387,13 @@ export function DatabaseBlock({
               >
                 {/* the toolbar's primary reads 새로 만들기 in the original; the
                     item name (새 프로젝트) is what a GROUP's add-row says */}
-                새로 만들기
+                {t("새로 만들기")}
               </button>
               <span className="w-px bg-white/25" aria-hidden="true" />
               <button
                 ref={newMoreBtn}
                 data-testid="db-new-row-more"
-                aria-label="추가 옵션 더 보기"
+                aria-label={t("추가 옵션 더 보기")}
                 onClick={() => setNewMoreOpen((v) => !v)}
                 className="flex w-6 items-center justify-center text-white/80 transition-colors hover:bg-[rgb(35,118,199)] hover:text-white"
               >
@@ -1392,19 +1410,19 @@ export function DatabaseBlock({
                 >
  {/* the original's caret menu, read off it: a 템플릿 heading, the database's
      own templates under its name, then 기본 → 비어 있음, then 새 템플릿 */}
-                  <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">템플릿</p>
+                  <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">{t("템플릿")}</p>
                   <p className="truncate px-3 pb-0.5 text-[11px] text-neutral-400">
-                    {database.title || "데이터베이스"}
+                    {database.title || t("데이터베이스")}
                   </p>
                   {rows.filter((r) => r.values.__template).length === 0 && (
-                    <p className="px-3 pb-1 text-[13px] text-neutral-400">템플릿이 아직 없습니다</p>
+                    <p className="px-3 pb-1 text-[13px] text-neutral-400">{t("템플릿이 아직 없습니다")}</p>
                   )}
-                  {rows.filter((r) => r.values.__template).map((t) => (
+                  {rows.filter((r) => r.values.__template).map((tpl) => (
                     <button
-                      key={t.id}
-                      data-testid={`db-new-from-template-${t.id}`}
+                      key={tpl.id}
+                      data-testid={`db-new-from-template-${tpl.id}`}
                       onClick={() => {
-                        const vals: Record<string, unknown> = { ...t.values };
+                        const vals: Record<string, unknown> = { ...tpl.values };
                         delete vals.__template;
                         delete vals.__default;
                         setNewMoreOpen(false);
@@ -1414,12 +1432,12 @@ export function DatabaseBlock({
                     >
                       <FileText size={15} className="shrink-0 text-neutral-400" />
                       <span className="truncate">
-                        {String(t.values[properties.find((p) => p.type === "title")?.id ?? ""] ?? "") ||
-                          "제목 없는 템플릿"}
+                        {String(tpl.values[properties.find((p) => p.type === "title")?.id ?? ""] ?? "") ||
+                          t("제목 없는 템플릿")}
                       </span>
                     </button>
                   ))}
-                  <p className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium text-neutral-400">기본</p>
+                  <p className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium text-neutral-400">{t("기본")}</p>
                   <button
                     data-testid="db-new-empty"
                     onClick={() => {
@@ -1429,7 +1447,7 @@ export function DatabaseBlock({
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                   >
                     <FileText size={15} className="shrink-0 text-neutral-400" />
-                    비어 있음
+                    {t("비어 있음")}
                   </button>
                   <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
                   <button
@@ -1441,7 +1459,7 @@ export function DatabaseBlock({
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-500 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
                   >
                     <Plus size={15} className="shrink-0 text-neutral-400" />
-                    새 템플릿
+                    {t("새 템플릿")}
                   </button>
                 </div>,
                 document.body
@@ -1451,8 +1469,8 @@ export function DatabaseBlock({
               <button
                 data-testid="db-add-prop"
                 onClick={() => setAddPropOpen((v) => !v)}
-                aria-label="Add property"
-                data-tip="Add property"
+                aria-label={t("속성 추가")}
+                data-tip={t("속성 추가")}
                 className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <Plus size={14} />
@@ -1465,11 +1483,11 @@ export function DatabaseBlock({
                       data-testid={`db-add-prop-${pt.type}`}
                       onClick={async () => {
                         setAddPropOpen(false);
-                        await addProperty(pt.label, pt.type);
+                        await addProperty(t(pt.label), pt.type);
                       }}
                       className="block w-full px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                     >
-                      {pt.label}
+                      {t(pt.label)}
                     </button>
                   ))}
                 </div>
@@ -1487,7 +1505,7 @@ export function DatabaseBlock({
           data-testid="db-description"
           defaultValue={database.description ?? ""}
           key={`desc-${database.description ?? ""}`}
-          placeholder="Add a description…"
+          placeholder={t("설명 추가…")}
           onBlur={(e) => {
             const v = e.target.value;
             if (v === (database.description ?? "")) return;
@@ -1510,20 +1528,20 @@ export function DatabaseBlock({
             data-testid="view-draft-bar"
             className="mt-1 flex items-center gap-2 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
           >
-            <span>View changed — visible only to you</span>
+            <span>{t("보기가 변경됨 — 나에게만 표시됩니다")}</span>
             <button
               data-testid="view-draft-save"
               onClick={() => void saveDraft()}
               className="rounded bg-blue-500 px-2 py-0.5 font-medium text-white hover:bg-blue-600"
             >
-              Save for everyone
+              {t("모두에게 저장")}
             </button>
             <button
               data-testid="view-draft-reset"
               onClick={resetDraft}
               className="rounded px-1.5 py-0.5 text-blue-600 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/40"
             >
-              Reset
+              {t("재설정")}
             </button>
           </div>
         )}

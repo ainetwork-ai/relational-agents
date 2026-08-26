@@ -9,6 +9,7 @@ import { useDismiss } from "@/hooks/use-dismiss";
 import { useDb } from "./database-block";
 import { OptionChip } from "./option-chip";
 import { PropertyTypeIcon } from "./property-type-icon";
+import { useT } from "@/i18n/provider";
 
 // ===========================================================================
 // 속성 편집 — the panel the Status menu's "속성 편집" row opens.
@@ -141,6 +142,7 @@ export function PropertyEditPanel({
   onClose: () => void;
 }) {
   const db = useDb();
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,9 @@ export function PropertyEditPanel({
     optionIds: g.optionIds,
   }));
   const byId = (id: string) => options.find((o) => o.id === id);
+  // a canonical group shows its Korean name (translated); anything else is
+  // the user's own name and shows as typed
+  const groupLabel = (name: string) => (GROUP_LABEL[name] ? t(GROUP_LABEL[name]) : name);
 
   // ---- placement: docked under the toolbar row, out to the window's edge ----
   // The original's -387 is measured against a toolbar NODE that includes the
@@ -397,7 +402,7 @@ export function PropertyEditPanel({
           <div className="flex h-[50px] shrink-0 items-center pl-[10px] pr-4">
             <button
               data-testid="db-prop-edit-back"
-              aria-label="뒤로"
+              aria-label={t("뒤로")}
               onClick={onClose}
               className="flex h-[22px] w-6 items-center justify-center rounded-[6px] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
             >
@@ -407,11 +412,11 @@ export function PropertyEditPanel({
               className="ml-2 flex-1 truncate text-[14px] font-semibold"
               style={{ color: TEXT }}
             >
-              속성 편집
+              {t("속성 편집")}
             </span>
             <button
               data-testid="db-prop-edit-close"
-              aria-label="닫기"
+              aria-label={t("닫기")}
               onClick={onClose}
               className="flex h-5 w-5 items-center justify-center rounded-full"
               style={{ background: RULE }}
@@ -436,7 +441,7 @@ export function PropertyEditPanel({
               >
                 <input
                   data-testid={`db-prop-edit-name-${prop.id}`}
-                  placeholder="속성 이름"
+                  placeholder={t("속성 이름")}
                   defaultValue={prop.name}
                   key={`name-${prop.name}`}
                   onBlur={(e) => {
@@ -459,10 +464,10 @@ export function PropertyEditPanel({
             >
               <Icon name="type" size={20} color={ICON} />
               <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                유형
+                {t("유형")}
               </span>
               <span className="text-[14px]" style={{ color: TEXT_TER }}>
-                상태
+                {t("상태")}
               </span>
               <span className="ml-[6px] flex items-center">
                 <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -481,11 +486,11 @@ export function PropertyEditPanel({
                       className="text-[12px] font-medium leading-[14px]"
                       style={{ color: LABEL }}
                     >
-                      {GROUP_LABEL[g.name] ?? g.name}
+                      {groupLabel(g.name)}
                     </span>
                     <button
                       data-testid={`db-prop-edit-add-option-${g.id}`}
-                      aria-label="옵션 추가"
+                      aria-label={t("옵션 추가")}
                       onClick={() => {
                         setAdding(g.id);
                         setAddDraft("");
@@ -510,7 +515,7 @@ export function PropertyEditPanel({
                           <input
                             data-testid={`db-prop-edit-add-input-${g.id}`}
                             autoFocus
-                            placeholder="새 옵션을 입력하세요"
+                            placeholder={t("새 옵션을 입력하세요")}
                             value={addDraft}
                             onChange={(e) => setAddDraft(e.target.value)}
                             onBlur={() => {
@@ -573,7 +578,7 @@ export function PropertyEditPanel({
                               className="mr-[6px] text-[12px] font-medium"
                               style={{ color: TEXT_TER }}
                             >
-                              기본
+                              {t("기본")}
                             </span>
                           )}
                           <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -593,7 +598,7 @@ export function PropertyEditPanel({
               <div className="ml-2 flex h-7 w-[274px] items-center rounded-[6px] pl-2 pr-2 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700">
                 <Icon name="wrap" size={20} color={ICON} />
                 <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                  콘텐츠 줄바꿈하기
+                  {t("콘텐츠 줄바꿈하기")}
                 </span>
                 <button
                   data-testid={`db-prop-edit-wrap-${prop.id}`}
@@ -616,10 +621,10 @@ export function PropertyEditPanel({
               >
                 <Icon name="eye" size={20} color={ICON} />
                 <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                  다음과 같이 표시:
+                  {t("다음과 같이 표시:")}
                 </span>
                 <span className="text-[14px]" style={{ color: TEXT_TER }}>
-                  선택
+                  {t("선택")}
                 </span>
                 <span className="ml-[6px] flex items-center">
                   <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -632,7 +637,7 @@ export function PropertyEditPanel({
               >
                 <Icon name="duplicate" size={20} color={ICON} />
                 <span className="ml-2 text-[14px]" style={{ color: TEXT }}>
-                  속성 복제
+                  {t("속성 복제")}
                 </span>
               </button>
               <button
@@ -645,7 +650,7 @@ export function PropertyEditPanel({
               >
                 <Icon name="trash" size={20} color={ICON} />
                 <span className="ml-2 text-[14px]" style={{ color: TEXT }}>
-                  속성 삭제
+                  {t("속성 삭제")}
                 </span>
               </button>
             </div>
@@ -686,7 +691,7 @@ export function PropertyEditPanel({
             >
               <Icon name="trash" size={20} color={ICON} />
               <span className="text-[14px]" style={{ color: TEXT }}>
-                삭제
+                {t("삭제")}
               </span>
             </button>
             <button
@@ -696,7 +701,7 @@ export function PropertyEditPanel({
             >
               <Icon name="flag" size={20} color={ICON} />
               <span className="text-[14px]" style={{ color: TEXT }}>
-                기본으로 설정
+                {t("기본으로 설정")}
               </span>
             </button>
             <div
@@ -710,10 +715,10 @@ export function PropertyEditPanel({
             >
               <Icon name="checkSquare" size={20} color={ICON} />
               <span className="flex-1 text-[14px]" style={{ color: TEXT }}>
-                그룹화
+                {t("그룹화")}
               </span>
               <span className="text-[14px]" style={{ color: TEXT_TER }}>
-                {menuGroup ? (GROUP_LABEL[menuGroup.name] ?? menuGroup.name) : ""}
+                {menuGroup ? groupLabel(menuGroup.name) : ""}
               </span>
               <span className="ml-[6px] flex items-center">
                 <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -723,7 +728,7 @@ export function PropertyEditPanel({
             <div className="mx-3 mt-[9px] h-px" style={{ background: RULE }} />
             <div className="mx-3 mt-3 flex h-[14px] items-center">
               <span className="text-[12px] font-medium leading-[14px]" style={{ color: LABEL }}>
-                색
+                {t("색")}
               </span>
             </div>
             <div className="mt-[10px] flex flex-col gap-px">
@@ -739,7 +744,7 @@ export function PropertyEditPanel({
                     style={{ background: c.swatch }}
                   />
                   <span className="ml-[9px] flex-1 text-left text-[14px]" style={{ color: TEXT }}>
-                    {c.label}
+                    {t(c.label)}
                   </span>
                   {(menuOpt.color ?? "default") === c.key && (
                     <Icon name="check" size={16} color={ICON} />
@@ -768,7 +773,7 @@ export function PropertyEditPanel({
                 className="mx-1 flex h-7 items-center rounded-[6px] px-2 text-left hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
               >
                 <span className="flex-1 text-[14px]" style={{ color: TEXT }}>
-                  {GROUP_LABEL[g.name] ?? g.name}
+                  {groupLabel(g.name)}
                 </span>
                 {menuGroup?.id === g.id && <Icon name="check" size={16} color={ICON} />}
               </button>

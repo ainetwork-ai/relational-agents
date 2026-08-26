@@ -18,6 +18,7 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import { useT } from "@/i18n/provider";
 import { useAiAgentsStore } from "@/stores/ai-agents";
 import { useAiChatsStore } from "@/stores/ai-chats";
 import { useToastStore } from "@/stores/toast";
@@ -36,6 +37,7 @@ interface ScopePage {
  * duplicate/share/delete. */
 export function AgentsSection() {
   const router = useRouter();
+  const t = useT();
   const agents = useAiAgentsStore((s) => s.agents);
   const loaded = useAiAgentsStore((s) => s.loaded);
   const load = useAiAgentsStore((s) => s.load);
@@ -147,14 +149,14 @@ export function AgentsSection() {
   async function doDuplicate(id: string) {
     setMenuFor(null);
     await duplicate(id);
-    show("Agent duplicated");
+    show(t("에이전트가 복제되었습니다"));
   }
 
   async function doDelete(id: string) {
     setConfirmDel(null);
     setMenuFor(null);
     await remove(id);
-    show("Agent deleted");
+    show(t("에이전트가 삭제되었습니다"));
   }
 
  // up to 3 recently used agents (those with lastUsedAt) go in a "recent"
@@ -208,7 +210,7 @@ export function AgentsSection() {
                 closeOverlays();
                 setMenuFor(next);
               }}
-              aria-label="Agent options"
+              aria-label={t("에이전트 옵션")}
               className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 group-hover/agent:flex dark:hover:bg-neutral-700"
             >
               <MoreHorizontal size={14} />
@@ -228,7 +230,7 @@ export function AgentsSection() {
                   onClick={() => startRename(a.id, a.name)}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <Pencil size={13} /> Rename
+                  <Pencil size={13} /> {t("이름 바꾸기")}
                 </button>
                 <button
                   data-testid={`agent-icon-${a.id}`}
@@ -239,14 +241,14 @@ export function AgentsSection() {
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <Smile size={13} /> Change icon
+                  <Smile size={13} /> {t("아이콘 변경")}
                 </button>
                 <button
                   data-testid={`agent-edit-${a.id}`}
                   onClick={() => startEdit(a)}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <FileText size={13} /> Edit instructions
+                  <FileText size={13} /> {t("지침 편집")}
                 </button>
                 <button
                   data-testid={`agent-fav-${a.id}`}
@@ -257,14 +259,14 @@ export function AgentsSection() {
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
                   {a.isFavorite ? <StarOff size={13} /> : <Star size={13} />}
-                  {a.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                  {a.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
                 </button>
                 <button
                   data-testid={`agent-duplicate-${a.id}`}
                   onClick={() => void doDuplicate(a.id)}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <Copy size={13} /> Duplicate
+                  <Copy size={13} /> {t("복제")}
                 </button>
                 <button
                   data-testid={`agent-share-${a.id}`}
@@ -274,7 +276,7 @@ export function AgentsSection() {
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <Share2 size={13} /> {a.isShared ? "Stop sharing" : "Share with workspace"}
+                  <Share2 size={13} /> {a.isShared ? t("공유 중지") : t("워크스페이스에 공유")}
                 </button>
                 <button
                   data-testid={`agent-delete-${a.id}`}
@@ -284,7 +286,7 @@ export function AgentsSection() {
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
                 >
-                  <Trash2 size={13} /> Delete
+                  <Trash2 size={13} /> {t("삭제")}
                 </button>
               </div>,
               document.body
@@ -297,7 +299,7 @@ export function AgentsSection() {
                   testid={`agent-iconpicker-trigger-${a.id}`}
                   pickerTestid={`agent-iconpicker-${a.id}`}
                   triggerClassName="rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                  placeholder="Pick an icon"
+                  placeholder={t("아이콘 선택")}
                   onChange={(icon) => {
                     void patch(a.id, { icon });
                     setIconFor(null);
@@ -312,21 +314,21 @@ export function AgentsSection() {
                 className="absolute right-1 top-7 z-50 w-64 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
               >
                 <p className="mb-1 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                  Agent instructions
+                  {t("에이전트 지침")}
                 </p>
                 <textarea
                   data-testid={`agent-instructions-${a.id}`}
                   value={editDraft}
                   onChange={(e) => setEditDraft(e.target.value)}
                   rows={5}
-                  placeholder="Instructions this agent always follows"
+                  placeholder={t("이 에이전트가 항상 따르는 지침")}
                   className="w-full resize-none rounded border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-700 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
                 />
 
                 <div className="mt-2">
                   <div className="mb-1 flex items-center justify-between">
                     <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                      Knowledge scope
+                      {t("지식 범위")}
                     </p>
                     <button
                       type="button"
@@ -334,7 +336,7 @@ export function AgentsSection() {
                       onClick={() => void openScopeMenu(a.id)}
                       className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
                     >
-                      <Plus size={11} /> Add page
+                      <Plus size={11} /> {t("페이지 추가")}
                     </button>
                   </div>
 
@@ -356,7 +358,7 @@ export function AgentsSection() {
                               type="button"
                               data-testid={`agent-scope-remove-${pageId}`}
                               onClick={() => removeScopePage(pageId)}
-                              aria-label="Remove page"
+                              aria-label={t("페이지 제거")}
                               className="shrink-0 rounded p-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                             >
                               <X size={10} />
@@ -373,7 +375,7 @@ export function AgentsSection() {
                       className="mb-1 max-h-32 overflow-y-auto rounded border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900"
                     >
                       {scopePages.length === 0 ? (
-                        <p className="px-2 py-1.5 text-[11px] text-neutral-400">No pages</p>
+                        <p className="px-2 py-1.5 text-[11px] text-neutral-400">{t("페이지가 없습니다")}</p>
                       ) : (
                         scopePages.map((p) => (
                           <button
@@ -399,14 +401,14 @@ export function AgentsSection() {
                     onClick={() => setEditFor(null)}
                     className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    Cancel
+                    {t("취소")}
                   </button>
                   <button
                     data-testid={`agent-save-${a.id}`}
                     onClick={() => void saveInstructions(a.id)}
                     className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
                   >
-                    Save
+                    {t("저장")}
                   </button>
                 </div>
               </div>
@@ -418,7 +420,7 @@ export function AgentsSection() {
                 className="absolute right-1 top-7 z-50 w-52 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
               >
                 <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-300">
-                  Delete this agent? This cannot be undone.
+                  {t("이 에이전트를 삭제할까요? 되돌릴 수 없습니다.")}
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -426,14 +428,14 @@ export function AgentsSection() {
                     onClick={() => setConfirmDel(null)}
                     className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    Cancel
+                    {t("취소")}
                   </button>
                   <button
                     data-testid={`agent-delete-confirm-${a.id}`}
                     onClick={() => void doDelete(a.id)}
                     className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
                   >
-                    Delete
+                    {t("삭제")}
                   </button>
                 </div>
               </div>
@@ -446,13 +448,13 @@ export function AgentsSection() {
     <div data-testid="agents-section">
       <div className="mt-1 flex items-center justify-between px-2 pb-1 pt-2">
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Agents
+          {t("에이전트")}
         </h3>
         <button
           data-testid="agent-new"
           onClick={() => void newAgent()}
-          aria-label="New agent"
-          data-tip="New agent"
+          aria-label={t("새 에이전트")}
+          data-tip={t("새 에이전트")}
           className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-200/70 hover:text-neutral-700 active:scale-90 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
         >
           <Plus size={17} strokeWidth={2.2} />
@@ -467,14 +469,14 @@ export function AgentsSection() {
         </div>
       ) : agents.length === 0 ? (
         <p className="px-2 py-4 text-center text-xs text-neutral-400" data-testid="agents-empty">
-          No agents yet.
+          {t("아직 에이전트가 없습니다.")}
         </p>
       ) : (
         <>
           {recentAgents.length > 0 && (
             <div data-testid="agents-recent-section" className="mb-1">
               <p className="px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-                Recent
+                {t("최근")}
               </p>
               {recentAgents.map(renderAgent)}
             </div>

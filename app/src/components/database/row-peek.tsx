@@ -23,6 +23,7 @@ import { CopyLinkButton, CoverControls, editedAgo } from "@/components/page/page
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { usePagesStore } from "@/stores/pages";
+import { useT } from "@/i18n/provider";
 
 // 2026-08-10 원본 실측(Projects 행 피크, 창 1000/1200/1500/1800): 피크 폭은
 // 정확히 창의 50%, 바닥은 564px (창 1000에서 564가 나왔다).
@@ -95,6 +96,7 @@ export function RowPeek({
   autoFocusTitle?: boolean;
 }) {
   const db = useDb();
+  const t = useT();
   const router = useRouter();
   const row = db.rows.find((r) => r.id === rowId);
   const titleProp = db.properties.find((p) => p.type === "title");
@@ -218,7 +220,7 @@ export function RowPeek({
       <div
         data-testid="db-row-peek"
         role="region"
-        aria-label="사이드 보기"
+        aria-label={t("사이드 보기")}
         onClick={(e) => e.stopPropagation()}
         style={width ? { width } : { width: `${DEFAULT_FRACTION * 100}%` }}
         className="peek-anim-right absolute bottom-0 right-0 top-0 flex flex-col overflow-hidden rounded-tl-xl border-l border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-[#191919]"
@@ -228,19 +230,19 @@ export function RowPeek({
           onPointerDown={startResize}
           role="separator"
           aria-orientation="vertical"
-          aria-label="왼쪽 및 오른쪽 방향키로 크기 조정"
+          aria-label={t("왼쪽 및 오른쪽 방향키로 크기 조정")}
           className="absolute inset-y-0 left-0 z-10 w-3 cursor-col-resize hover:bg-blue-300/40"
         />
 
         <div className="flex h-11 shrink-0 items-center justify-between gap-1 pl-4 pr-2.5">
           <div className="flex items-center gap-0.5">
-            <PeekButton testid="db-peek-close" label="닫기" onClick={onClose}>
+            <PeekButton testid="db-peek-close" label={t("닫기")} onClick={onClose}>
               <X size={16} />
             </PeekButton>
             {bodyPageId && (
               <PeekButton
                 testid="db-peek-open-full"
-                label="전체 페이지로 열기"
+                label={t("전체 페이지로 열기")}
                 onClick={() => router.push(`/p/${bodyPageId}`)}
               >
                 <Maximize2 size={14} />
@@ -252,7 +254,7 @@ export function RowPeek({
             />
             <PeekButton
               testid="db-peek-prev"
-              label="이전 페이지"
+              label={t("이전 페이지")}
               disabled={!prev}
               onClick={() => prev && db.openRow(prev.id)}
             >
@@ -260,7 +262,7 @@ export function RowPeek({
             </PeekButton>
             <PeekButton
               testid="db-peek-next"
-              label="다음 페이지"
+              label={t("다음 페이지")}
               disabled={!next}
               onClick={() => next && db.openRow(next.id)}
             >
@@ -283,7 +285,7 @@ export function RowPeek({
             {page && bodyPageId && (
               <PeekButton
                 testid="db-peek-favorite"
-                label={page.isFavorite ? "즐겨찾기에서 제거" : "즐겨찾기"}
+                label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기")}
                 onClick={() => updatePage(bodyPageId, { isFavorite: !page.isFavorite })}
               >
                 <Star
@@ -331,7 +333,7 @@ export function RowPeek({
                   <IconPicker
                     icon={null}
                     allowImage
-                    placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> 아이콘 추가</span>}
+                    placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> {t("아이콘 추가")}</span>}
                     triggerClassName="rounded px-1.5 py-0.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                     onChange={(icon) => updatePage(bodyPageId, { icon })}
                   />
@@ -354,7 +356,7 @@ export function RowPeek({
                 value={String(row.values[titleProp.id] ?? "")}
                 autoFocus={autoFocusTitle}
  // 신규 + what one row is called: the original's Projects reads 신규 프로젝트
-                placeholder={`신규 ${db.itemName.replace(/^새\s*/, "")}`}
+                placeholder={t("신규 {name}", { name: db.itemName.replace(/^새\s*/, "") })}
                 onCommit={(v) => db.updateRow(rowId, { [titleProp.id]: v })}
               />
             )}
@@ -370,7 +372,7 @@ export function RowPeek({
                   : "text-neutral-500 dark:text-neutral-400"
               }`}
             >
-              {detailsOpen ? "세부 정보 숨기기" : "세부 정보 보기"}
+              {detailsOpen ? t("세부 정보 숨기기") : t("세부 정보 보기")}
             </button>
 
             {/* The pinned band: a few properties laid out side by side, label
@@ -381,7 +383,7 @@ export function RowPeek({
               data-pinned-row=""
               data-testid="db-peek-props"
               role="group"
-              aria-label="페이지 속성"
+              aria-label={t("페이지 속성")}
               className="no-native-scrollbar mt-2.5 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
@@ -394,7 +396,7 @@ export function RowPeek({
                         <PropertyCell prop={p} row={row} />
                       ) : (
                         <span className="text-sm text-neutral-300 dark:text-neutral-600">
-                          비어 있음
+                          {t("비어 있음")}
                         </span>
                       )}
                     </div>
@@ -412,7 +414,7 @@ export function RowPeek({
                   onClick={() => openComments(PAGE_ANCHOR)}
                   className="flex items-center gap-1.5 rounded px-1 py-0.5 text-[13px] font-medium leading-[18px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
                 >
-                  <MessageSquare size={14} /> 댓글
+                  <MessageSquare size={14} /> {t("댓글")}
                 </button>
               </div>
             )}
@@ -436,7 +438,7 @@ export function RowPeek({
         {detailsOpen && (
           <aside
             data-testid="db-peek-details"
-            aria-label="속성"
+            aria-label={t("속성")}
  // 380px, fixed, its own scroller, a hairline down its leading edge — the
  // capture's `width: 380px; flex-shrink: 0; border-inline-start: 1px`. The peek
  // itself keeps its width, so the page column narrows rather than the panel
@@ -444,7 +446,7 @@ export function RowPeek({
             className="w-[380px] shrink-0 overflow-y-auto border-l border-neutral-200 pb-6 pl-5 pr-4 dark:border-neutral-700"
           >
             <div className="sticky top-0 bg-white py-2 text-[13px] font-medium leading-[18px] text-neutral-500 dark:bg-[#191919] dark:text-neutral-400">
-              속성
+              {t("속성")}
             </div>
             <div className="space-y-0.5">
               {restProps.map((p) => (
@@ -458,7 +460,7 @@ export function RowPeek({
                     ) : (
                       <div className="px-1.5 py-1">
                         <span className="text-sm text-neutral-300 dark:text-neutral-600">
-                          비어 있음
+                          {t("비어 있음")}
                         </span>
                       </div>
                     )}
@@ -493,6 +495,7 @@ export function RowPeek({
  */
 function CustomizeLayout() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const nonTitle = db.properties.filter((p) => p.type !== "title");
@@ -534,7 +537,7 @@ function CustomizeLayout() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        레이아웃 사용자 지정
+        {t("레이아웃 사용자 지정")}
       </button>
       {open && (
         <div
@@ -542,7 +545,7 @@ function CustomizeLayout() {
           className="popover-anim absolute left-0 top-8 z-50 max-h-[380px] w-[260px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
         >
           <div className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
-            페이지 상단에 표시할 속성
+            {t("페이지 상단에 표시할 속성")}
           </div>
           {nonTitle.map((p, i) => {
             const on = chosen ? !!p.config?.pinned : i < PINNED_COUNT;
@@ -588,6 +591,7 @@ function CustomizeLayout() {
  */
 function AddPropertyControl() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
  // set once a type is picked: the popover stops offering types and starts
@@ -635,7 +639,7 @@ function AddPropertyControl() {
         onClick={() => (open ? close() : setOpen(true))}
         className="flex h-[34px] items-center gap-1.5 rounded px-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <Plus size={14} /> Add a property
+        <Plus size={14} /> {t("속성 추가")}
       </button>
       {open && (
         <div
@@ -647,7 +651,7 @@ function AddPropertyControl() {
               autoFocus
               data-testid="db-peek-add-prop-name"
               value={made ? made.name : name}
-              placeholder="속성 이름"
+              placeholder={t("속성 이름")}
               onChange={(e) =>
                 made
                   ? db.updateProperty(made.id, { name: e.target.value })
@@ -660,15 +664,18 @@ function AddPropertyControl() {
           {made ? (
             <>
               <div className="flex items-center justify-between px-3 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">
-                <span>유형</span>
+                <span>{t("유형")}</span>
                 <span className="text-neutral-700 dark:text-neutral-200">
-                  {TYPE_CHOICES.find((t) => t.type === made.type)?.label ?? made.type}
+                  {(() => {
+                    const c = TYPE_CHOICES.find((c) => c.type === made.type);
+                    return c ? t(c.label) : made.type;
+                  })()}
                 </span>
               </div>
-              <MenuSection label="AI 자동 채우기" />
-              <MenuRow label="속성 복제" disabled />
+              <MenuSection label={t("AI 자동 채우기")} />
+              <MenuRow label={t("속성 복제")} disabled />
               <MenuRow
-                label="속성 삭제"
+                label={t("속성 삭제")}
                 testid="db-peek-del-prop"
                 onClick={() => {
                   db.deleteProperty(made.id);
@@ -678,22 +685,22 @@ function AddPropertyControl() {
             </>
           ) : (
             <>
-              <MenuSection label="AI 자동 채우기" />
-              <MenuRow label="요약" badge="Basic" disabled />
-              <MenuRow label="번역" badge="Basic" disabled />
-              <MenuSection label="유형" />
-              {TYPE_CHOICES.map((t) => (
+              <MenuSection label={t("AI 자동 채우기")} />
+              <MenuRow label={t("요약")} badge="Basic" disabled />
+              <MenuRow label={t("번역")} badge="Basic" disabled />
+              <MenuSection label={t("유형")} />
+              {TYPE_CHOICES.map((c) => (
                 <MenuRow
-                  key={t.label}
-                  label={t.label}
-                  testid={t.type ? `db-peek-add-prop-${t.type}` : undefined}
-                  disabled={!t.type}
-                  onClick={t.type ? () => void pick(t.type as PropertyType, t.label) : undefined}
+                  key={c.label}
+                  label={t(c.label)}
+                  testid={c.type ? `db-peek-add-prop-${c.type}` : undefined}
+                  disabled={!c.type}
+                  onClick={c.type ? () => void pick(c.type as PropertyType, t(c.label)) : undefined}
                 />
               ))}
-              <MenuSection label="연결" />
-              <MenuRow label="Google Drive 파일" disabled />
-              <MenuRow label="Figma 파일" disabled />
+              <MenuSection label={t("연결")} />
+              <MenuRow label={t("Google Drive 파일")} disabled />
+              <MenuRow label={t("Figma 파일")} disabled />
             </>
           )}
         </div>
@@ -721,12 +728,13 @@ function MenuRow({
   onClick?: () => void;
   testid?: string;
 }) {
+  const t = useT();
   return (
     <button
       data-testid={testid}
       disabled={disabled}
       aria-disabled={disabled}
-      data-tip={disabled ? "아직 만들지 않았습니다" : undefined}
+      data-tip={disabled ? t("아직 만들지 않았습니다") : undefined}
       onClick={onClick}
       className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm transition-colors ${
         disabled

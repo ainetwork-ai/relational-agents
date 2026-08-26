@@ -19,6 +19,7 @@ import {
 } from "@/lib/emoji-data";
 import { uploadBlob } from "@/lib/upload";
 import { PageIcon } from "@/components/page-icon";
+import { useT } from "@/i18n/provider";
 
 export function IconPicker({
   icon,
@@ -41,6 +42,7 @@ export function IconPicker({
   /** page icons also accept uploaded/URL images */
   allowImage?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"emoji" | "upload" | "url">("emoji");
@@ -154,7 +156,7 @@ export function IconPicker({
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
         className={triggerClassName}
-        aria-label="Change icon"
+        aria-label={t("아이콘 변경")}
       >
         <PageIcon icon={icon} fallback={placeholder} className="inline-block h-[1em] w-[1em] rounded object-cover align-[-0.1em]" />
       </button>
@@ -169,18 +171,18 @@ export function IconPicker({
         >
           {allowImage && (
             <div className="flex gap-1 border-b border-neutral-100 px-2 py-1.5 text-xs dark:border-neutral-700">
-              {(["emoji", "upload", "url"] as const).map((t) => (
+              {(["emoji", "upload", "url"] as const).map((tb) => (
                 <button
-                  key={t}
-                  data-testid={`icon-tab-${t}`}
-                  onClick={() => setTab(t)}
+                  key={tb}
+                  data-testid={`icon-tab-${tb}`}
+                  onClick={() => setTab(tb)}
                   className={`rounded px-2 py-0.5 capitalize transition-colors ${
-                    tab === t
+                    tab === tb
                       ? "bg-neutral-100 font-medium text-neutral-800 dark:bg-neutral-700 dark:text-neutral-100"
                       : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/60"
                   }`}
                 >
-                  {t === "url" ? "Link" : t}
+                  {tb === "url" ? t("링크") : tb === "upload" ? t("업로드") : t("이모지")}
                 </button>
               ))}
             </div>
@@ -188,7 +190,7 @@ export function IconPicker({
           {tab === "upload" && (
             <div className="p-3">
               <label className="block cursor-pointer rounded border border-dashed border-neutral-300 px-3 py-4 text-center text-xs text-neutral-400 hover:border-neutral-400 hover:text-neutral-600 dark:border-neutral-600">
-                ⬆ Upload an image…
+                ⬆ {t("이미지 업로드…")}
                 <input
                   data-testid="icon-upload-input"
                   type="file"
@@ -216,7 +218,7 @@ export function IconPicker({
                 data-testid="icon-url-input"
                 value={urlDraft}
                 onChange={(e) => setUrlDraft(e.target.value)}
-                placeholder="Paste an image link…"
+                placeholder={t("이미지 링크를 붙여넣으세요…")}
                 className="w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
               />
               <button
@@ -231,7 +233,7 @@ export function IconPicker({
                 }}
                 className="rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-600"
               >
-                Save
+                {t("저장")}
               </button>
             </div>
           )}
@@ -244,13 +246,13 @@ export function IconPicker({
               data-testid="icon-picker-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search emoji…"
+              placeholder={t("이모지 검색…")}
               className="flex-1 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-200"
             />
             <button
               data-testid="icon-picker-random"
               onClick={pickRandom}
-              aria-label="Random emoji"
+              aria-label={t("무작위 이모지")}
               className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
             >
               <Shuffle size={14} />
@@ -258,8 +260,8 @@ export function IconPicker({
             <button
               onClick={cycleSkin}
               data-testid="icon-skin-tone"
-              aria-label="Skin tone"
-              data-tip="Skin tone"
+              aria-label={t("피부색")}
+              data-tip={t("피부색")}
               className="rounded p-1 text-base transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
             >
               {applySkin("\u270B") /* ✋ preview of the active tone */}
@@ -270,7 +272,7 @@ export function IconPicker({
           {!search && recentEmoji().length > 0 && (
             <div className="border-b border-neutral-100 px-2 py-1 dark:border-neutral-700">
               <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
-                Recent
+                {t("최근 사용")}
               </p>
               <div className="flex gap-0.5">
                 {recentEmoji().map((e, i) => (
@@ -317,7 +319,7 @@ export function IconPicker({
             {!ready ? (
               <p className="py-4 text-center text-xs text-neutral-400">Loading emoji…</p>
             ) : rows.length === 0 ? (
-              <p className="py-4 text-center text-xs text-neutral-400">No emoji found</p>
+              <p className="py-4 text-center text-xs text-neutral-400">{t("이모지를 찾을 수 없습니다")}</p>
             ) : (
               <>
                 <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
@@ -345,7 +347,7 @@ export function IconPicker({
                     than pretending the list is complete */}
                 {search && search.hidden > 0 && (
                   <p className="px-1 pt-1.5 text-[10px] text-neutral-400">
-                    +{search.hidden} more — keep typing to narrow it down
+                    {t("+{n}개 더 있음 — 더 입력해 범위를 좁히세요", { n: search.hidden })}
                   </p>
                 )}
               </>
@@ -365,7 +367,7 @@ export function IconPicker({
                 }}
                 className="w-full rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
               >
-                Remove icon
+                {t("아이콘 제거")}
               </button>
             </div>
           )}

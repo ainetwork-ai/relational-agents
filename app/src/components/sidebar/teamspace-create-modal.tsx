@@ -5,6 +5,7 @@ import { Users, X, ChevronDown, Link as LinkIcon, Check } from "lucide-react";
 import { useToastStore } from "@/stores/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import type { TeamspaceVisibility } from "@/lib/db/schema";
+import { useT } from "@/i18n/provider";
 
 interface WorkspaceMember {
   id: string;
@@ -60,6 +61,7 @@ export function TeamspaceCreateModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const t = useT();
   const show = useToastStore((s) => s.show);
   const [step, setStep] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
@@ -121,7 +123,7 @@ export function TeamspaceCreateModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(`팀스페이스를 만들지 못했습니다: ${data?.error ?? res.status}`);
+        show(t("팀스페이스를 만들지 못했습니다: {error}", { error: data?.error ?? res.status }));
         return;
       }
       setCreated({ id: data.teamspace.id, name: data.teamspace.name });
@@ -143,10 +145,10 @@ export function TeamspaceCreateModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(`초대에 실패했습니다: ${data?.error ?? res.status}`);
+        show(t("초대에 실패했습니다: {error}", { error: data?.error ?? res.status }));
         return;
       }
-      show(`${data.added}명을 초대했습니다`);
+      show(t("{n}명을 초대했습니다", { n: data.added }));
       onClose();
     } finally {
       setBusy(false);
@@ -167,14 +169,14 @@ export function TeamspaceCreateModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={step === 1 ? "팀스페이스 만들기" : "팀스페이스 멤버 초대"}
+        aria-label={step === 1 ? t("팀스페이스 만들기") : t("팀스페이스 멤버 초대")}
         data-testid="teamspace-create-modal"
         onClick={(e) => e.stopPropagation()}
         className="popover-anim relative w-full max-w-[520px] rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
       >
         <button
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={t("닫기")}
           data-testid="teamspace-modal-close"
           className="absolute right-3 top-3 rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
         >
@@ -187,21 +189,21 @@ export function TeamspaceCreateModal({
               <Users size={20} className="mt-0.5 shrink-0 text-neutral-400" />
               <div>
                 <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-                  팀스페이스 만들기
+                  {t("팀스페이스 만들기")}
                 </h2>
                 <p className="mt-0.5 text-sm text-neutral-500">
-                  팀스페이스로 팀의 페이지, 멤버, 사용 권한을 관리할 수 있습니다.
+                  {t("팀스페이스로 팀의 페이지, 멤버, 사용 권한을 관리할 수 있습니다.")}
                 </p>
               </div>
             </div>
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">아이콘과 이름</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("아이콘과 이름")}</label>
             <div className="mb-4 flex items-center gap-2">
               <input
                 data-testid="teamspace-icon-input"
                 value={icon}
                 onChange={(e) => setIcon([...e.target.value].slice(0, 2).join(""))}
-                aria-label="아이콘"
+                aria-label={t("아이콘")}
                 className="h-9 w-9 shrink-0 rounded-md border border-neutral-200 bg-neutral-50 text-center text-lg outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
                 placeholder={name ? [...name][0] : "T"}
               />
@@ -213,22 +215,22 @@ export function TeamspaceCreateModal({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void create();
                 }}
-                placeholder="예: 엔지니어링"
+                placeholder={t("예: 엔지니어링")}
                 className="h-9 flex-1 rounded-md border border-neutral-200 px-2.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
               />
             </div>
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">설명</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("설명")}</label>
             <textarea
               data-testid="teamspace-description-input"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="이 팀스페이스의 용도는 무엇인가요?"
+              placeholder={t("이 팀스페이스의 용도는 무엇인가요?")}
               className="mb-4 w-full resize-none rounded-md border border-neutral-200 p-2.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
             />
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">보안</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("보안")}</label>
             <div className="relative mb-6">
               <button
                 data-testid="teamspace-visibility"
@@ -239,9 +241,9 @@ export function TeamspaceCreateModal({
               >
                 <span>
                   <span className="block text-sm text-neutral-800 dark:text-neutral-100">
-                    {active.label}
+                    {t(active.label)}
                   </span>
-                  <span className="block text-xs text-neutral-500">{active.hint}</span>
+                  <span className="block text-xs text-neutral-500">{t(active.hint)}</span>
                 </span>
                 <ChevronDown size={14} className="shrink-0 text-neutral-400" />
               </button>
@@ -264,9 +266,9 @@ export function TeamspaceCreateModal({
                     >
                       <span className="flex-1">
                         <span className="block text-sm text-neutral-800 dark:text-neutral-100">
-                          {v.label}
+                          {t(v.label)}
                         </span>
-                        <span className="block text-xs text-neutral-500">{v.hint}</span>
+                        <span className="block text-xs text-neutral-500">{t(v.hint)}</span>
                       </span>
                       {visibility === v.value && (
                         <Check size={14} className="mt-0.5 shrink-0 text-neutral-400" />
@@ -284,14 +286,14 @@ export function TeamspaceCreateModal({
                 disabled={!name.trim() || busy}
                 className="rounded-md bg-blue-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
               >
-                {busy ? "만드는 중…" : "팀스페이스 만들기"}
+                {busy ? t("만드는 중…") : t("팀스페이스 만들기")}
               </button>
             </div>
           </>
         ) : (
           <>
             <div className="mb-4 flex items-center gap-2 text-sm text-neutral-500">
-              <span>초대할 팀스페이스:</span>
+              <span>{t("초대할 팀스페이스:")}</span>
               <span className="flex h-5 w-5 items-center justify-center rounded bg-neutral-200 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-200">
                 {icon || [...(created?.name ?? "T")][0]}
               </span>
@@ -305,7 +307,7 @@ export function TeamspaceCreateModal({
               data-testid="teamspace-member-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="사용자나 그룹을 검색하세요"
+              placeholder={t("사용자나 그룹을 검색하세요")}
               className="mb-2 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
             />
 
@@ -319,7 +321,7 @@ export function TeamspaceCreateModal({
                       data-testid={`teamspace-picked-${id}`}
                       onClick={() => setPicked((p) => p.filter((x) => x !== id))}
                       className="flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                      aria-label={`${m?.displayName ?? id} 선택 해제`}
+                      aria-label={t("{name} 선택 해제", { name: m?.displayName ?? id })}
                     >
                       {m?.displayName ?? id}
                       <X size={11} />
@@ -335,9 +337,9 @@ export function TeamspaceCreateModal({
               className="mb-4 max-h-56 overflow-y-auto rounded-md border border-neutral-200 dark:border-neutral-700"
             >
               {loadingMembers ? (
-                <p className="px-3 py-2 text-sm text-neutral-400">불러오는 중...</p>
+                <p className="px-3 py-2 text-sm text-neutral-400">{t("불러오는 중...")}</p>
               ) : shown.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-neutral-400">일치하는 사용자가 없습니다</p>
+                <p className="px-3 py-2 text-sm text-neutral-400">{t("일치하는 사용자가 없습니다")}</p>
               ) : (
                 shown.map((m) => {
                   const on = picked.includes(m.id);
@@ -372,11 +374,11 @@ export function TeamspaceCreateModal({
                 data-testid="teamspace-copy-invite-link"
                 onClick={() => {
                   void navigator.clipboard.writeText(window.location.origin);
-                  show("초대 링크를 복사했습니다");
+                  show(t("초대 링크를 복사했습니다"));
                 }}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                <LinkIcon size={14} /> 초대 링크 복사
+                <LinkIcon size={14} /> {t("초대 링크 복사")}
               </button>
               <div className="flex items-center gap-2">
                 <button
@@ -384,7 +386,7 @@ export function TeamspaceCreateModal({
                   onClick={onClose}
                   className="rounded-md px-3 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  건너뛰기
+                  {t("건너뛰기")}
                 </button>
                 <button
                   data-testid="teamspace-invite-submit"
@@ -392,7 +394,7 @@ export function TeamspaceCreateModal({
                   disabled={!picked.length || busy}
                   className="rounded-md bg-blue-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
                 >
-                  {picked.length ? `${picked.length}명 초대` : "초대"}
+                  {picked.length ? t("{n}명 초대", { n: picked.length }) : t("초대")}
                 </button>
               </div>
             </div>

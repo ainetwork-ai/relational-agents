@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Pencil, Check } from "lucide-react";
 import { useDmEvents } from "@/hooks/use-dm-events";
+import { useT } from "@/i18n/provider";
 
 interface RelAgent {
   agentUserId: string;
@@ -17,6 +18,7 @@ interface RelAgent {
  * contracts. One per relationship; click to open its room, pencil to rename. */
 export function RelationAgentsSection() {
   const router = useRouter();
+  const t = useT();
   const [agents, setAgents] = useState<RelAgent[]>([]);
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -51,10 +53,10 @@ export function RelationAgentsSection() {
 
   return (
     <div className="mt-1">
-      <div className="px-2 py-1 text-xs font-medium text-neutral-400">Agents</div>
+      <div className="px-2 py-1 text-xs font-medium text-neutral-400">{t("에이전트")}</div>
       {agents.length === 0 ? (
         <div className="px-2 py-1 text-xs text-neutral-400">
-          None yet — agents are born when a relationship is signed.
+          {t("아직 없습니다 — 관계에 서명하면 에이전트가 생깁니다.")}
         </div>
       ) : (
         agents.map((a) => (
@@ -98,7 +100,7 @@ export function RelationAgentsSection() {
                 }
               }}
               className="shrink-0 rounded p-0.5 text-neutral-400 opacity-0 hover:text-neutral-600 group-hover:opacity-100"
-              aria-label="Rename agent"
+              aria-label={t("에이전트 이름 바꾸기")}
             >
               {renameFor === a.agentUserId ? <Check size={12} /> : <Pencil size={12} />}
             </button>

@@ -8,6 +8,8 @@ import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { listRecentWorkspaces, recordWorkspaceVisit } from "@/lib/recent-workspaces";
 import { initial } from "@/lib/glyph";
+import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n/translate";
 
 interface WorkspaceCard {
   id: string;
@@ -18,17 +20,17 @@ interface WorkspaceCard {
   lastEditedAt: string | null;
 }
 
-function ago(iso: string | null): string | null {
+function ago(iso: string | null, t: T): string | null {
   if (!iso) return null;
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 0 || Number.isNaN(ms)) return null;
   const m = Math.floor(ms / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t("방금 전");
+  if (m < 60) return t("{n}분 전", { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t("{n}시간 전", { n: h });
   const d = Math.floor(h / 24);
-  return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`;
+  return d < 30 ? t("{n}일 전", { n: d }) : t("{n}개월 전", { n: Math.floor(d / 30) });
 }
 
 async function enterWorkspace(id: string) {
@@ -60,6 +62,7 @@ function WorkspaceSections() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
   const [recentIds, setRecentIds] = useState<string[]>([]);
+  const t = useT();
 
   useEffect(() => {
     setRecentIds(listRecentWorkspaces());
@@ -113,7 +116,7 @@ function WorkspaceSections() {
     <>
       <section data-testid="home-workspaces" className="mb-10">
         <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          <LayoutGrid size={12} /> Your workspaces
+          <LayoutGrid size={12} /> {t("내 워크스페이스")}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ordered.map((w) => (
@@ -148,19 +151,23 @@ function WorkspaceSections() {
                   )}
                   {w.id === activeId && (
                     <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
-                      current
+                      {t("현재")}
                     </span>
                   )}
                   {w.id !== activeId && visitedSet.has(w.id) && (
-                    <Clock size={11} aria-label="Recently visited" className="shrink-0 text-neutral-300 dark:text-neutral-500" />
+                    <Clock size={11} aria-label={t("최근 방문")} className="shrink-0 text-neutral-300 dark:text-neutral-500" />
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-neutral-400">
                   {switching === w.id
-                    ? "Opening…"
-                    : [w.description, ago(w.lastEditedAt) && `Edited ${ago(w.lastEditedAt)}`]
+                    ? t("여는 중…")
+                    : [
+                        w.description,
+                        ago(w.lastEditedAt, t) &&
+                          t("{ago} 편집됨", { ago: ago(w.lastEditedAt, t) as string }),
+                      ]
                         .filter(Boolean)
-                        .join(" · ") || "Open this workspace"}
+                        .join(" · ") || t("이 워크스페이스 열기")}
                 </p>
               </div>
             </button>
@@ -172,6 +179,7 @@ function WorkspaceSections() {
 }
 
 function Card({ p, testid }: { p: Page; testid: string }) {
+  const t = useT();
   return (
     <Link
       data-testid={testid}
@@ -181,7 +189,7 @@ function Card({ p, testid }: { p: Page; testid: string }) {
       <span className="shrink-0 text-base">
         <PageIcon icon={p.icon} fallback={<FileText size={16} className="text-neutral-400" />} />
       </span>
-      <span className="truncate">{p.title || "Untitled"}</span>
+      <span className="truncate">{p.title || t("제목 없음")}</span>
     </Link>
   );
 }
@@ -222,6 +230,7 @@ export default function HomePage() {
   const [now] = useState(() => new Date());
   const [me, setMe] = useState<{ name: string | null; homeCoverUrl: string | null } | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     void load();
@@ -273,7 +282,13 @@ export default function HomePage() {
 
   const hour = now.getHours();
   const greeting =
-    hour < 6 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    hour < 6
+      ? t("좋은 밤이에요")
+      : hour < 12
+        ? t("좋은 아침이에요")
+        : hour < 18
+          ? t("좋은 오후예요")
+          : t("좋은 저녁이에요");
 
   return (
     <div data-testid="home-dashboard" className="pb-16">
@@ -297,7 +312,7 @@ export default function HomePage() {
               data-testid="home-cover-change"
               className={`cursor-pointer rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800 ${coverBusy ? "pointer-events-none opacity-60" : ""}`}
             >
-              {coverBusy ? "Uploading…" : "Change cover"}
+              {coverBusy ? t("업로드 중…") : t("커버 변경")}
               <input
                 data-testid="home-cover-input"
                 type="file"
@@ -317,7 +332,7 @@ export default function HomePage() {
                 disabled={coverBusy}
                 className="rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white disabled:opacity-60 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800"
               >
-                Reset
+                {t("초기화")}
               </button>
             )}
           </div>
@@ -330,11 +345,11 @@ export default function HomePage() {
           {me?.name ? `, ${me.name}!` : ""}
         </h1>
         <p className="mt-1 text-2xl font-bold text-neutral-300 dark:text-neutral-600">
-          Ready to pick a workspace?
+          {t("워크스페이스를 골라 볼까요?")}
         </p>
       </div>
       <WorkspaceSections />
-      <Section icon={<Star size={12} />} title="Favorites" items={favorites} prefix="home-fav" />
+      <Section icon={<Star size={12} />} title={t("즐겨찾기")} items={favorites} prefix="home-fav" />
       </div>
     </div>
   );

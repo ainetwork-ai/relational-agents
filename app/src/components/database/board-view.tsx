@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
 import { applyView, statusGroupOf, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
+import { useT } from "@/i18n/provider";
 import { PropertyValue } from "./property-value";
 import { UserAvatar } from "@/components/user-avatar";
 import { OptionChip } from "./option-chip";
@@ -13,8 +14,11 @@ const NONE = "none";
 
 // Status option groups: columns are ordered by band and labelled with it.
 const GROUP_ORDER: Record<string, number> = { todo: 0, in_progress: 1, complete: 2 };
+// legacy group names come back in English from statusGroupOf — display only
+const GROUP_KO: Record<string, string> = { "To-do": "할 일", "In progress": "진행 중", Complete: "완료" };
 export function BoardView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const [dragging, setDragging] = useState<string | null>(null);
   const draggingRef = useRef<string | null>(null);
 
@@ -41,7 +45,7 @@ export function BoardView({ view }: { view: DbView }) {
     return (
       <div>
         <div className="py-2 text-sm text-neutral-400">
-          Pick a select or status property to group the board.
+          {t("보드를 그룹화할 선택 또는 상태 속성을 고르세요.")}
         </div>
       </div>
     );
@@ -57,7 +61,7 @@ export function BoardView({ view }: { view: DbView }) {
       : groupProp.config.options ?? [];
   const columns = [
     ...ordered.map((o) => ({ id: o.id, name: o.name, color: o.color, group: o.group })),
-    { id: NONE, name: `No ${groupProp.name}`, color: "gray", group: undefined as string | undefined },
+    { id: NONE, name: t("{name} 없음", { name: groupProp.name }), color: "gray", group: undefined as string | undefined },
   ];
 
   const rowsIn = (colId: string) =>
@@ -83,7 +87,7 @@ export function BoardView({ view }: { view: DbView }) {
   }
 
   const cardTitle = (r: DbRow) =>
-    (titleProp && (r.values[titleProp.id] as string)) || "Untitled";
+    (titleProp && (r.values[titleProp.id] as string)) || t("제목 없음");
 
   return (
     <div>
@@ -107,7 +111,7 @@ export function BoardView({ view }: { view: DbView }) {
                   data-testid={`db-board-group-${col.id}`}
                   className="ml-auto text-[10px] uppercase tracking-wide text-neutral-300 dark:text-neutral-600"
                 >
-                  {statusGroupOf(groupProp, col.id)}
+                  {t(GROUP_KO[statusGroupOf(groupProp, col.id)!] ?? statusGroupOf(groupProp, col.id)!)}
                 </span>
               )}
             </div>
@@ -169,7 +173,7 @@ export function BoardView({ view }: { view: DbView }) {
                 }
                 className="flex items-center gap-1 rounded px-1 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
-                <Plus size={12} /> 새 {db.itemName}
+                <Plus size={12} /> {t("새 {name}", { name: db.itemName })}
               </button>
             </div>
           </div>

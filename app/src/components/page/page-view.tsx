@@ -26,6 +26,8 @@ import { PresenceBar } from "@/components/presence/presence-bar";
 import { LiveCursors } from "@/components/presence/live-cursors";
 import { usePresence } from "@/hooks/use-presence";
 import { useRecentsStore } from "@/stores/recents";
+import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n/translate";
 
 export function PageView({
   initialPage,
@@ -42,6 +44,7 @@ export function PageView({
    *  "추가 대상 🏠 <parent>" — and gains a ✕. */
   peek?: { parent: Page | null; onClose: () => void };
 }) {
+  const t = useT();
   const router = useRouter();
   const storePage = usePagesStore((s) => s.pages[initialPage.id]);
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -230,7 +233,7 @@ export function PageView({
       {/* React 19 hoists this and keeps ownership — direct document.title
           writes get reverted to the layout metadata on re-commits. A peek is
           a popup over another page: it must not take the tab's title. */}
-      {!peek && <title>{title.trim() ? title : "Untitled"}</title>}
+      {!peek && <title>{title.trim() ? title : t("제목 없음")}</title>}
       <div className="sticky top-0 z-30 flex items-center justify-between gap-1 bg-white px-3 py-1.5 dark:bg-[#191919]">
         {peek ? (
           /* Notion's peek header: open-as-full-page, a divider, then where the
@@ -254,8 +257,8 @@ export function PageView({
                 });
               }}
               data-testid="peek-open-full"
-              aria-label="전체 페이지로 열기"
-              data-tip="전체 페이지로 열기"
+              aria-label={t("전체 페이지로 열기")}
+              data-tip={t("전체 페이지로 열기")}
               className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
               <Maximize2 size={14} />
@@ -265,7 +268,7 @@ export function PageView({
               className="mx-1.5 h-3.5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700"
             />
             <span className="flex min-w-0 items-center gap-1 text-sm">
-              <span className="shrink-0 text-neutral-400 dark:text-neutral-500">추가 대상</span>
+              <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{t("추가 대상")}</span>
               {peek.parent ? (
                 <Link
                   href={`/p/${peek.parent.id}`}
@@ -276,7 +279,7 @@ export function PageView({
                   <span className="shrink-0 text-[15px] leading-none">
                     <PageIcon icon={peek.parent.icon} fallback="📄" />
                   </span>
-                  <span className="truncate">{peek.parent.title || "Untitled"}</span>
+                  <span className="truncate">{peek.parent.title || t("제목 없음")}</span>
                 </Link>
               ) : (
                 <span
@@ -284,7 +287,7 @@ export function PageView({
                   className="flex min-w-0 items-center gap-1 px-1 font-semibold text-neutral-700 dark:text-neutral-200"
                 >
                   <LockIcon size={12} className="shrink-0 text-neutral-400" />
-                  <span className="truncate">개인 페이지</span>
+                  <span className="truncate">{t("개인 페이지")}</span>
                 </span>
               )}
             </span>
@@ -299,10 +302,10 @@ export function PageView({
             data-testid="page-locked-banner"
             className="mr-1 flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
           >
-            <LockIcon size={11} /> Locked
+            <LockIcon size={11} /> {t("잠김")}
           </span>
         )}
-        {editedAgo(page.updatedAt) && (
+        {editedAgo(page.updatedAt, t) && (
           <span
             data-testid="page-edited-ago"
  // Date.now()-relative text can cross a minute boundary between
@@ -310,14 +313,14 @@ export function PageView({
             suppressHydrationWarning
             className="mr-1 hidden text-xs text-neutral-400 sm:block"
           >
-            {editedAgo(page.updatedAt)}
+            {editedAgo(page.updatedAt, t)}
           </span>
         )}
         <button
           data-testid="page-fav-toggle"
           onClick={() => updatePage(initialPage.id, { isFavorite: !page.isFavorite })}
-          aria-label={page.isFavorite ? "Remove from favorites" : "Add to favorites"}
-          data-tip={page.isFavorite ? "Remove from favorites" : "Add to favorites"}
+          aria-label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
+          data-tip={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
           className={`rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
             page.isFavorite ? "text-yellow-500" : "text-neutral-500 dark:text-neutral-400"
           }`}
@@ -327,8 +330,8 @@ export function PageView({
         <button
           data-testid="page-comments-button"
           onClick={() => openComments(PAGE_ANCHOR)}
-          aria-label="Comments"
-          data-tip="Comments"
+          aria-label={t("댓글")}
+          data-tip={t("댓글")}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <MessageSquare size={16} />
@@ -340,8 +343,8 @@ export function PageView({
           <button
             data-testid="peek-close"
             onClick={peek.onClose}
-            aria-label="닫기"
-            data-tip="닫기"
+            aria-label={t("닫기")}
+            data-tip={t("닫기")}
             className="rounded-md px-1.5 py-1 text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <X size={16} />
@@ -408,7 +411,7 @@ export function PageView({
             <IconPicker
               icon={page.icon}
               allowImage
-              placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> Add icon</span>}
+              placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> {t("아이콘 추가")}</span>}
               triggerClassName="rounded px-1.5 py-0.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               onChange={(icon) => updatePage(initialPage.id, { icon })}
             />
@@ -424,7 +427,7 @@ export function PageView({
             onClick={() => openComments(PAGE_ANCHOR)}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
-            <CommentIcon /> Add comment
+            <CommentIcon /> {t("댓글 추가")}
           </button>
           {/* 설명 추가 / 설명 숨기기 / 설명 표시 — only a database page has a
               description, and the row it sits in is the same hover row as
@@ -436,7 +439,7 @@ export function PageView({
               className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <InfoCircleIcon />
-              {descShown ? "설명 숨기기" : desc.trim() ? "설명 표시" : "설명 추가"}
+              {descShown ? t("설명 숨기기") : desc.trim() ? t("설명 표시") : t("설명 추가")}
             </button>
           )}
         </div>
@@ -447,7 +450,7 @@ export function PageView({
           rows={1}
           value={title}
           disabled={page.isLocked}
-          placeholder={fullPageDb ? "새 데이터베이스" : "Untitled"}
+          placeholder={fullPageDb ? t("새 데이터베이스") : t("제목 없음")}
           onChange={(e) => {
             const v = e.target.value.replace(/\n/g, "");
             setTitle(v);
@@ -474,8 +477,8 @@ export function PageView({
             suppressContentEditableWarning
             role="textbox"
             aria-multiline="true"
-            aria-label="설명"
-            data-placeholder="설명을 추가하세요"
+            aria-label={t("설명")}
+            data-placeholder={t("설명을 추가하세요")}
             data-placeholder-persist=""
             onInput={(e) => {
  // domToPlainText, never innerText — innerText counts a pasted blank line
@@ -575,6 +578,7 @@ export function CoverControls({
   coverUrl: string | null;
   onSet: (url: string | null) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [repositioning, setRepositioning] = useState(false);
@@ -608,7 +612,7 @@ export function CoverControls({
           data-testid="page-cover-url-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Paste an image URL…"
+          placeholder={t("이미지 URL을 붙여넣으세요…")}
           className="w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         />
         <button
@@ -619,7 +623,7 @@ export function CoverControls({
           }}
           className="rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-600"
         >
-          Save
+          {t("저장")}
         </button>
       </div>
       {/* preset gallery */}
@@ -632,14 +636,14 @@ export function CoverControls({
               onSet(`gradient:${name}`);
               setEditing(false);
             }}
-            aria-label={`${name} cover`}
+            aria-label={t("{name} 커버", { name })}
             style={{ background: css }}
             className="h-7 w-9 rounded border border-neutral-200 dark:border-neutral-600"
           />
         ))}
       </div>
       <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600">
-        ⬆ Upload an image…
+        ⬆ {t("이미지 업로드…")}
         <input
           data-testid="page-cover-upload"
           type="file"
@@ -697,7 +701,7 @@ export function CoverControls({
         )}
         {repositioning && (
           <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-black/50 px-2 py-1 text-xs text-white">
-            Drag image to reposition
+            {t("이미지를 드래그해 위치를 변경하세요")}
           </span>
         )}
         <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100">
@@ -710,7 +714,7 @@ export function CoverControls({
               }}
               className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
             >
-              Reposition
+              {t("위치 변경")}
             </button>
           )}
           <button
@@ -721,14 +725,14 @@ export function CoverControls({
             }}
             className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
           >
-            Change cover
+            {t("커버 변경")}
           </button>
           <button
             data-testid="page-cover-remove"
             onClick={() => onSet(null)}
             className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
           >
-            Remove
+            {t("제거")}
           </button>
         </div>
         {repositioning && (
@@ -755,7 +759,7 @@ export function CoverControls({
               }}
               className="rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white hover:bg-blue-600"
             >
-              Save position
+              {t("위치 저장")}
             </button>
           </div>
         )}
@@ -775,7 +779,7 @@ export function CoverControls({
         }}
         className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <PhotoIcon /> 커버 추가
+        <PhotoIcon /> {t("커버 추가")}
       </button>
       {editor}
     </div>
@@ -797,6 +801,7 @@ const GRADIENTS: Record<string, string> = {
 /** "Copy link": copies this page's own URL (shared with the row peek) (always available, unlike the
  * public-share link which only exists after publishing). standard behavior. */
 export function CopyLinkButton({ pageId }: { pageId: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -808,7 +813,7 @@ export function CopyLinkButton({ pageId }: { pageId: string }) {
           setTimeout(() => setCopied(false), 1500);
         }
       }}
-      aria-label="Copy link to page"
+      aria-label={t("링크 복사")}
       className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
     >
       {copied ? <Check size={16} /> : <Link2 size={16} />}
@@ -818,14 +823,18 @@ export function CopyLinkButton({ pageId }: { pageId: string }) {
 
 /** "Edited 3h ago" — coarse relative time for the top bar (the row peek
  *  shows the same line the capture has there). */
-export function editedAgo(updatedAt: string | Date | null | undefined): string {
+export function editedAgo(
+  updatedAt: string | Date | null | undefined,
+ // callers without a t (row-peek) get the Korean source text
+  t: T = (k, vars) => (vars ? k.replace(/\{(\w+)\}/g, (m, v) => String(vars[v] ?? m)) : k),
+): string {
   if (!updatedAt) return "";
-  const t = new Date(updatedAt).getTime();
-  if (isNaN(t)) return "";
-  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
-  if (mins < 1) return "Edited just now";
-  if (mins < 60) return `Edited ${mins}m ago`;
+  const ms = new Date(updatedAt).getTime();
+  if (isNaN(ms)) return "";
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1) return t("방금 전 편집");
+  if (mins < 60) return t("{n}분 전 편집", { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `Edited ${hours}h ago`;
-  return `Edited ${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return t("{n}시간 전 편집", { n: hours });
+  return t("{n}일 전 편집", { n: Math.round(hours / 24) });
 }

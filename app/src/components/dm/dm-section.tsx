@@ -7,12 +7,14 @@ import { dmRoomLabel, useDmRoomsStore, type DmRoomSummary } from "@/stores/dm-ro
 import { DmAvatar } from "./dm-avatar";
 import { RelationshipsStrip } from "./relationships-strip";
 import { NewDmModal } from "./new-dm-modal";
+import type { T } from "@/i18n/translate";
+import { useT } from "@/i18n/provider";
 
-function preview(room: DmRoomSummary): string {
+function preview(room: DmRoomSummary, t: T): string {
   const m = room.lastMessage;
-  if (!m) return "Start the conversation";
+  if (!m) return t("대화를 시작하세요");
   if (m.text) return m.text;
-  if (m.hasAttachments) return "📷 Photo";
+  if (m.hasAttachments) return t("📷 사진");
   return "";
 }
 
@@ -25,6 +27,7 @@ export function DmSection() {
   const markReadLocal = useDmRoomsStore((s) => s.markReadLocal);
   const [meId, setMeId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     void load();
@@ -46,13 +49,13 @@ export function DmSection() {
     <div data-testid="dm-section" className="pb-2">
       <div className="flex items-center justify-between px-2 pb-1 pt-1">
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Relationships
+          {t("관계")}
         </h3>
         <button
           data-testid="dm-new"
           onClick={() => setShowModal(true)}
-          aria-label="New relationship"
-          data-tip="New relationship"
+          aria-label={t("새 관계")}
+          data-tip={t("새 관계")}
           className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-200/70 hover:text-neutral-700 active:scale-90 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
         >
           <Plus size={17} strokeWidth={2.2} />
@@ -75,7 +78,7 @@ export function DmSection() {
           className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-neutral-400 transition-colors hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-neutral-800"
         >
           <Plus size={14} className="shrink-0" />
-          Send someone your first message
+          {t("첫 메시지를 보내 보세요")}
         </button>
       ) : (
         rooms.map((room) => {
@@ -118,13 +121,13 @@ export function DmSection() {
                         : "text-neutral-400 dark:text-neutral-500"
                     }`}
                   >
-                    {preview(room)}
+                    {preview(room, t)}
                   </span>
                 </span>
                 {room.unreadCount > 0 && (
                   <span
                     data-testid={`dm-unread-${room.id}`}
-                    aria-label={`${room.unreadCount} unread`}
+                    aria-label={t("읽지 않음 {n}개", { n: room.unreadCount })}
                     className="ml-auto flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-semibold tabular-nums text-white shadow-sm"
                   >
                     {room.unreadCount > 99 ? "99+" : room.unreadCount}

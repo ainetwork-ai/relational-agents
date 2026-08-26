@@ -23,10 +23,12 @@ import { useShallow } from "zustand/react/shallow";
 import { useUiStore } from "@/stores/ui";
 import { PageIcon } from "@/components/page-icon";
 import { useToastStore } from "@/stores/toast";
+import { useT } from "@/i18n/provider";
 
 const EMPTY_CHILDREN: Page[] = [];
 
 export const PageItem = memo(function PageItem({ page, depth }: { page: Page; depth: number }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const createPage = usePagesStore((s) => s.createPage);
@@ -164,14 +166,14 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           data-testid={`page-tree-toggle-${page.id}`}
           onClick={hasChildren ? () => toggleExpanded(page.id) : undefined}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-          aria-label={hasChildren ? (expanded ? "Collapse" : "Expand") : undefined}
+          aria-label={hasChildren ? (expanded ? t("접기") : t("펼치기")) : undefined}
         >
           {/* Swap the page icon for the chevron on row hover. A leaf keeps its
               icon — a deliberate divergence from the original, which offers the
               chevron (and "No pages inside") on every page (comcom, 2026-08-19) */}
           <span className={`text-[15px] leading-none ${hasChildren ? "group-hover:hidden" : ""}`}>
             {(page as PageRow).isDatabase && !page.icon ? (
-              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label="데이터베이스" />
+              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label={t("데이터베이스")} />
             ) : (
               <PageIcon icon={page.icon} fallback="📄" />
             )}
@@ -205,7 +207,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             aria-current={isActive ? "page" : undefined}
             className="flex min-w-0 flex-1 items-center gap-1.5"
           >
-            <span className="truncate">{pageLabel(page as PageRow)}</span>
+            <span className="truncate">{t(pageLabel(page as PageRow))}</span>
           </Link>
         )}
 
@@ -223,7 +225,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             data-testid={`page-item-menu-${page.id}`}
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label="Page options"
+            aria-label={t("페이지 옵션")}
           >
             <MoreHorizontal size={16} />
           </button>
@@ -231,7 +233,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             data-testid={`page-add-child-${page.id}`}
             onClick={addChild}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label="Add sub-page"
+            aria-label={t("하위 페이지 추가")}
           >
             <Plus size={16} />
           </button>
@@ -248,7 +250,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-rename-${page.id}`}
               icon={<Pencil size={14} />}
-              label="Rename"
+              label={t("이름 바꾸기")}
               onClick={() => {
                 setMenuOpen(false);
                 startRenaming();
@@ -257,7 +259,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-favorite-${page.id}`}
               icon={page.isFavorite ? <StarOff size={14} /> : <Star size={14} />}
-              label={page.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
               onClick={() => {
                 setMenuOpen(false);
                 updatePage(page.id, { isFavorite: !page.isFavorite });
@@ -266,14 +268,14 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-delete-${page.id}`}
               icon={<Trash2 size={14} />}
-              label="Delete"
+              label={t("삭제")}
               danger
               onClick={async () => {
                 setMenuOpen(false);
                 await archivePage(page.id);
                 useToastStore
                   .getState()
-                  .show("Moved to Trash", { onUndo: () => restorePage(page.id) });
+                  .show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
                 if (isActive) router.push("/");
               }}
             />

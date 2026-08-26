@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/provider";
 
 interface GNode {
   id: string;
@@ -34,6 +35,7 @@ export function AgentGraph() {
   const router = useRouter();
   const [counts, setCounts] = useState<{ nodes: number; edges: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let raf = 0;
@@ -215,7 +217,7 @@ export function AgentGraph() {
   return (
     <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">Relationship graph</h1>
+        <h1 className="text-lg font-semibold">{t("관계 그래프")}</h1>
         <Link
           data-testid="agent-graph-back"
           href="/agent-lab"
@@ -224,20 +226,24 @@ export function AgentGraph() {
           ← Agent Lab
         </Link>
         <span data-testid="agent-graph-counts" className="text-xs text-neutral-500">
-          {error ? `Error: ${error}` : counts ? `${counts.nodes} nodes · ${counts.edges} edges` : "Loading…"}
+          {error
+            ? t("오류: {error}", { error })
+            : counts
+              ? t("노드 {nodes}개 · 엣지 {edges}개", { nodes: counts.nodes, edges: counts.edges })
+              : t("불러오는 중…")}
         </span>
         <span className="ml-auto flex items-center gap-3 text-xs text-neutral-500">
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.room }} />Room (relationship)</span>
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.root }} />Relationship doc</span>
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.section }} />Section</span>
-          <span className="text-pink-400">┄ Source</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.room }} />{t("방 (관계)")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.root }} />{t("관계 문서")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.section }} />{t("섹션")}</span>
+          <span className="text-pink-400">┄ {t("출처")}</span>
         </span>
       </div>
       <div className="min-h-0 flex-1 rounded border border-neutral-200 dark:border-neutral-800">
         <canvas data-testid="agent-graph-canvas" ref={canvasRef} className="block w-full" />
       </div>
       <p className="text-xs text-neutral-400">
-        Drag a node to rearrange the layout; click one to open that room or document.
+        {t("노드를 끌어 배치를 바꾸고, 클릭하면 해당 방이나 문서가 열립니다.")}
       </p>
     </div>
   );

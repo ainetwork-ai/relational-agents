@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/i18n/provider";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -11,16 +12,17 @@ import { useSearchParams } from "next/navigation";
  * callback (the real cause is in the server log, never in the URL).
  */
 const MESSAGES: Record<string, string> = {
-  not_configured: "Google sign-in is not configured on this server.",
-  cancelled: "Sign-in was cancelled.",
-  bad_state: "That sign-in link expired. Please try again.",
-  email_unverified: "Your Google account's email address is not verified.",
-  signin_failed: "Sign-in failed. Please try again.",
+  not_configured: "이 서버에는 Google 로그인이 설정되어 있지 않습니다.",
+  cancelled: "로그인이 취소되었습니다.",
+  bad_state: "로그인 링크가 만료되었습니다. 다시 시도해 주세요.",
+  email_unverified: "Google 계정의 이메일 주소가 인증되지 않았습니다.",
+  signin_failed: "로그인에 실패했습니다. 다시 시도해 주세요.",
 };
 
 export function LoginForm() {
+  const t = useT();
   const error = useSearchParams().get("error");
-  const message = error ? (MESSAGES[error] ?? MESSAGES.signin_failed) : null;
+  const message = error ? t(MESSAGES[error] ?? MESSAGES.signin_failed) : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#fffefc] dark:bg-[#191919]">
@@ -31,7 +33,7 @@ export function LoginForm() {
             AINMem
           </h1>
           <p className="mt-1.5 text-sm text-neutral-500">
-            Think it. Write it. All in one place.
+            {t("생각하고, 쓰고, 한곳에서.")}
           </p>
         </div>
 
@@ -58,7 +60,7 @@ export function LoginForm() {
               d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l3.01 2.32C4.68 5.16 6.66 3.58 9 3.58Z"
             />
           </svg>
-          Sign in with Google
+          {t("Google로 로그인")}
         </a>
 
         {message && (

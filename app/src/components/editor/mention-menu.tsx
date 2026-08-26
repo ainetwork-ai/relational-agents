@@ -7,6 +7,7 @@ import { usePagesStore } from "@/stores/pages";
 import { PageIcon } from "@/components/page-icon";
 import { MonthGrid } from "@/components/database/date-picker";
 import { UserAvatar } from "@/components/user-avatar";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 export interface MentionItem {
   kind: "page" | "person" | "date";
@@ -34,17 +35,17 @@ export function mentionChipHtml(item: MentionItem, escape: (s: string) => string
   return `<span class="mention" data-mention-type="${item.kind}" data-mention-id="${escape(item.id)}">${label}</span>`;
 }
 
-function todayItem(): MentionItem {
+function todayItem(locale: string): MentionItem {
   const now = new Date();
-  const label = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  const label = now.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
   return { kind: "date", id: now.toISOString().slice(0, 10), label };
 }
 
 /** Build a date mention for an ISO (yyyy-mm-dd) date string. */
-function dateItem(iso: string): MentionItem {
+function dateItem(iso: string, locale: string): MentionItem {
  // parse as local date (avoid the UTC shift of new Date("yyyy-mm-dd"))
   const [y, m, d] = iso.split("-").map(Number);
-  const label = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-US", {
+  const label = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -66,6 +67,8 @@ export function MentionMenu({
   onItems: (items: MentionItem[]) => void;
   onPick: (item: MentionItem) => void;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const [calOpen, setCalOpen] = useState(false);
   const pages = usePagesStore((s) => s.pages);
   const [people, setPeople] = useState<PublicMember[]>([]);
@@ -95,9 +98,9 @@ export function MentionMenu({
       .map((p) => ({
         kind: "page" as const,
         id: p.id,
-        label: p.title || "Untitled",
+        label: p.title || t("제목 없음"),
         icon: p.icon,
-        parent: p.parentPageId ? (pages[p.parentPageId]?.title || "Untitled") : undefined,
+        parent: p.parentPageId ? (pages[p.parentPageId]?.title || t("제목 없음")) : undefined,
       }))
       .filter((it) => !q || it.label.toLowerCase().includes(q));
     const personItems: MentionItem[] = people
@@ -108,9 +111,9 @@ export function MentionMenu({
         avatarUrl: m.avatarUrl,
       }))
       .filter((it) => !q || it.label.toLowerCase().includes(q));
-    const dateItems: MentionItem[] = "today".includes(q) || !q ? [todayItem()] : [];
+    const dateItems: MentionItem[] = "today".includes(q) || !q ? [todayItem(intl)] : [];
     return [...personItems.slice(0, 5), ...pageItems.slice(0, 6), ...dateItems];
-  }, [query, pages, people]);
+  }, [query, pages, people, t]);
 
   useEffect(() => {
     onItems(items);
@@ -135,9 +138,9 @@ export function MentionMenu({
           label on pages (R2#19). selectedIndex stays a flat index. */}
       {(() => {
         const sections: { name: string; kind: MentionItem["kind"] }[] = [
-          { name: "People", kind: "person" },
-          { name: "Pages", kind: "page" },
-          { name: "Date", kind: "date" },
+          { name: t("사람"), kind: "person" },
+          { name: t("페이지"), kind: "page" },
+          { name: t("날짜"), kind: "date" },
         ];
         return sections.map((sec) => {
           const secItems = items.filter((it) => it.kind === sec.kind);
@@ -197,7 +200,7 @@ export function MentionMenu({
           <button
             data-testid="mention-date-calendar"
             onClick={() => setCalOpen((v) => !v)}
-            aria-label="Pick from calendar"
+            aria-label={t("달력에서 선택")}
             className="shrink-0 rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
           >
             <Calendar size={15} />
@@ -206,14 +209,14 @@ export function MentionMenu({
             type="date"
             data-testid="mention-date-input"
             onChange={(e) => {
-              if (e.target.value) onPick(dateItem(e.target.value));
+              if (e.target.value) onPick(dateItem(e.target.value, intl));
             }}
             className="flex-1 bg-transparent text-sm text-neutral-700 outline-none dark:text-neutral-200"
           />
         </div>
         {calOpen && (
           <div className="mt-1">
-            <MonthGrid idBase="mention" selected="" onPick={(d) => onPick(dateItem(d))} />
+            <MonthGrid idBase="mention" selected="" onPick={(d) => onPick(dateItem(d, intl))} />
           </div>
         )}
       </div>

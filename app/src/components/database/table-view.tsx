@@ -36,6 +36,7 @@ import { PropertyCell } from "./property-cell";
 import { RowMenu } from "./row-menu";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PropertyTypeIcon } from "./property-type-icon";
+import { useT } from "@/i18n/provider";
 
 const NO_GROUP = "__nogroup__";
 
@@ -132,6 +133,7 @@ function useIncremental(step: number, total: number) {
 
 export function TableView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
  // per-view property visibility AND order (hiddenProperties / propertyOrder)
   const cols = visibleColumns(db.properties, view.config);
@@ -269,7 +271,7 @@ export function TableView({ view }: { view: DbView }) {
           data-testid="db-bulk-bar"
           className="popover-anim sticky left-0 top-0 z-30 mb-1 flex items-center gap-2 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white shadow-lg"
         >
-          <span data-testid="db-bulk-count">{checked.size} selected</span>
+          <span data-testid="db-bulk-count">{t("{n}개 선택", { n: checked.size })}</span>
           <button
             data-testid="db-bulk-delete"
             onClick={() => {
@@ -278,13 +280,13 @@ export function TableView({ view }: { view: DbView }) {
             }}
             className="rounded bg-white/20 px-2 py-0.5 hover:bg-white/30"
           >
-            Delete
+            {t("삭제")}
           </button>
           <button
             data-testid="db-bulk-clear"
             onClick={() => setChecked(new Set())}
             className="ml-auto rounded px-1.5 py-0.5 hover:bg-white/20"
-            aria-label="Clear selection"
+            aria-label={t("선택 해제")}
           >
             ✕
           </button>
@@ -512,7 +514,8 @@ function HeaderRow({
 }
 
 function AddRowButton({ testid, onClick }: { testid: string; onClick: () => void }) {
-  const label = `새 ${useDb().itemName}`;
+  const t = useT();
+  const label = t("새 {name}", { name: useDb().itemName });
   return (
     <button
       data-testid={testid}
@@ -553,6 +556,7 @@ function GroupSection({
   frozenLefts: (number | null)[];
 }) {
   const db = useDb();
+  const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const showCount = view.config.showGroupCount ?? false;
@@ -578,7 +582,7 @@ function GroupSection({
             data-testid={`db-group-toggle-${group.key}`}
             onClick={onToggle}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? "열기" : "닫기"}
+            aria-label={collapsed ? t("열기") : t("닫기")}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
             <ChevronDown
@@ -607,7 +611,7 @@ function GroupSection({
             <button
               data-testid={`db-group-options-${group.key}`}
               onClick={() => setMenuOpen((v) => !v)}
-              aria-label="그룹 옵션 표시"
+              aria-label={t("그룹 옵션 표시")}
               aria-expanded={menuOpen}
               className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
@@ -616,7 +620,7 @@ function GroupSection({
             <button
               data-testid={`db-group-add-${group.key}`}
               onClick={addToGroup}
-              aria-label={`그룹에 새 ${db.itemName} 추가`}
+              aria-label={t("그룹에 새 {name} 추가", { name: db.itemName })}
               className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <Plus size={14} />
@@ -629,7 +633,7 @@ function GroupSection({
               >
                 <GroupMenuItem
                   testid={`db-group-menu-collapse-all-${group.key}`}
-                  label="모든 그룹 접기"
+                  label={t("모든 그룹 접기")}
                   onClick={() => {
                     setMenuOpen(false);
                     onCollapseAll();
@@ -637,7 +641,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-expand-all-${group.key}`}
-                  label="모든 그룹 펼치기"
+                  label={t("모든 그룹 펼치기")}
                   onClick={() => {
                     setMenuOpen(false);
                     onExpandAll();
@@ -645,7 +649,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-count-${group.key}`}
-                  label="그룹 개수 표시"
+                  label={t("그룹 개수 표시")}
                   checked={showCount}
                   onClick={() => {
                     setMenuOpen(false);
@@ -654,7 +658,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-hide-empty-${group.key}`}
-                  label="빈 그룹 숨기기"
+                  label={t("빈 그룹 숨기기")}
                   checked={view.config.hideEmptyGroups ?? true}
                   onClick={() => {
                     setMenuOpen(false);
@@ -666,7 +670,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-ungroup-${group.key}`}
-                  label="그룹화 제거"
+                  label={t("그룹화 제거")}
                   onClick={() => {
                     setMenuOpen(false);
                     db.patchView({
@@ -733,6 +737,7 @@ const COMMENT_TYPES: PropertyType[] = [
 const COPY_TYPES: PropertyType[] = ["date", "number", "created_time"];
 
 function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const canComment = COMMENT_TYPES.includes(prop.type);
   const canCopy = COPY_TYPES.includes(prop.type);
@@ -758,8 +763,8 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
       {canComment && (
         <button
           data-testid={`db-cell-comment-${row.id}-${prop.id}`}
-          aria-label="댓글"
-          title="셀 댓글은 아직 없습니다"
+          aria-label={t("댓글")}
+          title={t("셀 댓글은 아직 없습니다")}
           disabled
           className="flex h-5 w-6 cursor-not-allowed items-center justify-center rounded border border-neutral-200 bg-white text-neutral-300 shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-600"
         >
@@ -769,8 +774,8 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
       {canCopy && (
         <button
           data-testid={`db-cell-copy-${row.id}-${prop.id}`}
-          aria-label="클립보드에 복사"
-          title="클립보드에 복사"
+          aria-label={t("클립보드에 복사")}
+          title={t("클립보드에 복사")}
           onClick={copy}
           className="flex h-5 w-6 items-center justify-center rounded border border-neutral-200 bg-white text-neutral-500 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
         >
@@ -820,6 +825,7 @@ function HeaderTail() {
  *  settings panel carries), anchored to itself. */
 function PropertyVisibilityHeader() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -837,8 +843,8 @@ function PropertyVisibilityHeader() {
         ref={btnRef}
         data-testid="db-header-props"
         onClick={() => setOpen((v) => !v)}
-        aria-label="속성 표시 또는 숨기기"
-        data-tip="속성 표시 또는 숨기기"
+        aria-label={t("속성 표시 또는 숨기기")}
+        data-tip={t("속성 표시 또는 숨기기")}
         className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <MoreHorizontal size={16} />
@@ -852,7 +858,7 @@ function PropertyVisibilityHeader() {
             className="popover-anim fixed z-50 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
             <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
-              속성 표시 또는 숨기기
+              {t("속성 표시 또는 숨기기")}
             </p>
             {db.properties.map((p) => (
               <label
@@ -879,6 +885,7 @@ function PropertyVisibilityHeader() {
 
 function AddPropertyHeader() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -893,8 +900,8 @@ function AddPropertyHeader() {
         ref={btnRef}
         data-testid="db-add-prop"
         onClick={() => setOpen((v) => !v)}
-        aria-label="속성 추가"
-        data-tip="속성 추가"
+        aria-label={t("속성 추가")}
+        data-tip={t("속성 추가")}
         className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <Plus size={16} />
@@ -910,11 +917,11 @@ function AddPropertyHeader() {
               data-testid={`db-add-prop-${pt.type}`}
               onClick={async () => {
                 setOpen(false);
-                await db.addProperty(pt.label, pt.type);
+                await db.addProperty(t(pt.label), pt.type);
               }}
               className="block w-full px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
             >
-              {pt.label}
+              {t(pt.label)}
             </button>
           ))}
         </div>,
@@ -925,18 +932,19 @@ function AddPropertyHeader() {
 }
 
 const CALC_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Calculate" },
-  { value: "count", label: "Count all" },
-  { value: "count_values", label: "Count values" },
-  { value: "empty", label: "Count empty" },
-  { value: "sum", label: "Sum" },
-  { value: "avg", label: "Average" },
-  { value: "min", label: "Min" },
-  { value: "max", label: "Max" },
+  { value: "", label: "계산" },
+  { value: "count", label: "모두 카운트" },
+  { value: "count_values", label: "값 카운트" },
+  { value: "empty", label: "빈 값 카운트" },
+  { value: "sum", label: "합계" },
+  { value: "avg", label: "평균" },
+  { value: "min", label: "최소" },
+  { value: "max", label: "최대" },
 ];
 
 function CalcCell({ view, prop, rows }: { view: DbView; prop: DbProperty; rows: DbRow[] }) {
   const db = useDb();
+  const t = useT();
   const calc = view.config.calcs?.[prop.id] ?? "";
   return (
     <div style={{ width: view.config.widths?.[prop.id] ?? 176 }} className="shrink-0 border-l border-neutral-100 px-1 py-0.5 first:border-l-0 dark:border-neutral-800">
@@ -955,7 +963,7 @@ function CalcCell({ view, prop, rows }: { view: DbView; prop: DbProperty; rows: 
       >
         {CALC_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            {t(o.label)}
           </option>
         ))}
       </select>
@@ -1054,6 +1062,7 @@ function RowLine({
   onCheck?: () => void;
 }) {
   const db = useDb();
+  const t = useT();
  // the ⠿ handle is the menu's anchor AND its toggle: a boolean, not a pointer
  // position, so the menu opens in the same place however precisely you click
  // and a second click on the handle closes it instead of reopening 1px over
@@ -1120,7 +1129,7 @@ function RowLine({
             }}
             // the original's own words for this handle, read off it (our "열
             // 메뉴" read as COLUMN menu, which is not what it opens)
-            aria-label="드래그하여 이동하고 클릭하여 메뉴를 여세요"
+            aria-label={t("드래그하여 이동하고 클릭하여 메뉴를 여세요")}
             className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
             <GripVertical size={16} />
@@ -1130,7 +1139,7 @@ function RowLine({
             data-testid={`db-row-check-${row.id}`}
             checked={checked}
             onChange={() => onCheck?.()}
-            aria-label="Select row"
+            aria-label={t("행 선택")}
             style={{ position: "absolute", left: -26 }}
             className="h-4 w-4 shrink-0 rounded-[3px] accent-blue-500"
           />
@@ -1164,7 +1173,7 @@ function RowLine({
               <button
                 data-testid={`db-row-expand-${row.id}`}
                 onClick={onToggle}
-                aria-label={collapsed ? "하위 항목 펼치기" : "하위 항목 접기"}
+                aria-label={collapsed ? t("하위 항목 펼치기") : t("하위 항목 접기")}
                 className="ml-1 shrink-0 text-neutral-400 hover:text-neutral-600"
               >
                 <ChevronRight
@@ -1207,12 +1216,12 @@ function RowLine({
               <button
                 data-testid={`db-title-open-${row.id}`}
                 onClick={() => db.openRow(row.id)}
-                aria-label="사이드 보기에서 열기"
-                title="사이드 보기에서 열기"
+                aria-label={t("사이드 보기에서 열기")}
+                title={t("사이드 보기에서 열기")}
                 className="flex h-5 items-center gap-1.5 rounded-[4px] px-1 text-[12px] font-medium leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-300 dark:hover:bg-neutral-700"
               >
                 <PanelRight size={15} className="text-[rgb(142,139,134)]" />
-                열기
+                {t("열기")}
               </button>
             </span>
             {/* the row actions that used to sit in the gutter now hover here,
@@ -1221,8 +1230,8 @@ function RowLine({
               <button
                 data-testid={`db-subitem-add-${row.id}`}
                 onClick={onAddSub}
-                aria-label="하위 항목 추가"
-                title="하위 항목 추가"
+                aria-label={t("하위 항목 추가")}
+                title={t("하위 항목 추가")}
                 className="text-neutral-300 hover:text-blue-500"
               >
                 <Plus size={13} />
@@ -1283,6 +1292,7 @@ function ColumnHeader({
   frozenLeft?: number | null;
 }) {
   const db = useDb();
+  const t = useT();
   const [selfOpen, setSelfOpen] = useState(false);
   const headerBtn = useRef<HTMLButtonElement>(null);
   const headerPop = useRef<HTMLDivElement>(null);
@@ -1380,7 +1390,7 @@ function ColumnHeader({
       <button
         data-testid={`db-col-drag-${prop.id}`}
         onPointerDown={onDragPointerDown}
-        aria-label="Drag to reorder column"
+        aria-label={t("드래그하여 열 순서 변경")}
         className="absolute right-0.5 top-1 z-10 cursor-grab text-neutral-300 opacity-0 transition-opacity hover:text-neutral-500 group-hover/col:opacity-100 dark:text-neutral-600"
       >
         <GripVertical size={11} />
@@ -1420,7 +1430,7 @@ function ColumnHeader({
           <MenuItem
             testid={`db-prop-rename-${prop.id}`}
             icon={<Pencil size={12} />}
-            label="Rename"
+            label={t("이름 바꾸기")}
             onClick={() => {
               setOpen(false);
               setDraft(prop.name);
@@ -1430,20 +1440,20 @@ function ColumnHeader({
           <MenuItem
             testid={`db-prop-sort-asc-${prop.id}`}
             icon={<ArrowUp size={12} />}
-            label="Sort ascending"
+            label={t("오름차순 정렬")}
             onClick={() => sortBy("asc")}
           />
           <MenuItem
             testid={`db-prop-sort-desc-${prop.id}`}
             icon={<ArrowDown size={12} />}
-            label="Sort descending"
+            label={t("내림차순 정렬")}
             onClick={() => sortBy("desc")}
           />
           {prop.type !== "title" && (
             <MenuItem
               testid={`db-prop-delete-${prop.id}`}
               icon={<Trash2 size={12} />}
-              label={delArmed ? "Delete? This can't be undone" : "Delete property"}
+              label={delArmed ? t("삭제할까요? 되돌릴 수 없습니다") : t("속성 삭제")}
               danger
               onClick={() => {
                 if (!delArmed) {
@@ -1460,7 +1470,7 @@ function ColumnHeader({
             <MenuItem
               testid={`db-ai-autofill-${prop.id}`}
               icon={<span className="text-[11px]">✨</span>}
-              label="AI autofill empty cells"
+              label={t("AI로 빈 셀 채우기")}
               onClick={() => {
                 setOpen(false);
                 void aiAutofill(db, prop);
@@ -1499,19 +1509,20 @@ const TYPE_CHOICES: PropertyType[] = [
  * re-interpreted under the new type; a file-backed db re-derives from the CSV. */
 function PropTypeEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const choices = TYPE_CHOICES.includes(prop.type) ? TYPE_CHOICES : [prop.type, ...TYPE_CHOICES];
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">Type</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("유형")}</label>
       <select
         data-testid={`db-prop-type-${prop.id}`}
         value={prop.type}
         onChange={(e) => db.updateProperty(prop.id, { type: e.target.value as PropertyType })}
         className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        {choices.map((t) => (
-          <option key={t} value={t}>
-            {t.replace("_", " ")}
+        {choices.map((ty) => (
+          <option key={ty} value={ty}>
+            {t(PROP_TYPES.find((p) => p.type === ty)?.label ?? ty)}
           </option>
         ))}
       </select>
@@ -1523,6 +1534,7 @@ function PropTypeEditor({ prop }: { prop: DbProperty }) {
  * calendar view then matches on month/day across every year. */
 function DateConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const cfg = prop.config;
   const yearly = cfg.recurring === "yearly";
   return (
@@ -1538,7 +1550,7 @@ function DateConfigEditor({ prop }: { prop: DbProperty }) {
             })
           }
         />
-        Repeat yearly (calendar)
+        {t("매년 반복 (캘린더)")}
       </label>
     </div>
   );
@@ -1547,30 +1559,31 @@ function DateConfigEditor({ prop }: { prop: DbProperty }) {
 /** Number column config: value format + number/bar display. */
 function NumberConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const cfg = prop.config;
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">Format</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("형식")}</label>
       <select
         data-testid={`db-number-format-${prop.id}`}
         value={cfg.numberFormat ?? "number"}
         onChange={(e) => db.updateProperty(prop.id, { config: { ...cfg, numberFormat: e.target.value } })}
         className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="number">Number</option>
-        <option value="percent">Percent</option>
-        <option value="currency">Currency (USD)</option>
-        <option value="comma">Comma separated</option>
+        <option value="number">{t("숫자")}</option>
+        <option value="percent">{t("퍼센트")}</option>
+        <option value="currency">{t("통화 (USD)")}</option>
+        <option value="comma">{t("쉼표로 구분")}</option>
       </select>
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">Show as</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("다음과 같이 표시")}</label>
       <select
         data-testid={`db-number-display-${prop.id}`}
         value={cfg.display ?? "number"}
         onChange={(e) => db.updateProperty(prop.id, { config: { ...cfg, display: e.target.value } })}
         className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="number">Number</option>
-        <option value="bar">Bar</option>
+        <option value="number">{t("숫자")}</option>
+        <option value="bar">{t("막대")}</option>
       </select>
     </div>
   );
@@ -1580,6 +1593,7 @@ function NumberConfigEditor({ prop }: { prop: DbProperty }) {
  * for relation / formula / rollup properties. */
 function PropConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const config = prop.config;
 
   if (prop.type === "relation") {
@@ -1590,7 +1604,7 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
     return (
       <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          Formula
+          {t("수식")}
         </label>
         <input
           data-testid={`db-formula-config-${prop.id}`}
@@ -1616,6 +1630,7 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
  * so a database created after this view mounted is still selectable. */
 function RelationConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const config = prop.config;
  // optimistic two-way state: the checkbox must flip synchronously; the mirror
  // property is created/removed in the background
@@ -1634,7 +1649,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
       <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-        Related to
+        {t("관계 대상")}
       </label>
       <select
         data-testid="relation-target-select"
@@ -1646,7 +1661,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
         }
         className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="">Select a database…</option>
+        <option value="">{t("데이터베이스 선택…")}</option>
         {dbs.map((d) => (
           <option key={d.id} value={d.id}>
             {d.title}
@@ -1702,7 +1717,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
               })();
             }}
           />
-          Show on the related database (two-way)
+          {t("관계 데이터베이스에 표시 (양방향)")}
         </label>
       )}
     </div>
@@ -1711,6 +1726,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
 
 function RollupConfigEditor({ prop }: { prop: DbProperty }) {
   const db = useDb();
+  const t = useT();
   const config = prop.config;
   const rollup = config.rollup ?? {};
   const relationProps = db.properties.filter((p) => p.type === "relation");
@@ -1750,7 +1766,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
     >
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          Relation
+          {t("관계형")}
         </label>
         <select
           data-testid={`db-rollup-relation-${prop.id}`}
@@ -1758,7 +1774,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ relationPropertyId: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="">Select…</option>
+          <option value="">{t("선택…")}</option>
           {relationProps.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -1768,7 +1784,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          Property
+          {t("속성")}
         </label>
         <select
           data-testid={`db-rollup-target-${prop.id}`}
@@ -1776,7 +1792,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ targetPropertyId: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="">Select…</option>
+          <option value="">{t("선택…")}</option>
           {targetProps.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -1786,7 +1802,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          Calculate
+          {t("계산")}
         </label>
         <select
           data-testid={`db-rollup-fn-${prop.id}`}
@@ -1794,9 +1810,9 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ function: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="sum">Sum</option>
-          <option value="count">Count</option>
-          <option value="avg">Average</option>
+          <option value="sum">{t("합계")}</option>
+          <option value="count">{t("카운트")}</option>
+          <option value="avg">{t("평균")}</option>
         </select>
       </div>
     </div>
