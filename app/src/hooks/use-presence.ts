@@ -66,6 +66,9 @@ export function usePresence(pageId: string): {
  // same store the sidebar profile chip reads, so my face pile avatar and my
  // caret label are always the name and photo I just saved
   const self = useMe();
+ // my other tabs/devices are still me: their carets are never drawn here
+  const selfIdRef = useRef<string | null>(null);
+  selfIdRef.current = self?.id ?? null;
   const [others, setOthers] = useState<Record<string, PresentClient>>({});
  // bridges the interval sender to the caret-move listener without resubscribing
   const sendRef = useRef<() => void>(() => {});
@@ -79,7 +82,7 @@ export function usePresence(pageId: string): {
         if (!alive) return;
         const seed: Record<string, PresentClient> = {};
         for (const p of d.presences ?? []) {
-          if (p.clientId !== clientId) seed[p.clientId] = toClient(p);
+          if (p.clientId !== clientId && p.user?.id !== selfIdRef.current) seed[p.clientId] = toClient(p);
         }
         setOthers((prev) => ({ ...seed, ...prev }));
       })
@@ -178,6 +181,7 @@ export function usePresence(pageId: string): {
         };
         if (event.type !== "presence" && event.type !== "cursor") return;
         if (!event.clientId || event.clientId === clientId || !event.user) return;
+        if (event.user.id === selfIdRef.current) return; // same account in another tab
         const entry = toClient({
           clientId: event.clientId,
           user: event.user,
