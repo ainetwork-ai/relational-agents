@@ -234,6 +234,20 @@ export const BlockEditor = forwardRef<
     return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
   });
   const [slash, setSlash] = useState<SlashState | null>(null);
+ // the original closes the type menu when you click anywhere else — outside
+ // the menu and outside the line it belongs to (the line itself stays)
+  useEffect(() => {
+    if (!slash) return;
+    const onDown = (ev: MouseEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest('[data-testid="slash-menu"]')) return;
+      if (t.closest(`[data-testid="block-editable-${slash.blockId}"]`)) return;
+      setSlash(null);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [slash]);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);

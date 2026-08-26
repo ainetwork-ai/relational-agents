@@ -41,6 +41,11 @@ for (const [label, id, expectNew] of [["내용 줄", A.id, true], ["빈 줄", B.
   else { eq(`${label}: 메뉴 폭`, s.menu.w, G.menu.w); eq(`${label}: 메뉴 높이`, s.menu.h, G.menu.h); eq(`${label}: 메뉴 왼쪽`, s.menu.left, G.menu.leftFromBlock); eq(`${label}: 줄과의 간격`, s.menu.gap, G.menu.gap); eq(`${label}: radius`, s.menu.radius, G.menu.radius); eq(`${label}: 리스트 max-h`, s.menu.listMaxH, G.menu.listMaxH); eq(`${label}: 항목 높이`, s.menu.itemH, G.menu.itemH); eq(`${label}: 푸터 높이`, s.menu.footerH, G.menu.footerH); }
   await page.keyboard.press("Escape"); await page.waitForTimeout(200);
 }
+// 바깥 클릭: 원본은 메뉴가 닫히고 줄은 남는다
+await page.locator(`[data-testid="block-add-below-${B.id}"]`).click({ force: true }); await page.waitForTimeout(300);
+await page.locator(`[data-testid="block-${A.id}"] [data-testid^="block-editable-"]`).click({ position: { x: 5, y: 10 } }); await page.waitForTimeout(250);
+eq("바깥 클릭: 메뉴 닫힘", await page.locator('[data-testid="slash-menu"]').count(), 0);
+eq("바깥 클릭: 줄 유지", await page.evaluate(() => document.querySelectorAll('[data-testid="editor-root"] [data-block-type]').length), before + 1);
 await browser.close();
 await fetch(`${BASE}/api/pages/${pageId}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 if (fails.length) { console.log(`  ┌─ + 메뉴가 원본과 다릅니다 (${fails.length}/${checks}) ─────`); for (const f of fails) console.log(`  │ ${f}`); console.log("  └────────────────────────────────────────────────"); process.exit(1); }
