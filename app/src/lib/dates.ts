@@ -19,10 +19,11 @@ const ROW_TIMESTAMP: Intl.DateTimeFormatOptions = {
   minute: "2-digit",
 };
 
-/** `2026년 8월 4일 오후 3:56` — empty string for anything unparseable. */
-export function formatRowTimestamp(at: string | number | Date | null | undefined): string {
+/** `2026년 8월 4일 오후 3:56` — empty string for anything unparseable.
+ *  `locale` is the user's Intl locale (`useIntlLocale()`); ko-KR when absent. */
+export function formatRowTimestamp(at: string | number | Date | null | undefined, locale = "ko-KR"): string {
   if (!at) return "";
   const d = at instanceof Date ? at : new Date(at);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("ko-KR", ROW_TIMESTAMP);
+  return d.toLocaleString(locale, ROW_TIMESTAMP);
 }

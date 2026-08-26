@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { DEFAULT_LOCALE, type Locale } from "./locales";
+import { DEFAULT_LOCALE, INTL_LOCALE, type Locale } from "./locales";
 import { makeT, type T } from "./translate";
 
 interface Ctx {
@@ -26,4 +26,9 @@ export function useT(): T {
 
 export function useLocale(): Locale {
   return useContext(LocaleContext).locale;
+}
+
+/** The Intl locale (ko-KR / en-US) for dates and numbers. */
+export function useIntlLocale(): string {
+  return INTL_LOCALE[useContext(LocaleContext).locale];
 }
