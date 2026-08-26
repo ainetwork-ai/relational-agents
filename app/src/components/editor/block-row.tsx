@@ -1024,7 +1024,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
             block={block}
  // one rule decides the empty line's hint, the dictionary decides the language:
  // the type menu open on this line → the filter hint, otherwise the usual one
-            placeholder={t(editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "AI 기능은 '스페이스 키', 명령어는 '/'를 입력하세요.")}
+            placeholder={t(editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "명령어는 '/'를 입력하세요.")}
             bare={editor.slashBareBlockId === block.id}
             className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />

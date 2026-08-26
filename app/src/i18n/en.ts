@@ -5,7 +5,8 @@ export const en: Record<string, string> = {
   한국어: "Korean",
   "English (US)": "English (US)",
   // editor — placeholders and the type menu (the original's English strings)
-  "AI 기능은 '스페이스 키', 명령어는 '/'를 입력하세요.": "Write, press 'space' for AI, '/' for commands",
+  // no AI feature here, so the original's "space for AI" half is dropped (comcom, 2026-08-26)
+  "명령어는 '/'를 입력하세요.": "Press '/' for commands",
   "필터링 기준을 입력하세요.": "Type to filter…",
   "빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.": "Empty toggle. Click or drop blocks inside.",
   "기본 블록": "Basic blocks",
