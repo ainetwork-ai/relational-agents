@@ -2163,6 +2163,10 @@ export const BlockEditor = forwardRef<
         });
       }
       pendingFocus.current = { id: nb.id, pos: "start" };
+ // Open the menu in the SAME batch as the line, so the line's first paint
+ // already carries the filter placeholder (a frame of the default English
+ // placeholder flashed otherwise); the anchor is refined once the row exists.
+      setSlash({ blockId: nb.id, offset: 0, query: "", selected: 0, bare: true, anchor: { x: -9999, y: -9999 }, anchorHeight: 40 });
  // The new block's editable may take more than one frame to mount on
  // slow renders — retry briefly instead of silently leaving a bare "/".
       const openMenu = (attempt: number) => {
@@ -2178,15 +2182,11 @@ export const BlockEditor = forwardRef<
         const rect = row?.getBoundingClientRect() ?? el.getBoundingClientRect();
  // the original's + menu: left edge on the block box, 8px below the line (or
  // above it when the window's bottom is too close)
-        setSlash({
-          blockId: nb.id,
-          offset: 0,
-          query: "",
-          selected: 0,
-          bare: true,
-          anchor: { x: rect.left, y: rect.top },
-          anchorHeight: rect.height,
-        });
+        setSlash((prev) =>
+          prev && prev.blockId === nb.id
+            ? { ...prev, anchor: { x: rect.left, y: rect.top }, anchorHeight: rect.height }
+            : prev
+        );
       };
       requestAnimationFrame(() => openMenu(0));
     },
