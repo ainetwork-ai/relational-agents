@@ -80,7 +80,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/sidebar-row.check.mjs` | 사이드바 행의 호버 버튼과 ⋯ 메뉴 |
 | `node e2e/notion-paste.check.mjs` | 노션 전체 복사 → 붙여넣기 (콜아웃·토글·볼드 런·체크·중첩·저장까지) |
 | `node e2e/peek-inset.check.mjs` | 행 피크(사이드 페이지)의 폭 규칙과 콘텐츠 여백 76px |
-| `node e2e/block-spacing.check.mjs` | 기본 블록의 세로 여백(문단 6/6, H1·H2·H3 상단 30/26/22), 리스트 첫 항목 규칙, 거터(+ −52, 6점 −28, 첫 줄 중앙), 6점 클릭 하이라이트(2px inset·리스트 1px) — 페이지를 스스로 만들어 467개 체크 |
+| `node e2e/block-spacing.check.mjs` | 기본 블록의 세로 여백(문단 6/6, H1·H2·H3 상단 30/26/22), 리스트 첫 항목 규칙, 거터(+ −52, 6점 −28, 첫 줄 중앙), 6점 클릭 하이라이트(2px inset·리스트 1px), 구분선·코드·콜아웃 구조 — 페이지를 스스로 만들어 551개 체크 |
 | `pnpm check:dismiss` | 포털 팝오버가 바깥클릭 감지를 직접 짜고 있지 않은지 |
 
 `e2e/*.check.mjs` 는 dev 서버(3110)와 dev DB 를 쓰고, 세션 쿠키를 직접 만들어 붙는다.

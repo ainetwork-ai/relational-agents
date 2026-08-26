@@ -541,7 +541,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
 // match exactly (font, size, line-height, padding, wrapping) so the colored
 // layer aligns under the transparent caret layer.
 const CODE_TYPE_CLASS =
-  "whitespace-pre-wrap break-words px-3 py-2 font-mono text-[13px] leading-6";
+  "whitespace-pre-wrap break-words py-3 font-mono text-[13.6px] leading-[20.4px]";
 
 /** Code block: language select + copy button + caption + a dependency-free
  * syntax-highlight overlay painted behind a transparent-text editor.
@@ -560,8 +560,12 @@ function CodeBlock({ block }: { block: EBlock }) {
   const overlayRef = useRef<HTMLPreElement>(null);
 
   return (
-    <div className="my-1 w-full overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-800/80">
-      <div className="flex items-center justify-between border-b border-neutral-200/70 px-3 py-1 dark:border-neutral-700/60">
+    // 원본(2026-08-26 실측): wrapper 8, 컨테이너 r10 bg rgba(66,35,3,.03) 에 24/22 패딩,
+    // 그 안에서 편집 영역이 12/12 — 한 줄 코드가 108.4. 언어·복사는 hover 때만
+    // 컨테이너 위에 뜨고, 캡션은 있을 때만 자리를 차지한다.
+    <div className="w-full p-2">
+    <div className="group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06]">
+      <div className="absolute left-3 right-3 top-2 flex items-center justify-between opacity-0 transition-opacity group-hover/code:opacity-100">
         <MemorySelect
           testid={`code-lang-${block.id}`}
           value={language}
@@ -605,6 +609,7 @@ function CodeBlock({ block }: { block: EBlock }) {
           className={`relative caret-neutral-800 text-transparent dark:caret-neutral-200 ${CODE_TYPE_CLASS}`}
         />
       </div>
+      {caption !== "" && (
       <input
         data-testid={`code-caption-${block.id}`}
         value={caption}
@@ -612,13 +617,15 @@ function CodeBlock({ block }: { block: EBlock }) {
         placeholder="Add a caption"
         className="w-full bg-transparent px-3 py-1 text-xs text-neutral-500 outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
       />
+      )}
+    </div>
     </div>
   );
 }
 
 // Callout background palette (name → light / dark bg classes).
 const CALLOUT_COLORS: { name: string; bg: string }[] = [
-  { name: "default", bg: "bg-neutral-100 dark:bg-neutral-800/80" },
+  { name: "default", bg: "bg-[#f9f8f7] dark:bg-neutral-800/80" },
   { name: "gray", bg: "bg-neutral-200/70 dark:bg-neutral-700/50" },
   { name: "brown", bg: "bg-amber-100/70 dark:bg-amber-900/25" },
   { name: "orange", bg: "bg-orange-100 dark:bg-orange-900/25" },
@@ -662,23 +669,25 @@ function CalloutBlock({ block }: { block: EBlock }) {
     <div
       data-testid={`callout-${block.id}`}
       data-color={color}
-      className={`group/callout relative my-1 w-full rounded-md px-3.5 py-3 ${calloutBg(color)}`}
+      className="w-full p-2"
     >
-      <div className="flex w-full items-start gap-2.5">
+    {/* 원본(2026-08-26 실측): 82 = 8 + (1+12 + 6+28+6 + 12+1) + 8 */}
+    <div className={`group/callout relative w-full rounded-[10px] border border-transparent p-3 ${calloutBg(color)}`}>
+      <div className="flex w-full items-start">
       {icon !== null && (
         <IconPicker
           icon={icon}
           onChange={(v) => editor.setImageMeta(block.id, { icon: v ?? "💡" })}
           testid={`callout-icon-${block.id}`}
           pickerTestid={`callout-icon-picker-${block.id}`}
-          triggerClassName="shrink-0 select-none rounded p-0.5 text-lg leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+          triggerClassName="mt-[1.5px] flex h-6 w-6 shrink-0 select-none items-center justify-center rounded text-[20px] leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
           placeholder="💡"
           allowRemove={false}
         />
       )}
       <Editable
         block={block}
-        className="flex-1 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+        className="m-1.5 flex-1 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
       {/* color menu */}
       <div ref={ref} className="relative shrink-0">
@@ -724,6 +733,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
         </div>
       )}
     </div>
+    </div>
   );
 }
 
@@ -761,8 +771,8 @@ function BlockBody({ block, depth, listFirst }: { block: EBlock; depth: number; 
   switch (block.type) {
     case "divider":
       return (
-        <div className="w-full py-2">
-          <hr className="border-neutral-200 dark:border-neutral-700" />
+        <div className="w-full px-2 py-1.5">
+          <hr className="h-px border-0 bg-[rgba(28,19,1,0.11)] dark:bg-white/15" />
         </div>
       );
 

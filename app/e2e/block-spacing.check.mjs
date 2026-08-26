@@ -29,12 +29,13 @@ const SEQ = [
   ["toggle", "토글"], ["paragraph", "텍스트"], ["toggle", "토글"], ["quote", "인용"],
   ["numbered_list", "번호"], ["heading2", "제목2"], ["todo", "할일"], ["heading1", "제목1"],
   ["bulleted_list", "글머리"], ["quote", "인용"],
+  ["divider", ""], ["paragraph", "텍스트"], ["code", "code"], ["callout", "콜아웃"], ["paragraph", "텍스트"],
 ];
 const uuid = () => crypto.randomUUID();
 const created = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: "block-spacing.check" }) }).then((r) => r.json());
 const pageId = created.page?.id ?? created.id;
 if (!pageId) { console.error("페이지를 못 만들었습니다:", created); process.exit(1); }
-const blocks = SEQ.map(([type, text], i) => ({ id: uuid(), type, content: type === "todo" ? { text, checked: false } : type === "toggle" ? { text, expanded: true } : { text }, parentBlockId: null, position: i + 1 }));
+const blocks = SEQ.map(([type, text], i) => ({ id: uuid(), type, content: type === "todo" ? { text, checked: false } : type === "toggle" ? { text, expanded: true } : type === "code" ? { text, language: "plain" } : type === "callout" ? { text, icon: "💡" } : type === "divider" ? {} : { text }, parentBlockId: null, position: i + 1 }));
 for (const b of blocks) if (b.type === "toggle") blocks.push({ id: uuid(), type: "paragraph", content: { text: "안" }, parentBlockId: b.id, position: 1 });
 const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { method: "PUT", headers: H, body: JSON.stringify({ blocks, deletedIds: [], newIds: blocks.map((b) => b.id) }) });
 if (!put.ok) { console.error("블록 저장 실패:", put.status, await put.text()); process.exit(1); }
@@ -63,14 +64,24 @@ for (const b of tops) {
   const m = await page.evaluate(([sel, prevSel]) => {
     const el = document.querySelector(sel); const r = el.getBoundingClientRect();
     const prevBottom = prevSel ? document.querySelector(prevSel).getBoundingClientRect().bottom : null;
-    const leaf = el.querySelector('[data-testid^="block-editable-"]'); const l = leaf.getBoundingClientRect(); const s = getComputedStyle(leaf);
+    const leaf = el.querySelector('[data-testid^="block-editable-"]'); const l = leaf ? leaf.getBoundingClientRect() : { top: r.top, height: 0 }; const s = getComputedStyle(leaf ?? el);
     return { top: r.top, bottom: r.bottom, h: r.height, left: r.left, w: r.width, leafTop: l.top, leafH: l.height, fs: s.fontSize, lh: s.lineHeight, fw: s.fontWeight, prevBottom };
   }, [sel, prevId ? `[data-testid="block-${prevId}"]` : null]);
   const box = G.box[role]; const tag = `${b.type}(${role}) #${b.position}`;
   if (box.h != null) eq(`${tag} wrapper h`, m.h, box.h);
-  eq(`${tag} pre`, m.leafTop - m.top, box.pre);
-  eq(`${tag} leaf h`, m.leafH, box.leaf);
+  if (box.pre != null) { eq(`${tag} pre`, m.leafTop - m.top, box.pre); eq(`${tag} leaf h`, m.leafH, box.leaf); }
   if (box.post != null) eq(`${tag} post`, m.bottom - (m.leafTop + m.leafH), box.post);
+  if (G.special[b.type]) {
+    const sp = G.special[b.type];
+    const x = await page.evaluate((sel) => { const el = document.querySelector(sel); const r = el.getBoundingClientRect();
+      const hr = el.querySelector("hr"); const cont = [...el.querySelectorAll("div")].find((d) => getComputedStyle(d).backgroundColor !== "rgba(0, 0, 0, 0)");
+      const leaf = el.querySelector("[data-testid^=block-editable-]"); const icon = el.querySelector("[data-testid^=callout-icon-]");
+      const B = (e) => { if (!e) return null; const q = e.getBoundingClientRect(); const s = getComputedStyle(e); return { top: q.top - r.top, left: q.left - r.left, right: r.right - q.right, h: q.height, w: q.width, bg: s.backgroundColor, radius: s.borderRadius, fs: s.fontSize, lh: s.lineHeight }; };
+      return { hr: B(hr), cont: B(cont), leaf: B(leaf), icon: B(icon) }; }, sel);
+    if (b.type === "divider") { eq(`${tag} line h`, x.hr.h, sp.lineH); eq(`${tag} line inset`, x.hr.left, sp.lineInsetX); eq(`${tag} line top`, x.hr.top, sp.lineTopFromWrap); eq(`${tag} line color`, x.hr.bg, sp.lineColor); }
+    if (b.type === "code") { eq(`${tag} container inset`, x.cont.left, sp.containerInsetX); eq(`${tag} container radius`, x.cont.radius, sp.containerRadius); eq(`${tag} container bg`, x.cont.bg, sp.containerBg); eq(`${tag} text left`, x.leaf.left, sp.textLeftFromWrap); eq(`${tag} font-size`, x.leaf.fs, sp.fontSize); eq(`${tag} line-height`, x.leaf.lh, sp.lineHeight); }
+    if (b.type === "callout") { eq(`${tag} container inset`, x.cont.left, sp.containerInsetX); eq(`${tag} container radius`, x.cont.radius, sp.containerRadius); eq(`${tag} container bg`, x.cont.bg, sp.containerBg); eq(`${tag} icon size`, `${x.icon.w}x${x.icon.h}`, `${sp.iconSize}x${sp.iconSize}`); eq(`${tag} icon left`, x.icon.left, sp.iconLeftFromWrap); eq(`${tag} text left`, x.leaf.left, sp.textLeftFromWrap); eq(`${tag} text font-size`, x.leaf.fs, sp.textFontSize); eq(`${tag} text line-height`, x.leaf.lh, sp.textLineHeight); }
+  }
   if (m.prevBottom != null) eq(`${tag} gap from prev`, m.top - m.prevBottom, G.gap);
   if (G.type[b.type]) { const t = G.type[b.type]; eq(`${tag} font-size`, m.fs, t.fontSize); eq(`${tag} line-height`, m.lh, t.lineHeight); eq(`${tag} font-weight`, m.fw, t.fontWeight); }
  // 거터: hover → +와 6점의 위치/크기
