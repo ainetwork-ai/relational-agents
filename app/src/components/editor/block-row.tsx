@@ -1020,7 +1020,9 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
         <div className={inList ? "w-full py-[1px]" : "w-full py-1.5"}>
           <Editable
             block={block}
-            placeholder="Write something, or press '/' for commands"
+ // the gutter + opened the type menu on this empty line: the original shows a
+ // filter placeholder there instead of the usual one
+            placeholder={editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요..." : "Write something, or press '/' for commands"}
             className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>

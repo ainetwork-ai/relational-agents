@@ -53,6 +53,9 @@ interface SlashState {
   blockId: string;
   /** text offset right after the '/' */
   offset: number;
+  /** opened from the gutter +: no "/" character in the block, the whole
+   * text is the filter, and the block shows a filter placeholder (original) */
+  bare?: boolean;
   query: string;
   selected: number;
   anchor: { x: number; y: number };
@@ -112,6 +115,8 @@ interface EditorApi {
   childrenOf: (id: string | null) => EBlock[];
   numberOf: (b: EBlock) => number;
   selectedIds: Set<string>;
+  /** block whose type menu was opened from the gutter + (shows the filter placeholder) */
+  slashBareBlockId: string | null;
   shiftSelect: (id: string) => void;
   clearSelection: () => void;
 }
@@ -703,7 +708,7 @@ export const BlockEditor = forwardRef<
     (
       type: BlockType,
       preset: Record<string, unknown> | undefined,
-      target: { blockId: string; offset: number; query: string }
+      target: { blockId: string; offset: number; query: string; bare?: boolean }
     ) => {
       const { blockId, offset, query } = target;
 
@@ -787,7 +792,7 @@ export const BlockEditor = forwardRef<
         if (!cur) return prev;
         const el = editables.current.get(blockId);
         const text = el ? normalize(el) : cur.content.text ?? "";
-        const stripped = text.slice(0, offset - 1) + text.slice(offset + query.length);
+        const stripped = target.bare ? text.slice(query.length) : text.slice(0, offset - 1) + text.slice(offset + query.length);
 
         if (type === "divider") {
           cur.type = "divider";
@@ -871,7 +876,7 @@ export const BlockEditor = forwardRef<
   const applySlashPick = useCallback(
     (type: BlockType, preset?: Record<string, unknown>) => {
       if (!slash) return;
-      const target = { blockId: slash.blockId, offset: slash.offset, query: slash.query };
+      const target = { blockId: slash.blockId, offset: slash.offset, query: slash.query, bare: slash.bare };
       setSlash(null);
       applyPick(type, preset, target);
     },
@@ -1177,7 +1182,9 @@ export const BlockEditor = forwardRef<
 
  // slash-menu live query
       if (slash && slash.blockId === id) {
-        if (text.length < slash.offset || text[slash.offset - 1] !== "/") {
+        if (slash.bare) {
+          setSlash({ ...slash, query: text, selected: 0 });
+        } else if (text.length < slash.offset || text[slash.offset - 1] !== "/") {
           setSlash(null);
         } else {
           const query = text.slice(slash.offset);
@@ -2122,8 +2129,9 @@ export const BlockEditor = forwardRef<
     (id: string) => {
  // standard behavior: + inserts a block AND opens the type menu — a silent
  // empty block reads as "nothing happened".
+ // the original: + makes an EMPTY line (no "/" to delete afterwards) with a
+ // filter placeholder, the caret at its start, and the type menu open
       const nb = freshParagraph(null, 0);
-      nb.content.text = "/";
       mutate((prev) => {
         const next = prev.map((b) => ({ ...b }));
         const cur = next.find((b) => b.id === id);
@@ -2145,9 +2153,10 @@ export const BlockEditor = forwardRef<
         const rect = caretRect() ?? el.getBoundingClientRect();
         setSlash({
           blockId: nb.id,
-          offset: 1,
+          offset: 0,
           query: "",
           selected: 0,
+          bare: true,
           anchor: { x: rect.left, y: rect.top },
         });
       };
@@ -2418,6 +2427,7 @@ export const BlockEditor = forwardRef<
       childrenOf,
       numberOf,
       selectedIds,
+      slashBareBlockId: slash?.bare ? slash.blockId : null,
       shiftSelect,
       clearSelection,
     }),
@@ -2456,6 +2466,7 @@ export const BlockEditor = forwardRef<
       childrenOf,
       numberOf,
       selectedIds,
+      slash,
       shiftSelect,
       clearSelection,
     ]
