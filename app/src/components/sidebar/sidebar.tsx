@@ -8,7 +8,6 @@ import {
   Star,
   StarOff,
   FileText,
-  LogOut,
   PanelLeftClose,
   PanelLeft,
   Search as SearchIcon,
@@ -16,8 +15,6 @@ import {
   MessageCircle,
   SquarePen,
 } from "lucide-react";
-import { ProfileSettings } from "@/components/profile-settings";
-import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { usePagesStore } from "@/stores/pages";
 import { useUiStore } from "@/stores/ui";
 import { useAiChatsStore, unreadChatCount } from "@/stores/ai-chats";
@@ -230,7 +227,7 @@ export function Sidebar({
           below; this line carries just the switcher and the collapse control) */}
       <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         {workspace ? (
-          <WorkspaceSwitcher workspace={workspace} />
+          <WorkspaceSwitcher workspace={workspace} displayName={displayName} />
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
@@ -481,22 +478,6 @@ export function Sidebar({
         </button>
         <ImportButton />
 
-        <div className="mt-1 flex items-center justify-between rounded-md px-2 py-1.5">
-          <ProfileSettings initialName={displayName} />
-          <DarkModeToggle />
-          <button
-            data-testid="logout-button"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              router.push("/login");
-              router.refresh();
-            }}
-            className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-700"
-            aria-label="Log out"
-          >
-            <LogOut size={13} />
-          </button>
-        </div>
       </div>
 
       <TrashModal />

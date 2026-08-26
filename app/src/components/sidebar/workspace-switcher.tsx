@@ -5,11 +5,11 @@ import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, Plus, Settings, Check, Users, Sun, Moon, Monitor } from "lucide-react";
-import { setThemeMode, useThemeMode, type ThemeMode } from "@/components/dark-mode-toggle";
+import { ChevronsUpDown, Plus, Settings, Check, Users, LogOut } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { recordWorkspaceVisit } from "@/lib/recent-workspaces";
-import { WorkspaceSettingsModal } from "./workspace-settings-modal";
+import { SettingsModal } from "@/components/settings/settings-modal";
+import { useT } from "@/i18n/provider";
 import { MembersModal } from "@/components/workspace/members-modal";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
 import { initial } from "@/lib/glyph";
@@ -22,6 +22,9 @@ export interface ActiveWorkspace {
   description: string | null;
 }
 
+const ITEM =
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700";
+
 interface WorkspaceRow {
   id: string;
   name: string;
@@ -32,8 +35,9 @@ interface WorkspaceRow {
 }
 
 /** Header workspace switcher: current workspace, dropdown to switch/create,
- * and a gear that opens workspace settings. */
-export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace }) {
+ * and — like the original's — the way into 설정, 멤버 초대 and 로그아웃. */
+export function WorkspaceSwitcher({ workspace, displayName }: { workspace: ActiveWorkspace; displayName: string }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<WorkspaceRow[]>([]);
@@ -42,7 +46,6 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const setMembersOpen = useWorkspaceUiStore((s) => s.setMembersOpen);
-  const themeMode = useThemeMode();
  // header reflects live edits/switches without waiting on the server refresh
   const [display, setDisplay] = useState<ActiveWorkspace>(workspace);
   const [syncedWorkspace, setSyncedWorkspace] = useState(workspace);
@@ -182,6 +185,33 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-60 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
           >
+          {/* the original's order: 설정 · 멤버 초대 / 워크스페이스 목록 /
+              워크스페이스 추가하기 / 로그아웃 */}
+          <button
+            data-testid="workspace-settings-button"
+            onClick={() => {
+              setOpen(false);
+              setSettingsOpen(true);
+            }}
+            className={ITEM}
+          >
+            <Settings size={14} />
+            {t("설정")}
+          </button>
+          <button
+            data-testid="members-button"
+            onClick={() => {
+              setOpen(false);
+              setMembersOpen(true);
+            }}
+            className={ITEM}
+          >
+            <Users size={14} />
+            {t("멤버 초대")}
+          </button>
+
+          <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
+
           <div className="max-h-64 overflow-y-auto">
             {list.map((w) => (
               <button
@@ -206,55 +236,6 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
             ))}
           </div>
 
-          <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
-
-          {/* Appearance — the footer icon alone was undiscoverable, so the
-              theme lives here too, spelled out (R2 follow-up) */}
-          <p className="px-2 pb-0.5 pt-1 text-[11px] font-medium text-neutral-400">Appearance</p>
-          {([
-            ["light", "Light", Sun],
-            ["dark", "Dark", Moon],
-            ["system", "System", Monitor],
-          ] as [ThemeMode, string, typeof Sun][]).map(([value, label, Icon]) => (
-            <button
-              key={value}
-              data-testid={`theme-option-${value}`}
-              onClick={() => setThemeMode(value)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700"
-            >
-              <Icon size={14} />
-              {label}
-              {themeMode === value && <Check size={13} className="ml-auto shrink-0 text-blue-500" />}
-            </button>
-          ))}
-
-          <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
-
-          <button
-            data-testid="workspace-settings-button"
-            onClick={() => {
-              setOpen(false);
-              setSettingsOpen(true);
-            }}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700"
-          >
-            <Settings size={14} />
-            Settings
-          </button>
-          <button
-            data-testid="members-button"
-            onClick={() => {
-              setOpen(false);
-              setMembersOpen(true);
-            }}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700"
-          >
-            <Users size={14} />
-            Members
-          </button>
-
-          <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
-
           {creating ? (
             <div className="p-1">
               <input
@@ -266,7 +247,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
                   if (e.key === "Enter") void createWorkspace();
                   if (e.key === "Escape") setCreating(false);
                 }}
-                placeholder="Workspace name"
+                placeholder={t("워크스페이스 이름")}
                 className="mb-1 w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900"
               />
               <button
@@ -275,28 +256,45 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
                 className="w-full rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
                 disabled={busy}
               >
-                Create workspace
+                {t("워크스페이스 만들기")}
               </button>
             </div>
           ) : (
             <button
               data-testid="workspace-create-button"
               onClick={() => setCreating(true)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700"
+              className={ITEM}
             >
               <Plus size={14} />
-              Create workspace
+              {t("워크스페이스 추가하기")}
             </button>
           )}
+
+          <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
+
+          <button
+            data-testid="logout-button"
+            onClick={async () => {
+              setOpen(false);
+              await fetch("/api/auth/logout", { method: "POST" });
+              router.push("/login");
+              router.refresh();
+            }}
+            className={ITEM}
+          >
+            <LogOut size={14} />
+            {t("로그아웃")}
+          </button>
           </div>,
           document.body
         )}
 
       {settingsOpen && (
-        <WorkspaceSettingsModal
+        <SettingsModal
           workspace={display}
+          displayName={displayName}
           onClose={() => setSettingsOpen(false)}
-          onSaved={(patch) => {
+          onWorkspaceSaved={(patch) => {
             setDisplay((prev) => ({ ...prev, ...patch }));
             router.refresh();
           }}
