@@ -777,7 +777,7 @@ export function FilterChips() {
                   : chipCls
               }
             >
-              <PropertyTypeIcon type={prop.type} size={19} />
+              <PropertyTypeIcon type={prop.type} size={19.2} tone="current" />
               <span className="max-w-[180px] truncate">
                 <span className="font-medium">{prop.name}</span>
                 {incomplete ? (
