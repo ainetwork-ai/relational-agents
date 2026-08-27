@@ -217,7 +217,10 @@ function PinnedBand({ row, pinned }: { row: DbRow; pinned: DbProperty[] }) {
 
 function PinnedItem({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const t = useT();
-  const empty = !hasValue(row.values[prop.id]);
+ // computed properties draw their own value from the row itself (createdAt,
+ // formulas…), never from row.values — 비어 있음 must not be painted over them
+  const COMPUTED = new Set(["created_time", "last_edited_time", "created_by", "last_edited_by", "formula", "rollup"]);
+  const empty = !COMPUTED.has(prop.type) && !hasValue(row.values[prop.id]);
   return (
     <div
       data-testid={`row-props-item-${prop.id}`}
