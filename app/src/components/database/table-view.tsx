@@ -19,6 +19,8 @@ import {
   PanelRight,
 } from "lucide-react";
 import type { DbView, DbProperty, DbRow, PropertyType } from "@/lib/db/schema";
+import { CommentCountBadge } from "@/components/comments/comment-count-badge";
+import { useCommentsStore } from "@/stores/comments";
 import {
   applyView,
   computeCalc,
@@ -134,6 +136,12 @@ function useIncremental(step: number, total: number) {
 export function TableView({ view }: { view: DbView }) {
   const db = useDb();
   const t = useT();
+ // one grouped query for the whole table — the badge is per row, but twenty
+ // round-trips to paint one column is not worth it
+  const loadCommentCounts = useCommentsStore((s) => s.loadCounts);
+  useEffect(() => {
+    void loadCommentCounts(db.databaseId);
+  }, [db.databaseId, loadCommentCounts]);
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
  // per-view property visibility AND order (hiddenProperties / propertyOrder)
   const cols = visibleColumns(db.properties, view.config);
@@ -1068,6 +1076,10 @@ function RowLine({
  // and a second click on the handle closes it instead of reopening 1px over
   const [menuOpen, setMenuOpen] = useState(false);
   const dragRef = useRef<HTMLButtonElement>(null);
+ // a row's page lives in the reserved __page value; its comment count is what
+ // the title cell's badge shows (0 = no badge at all, like the original)
+  const rowPageId = typeof row.values["__page"] === "string" ? row.values["__page"] : null;
+  const commentCount = useCommentsStore((s) => (rowPageId ? s.countByPage[rowPageId] ?? 0 : 0));
   return (
     <div
       data-testid={`db-row-${row.id}`}
@@ -1192,9 +1204,22 @@ function RowLine({
                 {rowIcon(row) ?? db.icon}
               </span>
             )}
-            <div className="min-w-0 flex-1">
-              <PropertyCell prop={p} row={row} />
+            {/* The original hangs the comment badge on the title itself, 5px
+                after the last letter — so the field shrinks to its text and
+                the leftover width becomes a spacer that still focuses it. */}
+            <div className="min-w-0">
+              <PropertyCell prop={p} row={row} shrinkToText />
             </div>
+            <CommentCountBadge n={commentCount} onOpen={() => db.openRow(row.id)} />
+            <div
+              aria-hidden="true"
+              className="h-full min-w-0 flex-1 cursor-text"
+              onClick={(e) =>
+                (
+                  e.currentTarget.parentElement?.querySelector("input") as HTMLInputElement | null
+                )?.focus()
+              }
+            />
             {/* 열기, measured on the original's title cell: a white 55×24 pad
                 (radius 6, 2px padding, three-layer shadow) 5px from the cell's
                 right edge, holding a 51×20 button — icon 15px in
