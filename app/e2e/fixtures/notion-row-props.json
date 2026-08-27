@@ -1,0 +1,79 @@
+{
+  "note": "2026-08-27 원본(Projects 행 '조달청 나라장터 과제 탐색') 실측, 창 1200x900. 사이드 피크와 전체 페이지 둘 다 같은 속성 블록: 제목 → 세부 정보 보기 토글 → 고정 속성 밴드(TL·Assignee·End date·Evaluation) → 댓글 → 본문. 잰 스크립트: scratchpad/m-rowprops-{1,2,3,4}.mjs, 결과 scratchpad/rowprops-*.json. 토글은 풀페이지에선 항상 보이고 피크에선 호버 때만 나타나며(나타나면 28px 만큼 아래가 밀린다) 안 보일 때 밴드는 제목 아래 26px(4 margin + 12 padding + 10 margin), 보일 때 54px. 값 셀 높이 30(사람 31), 라벨 24, 항목 min 80/max 200, gap 8. Evaluation 값을 누르면 값 셀 좌상단 -1/-1 에 300px 메뉴, 항목 28px(292 폭).",
+  "tolerance": 2,
+  "peek": {
+    "width": 600,
+    "titleFontSize": 32,
+    "titleLineHeight": 38.4,
+    "insetL": 76,
+    "toggleHoverOnly": true
+  },
+  "full": {
+    "titleFontSize": 40,
+    "titleLineHeight": 48,
+    "contentWidth": 720,
+    "toggleHoverOnly": false
+  },
+  "toggle": {
+    "height": 28,
+    "fontSize": 14,
+    "color": "rgb(142, 139, 134)",
+    "paddingX": 8,
+    "radius": 6,
+    "gapBelowTitle": 4,
+    "gapToBand": 22
+  },
+  "bandTopHidden": 26,
+  "band": {
+    "height": 55,
+    "gap": 8,
+    "itemMinWidth": 80,
+    "itemMaxWidth": 200,
+    "labelHeight": 24,
+    "valueHeight": 30,
+    "valuePadX": 6,
+    "valuePadY": 5,
+    "valueRadius": 4,
+    "labelFontSize": 13,
+    "labelWeight": 500,
+    "labelColor": "rgb(125, 122, 117)",
+    "labelPadX": 6,
+    "labelRadius": 6,
+    "iconSize": 14,
+    "iconScale": 1.2,
+    "emptyColor": "rgb(161, 158, 153)",
+    "emptyFontSize": 14,
+    "emptyLineHeight": 20,
+    "arrow": {
+      "size": 32,
+      "offsetY": 11.5,
+      "overhang": 4
+    },
+    "iconRenderedSize": 16.8
+  },
+  "comments": {
+    "gapAboveRow": 24,
+    "rowHeight": 24,
+    "fontSize": 13,
+    "weight": 500,
+    "color": "rgb(125, 122, 117)",
+    "textInsetX": 8,
+    "dividerBelowSection": true,
+    "contentPadTop": 8
+  },
+  "menu": {
+    "width": 300,
+    "offsetX": -1,
+    "offsetY": -1,
+    "radius": 6,
+    "itemHeight": 28,
+    "itemWidth": 292
+  },
+  "sidebar": {
+    "note": "풀페이지에서 세부 정보 보기를 누르면 창 오른쪽에 385px(notion-update-sidebar, 왼쪽 1px) 패널; 헤더 '속성' 13px/500 회색이 패널 왼쪽에서 28px, y=47(탑바 44 + 3). 본문 layout 은 930→545 로 줄고 칼럼은 그 안에서 다시 가운데(제목 353).",
+    "width": 385,
+    "headerInsetX": 28,
+    "headerTop": 47,
+    "layoutShrinksBy": 385
+  }
+}

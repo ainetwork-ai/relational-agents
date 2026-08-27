@@ -45,7 +45,18 @@ function fmtTimestamp(v: unknown, locale: string): string {
   return isNaN(d.getTime()) ? "" : formatRowTimestamp(d, locale);
 }
 
-export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
+export function PropertyCell({
+  prop,
+  row,
+ // shrink the field to its text instead of filling the cell. The table's title
+ // cell needs it: the original hangs the comment badge right after the title,
+ // not out at the cell's right edge.
+  shrinkToText,
+}: {
+  prop: DbProperty;
+  row: DbRow;
+  shrinkToText?: boolean;
+}) {
   const intl = useIntlLocale();
   const db = useDb();
   const value = row.values[prop.id];
@@ -58,7 +69,14 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     case "text":
     case "email":
     case "phone":
-      return <TextCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
+      return (
+        <TextCell
+          testid={testid}
+          value={(value as string) ?? ""}
+          onCommit={set}
+          shrinkToText={shrinkToText}
+        />
+      );
 
     case "url":
       return <UrlCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
@@ -446,10 +464,12 @@ function TextCell({
   testid,
   value,
   onCommit,
+  shrinkToText,
 }: {
   testid: string;
   value: string;
   onCommit: (v: string) => void;
+  shrinkToText?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const ref = useRef(value);
@@ -459,7 +479,7 @@ function TextCell({
       setDraft(value);
     }
   }, [value]);
-  return (
+  const field = (
     <input
       data-testid={testid}
       value={draft}
@@ -468,8 +488,23 @@ function TextCell({
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
-      className="w-full bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200"
+      className={`bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200 ${
+        shrinkToText ? "absolute inset-0 w-full" : "w-full"
+      }`}
     />
+  );
+  if (!shrinkToText) return field;
+ // A hidden twin carrying the same text in the same font sets the width, so
+ // the input is exactly as wide as what it shows and whatever follows it sits
+ // against the text. `field-sizing: content` would do this in one line but
+ // only lands in Chromium — this works everywhere and needs no measuring pass.
+  return (
+    <span className="relative block max-w-full">
+      <span aria-hidden="true" className="invisible block whitespace-pre px-2 py-1 text-sm">
+        {draft || " "}
+      </span>
+      {field}
+    </span>
   );
 }
 
@@ -721,7 +756,10 @@ function SelectCell({
   const plainOpen = open && prop.type !== "status";
  // portalled to the body, so the cell's one-line clipping cannot cut it and it
  // flips above the cell near the bottom of the window
-  useAnchored(plainOpen, ref, popRef);
+  // covers the cell (the original's box starts 1px up and left of it), not
+  // the padded box inside — measured 2026-08-27 on a table cell AND on a page
+  // value cell: 300 wide, radius 6, one 28×292 row per option.
+  useAnchored(plainOpen, cellRef, popRef, { cover: true });
   useDismiss(plainOpen, () => setOpen(false), ref, popRef);
 
  // A STABLE callback: an inline arrow gets a new identity every render, so
@@ -732,7 +770,8 @@ function SelectCell({
   const attachRef = useCallback((el: HTMLDivElement | null) => {
     ref.current = el;
  // the menu covers the CELL, not this padded box inside it
-    cellRef.current = (el?.closest("[data-cellnav]") as HTMLElement | null) ?? el;
+    cellRef.current =
+      (el?.closest("[data-cellnav], [data-role='value']") as HTMLElement | null) ?? el;
   }, []);
 
   return (
@@ -767,16 +806,28 @@ function SelectCell({
         createPortal(
           <div
             ref={popRef}
-            style={{ visibility: "hidden" }}
-            className="popover-anim fixed z-50 w-44 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+            data-testid="db-select-menu"
+            style={{ visibility: "hidden", width: 300, boxShadow: PICKER_SHADOW, transform: "translate(-1px, -1px)" }}
+            className="popover-anim fixed z-50 flex flex-col overflow-auto rounded-[6px] bg-white p-1 dark:bg-neutral-800"
           >
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("검색 또는 생성…")}
-            className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
-          />
+          {/* search bar: the chosen value as a chip, then the caret — the
+              Status menu's bar, in the same box */}
+          <div className="mb-1 shrink-0 rounded-[6px] bg-[rgba(242,241,238,0.6)] dark:bg-neutral-700/40">
+            <div className="flex max-h-[240px] flex-wrap items-center gap-1.5 overflow-y-auto px-2 pb-[6px] pt-[5px]">
+              {current && (
+                <OptionChip color={current.color} title={current.name}>
+                  {current.name}
+                </OptionChip>
+              )}
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={current ? "" : t("옵션 선택 또는 생성")}
+                className="h-5 min-w-[40px] flex-1 bg-transparent text-[14px] leading-5 text-[rgb(44,44,43)] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
+              />
+            </div>
+          </div>
           {!!value && (
             <button
               data-testid={`db-option-${prop.id}-none`}
@@ -784,7 +835,7 @@ function SelectCell({
                 onSet(null);
                 setOpen(false);
               }}
-              className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+              className="flex h-7 w-full items-center rounded-[6px] px-2 text-left text-[14px] text-neutral-500 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
             >
               {t("지우기")}
             </button>
@@ -799,7 +850,7 @@ function SelectCell({
                     onSet(o.id);
                     setOpen(false);
                   }}
-                  className="flex min-w-0 flex-1 items-center rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                  className="flex h-7 w-full min-w-0 items-center rounded-[6px] px-2 text-left hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
                 >
                   <OptionChip color={o.color} title={o.name} dot={prop.type === "status"}>
                     {o.name}

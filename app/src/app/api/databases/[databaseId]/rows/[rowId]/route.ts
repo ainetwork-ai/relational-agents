@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { dbRows, dbProperties, pages } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { publish } from "@/lib/realtime";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import {
   isOkfId,
@@ -104,11 +105,15 @@ export async function PATCH(
     }
   }
 
+ // every surface that shows this row — other windows' tables, boards, peeks,
+ // the row's own full page — refetches on this. Our own window ignores its
+ // echo by client id.
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ row });
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ databaseId: string; rowId: string }> }
 ) {
   const auth = await requireAuth();
@@ -131,5 +136,6 @@ export async function DELETE(
   await db
     .delete(dbRows)
     .where(and(eq(dbRows.id, rowId), eq(dbRows.databaseId, databaseId)));
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ ok: true });
 }

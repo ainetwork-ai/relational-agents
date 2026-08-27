@@ -31,13 +31,18 @@ export function useDismiss(
       onDismiss();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onDismiss();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+ // one Escape closes ONE layer: this popover, not the peek or modal under it.
+ // Capture phase, so the surface's own document listener (registered earlier,
+ // and so ahead of us in the bubble order) sees defaultPrevented and stays.
+      e.preventDefault();
+      onDismiss();
     };
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
  // refs are stable; the rest-array identity changes every render and would
  // resubscribe endlessly

@@ -21,6 +21,7 @@ import { domToPlainText, plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
 import { Breadcrumbs } from "./breadcrumbs";
 import { RowPropertiesPanel } from "@/components/database/row-properties";
+import { useRowDetails, DETAILS_SIDEBAR_WIDTH } from "@/stores/row-details";
 import { DatabaseBlock } from "@/components/database/database-block";
 import { PresenceBar } from "@/components/presence/presence-bar";
 import { LiveCursors } from "@/components/presence/live-cursors";
@@ -62,6 +63,8 @@ export function PageView({
  // returns to where the reader left off. Restore retries briefly
  // because block content can grow the scroll height after mount.
   const isPeek = !!peek;
+ // a row page's 속성 sidebar takes its width off the page's box (row-details.ts)
+  const detailsOpen = useRowDetails((st) => st.open);
   useEffect(() => {
  // A peek scrolls inside its own panel — touching <main> here would move the
  // page UNDER the popup and store its offset against the peeked page's key.
@@ -368,6 +371,7 @@ export function PageView({
         />
       )}
 
+      <div style={detailsOpen && !isPeek ? { marginRight: DETAILS_SIDEBAR_WIDTH } : undefined}>
       <div
         data-testid="page-root"
         className={`group/pagehead mx-auto ${
@@ -492,7 +496,7 @@ export function PageView({
               editorRef.current?.focusFirst();
             }
           }}
-          className={`w-full resize-none overflow-hidden bg-transparent font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600 ${
+          className={`block w-full resize-none overflow-hidden bg-transparent font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600 ${
             wide ? "min-w-0 flex-1 pl-2 text-[32px] leading-[1.2]" : "mt-2 text-[40px] leading-[48px]"
           }`}
         />
@@ -580,6 +584,7 @@ export function PageView({
             />
           )}
         </RowPropertiesPanel>
+      </div>
       </div>
       <CommentThreadPanel pageId={initialPage.id} />
     </div>

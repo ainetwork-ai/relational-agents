@@ -71,14 +71,16 @@ const ICONS: Partial<Record<PropertyType, LucideIcon>> = {
 export function PropertyTypeIcon({
   type,
   className = "",
+  size = 16,
 }: {
   type: PropertyType;
   className?: string;
+  size?: number;
 }) {
   const Icon = ICONS[type] ?? AlignLeft;
   return (
     <Icon
-      size={16}
+      size={size}
       strokeWidth={1.75}
       aria-hidden="true"
       className={`shrink-0 text-[#8e8b86] dark:text-neutral-500 ${className}`}

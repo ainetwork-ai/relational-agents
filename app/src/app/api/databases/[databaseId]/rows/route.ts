@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { dbRows } from "@/lib/db/schema";
 import { eq, max } from "drizzle-orm";
+import { publish } from "@/lib/realtime";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import {
   isOkfId,
@@ -71,5 +72,6 @@ export async function POST(
     })
     .returning();
 
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ row }, { status: 201 });
 }

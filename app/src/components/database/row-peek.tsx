@@ -9,12 +9,11 @@ import {
   ChevronDown,
   Star,
   Plus,
-  MessageSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Block, DbProperty, Page, PropertyType } from "@/lib/db/schema";
 import { useDb } from "./database-block";
-import { PropertyCell } from "./property-cell";
+import { PINNED_COUNT, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
 import { BlockEditor } from "@/components/editor/block-editor";
 import { IconPicker } from "@/components/page/icon-picker";
 import { SharePopover } from "@/components/page/share-popover";
@@ -29,10 +28,6 @@ import { useT } from "@/i18n/provider";
 // 정확히 창의 50%, 바닥은 564px (창 1000에서 564가 나왔다).
 const MIN_WIDTH = 564;
 const DEFAULT_FRACTION = 0.5;
-
-/** How many properties sit above the body rather than in the 속성 panel. The
- *  original pins four (TL · Assignee · End date · Evaluation). */
-const PINNED_COUNT = 4;
 
 /** The 유형 list of the original's Add-a-property popover, in its order and
  *  wording (docs/database_row_addproperty_menu.html). `type: null` marks the
@@ -62,17 +57,6 @@ const TYPE_CHOICES: { type: PropertyType | null; label: string }[] = [
   { type: null, label: "장소" },
   { type: null, label: "ID" },
 ];
-
-/** Does this cell hold anything? Empty string, empty list and a date object
- *  with no start all count as blank — the same states the table draws as an
- *  empty cell. */
-function hasValue(v: unknown): boolean {
-  if (v === null || v === undefined || v === "") return false;
-  if (Array.isArray(v)) return v.length > 0;
-  if (typeof v === "object")
-    return Object.values(v as Record<string, unknown>).some((x) => x !== null && x !== undefined && x !== "");
-  return true;
-}
 
 /**
  * A database row opened as a page, in Notion's SIDE PEEK: a panel docked to the
@@ -130,15 +114,9 @@ export function RowPeek({
  // shows no properties at all" and hid the empty ones. That capture had been
  // saved before the properties rendered; the live original shows them.
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const nonTitle = db.properties.filter((p) => p.type !== "title");
- // Which properties are pinned is a choice (레이아웃 사용자 지정), kept on each
- // property. Until somebody makes it, the first few stand in — so a database
- // nobody has configured still opens onto something rather than a bare title.
-  const chosen = nonTitle.some((p) => p.config?.pinned !== undefined);
-  const isPinned = (p: DbProperty, i: number) =>
-    chosen ? !!p.config?.pinned : i < PINNED_COUNT;
-  const pinnedProps = nonTitle.filter(isPinned);
-  const restProps = nonTitle.filter((p, i) => !isPinned(p, i));
+ // the 세부 정보 보기 toggle is hover-only in a peek: it shows while the title
+ // (or the block's own head) is under the pointer
+  const [titleHovered, setTitleHovered] = useState(false);
  // the store carries live edits (favourite, icon, cover) for pages it knows
   const storePage = usePagesStore((s) => (bodyPageId ? s.pages[bodyPageId] : undefined));
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -219,6 +197,7 @@ export function RowPeek({
     <div className="fixed inset-0 z-50" onClick={onClose}>
       <div
         data-testid="db-row-peek"
+        data-page-id={bodyPageId ?? undefined}
         role="region"
         aria-label={t("사이드 보기")}
         onClick={(e) => e.stopPropagation()}
@@ -352,74 +331,30 @@ export function RowPeek({
             {/* The title is the row's title PROPERTY (the table shows the same
                 value), rendered as a page title rather than as a cell. */}
             {titleProp && (
-              <PeekTitle
-                value={String(row.values[titleProp.id] ?? "")}
-                autoFocus={autoFocusTitle}
+              <div
+                onMouseEnter={() => setTitleHovered(true)}
+                onMouseLeave={() => setTitleHovered(false)}
+              >
+                <PeekTitle
+                  value={String(row.values[titleProp.id] ?? "")}
+                  autoFocus={autoFocusTitle}
  // 신규 + what one row is called: the original's Projects reads 신규 프로젝트
-                placeholder={t("신규 {name}", { name: db.itemName.replace(/^새\s*/, "") })}
-                onCommit={(v) => db.updateRow(rowId, { [titleProp.id]: v })}
-              />
-            )}
-
-            {/* 세부 정보 보기 / 숨기기 — the original's toggle, directly under
-                the title (docs/database_tableview_newpage_details.html). */}
-            <button
-              data-testid="db-peek-details-toggle"
-              onClick={() => setDetailsOpen((v) => !v)}
-              className={`mt-1 rounded px-1.5 py-0.5 text-[13px] leading-[18px] transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                detailsOpen
-                  ? "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
-                  : "text-neutral-500 dark:text-neutral-400"
-              }`}
-            >
-              {detailsOpen ? t("세부 정보 숨기기") : t("세부 정보 보기")}
-            </button>
-
-            {/* The pinned band: a few properties laid out side by side, label
-                over value, scrolling sideways rather than wrapping
-                (`data-pinned-row` … `min-width: max-content` in the capture).
-                Everything else lives in the 속성 panel. */}
-            <div
-              data-pinned-row=""
-              data-testid="db-peek-props"
-              role="group"
-              aria-label={t("페이지 속성")}
-              className="no-native-scrollbar mt-2.5 overflow-x-auto"
-              style={{ scrollbarWidth: "none" }}
-            >
-              <div className="flex min-w-max flex-row items-stretch gap-2">
-                {pinnedProps.map((p) => (
-                  <div key={p.id} data-testid={`db-peek-pinned-${p.id}`} className="min-w-[120px] px-1.5">
-                    <div className="truncate text-sm text-neutral-400">{p.name}</div>
-                    <div className="mt-0.5 min-w-0">
-                      {hasValue(row.values[p.id]) ? (
-                        <PropertyCell prop={p} row={row} />
-                      ) : (
-                        <span className="text-sm text-neutral-300 dark:text-neutral-600">
-                          {t("비어 있음")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 댓글 — its own labelled section between the properties and the
-                body, where the capture has it. */}
-            {bodyPageId && (
-              <div className="mt-3 border-t border-neutral-100 pt-2 dark:border-neutral-800">
-                <button
-                  data-testid="db-peek-comments"
-                  onClick={() => openComments(PAGE_ANCHOR)}
-                  className="flex items-center gap-1.5 rounded px-1 py-0.5 text-[13px] font-medium leading-[18px] text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
-                >
-                  <MessageSquare size={14} /> {t("댓글")}
-                </button>
+                  placeholder={t("신규 {name}", { name: db.itemName.replace(/^새\s*/, "") })}
+                  onCommit={(v) => db.updateRow(rowId, { [titleProp.id]: v })}
+                />
               </div>
             )}
 
-            <div className="mt-2">
+            {/* toggle · pinned band · 댓글 · body — the same block a full page
+                draws (row-property-block.tsx), measured on the original */}
+            <RowPropertyBlock
+              row={row}
+              surface="peek"
+              detailsOpen={detailsOpen}
+              onToggleDetails={() => setDetailsOpen((v) => !v)}
+              onOpenComments={bodyPageId ? () => openComments(PAGE_ANCHOR) : undefined}
+              titleHovered={titleHovered}
+            >
               {bodyPageId && blocks ? (
                 // keyed: the editor seeds its state from initialBlocks once, so
                 // a new entry needs a new instance
@@ -432,46 +367,19 @@ export function RowPeek({
               ) : (
                 <div className="h-16 animate-pulse rounded bg-neutral-100 dark:bg-neutral-800" />
               )}
-            </div>
+            </RowPropertyBlock>
           </div>
         </div>
         {detailsOpen && (
-          <aside
-            data-testid="db-peek-details"
-            aria-label={t("속성")}
  // 380px, fixed, its own scroller, a hairline down its leading edge — the
  // capture's `width: 380px; flex-shrink: 0; border-inline-start: 1px`. The peek
  // itself keeps its width, so the page column narrows rather than the panel
  // hanging outside.
-            className="w-[380px] shrink-0 overflow-y-auto border-l border-neutral-200 pb-6 pl-5 pr-4 dark:border-neutral-700"
-          >
-            <div className="sticky top-0 bg-white py-2 text-[13px] font-medium leading-[18px] text-neutral-500 dark:bg-[#191919] dark:text-neutral-400">
-              {t("속성")}
-            </div>
-            <div className="space-y-0.5">
-              {restProps.map((p) => (
-                <div key={p.id} className="flex items-start gap-2">
-                  <span className="mt-1.5 w-32 shrink-0 truncate text-sm text-neutral-400">
-                    {p.name}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {hasValue(row.values[p.id]) ? (
-                      <PropertyCell prop={p} row={row} />
-                    ) : (
-                      <div className="px-1.5 py-1">
-                        <span className="text-sm text-neutral-300 dark:text-neutral-600">
-                          {t("비어 있음")}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <AddPropertyControl />
-              {/* 레이아웃 사용자 지정 chooses which properties are pinned; not
-                  built, so the row that would reach it is not drawn here. */}
-            </div>
-          </aside>
+          <RowDetailsPanel
+            row={row}
+            className="w-[380px] shrink-0 border-l border-neutral-200 pb-6 pl-5 pr-4 dark:border-neutral-700"
+            footer={<AddPropertyControl />}
+          />
         )}
         </div>
         {bodyPageId && <CommentThreadPanel pageId={bodyPageId} />}
