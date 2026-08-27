@@ -70,11 +70,20 @@
     "_whichPagesHaveIt": "댓글 섹션은 **데이터베이스 행의 페이지**에만 있다. 2026-08-27 원본에서 넷을 비교했다:",
     "surfaces": [
       { "page": "행 페이지 · 댓글 있음", "commentLabel": 1, "discussion": 1, "composer": 1 },
-      { "page": "행 페이지 · 댓글 없음", "commentLabel": 1, "discussion": 1, "composer": 0 },
+      { "page": "행 페이지 · 댓글 없음", "commentLabel": 1, "discussion": 1, "composer": 1 },
       { "page": "풀페이지 데이터베이스(Projects)", "commentLabel": 0, "discussion": 0, "composer": 0 },
       { "page": "일반 페이지(속성 없음)", "commentLabel": 0, "discussion": 0, "composer": 0 }
     ],
-    "_composerHidden": "댓글이 없으면 라벨만 있고 입력줄이 없다 — 라벨을 눌러야 나온다."
+    "_composerAlwaysThere": "댓글이 하나도 없어도 입력 UI 는 처음부터 있다 — 내 아바타 + `댓글 추가` + 버튼 3개. 2026-08-27 첫 측정에서 0 으로 잘못 읽었는데, `.notion-frame` 이 생기자마자 재는 바람에 discussion 이 붙기 전을 본 것이었다. 화면에 보이는 것이 기준이다.",
+    "emptyState": {
+      "discussionH": 47,
+      "innerPadding": "8px 4px 12px 0px",
+      "avatar": { "x": 0, "y": 8, "size": 24 },
+      "input": { "x": 29.5, "y": 7.5, "h": 27, "padding": "2.5px", "fs": "14px", "lh": "20px", "color": "rgb(44, 44, 43)", "placeholder": "댓글 추가" },
+      "buttonsY": 8,
+      "buttonsRightAligned": true,
+      "sendOpacityWhenEmpty": "0.4"
+    }
   },
 
   "mention": {

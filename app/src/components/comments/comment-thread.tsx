@@ -106,7 +106,9 @@ export function CommentComposer({
           }
         }}
         placeholder={t("댓글 추가")}
-        className="ml-2 min-w-0 flex-1 bg-transparent text-[14px] leading-5 text-[#2c2c2b] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
+       // 2.5px of its own padding, so the BOX starts at 29.5 and the text at
+       // 32 — level with a comment's text column
+        className="ml-[5.5px] min-w-0 flex-1 bg-transparent p-[2.5px] text-[14px] leading-5 text-[#2c2c2b] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
       />
       <div className="flex shrink-0 items-center gap-1.5">
         <ComposerButton label={t("파일 첨부")}>

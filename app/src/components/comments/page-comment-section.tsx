@@ -18,12 +18,12 @@ import { CommentRow, CommentComposer } from "./comment-thread";
  */
 export function PageCommentSection({
   pageId,
- // the original renders no composer on a row page that has no comments yet —
- // the 댓글 label is there, the input is not, until you press it
-  composerRequested = false,
+ // pressing the 댓글 label puts the caret in the composer; the composer itself
+ // is always there
+  autoFocus = false,
 }: {
   pageId: string;
-  composerRequested?: boolean;
+  autoFocus?: boolean;
 }) {
   const list = useCommentsStore((s) => s.byPage[pageId]);
   const load = useCommentsStore((s) => s.load);
@@ -37,16 +37,16 @@ export function PageCommentSection({
     .filter((c) => c.blockId === null)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
- // the container is there either way in the original (empty when the page has
- // no comments yet) — only the composer waits to be asked for
-  const showComposer = comments.length > 0 || composerRequested;
-
+ // The composer is there from the start, comments or none: a page with an
+ // empty thread still shows your avatar and 댓글 추가. Its box is the
+ // original's `8px 4px 12px 0` (e2e/fixtures/notion-row-comments.json —
+ // inline.emptyState).
   return (
-    <div data-testid="page-comment-section">
+    <div data-testid="page-comment-section" className="pb-3 pr-1 pt-2">
       {comments.map((c) => (
         <CommentRow key={c.id} comment={c} />
       ))}
-      {showComposer && <CommentComposer pageId={pageId} autoFocus={composerRequested} />}
+      <CommentComposer pageId={pageId} autoFocus={autoFocus} />
     </div>
   );
 }

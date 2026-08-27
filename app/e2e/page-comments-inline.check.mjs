@@ -146,11 +146,30 @@ const p2 = await ctx2.newPage();
 const surface = async (id) => {
   await p2.goto(`${BASE}/p/${id}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
   await p2.waitForTimeout(5000);
-  return p2.evaluate(() => ({
-    discussion: document.querySelectorAll("[data-testid='page-comment-section']").length,
-    composer: document.querySelectorAll("[data-testid='comment-composer-input']").length,
-    commentLabel: document.querySelectorAll("[data-testid='row-props-comments']").length,
-  }));
+  return p2.evaluate(() => {
+    const px = (v) => +Number(v).toFixed(2);
+    const sec = document.querySelector("[data-testid='page-comment-section']");
+    const input = document.querySelector("[data-testid='comment-composer-input']");
+    const av = sec?.querySelector("[data-testid='comment-composer-input']")
+      ?.parentElement?.firstElementChild;
+    const send = document.querySelector("[data-testid='comment-composer-submit']");
+    const sr = sec?.getBoundingClientRect();
+    const rel = (el) => {
+      if (!el || !sr) return null;
+      const q = el.getBoundingClientRect();
+      return { x: px(q.x - sr.x), y: px(q.y - sr.y), w: px(q.width), h: px(q.height) };
+    };
+    return {
+      discussion: document.querySelectorAll("[data-testid='page-comment-section']").length,
+      composer: document.querySelectorAll("[data-testid='comment-composer-input']").length,
+      commentLabel: document.querySelectorAll("[data-testid='row-props-comments']").length,
+      avatar: rel(av),
+      input: rel(input),
+      placeholder: input?.getAttribute("placeholder") ?? null,
+      inputPad: input ? getComputedStyle(input).padding : null,
+      sendOpacity: send ? getComputedStyle(send).opacity : null,
+    };
+  });
 };
 const dbPage = await surface(FULL_PAGE_DB);
 const emptyRow = EMPTY_ROW ? await surface(EMPTY_ROW) : null;
@@ -162,8 +181,26 @@ const want = (label, got, exp) => {
     if (got[k] !== exp[k]) s.push(`${label} ${k}: 우리 ${got[k]} / 노션 ${exp[k]}`);
 };
 want("풀페이지 DB", dbPage, F.inline.surfaces.find((x) => /풀페이지/.test(x.page)));
-if (emptyRow) want("댓글 없는 행 페이지", emptyRow, F.inline.surfaces.find((x) => /댓글 없음/.test(x.page)));
-else console.log("· EMPTY_ROW_PAGE_ID 를 안 줘서 '댓글 없는 행 페이지'는 못 쟀습니다");
+if (emptyRow) {
+  want("댓글 없는 행 페이지", emptyRow, F.inline.surfaces.find((x) => /댓글 없음/.test(x.page)));
+ // 댓글이 하나도 없어도 내 아바타 + `댓글 추가` + 버튼이 처음부터 있어야 한다.
+ // 한 번 "누르면 나온다"로 잘못 만든 적이 있다(2026-08-27).
+  const E = F.inline.emptyState;
+  const nearE = (what, a, b, tol = 0.5) => {
+    if (a === null || a === undefined || Math.abs(Number(a) - Number(b)) > tol)
+      s.push(`빈 상태 ${what}: 우리 ${a} / 노션 ${b}`);
+  };
+  nearE("아바타 왼쪽", emptyRow.avatar?.x, E.avatar.x);
+  nearE("아바타 위", emptyRow.avatar?.y, E.avatar.y);
+  nearE("아바타 크기", emptyRow.avatar?.w, E.avatar.size);
+  nearE("입력칸 왼쪽", emptyRow.input?.x, E.input.x);
+  if (emptyRow.placeholder !== E.input.placeholder)
+    s.push(`빈 상태 플레이스홀더: 우리 ${emptyRow.placeholder} / 노션 ${E.input.placeholder}`);
+  if (emptyRow.inputPad !== E.input.padding)
+    s.push(`빈 상태 입력칸 여백: 우리 ${emptyRow.inputPad} / 노션 ${E.input.padding}`);
+  if (emptyRow.sendOpacity !== E.sendOpacityWhenEmpty)
+    s.push(`빈 상태 보내기 버튼 투명도: 우리 ${emptyRow.sendOpacity} / 노션 ${E.sendOpacityWhenEmpty}`);
+} else console.log("· EMPTY_ROW_PAGE_ID 를 안 줘서 '댓글 없는 행 페이지'는 못 쟀습니다");
 
 if (s.length) {
   console.error("\n  ┌─ 댓글 섹션이 있으면 안 되는 페이지에 있습니다 ────────────");
@@ -176,5 +213,6 @@ if (s.length) {
 
 console.log(
   `페이지 안 댓글 ${got.count}개 — 안쪽 스크롤 없음, 아바타 ${got.avatar.w} @x${got.avatar.x}, 한 칸 ${got.pitch}, 도킹 패널 없음` +
-    `\n섹션이 붙는 곳도 원본과 같음 — 풀페이지 DB 0/0/0` + (emptyRow ? ", 댓글 없는 행 페이지 라벨만" : "")
+    `\n섹션이 붙는 곳도 원본과 같음 — 풀페이지 DB 0/0/0` +
+    (emptyRow ? `, 댓글 없는 행 페이지도 입력 UI 있음(아바타 @${emptyRow.avatar?.y})` : "")
 );
