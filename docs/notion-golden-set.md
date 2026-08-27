@@ -81,6 +81,8 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/db-page-header.check.mjs` | 풀페이지 DB 머리: 커버 높이(20vh)·컨트롤 줄·아이콘+제목 한 줄·설명 위치 |
 | `node e2e/rules-row.check.mjs` | 탭 아래 규칙 줄: 필터 버튼이 접고 펴는지(눌린 박스)·칩 24px·구분선·+ 필터 |
 | `node e2e/sidebar-width.check.mjs` | 저장된 폭이 없을 때의 사이드바 폭(270)과 본문 시작 x |
+| `node e2e/row-comment-badge.check.mjs` | 댓글 달린 행의 제목 셀 배지(20 높이·아이콘 16·제목 뒤 5·0이면 없음) |
+| `node e2e/row-comment-popover.check.mjs` | 그 배지가 여는 480px 팝오버 — 배지 가운데 정렬, 아바타 24/이름 15.5/본문 50 |
 | `node e2e/notion-paste.check.mjs` | 노션 전체 복사 → 붙여넣기 (콜아웃·토글·볼드 런·체크·중첩·저장까지) |
 | `node e2e/peek-inset.check.mjs` | 행 피크(사이드 페이지)의 폭 규칙과 콘텐츠 여백 76px |
 | `node e2e/block-spacing.check.mjs` | 기본 블록의 세로 여백(문단 6/6, H1·H2·H3 상단 30/26/22), 리스트 첫 항목 규칙, 거터(+ −52, 6점 −28, 첫 줄 중앙), 6점 클릭 하이라이트(2px inset·리스트 1px), 구분선·코드·콜아웃 구조 — 페이지를 스스로 만들어 551개 체크 |
