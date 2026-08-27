@@ -53,7 +53,9 @@ export default async function AppLayout({
         displayName={user.displayName}
       />
       <MobileNavToggle />
-      <main aria-label="Page content" className="flex-1 overflow-y-auto">
+      {/* overscroll-contain: reaching the top/bottom of the page must not hand the
+          scroll on to the root (see globals.css) */}
+      <main aria-label="Page content" className="flex-1 overflow-y-auto overscroll-contain">
         {children}
         <ToastHost />
       </main>

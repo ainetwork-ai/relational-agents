@@ -23,6 +23,16 @@
   --color-blue-600: #1d6fbf;
 }
 
+/* The document is never the thing that scrolls in the app — <main> is (the
+   original does the same and goes further: html/body are overflow:hidden).
+   Without this, the moment <main> hits its top the wheel chains to the root
+   and macOS Chrome rubber-bands the whole page down, cover and all. Share and
+   login screens do scroll the document; for them this only drops the bounce. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
