@@ -39,8 +39,10 @@ export interface FitOptions {
   gap?: number;
   /** keep this far from the window edges */
   margin?: number;
-  /** align the panel's left edge to the anchor's left (default) or right edge */
-  align?: "start" | "end";
+  /** align the panel's left edge to the anchor's left (default), its right
+   * edge to the anchor's right, or its centre to the anchor's centre — the
+   * row comment popover is centred on its badge in the original */
+  align?: "start" | "end" | "center";
   /** cover the anchor instead of sitting under it (pickers that replace a cell) */
   cover?: boolean;
 }
@@ -63,7 +65,11 @@ export function fitAnchored(
   const { gap = 4, margin = 8, align = "start", cover = false } = opts;
 
   const left = clamp(
-    align === "end" ? anchor.right - panel.width : anchor.left,
+    align === "end"
+      ? anchor.right - panel.width
+      : align === "center"
+        ? anchor.left + anchor.width / 2 - panel.width / 2
+        : anchor.left,
     margin,
     Math.max(margin, viewport.width - margin - panel.width)
   );

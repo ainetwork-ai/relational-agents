@@ -182,7 +182,15 @@ function cssAnchor(
  // anchor(bottom) put them 40px below the cell.
   panel.style.top = opts.cover ? "anchor(top)" : `calc(anchor(bottom) + ${gap}px)`;
   panel.style.bottom = "auto";
-  if (opts.align === "end") {
+  if (opts.align === "center") {
+ // centre the panel on the trigger: anchor(center) resolves the same way as
+ // the edge keywords, and justify-self:anchor-center is what actually pulls
+ // the box back by half its width. The row comment popover wants this — the
+ // original hangs it centred under the badge, not from its left edge.
+    panel.style.left = "auto";
+    panel.style.right = "auto";
+    panel.style.justifySelf = "anchor-center";
+  } else if (opts.align === "end") {
  // `right: anchor(right)` IS the alignment: in an inset property, anchor()
  // resolves to the distance from the containing block's matching edge to the
  // anchor's, so this puts our right edge on the trigger's right edge. The

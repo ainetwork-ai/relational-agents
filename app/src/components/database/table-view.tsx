@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { DbView, DbProperty, DbRow, PropertyType } from "@/lib/db/schema";
 import { CommentCountBadge } from "@/components/comments/comment-count-badge";
+import { RowCommentPopover } from "@/components/comments/row-comment-popover";
 import { useCommentsStore } from "@/stores/comments";
 import {
   applyView,
@@ -1080,6 +1081,8 @@ function RowLine({
  // the title cell's badge shows (0 = no badge at all, like the original)
   const rowPageId = typeof row.values["__page"] === "string" ? row.values["__page"] : null;
   const commentCount = useCommentsStore((s) => (rowPageId ? s.countByPage[rowPageId] ?? 0 : 0));
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const badgeRef = useRef<HTMLSpanElement>(null);
   return (
     <div
       data-testid={`db-row-${row.id}`}
@@ -1210,7 +1213,19 @@ function RowLine({
             <div className="min-w-0">
               <PropertyCell prop={p} row={row} shrinkToText />
             </div>
-            <CommentCountBadge n={commentCount} onOpen={() => db.openRow(row.id)} />
+            <CommentCountBadge
+              ref={badgeRef}
+              n={commentCount}
+              open={commentsOpen}
+              onOpen={() => setCommentsOpen((v) => !v)}
+            />
+            {commentsOpen && rowPageId && (
+              <RowCommentPopover
+                pageId={rowPageId}
+                anchorRef={badgeRef}
+                onClose={() => setCommentsOpen(false)}
+              />
+            )}
             <div
               aria-hidden="true"
               className="h-full min-w-0 flex-1 cursor-text"

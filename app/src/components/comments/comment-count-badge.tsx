@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef } from "react";
 import { useT } from "@/i18n/provider";
 
 /**
@@ -12,19 +13,15 @@ import { useT } from "@/i18n/provider";
  * from the icon set: at 16px the difference in the tail is visible, and this
  * badge sits right next to the title where it gets read closely.
  */
-export function CommentCountBadge({
-  n,
-  open,
-  onOpen,
-}: {
-  n: number;
-  open?: boolean;
-  onOpen: () => void;
-}) {
+export const CommentCountBadge = forwardRef<
+  HTMLSpanElement,
+  { n: number; open?: boolean; onOpen: () => void }
+>(function CommentCountBadge({ n, open, onOpen }, ref) {
   const t = useT();
   if (n <= 0) return null; // the original omits the badge entirely at zero
   return (
     <span
+      ref={ref}
       role="button"
       tabIndex={0}
       data-testid="comment-count-badge"
@@ -58,4 +55,4 @@ export function CommentCountBadge({
       {n}
     </span>
   );
-}
+});

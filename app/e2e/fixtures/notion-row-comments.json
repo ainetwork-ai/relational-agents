@@ -39,7 +39,14 @@
     "date": { "fs": "12px", "fw": "400", "color": "rgb(161, 158, 153)", "gapAfterAuthor": 6 },
     "body": { "fs": "14px", "fw": "400", "color": "rgb(44, 44, 43)", "lineHeight": "24px" },
     "mention": { "fs": "14px", "color": "rgb(125, 122, 117)" },
-    "authorTopToBodyTop": 34.5
+    "authorTopToBodyTop": 34.5,
+
+    "_derived": "카드 위에서 잰 절대값: 아바타 14 / 이름 15.5 / 본문 50. 이름 줄이 아바타와 같은 24 높이이고(이름 21 이 그 안에 가운데) 그 아래 12 를 띄우면 그대로 나온다.",
+    "avatarTop": 14,
+    "authorTop": 15.5,
+    "bodyTop": 50,
+    "headerRowH": 24,
+    "headerToBodyGap": 12
   },
 
   "composer": {
