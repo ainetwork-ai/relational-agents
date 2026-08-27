@@ -157,19 +157,21 @@ function ComposerButton({
 }
 
 /**
- * Put the caret in the page's 댓글 composer. The header's 댓글 buttons used to
- * open the docked panel; the section they belong to is now in the page, so
- * they take you there instead.
+ * Put the caret in the page's 댓글 composer, and say whether there was one.
+ * A database row's page has the section in the page, so its header button
+ * goes there; an ordinary page has no such section in the original, so its
+ * button falls back to the panel.
  *
  * `inline: "nearest"` on purpose — a plain scrollIntoView() also scrolls
  * sideways, which drags a wide table out from under the reader
  * (docs/notion-projects-spec.md, "재보다 틀렸던 것들").
  */
-export function focusPageComposer(): void {
+export function focusPageComposer(): boolean {
   const el = document.querySelector<HTMLInputElement>('[data-testid="comment-composer-input"]');
-  if (!el) return;
+  if (!el) return false;
   el.scrollIntoView({ block: "nearest", inline: "nearest" });
   el.focus();
+  return true;
 }
 
 /** The original prints a comment's date as 5월 14일 — month/day, no year. */

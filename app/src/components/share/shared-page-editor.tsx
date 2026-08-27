@@ -6,8 +6,8 @@ import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-e
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { MessageSquare } from "lucide-react";
-import { PageCommentSection } from "@/components/comments/page-comment-section";
 import { focusPageComposer } from "@/components/comments/comment-thread";
+import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { PageIcon } from "@/components/page-icon";
 import { useT } from "@/i18n/provider";
 
@@ -38,6 +38,7 @@ export function SharedPageEditor({
 }) {
   const canEdit = permission === "edit" || permission === "full";
   const canComment = permission === "comment" || canEdit;
+  const openComments = useCommentUi((s) => s.open);
   const editorRef = useRef<BlockEditorHandle>(null);
   const [title, setTitle] = useState(page.title);
   const t = useT();
@@ -77,7 +78,7 @@ export function SharedPageEditor({
           </span>
           <button
             
-            onClick={focusPageComposer}
+            onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
             aria-label={t("댓글")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
@@ -127,11 +128,6 @@ export function SharedPageEditor({
             initialBlocks={blocks}
             shareToken={shareToken}
           />
-          {/* in the page, above nothing — the original never docks a page's
-              comments to the window (page-comment-section.tsx) */}
-          <div className="mt-6">
-            <PageCommentSection pageId={page.id} />
-          </div>
         </div>
         <CommentThreadPanel pageId={page.id} />
       </div>
@@ -148,7 +144,7 @@ export function SharedPageEditor({
           </span>
           <button
             
-            onClick={focusPageComposer}
+            onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
             aria-label={t("댓글")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
@@ -172,9 +168,6 @@ export function SharedPageEditor({
           </h1>
           <div className="mt-4">
             <ReadOnlyBlocks blocks={blocks} />
-          </div>
-          <div className="mt-6">
-            <PageCommentSection pageId={page.id} />
           </div>
         </div>
         <CommentThreadPanel pageId={page.id} />

@@ -16,6 +16,7 @@ import { PageOptionsMenu } from "./page-options";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { focusPageComposer } from "@/components/comments/comment-thread";
+import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { copyText } from "@/lib/compat";
 import { domToPlainText, plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
@@ -100,6 +101,7 @@ export function PageView({
  // resets this state naturally.
   const [title, setTitle] = useState(initialPage.title);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const openComments = useCommentUi((s) => s.open);
   const editorRef = useRef<BlockEditorHandle>(null);
   // A page whose body IS a database: its title is the database's name, so the
   // placeholder says so and the save writes both. Notion has one object here;
@@ -338,7 +340,7 @@ export function PageView({
         </button>
         <button
           data-testid="page-comments-button"
-          onClick={focusPageComposer}
+          onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
           aria-label={t("댓글")}
           data-tip={t("댓글")}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
@@ -441,7 +443,7 @@ export function PageView({
           )}
           <button
             data-testid="page-head-comment"
-            onClick={focusPageComposer}
+            onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
             <CommentIcon /> {t("댓글 추가")}

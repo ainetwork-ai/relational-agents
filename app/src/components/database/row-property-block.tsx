@@ -135,6 +135,9 @@ export function RowPropertyBlock({
   const db = useDb();
   const t = useT();
   const { pinned } = splitPinned(db.properties);
+ // pressing 댓글 on a page with no comments is what reveals the input — the
+ // original shows the label but no composer until then
+  const [composerRequested, setComposerRequested] = useState(false);
   void surface;
 
   return (
@@ -169,14 +172,20 @@ export function RowPropertyBlock({
         <button
           type="button"
           data-testid="row-props-comments"
-          onClick={onOpenComments}
+          onClick={() => {
+            setComposerRequested(true);
+            onOpenComments?.();
+          }}
           className={`flex h-6 items-center gap-[2px] py-[3px] text-[13px] font-medium leading-[18px] ${LABEL_COLOR}`}
         >
           <span data-role="comments-label">{t("댓글")}</span>
         </button>
         {commentsPageId && (
-          <div className="pb-2 pt-1">
-            <PageCommentSection pageId={commentsPageId} />
+          <div className="pb-2 pt-1 empty:hidden">
+            <PageCommentSection
+              pageId={commentsPageId}
+              composerRequested={composerRequested}
+            />
           </div>
         )}
       </div>

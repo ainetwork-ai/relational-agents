@@ -65,7 +65,16 @@
       { "label": "멘션하려는 사용자, 페이지, 날짜를 입력하세요.", "w": 24, "h": 24, "radius": "6px" },
       { "label": "댓글 보내기", "w": 24, "h": 24, "radius": "6px" }
     ],
-    "composerButtonPitch": 30
+    "composerButtonPitch": 30,
+
+    "_whichPagesHaveIt": "댓글 섹션은 **데이터베이스 행의 페이지**에만 있다. 2026-08-27 원본에서 넷을 비교했다:",
+    "surfaces": [
+      { "page": "행 페이지 · 댓글 있음", "commentLabel": 1, "discussion": 1, "composer": 1 },
+      { "page": "행 페이지 · 댓글 없음", "commentLabel": 1, "discussion": 1, "composer": 0 },
+      { "page": "풀페이지 데이터베이스(Projects)", "commentLabel": 0, "discussion": 0, "composer": 0 },
+      { "page": "일반 페이지(속성 없음)", "commentLabel": 0, "discussion": 0, "composer": 0 }
+    ],
+    "_composerHidden": "댓글이 없으면 라벨만 있고 입력줄이 없다 — 라벨을 눌러야 나온다."
   },
 
   "mention": {

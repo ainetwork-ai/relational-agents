@@ -134,6 +134,47 @@ if (d.length) {
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
+// 이 섹션은 **데이터베이스 행의 페이지에만** 있다. 풀페이지 DB 와 일반 페이지에
+// 달아버린 적이 있어(2026-08-27) 여기서 같이 본다. F.inline.surfaces 가 기준.
+const FULL_PAGE_DB = process.env.FULLPAGE_DB_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf";
+const EMPTY_ROW = process.env.EMPTY_ROW_PAGE_ID ?? "";
+
+const browser2 = await chromium.launch();
+const ctx2 = await browser2.newContext({ viewport: { width: 1400, height: 900 } });
+await ctx2.addCookies([{ name: "rm-session", value: cookie, domain: new URL(BASE).hostname, path: "/" }]);
+const p2 = await ctx2.newPage();
+const surface = async (id) => {
+  await p2.goto(`${BASE}/p/${id}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+  await p2.waitForTimeout(5000);
+  return p2.evaluate(() => ({
+    discussion: document.querySelectorAll("[data-testid='page-comment-section']").length,
+    composer: document.querySelectorAll("[data-testid='comment-composer-input']").length,
+    commentLabel: document.querySelectorAll("[data-testid='row-props-comments']").length,
+  }));
+};
+const dbPage = await surface(FULL_PAGE_DB);
+const emptyRow = EMPTY_ROW ? await surface(EMPTY_ROW) : null;
+await browser2.close();
+
+const s = [];
+const want = (label, got, exp) => {
+  for (const k of ["commentLabel", "discussion", "composer"])
+    if (got[k] !== exp[k]) s.push(`${label} ${k}: 우리 ${got[k]} / 노션 ${exp[k]}`);
+};
+want("풀페이지 DB", dbPage, F.inline.surfaces.find((x) => /풀페이지/.test(x.page)));
+if (emptyRow) want("댓글 없는 행 페이지", emptyRow, F.inline.surfaces.find((x) => /댓글 없음/.test(x.page)));
+else console.log("· EMPTY_ROW_PAGE_ID 를 안 줘서 '댓글 없는 행 페이지'는 못 쟀습니다");
+
+if (s.length) {
+  console.error("\n  ┌─ 댓글 섹션이 있으면 안 되는 페이지에 있습니다 ────────────");
+  for (const l of s) console.error(`  │ ${l}`);
+  console.error("  │");
+  console.error("  │ 기준: e2e/fixtures/notion-row-comments.json (inline.surfaces)");
+  console.error("  └──────────────────────────────────────────────────────────\n");
+  process.exit(1);
+}
+
 console.log(
-  `페이지 안 댓글 ${got.count}개 — 안쪽 스크롤 없음, 아바타 ${got.avatar.w} @x${got.avatar.x}, 한 칸 ${got.pitch}, 도킹 패널 없음`
+  `페이지 안 댓글 ${got.count}개 — 안쪽 스크롤 없음, 아바타 ${got.avatar.w} @x${got.avatar.x}, 한 칸 ${got.pitch}, 도킹 패널 없음` +
+    `\n섹션이 붙는 곳도 원본과 같음 — 풀페이지 DB 0/0/0` + (emptyRow ? ", 댓글 없는 행 페이지 라벨만" : "")
 );

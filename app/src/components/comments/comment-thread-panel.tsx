@@ -21,15 +21,18 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
     void load(pageId);
   }, [pageId, load]);
 
- // Page-level comments are NOT a panel: the original keeps them inside the
- // page, between the property band and the body (page-comment-section.tsx).
- // This surface is now only for a comment anchored to one BLOCK, which does
- // open beside its block.
-  if (openAnchor === null || openAnchor === PAGE_ANCHOR) return null;
+ // A DATABASE ROW's page keeps its comments in the page (page-comment-section)
+ // and never opens this. An ordinary page has no such section in the original
+ // either — where its comments go is not measured — so the panel stays its
+ // surface, along with every block-anchored thread.
+  if (openAnchor === null) return null;
 
   const comments = list ?? [];
- // thread roots for the open BLOCK (page-level ones are drawn in the page)
-  const roots = comments.filter((c) => c.parentId === null && c.blockId === openAnchor);
+  const isPage = openAnchor === PAGE_ANCHOR;
+ // thread roots for the open anchor (page discussion vs a specific block)
+  const roots = comments.filter(
+    (c) => c.parentId === null && (isPage ? c.blockId === null : c.blockId === openAnchor)
+  );
   const repliesOf = (id: string) =>
     comments
       .filter((c) => c.parentId === id)
@@ -43,7 +46,7 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
     >
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-700 dark:border-neutral-800 dark:text-neutral-200">
         <MessageSquare size={16} />
-        {t("블록 댓글")}
+        {isPage ? t("댓글") : t("블록 댓글")}
         <button
           data-testid="comment-thread-close"
           onClick={close}
