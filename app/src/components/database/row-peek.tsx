@@ -28,6 +28,14 @@ import { useT } from "@/i18n/provider";
 // 정확히 창의 50%, 바닥은 564px (창 1000에서 564가 나왔다).
 const MIN_WIDTH = 564;
 const DEFAULT_FRACTION = 0.5;
+/** 세부 정보 보기 in a peek (measured 2026-08-27 at 1000–1800): the panel is 280px
+ *  (+1px divider) and the peek GROWS leftwards by that much, so the page column
+ *  keeps its width — except that a window of 1200 gave 800 both times (564 and
+ *  600 base): once `window - 400` is at least 800 the peek is capped there and
+ *  the column gives way instead. At 1100 it was 844, uncapped. */
+const DETAILS_WIDTH = 280;
+const DETAILS_CAP_MARGIN = 400;
+const DETAILS_CAP_MIN = 800;
 
 /** The 유형 list of the original's Add-a-property popover, in its order and
  *  wording (docs/database_row_addproperty_menu.html). `type: null` marks the
@@ -201,7 +209,17 @@ export function RowPeek({
         role="region"
         aria-label={t("사이드 보기")}
         onClick={(e) => e.stopPropagation()}
-        style={width ? { width } : { width: `${DEFAULT_FRACTION * 100}%` }}
+        style={
+          width
+            ? {
+                width: detailsOpen
+                  ? window.innerWidth - DETAILS_CAP_MARGIN >= DETAILS_CAP_MIN
+                    ? Math.min(width + DETAILS_WIDTH, window.innerWidth - DETAILS_CAP_MARGIN)
+                    : width + DETAILS_WIDTH
+                  : width,
+              }
+            : { width: `${DEFAULT_FRACTION * 100}%` }
+        }
         className="peek-anim-right absolute bottom-0 right-0 top-0 flex flex-col overflow-hidden rounded-tl-xl border-l border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-[#191919]"
       >
         <div
@@ -371,13 +389,12 @@ export function RowPeek({
           </div>
         </div>
         {detailsOpen && (
- // 380px, fixed, its own scroller, a hairline down its leading edge — the
- // capture's `width: 380px; flex-shrink: 0; border-inline-start: 1px`. The peek
- // itself keeps its width, so the page column narrows rather than the panel
- // hanging outside.
+ // 280px + a 1px divider, its own scroller (the 2026-08-06 capture's 380 is no
+ // longer what the original draws). The peek widened by the same amount above,
+ // so the page column keeps its width unless the window cap bit.
           <RowDetailsPanel
             row={row}
-            className="w-[380px] shrink-0 border-l border-neutral-200 pb-6 pl-5 pr-4 dark:border-neutral-700"
+            className="w-[281px] shrink-0 border-l border-[rgba(55,53,47,0.09)] pb-6 pl-5 pr-4 dark:border-neutral-700"
             footer={<AddPropertyControl />}
           />
         )}

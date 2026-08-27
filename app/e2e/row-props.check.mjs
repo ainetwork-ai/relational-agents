@@ -185,6 +185,35 @@ await page.mouse.move(1190, 890);
 await page.waitForTimeout(350);
 await checkMenu(page, "피크");
 
+console.log("\n— 사이드 피크: 세부 정보 보기 —");
+const peekW0 = pm.rootW, titleW0 = pm.title?.w;
+await page.locator("[data-testid='db-peek-title']").hover();
+await page.waitForTimeout(350);
+await page.locator("[data-testid='db-row-peek'] [data-testid='row-props-toggle']").click();
+await page.waitForSelector("[data-testid='db-row-peek'] [data-testid='db-peek-details']", { timeout: 5000 });
+await page.waitForTimeout(400);
+const pd = await page.evaluate(() => {
+  const peek = document.querySelector("[data-testid='db-row-peek']").getBoundingClientRect();
+  const a = document.querySelector("[data-testid='db-peek-details']"); const r = a.getBoundingClientRect(); const s = getComputedStyle(a);
+  const h = a.querySelector("[data-role='panel-title']").getBoundingClientRect();
+  const title = document.querySelector("[data-testid='db-peek-title']").getBoundingClientRect();
+  return { peekW: peek.width, peekRight: peek.right, panelW: r.width, panelRight: r.right, border: s.borderLeftWidth, hdrX: h.left - r.left, hdrY: h.top, titleW: title.width };
+});
+const D = G.peekDetails;
+const wantPeek = 1200 - D.capMargin >= D.capMin ? Math.min(peekW0 + D.panelWidth, 1200 - D.capMargin) : peekW0 + D.panelWidth;
+eq(pd.peekW, wantPeek, `피크가 왼쪽으로 넓어짐 (${peekW0} → ${wantPeek})`);
+eq(pd.peekRight, 1200, "피크는 오른쪽에 붙어 있음");
+eq(pd.panelW, D.panelWidth + D.divider, "패널 280 + 구분선 1");
+eq(pd.panelRight, 1200, "패널이 피크 안 오른쪽");
+same(pd.border, "1px", "패널 왼쪽 구분선");
+eq(pd.hdrX, D.headerInsetX, "헤더 인셋"); eq(pd.hdrY, D.headerTop, "헤더 y");
+eq(pd.titleW, wantPeek - D.panelWidth - D.divider - 2 * G.peek.insetL, `본문 칼럼 (${titleW0} → 원본 1200 에선 368)`);
+await page.locator("[data-testid='db-row-peek'] [data-testid='row-props-toggle']").click();
+await page.waitForTimeout(400);
+eq((await page.locator("[data-testid='db-row-peek']").boundingBox()).width, peekW0, "닫으면 원래 폭");
+await page.mouse.move(1190, 890);
+await page.waitForTimeout(350);
+
 console.log("\n— 전체 페이지 —");
 await page.locator("[data-testid='db-peek-open-full']").click();
 await page.waitForSelector("[data-testid='page-title']", { timeout: 30_000 });
