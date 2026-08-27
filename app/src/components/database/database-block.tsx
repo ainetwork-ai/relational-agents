@@ -365,6 +365,27 @@ export function DatabaseBlock({
   const [openedNewRow, setOpenedNewRow] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [filterUiOpen, setFilterUiOpen] = useState(false);
+ // The rule row under the tabs is folded until 필터/정렬 is pressed, and the
+ // choice sticks per view (the original keeps it across reloads; we keep it in
+ // localStorage). Read after mount so the server and first client render agree.
+  const [rulesRowOpenByView, setRulesRowOpenByView] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+ // deferred a tick (like the sidebar's saved width): reading storage inside
+ // the effect body would set state during the commit phase
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      try {
+        const raw = localStorage.getItem(`db-rules-row:${databaseId}`);
+        if (raw) setRulesRowOpenByView(JSON.parse(raw) as Record<string, boolean>);
+      } catch {
+        /* no storage — the row just starts folded */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [databaseId]);
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [viewNameDraft, setViewNameDraft] = useState("");
  // View-tab overflow: tabs that don't fit collapse behind an
@@ -1011,8 +1032,21 @@ export function DatabaseBlock({
       editingPropertyId,
       filterUiOpen,
       setFilterUiOpen,
+      rulesRowOpen: activeView ? !!rulesRowOpenByView[activeView.id] : false,
+      setRulesRowOpen: (open: boolean) => {
+        if (!activeView) return;
+        setRulesRowOpenByView((m) => {
+          const next = { ...m, [activeView.id]: open };
+          try {
+            localStorage.setItem(`db-rules-row:${databaseId}`, JSON.stringify(next));
+          } catch {
+            /* fine — it just won't be remembered */
+          }
+          return next;
+        });
+      },
     }),
-    [databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, editingPropertyId, filterUiOpen, database?.itemName, fullPage, hostPageIcon, t]
+    [rulesRowOpenByView, databaseId, properties, related, rows, members, me, allDatabases, activeView, updateRow, addRow, deleteRow, moveRow, addProperty, addSelectOption, toggleMulti, updateProperty, deleteProperty, patchViewConfig, openRow, editingPropertyId, filterUiOpen, database?.itemName, fullPage, hostPageIcon, t]
   );
 
   if (!database || !activeView) {

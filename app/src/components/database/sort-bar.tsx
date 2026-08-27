@@ -36,6 +36,7 @@ export function SortBar() {
     const prop = db.properties[0];
     if (!prop) return;
     commit([...sorts, { propertyId: prop.id, dir: "asc" }]);
+    db.setRulesRowOpen(true);
   }
 
  // portalled and placed — inside the page's scroller this popover was cut off
@@ -49,11 +50,16 @@ export function SortBar() {
         data-testid="db-sort"
         data-tip={t("정렬")}
         aria-label={t("정렬")}
-        onClick={() => setOpen((v) => !v)}
+        // with sorts in place the button folds/unfolds the rule row under the
+        // tabs (the original's behaviour); with none it opens the sort panel
+        onClick={() => (sorts.length ? db.setRulesRowOpen(!db.rulesRowOpen) : setOpen((v) => !v))}
                 // 28×28, radius 6, 16px icon — and ACTIVE means a blue icon, not a
         // blue chip: the original never fills these (measured toolbar, six of
-        // them at a 28px pitch)
+        // them at a 28px pitch). While the rule row is out the button keeps a
+        // pressed box: rgba(33,27,23,.05), measured.
         className={`flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors ${
+          sorts.length && db.rulesRowOpen ? "bg-[rgba(33,27,23,0.05)] dark:bg-neutral-800" : ""
+        } ${
           sorts.length
             ? "text-[rgb(39,131,222)] hover:bg-[rgba(33,27,23,0.05)]"
             : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"

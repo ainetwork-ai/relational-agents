@@ -57,6 +57,12 @@ interface DbApi {
  * the same filter editor at once */
   filterUiOpen: boolean;
   setFilterUiOpen: (open: boolean) => void;
+  /** the rule row (sort chips · filter chips · + 필터) under the view tabs.
+   *  The original shows it only after the toolbar's 필터/정렬 button is
+   *  pressed, and remembers that per view; the buttons take a pressed box
+   *  while it is out. */
+  rulesRowOpen: boolean;
+  setRulesRowOpen: (open: boolean) => void;
 }
 
 // Anchored on globalThis, not a bare module-level createContext: Turbopack's

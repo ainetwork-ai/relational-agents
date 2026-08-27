@@ -127,6 +127,8 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
       editingPropertyId: null,
       filterUiOpen: false,
       setFilterUiOpen: () => {},
+      rulesRowOpen: false,
+      setRulesRowOpen: () => {},
     };
   }, [ref, properties, rows, members, me, allDatabases]);
 

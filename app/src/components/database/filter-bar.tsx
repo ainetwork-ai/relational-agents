@@ -19,6 +19,7 @@ import {
 import { OptionChip } from "./option-chip";
 import { useDb } from "./database-block";
 import { MemorySelect, TYPE_ICON } from "./memory-select";
+import { PropertyTypeIcon } from "./property-type-icon";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 
@@ -311,8 +312,18 @@ export function FilterBar() {
     const p = prop ?? db.properties[0];
     if (!p) return;
     commit([...filters, { propertyId: p.id, op: opsForType(p.type)[0] }]);
+    db.setRulesRowOpen(true);
   }
+  const sortCount = db.activeView.config.sorts?.length ?? 0;
   function toggleOpen() {
+ // With rules in place the toolbar button folds/unfolds the rule row under
+ // the tabs — the original's behaviour (the row is what shows the chips).
+ // With nothing to show it opens the property picker instead.
+    if (totalRules || sortCount) {
+      db.setRulesRowOpen(!db.rulesRowOpen);
+      setOpen(false);
+      return;
+    }
     setOpen((v) => !v);
     setMode("picker");
     setQ("");
@@ -337,6 +348,8 @@ export function FilterBar() {
         // blue chip: the original never fills these (measured toolbar, six of
         // them at a 28px pitch)
         className={`flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors ${
+          (totalRules || sortCount) && db.rulesRowOpen ? "bg-[rgba(33,27,23,0.05)] dark:bg-neutral-800" : ""
+        } ${
           totalRules
             ? "text-[rgb(39,131,222)] hover:bg-[rgba(33,27,23,0.05)]"
             : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"
@@ -664,7 +677,7 @@ export function FilterChips() {
     };
   }, [openIdx]);
 
-  if (!filters.length && !sorts.length) return null;
+  if ((!filters.length && !sorts.length) || !db.rulesRowOpen) return null;
 
   function commit(next: ViewFilter[]) {
     db.patchView({ ...config, filters: next }, { draft: true });
@@ -674,12 +687,57 @@ export function FilterChips() {
   }
   const propById = (id: string) => db.properties.find((p) => p.id === id);
 
+ // Measured off the original's rule row (Projects › on-going projects,
+ // 2026-08-27): 4px above, 4px more inside, then a 40px strip that scrolls
+ // sideways (no wrapping) with 8px padding and 6px gaps. Every chip is 24
+ // tall: 14px/24px text, 8px side padding, 32px radius, blue on
+ // rgba(0,124,215,.094). Sorts come first, a 1px rule (mx 6) parts them from
+ // the filters, and `+ 필터` closes the row in grey with a 12px right margin.
+  const chipCls =
+    "flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[32px] bg-[rgba(0,124,215,0.094)] px-2 text-[14px] leading-6 text-[rgb(39,131,222)] transition-colors hover:bg-[rgba(0,124,215,0.16)] dark:bg-blue-900/30 dark:text-blue-300";
+
   return (
     <div
       ref={ref}
       data-testid="db-filter-chips"
-      className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-neutral-100 pb-1.5 text-xs dark:border-neutral-800"
+ // 4px under the tab row (the view bar's own 6px bottom margin collapses
+ // with this -2 to 4), then the original's 1px transparent top border and
+ // 4px padding — 45 tall over the 40px strip
+      className="-mt-0.5 border-t border-transparent pt-1"
     >
+      <div className="h-10 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-10 items-center gap-1.5 p-2 text-[14px]">
+      {/* active sorts lead the row */}
+      {sorts.map((s, i) => {
+        const prop = propById(s.propertyId);
+        if (!prop) return null;
+        return (
+          <button
+            key={`s${i}`}
+            data-testid={`db-sort-chip-${i}`}
+            onClick={() =>
+              db.patchView(
+                {
+                  ...config,
+                  sorts: sorts.map((x, idx) =>
+                    idx === i ? { ...x, dir: x.dir === "asc" ? "desc" : "asc" } : x
+                  ),
+                },
+                { draft: true }
+              )
+            }
+            aria-label={t("정렬 방향 전환")}
+            className={chipCls}
+          >
+            {s.dir === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+            <span className="max-w-[180px] truncate">{prop.name}</span>
+            <ChevronDown size={14} />
+          </button>
+        );
+      })}
+      {sorts.length > 0 && filters.length > 0 && (
+        <div aria-hidden data-testid="db-rules-separator" className="mx-1.5 h-6 w-px shrink-0 bg-[rgba(42,28,0,0.07)] dark:bg-neutral-700" />
+      )}
       {filters.length >= 2 && (
         <select
           data-testid="db-fchip-conjunction"
@@ -687,7 +745,7 @@ export function FilterChips() {
           onChange={(e) =>
             db.patchView({ ...config, filterConjunction: e.target.value as "and" | "or" }, { draft: true })
           }
-          className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] text-neutral-500 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+          className="h-6 shrink-0 rounded-[32px] bg-transparent px-2 text-[14px] leading-6 text-[rgb(125,122,117)] outline-none dark:text-neutral-400"
           aria-label={t("필터 일치 방식")}
         >
           <option value="and">{t("모두 일치")}</option>
@@ -703,7 +761,7 @@ export function FilterChips() {
             <span
               key={i}
               data-testid={`db-filter-chip-${i}`}
-              className="flex items-center gap-1 rounded-full border border-dashed border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-400 dark:border-neutral-600"
+              className="flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[32px] border border-dashed border-neutral-300 px-2 text-[14px] leading-6 text-neutral-400 dark:border-neutral-600"
             >
               {t("삭제된 속성")}
               <button
@@ -712,30 +770,39 @@ export function FilterChips() {
                 aria-label={t("필터 제거")}
                 className="hover:text-red-500"
               >
-                <X size={11} />
+                <X size={14} />
               </button>
             </span>
           );
         const incomplete = !filterIsActive(f);
+ // the original's chip reads `Status: In progress,Needs review` — the
+ // operator is spelt out only when it is not the type's default one
+        const defaultOp = opsForType(prop.type)[0];
         return (
-          <div key={i} className="relative">
+          <div key={i} className="relative shrink-0">
             <button
               data-testid={`db-filter-chip-${i}`}
               onClick={() => setOpenIdx((v) => (v === i ? null : i))}
-              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+              className={
                 incomplete
-                  ? "border-dashed border-neutral-300 text-neutral-400 hover:bg-neutral-50 dark:border-neutral-600 dark:hover:bg-neutral-800"
-                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/60"
-              }`}
+                  ? "flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[32px] border border-dashed border-neutral-300 px-2 text-[14px] leading-6 text-neutral-400 hover:bg-neutral-50 dark:border-neutral-600 dark:hover:bg-neutral-800"
+                  : chipCls
+              }
             >
-              <span className="font-medium">{prop.name}</span>
-              <span className="opacity-80">{t(opLabel(f.op))}</span>
-              {opNeedsValue(f.op) && (
-                <span className="max-w-[12rem] truncate font-medium">
-                  {valueSummary(t, prop, f, db.members)}
-                </span>
-              )}
-              <ChevronDown size={11} className="opacity-60" />
+              <PropertyTypeIcon type={prop.type} size={19} />
+              <span className="max-w-[180px] truncate">
+                <span className="font-medium">{prop.name}</span>
+                {incomplete ? (
+                  ""
+                ) : (
+                  <>
+                    {": "}
+                    {f.op !== defaultOp && `${t(opLabel(f.op))} `}
+                    {opNeedsValue(f.op) && valueSummary(t, prop, f, db.members)}
+                  </>
+                )}
+              </span>
+              <ChevronDown size={14} />
             </button>
             {openIdx === i && (
               <ChipEditor
@@ -758,53 +825,12 @@ export function FilterChips() {
           commit([...filters, { propertyId: prop.id, op: opsForType(prop.type)[0] }]);
           setOpenIdx(filters.length);
         }}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+        className="mr-3 flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl pl-[5px] pr-[9px] text-[14px] leading-6 text-[rgb(161,158,153)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-neutral-800"
       >
-        <Plus size={11} /> {t("필터")}
+        <Plus size={14} /> {t("필터")}
       </button>
-
-      {/* active sorts share the rule bar */}
-      {sorts.map((s, i) => {
-        const prop = propById(s.propertyId);
-        if (!prop) return null;
-        return (
-          <span
-            key={`s${i}`}
-            data-testid={`db-sort-chip-${i}`}
-            className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-200"
-          >
-            <button
-              data-testid={`db-sort-chip-dir-${i}`}
-              onClick={() =>
-                db.patchView(
-                  {
-                    ...config,
-                    sorts: sorts.map((x, idx) =>
-                      idx === i ? { ...x, dir: x.dir === "asc" ? "desc" : "asc" } : x
-                    ),
-                  },
-                  { draft: true }
-                )
-              }
-              aria-label={t("정렬 방향 전환")}
-              className="flex items-center gap-1 font-medium hover:opacity-70"
-            >
-              {s.dir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
-              {prop.name}
-            </button>
-            <button
-              data-testid={`db-sort-chip-remove-${i}`}
-              onClick={() =>
-                db.patchView({ ...config, sorts: sorts.filter((_, idx) => idx !== i) }, { draft: true })
-              }
-              aria-label={t("정렬 제거")}
-              className="hover:text-red-500"
-            >
-              <X size={11} />
-            </button>
-          </span>
-        );
-      })}
+        </div>
+      </div>
     </div>
   );
 }
