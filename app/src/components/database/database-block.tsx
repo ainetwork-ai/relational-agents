@@ -1079,7 +1079,11 @@ export function DatabaseBlock({
             print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
             that reached users and that Notion has no equivalent of. */}
         {wrapperTestId && <div data-testid={wrapperTestId} hidden />}
-        <div ref={viewBarRef} data-testid="db-view-bar" className="mb-1.5 flex items-center gap-1 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
+        {/* 40 tall, nothing under it (measured 2026-08-27): the 32px tabs sit at +4
+            and the 28px toolbar buttons at +6, both centred; the rule row or the
+            table follows with no gap, and there is no rule line here — the line
+            the original draws is the column header's own inset shadow. */}
+        <div ref={viewBarRef} data-testid="db-view-bar" className="flex h-10 items-center gap-1">
           {/* Inline databases carry their name here, as Notion's do. A full-page
               one must not: the page title above IS the database name, and
               printing it twice reads as a bug. */}

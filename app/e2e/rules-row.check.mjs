@@ -42,6 +42,16 @@ const rowState = () =>
 
 const s0 = await rowState();
 cmp("처음(누르기 전) 줄 높이", s0.rowH, G.toggle.closedRowHeight);
+const folded = await page.evaluate(() => {
+  const vb = document.querySelector("[data-testid='db-view-bar']");
+  const R = (el) => el.getBoundingClientRect();
+  const tab = vb.querySelector("[data-testid^='db-view-tab-']");
+  const btn = document.querySelector("[data-testid='db-filter']");
+  let next = vb.nextElementSibling;
+  while (next && R(next).height === 0) next = next.nextElementSibling;
+  return { h: +R(vb).height.toFixed(2), activeTabOffset: +(R(tab).y - R(vb).y).toFixed(2), toolbarButtonOffset: +(R(btn).y - R(vb).y).toFixed(2), borderBottom: getComputedStyle(vb).borderBottomWidth === "0px" ? "none" : getComputedStyle(vb).borderBottom, gapToTableWhenFolded: +(R(next).y - R(vb).bottom).toFixed(2) };
+});
+for (const k of Object.keys(G.tabsRow)) cmp(`탭 줄 ${k}`, folded[k], G.tabsRow[k]);
 await page.click("[data-testid='db-filter']");
 await page.waitForTimeout(300);
 const s1 = await rowState();
@@ -63,6 +73,8 @@ const got = await page.evaluate(() => {
   const chip = (el) => ({ h: +R(el).height.toFixed(2), px: px(cs(el).paddingLeft), gap: px(cs(el).gap), radius: px(cs(el).borderRadius), fontSize: px(cs(el).fontSize), lineHeight: px(cs(el).lineHeight), color: cs(el).color, bg: cs(el).backgroundColor, iconH: el.querySelector("svg") ? +R(el.querySelector("svg")).height.toFixed(2) : 0, labelMaxW: px(cs(el.querySelector("span")).maxWidth) });
   return {
     gapAboveFromTabs: +(R(row).y - R(tabs.closest("[data-testid='db-view-bar']")).bottom).toFixed(2),
+    gapBelowToTable: +(R(row.nextElementSibling).y - R(row).bottom).toFixed(2),
+    conjunctionControl: !!q("[data-testid='db-fchip-conjunction']"),
     strip: { h: +R(strip).height.toFixed(2), p: px(cs(strip).paddingLeft), gap: px(cs(strip).gap) },
     wraps: cs(strip).flexWrap === "wrap",
     sort: sort && chip(sort),
@@ -73,6 +85,8 @@ const got = await page.evaluate(() => {
   };
 });
 cmp("탭 줄→규칙 줄 간격", got.gapAboveFromTabs, G.row.gapAboveFromTabs);
+cmp("규칙 줄→표 간격", got.gapBelowToTable, G.row.gapBelowToTable);
+if (got.conjunctionControl !== G.row.conjunctionControl) d.push("줄 안에 모두 일치/하나라도 일치 선택이 있습니다 — 원본 줄에는 없습니다");
 for (const k of Object.keys(G.row.strip)) cmp(`스트립 ${k}`, got.strip[k], G.row.strip[k]);
 if (got.wraps !== G.row.wraps) d.push(`줄바꿈: 우리 ${got.wraps} / 노션 ${G.row.wraps}`);
 if (!got.sort) d.push("정렬 칩이 없습니다 (이 뷰에 정렬이 있어야 잽니다)");

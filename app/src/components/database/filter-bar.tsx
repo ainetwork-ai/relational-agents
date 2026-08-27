@@ -700,10 +700,9 @@ export function FilterChips() {
     <div
       ref={ref}
       data-testid="db-filter-chips"
- // 4px under the tab row (the view bar's own 6px bottom margin collapses
- // with this -2 to 4), then the original's 1px transparent top border and
- // 4px padding — 45 tall over the 40px strip
-      className="-mt-0.5 border-t border-transparent pt-1"
+ // 4px under the tab row, then the original's 1px transparent top border and
+ // 4px padding — 45 tall over the 40px strip, and the table follows directly
+      className="mt-1 border-t border-transparent pt-1"
     >
       <div className="h-10 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex h-10 items-center gap-1.5 p-2 text-[14px]">
@@ -738,20 +737,8 @@ export function FilterChips() {
       {sorts.length > 0 && filters.length > 0 && (
         <div aria-hidden data-testid="db-rules-separator" className="mx-1.5 h-6 w-px shrink-0 bg-[rgba(42,28,0,0.07)] dark:bg-neutral-700" />
       )}
-      {filters.length >= 2 && (
-        <select
-          data-testid="db-fchip-conjunction"
-          value={config.filterConjunction ?? "and"}
-          onChange={(e) =>
-            db.patchView({ ...config, filterConjunction: e.target.value as "and" | "or" }, { draft: true })
-          }
-          className="h-6 shrink-0 rounded-[32px] bg-transparent px-2 text-[14px] leading-6 text-[rgb(125,122,117)] outline-none dark:text-neutral-400"
-          aria-label={t("필터 일치 방식")}
-        >
-          <option value="and">{t("모두 일치")}</option>
-          <option value="or">{t("하나라도 일치")}</option>
-        </select>
-      )}
+ {/* no and/or control in the row — the original keeps the conjunction
+          inside the filter menu (our advanced panel has it) */}
       {filters.map((f, i) => {
         const prop = propById(f.propertyId);
         if (!prop)
