@@ -8,6 +8,7 @@ import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-type-icon";
 import { useT } from "@/i18n/provider";
+import { PageCommentSection } from "@/components/comments/page-comment-section";
 
 /**
  * The property block of a database row's page — the SAME block whether the
@@ -16,9 +17,8 @@ import { useT } from "@/i18n/provider";
  *
  *   제목
  *   세부 정보 보기            ← 28px toggle, 4 below the title, 12 + 10 above the band.
- *                             Always there, on a peek as on a full page (an
- *                             early snapshot of a peek still rendering had it
- *                             missing and was read as hover-only — it is not).
+ *                             Always drawn on a full page; on a peek it is
+ *                             hover-only and pushes the band down when it appears.
  *   TL   Assignee  End date  Evaluation   ← pinned band: label (24px, 13px/500 grey,
  *   ⋯    비어 있음  ⋯         비어 있음         14px type icon) over value (30px, padding
  *                                           5/6, radius 4); items min 80 / max 200,

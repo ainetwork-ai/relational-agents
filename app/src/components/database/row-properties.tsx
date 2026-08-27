@@ -6,7 +6,7 @@ import type { PublicUser } from "@/lib/auth/public-user";
 import { newId } from "@/lib/compat";
 import { COLOR_CYCLE } from "@/lib/db-values";
 import { usePageSync } from "@/hooks/use-page-sync";
-import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
+import { PageCommentSection } from "@/components/comments/page-comment-section";
 import { useRowDetails } from "@/stores/row-details";
 import { DbCtx, type DbApi } from "./database-block";
 import { PanelCloseButton, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
@@ -43,7 +43,6 @@ export function RowPropertiesPanel({
  // leaving the page closes the sidebar — the next page must not open narrowed
   useEffect(() => () => setDetailsOpen(false), [setDetailsOpen]);
   const [clientId] = useState(() => newId());
-  const openComments = useCommentUi((s) => s.open);
 
   const refresh = useCallback(async (databaseId: string) => {
     const snap = await fetch(`/api/databases/${databaseId}`).then((x) => (x.ok ? x.json() : null));
@@ -185,7 +184,22 @@ export function RowPropertiesPanel({
  // not a row's page — or not known yet: the body renders plain at once (it
  // is server-rendered; holding it for the lookup would blank every page's
  // first paint) and a row page grows its block above it when the answer lands
-  if (!api || !row) return <>{children}</>;
+  if (!api || !row)
+    return (
+      <>
+        {/* An ordinary page still keeps its comments in the page, above the
+            body — the original never docks them to the window. `ref === null`
+            means the lookup came back and this is NOT a row page; while it is
+            still undefined we draw nothing rather than flash a section that a
+            row page will redraw one line lower. */}
+        {ref === null && (
+          <div data-testid="page-comments-inline" className="mb-4">
+            <PageCommentSection pageId={pageId} />
+          </div>
+        )}
+        {children}
+      </>
+    );
 
   return (
     <DbCtx.Provider value={api}>
@@ -195,7 +209,7 @@ export function RowPropertiesPanel({
           surface="full"
           detailsOpen={detailsOpen}
           onToggleDetails={() => setDetailsOpen(!detailsOpen)}
-          onOpenComments={() => openComments(PAGE_ANCHOR)}
+          commentsPageId={pageId}
         >
           <div className={locked ? "pointer-events-auto opacity-100" : undefined}>{children}</div>
         </RowPropertyBlock>

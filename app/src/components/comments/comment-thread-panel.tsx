@@ -21,16 +21,15 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
     void load(pageId);
   }, [pageId, load]);
 
-  if (openAnchor === null) return null;
+ // Page-level comments are NOT a panel: the original keeps them inside the
+ // page, between the property band and the body (page-comment-section.tsx).
+ // This surface is now only for a comment anchored to one BLOCK, which does
+ // open beside its block.
+  if (openAnchor === null || openAnchor === PAGE_ANCHOR) return null;
 
   const comments = list ?? [];
-  const isPage = openAnchor === PAGE_ANCHOR;
- // thread roots for the open anchor (page discussion vs a specific block)
-  const roots = comments.filter(
-    (c) =>
-      c.parentId === null &&
-      (isPage ? c.blockId === null : c.blockId === openAnchor)
-  );
+ // thread roots for the open BLOCK (page-level ones are drawn in the page)
+  const roots = comments.filter((c) => c.parentId === null && c.blockId === openAnchor);
   const repliesOf = (id: string) =>
     comments
       .filter((c) => c.parentId === id)
@@ -44,7 +43,7 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
     >
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-700 dark:border-neutral-800 dark:text-neutral-200">
         <MessageSquare size={16} />
-        {isPage ? t("댓글") : t("블록 댓글")}
+        {t("블록 댓글")}
         <button
           data-testid="comment-thread-close"
           onClick={close}

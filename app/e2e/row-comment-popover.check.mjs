@@ -49,7 +49,7 @@ const got = await page.evaluate(() => {
     return { x: px(q.x - r.x), y: px(q.y - r.y), w: px(q.width), h: px(q.height),
              fs: s.fontSize, fw: s.fontWeight, lh: s.lineHeight, color: s.color };
   };
-  const first = e.querySelector("div[data-testid^='row-comment-']");
+  const first = e.querySelector("div[data-testid^='comment-row-']");
   const spans = first ? first.querySelectorAll("span") : [];
   return {
     w: px(r.width),
@@ -62,8 +62,8 @@ const got = await page.evaluate(() => {
     author: at(spans[0]),
     date: at(spans[1]),
     body: at(first && first.querySelector("p")),
-    composer: !!e.querySelector("[data-testid='row-comment-input']"),
-    placeholder: e.querySelector("[data-testid='row-comment-input']")?.getAttribute("placeholder"),
+    composer: !!e.querySelector("[data-testid='comment-composer-input']"),
+    placeholder: e.querySelector("[data-testid='comment-composer-input']")?.getAttribute("placeholder"),
  // 원본이 이 자리에서 안 보여주는 것들
     hasResolve: /해결|Resolve/.test(e.innerText),
     hasHeader: !!e.querySelector("header"),
@@ -88,11 +88,11 @@ near("배지와의 가운데 정렬", got.centerDelta, 0);
 near("배지 아래 간격", got.gapBelowBadge, 4);
 
 near("아바타 왼쪽", got.avatar?.x, G.insetLeft);
-near("아바타 위", got.avatar?.y, C.avatarTop);
+near("아바타 위", got.avatar?.y, G.insetTop);
 near("아바타 크기", got.avatar?.w, C.avatar.size);
 
 near("이름 왼쪽", got.author?.x, C.textColumnLeftInset);
-near("이름 위", got.author?.y, C.authorTop);
+near("이름 위", got.author?.y, G.insetTop + C.authorTopFromAvatarTop);
 eq("이름 크기", got.author?.fs, C.author.fs);
 eq("이름 굵기", got.author?.fw, C.author.fw);
 eq("이름 색", got.author?.color, C.author.color);
@@ -102,7 +102,7 @@ eq("날짜 색", got.date?.color, C.date.color);
 near("이름과 날짜 간격", got.date && got.author ? got.date.x - (got.author.x + got.author.w) : null, C.date.gapAfterAuthor);
 
 near("본문 왼쪽", got.body?.x, C.textColumnLeftInset);
-near("본문 위", got.body?.y, C.bodyTop);
+near("본문 위", got.body?.y, G.insetTop + C.bodyTopFromAvatarTop);
 eq("본문 크기", got.body?.fs, C.body.fs);
 eq("본문 줄높이", got.body?.lh, C.body.lineHeight);
 eq("본문 색", got.body?.color, C.body.color);

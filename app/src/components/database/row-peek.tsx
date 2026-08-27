@@ -379,7 +379,7 @@ export function RowPeek({
               surface="peek"
               detailsOpen={detailsOpen}
               onToggleDetails={() => setDetailsOpen((v) => !v)}
-              onOpenComments={bodyPageId ? () => openComments(PAGE_ANCHOR) : undefined}
+              commentsPageId={bodyPageId}
             >
               {bodyPageId && blocks ? (
                 // keyed: the editor seeds its state from initialBlocks once, so

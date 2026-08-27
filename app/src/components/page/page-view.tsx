@@ -15,7 +15,7 @@ import { PageIcon } from "@/components/page-icon";
 import { PageOptionsMenu } from "./page-options";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
-import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
+import { focusPageComposer } from "@/components/comments/comment-thread";
 import { copyText } from "@/lib/compat";
 import { domToPlainText, plainTextToLinkedHtml } from "@/lib/rich-text";
 import { uploadBlob } from "@/lib/upload";
@@ -49,7 +49,6 @@ export function PageView({
   const router = useRouter();
   const storePage = usePagesStore((s) => s.pages[initialPage.id]);
   const updatePage = usePagesStore((s) => s.updatePage);
-  const openComments = useCommentUi((s) => s.open);
   const page = storePage ?? initialPage;
   const { self, others } = usePresence(initialPage.id);
 
@@ -339,7 +338,7 @@ export function PageView({
         </button>
         <button
           data-testid="page-comments-button"
-          onClick={() => openComments(PAGE_ANCHOR)}
+          onClick={focusPageComposer}
           aria-label={t("댓글")}
           data-tip={t("댓글")}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
@@ -442,7 +441,7 @@ export function PageView({
           )}
           <button
             data-testid="page-head-comment"
-            onClick={() => openComments(PAGE_ANCHOR)}
+            onClick={focusPageComposer}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
             <CommentIcon /> {t("댓글 추가")}
@@ -586,6 +585,7 @@ export function PageView({
         </RowPropertiesPanel>
       </div>
       </div>
+      {/* block comments only — a page's own comments live in the page */}
       <CommentThreadPanel pageId={initialPage.id} />
     </div>
   );
