@@ -1,0 +1,71 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects', 2026-08-27. 읽기 전용: 스크롤 · 댓글 배지 1회 클릭 · Escape.",
+  "_note": "표에서 댓글이 달린 행은 제목 셀 안, 제목 바로 뒤에 아이콘+숫자 배지를 단다. 그 배지를 누르면 제목 셀 아래에 앵커된 팝오버로 그 행 페이지의 댓글이 열린다. 사이드 패널이 아니다.",
+
+  "badge": {
+    "role": "button",
+    "ariaLabel": "Open comments",
+    "w": 33.56,
+    "h": 20,
+    "radius": "4px",
+    "padding": "0px 5px 0px 2px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "bgOpen": "rgba(33, 27, 23, 0.051)",
+    "fs": "12px",
+    "fw": "400",
+    "lineHeight": "14.4px",
+    "color": "rgb(44, 44, 43)",
+    "cursor": "pointer",
+    "gapAfterTitle": 5,
+    "icon": { "size": 16, "fill": "rgb(142, 139, 134)", "marginInlineEnd": 3, "viewBox": "0 0 16 16", "name": "commentFilledSmall" },
+    "hiddenWhenZero": true,
+    "rowH": 37
+  },
+
+  "popover": {
+    "w": 480,
+    "radius": "10px",
+    "bg": "rgb(255, 255, 255)",
+    "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+    "padding": "0px",
+    "insetTop": 14,
+    "insetLeft": 14
+  },
+
+  "comment": {
+    "avatar": { "size": 24, "radius": "100%" },
+    "textColumnLeftInset": 46,
+    "author": { "fs": "14px", "fw": "500", "color": "rgb(44, 44, 43)" },
+    "date": { "fs": "12px", "fw": "400", "color": "rgb(161, 158, 153)", "gapAfterAuthor": 6 },
+    "body": { "fs": "14px", "fw": "400", "color": "rgb(44, 44, 43)", "lineHeight": "24px" },
+    "mention": { "fs": "14px", "color": "rgb(125, 122, 117)" },
+    "authorTopToBodyTop": 34.5
+  },
+
+  "composer": {
+    "cls": "notion-discussion-input",
+    "h": 35,
+    "padding": "8px 16px 0px 16px",
+    "avatar": 24,
+    "placeholder": "댓글 추가",
+    "trailingButtons": ["첨부", "@", "보내기"]
+  },
+
+  "rowsWithComments": [
+    { "title": "조달청 나라장터 과제 탐색", "n": 3 },
+    { "title": "카카오페이 증권챗봇 디자인 맞추기", "n": 1 },
+    { "title": "객실예약 기획 및 UX", "n": 1 },
+    { "title": "소버린 AI 관련 아티클 시리즈 기획 및 홈페이지 게재", "n": 4 },
+    { "title": "AIN Telegram / Twitter 관리 7월", "n": 2 },
+    { "title": "S Pin 파트너쉽 PoC 비용 확보", "n": 2 },
+    { "title": "슬랙노션 Issue 관리 체계 도입 (Multica)", "n": 3 },
+    { "title": "[8월] 동아사이언스 UCP AP2 미국출장", "n": 1 }
+  ],
+
+  "unmeasured": [
+    "팝오버가 셀 아래로 어떻게 배치되는지(뒤집힘·화면 끝 처리)",
+    "댓글 사이 세로 간격의 규칙 (첫 블록 76 / 다음 64 로 달랐다 — 본문 줄수에 따라 달라지는지 확인 필요)",
+    "해결(resolve)·답글 UI — 이 팝오버에서는 보이지 않았다",
+    "페이지를 직접 열었을 때의 댓글 영역(팝오버가 아닌 본문/사이드) 은 아직 안 쟀다"
+  ]
+}
