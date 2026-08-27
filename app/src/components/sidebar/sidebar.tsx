@@ -102,8 +102,8 @@ export function Sidebar({
   const sidebarSort = useUiStore((s) => s.sidebarSort);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
- // draggable width, remembered
-  const [sbWidth, setSbWidth] = useState(240);
+ // draggable width, remembered — 270 is the original's (e2e/sidebar-width.check.mjs)
+  const [sbWidth, setSbWidth] = useState(270);
   useEffect(() => {
  // deferred so no setState runs synchronously in the effect body
     void Promise.resolve().then(() => {
