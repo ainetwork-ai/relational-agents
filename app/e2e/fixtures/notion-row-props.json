@@ -1,12 +1,12 @@
 {
-  "note": "2026-08-27 원본(Projects 행 '조달청 나라장터 과제 탐색') 실측, 창 1200x900. 사이드 피크와 전체 페이지 둘 다 같은 속성 블록: 제목 → 세부 정보 보기 토글 → 고정 속성 밴드(TL·Assignee·End date·Evaluation) → 댓글 → 본문. 잰 스크립트: scratchpad/m-rowprops-{1,2,3,4}.mjs, 결과 scratchpad/rowprops-*.json. 토글은 풀페이지에선 항상 보이고 피크에선 호버 때만 나타나며(나타나면 28px 만큼 아래가 밀린다) 안 보일 때 밴드는 제목 아래 26px(4 margin + 12 padding + 10 margin), 보일 때 54px. 값 셀 높이 30(사람 31), 라벨 24, 항목 min 80/max 200, gap 8. Evaluation 값을 누르면 값 셀 좌상단 -1/-1 에 300px 메뉴, 항목 28px(292 폭).",
+  "note": "2026-08-27 원본(Projects 행 '조달청 나라장터 과제 탐색') 실측, 창 1200x900. 사이드 피크와 전체 페이지 둘 다 같은 속성 블록: 제목 → 세부 정보 보기 토글 → 고정 속성 밴드(TL·Assignee·End date·Evaluation) → 댓글 → 본문. 잰 스크립트: scratchpad/m-rowprops-{1,2,3,4}.mjs, 결과 scratchpad/rowprops-*.json. 토글은 피크·풀페이지 모두 항상 보인다(2026-08-27 재측정: 열자마자·호버 전·마우스를 치운 뒤 전부 y158.4, 28px; 밴드는 제목 아래 54 = 4+28+12+10). 처음에 '피크는 호버 때만'으로 읽은 것은 피크가 채 그려지기 전의 스냅샷이었다. 값 셀 높이 30(사람 31), 라벨 24, 항목 min 80/max 200, gap 8. Evaluation 값을 누르면 값 셀 좌상단 -1/-1 에 300px 메뉴, 항목 28px(292 폭).",
   "tolerance": 2,
   "peek": {
     "width": 600,
     "titleFontSize": 32,
     "titleLineHeight": 38.4,
     "insetL": 76,
-    "toggleHoverOnly": true
+    "toggleHoverOnly": false
   },
   "full": {
     "titleFontSize": 40,
@@ -23,7 +23,6 @@
     "gapBelowTitle": 4,
     "gapToBand": 22
   },
-  "bandTopHidden": 26,
   "band": {
     "height": 55,
     "gap": 8,

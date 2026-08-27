@@ -66,14 +66,10 @@ const MEASURE = `(rootSel, titleSel) => {
 }`;
 
 function checkBlock(m, surface, spec) {
-  const hidden = spec.toggleHoverOnly;
   eq(m.title?.fs, spec.titleFontSize, `${surface}: 제목 font-size`);
   eq(m.title?.lh, spec.titleLineHeight, `${surface}: 제목 line-height`);
-  if (hidden) {
-    ok(m.toggle && (m.toggle.op === "0" || m.toggle.h === 0), `${surface}: 토글은 호버 전엔 안 보임 (opacity ${m.toggle?.op}, h ${m.toggle?.h})`);
-    eq(m.band?.top - m.title?.bottom, G.bandTopHidden, `${surface}: 제목 아래 → 밴드 (토글 숨김)`);
-  } else {
-    ok(m.toggle && m.toggle.op === "1", `${surface}: 토글 항상 보임`);
+  {
+    ok(m.toggle && m.toggle.op === "1", `${surface}: 토글 항상 보임 (호버 없이)`);
     eq(m.toggle?.top - m.title?.bottom, G.toggle.gapBelowTitle, `${surface}: 제목 → 토글`);
     eq(m.toggle?.h, G.toggle.height, `${surface}: 토글 높이`);
     eq(m.toggle?.fs, G.toggle.fontSize, `${surface}: 토글 글자`);
@@ -174,13 +170,11 @@ const pm = await page.evaluate(`(${MEASURE})("[data-testid='db-row-peek']", "[da
 eq(pm.rootW, G.peek.width, "피크: 폭");
 eq(pm.title?.left - (1200 - G.peek.width), G.peek.insetL, "피크: 제목 인셋");
 checkBlock(pm, "피크", G.peek);
-// 호버하면 토글이 나타나고 아래가 28px 밀린다
+// 호버해도 아무것도 움직이지 않는다 (원본: 토글은 늘 박혀 있다)
 await page.locator("[data-testid='db-peek-title']").hover();
 await page.waitForTimeout(350);
 const pm2 = await page.evaluate(`(${MEASURE})("[data-testid='db-row-peek']", "[data-testid='db-peek-title']")`);
-same(pm2.toggle?.op, "1", "피크: 호버하면 토글 보임");
-eq(pm2.toggle?.h, G.toggle.height, "피크: 호버한 토글 높이");
-eq(pm2.band?.top - pm.band?.top, G.toggle.height, "피크: 토글이 나타나면 밴드가 28px 내려감");
+eq(pm2.band?.top - pm.band?.top, 0, "피크: 호버해도 밴드가 안 움직임");
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(350);
 await checkMenu(page, "피크");

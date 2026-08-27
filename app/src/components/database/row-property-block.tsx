@@ -16,8 +16,9 @@ import { useT } from "@/i18n/provider";
  *
  *   제목
  *   세부 정보 보기            ← 28px toggle, 4 below the title, 12 + 10 above the band.
- *                             Always drawn on a full page; on a peek it is
- *                             hover-only and pushes the band down when it appears.
+ *                             Always there, on a peek as on a full page (an
+ *                             early snapshot of a peek still rendering had it
+ *                             missing and was read as hover-only — it is not).
  *   TL   Assignee  End date  Evaluation   ← pinned band: label (24px, 13px/500 grey,
  *   ⋯    비어 있음  ⋯         비어 있음         14px type icon) over value (30px, padding
  *                                           5/6, radius 4); items min 80 / max 200,
@@ -118,7 +119,6 @@ export function RowPropertyBlock({
   onToggleDetails,
   onOpenComments,
   commentsPageId,
-  titleHovered = false,
   children,
 }: {
   row: DbRow;
@@ -129,35 +129,26 @@ export function RowPropertyBlock({
   /** the page this row opens into — its comments are drawn in the 댓글 section
    *  itself, the way the original does it (not in a docked panel) */
   commentsPageId?: string | null;
-  /** peek only: the toggle is revealed while the title above is hovered too */
-  titleHovered?: boolean;
   /** the page body — wrapped so it starts where the original's does */
   children?: ReactNode;
 }) {
   const db = useDb();
   const t = useT();
   const { pinned } = splitPinned(db.properties);
-  const [headHovered, setHeadHovered] = useState(false);
-  const revealed = surface === "full" || titleHovered || headHovered;
+  void surface;
 
   return (
     <>
-      <div
-        onMouseEnter={() => setHeadHovered(true)}
-        onMouseLeave={() => setHeadHovered(false)}
-      >
-        {/* 세부 정보 보기 / 숨기기 — 4 under the title, 12 of padding below.
-            The peek collapses it to nothing until hovered, which is why the
-            band sits 26px under the title there and 54 once it shows. */}
+      <div>
+        {/* 세부 정보 보기 / 숨기기 — 4 under the title, 12 of padding below, 28
+            tall, always there (the original never hides it, peek or page) */}
         <div className="mt-1 flex gap-1 pb-3">
           <button
             type="button"
             data-testid="row-props-toggle"
             aria-label={t("세부 정보 보기/숨기기")}
             onClick={onToggleDetails}
-            className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-[6px] px-2 text-[14px] leading-[16.8px] text-[rgb(142,139,134)] transition-[height,opacity] duration-150 ${HOVER_BG} ${
-              revealed ? "h-7 opacity-100" : "h-0 opacity-0"
-            }`}
+            className={`inline-flex h-7 items-center whitespace-nowrap rounded-[6px] px-2 text-[14px] leading-[16.8px] text-[rgb(142,139,134)] ${HOVER_BG}`}
           >
             {detailsOpen ? t("세부 정보 숨기기") : t("세부 정보 보기")}
           </button>

@@ -122,9 +122,6 @@ export function RowPeek({
  // shows no properties at all" and hid the empty ones. That capture had been
  // saved before the properties rendered; the live original shows them.
   const [detailsOpen, setDetailsOpen] = useState(false);
- // the 세부 정보 보기 toggle is hover-only in a peek: it shows while the title
- // (or the block's own head) is under the pointer
-  const [titleHovered, setTitleHovered] = useState(false);
  // 패널 닫기 lives in the header but belongs to the 속성 panel: the original shows
  // it while the panel is hovered (and while the header itself is, so the
  // pointer can travel from one to the other without it vanishing underfoot)
@@ -364,10 +361,7 @@ export function RowPeek({
             {/* The title is the row's title PROPERTY (the table shows the same
                 value), rendered as a page title rather than as a cell. */}
             {titleProp && (
-              <div
-                onMouseEnter={() => setTitleHovered(true)}
-                onMouseLeave={() => setTitleHovered(false)}
-              >
+              <div>
                 <PeekTitle
                   value={String(row.values[titleProp.id] ?? "")}
                   autoFocus={autoFocusTitle}
@@ -386,7 +380,6 @@ export function RowPeek({
               detailsOpen={detailsOpen}
               onToggleDetails={() => setDetailsOpen((v) => !v)}
               onOpenComments={bodyPageId ? () => openComments(PAGE_ANCHOR) : undefined}
-              titleHovered={titleHovered}
             >
               {bodyPageId && blocks ? (
                 // keyed: the editor seeds its state from initialBlocks once, so
