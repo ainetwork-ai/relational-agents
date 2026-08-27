@@ -41,9 +41,8 @@ export function PlusSmallIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** arrowStraightUp/Down on a sort chip (7.95×14, cropped). The original's chip
- *  uses the `FillSmall` variant, whose path the captures do not hold; this is
- *  the outline arrow from the same set, flipped for up. */
+/** arrowStraightUpFillSmall — the ↑ on a sort chip (7.95×14, cropped), read
+ *  off the Projects page over CDP; flipped for a descending sort. */
 export function SortArrowIcon({ dir, ...props }: { dir: "asc" | "desc" } & SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -52,10 +51,10 @@ export function SortArrowIcon({ dir, ...props }: { dir: "asc" | "desc" } & SVGPr
       width={7.95}
       height={14}
       fill="currentColor"
-      style={dir === "asc" ? { transform: "scaleY(-1)" } : undefined}
+      style={dir === "desc" ? { transform: "scaleY(-1)" } : undefined}
       {...props}
     >
-      <path d="M3.757 8.758a.626.626 0 0 0 0 .885l3.801 3.8c.244.243.64.243.884 0l3.8-3.8a.626.626 0 0 0-.884-.885L8.625 11.49V3a.625.625 0 0 0-1.25 0v8.491L4.642 8.758a.626.626 0 0 0-.885 0" />
+      <path d="M12.33 7.33a.75.75 0 0 0 0-1.06l-3.8-3.8a.75.75 0 0 0-1.06 0l-3.8 3.8a.75.75 0 0 0 1.06 1.06l2.52-2.52V13a.75.75 0 0 0 1.5 0V4.81l2.52 2.52a.75.75 0 0 0 1.06 0" />
     </svg>
   );
 }
