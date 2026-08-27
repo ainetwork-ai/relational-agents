@@ -224,7 +224,12 @@ export function PageView({
     const el = titleRef.current;
     if (el) {
       el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
+ // scrollHeight is an integer: a 38.4px line (a database page's 32px/1.2 title)
+ // came back as 39 and pushed everything under it 0.6px off the original.
+ // Snap to whole lines of the computed line-height instead.
+      const lh = parseFloat(getComputedStyle(el).lineHeight);
+      const lines = lh > 0 ? Math.max(1, Math.round(el.scrollHeight / lh)) : 0;
+      el.style.height = lines ? `${lines * lh}px` : `${el.scrollHeight}px`;
     }
   }, [title]);
 
@@ -234,7 +239,9 @@ export function PageView({
           writes get reverted to the layout metadata on re-commits. A peek is
           a popup over another page: it must not take the tab's title. */}
       {!peek && <title>{title.trim() ? title : t("제목 없음")}</title>}
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-1 bg-white px-3 py-1.5 dark:bg-[#191919]">
+      {/* 44px tall like Notion's .notion-topbar (measured 2026-08-27: the frame
+          starts at y=44). It was py-1.5 around 28px buttons = 40. */}
+      <div className="sticky top-0 z-30 flex h-11 items-center justify-between gap-1 bg-white px-3 dark:bg-[#191919]">
         {peek ? (
           /* Notion's peek header: open-as-full-page, a divider, then where the
              page went. A page with no parent went to Private, which Notion
@@ -356,22 +363,26 @@ export function PageView({
       {page.coverUrl && (
         <CoverControls
           coverUrl={page.coverUrl}
+          short={wide}
           onSet={(url) => updatePage(initialPage.id, { coverUrl: url })}
         />
       )}
 
       <div
+        data-testid="page-root"
         className={`group/pagehead mx-auto ${
  // A database page: no width cap and a fixed 96px inset, which is what the
  // original measures — its content div carries `padding-left: 96px` with no
  // max-width, so the column grows with the window while the margin stays put.
  // (A cap centred the column, and then the table's resting position — and
  // where its horizontal scroll began — moved with the window.)
+ //
+ // Nothing more than the 96 (2026-08-27, measured off the original's padding
+ // edge 366): the icon sits at +8 IN the title row, the h1 box at +44 with its
+ // own 8px padding, the description box at +0 with 12px padding, the tabs at
+ // +0. Each child carries its own offset below; the container adds none.
           wide
- // 96px margin, then the text starts 44px further in and the database 8px in —
- // the original's offsets from its own padding edge (title 410, table 374,
- // padding edge 366). The 44 is applied here and the editor takes 36 back.
-            ? "max-w-none px-24 pl-[calc(6rem+44px)]"
+            ? "max-w-none px-24"
             : isPeek
  // the center peek uses the original's own peek layout: margins FIXED at
  // 126px and the content takes the rest, uncapped (`.layout-center-peek
@@ -391,7 +402,7 @@ export function PageView({
       >
         {/* icon first so its -mt-9 really overlaps the cover,
             then the hover action row between icon and title (#2/#95) */}
-        {page.icon && (
+        {page.icon && !wide && (
           <div className={page.coverUrl ? "-mt-9" : "pt-12"}>
             <IconPicker
               icon={page.icon}
@@ -404,7 +415,10 @@ export function PageView({
             revealed on header hover, never pinned to the viewport */}
         <div
           className={`flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/pagehead:opacity-100 ${
-            page.icon ? "pt-1" : page.coverUrl ? "pt-2" : "pt-14"
+ // a database page: the original's .notion-page-controls row is 48 tall right
+ // under the cover — 16 above, 28px buttons, 4 below — and the title row
+ // follows with no gap
+            wide && page.coverUrl ? "pt-4 pb-1 [&>button]:h-7" : page.icon ? "pt-1" : page.coverUrl ? "pt-2" : "pt-14"
           }`}
         >
           {!page.icon && (
@@ -444,6 +458,22 @@ export function PageView({
           )}
         </div>
 
+        {/* A database page's title row (original, from the padding edge): a 36×36
+            icon at +8 (4px radius, vertically centred on the 38.4px line), then
+            the h1 at +44 with 8px of its own padding — 32px/1.2 bold, not the
+            36px of an ordinary page. Both on ONE line; the icon is not stacked
+            above like a page's 78px one. */}
+        <div className={wide ? "flex items-center" : "contents"}>
+        {wide && page.icon && (
+          <div className="ml-2 shrink-0">
+            <IconPicker
+              icon={page.icon}
+              allowImage
+              triggerClassName="flex h-9 w-9 items-center justify-center rounded text-[30px] leading-none transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 [&>*]:h-9 [&>*]:w-9"
+              onChange={(icon) => updatePage(initialPage.id, { icon })}
+            />
+          </div>
+        )}
         <textarea
           ref={titleRef}
           data-testid="page-title"
@@ -462,8 +492,11 @@ export function PageView({
               editorRef.current?.focusFirst();
             }
           }}
-          className="mt-2 w-full resize-none overflow-hidden bg-transparent text-4xl font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600"
+          className={`w-full resize-none overflow-hidden bg-transparent font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600 ${
+            wide ? "min-w-0 flex-1 pl-2 text-[32px] leading-[1.2]" : "mt-2 text-[40px] leading-[48px]"
+          }`}
         />
+        </div>
 
         {/* The description sits between the title and the database's view tabs,
             where Notion puts it, with the capture's own metrics: 14px/1.5, a
@@ -519,35 +552,34 @@ export function PageView({
               e.preventDefault();
               window.open(href, "_blank", "noopener,noreferrer");
             }}
- // -ml-9 + pl-2, not pl-3: the description's text starts where the table's
- // first-column CONTENT starts (the original keeps these two flush). The
- // database block below takes the same -ml-9 back to the table edge, and a
- // cell insets its content 8px — so the description does exactly that too.
- // pl-3 measured it from the TEXT column instead, which put it 40px adrift.
-            className="-ml-9 mb-3 mt-1.5 max-w-[780px] whitespace-pre-wrap break-words pb-1 pl-2 pt-[3px] text-sm leading-[1.5] text-neutral-800 outline-none dark:text-neutral-200"
+ // Measured off the original (2026-08-27): the description box starts AT the
+ // padding edge (+0) with 12px of its own padding, directly under the title
+ // row (no margin; the 3px top padding is the only gap). An earlier version
+ // aligned its text with the table's first cell instead — that was 4px off.
+            className="mb-3 max-w-[780px] whitespace-pre-wrap break-words pb-1 pl-3 pt-[3px] text-sm leading-[1.5] text-neutral-800 outline-none dark:text-neutral-200"
           />
         )}
 
-        {/* database-row pages show their EDITABLE properties above the body
-            self-hides on ordinary pages. Locked page → read-only. */}
-        <div className={page.isLocked ? "pointer-events-none opacity-90" : undefined}>
-          <RowPropertiesPanel pageId={initialPage.id} />
-        </div>
-
-        {page.isLocked ? (
-          <ReadOnlyBlocks blocks={initialBlocks} />
-        ) : fullPageDb && databaseId ? (
+        {/* database-row pages show their EDITABLE properties above the body —
+            the same block the side peek draws — and the body sits inside it,
+            where the original's does. Self-hides on ordinary pages (the body
+            renders plain). Locked page → read-only. */}
+        <RowPropertiesPanel pageId={initialPage.id} locked={!!page.isLocked}>
+          {page.isLocked ? (
+            <ReadOnlyBlocks blocks={initialBlocks} />
+          ) : fullPageDb && databaseId ? (
  // 원본(2026-08-20 실측): full-page 데이터베이스 페이지에는 블록 캔버스가
  // 없다 — 편집 가능한 곳은 제목과 설명뿐. 에디터를 안 그리므로 드롭도 블록
  // 추가도 여기서는 불가능하고, 과거에 잘못 붙은 블록이 있어도 렌더되지 않는다.
-          <DatabaseBlock databaseId={databaseId} fullPage />
-        ) : (
-          <BlockEditor
-            ref={editorRef}
-            pageId={initialPage.id}
-            initialBlocks={initialBlocks}
-          />
-        )}
+            <DatabaseBlock databaseId={databaseId} fullPage />
+          ) : (
+            <BlockEditor
+              ref={editorRef}
+              pageId={initialPage.id}
+              initialBlocks={initialBlocks}
+            />
+          )}
+        </RowPropertiesPanel>
       </div>
       <CommentThreadPanel pageId={initialPage.id} />
     </div>
@@ -574,9 +606,13 @@ function InfoCircleIcon() {
 export function CoverControls({
   coverUrl,
   onSet,
+  short = false,
 }: {
   coverUrl: string | null;
   onSet: (url: string | null) => void;
+  /** a database page's cover is 20vh in the original (measured 198.4px in a
+   *  992px-tall window), against the 30vh of an ordinary page */
+  short?: boolean;
 }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -666,7 +702,7 @@ export function CoverControls({
 
   if (coverUrl) {
     return (
-      <div className="group/cover relative h-[30vh] overflow-hidden">
+      <div className={`group/cover relative overflow-hidden ${short ? "h-[20vh]" : "h-[30vh]"}`}>
         {gradient ? (
           <div data-testid="page-cover-image" style={{ background: gradient }} className="h-full w-full" />
         ) : (

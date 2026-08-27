@@ -466,11 +466,11 @@ export function DatabaseBlock({
       );
       void fetch(`/api/databases/${databaseId}/rows/${rowId}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-client-id": clientId },
         body: JSON.stringify({ values }),
       });
     },
-    [databaseId]
+    [databaseId, clientId]
   );
 
  // a row created inside a filtered view pre-fills the filters' values
@@ -1025,8 +1025,9 @@ export function DatabaseBlock({
  // content area, and a cap centred the block, so where the table rested — and
  // where its horizontal scroll began — moved with the window.
  //
- // -ml-9 takes back the 44px the page adds for text: measured from the
- // original's padding edge, its title sits at +44 and its collection at +8.
+ // ml-2: the collection sits 8px in from the page's padding edge (original:
+ // padding edge 366, table 374). The page's container adds nothing itself —
+ // its title row and description carry their own offsets (page-view.tsx).
   const wrapperTestId = fullPage
     ? "db-fullpage"
     : linkedViewId
@@ -1038,7 +1039,7 @@ export function DatabaseBlock({
       <div
         data-testid={`database-${databaseId}`}
         {...(wrapperTestId ? { "data-variant": fullPage ? "fullpage" : "linked" } : {})}
-        className={`my-2 w-full ${fullPage ? "-ml-9" : ""}`}
+        className={`my-2 ${fullPage ? "ml-2 w-[calc(100%-8px)]" : "w-full"}`}
       >
         {/* A marker for tests to tell the two embeddings apart. It used to also
             print "FULL-PAGE DATABASE" / "LINKED VIEW" on screen — scaffolding
