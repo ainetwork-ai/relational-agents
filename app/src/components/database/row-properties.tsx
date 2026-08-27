@@ -9,7 +9,7 @@ import { usePageSync } from "@/hooks/use-page-sync";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { useRowDetails } from "@/stores/row-details";
 import { DbCtx, type DbApi } from "./database-block";
-import { RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
+import { PanelCloseButton, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
 
 /** A database row opened as a FULL page: the same property block the side
  * peek draws (toggle · pinned band · 댓글) above the body, and 세부 정보 보기
@@ -206,7 +206,11 @@ export function RowPropertiesPanel({
         <RowDetailsPanel
           row={row}
           className="fixed right-0 top-0 z-40 h-full w-[385px] border-l border-[rgba(55,53,47,0.09)] pb-4 pl-5 pr-4 pt-11 dark:border-neutral-800"
-        />
+        >
+          {/* 패널 닫기 — always shown on a full page, round, in the top bar 9px
+              in from the panel's edge (measured 2026-08-27) */}
+          <PanelCloseButton round onClick={() => setDetailsOpen(false)} className="absolute" style={{ left: 9, top: 10 }} />
+        </RowDetailsPanel>
       )}
     </DbCtx.Provider>
   );

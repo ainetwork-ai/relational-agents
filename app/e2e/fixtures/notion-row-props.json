@@ -84,5 +84,15 @@
     "capMin": 800,
     "headerInsetX": 28,
     "headerTop": 47
+  },
+  "panelClose": {
+    "note": "2026-08-27 패널 닫기: 24×24 버튼, 20px 이중 셰브론(arrowChevronDoubleForward) rgb(142,139,134), y=10(탑바 안). 피크: 패널(또는 상단바)을 호버할 때만 나타나며 상단바 오른쪽 그룹의 맨 앞, radius 6. 풀페이지: 항상 보임, 패널 왼쪽 +9, radius 9999. 클릭하면 패널이 닫히고 토글이 '세부 정보 보기'로 돌아온다.",
+    "size": 24,
+    "iconSize": 20,
+    "color": "rgb(142, 139, 134)",
+    "top": 10,
+    "peekRadius": 6,
+    "fullRadius": 9999,
+    "fullInsetX": 9
   }
 }

@@ -361,6 +361,7 @@ export const en: Record<string, string> = {
   "이전 고정된 속성으로 스크롤하기": "Scroll to previous pinned property",
   "다음 고정된 속성으로 스크롤하기": "Scroll to next pinned property",
   "옵션 선택 또는 생성": "Select or create an option",
+  "패널 닫기": "Close panel",
   "섹션": "Section",
   "셀 댓글은 아직 없습니다": "Cell comments aren't available yet",
   "소리": "Sound",

@@ -13,7 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { Block, DbProperty, Page, PropertyType } from "@/lib/db/schema";
 import { useDb } from "./database-block";
-import { PINNED_COUNT, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
+import { PINNED_COUNT, PanelCloseButton, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
 import { BlockEditor } from "@/components/editor/block-editor";
 import { IconPicker } from "@/components/page/icon-picker";
 import { SharePopover } from "@/components/page/share-popover";
@@ -125,6 +125,12 @@ export function RowPeek({
  // the 세부 정보 보기 toggle is hover-only in a peek: it shows while the title
  // (or the block's own head) is under the pointer
   const [titleHovered, setTitleHovered] = useState(false);
+ // 패널 닫기 lives in the header but belongs to the 속성 panel: the original shows
+ // it while the panel is hovered (and while the header itself is, so the
+ // pointer can travel from one to the other without it vanishing underfoot)
+  const [panelHovered, setPanelHovered] = useState(false);
+  const [headerHovered, setHeaderHovered] = useState(false);
+  const showPanelClose = detailsOpen && (panelHovered || headerHovered);
  // the store carries live edits (favourite, icon, cover) for pages it knows
   const storePage = usePagesStore((s) => (bodyPageId ? s.pages[bodyPageId] : undefined));
   const updatePage = usePagesStore((s) => s.updatePage);
@@ -231,7 +237,11 @@ export function RowPeek({
           className="absolute inset-y-0 left-0 z-10 w-3 cursor-col-resize hover:bg-blue-300/40"
         />
 
-        <div className="flex h-11 shrink-0 items-center justify-between gap-1 pl-4 pr-2.5">
+        <div
+          className="flex h-11 shrink-0 items-center justify-between gap-1 pl-4 pr-2.5"
+          onMouseEnter={() => setHeaderHovered(true)}
+          onMouseLeave={() => setHeaderHovered(false)}
+        >
           <div className="flex items-center gap-0.5">
             <PeekButton testid="db-peek-close" label={t("닫기")} onClick={onClose}>
               <X size={16} />
@@ -267,6 +277,11 @@ export function RowPeek({
             </PeekButton>
           </div>
           <div className="flex items-center gap-0.5">
+            {/* 패널 닫기 — first in this group, only while the 속성 panel (or this
+                bar) is hovered; measured 2026-08-27: 24×24, 6px corners, y 10 */}
+            {showPanelClose && (
+              <PanelCloseButton onClick={() => setDetailsOpen(false)} className="mr-1" />
+            )}
             {/* the capture keeps the edit stamp here, left of 공유 */}
             {page && editedAgo(page.updatedAt) && (
               <span
@@ -396,6 +411,7 @@ export function RowPeek({
             row={row}
             className="w-[281px] shrink-0 border-l border-[rgba(55,53,47,0.09)] pb-6 pl-5 pr-4 dark:border-neutral-700"
             footer={<AddPropertyControl />}
+            onHoverChange={setPanelHovered}
           />
         )}
         </div>

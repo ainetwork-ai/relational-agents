@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { useDb } from "./database-block";
@@ -68,6 +69,40 @@ export function splitPinned(properties: DbProperty[]): {
 }
 
 const LABEL_COLOR = "text-[rgb(125,122,117)] dark:text-neutral-400";
+
+/** 패널 닫기 — the original's button that closes the 속성 panel: 24×24, Notion's
+ *  arrowChevronDoubleForward glyph at 20px in rgb(142,139,134), hover wash.
+ *  `round` is the full page's (radius 9999); the peek's is a 6px corner. */
+export function PanelCloseButton({
+  onClick,
+  round = false,
+  className = "",
+  style,
+}: {
+  onClick: () => void;
+  round?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      data-testid="db-details-close"
+      aria-label={t("패널 닫기")}
+      onClick={onClick}
+      style={style}
+      className={`flex h-6 w-6 shrink-0 items-center justify-center text-[rgb(142,139,134)] transition-[background] duration-100 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-800 ${
+        round ? "rounded-full" : "rounded-[6px]"
+      } ${className}`}
+    >
+      <svg aria-hidden="true" viewBox="0 0 20 20" width={20} height={20} fill="currentColor">
+        <path d="m5.492 4.158 5.4 5.4a.625.625 0 0 1 0 .884l-5.4 5.4a.625.625 0 1 1-.884-.884L9.566 10 4.608 5.042a.625.625 0 1 1 .884-.884" />
+        <path d="m16.392 10.442-5.4 5.4a.625.625 0 0 1-.884-.884L15.066 10l-4.958-4.958a.625.625 0 0 1 .884-.884l5.4 5.4a.625.625 0 0 1 0 .884" />
+      </svg>
+    </button>
+  );
+}
 /** The value cell owns the 5/6 padding; the PropertyCell editor inside keeps
  *  the TABLE's padding and heights (a 37px date button, py-1 on a select) which
  *  would make the cell 34–47px. These strip the editor's own box down to its
@@ -82,6 +117,7 @@ export function RowPropertyBlock({
   detailsOpen,
   onToggleDetails,
   onOpenComments,
+  commentsPageId,
   titleHovered = false,
   children,
 }: {
@@ -90,6 +126,9 @@ export function RowPropertyBlock({
   detailsOpen: boolean;
   onToggleDetails: () => void;
   onOpenComments?: () => void;
+  /** the page this row opens into — its comments are drawn in the 댓글 section
+   *  itself, the way the original does it (not in a docked panel) */
+  commentsPageId?: string | null;
   /** peek only: the toggle is revealed while the title above is hovered too */
   titleHovered?: boolean;
   /** the page body — wrapped so it starts where the original's does */
@@ -128,7 +167,10 @@ export function RowPropertyBlock({
       </div>
 
       {/* 댓글 — its own labelled row 24 under the band, a hairline under the
-          section, then the body. */}
+          section, then the body. The thread itself lives HERE: the original
+          keeps a page's comments in the page, between the band and the body,
+          and never opens them in a docked panel
+          (e2e/fixtures/notion-row-comments.json — inline). */}
       <div
         data-testid="row-props-comments-section"
         className="mt-6 border-b border-[rgba(55,53,47,0.09)] pl-2 dark:border-neutral-800"
@@ -141,6 +183,11 @@ export function RowPropertyBlock({
         >
           <span data-role="comments-label">{t("댓글")}</span>
         </button>
+        {commentsPageId && (
+          <div className="pb-2 pt-1">
+            <PageCommentSection pageId={commentsPageId} />
+          </div>
+        )}
       </div>
       <div data-testid="row-props-body" className="pt-2">
         {children}
@@ -275,10 +322,16 @@ export function RowDetailsPanel({
   row,
   className = "",
   footer,
+  onHoverChange,
+  children,
 }: {
   row: DbRow;
   className?: string;
   footer?: ReactNode;
+  /** the peek shows its 패널 닫기 button only while the panel is hovered */
+  onHoverChange?: (hovered: boolean) => void;
+  /** drawn inside the panel's box, before the header (the full page's 패널 닫기) */
+  children?: ReactNode;
 }) {
   const db = useDb();
   const t = useT();
@@ -287,8 +340,11 @@ export function RowDetailsPanel({
     <aside
       data-testid="db-peek-details"
       aria-label={t("속성")}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
       className={`overflow-y-auto bg-white dark:bg-[#191919] ${className}`}
     >
+      {children}
       {/* 속성 — text 28px in from the panel's edge (20 + 2 + 6 in the original) */}
       <div className={`sticky top-0 z-10 flex h-6 items-center bg-white py-[3px] pl-[7px] text-[13px] font-medium leading-[18px] dark:bg-[#191919] ${LABEL_COLOR}`}>
         <span data-role="panel-title">{t("속성")}</span>

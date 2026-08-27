@@ -208,8 +208,18 @@ eq(pd.panelRight, 1200, "패널이 피크 안 오른쪽");
 same(pd.border, "1px", "패널 왼쪽 구분선");
 eq(pd.hdrX, D.headerInsetX, "헤더 인셋"); eq(pd.hdrY, D.headerTop, "헤더 y");
 eq(pd.titleW, wantPeek - D.panelWidth - D.divider - 2 * G.peek.insetL, `본문 칼럼 (${titleW0} → 원본 1200 에선 368)`);
-await page.locator("[data-testid='db-row-peek'] [data-testid='row-props-toggle']").click();
+// 패널 닫기: 호버 전엔 없고, 패널을 호버하면 상단바에 나타나고, 누르면 닫힌다
+const PC = G.panelClose;
+await page.mouse.move(10, 850); await page.waitForTimeout(250);
+ok((await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").count()) === 0, "피크: 호버 전엔 패널 닫기 없음");
+await page.locator("[data-testid='db-peek-details']").hover({ position: { x: 100, y: 300 } });
+await page.waitForTimeout(300);
+const pc = await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").evaluate((b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); const svg = b.querySelector('svg').getBoundingClientRect(); return { w: r.width, h: r.height, top: r.top, radius: parseFloat(s.borderRadius), color: s.color, icon: svg.width }; });
+eq(pc.w, PC.size, "피크: 패널 닫기 24px"); eq(pc.h, PC.size, "피크: 패널 닫기 높이"); eq(pc.top, PC.top, "피크: 패널 닫기 y");
+eq(pc.radius, PC.peekRadius, "피크: 패널 닫기 radius"); same(pc.color, PC.color, "피크: 패널 닫기 색"); eq(pc.icon, PC.iconSize, "피크: 아이콘 20px");
+await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").click();
 await page.waitForTimeout(400);
+ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "피크: 패널 닫기를 누르면 패널 닫힘");
 eq((await page.locator("[data-testid='db-row-peek']").boundingBox()).width, peekW0, "닫으면 원래 폭");
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(350);
@@ -256,11 +266,19 @@ eq(sb.hdrX, G.sidebar.headerInsetX, "헤더 인셋");
 eq(sb.hdrY, G.sidebar.headerTop, "헤더 y");
 eq(sb.hdrFs, 13, "헤더 글자 크기"); same(String(sb.hdrFw), "500", "헤더 굵기"); same(sb.hdrColor, G.band.labelColor, "헤더 색");
 same(sb.toggleText, "세부 정보 숨기기", "토글 문구가 숨기기로");
+{
+  const PC = G.panelClose;
+  await page.mouse.move(10, 850); await page.waitForTimeout(250);
+  const fc = await page.locator("[data-testid='db-peek-details'] [data-testid='db-details-close']").evaluate((b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); const a = b.closest("[data-testid='db-peek-details']").getBoundingClientRect(); return { w: r.width, top: r.top, inset: r.left - a.left, radius: parseFloat(s.borderRadius), color: s.color, op: s.opacity }; });
+  ok(fc.op === "1", "풀페이지: 패널 닫기 항상 보임"); eq(fc.w, PC.size, "풀페이지: 패널 닫기 24px"); eq(fc.top, PC.top, "풀페이지: 패널 닫기 y");
+  eq(fc.inset, PC.fullInsetX, "풀페이지: 패널 왼쪽에서 9px"); ok(fc.radius >= 12, `풀페이지: 둥근 버튼 (radius ${fc.radius})`); same(fc.color, PC.color, "풀페이지: 색");
+}
 // the page's box loses the sidebar's width and the column re-centres in what is left
 eq(sb.titleW, Math.min(708, sb.mainW - G.sidebar.width - 192), `본문 칼럼이 좁아짐 (${sb.titleW}, 원본 353 @ 930 frame)`);
-await page.locator("[data-testid='page-row-props'] [data-testid='row-props-toggle']").click();
+await page.locator("[data-testid='db-peek-details'] [data-testid='db-details-close']").click();
 await page.waitForTimeout(300);
-ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "다시 누르면 사이드바 닫힘");
+ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "패널 닫기를 누르면 사이드바 닫힘");
+same((await page.locator("[data-testid='page-row-props'] [data-testid='row-props-toggle']").innerText()).trim(), "세부 정보 보기", "토글 문구 복귀");
 
 await browser.close();
 if (fails.length) { console.error(`\n${fails.length}개 실패`); process.exit(1); }
