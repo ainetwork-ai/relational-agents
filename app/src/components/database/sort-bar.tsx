@@ -4,7 +4,8 @@ import {useRef, useState} from "react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
-import { ArrowUpDown, X, Plus } from "lucide-react";
+import { X, Plus } from "lucide-react";
+import { SortIcon } from "@/components/icons/database-toolbar";
 import type { ViewSort } from "@/lib/db/schema";
 import { useDb } from "./database-block";
 import { useT } from "@/i18n/provider";
@@ -65,7 +66,7 @@ export function SortBar() {
             : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
       >
-        <ArrowUpDown size={16} />
+        <SortIcon />
       </button>
       {open &&
         createPortal(

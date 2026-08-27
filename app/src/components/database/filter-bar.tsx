@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
-import { Filter, X, Plus, ChevronDown, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { X, Plus, ChevronDown, Trash2 } from "lucide-react";
+import { FilterIcon, ChevronSmallIcon, PlusSmallIcon, SortArrowIcon } from "@/components/icons/database-toolbar";
 import type { DbProperty, ViewFilter, ViewFilterGroup, FilterOp } from "@/lib/db/schema";
 import {
   opsForType,
@@ -355,7 +356,7 @@ export function FilterBar() {
             : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
       >
-        <Filter size={16} />
+        <FilterIcon />
       </button>
 
       {open && mode === "picker" &&
@@ -728,9 +729,9 @@ export function FilterChips() {
             aria-label={t("정렬 방향 전환")}
             className={chipCls}
           >
-            {s.dir === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+            <SortArrowIcon dir={s.dir} />
             <span className="max-w-[180px] truncate">{prop.name}</span>
-            <ChevronDown size={14} />
+            <ChevronSmallIcon />
           </button>
         );
       })}
@@ -789,7 +790,7 @@ export function FilterChips() {
                   </>
                 )}
               </span>
-              <ChevronDown size={14} />
+              <ChevronSmallIcon />
             </button>
             {openIdx === i && (
               <ChipEditor
@@ -814,7 +815,7 @@ export function FilterChips() {
         }}
         className="mr-3 flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl pl-[5px] pr-[9px] text-[14px] leading-6 text-[rgb(161,158,153)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-neutral-800"
       >
-        <Plus size={14} /> {t("필터")}
+        <PlusSmallIcon /> {t("필터")}
       </button>
         </div>
       </div>
