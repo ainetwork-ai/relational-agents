@@ -176,6 +176,8 @@ export const en: Record<string, string> = {
   "닫기": "Close",
   "달력에서 선택": "Pick from calendar",
   "답글": "Reply",
+ // 원본 영어판 캡처에 이 문구가 없어 노션 영어 UI 관례를 따랐다 — 확인되면 고칠 것
+  "답글 {n}개 더 보기": "Show {n} more replies",
   "답글…": "Reply…",
   "대기 중": "Pending",
   "대화": "Chat",

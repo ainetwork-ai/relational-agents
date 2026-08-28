@@ -19,11 +19,22 @@ import { useImeGuard } from "@/hooks/use-ime-guard";
  *
  * (e2e/fixtures/notion-row-comments.json — comment / inline / mention)
  */
-export function CommentRow({ comment }: { comment: PageComment }) {
+export function CommentRow({
+  comment,
+ // 8 instead of 16 underneath, for the row that sits right above the
+ // "답글 N개 더 보기" line (the original keeps 8 on each side of it)
+  tightBottom,
+}: {
+  comment: PageComment;
+  tightBottom?: boolean;
+}) {
   const t = useT();
   const locale = useIntlLocale();
   return (
-    <div data-testid={`comment-row-${comment.id}`} className="flex pb-4">
+    <div
+      data-testid={`comment-row-${comment.id}`}
+      className={`flex ${tightBottom ? "pb-2" : "pb-4"}`}
+    >
       <UserAvatar user={comment.author ?? { displayName: t("누군가") }} size={24} />
       <div className="ml-2 min-w-0 flex-1">
         {/* the name line is as tall as the avatar; the body sits straight under it */}
@@ -160,6 +171,52 @@ function ComposerButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * A thread longer than three collapses to its first and last comment, with the
+ * rest behind one line. Counted in the original across eight pages
+ * (e2e/fixtures/notion-row-comments.json — collapse):
+ *
+ *   1·2·3 comments → all of them, no line
+ *   4 → 2 shown, 답글 2개 더 보기      8 → 2 shown, 답글 6개 더 보기
+ *   5 → 2 shown, 답글 3개 더 보기      9 → 2 shown, 답글 7개 더 보기
+ *                                     11 → 2 shown, 답글 9개 더 보기
+ *
+ * Always the first and the last, and the number on the line is always
+ * total − 2. Pressing it opens the thread and does not fold back — the
+ * original's line is gone once expanded.
+ */
+export const COLLAPSE_ABOVE = 3;
+
+export function CommentList({ comments }: { comments: PageComment[] }) {
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+
+  if (comments.length <= COLLAPSE_ABOVE || expanded)
+    return (
+      <>
+        {comments.map((c) => (
+          <CommentRow key={c.id} comment={c} />
+        ))}
+      </>
+    );
+
+  const hidden = comments.length - 2;
+  return (
+    <>
+      <CommentRow comment={comments[0]} tightBottom />
+      <button
+        type="button"
+        data-testid="comment-show-more"
+        onClick={() => setExpanded(true)}
+        className="mb-2 ml-6 flex h-7 items-center rounded-[6px] text-[14px] font-normal leading-[16.8px] text-[rgb(125,122,117)] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-white/10"
+      >
+        {t("답글 {n}개 더 보기", { n: hidden })}
+      </button>
+      <CommentRow comment={comments[comments.length - 1]} />
+    </>
   );
 }
 

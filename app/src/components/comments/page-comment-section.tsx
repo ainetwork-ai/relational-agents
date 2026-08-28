@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useCommentsStore } from "@/stores/comments";
-import { CommentRow, CommentComposer } from "./comment-thread";
+import { CommentList, CommentComposer } from "./comment-thread";
 
 /**
  * A page's comments where the original keeps them: **in the page**, between the
@@ -43,9 +43,7 @@ export function PageCommentSection({
  // inline.emptyState).
   return (
     <div data-testid="page-comment-section" className="pb-3 pr-1 pt-2">
-      {comments.map((c) => (
-        <CommentRow key={c.id} comment={c} />
-      ))}
+      <CommentList comments={comments} />
       <CommentComposer pageId={pageId} autoFocus={autoFocus} />
     </div>
   );

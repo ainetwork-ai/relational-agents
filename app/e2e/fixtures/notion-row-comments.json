@@ -86,6 +86,45 @@
     }
   },
 
+  "collapse": {
+    "_source": "All Projects 뷰의 댓글 달린 행 18개를 하나씩 피크로 열어 셌다(2026-08-28). 댓글 수는 작성자 프로필 링크(a[href*='/profiles/'])로 셌다 — 본문에 이미지가 든 댓글이 있어 img 로 세면 틀린다.",
+    "rule": "3개까지는 전부 보이고, 4개부터는 **첫 개와 마지막 개**만 남고 나머지가 한 줄로 접힌다. 줄의 숫자는 항상 총 개수 − 2.",
+    "showAllUpTo": 3,
+    "shownWhenCollapsed": 2,
+    "hiddenIsTotalMinus": 2,
+    "label": "답글 {n}개 더 보기",
+    "observed": [
+      { "total": 1, "rendered": 1, "hidden": 0 },
+      { "total": 2, "rendered": 2, "hidden": 0 },
+      { "total": 3, "rendered": 3, "hidden": 0 },
+      { "total": 4, "rendered": 2, "hidden": 2 },
+      { "total": 5, "rendered": 2, "hidden": 3 },
+      { "total": 8, "rendered": 2, "hidden": 6 },
+      { "total": 9, "rendered": 2, "hidden": 7 },
+      { "total": 11, "rendered": 2, "hidden": 9 }
+    ],
+    "_samples": "1개 3행 · 2개 4행 · 3개 5행 · 4/5/8/11 각 1행 · 9개 2행 = 18행 전부",
+    "button": {
+      "x": 24,
+      "h": 28,
+      "gapAbove": 8,
+      "gapBelow": 8,
+      "fs": "14px",
+      "fw": "400",
+      "lh": "16.8px",
+      "color": "rgb(125, 122, 117)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "radius": "6px",
+      "cursor": "pointer"
+    },
+    "expand": "누르면 전부 펼쳐지고 줄은 사라진다. 다시 접는 방법은 원본에서 못 찾았다 — 한 방향이다.",
+    "unmeasured": [
+      "표의 배지에서 여는 팝오버도 같은 규칙인지 — CDP 클릭으로 그 행의 팝오버가 안 열려 못 쟀다. 같은 스레드를 그리는 자리라 같은 규칙을 적용했다.",
+      "버튼의 hover 배경 — 앱의 다른 곳과 같은 rgba(33,27,23,0.051) 을 썼다",
+      "영어판 문구 — docs/en 캡처에 이 줄이 없다"
+    ]
+  },
+
   "mention": {
     "_note": "칩이 아니다. 배경·라운드·패딩 전부 0 인 인라인 텍스트로, @ 글자만 더 흐리다.",
     "at": { "color": "color(srgb 0.490196 0.478431 0.458824 / 0.6)" },

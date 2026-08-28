@@ -6,7 +6,7 @@ import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useCommentsStore } from "@/stores/comments";
 import { useT } from "@/i18n/provider";
-import { CommentRow, CommentComposer } from "./comment-thread";
+import { CommentList, CommentComposer } from "./comment-thread";
 
 /**
  * What the original opens when you press a row's comment badge: a 480px card
@@ -66,9 +66,7 @@ export function RowCommentPopover({
         {comments.length === 0 && (
           <p className="pb-3 text-[14px] text-neutral-400">{t("아직 댓글이 없습니다.")}</p>
         )}
-        {comments.map((c) => (
-          <CommentRow key={c.id} comment={c} />
-        ))}
+        <CommentList comments={comments} />
       </div>
       <div className="px-[14px] pb-3">
         <CommentComposer pageId={pageId} />
