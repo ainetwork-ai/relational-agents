@@ -175,6 +175,33 @@ console.log("\n— 스크롤 화살표 —");
   await page.waitForTimeout(500);
 }
 
+// ── 4b. 상한에 닿은 값은 줄임표로 줄어든다 ──
+console.log("\n— 200px 에 닿았을 때 —");
+{
+  const capped = await page.evaluate(() => {
+    const items = [...document.querySelectorAll("[data-testid='db-row-peek'] [data-testid^='row-props-item-']")];
+    const hit = items.find((it) => Math.round(it.getBoundingClientRect().width) >= 199);
+    if (!hit) return null;
+    const value = hit.querySelector("[data-role='value']");
+ // 글자를 담은 가장 안쪽 요소 — 원본은 여기에 nowrap/ellipsis 를 걸어 둔다
+    const leaf = [...value.querySelectorAll("*")].find((e) => e.scrollWidth > e.clientWidth + 1) ?? value;
+    const s = getComputedStyle(leaf);
+    return { name: hit.querySelector("[data-role='label-text']").textContent.trim(),
+      item: +hit.getBoundingClientRect().width.toFixed(1),
+      valueOverflow: getComputedStyle(value).overflow,
+      leafW: Math.round(leaf.clientWidth), inkW: Math.round(leaf.scrollWidth),
+      te: s.textOverflow, ws: s.whiteSpace, ov: s.overflow, text: value.innerText.trim() };
+  });
+  if (!capped) {
+    console.log("· 상한에 닿은 고정 속성이 이 행에 없음 — 줄임표 대조 생략");
+  } else {
+    ok(capped.valueOverflow === "hidden", `${capped.name}: 값 셀이 넘침을 감춤 (${capped.valueOverflow})`);
+    ok(capped.ws === "nowrap", `${capped.name}: 한 줄 유지 (${capped.ws})`);
+    ok(capped.te === "ellipsis", `${capped.name}: 줄임표로 줄임 (${capped.te}) — "${capped.text.slice(0, 24)}…"`);
+    ok(capped.inkW > capped.leafW, `${capped.name}: 실제 글자 폭 ${capped.inkW} > 보이는 폭 ${capped.leafW} (원본 232.3 → 188)`);
+  }
+}
+
 // ── 5. 피크 / 풀페이지: 같은 규칙, 가용 폭만 다름 ──
 console.log("\n— 피크와 풀페이지 —");
 const peek = await measure("[data-testid='db-row-peek']");

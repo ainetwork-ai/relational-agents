@@ -322,7 +322,7 @@ function PinnedItem({
           click still reaches the editor underneath */}
       <div
         data-role="value"
-        className={`relative flex min-h-[30px] w-full items-center rounded-[4px] px-1.5 py-[5px] ${HOVER_BG} ${BARE_EDITOR}`}
+        className={`relative flex min-h-[30px] w-full items-center overflow-hidden rounded-[4px] px-1.5 py-[5px] ${HOVER_BG} ${BARE_EDITOR}`}
       >
         <PropertyCell prop={prop} row={row} collapsePeople={collapsePeople} />
         {empty && (

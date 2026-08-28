@@ -555,7 +555,15 @@ function DateCell({
  // the same metrics as every other cell's text (14px/21px, inset 8/10)
         className="flex h-[37px] w-full items-start pl-[7px] pr-2 pt-[10px] text-left text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
       >
-        {fmtDateRange(parts, fmt, dateOpts) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
+        {fmtDateRange(parts, fmt, dateOpts) ? (
+ // one line, cut with an ellipsis rather than mid-glyph — the original nests
+ // `white-space: nowrap; text-overflow: ellipsis; overflow: hidden` inside its
+ // value cell, so a range wider than the cell reads "2025년 12월 22일 → 2026년…"
+ // (e2e/fixtures/notion-row-props-band.json §truncate)
+          <span className="min-w-0 truncate">{fmtDateRange(parts, fmt, dateOpts)}</span>
+        ) : (
+          <span className="inline-block h-5 w-full" aria-hidden="true" />
+        )}
       </button>
       {open &&
         createPortal(
