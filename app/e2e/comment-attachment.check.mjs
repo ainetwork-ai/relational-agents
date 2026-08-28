@@ -83,6 +83,14 @@ const others = OTHERS.map(([n, bytes]) => {
   fs.writeFileSync(f, Buffer.alloc(bytes, 7));
   return f;
 });
+// html 은 붙되 **살아 있는 페이지로 서빙되면 안 된다**: public/uploads 는 같은
+// 오리진이라 <script> 가 우리 오리진에서 돌면 그 자체로 저장형 XSS 다.
+// /api/upload 가 확장자를 .txt 로 눕히므로 열어도 text/plain 이고, 링크의
+// download 속성이 원래 이름으로 내려준다.
+const html = path.join(tmp, "report.html");
+fs.writeFileSync(html, "<h1>hi</h1><script>window.__ran = 1</script>");
+others.push(html);
+OTHERS.push(["report.html", 0]);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -148,6 +156,18 @@ if (fc) {
     if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(a.url)) d.push(`첨부 url 이 이상합니다: ${a.url}`);
 
   const R = F.clip.attachmentRendering;
+ // html 이 실행 가능한 문서로 서빙되지는 않는가
+  const htmlAtt = att.find((a) => a.name === "report.html");
+  if (!htmlAtt) d.push("report.html 이 첨부되지 않았습니다 — html 도 붙어야 합니다");
+  else {
+    const r = await page.request.get(`${BASE}${htmlAtt.url}`);
+    const ct = r.headers()["content-type"] ?? "";
+    if (/text\/html|image\/svg/.test(ct))
+      d.push(`report.html 이 ${ct} 로 서빙됩니다 — 같은 오리진에서 실행됩니다(저장형 XSS)`);
+    if (/\.(html?|xhtml|svg|m?js)$/i.test(htmlAtt.url))
+      d.push(`저장된 경로가 ${htmlAtt.url} 입니다 — 실행 가능한 확장자로 눕히면 안 됩니다`);
+  }
+
   const shown = await page.evaluate(() => {
     const px = (v) => +Number(v).toFixed(1);
     const img = document.querySelector("[data-testid='comment-attachment-image']");

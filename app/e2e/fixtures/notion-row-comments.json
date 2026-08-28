@@ -303,6 +303,10 @@
           "zip"
         ]
       }
+    },
+    "ourDeviation": {
+      "_note": "원본과 다른 곳 — 의도한 것. 확장자를 막지는 않는다.",
+      "html": "html/htm/xhtml/svg/js/mjs 는 붙고 이름·크기·내용 전부 그대로지만, 디스크에는 .txt 로 눕혀 저장한다. public/uploads 는 우리와 같은 오리진이라 .html 로 두면 그 안의 <script> 가 우리 오리진에서 실행된다(저장형 XSS — 세션 쿠키가 httpOnly 여도 브라우저가 알아서 붙여 보내므로 그 사람 행세를 할 수 있다). 링크의 download 속성이 원래 이름으로 내려주므로 받는 쪽 경험은 같다."
     }
   },
   "mention": {
