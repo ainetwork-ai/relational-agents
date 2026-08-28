@@ -270,10 +270,13 @@ drizzle-kit도 스키마 소스도 없어서(standalone 번들) **builder 스테
 `~/NGINX-README.md`에 기록된 `setup-nginx.sh` 사고와 같은 함정이라 초안 헤더에도
 적어 뒀다.
 
-conf 값의 근거: `client_max_body_size 102M`(=`/api/upload`의 `MAX_UPLOAD_BYTES` 100MB +
-multipart 오버헤드. 기본값 1M이면 사진 업로드가 nginx 단에서 413으로 잘린다. 12M
-이던 시절엔 댓글에 붙이는 14~65MiB 짜리 hwp/pdf/zip 이 앱에 닿기도 전에 잘렸다 —
-**앱의 상한만 올리고 여기를 안 올리면 그대로 413이다**),
+conf 값의 근거: `client_max_body_size 52M`. 업로드 요청 하나가 통과해야 하는 관문이
+셋이고 이 순서로 좁아진다 — **tus 청크 8MB ≤ `proxyClientMaxBodySize` 50MB ≤ nginx
+`client_max_body_size`**(`app/src/lib/files/upload-protocol.ts` 가 정본).
+기본값 1M이면 사진 업로드가 nginx 단에서 413으로 잘리고, 12M 이던 시절엔 댓글에
+붙이는 14~65MiB 짜리 hwp/pdf/zip 이 앱에 닿기도 전에 잘렸다. 가운데 관문을 빼먹으면
+더 나쁘다 — Next 16 은 proxy 바디를 기본 10MB 에서 **거절이 아니라 절단**한다
+(ainteams 2026-08-06 실측). 파일 총 한도는 `MAX_UPLOAD_MB`(기본 1024MB)다,
 `proxy_buffering off`(SSE 4곳 — AI 채팅 스트리밍, `dm/events`,
 `pages/[pageId]/events`. 버퍼링이 켜지면 토큰이 뭉쳐 오거나 응답이 끝날 때까지
 안 온다), `300s` 타임아웃(`/api/import`의 `maxDuration 300`과 LLM 호출 타임아웃

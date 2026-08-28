@@ -83,10 +83,14 @@ const others = OTHERS.map(([n, bytes]) => {
   fs.writeFileSync(f, Buffer.alloc(bytes, 7));
   return f;
 });
-// html 은 붙되 **살아 있는 페이지로 서빙되면 안 된다**: public/uploads 는 같은
-// 오리진이라 <script> 가 우리 오리진에서 돌면 그 자체로 저장형 XSS 다.
-// /api/upload 가 확장자를 .txt 로 눕히므로 열어도 text/plain 이고, 링크의
-// download 속성이 원래 이름으로 내려준다.
+// html 은 붙되 **우리 오리진에서 실행되면 안 된다**: public/uploads 는 같은
+// 오리진이라 <script> 가 돌면 그 자체로 저장형 XSS 다. 예전엔 확장자를 .txt 로
+// 눕혀 막았고, 지금은 next.config.ts 가 /uploads/* 에
+// `Content-Security-Policy: sandbox` + `nosniff` 를 붙여 막는다 — 그래서 확장자를
+// 그대로 둘 수 있다. 이 헤더가 allowed-types 의 html/svg 허용의 전제다.
+// 실행형은 목록에서 빠져 있다 — 왕복 전에 클라가 먼저 막아야 한다
+const blocked = path.join(tmp, "payload.js");
+fs.writeFileSync(blocked, "alert(1)");
 const html = path.join(tmp, "report.html");
 fs.writeFileSync(html, "<h1>hi</h1><script>window.__ran = 1</script>");
 others.push(html);
@@ -161,12 +165,31 @@ if (fc) {
   if (!htmlAtt) d.push("report.html 이 첨부되지 않았습니다 — html 도 붙어야 합니다");
   else {
     const r = await page.request.get(`${BASE}${htmlAtt.url}`);
-    const ct = r.headers()["content-type"] ?? "";
-    if (/text\/html|image\/svg/.test(ct))
-      d.push(`report.html 이 ${ct} 로 서빙됩니다 — 같은 오리진에서 실행됩니다(저장형 XSS)`);
-    if (/\.(html?|xhtml|svg|m?js)$/i.test(htmlAtt.url))
-      d.push(`저장된 경로가 ${htmlAtt.url} 입니다 — 실행 가능한 확장자로 눕히면 안 됩니다`);
+    const h = r.headers();
+    if ((h["content-security-policy"] ?? "") !== "sandbox")
+      d.push(`/uploads 응답의 CSP 가 "${h["content-security-policy"] ?? "(없음)"}" 입니다 — sandbox 여야 합니다. 이게 없으면 첨부된 html/svg 가 우리 오리진에서 실행됩니다`);
+    if ((h["x-content-type-options"] ?? "") !== "nosniff")
+      d.push(`/uploads 응답에 nosniff 가 없습니다 — MIME 혼동으로 우회됩니다`);
   }
+
+ // 허용 목록에 없는 확장자는 붙지 않아야 한다 (업로드 요청 자체가 나가면 안 된다)
+  let uploadedBlocked = false;
+  const onUpload = (r) => {
+    if (r.method() === "POST" && /\/api\/upload$/.test(new URL(r.url()).pathname)) uploadedBlocked = true;
+  };
+  const before = await page.locator("[data-testid='attachment-chip']").count();
+  page.on("request", onUpload);
+  uploadedBlocked = false;
+  const fc2 = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
+  await page.click("[aria-label='파일 첨부']");
+  const c2 = await fc2;
+  if (!c2) d.push("두 번째 클립 클릭에서 선택창이 안 열렸습니다 — 이 검사가 헛돌았습니다");
+  else await c2.setFiles([blocked]);
+  await page.waitForTimeout(2500);
+  page.off("request", onUpload);
+  const after = await page.locator("[data-testid='attachment-chip']").count();
+  if (after !== before) d.push("payload.js 가 첨부됐습니다 — 실행형은 허용 목록에 없습니다");
+  if (uploadedBlocked) d.push("payload.js 로 업로드 요청이 나갔습니다 — 클라가 왕복 전에 막아야 합니다");
 
   const shown = await page.evaluate(() => {
     const px = (v) => +Number(v).toFixed(1);

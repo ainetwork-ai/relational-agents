@@ -16,6 +16,39 @@ const nextConfig: NextConfig = {
   // Container images ship .next/standalone — a traced, self-contained server
   // that does not need the full node_modules tree at runtime.
   output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined,
+  // A tus PATCH, or any buffered upload, has to clear three gates and they
+  // narrow in this order:
+  //
+  //   tus chunk 8MB  ≤  proxyClientMaxBodySize 50MB  ≤  nginx client_max_body_size
+  //
+  // The middle one is the trap. Next 16 caps a proxied request body at 10MB by
+  // default and hands the route the TRUNCATED body — not a rejection, so
+  // nothing errors and the bytes are quietly wrong. ainteams measured it on
+  // 2026-08-06: a 32MB chunk arrived as 10MB, the client resent from the
+  // acknowledged offset, and the upload moved three times the file's bytes
+  // with the progress bar going up and down. Raising the app's own limit
+  // without this does nothing.
+  experimental: {
+    proxyClientMaxBodySize: 50 * 1024 * 1024,
+  },
+  // /uploads/* is served same-origin off disk, so an html or svg opened as a
+  // document would run its script as us (stored XSS — the session cookie rides
+  // along on any same-origin fetch it makes). `sandbox` stops the script and
+  // `nosniff` stops MIME confusion. Neither applies to <img> subresource loads,
+  // so inline images still render.
+  // ⚠️ This header is what lets the upload allowlist accept svg and html/htm
+  // (src/lib/files/allowed-types.ts). Removing it means taking those back.
+  async headers() {
+    return [
+      {
+        source: "/uploads/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Content-Security-Policy", value: "sandbox" },
+        ],
+      },
+    ];
+  },
   // serverExternalPackages held viem and @ainblockchain/ain-js: both shipped
   // prebundled code that broke when Turbopack re-bundled it ("TypeError: Y is
   // not a function" from a vendored @noble/hashes copy). Nothing imports either
