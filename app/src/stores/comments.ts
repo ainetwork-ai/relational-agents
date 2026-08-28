@@ -11,8 +11,16 @@ export interface PageComment {
   parentId: string | null;
   authorId: string;
   body: string;
- // uploaded files on the comment — [{url,name}], urls are always /uploads/*
-  attachments?: { url: string; name: string; size?: number }[];
+ // files on the comment. The client never sees a storage url — it addresses
+ // bytes by id through /api/files/<id>/{stream,download}.
+  attachments?: {
+    id: string;
+    name: string;
+    size?: number;
+    mimeType?: string;
+    width?: number;
+    height?: number;
+  }[];
   resolved: boolean;
   createdAt: string;
   author: PublicUser | null;
@@ -30,7 +38,8 @@ interface CommentsState {
     pageId: string,
     body: string,
     blockId?: string | null,
-    attachments?: { url: string; name: string; size?: number }[]
+   // what the upload returned; the server turns these into file rows
+    attachments?: { url: string; name: string; size?: number; mimeType?: string }[]
   ) => Promise<PageComment | null>;
   reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;

@@ -55,10 +55,10 @@ const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 })
 const pg = new Client({ connectionString: pgUrl });
 await pg.connect();
 const { rows: has } = await pg.query(
-  "select 1 from information_schema.columns where table_name='comments' and column_name='attachments'"
+  "select 1 from information_schema.tables where table_name='files'"
 );
 if (!has.length) {
-  console.error("\n  comments.attachments 컬럼이 없습니다 — 이 DB 에 스키마를 먼저 밀어주세요.\n");
+  console.error("\n  files 테이블이 없습니다 — 이 DB 에 스키마를 먼저 밀어주세요.\n");
   await pg.end();
   process.exit(1);
 }
@@ -156,14 +156,27 @@ if (fc) {
   await page.waitForTimeout(2500);
 
   const saved = await pg.query(
-    "select body, attachments from comments where page_id=$1 order by created_at desc limit 1",
+    `select f.file_name as name, f.file_url as url, f.file_size as size, f.mime_type
+       from files f join comments c on c.id = f.comment_id
+      where c.page_id = $1`,
     [PAGE_ID]
   );
-  const att = saved.rows[0]?.attachments ?? [];
+  const att = saved.rows.map((r) => ({ ...r, size: r.size ?? undefined }));
   if (att.length !== 1 + others.length)
     d.push(`저장된 첨부가 ${att.length}개입니다 — ${1 + others.length}개여야 합니다`);
   for (const a of att)
     if (typeof a.size !== "number") d.push(`"${a.name}" 에 크기가 없습니다 — 원본은 12.7 KiB 처럼 적습니다`);
+ // 이미지는 stream, 그 외는 download — 클라이언트는 스토리지 키를 쥐지 않는다
+  const srcs = await page.evaluate(() => ({
+    imgs: [...document.querySelectorAll("[data-testid='comment-attachment-image']")].map((e) => e.getAttribute("src")),
+    links: [...document.querySelectorAll("[data-testid='comment-attachment-file']")].map((e) => e.getAttribute("href")),
+  }));
+  for (const u of srcs.imgs)
+    if (!/^\/api\/files\/[0-9a-f-]{36}\/stream$/.test(u ?? ""))
+      d.push(`이미지 src 가 ${u} 입니다 — /api/files/<id>/stream 이어야 합니다`);
+  for (const u of srcs.links)
+    if (!/^\/api\/files\/[0-9a-f-]{36}\/download$/.test(u ?? ""))
+      d.push(`파일 링크가 ${u} 입니다 — /api/files/<id>/download 여야 합니다`);
   for (const a of att)
     if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(a.url)) d.push(`첨부 url 이 이상합니다: ${a.url}`);
 
@@ -172,12 +185,18 @@ if (fc) {
   const htmlAtt = att.find((a) => a.name === "report.html");
   if (!htmlAtt) d.push("report.html 이 첨부되지 않았습니다 — html 도 붙어야 합니다");
   else {
+ // 이관 전(디스크) 경로일 때만 이 방어선이 적용된다. s3:// 로 옮겨간 뒤에는
+ // 프록시 라우트가 그 역할을 하고, 그쪽 계약은 file-routes.check.mjs 가 본다.
+  if (!/^\/uploads\//.test(htmlAtt.url)) {
+    console.log(`· report.html 이 ${htmlAtt.url.slice(0, 12)}… 에 있어 /uploads CSP 대신 프록시 라우트가 막습니다`);
+  } else {
     const r = await page.request.get(`${BASE}${htmlAtt.url}`);
     const h = r.headers();
     if ((h["content-security-policy"] ?? "") !== "sandbox")
       d.push(`/uploads 응답의 CSP 가 "${h["content-security-policy"] ?? "(없음)"}" 입니다 — sandbox 여야 합니다. 이게 없으면 첨부된 html/svg 가 우리 오리진에서 실행됩니다`);
     if ((h["x-content-type-options"] ?? "") !== "nosniff")
       d.push(`/uploads 응답에 nosniff 가 없습니다 — MIME 혼동으로 우회됩니다`);
+    }
   }
 
  // 허용 목록에 없는 확장자는 붙지 않아야 한다 (업로드 요청 자체가 나가면 안 된다)
@@ -259,15 +278,17 @@ if (fc) {
 
 await browser.close();
 const { rows: gone } = await pg.query(
-  "delete from comments where page_id=$1 and author_id=$2 returning attachments",
+  `with removed as (
+     select f.file_url from files f join comments c on c.id = f.comment_id
+      where c.page_id = $1 and c.author_id = $2)
+   select file_url from removed`,
   [PAGE_ID, USER_ID]
 );
+await pg.query("delete from comments where page_id=$1 and author_id=$2", [PAGE_ID, USER_ID]);
 await pg.end();
 for (const r of gone)
-  for (const a of r.attachments ?? []) {
-    const f = path.join(process.cwd(), "public", a.url.replace(/^\//, ""));
-    fs.rmSync(f, { force: true });
-  }
+  if (/^\/uploads\//.test(r.file_url))
+    fs.rmSync(path.join(process.cwd(), "public", r.file_url.replace(/^\//, "")), { force: true });
 fs.rmSync(tmp, { recursive: true, force: true });
 
 if (d.length) {
@@ -280,5 +301,5 @@ if (d.length) {
 }
 console.log(
   `클립 원본과 동일 — 다중 선택·제한 없음; ${OTHERS.map((o) => o[0]).join(" · ")} 와 세로로 긴 png 가 붙어` +
-    ` 이미지는 240 상자, 파일은 이름+크기 두 줄 (정리한 댓글 ${gone.length}건)`
+    ` 이미지는 240 상자, 파일은 이름+크기 두 줄 (정리한 파일 ${gone.length}건)`
 );

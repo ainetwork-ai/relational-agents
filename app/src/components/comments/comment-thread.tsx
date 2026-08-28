@@ -75,7 +75,14 @@ export function CommentRow({
 export function CommentAttachments({
   attachments,
 }: {
-  attachments?: { url: string; name: string; size?: number }[];
+  attachments?: {
+    id: string;
+    name: string;
+    size?: number;
+    mimeType?: string;
+    width?: number;
+    height?: number;
+  }[];
 }) {
   if (!attachments?.length) return null;
   return (
@@ -84,19 +91,18 @@ export function CommentAttachments({
         IMAGE.test(a.name) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={a.url}
-            src={a.url}
+            key={a.id}
+            src={`/api/files/${a.id}/stream`}
             alt={a.name}
             data-testid="comment-attachment-image"
             className="max-h-[240px] max-w-[240px] rounded-[8px] object-contain"
           />
         ) : (
           <a
-            key={a.url}
-            href={a.url}
+            key={a.id}
+            href={`/api/files/${a.id}/download`}
             target="_blank"
             rel="noreferrer"
-            download={a.name}
             data-testid="comment-attachment-file"
             className="block max-w-full"
           >
@@ -121,8 +127,9 @@ export function CommentAttachments({
   );
 }
 
-/** What the browser can actually draw inline. `.svg` is missing on purpose —
- *  /api/upload stores an svg as .txt so it can never run same-origin. */
+/** Which attachments get drawn rather than listed. The authority is the
+ *  stream route's own media gate — this only decides which element to render;
+ *  a mistake here is a broken <img>, not an executed script. */
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 
 /** The original writes binary units to one decimal: 12.7 KiB · 65.8 MiB. */
@@ -184,7 +191,12 @@ export function CommentComposer({
     const body = draft.trim();
  // files alone are a comment — the original lets you send with nothing typed
     if (!body && !attach.attachments.length) return;
-    const files = attach.attachments.map((a) => ({ url: a.url, name: a.name, size: a.size }));
+    const files = attach.attachments.map((a) => ({
+      url: a.url,
+      name: a.name,
+      size: a.size,
+      mimeType: a.mimeType,
+    }));
     setDraft("");
     attach.clear();
     await add(pageId, body, blockId, files);

@@ -13,6 +13,9 @@ export interface ComposerAttachment {
   isImage: boolean;
  // bytes, for the "12.7 KiB" line a comment attachment carries
   size?: number;
+ // what the browser reported — the server keeps it so the stream route can
+ // decide whether the file may be served inline
+  mimeType?: string;
 }
 
 /** Attachment state: file pick/paste → resumable upload (/api/upload/tus) →
@@ -46,6 +49,7 @@ export function useComposerAttachments() {
           url: result.url,
           isImage: file.type.startsWith("image/"),
           size: result.size ?? file.size,
+          mimeType: file.type || undefined,
         },
       ]);
     }
