@@ -320,9 +320,15 @@ function PinnedItem({
       </div>
       {/* the value is the real editor; an empty one wears 비어 있음 on top so a
           click still reaches the editor underneath */}
+      {/* the original insets the value 6px sideways and 5px vertically — except a
+          date cell, which uses 4: with a 21px line that is what keeps a date at
+          30px like every other value instead of 31
+          (e2e/fixtures/notion-row-props-band.json §truncate.valueCell) */}
       <div
         data-role="value"
-        className={`relative flex min-h-[30px] w-full items-center overflow-hidden rounded-[4px] px-1.5 py-[5px] ${HOVER_BG} ${BARE_EDITOR}`}
+        className={`relative flex min-h-[30px] w-full items-center overflow-hidden rounded-[4px] px-1.5 ${
+          prop.type === "date" ? "py-1" : "py-[5px]"
+        } ${HOVER_BG} ${BARE_EDITOR}`}
       >
         <PropertyCell prop={prop} row={row} collapsePeople={collapsePeople} />
         {empty && (

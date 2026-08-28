@@ -131,6 +131,20 @@ for (let i = 0; i < 8 && !(checkedMany && checkedOne); i++) {
 }
 ok(checkedMany, "사람이 둘 이상인 고정 속성을 재봤다");
 
+// ── 2b. 값 높이: 날짜는 30, 사람은 +N 이 있을 때만 31 ──
+console.log("\n— 값 높이 —");
+{
+  await openPeek(0);
+  const m = await measure("[data-testid='db-row-peek']");
+  for (const it of m.items) {
+    if (it.type === "date")
+      ok(near(it.valueH, 30, 0.5), `${it.name}(날짜): 값 높이 ${it.valueH} (원본 30 — 패딩 4/4 + 21px 한 줄)`);
+    if (it.type === "person" && !it.empty)
+      ok(near(it.valueH, it.overflowText ? 31 : 30, 0.5), `${it.name}(사람${it.overflowText ? " +N" : ""}): 값 높이 ${it.valueH} (원본 ${it.overflowText ? 31 : 30})`);
+  }
+  await closePeek();
+}
+
 // ── 3. 폭 규칙: clamp(max(라벨, 값), 80, 200), 창 폭·표면과 무관 ──
 console.log("\n— 항목 폭 —");
 await openPeek(0);

@@ -103,7 +103,8 @@
     },
     "valueHeight": {
       "plain": 30,
-      "withOverflow": 31
+      "withOverflow": 31,
+      "note": "사람 값은 칩 하나(20) + 5/5 = 30, `+ N` 배지(21)가 붙으면 31. 원본의 같은 행에서 단일 1명 = 30, 2명 이상 = 31."
     },
     "cases": [
       {
@@ -229,7 +230,8 @@
       "paddingInline": 6,
       "paddingBlockDate": 4,
       "paddingBlockSelect": 5,
-      "minHeight": 30
+      "minHeight": 30,
+      "paddingBlockNote": "날짜 값 셀만 4/4, 나머지(select·사람)는 5/5 — 21px 한 줄에 4를 더해 30 이 되고, 5 를 주면 31 이 된다(원본 30). 2026-08-28 이 행('X 관리 + Telegram EN/KR (Round 1)')에서 확인."
     },
     "textWrapper": {
       "whiteSpace": "nowrap",
