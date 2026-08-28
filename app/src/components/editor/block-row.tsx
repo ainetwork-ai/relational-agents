@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
+import { useT } from "@/i18n/provider";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, GripVertical, Plus, Trash2, Copy, Repeat, FileText, MessageSquare, AlignLeft, AlignCenter, Maximize, Check, Link2 } from "lucide-react";
@@ -22,8 +26,30 @@ import { PageIcon } from "@/components/page-icon";
 import { ensureKatex, renderTex, renderTexInline } from "@/lib/katex-loader";
 import { MemorySelect } from "@/components/database/memory-select";
 
-export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
+const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
+const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
+
+export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string }) {
   const editor = useEditor();
+ // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
+ // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
+ // 여백은 전부 블록 자신의 padding 이다.
+  const sibs = editor.childrenOf(block.parentBlockId ?? null);
+  const prev = sibs[sibs.findIndex((b) => b.id === block.id) - 1];
+  const listRun = LIST_RUN.has(block.type);
+ // …but INSIDE a list-ish block (a bullet's or toggle's children) there is no
+ // run boundary at all: nested items are 1/1 (nested bullet 30, nested open
+ // empty toggle 70 — 2026-08-26 input cases)
+  const nested = !!parentType && LIST_RUN.has(parentType);
+  const listFirst = !nested && !(prev && LIST_RUN.has(prev.type));
+  const next = sibs[sibs.findIndex((b) => b.id === block.id) + 1];
+ // …그리고 런의 마지막 항목은 하단 6 (단독 항목 = 6+28+6 = 40). 둘 다 이웃으로 정해진다.
+  const listLast = !nested && !(next && LIST_RUN.has(next.type));
+ // 거터(+, 6점)의 세로 위치: 원본은 24px 컨트롤을 첫 텍스트 줄(line box)의 중앙에
+ // 맞춘다 — 문단 8, H1 39.5, H2 31.6, H3 25, 리스트 첫 항목 8 / 이후 3, 인용 8.
+  const handleTop = HANDLE_TOP[block.type] ?? (listRun ? (listFirst ? 8 : 3) : 2);
+ // 하이라이트의 상하 inset 은 min(2px, 그 쪽 padding): 리스트 항목은 1px 패딩이라 1.
+  const halo = { top: listRun && !listFirst ? 1 : 2, bottom: listRun && !listLast ? 1 : 2 };
 
  // A columns layout renders its column children side-by-side; each column
  // stacks its own children vertically.
@@ -53,16 +79,17 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
   }
 
   const isDrop = editor.dropTarget?.id === block.id;
- // Toggle manages its own children (gated by expand); every other block
- // renders its indented children here so Tab-nesting works for all types.
+ // Toggle manages its own children (gated by expand) and callout draws them
+ // inside its colored box; every other block renders its indented children
+ // here so Tab-nesting works for all types.
   const nestedChildren =
-    block.type === "toggle" ? [] : editor.childrenOf(block.id);
+    block.type === "toggle" || block.type === "callout" ? [] : editor.childrenOf(block.id);
 
   return (
     <div
       data-testid={`block-${block.id}`}
       data-block-type={block.type}
-      className="group/block relative"
+      className="group/block relative -mx-1.5 px-1.5"
       onDragOver={(e) => editor.onDragOverRow(e, block.id)}
       onDrop={(e) => editor.onDropRow(e, block.id)}
       onContextMenu={(e) => {
@@ -92,33 +119,54 @@ export function BlockRow({ block, depth }: { block: EBlock; depth: number }) {
       )}
 
       <div
+ // the original's block box is 6px wider than the text column on each side
+ // (720 vs 708): the grip highlight reaches 4px past the glyphs, and the
+ // gutter is measured from that wider edge. Bleed the row out by 6 and pad
+ // it back so the text stays put (2026-08-26, m-halo-text)
         className={`relative flex items-start rounded ${
           editor.selectedIds.has(block.id) ? "bg-blue-100/80 ring-1 ring-inset ring-blue-300/70 dark:bg-blue-500/25 dark:ring-blue-500/50" : ""
         }`}
         style={{ paddingLeft: depth * 24 }}
       >
-        <div className="absolute top-0.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/block:opacity-100" style={{ left: depth * 24 - 40 }} /* hug the block */>
+        {/* The + and the drag handle belong to the ONE line the pointer is on.
+            `group-hover/block:` was a descendant selector, so every block
+            CONTAINING the pointer lit its own gutter: a nested parent showed
+            handles along with its child, and a row peek — which renders inside
+            the database block — showed handles on all of its lines at once.
+            This keys off the nearest block instead: hovered, and not
+            containing another hovered block.
+
+            A full-page database gets no gutter at all: it IS the page, not a
+            line you can reorder or add below, and Notion shows nothing there.
+            It is also the one block that reclaims the page's left inset
+            (-ml-9), so these controls landed ON its view tabs. */}
+        {!(block.type === "database" && (block.content as { fullPage?: boolean }).fullPage === true) && (
+        <div
+          className="absolute flex items-center gap-0 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
+          style={{ left: depth * 24 - 58, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
+        >
           <button
             tabIndex={-1}
             data-testid={`block-add-below-${block.id}`}
             onClick={() => editor.insertBelow(block.id)}
-            className="flex h-6 w-5 items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 dark:text-neutral-600 dark:hover:bg-neutral-800"
+            className="flex h-6 w-6 items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 dark:text-neutral-600 dark:hover:bg-neutral-800"
             aria-label="Add block below"
           >
             <Plus size={15} />
           </button>
-          <BlockHandle block={block} />
+          <BlockHandle block={block} halo={halo} />
         </div>
+        )}
 
         <BlockCommentAnchor blockId={block.id}>
-          <BlockBody block={block} depth={depth} />
+          <BlockBody block={block} depth={depth} listFirst={listFirst} listLast={listLast} inList={!!parentType && parentType !== "toggle" && LIST_RUN.has(parentType)} />
         </BlockCommentAnchor>
       </div>
 
       {nestedChildren.length > 0 && (
         <div>
           {nestedChildren.map((c) => (
-            <BlockRow key={c.id} block={c} depth={depth + 1} />
+            <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />
           ))}
         </div>
       )}
@@ -214,7 +262,9 @@ function FileBlockBody({ block }: { block: EBlock }) {
       data-testid={`file-drop-${block.id}`}
       className="my-0.5 flex w-full cursor-pointer items-center gap-2 rounded-md border border-dashed border-neutral-200 px-2 py-2 text-sm text-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
     >
-      📎 Upload a file…
+      {/* a paste can carry a file's NAME without a fetchable url (Notion
+          attachments live behind their auth) — keep the name visible */}
+      📎 {block.content.text ? `${block.content.text} — upload again…` : "Upload a file…"}
       <input
         data-testid={`file-input-${block.id}`}
         type="file"
@@ -306,7 +356,7 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
 ];
 
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
-function BlockHandle({ block }: { block: EBlock }) {
+function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
@@ -319,17 +369,14 @@ function BlockHandle({ block }: { block: EBlock }) {
   const pathname = usePathname();
   const pageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setTurnOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+ // the menu is portalled, so `ref` (the handle's box) is not its ancestor:
+ // both count as inside, or the first mousedown on the menu closes it
+  const menuRef = useRef<HTMLDivElement>(null);
+  useAnchored(open, ref, menuRef, { gap: 2 });
+  useDismiss(open, () => {
+    setOpen(false);
+    setTurnOpen(false);
+  }, ref, menuRef);
 
   async function submitComment() {
     const body = draft.trim();
@@ -357,13 +404,36 @@ function BlockHandle({ block }: { block: EBlock }) {
           editor.onDragStart(block.id);
         }}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-6 w-4 cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
+        className="flex h-6 w-[18px] cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
         aria-label="Block actions (drag to reorder)"
       >
         <GripVertical size={15} />
       </button>
-      {open && (
-        <div className="popover-anim absolute left-5 top-0 z-50 w-44 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        (() => {
+          const row = document.querySelector(`[data-testid="block-${block.id}"]`);
+          return row
+            ? createPortal(
+                <div
+                  data-testid={`block-halo-${block.id}`}
+                  aria-hidden="true"
+                  style={{ top: halo.top, bottom: halo.bottom }}
+                  className="pointer-events-none absolute inset-x-0.5 z-0 rounded bg-[rgba(35,131,226,0.14)]"
+                />,
+                row
+              )
+            : null;
+        })()}
+      {open &&
+        createPortal(
+ // portalled and placed by useAnchored: in the page it was `absolute left-5
+ // top-0`, so on a line near the bottom of the window the menu ran 106px past
+ // it and the main scroller clipped what was left
+          <div
+            ref={menuRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <MenuBtn
             testid={`block-delete-${block.id}`}
             icon={<Trash2 size={13} />}
@@ -430,8 +500,9 @@ function BlockHandle({ block }: { block: EBlock }) {
               </div>
             )}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
       {commentOpen &&
         pageId &&
         createPortal(
@@ -452,7 +523,7 @@ function BlockHandle({ block }: { block: EBlock }) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (!isImeComposing(e) && e.key === "Enter") {
                     e.preventDefault();
                     void submitComment();
                   } else if (e.key === "Escape") {
@@ -483,7 +554,7 @@ function BlockHandle({ block }: { block: EBlock }) {
 // match exactly (font, size, line-height, padding, wrapping) so the colored
 // layer aligns under the transparent caret layer.
 const CODE_TYPE_CLASS =
-  "whitespace-pre-wrap break-words px-3 py-2 font-mono text-[13px] leading-6";
+  "whitespace-pre-wrap break-words py-3 font-mono text-[13.6px] leading-[20.4px]";
 
 /** Code block: language select + copy button + caption + a dependency-free
  * syntax-highlight overlay painted behind a transparent-text editor.
@@ -502,8 +573,12 @@ function CodeBlock({ block }: { block: EBlock }) {
   const overlayRef = useRef<HTMLPreElement>(null);
 
   return (
-    <div className="my-1 w-full overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-800/80">
-      <div className="flex items-center justify-between border-b border-neutral-200/70 px-3 py-1 dark:border-neutral-700/60">
+    // 원본(2026-08-26 실측): wrapper 8, 컨테이너 r10 bg rgba(66,35,3,.03) 에 24/22 패딩,
+    // 그 안에서 편집 영역이 12/12 — 한 줄 코드가 108.4. 언어·복사는 hover 때만
+    // 컨테이너 위에 뜨고, 캡션은 있을 때만 자리를 차지한다.
+    <div className="w-full px-0.5 py-2">
+    <div className="group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06]">
+      <div className="absolute left-3 right-3 top-2 flex items-center justify-between opacity-0 transition-opacity group-hover/code:opacity-100">
         <MemorySelect
           testid={`code-lang-${block.id}`}
           value={language}
@@ -547,6 +622,7 @@ function CodeBlock({ block }: { block: EBlock }) {
           className={`relative caret-neutral-800 text-transparent dark:caret-neutral-200 ${CODE_TYPE_CLASS}`}
         />
       </div>
+      {caption !== "" && (
       <input
         data-testid={`code-caption-${block.id}`}
         value={caption}
@@ -554,13 +630,15 @@ function CodeBlock({ block }: { block: EBlock }) {
         placeholder="Add a caption"
         className="w-full bg-transparent px-3 py-1 text-xs text-neutral-500 outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
       />
+      )}
+    </div>
     </div>
   );
 }
 
 // Callout background palette (name → light / dark bg classes).
 const CALLOUT_COLORS: { name: string; bg: string }[] = [
-  { name: "default", bg: "bg-neutral-100 dark:bg-neutral-800/80" },
+  { name: "default", bg: "bg-[#f9f8f7] dark:bg-neutral-800/80" },
   { name: "gray", bg: "bg-neutral-200/70 dark:bg-neutral-700/50" },
   { name: "brown", bg: "bg-amber-100/70 dark:bg-amber-900/25" },
   { name: "orange", bg: "bg-orange-100 dark:bg-orange-900/25" },
@@ -575,14 +653,22 @@ const calloutBg = (color?: string) =>
   (CALLOUT_COLORS.find((c) => c.name === color) ?? CALLOUT_COLORS[0]).bg;
 
 /** Callout: a pickable emoji icon (any emoji, via the full IconPicker) + a
- * background color (was a hardcoded 💡 on neutral). */
+ * background color (was a hardcoded 💡 on neutral). Child blocks render
+ * INSIDE the colored box, under the first line — the way Notion draws a
+ * multi-block callout. An explicit `icon: null` means "no icon" (Notion
+ * callouts can drop theirs); only a missing key falls back to 💡. */
 function CalloutBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
   const [colorOpen, setColorOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const icon = (block.content.icon as string | null | undefined) ?? "💡";
+  const icon =
+    block.content.icon === null ? null : ((block.content.icon as string | undefined) ?? "💡");
   const color = (block.content.color as string) ?? "default";
+  const children = editor.childrenOf(block.id);
 
+ // dismiss:manual — the callout's colour menu is `absolute` inside `ref`, not
+ // portalled, so a click on it really is inside the ref. (The block menu above
+ // IS portalled and uses useDismiss with both refs.)
   useEffect(() => {
     if (!colorOpen) return;
     const close = (e: MouseEvent) => {
@@ -596,21 +682,39 @@ function CalloutBlock({ block }: { block: EBlock }) {
     <div
       data-testid={`callout-${block.id}`}
       data-color={color}
-      className={`group/callout relative my-1 flex w-full items-start gap-2.5 rounded-md px-3.5 py-3 ${calloutBg(color)}`}
+      className="w-full px-0.5 py-2"
     >
-      <IconPicker
-        icon={icon}
-        onChange={(v) => editor.setImageMeta(block.id, { icon: v ?? "💡" })}
-        testid={`callout-icon-${block.id}`}
-        pickerTestid={`callout-icon-picker-${block.id}`}
-        triggerClassName="shrink-0 select-none rounded p-0.5 text-lg leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-        placeholder="💡"
-        allowRemove={false}
-      />
+    {/* 원본(2026-08-26 실측): 82 = 8 + (1+12 + 6+28+6 + 12+1) + 8 */}
+    <div className={`group/callout relative w-full rounded-[10px] border border-transparent p-3 ${calloutBg(color)}`}>
+      <div className="flex w-full items-start">
+      {icon !== null && (
+        <IconPicker
+          icon={icon}
+          onChange={(v) => editor.setImageMeta(block.id, { icon: v ?? "💡" })}
+          testid={`callout-icon-${block.id}`}
+          pickerTestid={`callout-icon-picker-${block.id}`}
+          triggerClassName="mt-[1.5px] flex h-6 w-6 shrink-0 select-none items-center justify-center rounded text-[20px] leading-6 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+          placeholder="💡"
+          allowRemove={false}
+        />
+      )}
+      <div className="min-w-0 flex-1">
+      {/* the original's callout is a container: once its text lives in a first
+          child paragraph (Enter did that), the box shows only children */}
+      {!((block.content.text ?? "") === "" && children.length > 0) && (
       <Editable
         block={block}
-        className="flex-1 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+        className="m-1.5 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
+      )}
+      {children.length > 0 && (
+        <div>
+          {children.map((c) => (
+            <BlockRow key={c.id} block={c} depth={0} parentType="callout" />
+          ))}
+        </div>
+      )}
+      </div>
       {/* color menu */}
       <div ref={ref} className="relative shrink-0">
         <button
@@ -643,6 +747,8 @@ function CalloutBlock({ block }: { block: EBlock }) {
           </div>
         )}
       </div>
+      </div>
+    </div>
     </div>
   );
 }
@@ -674,14 +780,17 @@ function MenuBtn({
   );
 }
 
-function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
+function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBlock; depth: number; listFirst: boolean; listLast: boolean; inList: boolean }) {
   const editor = useEditor();
+  const t = useT();
+  const listTop = listFirst ? "pt-1.5" : "pt-[1px]";
+  const listBottom = listLast ? "pb-1.5" : "pb-[1px]";
 
   switch (block.type) {
     case "divider":
       return (
-        <div className="w-full py-2">
-          <hr className="border-neutral-200 dark:border-neutral-700" />
+        <div className="w-full px-0.5 py-1.5">
+          <hr className="h-px border-0 bg-[rgba(28,19,1,0.11)] dark:bg-white/15" />
         </div>
       );
 
@@ -772,17 +881,17 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "todo":
       return (
-        <div className="flex w-full items-start gap-2">
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
           <input
             type="checkbox"
             data-testid={`todo-checkbox-${block.id}`}
             checked={block.content.checked ?? false}
             onChange={(e) => editor.setChecked(block.id, e.target.checked)}
-            className="mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
+            className="mx-1 mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
           />
           <Editable
             block={block}
-            className={`flex-1 py-[3px] text-[15px] leading-6 ${
+            className={`flex-1 px-1.5 py-0.5 text-base leading-6 ${
               block.content.checked
                 ? "text-neutral-400 line-through"
                 : "text-neutral-800 dark:text-neutral-200"
@@ -795,7 +904,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
       const children = editor.childrenOf(block.id);
       const expanded = block.content.expanded ?? true;
       return (
-        <div className="w-full">
+        <div className={`w-full ${listTop} ${listBottom}`}>
           <div className="flex items-start gap-0.5">
             <button
               data-testid={`toggle-expand-${block.id}`}
@@ -815,7 +924,7 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
             </button>
             <Editable
               block={block}
-              className="flex-1 py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+              className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
             />
           </div>
           {expanded && (
@@ -824,12 +933,13 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
                 <button
                   data-testid="toggle-add-inside"
                   onClick={() => editor.addInsideToggle(block.id)}
-                  className="ml-6 rounded px-1.5 py-1 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+ // 원본(2026-08-26 실측): 빈 토글의 안내 행은 40px — 문단 한 줄과 같은 키
+                  className="ml-6 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  Empty toggle. Click or drop blocks inside.
+                  {t("빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.")}
                 </button>
               ) : (
-                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} />)
+                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />)
               )}
             </div>
           )}
@@ -839,36 +949,36 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "bulleted_list":
       return (
-        <div className="flex w-full items-start gap-2">
-          <span className="mt-0.5 w-4 shrink-0 select-none text-center text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
+          <span className="mt-0.5 w-6 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
             •
           </span>
           <Editable
             block={block}
-            className="flex-1 py-[3px] text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "numbered_list":
       return (
-        <div className="flex w-full items-start gap-2">
-          <span className="mt-0.5 w-4 shrink-0 select-none text-right text-[15px] leading-6 text-neutral-800 dark:text-neutral-200">
+        <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
+          <span className="mt-0.5 w-6 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
             {editor.numberOf(block)}.
           </span>
           <Editable
             block={block}
-            className="flex-1 py-[3px] text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
+            className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />
         </div>
       );
 
     case "quote":
       return (
-        <div className="w-full border-l-[3px] border-neutral-800 py-0.5 pl-3 dark:border-neutral-300">
+        <div className="w-full border-l-[3px] border-neutral-800 py-2 pl-4 dark:border-neutral-300 [&>div]:min-h-6">
           <Editable
             block={block}
-            className="py-0.5 text-[15px] leading-6 text-neutral-700 dark:text-neutral-300"
+            className="px-2 py-0 text-base leading-6 text-neutral-700 dark:text-neutral-300"
           />
         </div>
       );
@@ -878,36 +988,48 @@ function BlockBody({ block, depth }: { block: EBlock; depth: number }) {
 
     case "heading1":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 1"
-          className="w-full pb-1 pt-4 text-3xl font-bold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[30px]">
+          <Editable
+            block={block}
+            placeholder="Heading 1"
+            className="w-full px-0.5 py-0.5 text-[30px] font-semibold leading-[39px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
     case "heading2":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 2"
-          className="w-full pb-0.5 pt-3 text-2xl font-semibold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[26px]">
+          <Editable
+            block={block}
+            placeholder="Heading 2"
+            className="w-full px-0.5 py-0.5 text-[24px] font-semibold leading-[31.2px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
     case "heading3":
       return (
-        <Editable
-          block={block}
-          placeholder="Heading 3"
-          className="w-full pb-0.5 pt-2 text-xl font-semibold leading-tight text-neutral-900 dark:text-neutral-100"
-        />
+        <div className="w-full pb-1.5 pt-[22px]">
+          <Editable
+            block={block}
+            placeholder="Heading 3"
+            className="w-full px-0.5 py-0.5 text-[20px] font-semibold leading-[26px] text-neutral-900 dark:text-neutral-100"
+          />
+        </div>
       );
 
     default:
       return (
-        <Editable
-          block={block}
-          placeholder="Write something, or press '/' for commands"
-          className="w-full py-0.5 text-[15px] leading-6 text-neutral-800 dark:text-neutral-200"
-        />
+ // 원본(2026-08-26 실측): 리스트 항목 안에 중첩된 문단은 30 = 1 + 28 + 1
+        <div className={inList ? "w-full py-[1px]" : "w-full py-1.5"}>
+          <Editable
+            block={block}
+ // one rule decides the empty line's hint, the dictionary decides the language:
+ // the type menu open on this line → the filter hint, otherwise the usual one
+            placeholder={t(editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "명령어는 '/'를 입력하세요.")}
+            bare={editor.slashBareBlockId === block.id}
+            className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
+          />
+        </div>
       );
   }
 }
@@ -945,7 +1067,7 @@ function EmbedBody({ block, kind }: { block: EBlock; kind: "bookmark" | "video" 
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
           onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
+            if (!isImeComposing(e) && e.key === "Enter") commit();
           }}
           className="flex-1 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-300"
         />
@@ -1029,7 +1151,7 @@ function ImageBody({ block }: { block: EBlock }) {
           data-testid="image-url-input"
           placeholder="Paste an image URL, or upload a file"
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (!isImeComposing(e) && e.key === "Enter") {
               const url = (e.target as HTMLInputElement).value.trim();
               if (url) editor.setImageUrl(block.id, url);
             }
@@ -1166,10 +1288,13 @@ function Editable({
   block,
   className,
   placeholder,
+  bare,
 }: {
   block: EBlock;
   className?: string;
   placeholder?: string;
+  /** the gutter + menu is open on this block: filter placeholder gets the original's pill */
+  bare?: boolean;
 }) {
   const editor = useEditor();
   const ref = useRef<HTMLDivElement>(null);
@@ -1231,9 +1356,12 @@ function Editable({
       suppressContentEditableWarning
       spellCheck={false}
       data-testid={`block-editable-${block.id}`}
+      data-bare-menu={bare ? "" : undefined}
       data-placeholder={placeholder}
       onInput={(e) => editor.onInput(block.id, e.currentTarget)}
       onKeyDown={(e) => editor.onKeyDown(block.id, e, e.currentTarget)}
+      onCompositionStart={() => editor.onCompositionStart()}
+      onCompositionEnd={(e) => editor.onCompositionEnd(block.id, e.currentTarget)}
       onPaste={(e) => editor.onPaste(block.id, e, e.currentTarget)}
       className={`min-h-[1.75rem] whitespace-pre-wrap outline-none ${className ?? ""}`}
     />
@@ -1601,7 +1729,7 @@ function AiPromptBody({ block }: { block: EBlock }) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (!isImeComposing(e) && e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void generate();
             }

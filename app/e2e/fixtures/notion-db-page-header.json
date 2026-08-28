@@ -1,0 +1,12 @@
+{
+  "_source": "Projects | Notion, 1728×992, sidebar 270 — measured over CDP 2026-08-27. All x are offsets from the content padding edge (sidebar right + 96 = 366); y are relative to the cover's bottom edge.",
+  "viewport": { "w": 1728, "h": 992 },
+  "topbarHeight": 44,
+  "coverHeight": 198.4,
+  "controls": { "y": 0, "h": 48, "pt": 16, "pb": 4, "buttonH": 28 },
+  "titleRow": { "y": 48, "h": 38.4 },
+  "icon": { "x": 8, "w": 36, "h": 36, "yInRow": 1.2, "radius": 4 },
+  "title": { "x": 44, "pl": 8, "fontSize": 32, "lineHeight": 38.4, "fontWeight": 700 },
+  "desc": { "x": 0, "pl": 12, "pt": 3, "pb": 4, "y": 86.4, "maxW": 780, "fontSize": 14, "lineHeight": 21 },
+  "tabsGapBelowDesc": 12
+}

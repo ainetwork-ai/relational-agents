@@ -106,5 +106,19 @@ export default async function PageRoute({
     .where(eq(blocks.pageId, pageId))
     .orderBy(blocks.position);
 
-  return <PageView key={page.id} initialPage={page} initialBlocks={blockRows} />;
+  // A page whose body IS a database renders wide regardless of the fullWidth
+  // toggle: the 708px column is sized for prose, and a table in it is unusable.
+  // Deriving it from the block also fixes pages created before this was wired.
+  const holdsFullPageDb = blockRows.some(
+    (b) => b.type === "database" && (b.content as { fullPage?: boolean }).fullPage === true
+  );
+
+  return (
+    <PageView
+      key={page.id}
+      initialPage={page}
+      initialBlocks={blockRows}
+      wide={holdsFullPageDb}
+    />
+  );
 }

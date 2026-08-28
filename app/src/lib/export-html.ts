@@ -1,4 +1,5 @@
 import type { ParsedBlock } from "@/lib/memory-parse";
+import { alignOf } from "@/lib/editor/table-data";
 
 /** Export accepts flat OKF blocks and nested Postgres blocks alike. */
 export type ExportBlock = ParsedBlock & { parentBlockId?: string | null };
@@ -76,9 +77,14 @@ export function blocksToHtml(title: string, blocksIn: ExportBlock[]): string {
               .map(
                 (r, ri) =>
                   `<tr>${r
-                    .map((c) =>
-                      t.headerRow && ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`
-                    )
+                    .map((c, ci) => {
+ // a cell edited since inline formatting arrived carries its own html
+                      const rich = t.html?.[ri]?.[ci];
+                      const inner = rich || esc(c); // html is sanitized at write time, like inline()
+                      const align = alignOf(t, ri, ci);
+                      const attr = align === "left" ? "" : ` style="text-align:${align}"`;
+                      return t.headerRow && ri === 0 ? `<th${attr}>${inner}</th>` : `<td${attr}>${inner}</td>`;
+                    })
                     .join("")}</tr>`
               )
               .join("");

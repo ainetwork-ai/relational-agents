@@ -237,17 +237,39 @@ export function withinRange(token: unknown): [string, string] {
   }
 }
 
+/**
+ * Notion's own chip palette, not Tailwind's.
+ *
+ * Tailwind's `bg-*-100` with `text-*-700` reads as highlighter next to the
+ * real thing: the tint is vivid AND the text is saturated, so a table of
+ * chips glows. Notion's tints are greyed and warm, and the text on top is the
+ * page's ordinary near-black (#32302C light, #D4D4D4 dark) — the colour lives
+ * only in the background.
+ *
+ * The captures reference these as CSS variables (`--ca-bluBacTerTra`,
+ * `--c-bluTexPri`) but the stylesheet that resolves them was not saved with
+ * them, so the values below are Notion's published select colours rather than
+ * something measured out of `docs/*.html`. Compare on screen before trusting
+ * any single one.
+ */
 export const OPTION_COLORS: Record<string, string> = {
-  gray: "bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200",
-  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200",
-  green: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200",
-  red: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200",
-  yellow: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-200",
-  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200",
-  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-200",
-  pink: "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-200",
+  // Notion stores `default` and `gray` as two different colours (both appear in
+  // e2e/fixtures/notion-option-colors.json); their chips paint the same today,
+  // but the property editor's colour menu shows them as two rows.
+  default: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
+  gray: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
+  brown: "bg-[#EEE0DA] text-[#32302C] dark:bg-[#603B2C] dark:text-[#D4D4D4]",
+  orange: "bg-[#FADEC9] text-[#32302C] dark:bg-[#854C1D] dark:text-[#D4D4D4]",
+  yellow: "bg-[#FDECC8] text-[#32302C] dark:bg-[#89632A] dark:text-[#D4D4D4]",
+  green: "bg-[#DBEDDB] text-[#32302C] dark:bg-[#2B593F] dark:text-[#D4D4D4]",
+  blue: "bg-[#D3E5EF] text-[#32302C] dark:bg-[#28456C] dark:text-[#D4D4D4]",
+  purple: "bg-[#E8DEEE] text-[#32302C] dark:bg-[#492F64] dark:text-[#D4D4D4]",
+  pink: "bg-[#F5E0E9] text-[#32302C] dark:bg-[#69314C] dark:text-[#D4D4D4]",
+  red: "bg-[#FFE2DD] text-[#32302C] dark:bg-[#6E3630] dark:text-[#D4D4D4]",
 };
-export const COLOR_CYCLE = Object.keys(OPTION_COLORS);
+/** New options take colours in this order — Notion's own wheel order.
+ * `default` is what you get by NOT picking, so the cycle skips it. */
+export const COLOR_CYCLE = Object.keys(OPTION_COLORS).filter((c) => c !== "default");
 
 export function optionClass(color: string): string {
   return OPTION_COLORS[color] ?? OPTION_COLORS.gray;
@@ -292,7 +314,7 @@ export function applyView(
     .filter((g) => g.filters.length > 0);
   const matchOne = (r: DbRow, f: ViewFilter) => {
     const prop = props.find((p) => p.id === f.propertyId)!;
-    return matchFilter(resolveFilterValue(r, prop, props, related), f.op, f.value, me, prop.type);
+    return matchFilter(resolveFilterValue(r, prop, props, related), f.op, f.value, me, prop.type, prop);
   };
   if (active.length || groups.length) {
  // AND (default) requires every condition; OR requires at least one.
@@ -368,10 +390,20 @@ export function matchFilter(
   op: FilterOp,
   value: unknown,
   me: string | null,
-  type?: PropertyType
+  type?: PropertyType,
+  prop?: DbProperty
 ): boolean {
  // "is / is not" accept an ARRAY value = "is any of / is none of".
-  const wanted: unknown[] = Array.isArray(value) ? value : [value];
+ // A status filter can also name a GROUP ("group:In progress"), which stands
+ // for every option in that group.
+  const expand = (w: unknown): unknown[] => {
+    const s = typeof w === "string" ? w : "";
+    if (!s.startsWith("group:")) return [w];
+    const name = s.slice(6);
+    const g = prop?.config.optionGroups?.find((x) => x.name === name || x.id === name);
+    return g ? g.optionIds : [w];
+  };
+  const wanted: unknown[] = (Array.isArray(value) ? value : [value]).flatMap(expand);
   const eq = (): boolean => {
     if (empty(v)) return false;
  // dispatch on the PROPERTY TYPE (not the value's shape): a text cell that
@@ -398,12 +430,16 @@ export function matchFilter(
             ? Number(v) === Number(w)
             : String(v).toLowerCase() === String(w ?? "").toLowerCase()
         );
+      case "person":
+      case "created_by":
+      case "last_edited_by": {
+ // a multi-person cell "is" any of the people in it
+        const ids = personIds(v);
+        return wanted.some((w) => ids.includes(String(w)));
+      }
       case "select":
       case "status":
       case "multi_select":
-      case "person":
-      case "created_by":
-      case "last_edited_by":
         return wanted.some((w) => String(v) === String(w));
       default: {
  // no type known (legacy caller) — keep the shape heuristic
@@ -421,7 +457,7 @@ export function matchFilter(
   };
   switch (op) {
     case "is_me":
-      return v === me;
+      return !!me && personIds(v).includes(me);
     case "is_empty":
       return empty(v);
     case "not_empty":
@@ -497,33 +533,201 @@ function compareValues(a: unknown, b: unknown, prop?: DbProperty): number {
   return String(a).localeCompare(String(b));
 }
 
-/** Partition rows into labelled sections by a select/status property (the
- * shared group-by used by table sections, list and gallery groupings). */
+/** Partition rows into labelled sections (the shared group-by used by list,
+ * gallery and the dashboard's grouped widgets). Same sections as the grouped
+ * table — see `buildGroups`, which this delegates to. */
 export function groupRowsBy(
   rows: DbRow[],
-  prop: DbProperty | undefined
-): { key: string; label: string; rows: DbRow[] }[] | null {
+  prop: DbProperty | undefined,
+  members: PublicUser[] = []
+): RowGroup[] | null {
+  return buildGroups(rows, prop, members);
+}
+
+/** Column order belongs to the VIEW, not the database — the original Projects
+ * page shows the same 23 properties starting with TL in one view, Team in
+ * another and Status in a third (`docs/notion-projects-spec.md`). A property the
+ * view has never ordered keeps its database position, at the end.
+ *
+ * `visibleColumns` additionally drops the view's hidden properties. */
+export function orderedProperties(props: DbProperty[], config: ViewConfig): DbProperty[] {
+  const order = config.propertyOrder;
+  if (!order?.length) return props;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  return [...props].sort((a, b) => {
+    const ra = rank.get(a.id) ?? order.length + a.position;
+    const rb = rank.get(b.id) ?? order.length + b.position;
+    return ra - rb;
+  });
+}
+
+export function visibleColumns(props: DbProperty[], config: ViewConfig): DbProperty[] {
+  const hidden = config.hiddenProperties ?? [];
+  return orderedProperties(props, config).filter((p) => !hidden.includes(p.id));
+}
+
+/** Which band a status option belongs to. Prefers the property's own
+ * `optionGroups` (what the original carries: To-do · In progress · Complete);
+ * falls back to the fixed `group` flag older options were written with. */
+const LEGACY_GROUP: Record<string, string> = {
+  todo: "To-do",
+  in_progress: "In progress",
+  complete: "Complete",
+};
+export function statusGroupOf(prop: DbProperty, optionId: string): string | null {
+  const g = prop.config.optionGroups?.find((x) => x.optionIds.includes(optionId));
+  if (g) return g.name;
+  const opt = prop.config.options?.find((o) => o.id === optionId);
+  return opt?.group ? LEGACY_GROUP[opt.group] ?? opt.group : null;
+}
+
+/** Property types a view can group by. Notion groups by more than select/status
+ * — `docs/target.html`'s Projects table is grouped by the *person* property
+ * `TL`, one section per teammate. */
+export const GROUPABLE_TYPES: PropertyType[] = [
+  "select",
+  "status",
+  "person",
+  "multi_select",
+  "checkbox",
+];
+
+export function isGroupable(p: DbProperty): boolean {
+  return GROUPABLE_TYPES.includes(p.type);
+}
+
+/** One group-by section. `preset` is the value a row created inside the section
+ * must carry so it lands in that section (Notion's "그룹에 새 페이지 추가"). */
+export interface RowGroup {
+  key: string;
+  label: string;
+  rows: DbRow[];
+  preset: unknown;
+}
+
+/** Partition rows into sections by any groupable property.
+ *
+ * select/status enumerate their configured options (so an empty option still
+ * gets a section, which is how a board keeps its columns); person and checkbox
+ * have no option list, so their sections come from the values actually present
+ * — as in the capture, where only the ten teammates who own a project appear. */
+export function buildGroups(
+  rows: DbRow[],
+  prop: DbProperty | undefined,
+  members: PublicUser[] = []
+): RowGroup[] | null {
   if (!prop) return null;
+  const none = (label: string, has: (v: unknown) => boolean): RowGroup => ({
+    key: "__none__",
+    label,
+    rows: rows.filter((r) => !has(r.values[prop.id])),
+    preset: undefined,
+  });
+
+  if (prop.type === "checkbox") {
+    return [
+      { key: "true", label: "체크됨", rows: rows.filter((r) => r.values[prop.id] === true), preset: true },
+      { key: "false", label: "체크 안 됨", rows: rows.filter((r) => r.values[prop.id] !== true), preset: false },
+    ];
+  }
+
+  if (prop.type === "person") {
+ // member order keeps the sections stable as rows are edited. A cell can hold
+ // several people, so such a row belongs to each of their sections.
+    const present = new Set(rows.flatMap((r) => personIds(r.values[prop.id])));
+    const known = members.filter((m) => present.has(m.id));
+    const orphans = [...present].filter((id) => !members.some((m) => m.id === id));
+    const forPerson = (id: string) => rows.filter((r) => personIds(r.values[prop.id]).includes(id));
+    return [
+      ...known.map((m) => ({
+        key: m.id,
+        label: m.displayName,
+        rows: forPerson(m.id),
+        preset: [m.id] as unknown,
+      })),
+      ...orphans.map((id) => ({
+        key: id,
+        label: "알 수 없는 사용자",
+        rows: forPerson(id),
+        preset: [id] as unknown,
+      })),
+      none(`${prop.name} 없음`, (v) => personIds(v).length > 0),
+    ];
+  }
+
+  if (prop.type === "title" || prop.type === "text") {
+ // no option list to enumerate, so the distinct values *are* the groups — this
+ // is what the original's chart does when it stacks by title ("groupBy: exact")
+    const byValue = new Map<string, DbRow[]>();
+    for (const r of rows) {
+      const v = String(r.values[prop.id] ?? "").trim();
+      if (!v) continue;
+      const list = byValue.get(v);
+      if (list) list.push(r);
+      else byValue.set(v, [r]);
+    }
+    return [
+      ...[...byValue].map(([v, rs]) => ({ key: v, label: v, rows: rs, preset: v as unknown })),
+      none(`${prop.name} 없음`, (v) => String(v ?? "").trim() !== ""),
+    ];
+  }
+
   const opts = prop.config.options ?? [];
+
+  if (prop.type === "multi_select") {
+ // `All Projects` groups by the multi_select `Team`; a project on two teams
+ // shows up under both, the way a two-person cell shows up under both people.
+    const ids = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+    return [
+      ...opts.map((o) => ({
+        key: o.id,
+        label: o.name,
+        rows: rows.filter((r) => ids(r.values[prop.id]).includes(o.id)),
+        preset: [o.id] as unknown,
+      })),
+      none(`${prop.name} 없음`, (v) => ids(v).length > 0),
+    ];
+  }
+
   return [
     ...opts.map((o) => ({
       key: o.id,
       label: o.name,
       rows: rows.filter((r) => r.values[prop.id] === o.id),
+      preset: o.id as unknown,
     })),
-    {
-      key: "__none__",
-      label: `No ${prop.name}`,
-      rows: rows.filter((r) => {
-        const v = r.values[prop.id];
-        return !v || !opts.some((o) => o.id === v);
-      }),
-    },
+    none(`${prop.name} 없음`, (v) => !!v && opts.some((o) => o.id === v)),
   ];
 }
 
+/** A person cell holds *several* people — `Assignee` in the capture carries two,
+ * and a cell with more than it can show ends in "N개 더 보기". Cells written
+ * before that were single ids, so every reader normalizes through here. */
+export function personIds(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && !!x);
+  return typeof v === "string" && v ? [v] : [];
+}
+
 export function personLabel(members: PublicUser[], id: unknown): string {
-  return members.find((m) => m.id === id)?.displayName ?? "";
+  const first = personIds(id)[0] ?? id;
+  return members.find((m) => m.id === first)?.displayName ?? "";
+}
+
+/** Every person in a cell, in the cell's own order, resolved for display: the
+ * label to write and the photo to draw beside it (an id nobody in the roster
+ * matches has neither, and falls back to the unknown-user label). */
+export function personLabels(
+  members: PublicUser[],
+  v: unknown
+): { id: string; label: string; avatarUrl: string | null }[] {
+  return personIds(v).map((id) => {
+    const member = members.find((m) => m.id === id);
+    return {
+      id,
+      label: member?.displayName ?? "알 수 없는 사용자",
+      avatarUrl: member?.avatarUrl ?? null,
+    };
+  });
 }
 
 /** Normalize a date property value to its start date string (calendar view

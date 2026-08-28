@@ -6,6 +6,7 @@ import { blocks, pages, workspaces } from "@/lib/db/schema";
 import type { Block, Page } from "@/lib/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { inlineHtmlToMd } from "@/lib/rich-text";
+import { columnAlign } from "@/lib/editor/table-data";
 
 /**
  * Markdown mirror — the workspace's canonical open-knowledge representation.
@@ -86,13 +87,22 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
         if (t?.cells?.length) {
           const esc = (s: string) => (s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
           const width = Math.max(...t.cells.map((row) => row.length));
-          const pad = (row: string[]) =>
-            Array.from({ length: width }, (_, i) => esc(row[i] ?? ""));
+ // a cell with its own html mirrors as markdown (**bold**, `code`, links)
+          const pad = (row: string[], ri: number) =>
+            Array.from({ length: width }, (_, i) => {
+              const rich = t.html?.[ri]?.[i];
+              return esc(rich ? inlineHtmlToMd(rich) : row[i] ?? "");
+            });
  // GFM tables require a header row; use the first row as header.
-          out.push(`${indent}| ${pad(t.cells[0]).join(" | ")} |`);
-          out.push(`${indent}| ${Array(width).fill("---").join(" | ")} |`);
+          out.push(`${indent}| ${pad(t.cells[0], 0).join(" | ")} |`);
+ // markdown can only align per column, so the column's first row decides
+          const bar = Array.from({ length: width }, (_, i) => {
+            const a = columnAlign(t, i);
+            return a === "center" ? ":---:" : a === "right" ? "---:" : "---";
+          });
+          out.push(`${indent}| ${bar.join(" | ")} |`);
           for (let i = 1; i < t.cells.length; i++) {
-            out.push(`${indent}| ${pad(t.cells[i]).join(" | ")} |`);
+            out.push(`${indent}| ${pad(t.cells[i], i).join(" | ")} |`);
           }
         }
         break;

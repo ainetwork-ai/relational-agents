@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { pages, workspaceMembers } from "@/lib/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { pages, workspaceMembers, dbRows, dbProperties } from "@/lib/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { publish } from "@/lib/realtime";
 import { scheduleMirror } from "@/lib/md-mirror";
 import {
@@ -203,6 +203,33 @@ export async function PATCH(
     .set(update)
     .where(eq(pages.id, pageId))
     .returning();
+
+ // Reverse mirror: this page may be a database row's body (values.__page
+ // points here). The table cell reads the row's title property, so a title
+ // edited on the full page must flow back or the two drift apart.
+  if (typeof update.title === "string") {
+    const [row] = await db
+      .select({ id: dbRows.id, databaseId: dbRows.databaseId })
+      .from(dbRows)
+      .where(sql`${dbRows.values}->>'__page' = ${pageId}`)
+      .limit(1);
+    if (row) {
+      const [titleProp] = await db
+        .select({ id: dbProperties.id })
+        .from(dbProperties)
+        .where(and(eq(dbProperties.databaseId, row.databaseId), eq(dbProperties.type, "title")))
+        .limit(1);
+      if (titleProp) {
+        await db
+          .update(dbRows)
+          .set({
+            values: sql`${dbRows.values} || ${JSON.stringify({ [titleProp.id]: update.title })}::jsonb`,
+            updatedAt: new Date(),
+          })
+          .where(eq(dbRows.id, row.id));
+      }
+    }
+  }
 
   publish({
     type: "page",

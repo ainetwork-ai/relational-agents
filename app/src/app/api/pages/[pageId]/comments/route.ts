@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { comments, pages, users, workspaceMembers } from "@/lib/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { comments, files, pages, users, workspaceMembers } from "@/lib/db/schema";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
+import { parseStorageUrl, storageBucket } from "@/lib/files/storage";
 import { isOkfId } from "@/lib/okf-store";
 import { notifyMentions, notifyPageComment } from "@/lib/notifications";
 import {
@@ -14,6 +15,66 @@ import {
 } from "@/lib/auth/share-token";
 
 export const dynamic = "force-dynamic";
+
+const MAX_ATTACHMENTS = 8;
+const MAX_ATTACHMENT_NAME = 200;
+
+interface IncomingAttachment {
+  url: string;
+  name: string;
+  size?: number;
+  mimeType?: string;
+}
+
+/**
+ * Only urls the upload path itself produced. An `s3://` token must name OUR
+ * bucket, and a legacy `/uploads/` path must be a plain file name — anything
+ * else is an attempt to make the proxy route fetch something we did not store.
+ */
+function parseAttachments(raw: unknown): IncomingAttachment[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) return null;
+  const out: IncomingAttachment[] = [];
+  for (const item of raw) {
+    const url = (item as { url?: unknown })?.url;
+    const name = (item as { name?: unknown })?.name;
+    const size = (item as { size?: unknown })?.size;
+    const mimeType = (item as { mimeType?: unknown })?.mimeType;
+    if (typeof url !== "string") return null;
+    const parsed = parseStorageUrl(url);
+    if (parsed) {
+      if (parsed.bucket !== storageBucket()) return null;
+    } else if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return null;
+    out.push({
+      url,
+      name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file",
+      ...(typeof size === "number" && size >= 0 ? { size } : {}),
+      ...(typeof mimeType === "string" ? { mimeType: mimeType.slice(0, 200) } : {}),
+    });
+  }
+  return out;
+}
+
+/** Attachments as the client consumes them: an id it can build proxy URLs
+ *  from, plus what it needs to draw the row without fetching the bytes. */
+async function attachmentsByComment(commentIds: string[]) {
+  if (!commentIds.length) return new Map<string, unknown[]>();
+  const rows = await db.select().from(files).where(inArray(files.commentId, commentIds));
+  const map = new Map<string, unknown[]>();
+  for (const f of rows) {
+    const list = map.get(f.commentId) ?? [];
+    list.push({
+      id: f.id,
+      name: f.fileName,
+      size: f.fileSize ?? undefined,
+      mimeType: f.mimeType ?? undefined,
+      width: f.width ?? undefined,
+      height: f.height ?? undefined,
+    });
+    map.set(f.commentId, list);
+  }
+  return map;
+}
 
 async function loadAccessiblePage(pageId: string, userId: string) {
   if (isOkfId(pageId)) return null; // file-backed page: no SQL comment thread
@@ -79,14 +140,18 @@ export async function GET(
     .where(eq(comments.pageId, pageId))
     .orderBy(asc(comments.createdAt));
 
+  const byComment = await attachmentsByComment(rows.map((r) => r.comments.id));
+ // the fileUrl never leaves the server — the client addresses bytes by file id
+ // through the proxy routes, so a storage key is not a thing it can hold
   const result = rows.map((r) => ({
     ...r.comments,
     author: r.users ? toPublicUser(r.users) : null,
+    attachments: byComment.get(r.comments.id) ?? [],
   }));
   return NextResponse.json({ comments: result });
 }
 
-/** POST { body, blockId? } → create a comment (blockId null = page thread). */
+/** POST { body, blockId?, attachments? } → create a comment (blockId null = page thread). */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }
@@ -125,7 +190,12 @@ export async function POST(
   const body = typeof raw?.body === "string" ? raw.body.trim() : "";
   const blockId = typeof raw?.blockId === "string" ? raw.blockId : null;
   const parentId = typeof raw?.parentId === "string" ? raw.parentId : null;
-  if (!body) return NextResponse.json({ error: "Empty body" }, { status: 400 });
+  const attachments = parseAttachments(raw?.attachments);
+  if (attachments === null)
+    return NextResponse.json({ error: "Bad attachments" }, { status: 400 });
+ // a comment may be nothing but files — the clip alone is a valid comment
+  if (!body && !attachments.length)
+    return NextResponse.json({ error: "Empty body" }, { status: 400 });
 
  // Snapshot who has already commented (page participants) before we add ours.
   const priorAuthors = await db
@@ -137,6 +207,25 @@ export async function POST(
     .insert(comments)
     .values({ pageId, blockId, parentId, authorId: access.user.id, body })
     .returning();
+
+ // file rows are created WITH the comment, not when the upload finished — an
+ // upload nobody sent leaves nothing behind, and comment_id can stay NOT NULL
+ // so the cascade answers "is this object still referenced?"
+  const saved = attachments.length
+    ? await db
+        .insert(files)
+        .values(
+          attachments.map((a) => ({
+            commentId: comment.id,
+            userId: access.user.id,
+            fileName: a.name,
+            fileUrl: a.url,
+            fileSize: a.size ?? null,
+            mimeType: a.mimeType ?? null,
+          }))
+        )
+        .returning()
+    : [];
 
   if (!isOkfId(pageId))
   await notifyMentions({
@@ -157,7 +246,20 @@ export async function POST(
   });
 
   return NextResponse.json(
-    { comment: { ...comment, author: toPublicUser(access.user) } },
+    {
+      comment: {
+        ...comment,
+        author: toPublicUser(access.user),
+        attachments: saved.map((f) => ({
+          id: f.id,
+          name: f.fileName,
+          size: f.fileSize ?? undefined,
+          mimeType: f.mimeType ?? undefined,
+          width: f.width ?? undefined,
+          height: f.height ?? undefined,
+        })),
+      },
+    },
     { status: 201 }
   );
 }

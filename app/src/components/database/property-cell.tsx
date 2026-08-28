@@ -1,27 +1,70 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { StatusPicker } from "./status-picker";
+import { useAnchored } from "@/hooks/use-anchored";
 import { uploadBlob } from "@/lib/upload";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
-import { optionClass, findOption, personLabel } from "@/lib/db-values";
+import { X } from "lucide-react";
+import { useIntlLocale, useT } from "@/i18n/provider";
+
+/** The person picker, measured on the original (e2e/fixtures/notion-person-picker.json):
+ *  the box is always 333 tall with the list scrolling inside, and its width is the
+ *  cell's — but never under 240 (a 117px Sherpa cell still opens a 240 menu). */
+const POPOVER_MAX_H = 333;
+const PICKER_MIN_W = 240;
+const PICKER_SHADOW =
+  "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px";
+import { createPortal } from "react-dom";
+import { findOption, personLabel, personIds, personLabels } from "@/lib/db-values";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
 import {
   fetchDatabaseSnapshot,
   targetRowLabel,
   type DbSnapshot,
 } from "@/lib/db-relation";
+import { formatRowTimestamp } from "@/lib/dates";
+import {
+  DatePickerPanel,
+  PANEL_SHADOW,
+  buildDateValue,
+  parseDateValue,
+  type DateParts,
+} from "./date-picker";
+import { DEFAULT_DATE_FORMAT, fmtDateRange, type DateFormat } from "@/lib/date-format";
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
-import { initial } from "@/lib/glyph";
+import { UserAvatar } from "@/components/user-avatar";
+import { OptionChip } from "./option-chip";
 
-/** Format a row timestamp (Date or ISO string over JSON) for display. */
-function fmtTimestamp(v: unknown): string {
+/** A row timestamp, written the way the original writes it. */
+function fmtTimestamp(v: unknown, locale: string): string {
   if (!v) return "";
   const d = new Date(v as string | number | Date);
-  return isNaN(d.getTime()) ? "" : d.toLocaleString("en-US");
+  return isNaN(d.getTime()) ? "" : formatRowTimestamp(d, locale);
 }
 
-export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
+export function PropertyCell({
+  prop,
+  row,
+ // shrink the field to its text instead of filling the cell. The table's title
+ // cell needs it: the original hangs the comment badge right after the title,
+ // not out at the cell's right edge.
+  shrinkToText,
+ // the row page's pinned band draws only the first person and counts the rest
+ // (`+ 5`), however much room is left — measured on the original, where a
+ // 6-person cell is 135px wide against a 200px cap
+ // (e2e/fixtures/notion-row-props-band.json §people). The table does not.
+  collapsePeople,
+}: {
+  prop: DbProperty;
+  row: DbRow;
+  shrinkToText?: boolean;
+  collapsePeople?: boolean;
+}) {
+  const intl = useIntlLocale();
   const db = useDb();
   const value = row.values[prop.id];
   const testid = `db-cell-${row.id}-${prop.id}`;
@@ -33,35 +76,66 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     case "text":
     case "email":
     case "phone":
-      return <TextCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
+      return (
+        <TextCell
+          testid={testid}
+          value={(value as string) ?? ""}
+          onCommit={set}
+          shrinkToText={shrinkToText}
+        />
+      );
 
     case "url":
       return <UrlCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
 
     case "created_time":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
-          {fmtTimestamp(row.createdAt)}
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
+          {fmtTimestamp(row.createdAt, intl)}
         </div>
       );
 
     case "last_edited_time":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
-          {fmtTimestamp(row.updatedAt)}
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
+          {fmtTimestamp(row.updatedAt, intl)}
         </div>
       );
 
     case "created_by":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {personLabel(db.members, row.createdBy) || "—"}
         </div>
       );
 
     case "last_edited_by":
       return (
-        <div data-testid={testid} className="px-2 py-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <div
+          data-testid={testid}
+ // the original prints these in the ordinary cell colour at 14px/21px and insets
+ // the text 8px/10px — it does not grey them out
+ // (e2e/fixtures/notion-created-time.json)
+          className="flex h-[37px] items-start pl-[7px] pr-2 pt-[10px] text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
+        >
           {personLabel(db.members, row.updatedBy) || "—"}
         </div>
       );
@@ -86,7 +160,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
       );
 
     case "date":
-      return <DateCell testid={testid} value={value} onSet={set} />;
+      return <DateCell testid={testid} prop={prop} value={value} onSet={set} />;
 
     case "select":
     case "status":
@@ -96,7 +170,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
       return <MultiSelectCell testid={testid} prop={prop} row={row} />;
 
     case "person":
-      return <PersonCell testid={testid} value={value} onSet={set} />;
+      return <PersonCell testid={testid} value={value} onSet={set} collapse={collapsePeople} />;
 
     case "relation":
       return <RelationCell prop={prop} row={row} />;
@@ -114,6 +188,7 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
 function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [snap, setSnap] = useState<DbSnapshot | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -153,14 +228,11 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
     };
   }, [targetDbId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(targetRowId: string) {
     if (mirror) {
@@ -209,12 +281,17 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 max-h-64 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           {!targetDbId ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">Pick a target database first</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("먼저 대상 데이터베이스를 선택하세요")}</div>
           ) : !snap || snap.rows.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">No rows to link</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("연결할 행이 없습니다")}</div>
           ) : (
             snap.rows.map((tr) => (
               <button
@@ -230,8 +307,9 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
               </button>
             ))
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -300,6 +378,7 @@ function MultiSelectCell({
   row: DbRow;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -307,46 +386,52 @@ function MultiSelectCell({
   const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
   const options = prop.config.options ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
   function toggle(id: string) {
     db.toggleMulti(row.id, prop.id, id);
   }
 
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div ref={ref} className="relative min-w-0 py-1 pl-[7px] pr-1.5">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full flex-wrap items-center gap-1"
+ // the original insets the first chip 8px from the cell's border box and gaps
+ // chips by 8px (e2e/fixtures/notion-chips.json → cell); our cell draws a 1px
+ // left border, so 7px of padding lands the chip on 8
+        className="flex min-h-[1.5rem] w-full items-center gap-2 overflow-hidden"
       >
         {selected.length ? (
+ // one line, clipped by the column — the capture's cell does not wrap
           selected.map((id) => {
             const o = findOption(prop, id);
             return o ? (
-              <span key={id} className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+              <OptionChip key={id} color={o.color} title={o.name}>
                 {o.name}
-              </span>
+              </OptionChip>
             ) : null;
           })
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 w-48 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
           <input
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search or create…"
+            placeholder={t("검색 또는 생성…")}
             className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
           />
           {options
@@ -358,9 +443,7 @@ function MultiSelectCell({
                 onClick={() => toggle(o.id)}
                 className="flex w-full items-center justify-between rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
               >
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
-                  {o.name}
-                </span>
+                <OptionChip color={o.color}>{o.name}</OptionChip>
                 {selected.includes(o.id) && <span className="text-xs text-blue-500">✓</span>}
               </button>
             ))}
@@ -374,11 +457,12 @@ function MultiSelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              + Create “{q}”
+              {t("생성 “{q}”", { q })}
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -387,10 +471,12 @@ function TextCell({
   testid,
   value,
   onCommit,
+  shrinkToText,
 }: {
   testid: string;
   value: string;
   onCommit: (v: string) => void;
+  shrinkToText?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const ref = useRef(value);
@@ -400,252 +486,121 @@ function TextCell({
       setDraft(value);
     }
   }, [value]);
-  return (
+  const field = (
     <input
       data-testid={testid}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== value && onCommit(draft)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
-      className="w-full bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200"
+      className={`bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200 ${
+        shrinkToText ? "absolute inset-0 w-full" : "w-full"
+      }`}
     />
   );
-}
-
-/** A date value is either a plain "YYYY-MM-DD" string (legacy) or an object
- * { start: "YYYY-MM-DD[THH:MM]", end?, includeTime? } for time-of-day/ranges. */
-interface DateParts {
-  date: string;
-  time: string;
-  end: string;
-}
-function parseDateValue(v: unknown): DateParts {
-  if (v && typeof v === "object") {
-    const o = v as { start?: string; end?: string };
-    const [date, time] = (o.start ?? "").split("T");
-    return { date: date ?? "", time: time ?? "", end: o.end ?? "" };
-  }
-  if (typeof v === "string") {
-    const [date, time] = v.split("T");
-    return { date: date ?? "", time: time ?? "", end: "" };
-  }
-  return { date: "", time: "", end: "" };
-}
-function buildDateValue({ date, time, end }: DateParts): unknown {
-  if (!date) return null;
-  const start = time ? `${date}T${time}` : date;
- // an end or a time makes it a structured value; a bare date stays a string.
-  if (end || time) return { start, ...(end ? { end } : {}), includeTime: !!time };
-  return start;
-}
-function dateSummary({ date, time, end }: DateParts): string {
-  if (!date) return "";
-  return `${date}${time ? ` ${time}` : ""}${end ? ` → ${end}` : ""}`;
-}
-
-/** Date cell: start date + optional time-of-day + optional end-date range,
- *. Renders a "start [time] → end" summary. */
-/** Pretty cell label: "Mar 10, 2026 14:30 → Mar 12, 2026". */
-function dateLabel({ date, time, end }: DateParts): string {
-  const fmt = (d: string) => {
-    const [y, m, day] = d.split("-").map(Number);
-    if (!y || !m || !day) return d;
-    return new Date(y, m - 1, day).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-  if (!date) return "";
-  return `${fmt(date)}${time ? ` ${time}` : ""}${end ? ` → ${fmt(end)}` : ""}`;
-}
-
-/** Month grid for the date popover. */
-export function MonthGrid({
-  idBase,
-  selected,
-  onPick,
-}: {
-  idBase: string;
-  selected: string;
-  onPick: (iso: string) => void;
-}) {
-  const today = new Date();
-  const init = selected ? new Date(selected + "T00:00") : today;
-  const [ym, setYm] = useState({ y: init.getFullYear(), m: init.getMonth() });
-  const first = new Date(ym.y, ym.m, 1);
-  const startPad = first.getDay();
-  const daysInMonth = new Date(ym.y, ym.m + 1, 0).getDate();
-  const iso = (d: number) =>
-    `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  if (!shrinkToText) return field;
+ // A hidden twin carrying the same text in the same font sets the width, so
+ // the input is exactly as wide as what it shows and whatever follows it sits
+ // against the text. `field-sizing: content` would do this in one line but
+ // only lands in Chromium — this works everywhere and needs no measuring pass.
   return (
-    <div data-testid={`db-date-grid-${idBase}`} className="w-56 select-none">
-      <div className="mb-1 flex items-center justify-between px-1 text-xs text-neutral-600 dark:text-neutral-300">
-        <button
-          data-testid={`db-date-prevmonth-${idBase}`}
-          onClick={() => setYm(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}
-          className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-          aria-label="Previous month"
-        >
-          ‹
-        </button>
-        <span className="font-medium">
-          {first.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-        </span>
-        <button
-          data-testid={`db-date-nextmonth-${idBase}`}
-          onClick={() => setYm(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}
-          className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-          aria-label="Next month"
-        >
-          ›
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-neutral-400">
-        {["S", "M", "T", "W", "T2", "F", "S2"].map((d) => (
-          <span key={d}>{d.replace("2", "")}</span>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {Array.from({ length: startPad }, (_, i) => (
-          <span key={`pad${i}`} />
-        ))}
-        {Array.from({ length: daysInMonth }, (_, i) => {
-          const d = iso(i + 1);
-          const isSel = d === selected;
-          const isToday = d === todayIso;
-          return (
-            <button
-              key={d}
-              data-testid={`db-date-day-${idBase}-${d}`}
-              onClick={() => onPick(d)}
-              className={`rounded p-1 text-xs ${
-                isSel
-                  ? "bg-blue-500 font-medium text-white"
-                  : isToday
-                    ? "font-semibold text-blue-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                    : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              }`}
-            >
-              {i + 1}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <span className="relative block max-w-full">
+      <span aria-hidden="true" className="invisible block whitespace-pre px-2 py-1 text-sm">
+        {draft || " "}
+      </span>
+      {field}
+    </span>
   );
 }
 
+/**
+ * Date cell. The cell itself is plain text in the column's `날짜 형식`;
+ * everything else lives in the popover (./date-picker.tsx), which is the
+ * original's, measured.
+ */
 function DateCell({
   testid,
+  prop,
   value,
   onSet,
 }: {
   testid: string;
+  prop: DbProperty;
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const db = useDb();
   const parts = parseDateValue(value);
   const [open, setOpen] = useState(false);
-  const [showEnd, setShowEnd] = useState(!!parts.end);
   const ref = useRef<HTMLDivElement>(null);
   const push = (next: Partial<DateParts>) => onSet(buildDateValue({ ...parts, ...next }));
   const idBase = testid.replace("db-cell-", "");
+  const fmt = (prop.config?.dateFormat as DateFormat) ?? DEFAULT_DATE_FORMAT;
+  const t = useT();
+  const dateOpts = { locale: useIntlLocale(), t };
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const popRef = useRef<HTMLDivElement>(null);
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  useAnchored(open, ref, popRef);
+  useDismiss(open, () => setOpen(false), ref, popRef);
 
- // the CELL is plain text; all editing lives in the popover
   return (
     <div ref={ref} className="relative">
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="min-h-[1.75rem] w-full px-2 py-1 text-left text-sm text-neutral-700 dark:text-neutral-200"
+ // the same metrics as every other cell's text (14px/21px, inset 8/10)
+        className="flex h-[37px] w-full items-start pl-[7px] pr-2 pt-[10px] text-left text-[14px] font-normal leading-[21px] text-[#2c2c2b] dark:text-neutral-300"
       >
-        {dateLabel(parts) || <span className="inline-block h-5 w-full" aria-hidden="true" />}
+        {fmtDateRange(parts, fmt, dateOpts) ? (
+ // one line, cut with an ellipsis rather than mid-glyph — the original nests
+ // `white-space: nowrap; text-overflow: ellipsis; overflow: hidden` inside its
+ // value cell, so a range wider than the cell reads "2025년 12월 22일 → 2026년…"
+ // (e2e/fixtures/notion-row-props-band.json §truncate)
+          <span className="min-w-0 truncate">{fmtDateRange(parts, fmt, dateOpts)}</span>
+        ) : (
+          <span className="inline-block h-5 w-full" aria-hidden="true" />
+        )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          <MonthGrid
-            idBase={idBase}
-            selected={parts.date}
-            onPick={(d) => push({ date: d })}
-          />
-          <div className="mt-1.5 flex flex-wrap items-center gap-1 border-t border-neutral-100 pt-1.5 text-xs dark:border-neutral-700">
-            <input
-              data-testid={`db-date-input-${idBase}`}
-              type="date"
-              value={parts.date}
-              onChange={(e) => push({ date: e.target.value })}
-              className="bg-transparent outline-none dark:text-neutral-200"
-            />
-            <input
-              data-testid={`db-date-time-${idBase}`}
-              type="time"
-              value={parts.time}
-              onChange={(e) => push({ time: e.target.value })}
-              className="bg-transparent text-neutral-500 outline-none"
-            />
-            <button
-              data-testid={`db-date-endtoggle-${idBase}`}
-              onClick={() => setShowEnd((v) => !v)}
-              aria-label="Toggle end date"
-              className="text-neutral-400 hover:text-neutral-600"
-            >
-              →
-            </button>
-            {showEnd && (
-              <input
-                data-testid={`db-date-end-${idBase}`}
-                type="date"
-                value={parts.end}
-                onChange={(e) => push({ end: e.target.value })}
-                className="bg-transparent outline-none dark:text-neutral-200"
-              />
-            )}
-            <button
-              data-testid={`db-date-clear-${idBase}`}
-              onClick={() => {
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ visibility: "hidden", boxShadow: PANEL_SHADOW }}
+            className="popover-anim fixed z-50 rounded-md bg-white dark:bg-[#252525]"
+          >
+            <DatePickerPanel
+              idBase={idBase}
+              parts={parts}
+              fmt={fmt}
+              onChange={push}
+              onFormat={(f) =>
+                db.updateProperty(prop.id, { config: { ...prop.config, dateFormat: f } })
+              }
+              onClear={() => {
                 onSet(null);
                 setOpen(false);
               }}
-              className="ml-auto rounded px-1.5 py-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
 
 /** Format a number per the column's numberFormat config. */
-function formatNumber(n: number, fmt?: string): string {
+function formatNumber(n: number, fmt: string | undefined, locale: string): string {
   switch (fmt) {
     case "percent":
       return `${n}%`;
     case "currency":
-      return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+      return n.toLocaleString(locale, { style: "currency", currency: "USD" });
     case "comma":
-      return n.toLocaleString();
+      return n.toLocaleString(locale);
     default:
       return String(n);
   }
@@ -664,6 +619,7 @@ function NumberCell({
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const intl = useIntlLocale();
   const [editing, setEditing] = useState(false);
   const num = value === undefined || value === null || value === "" ? null : Number(value);
   const asBar = prop.config.display === "bar";
@@ -697,7 +653,7 @@ function NumberCell({
           className="block h-full rounded-full bg-blue-500"
         />
       </span>
-      <span className="shrink-0 text-xs text-neutral-500">{formatNumber(num, prop.config.numberFormat)}</span>
+      <span className="shrink-0 text-xs text-neutral-500">{formatNumber(num, prop.config.numberFormat, intl)}</span>
     </button>
   );
 }
@@ -713,6 +669,7 @@ function UrlCell({
   value: string;
   onCommit: (v: string) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const ref = useRef(value);
@@ -736,7 +693,7 @@ function UrlCell({
           if (draft !== value) onCommit(draft);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         className="w-full bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200"
       />
@@ -768,8 +725,8 @@ function UrlCell({
             }, 1200);
           }
         }}
-        aria-label="Copy URL"
-        data-tip="Copy link"
+        aria-label={t("URL 복사")}
+        data-tip={t("링크 복사")}
         className="shrink-0 rounded px-1 text-xs text-neutral-400 opacity-0 transition-opacity hover:text-neutral-600 group-hover/urlcell:opacity-100"
       >
         ⧉
@@ -777,7 +734,7 @@ function UrlCell({
       <button
         data-testid={`db-url-edit-${testid}`}
         onClick={() => setEditing(true)}
-        aria-label="Edit URL"
+        aria-label={t("URL 편집")}
         className="ml-auto shrink-0 px-1 text-xs text-neutral-400 hover:text-neutral-600"
       >
         ✎
@@ -798,45 +755,94 @@ function SelectCell({
   onSet: (v: unknown) => void;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const cellRef = useRef<HTMLElement | null>(null);
   const current = findOption(prop, value);
   const options = prop.config.options ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  const popRef = useRef<HTMLDivElement>(null);
+ // A status property gets its own menu (StatusPicker), which anchors and
+ // dismisses itself. Leaving these two running would close it on the first
+ // mousedown INSIDE it — its portal is outside both refs below — and the click
+ // would never reach the option. That is the person-picker bug, again.
+  const plainOpen = open && prop.type !== "status";
+ // portalled to the body, so the cell's one-line clipping cannot cut it and it
+ // flips above the cell near the bottom of the window
+  // covers the cell (the original's box starts 1px up and left of it), not
+  // the padded box inside — measured 2026-08-27 on a table cell AND on a page
+  // value cell: 300 wide, radius 6, one 28×292 row per option.
+  useAnchored(plainOpen, cellRef, popRef, { cover: true });
+  useDismiss(plainOpen, () => setOpen(false), ref, popRef);
+
+ // A STABLE callback: an inline arrow gets a new identity every render, so
+ // React detaches the old ref (nulling cellRef) and re-attaches on every
+ // commit — including the commit that mounts StatusPicker, whose layout
+ // effect then reads cellRef mid-detach and the menu never gets placed.
+ // Dev's StrictMode re-runs the effect and hid this; production did not.
+  const attachRef = useCallback((el: HTMLDivElement | null) => {
+    ref.current = el;
+ // the menu covers the CELL, not this padded box inside it
+    cellRef.current =
+      (el?.closest("[data-cellnav], [data-role='value']") as HTMLElement | null) ?? el;
+  }, []);
 
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div
+      ref={attachRef}
+      className="relative min-w-0 py-1 pl-[7px] pr-1.5"
+    >
       <button
         data-testid={testid}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full items-center"
+        className="flex min-h-[1.5rem] w-full items-center overflow-hidden"
       >
         {current ? (
-          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(current.color)}`}>
+          <OptionChip color={current.color} title={current.name} dot={prop.type === "status"}>
             {current.name}
-          </span>
+          </OptionChip>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-44 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search or create…"
-            className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
-          />
+      {open && prop.type === "status" && (
+        <StatusPicker
+          prop={prop}
+          value={value}
+          slug={testid.replace("db-cell-", "")}
+          anchorRef={cellRef}
+          onSet={onSet}
+          onClose={() => setOpen(false)}
+        />
+      )}
+      {plainOpen &&
+        createPortal(
+          <div
+            ref={popRef}
+            data-testid="db-select-menu"
+            style={{ visibility: "hidden", width: 300, boxShadow: PICKER_SHADOW, transform: "translate(-1px, -1px)" }}
+            className="popover-anim fixed z-50 flex flex-col overflow-auto rounded-[6px] bg-white p-1 dark:bg-neutral-800"
+          >
+          {/* search bar: the chosen value as a chip, then the caret — the
+              Status menu's bar, in the same box */}
+          <div className="mb-1 shrink-0 rounded-[6px] bg-[rgba(242,241,238,0.6)] dark:bg-neutral-700/40">
+            <div className="flex max-h-[240px] flex-wrap items-center gap-1.5 overflow-y-auto px-2 pb-[6px] pt-[5px]">
+              {current && (
+                <OptionChip color={current.color} title={current.name}>
+                  {current.name}
+                </OptionChip>
+              )}
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={current ? "" : t("옵션 선택 또는 생성")}
+                className="h-5 min-w-[40px] flex-1 bg-transparent text-[14px] leading-5 text-[rgb(44,44,43)] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
+              />
+            </div>
+          </div>
           {!!value && (
             <button
               data-testid={`db-option-${prop.id}-none`}
@@ -844,49 +850,27 @@ function SelectCell({
                 onSet(null);
                 setOpen(false);
               }}
-              className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+              className="flex h-7 w-full items-center rounded-[6px] px-2 text-left text-[14px] text-neutral-500 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
             >
-              Clear
+              {t("지우기")}
             </button>
           )}
           {options
             .filter((o) => o.name.toLowerCase().includes(q.toLowerCase()))
             .map((o) => (
-              <div key={o.id} className="flex items-center gap-1">
+              <div key={o.id}>
                 <button
                   data-testid={`db-option-${prop.id}-${o.id}`}
                   onClick={() => {
                     onSet(o.id);
                     setOpen(false);
                   }}
-                  className="flex flex-1 items-center rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                  className="flex h-7 w-full min-w-0 items-center rounded-[6px] px-2 text-left hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
                 >
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(o.color)}`}>
+                  <OptionChip color={o.color} title={o.name} dot={prop.type === "status"}>
                     {o.name}
-                  </span>
+                  </OptionChip>
                 </button>
-                {prop.type === "status" && (
-                  <select
-                    data-testid={`status-group-${o.id}`}
-                    value={o.group ?? "todo"}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) =>
-                      db.updateProperty(prop.id, {
-                        config: {
-                          ...prop.config,
-                          options: options.map((x) =>
-                            x.id === o.id ? { ...x, group: e.target.value } : x
-                          ),
-                        },
-                      })
-                    }
-                    className="shrink-0 rounded border border-neutral-200 bg-transparent px-0.5 py-0.5 text-[10px] text-neutral-400 outline-none dark:border-neutral-600"
-                  >
-                    <option value="todo">To-do</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="complete">Complete</option>
-                  </select>
-                )}
               </div>
             ))}
           {q && !options.some((o) => o.name.toLowerCase() === q.toLowerCase()) && (
@@ -900,11 +884,12 @@ function SelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              + Create “{q}”
+              {t("생성 “{q}”", { q })}
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -920,6 +905,7 @@ function FilesCell({
   value: unknown;
   onSet: (v: unknown) => void;
 }) {
+  const t = useT();
   const urls: string[] = Array.isArray(value) ? (value as string[]).filter((u) => typeof u === "string") : [];
   const [draft, setDraft] = useState("");
   const add = () => {
@@ -944,13 +930,13 @@ function FilesCell({
             data-testid={`db-file-remove-${i}`}
             onClick={() => removeAt(i)}
             className="text-neutral-400 hover:text-red-500"
-            aria-label="Remove file"
+            aria-label={t("파일 제거")}
           >
             ×
           </button>
         </span>
       ))}
-      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title="Upload a file">
+      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title={t("파일 업로드")}>
         ⬆
         <input
           data-testid={`${testid}-upload`}
@@ -971,10 +957,10 @@ function FilesCell({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") add();
+          if (!isImeComposing(e) && e.key === "Enter") add();
         }}
         onBlur={add}
-        placeholder="Add file URL…"
+        placeholder={t("파일 URL 추가…")}
         className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 text-xs outline-none dark:text-neutral-200"
       />
     </div>
@@ -985,77 +971,180 @@ function PersonCell({
   testid,
   value,
   onSet,
+  collapse,
 }: {
   testid: string;
   value: unknown;
   onSet: (v: unknown) => void;
+  /** the pinned band's rule: one chip, then `+ N` */
+  collapse?: boolean;
 }) {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const label = personLabel(db.members, value);
+  const popRef = useRef<HTMLDivElement>(null);
+ // several people per cell (the capture's `Assignee` holds two); the popover
+ // toggles them rather than replacing the value
+  const picked = personIds(value);
+  const people = personLabels(db.members, value);
+  const slug = testid.split("db-cell-")[1];
+  const [query, setQuery] = useState("");
+  const [anchor, setAnchor] = useState({ left: 0, top: 0, width: 235 });
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+ // people not already in the cell, filtered by the search box — the original
+ // lists only the ones you could still add
+  const q = query.trim().toLowerCase();
+  const candidates = db.members.filter(
+    (m) =>
+      !picked.includes(m.id) &&
+      (!q ||
+        (m.displayName ?? "").toLowerCase().includes(q) ||
+        (m.email ?? "").toLowerCase().includes(q))
+  );
 
+  const openAt = () => {
+ // Anchored to the CELL and covering it, the original's way: box.left−1,
+ // box.top−1, width max(240, cell), height a fixed 333 with the list scrolling
+ // inside (e2e/fixtures/notion-person-picker.json). A 117px cell still gets
+ // 240 — the width follows the cell only once the cell is wider than that.
+    const cell = (ref.current?.closest("[data-cellnav]") as HTMLElement | null) ?? ref.current;
+    const box = cell?.getBoundingClientRect();
+    if (box) {
+      const width = Math.max(PICKER_MIN_W, Math.round(box.width));
+      setAnchor({
+        left: Math.round(Math.min(box.left - 1, window.innerWidth - width - 8)),
+        top: Math.round(Math.min(box.top - 1, window.innerHeight - POPOVER_MAX_H - 8)),
+        width,
+      });
+    }
+    setQuery("");
+    setOpen((v) => !v);
+  };
+
+  useDismiss(open, () => setOpen(false), ref, popRef);
+
+  function toggle(id: string) {
+    const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
+    onSet(next.length ? next : null);
+  }
+
+ // However many people a cell holds it stays one line and is simply clipped by
+ // the column — the real table has no "N개 더 보기" in a cell (that pill is a
+ // filter chip in the toolbar, which is where `target.html` has it).
   return (
-    <div ref={ref} className="relative px-1.5 py-1">
+    <div ref={ref} className="relative h-full w-full">
       <button
         data-testid={testid}
-        onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[1.5rem] w-full items-center gap-1.5"
+        onClick={openAt}
+ // the whole cell opens the picker, as the original's does — its cell carries
+ // `cursor: pointer` across its full width, not just over the names
+        className="flex h-full min-h-[1.5rem] w-full cursor-pointer items-center gap-1 overflow-hidden px-1.5 py-1"
       >
-        {label ? (
+        {people.length ? (
           <>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-              {initial(label)}
-            </span>
-            <span className="text-sm text-neutral-700 dark:text-neutral-200">{label}</span>
+            {/* avatar → name is 6px in the original (margin-inline-end: 6px on the
+                avatar), in the table's cells as well as the page's band */}
+            {(collapse ? people.slice(0, 1) : people).map((p) => (
+              <span key={p.id} className="flex shrink-0 items-center gap-1.5">
+                <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
+                <span className="whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-200">
+                  {p.label}
+                </span>
+              </span>
+            ))}
+            {collapse && people.length > 1 && (
+              /* 4px after the chip, 21px tall — which is what makes the band's
+                 person value 31 rather than 30 */
+              <span
+                data-role="person-overflow"
+                className="flex h-[21px] shrink-0 items-center whitespace-nowrap text-sm leading-[21px] text-neutral-700 dark:text-neutral-200"
+              >
+                + {people.length - 1}
+              </span>
+            )}
           </>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
         )}
       </button>
-      {open && (
-        <div className="popover-anim absolute left-0 top-8 z-40 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {!!value && (
-            <button
-              data-testid={`db-person-${testid.split("db-cell-")[1]}-none`}
-              onClick={() => {
-                onSet(null);
-                setOpen(false);
-              }}
-              className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+      {open &&
+        createPortal(
+ // In a portal, positioned against the cell: the table's cells clip their
+ // content to one line, and a popover rendered inside one was cut off.
+          <div
+            ref={popRef}
+            data-testid={`db-person-popover-${slug}`}
+            style={{
+              left: anchor.left,
+              top: anchor.top,
+              width: anchor.width,
+              height: POPOVER_MAX_H,
+              boxShadow: PICKER_SHADOW,
+            }}
+            className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-[6px] bg-white dark:bg-neutral-800"
+          >
+            {/* The bar: whoever is already in the cell, then the caret. The
+                original draws them as avatar + name + a 항목 제거 button, with
+                no pill behind them, and lets the input take what is left of
+                the line. Rows are 24 apart, the first at y=9, 10px at the
+                bottom — an empty bar is exactly 39 tall. */}
+            <div
+              className="shrink-0 overflow-y-auto rounded-[6px] bg-[rgba(242,241,238,0.6)] px-3 pb-[10px] pt-[9px] dark:bg-neutral-700/40"
+              style={{ maxHeight: 240 }}
             >
-              Clear
-            </button>
-          )}
-          {db.members.map((m) => (
-            <button
-              key={m.id}
-              data-testid={`db-person-${testid.split("db-cell-")[1]}-${m.id}`}
-              onClick={() => {
-                onSet(m.id);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white">
-                {initial(m.displayName)}
-              </span>
-              <span className="text-sm text-neutral-700 dark:text-neutral-200">
-                {m.displayName}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+              <div className="flex flex-wrap items-center gap-x-[6px] gap-y-1">
+                {people.map((p) => (
+                  <span key={p.id} className="flex h-5 items-center">
+                    <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
+                    <span className="ml-[6px] max-w-[12rem] truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
+                      {p.label}
+                    </span>
+                    <button
+                      data-testid={`db-person-${slug}-remove-${p.id}`}
+                      aria-label={t("항목 제거")}
+                      onClick={() => toggle(p.id)}
+                      className="ml-[2px] flex h-5 w-5 items-center justify-center text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  data-testid={`db-person-${slug}-search`}
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-5 min-w-[40px] flex-1 bg-transparent text-[14px] leading-5 text-[rgb(44,44,43)] outline-none dark:text-neutral-100"
+                />
+              </div>
+            </div>
+            {/* the padding lives on the wrapper: in the original the label's own
+                box starts 10px under the bar and 12px in, so the text element —
+                not its padding — is what has to land there */}
+            <div className="shrink-0 px-3 pt-[10px] text-[12px] leading-[14px]">
+              <span className="font-medium text-[rgb(125,122,117)]">{t("원하는 만큼 선택")}</span>
+            </div>
+            <div className="mt-[9px] min-h-0 flex-1 overflow-y-auto">
+            {candidates.map((m) => (
+              <button
+                key={m.id}
+                data-testid={`db-person-${slug}-${m.id}`}
+                onClick={() => toggle(m.id)}
+                className="mx-1 flex h-7 items-center gap-2 rounded-[6px] px-2 text-left transition-colors hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
+                style={{ width: "calc(100% - 8px)" }}
+              >
+                <UserAvatar user={m} size={20} />
+                <span className="flex-1 truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
+                  {m.displayName || m.email || t("이름 없음")}
+                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">{t("(나)")}</span>}
+                </span>
+              </button>
+            ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

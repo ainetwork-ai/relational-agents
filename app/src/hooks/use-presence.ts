@@ -3,9 +3,10 @@
 import { subscribeSse } from "@/lib/sse-share";
 import { useEffect, useRef, useState } from "react";
 import { newId } from "@/lib/compat";
-import { caretRect } from "@/lib/editor/caret";
+import { caretOffset } from "@/lib/editor/caret";
 import type { PublicUser } from "@/lib/auth/public-user";
 import type { CursorInfo } from "@/lib/realtime";
+import { useMe } from "@/stores/me";
 
 const COLORS = [
   "#ef4444",
@@ -62,24 +63,15 @@ export function usePresence(pageId: string): {
 } {
   const [clientId] = useState(() => newId());
   const [color] = useState(() => COLORS[Math.floor(Math.random() * COLORS.length)]);
-  const [self, setSelf] = useState<PublicUser | null>(null);
+ // same store the sidebar profile chip reads, so my face pile avatar and my
+ // caret label are always the name and photo I just saved
+  const self = useMe();
+ // my other tabs/devices are still me: their carets are never drawn here
+  const selfIdRef = useRef<string | null>(null);
+  selfIdRef.current = self?.id ?? null;
   const [others, setOthers] = useState<Record<string, PresentClient>>({});
  // bridges the interval sender to the caret-move listener without resubscribing
   const sendRef = useRef<() => void>(() => {});
-
- // who am I (label for my caret + my face-pile avatar)
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((d) => {
-        if (alive) setSelf(d.user ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
 
  // seed with whoever is already present
   useEffect(() => {
@@ -90,7 +82,7 @@ export function usePresence(pageId: string): {
         if (!alive) return;
         const seed: Record<string, PresentClient> = {};
         for (const p of d.presences ?? []) {
-          if (p.clientId !== clientId) seed[p.clientId] = toClient(p);
+          if (p.clientId !== clientId && p.user?.id !== selfIdRef.current) seed[p.clientId] = toClient(p);
         }
         setOthers((prev) => ({ ...seed, ...prev }));
       })
@@ -106,21 +98,21 @@ export function usePresence(pageId: string): {
     let cancelled = false;
     const label = self.displayName;
 
+    // a DOCUMENT position (block + character offset), never viewport x/y: the
+    // receiver draws it against its own DOM. Caret outside any block (sidebar,
+    // title, nothing focused) → no blockId → the receiver draws no caret at all
     const cursorFor = (): CursorInfo => {
-      const rect = caretRect();
       let blockId: string | undefined;
+      let offset: number | undefined;
       const node = window.getSelection()?.anchorNode ?? null;
       const el = node instanceof HTMLElement ? node : node?.parentElement ?? null;
       const be = el?.closest('[data-testid^="block-editable-"]');
       const tid = be?.getAttribute("data-testid");
-      if (tid) blockId = tid.replace("block-editable-", "");
-      return {
-        label,
-        color,
-        blockId,
-        x: rect ? Math.round(rect.left) : undefined,
-        y: rect ? Math.round(rect.top) : undefined,
-      };
+      if (be instanceof HTMLElement && tid) {
+        blockId = tid.replace("block-editable-", "");
+        offset = caretOffset(be);
+      }
+      return { label, color, blockId, offset };
     };
 
     const send = async () => {
@@ -189,6 +181,7 @@ export function usePresence(pageId: string): {
         };
         if (event.type !== "presence" && event.type !== "cursor") return;
         if (!event.clientId || event.clientId === clientId || !event.user) return;
+        if (event.user.id === selfIdRef.current) return; // same account in another tab
         const entry = toClient({
           clientId: event.clientId,
           user: event.user,
@@ -217,10 +210,16 @@ export function usePresence(pageId: string): {
     return () => clearInterval(iv);
   }, []);
 
+  // one caret per PERSON: a collaborator with several tabs/devices shows once,
+  // at whichever session reported most recently (their live one) — n sessions
+  // never become n labelled carets of the same name
+  const perUser = new Map<string, PresentClient>();
+  for (const c of Object.values(others)) {
+    const prev = perUser.get(c.user.id);
+    if (!prev || c.at > prev.at) perUser.set(c.user.id, c);
+  }
   return {
-    others: Object.values(others).sort((a, b) =>
-      a.clientId.localeCompare(b.clientId)
-    ),
+    others: [...perUser.values()].sort((a, b) => a.clientId.localeCompare(b.clientId)),
     self: { clientId, user: self, color },
   };
 }

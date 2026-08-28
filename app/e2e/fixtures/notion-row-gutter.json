@@ -1,0 +1,13 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects' table, 2026-08-06. Hovered a data row at scrollLeft 0 / 400 / 1250 and read where the row's controls landed. Read-only: hover only.",
+  "notScrolled": { "_of": "row starts at 374, scroller at 270", "checkboxFromRow": -26, "gripFromRow": -62 },
+  "scrolled": {
+    "_of": "the row's start is off to the left; the controls clamp",
+    "checkboxFromScroller": 11,
+    "gripFromScroller": -20,
+    "gripVisible": false,
+    "_note": "the original's grip ends up in the page margin OUTSIDE the scroller. Ours is clipped by the scroller instead of being drawn there, so it simply disappears — same thing on screen, different mechanism."
+  },
+  "sizes": { "checkbox": 16, "grip": 18 },
+  "unmeasured": ["the third control in the original's gutter — a 24px + at row−86 (add a row); we have none"]
+}

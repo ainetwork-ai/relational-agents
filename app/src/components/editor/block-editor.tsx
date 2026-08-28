@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { v5 as uuidv5 } from "uuid";
 import { uploadBlob } from "@/lib/upload";
 import {
   createContext,
@@ -18,7 +19,12 @@ import type { Block, BlockContent, BlockType, ButtonAction, TableData } from "@/
 import { MARKDOWN_SHORTCUTS, TEXT_TYPES } from "@/lib/editor/block-defs";
 import { caretOffset, caretRect, setCaret } from "@/lib/editor/caret";
 import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
-import { htmlToMarkdownish } from "@/lib/editor/html-paste";
+import {
+  htmlToMarkdownish,
+  htmlToNotionBlocks,
+  htmlToNotionExportBlocks,
+} from "@/lib/editor/html-paste";
+import { notionClipboardToBlocks } from "@/lib/editor/notion-clipboard";
 import { newId } from "@/lib/compat";
 import { sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
@@ -26,7 +32,9 @@ import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
 import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";
 import { EmojiSuggestMenu, emojiCandidates, type EmojiCandidate } from "./emoji-suggest";
+import { loadEmojiSet } from "@/lib/emoji-data";
 import { BlockRow } from "./block-row";
+import { EmptyPageStarter } from "./empty-page-starter";
 import { useDebounced } from "@/hooks/use-debounced";
 import { usePageSync } from "@/hooks/use-page-sync";
 import { usePagesStore } from "@/stores/pages";
@@ -45,6 +53,11 @@ interface SlashState {
   blockId: string;
   /** text offset right after the '/' */
   offset: number;
+  /** opened from the gutter +: no "/" character in the block, the whole
+   * text is the filter, and the block shows a filter placeholder (original) */
+  bare?: boolean;
+  /** bare mode anchors to the block box (left edge, full height), not the caret */
+  anchorHeight?: number;
   query: string;
   selected: number;
   anchor: { x: number; y: number };
@@ -64,6 +77,9 @@ interface EditorApi {
   registerEl: (id: string, el: HTMLElement | null) => void;
   onInput: (id: string, el: HTMLElement) => void;
   onKeyDown: (id: string, e: React.KeyboardEvent, el: HTMLElement) => void;
+  /** IME composition (Hangul, Kana, Pinyin…) — see onKeyDown's isComposing guard */
+  onCompositionStart: () => void;
+  onCompositionEnd: (id: string, el: HTMLElement) => void;
   onPaste: (id: string, e: React.ClipboardEvent, el: HTMLElement) => void;
   toggleExpand: (id: string) => void;
   addInsideToggle: (id: string) => void;
@@ -88,6 +104,9 @@ interface EditorApi {
     meta: { caption?: string; width?: number; align?: string; icon?: string | null; color?: string }
   ) => void;
   updateTable: (id: string, table: TableData) => void;
+  /** move the caret into the nearest editable block in `dir` — the table block
+   * uses it to let an arrow key leave the grid at its edge */
+  focusNeighbour: (id: string, dir: -1 | 1) => boolean;
   insertBelow: (id: string) => void;
   indentBlock: (id: string, el: HTMLElement) => void;
   outdentBlock: (id: string, el: HTMLElement) => void;
@@ -101,11 +120,19 @@ interface EditorApi {
   childrenOf: (id: string | null) => EBlock[];
   numberOf: (b: EBlock) => number;
   selectedIds: Set<string>;
+  /** block whose type menu was opened from the gutter + (shows the filter placeholder) */
+  slashBareBlockId: string | null;
   shiftSelect: (id: string) => void;
   clearSelection: () => void;
 }
 
-const EditorCtx = createContext<EditorApi | null>(null);
+// Anchored on globalThis like DbCtx (db-context.ts): Turbopack's production
+// build can instantiate a module twice, and a bare module-level createContext
+// then splits into two objects — provider writes one, useEditor reads the
+// other, and the throw below takes the whole tree down. Prod-only; dev keeps
+// modules single-instance. See vercel/next.js#89192 for the bug class.
+const gEditor = globalThis as { __ainmemEditorCtx?: ReturnType<typeof createContext<EditorApi | null>> };
+const EditorCtx = (gEditor.__ainmemEditorCtx ??= createContext<EditorApi | null>(null));
 export function useEditor() {
   const ctx = useContext(EditorCtx);
   if (!ctx) throw new Error("useEditor outside BlockEditor");
@@ -165,6 +192,21 @@ function fromRow(b: Block): EBlock {
   };
 }
 
+// The bootstrap paragraph an empty page starts with is part of the SERVER
+// render, so its id must come out identical on server and client — newId()
+// there minted a fresh uuid per render and every empty page hydrated
+// mismatched (server block-<a>, client block-<b>). Derived from the pageId
+// instead: same page, same id, on both sides. The namespace is arbitrary but
+// must never change.
+// blocks that take no children in the original — Tab never nests under them
+const NO_CHILDREN = new Set<string>(["heading1", "heading2", "heading3", "divider", "code", "image", "file", "video", "bookmark", "embed", "equation", "table", "database"]);
+// where a markdown prefix converts the block (the original converts an EMPTY list item too)
+const SHORTCUT_HOSTS = new Set<string>(["paragraph", "bulleted_list", "numbered_list", "todo", "toggle"]);
+const BOOTSTRAP_NS = "9a3c5e88-0b5d-4b6a-9f3e-2f1c7a4d8e01";
+function bootstrapParagraph(pageId: string): EBlock {
+  return { ...freshParagraph(null, 1), id: uuidv5(pageId, BOOTSTRAP_NS) };
+}
+
 function freshParagraph(parentBlockId: string | null, position: number): EBlock {
   return {
     id: newId(),
@@ -181,13 +223,48 @@ const CONTINUING: BlockType[] = ["bulleted_list", "numbered_list", "todo"];
 
 export const BlockEditor = forwardRef<
   BlockEditorHandle,
-  { pageId: string; initialBlocks: Block[]; shareToken?: string }
->(function BlockEditor({ pageId, initialBlocks, shareToken }, apiRef) {
+  {
+    pageId: string;
+    initialBlocks: Block[];
+    shareToken?: string;
+    /** What an empty body offers. A page gets the 시작하기 row; a database row
+     *  opened in a peek gets Notion's quieter line there instead. */
+    emptyVariant?: "page" | "row";
+  }
+>(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page" }, apiRef) {
   const [blocks, setBlocks] = useState<EBlock[]>(() => {
     const mapped = initialBlocks.map(fromRow);
-    return mapped.length > 0 ? mapped : [freshParagraph(null, 1)];
+    return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
   });
   const [slash, setSlash] = useState<SlashState | null>(null);
+ // the original locks background scroll while the type menu is open, so the
+ // menu (anchored to a fixed point) can't drift away from its line. Freeze the
+ // nearest scroll container at its current offset for as long as the menu lives.
+  useEffect(() => {
+    if (!slash) return;
+    const el = editables.current.get(slash.blockId);
+    let sc: HTMLElement | null = el?.parentElement ?? null;
+    while (sc && sc.scrollHeight <= sc.clientHeight) sc = sc.parentElement;
+    if (!sc) return;
+    const prev = sc.style.overflowY;
+    sc.style.overflowY = "hidden";
+    return () => { sc.style.overflowY = prev; };
+  }, [slash]);
+
+ // the original closes the type menu on a mousedown anywhere outside the
+ // menu — the line it belongs to included (measured 2026-08-26: clicking the
+ // line closes the menu and the line goes back to its usual placeholder)
+  useEffect(() => {
+    if (!slash) return;
+    const onDown = (ev: MouseEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (!t || t.closest('[data-testid="slash-menu"]')) return;
+      setSlash(null);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [slash]);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);
  // URL paste → "keep link / bookmark" chooser
@@ -197,6 +274,14 @@ export const BlockEditor = forwardRef<
     anchor: { x: number; y: number };
   } | null>(null);
   const mentionItemsRef = useRef<MentionItem[]>([]);
+ // an IME (Hangul, Kana, Pinyin…) owns the text until it commits. composingRef
+ // keeps the DOM-rewriting autoformat off that text; splitOnComposeEnd holds
+ // the block whose Enter we deferred until the commit lands.
+  const composingRef = useRef(false);
+  const splitOnComposeEnd = useRef<string | null>(null);
+ // when a composition-deferred Enter actually split, so the same keypress
+ // passed back through by the IME can be recognised and dropped
+  const composedSplitAt = useRef(0);
  // block-level multi-selection (Esc to select, Shift+Arrow / Shift+Click to extend)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectedIdsRef = useRef<Set<string>>(selectedIds);
@@ -356,6 +441,18 @@ export const BlockEditor = forwardRef<
  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+ // flush on unmount: expanding a peek to the full page (or any client-side
+ // navigation) inside the 500ms save window otherwise let the destination's
+ // SSR read the page WITHOUT the edits just made.
+  useEffect(
+    () => () => {
+      if (dirtyRef.current) save.flush(blocksRef.current);
+    },
+ // save is stable (useMemo on ms); refs carry the latest state
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
  // crash recovery: a local draft newer than this mount means edits never
  // reached the server (tab closed while offline) — restore and resave it
   useEffect(() => {
@@ -393,11 +490,18 @@ export const BlockEditor = forwardRef<
         h.future = [];
       }
       lastPushRef.current = now;
-      setBlocks((prev) => {
-        const next = updater(prev);
-        save.call(next);
-        return next;
-      });
+ // Run the updater exactly ONCE, here, instead of inside setBlocks. React may
+ // invoke a setState updater more than once (dev StrictMode always does, and a
+ // replayed render can too), and ours is not pure: the structural ops mint a
+ // block id with newId() and set pendingFocus. Two invocations therefore built
+ // two *different* blocks, and one Enter left a second blank line behind — a
+ // ghost the server never received (it only ever saw the payload below).
+ // blocksRef is the authoritative list, so back-to-back mutate calls inside one
+ // handler still compose.
+      const next = updater(blocksRef.current);
+      blocksRef.current = next;
+      setBlocks(next);
+      save.call(next);
     },
     [save]
   );
@@ -473,6 +577,14 @@ export const BlockEditor = forwardRef<
       (window as unknown as Record<string, unknown>).__editorReady = null;
     };
   }, [pageId]);
+
+ // The emoji catalogue is a lazy chunk (see lib/emoji-data). Warm it a moment
+ // after the editor settles: both `:shortcode:` expansion and the icon picker
+ // then answer from memory, instead of the first `:tada:` racing a fetch.
+  useEffect(() => {
+    const warm = setTimeout(() => void loadEmojiSet(), 1000);
+    return () => clearTimeout(warm);
+  }, []);
 
  // Apply pending caret placement after React commits block changes.
  // useLayoutEffect (not useEffect): during fast typing the NEXT keydown can
@@ -619,11 +731,18 @@ export const BlockEditor = forwardRef<
     else editables.current.delete(id);
   }, []);
 
-  const applySlashPick = useCallback(
-    (type: BlockType, preset?: Record<string, unknown>) => {
-      if (!slash) return;
-      const { blockId, offset, query } = slash;
-      setSlash(null);
+  /**
+   * Turn a block into `type`. The target is passed in rather than read from the
+   * slash state so the empty-page starter panel can use the same path — one
+   * conversion routine, not two that drift.
+   */
+  const applyPick = useCallback(
+    (
+      type: BlockType,
+      preset: Record<string, unknown> | undefined,
+      target: { blockId: string; offset: number; query: string; bare?: boolean }
+    ) => {
+      const { blockId, offset, query } = target;
 
  // A database block must provision a collection server-side, so it can't
  // be done in the synchronous mutate path. Convert now, create async,
@@ -705,7 +824,7 @@ export const BlockEditor = forwardRef<
         if (!cur) return prev;
         const el = editables.current.get(blockId);
         const text = el ? normalize(el) : cur.content.text ?? "";
-        const stripped = text.slice(0, offset - 1) + text.slice(offset + query.length);
+        const stripped = target.bare ? text.slice(query.length) : text.slice(0, offset - 1) + text.slice(offset + query.length);
 
         if (type === "divider") {
           cur.type = "divider";
@@ -728,10 +847,11 @@ export const BlockEditor = forwardRef<
         if (type === "todo") cur.content.checked = cur.content.checked ?? false;
         if (type === "toggle") cur.content.expanded = true;
         if (type === "image") cur.content.url = cur.content.url ?? "";
+ // a fresh table is 3×3 with no header row, like the original's (measured:
+ // e2e/fixtures/notion-table-grip.json §newTable)
         if (type === "table")
           cur.content.table = cur.content.table ?? {
-            cells: [["", ""], ["", ""]],
-            headerRow: true,
+            cells: [["", "", ""], ["", "", ""], ["", "", ""]],
           };
         if (preset) Object.assign(cur.content, preset);
         cur.version++;
@@ -742,7 +862,58 @@ export const BlockEditor = forwardRef<
         return next;
       });
     },
-    [slash, mutate, positionAfter, pageId]
+    [mutate, positionAfter, pageId]
+  );
+
+  /**
+   * The empty-page 데이터베이스 button: this page BECOMES the database.
+   *
+   * Notion does not put an inline table inside a prose page here — the page's
+   * own title turns into the database's, so the block is flagged fullPage and
+   * the database is provisioned bare (one 이름 column, one 표 view). The inline
+   * table is what /database gives you.
+   */
+  const becomeDatabasePage = useCallback(
+    async (blockId: string) => {
+      mutate((prev) =>
+        prev.map((b) =>
+          b.id === blockId
+            ? { ...b, type: "database" as BlockType, content: { fullPage: true }, version: b.version + 1 }
+            : b
+        )
+      );
+      const res = await fetch("/api/databases", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shape: "minimal", title: "" }),
+      });
+      if (!res.ok) return;
+      const { database } = await res.json();
+      mutate((prev) =>
+        prev.map((b) =>
+          b.id === blockId
+            ? { ...b, content: { databaseId: database.id, fullPage: true }, version: b.version + 1 }
+            : b
+        )
+      );
+   // the page is now a database page: widen it, and mark it locally so the
+   // sidebar renames/re-icons the row at once — waiting for the next /api/pages
+   // round trip is what made the label appear to change only after navigating
+   // away and back.
+      usePagesStore.getState().markAsDatabase(pageId);
+      void usePagesStore.getState().updatePage(pageId, { fullWidth: true });
+    },
+    [mutate, pageId]
+  );
+
+  const applySlashPick = useCallback(
+    (type: BlockType, preset?: Record<string, unknown>) => {
+      if (!slash) return;
+      const target = { blockId: slash.blockId, offset: slash.offset, query: slash.query, bare: slash.bare };
+      setSlash(null);
+      applyPick(type, preset, target);
+    },
+    [slash, applyPick]
   );
 
   const applyMentionPick = useCallback(
@@ -835,6 +1006,18 @@ export const BlockEditor = forwardRef<
         const cur = next.find((b) => b.id === id);
         if (!cur) return prev;
 
+ // Enter on an empty paragraph inside a callout leaves the callout: the
+ // paragraph goes, a fresh one lands right after the callout (the original)
+        const host = cur.parentBlockId ? next.find((b) => b.id === cur.parentBlockId) : undefined;
+        if (cur.type === "paragraph" && text === "" && host?.type === "callout") {
+          const out = freshParagraph(host.parentBlockId, 0);
+          out.position = positionAfter(next, host);
+          deletedIds.current.add(cur.id);
+          const rest = next.filter((b) => b.id !== cur.id);
+          rest.push(out);
+          pendingFocus.current = { id: out.id, pos: "start" };
+          return rest;
+        }
  // Enter on an empty continuing block exits the list instead of adding.
         if (CONTINUING.includes(cur.type) && text === "") {
           cur.type = "paragraph";
@@ -847,8 +1030,33 @@ export const BlockEditor = forwardRef<
         cur.content.html = beforeHtml;
         cur.version++;
 
-        const nb = freshParagraph(cur.parentBlockId, 0);
-        nb.position = positionAfter(next, cur);
+ // Enter at the end of an OPEN toggle puts the new line inside it, as its
+ // first child — the original's behaviour (2026-08-26 input cases). A
+ // collapsed toggle, or a split mid-title, keeps the sibling behaviour.
+        const intoToggle = cur.type === "toggle" && cur.content.expanded !== false && after === "";
+ // A callout is a container in the original: its text IS its first child
+ // paragraph. Enter at the end of the callout's own text adopts that model —
+ // the text moves into a real first child, and the new line becomes the
+ // second — so Tab/Backspace/Enter inside behave exactly as there.
+        const intoCallout = cur.type === "callout" && after === "";
+        let firstPos = 1;
+        if (intoCallout && (cur.content.text ?? "") !== "") {
+          const p1 = freshParagraph(cur.id, 0);
+          const kids = next.filter((b) => b.parentBlockId === cur.id);
+          p1.position = kids.length ? Math.min(...kids.map((k) => k.position)) - 2 : 0;
+          p1.content.text = cur.content.text ?? "";
+          p1.content.html = cur.content.html;
+          cur.content.text = "";
+          cur.content.html = undefined;
+          next.push(p1);
+          firstPos = p1.position + 1;
+        }
+        const nb = freshParagraph(intoToggle || intoCallout ? cur.id : cur.parentBlockId, 0);
+        if (intoCallout) nb.position = firstPos;
+        else if (intoToggle) {
+          const kids = next.filter((b) => b.parentBlockId === cur.id);
+          nb.position = kids.length ? Math.min(...kids.map((k) => k.position)) - 1 : 1;
+        } else nb.position = positionAfter(next, cur);
         nb.content.text = after;
         nb.content.html = afterHtml;
         if (CONTINUING.includes(cur.type)) {
@@ -873,16 +1081,39 @@ export const BlockEditor = forwardRef<
       if (block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
         mutate((prev) =>
           prev.map((b) =>
-            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version } : b
+            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
           )
         );
+ // the row re-mounts as a paragraph; without this the caret is gone and the
+ // next keystroke lands nowhere (2026-08-26 input cases)
+        pendingFocus.current = { id, pos: "start" };
         return true;
       }
 
       const sibs = childrenOf(block.parentBlockId ?? null);
       const idx = sibs.findIndex((s) => s.id === id);
       const prevSib = sibs[idx - 1];
-      if (!prevSib) return false;
+ // First child of a toggle: Backspace at its start folds it back into the
+ // toggle's title — the original's behaviour (Enter into an open toggle, then
+ // Backspace, leaves you typing at the end of the title; 2026-08-26 cases)
+      if (!prevSib) {
+        const parent = block.parentBlockId ? blocks.find((b) => b.id === block.parentBlockId) : undefined;
+        if (!parent || parent.type !== "toggle") return false;
+        const parentLen = (parent.content.text ?? "").length;
+        const curHtml = block.content.html ?? escapeHtml(text);
+        deletedIds.current.add(id);
+        mutate((prev) =>
+          prev
+            .filter((b) => b.id !== id)
+            .map((b) =>
+              b.id === parent.id
+                ? { ...b, content: { ...b.content, text: (b.content.text ?? "") + text, html: sanitizeInline((b.content.html ?? escapeHtml(b.content.text ?? "")) + curHtml) }, version: b.version + 1 }
+                : b
+            )
+        );
+        pendingFocus.current = { id: parent.id, pos: parentLen };
+        return true;
+      }
 
  // Previous block is non-text (divider/image) → remove it instead.
       if (!TEXT_TYPES.includes(prevSib.type) && prevSib.type !== "code") {
@@ -947,8 +1178,14 @@ export const BlockEditor = forwardRef<
   const onInput = useCallback(
     (id: string, el: HTMLElement) => {
  // inline markdown (**bold** etc.) / :emoji: autoformat — rewrites the
- // DOM in place; normalize() below re-reads it either way
-      if (el.closest("[data-block-type]")?.getAttribute("data-block-type") !== "code")
+ // DOM in place; normalize() below re-reads it either way. Never while an IME
+ // composes: replacing nodes it is composing into drops the pending syllable.
+ // The next non-composing keystroke autoformats instead (a closing "**" is
+ // ASCII, so nothing a user can type is left unformatted).
+      if (
+        !composingRef.current &&
+        el.closest("[data-block-type]")?.getAttribute("data-block-type") !== "code"
+      )
         tryInlineAutoformat();
       const text = normalize(el);
 
@@ -978,16 +1215,20 @@ export const BlockEditor = forwardRef<
 
  // slash-menu live query
       if (slash && slash.blockId === id) {
-        if (text.length < slash.offset || text[slash.offset - 1] !== "/") {
+        if (slash.bare) {
+          setSlash({ ...slash, query: text, selected: 0 });
+        } else if (text.length < slash.offset || text[slash.offset - 1] !== "/") {
           setSlash(null);
         } else {
           const query = text.slice(slash.offset);
           setSlash({ ...slash, query, selected: 0 });
         }
       } else {
- // markdown shortcuts only on plain paragraphs
+ // markdown shortcuts on a plain paragraph — and, as the original does, on a
+ // list item whose whole text is the prefix (an empty bullet turning into a
+ // heading, a toggle, a divider…; 2026-08-26 input cases)
         const block = blocks.find((b) => b.id === id);
-        if (block?.type === "paragraph") {
+        if (block && SHORTCUT_HOSTS.has(block.type)) {
  // we convert on the third backtick immediately, no space needed
           if (text === "```") {
             mutate((prev) =>
@@ -1005,7 +1246,29 @@ export const BlockEditor = forwardRef<
             pendingFocus.current = { id, pos: "start" };
             return;
           }
+ // "---" becomes a divider on the third dash — the original converts
+ // immediately, no space ("- " is already the bullet shortcut, so a
+ // space-terminated form could never be reached). Same shape as the slash
+ // menu's divider: the line turns into the rule, the caret lands on a fresh
+ // paragraph below it.
+          if (text === "---") {
+            mutate((prev) => {
+              const next = prev.map((b) => ({ ...b }));
+              const cur = next.find((b) => b.id === id);
+              if (!cur) return prev;
+              cur.type = "divider" as BlockType;
+              cur.content = {};
+              cur.version++;
+              const nb = freshParagraph(cur.parentBlockId, 0);
+              nb.position = positionAfter(next, cur);
+              next.push(nb);
+              pendingFocus.current = { id: nb.id, pos: "start" };
+              return next;
+            });
+            return;
+          }
           for (const s of MARKDOWN_SHORTCUTS) {
+            if (s.type === block.type) continue; // the original leaves "- " in a bullet as text
             if (text === s.prefix + " " || text === s.prefix + " ") {
               mutate((prev) =>
                 prev.map((b) =>
@@ -1042,7 +1305,7 @@ export const BlockEditor = forwardRef<
         { coalesce: true }
       );
     },
-    [slash, mention, emojiSug, pasteLink, blocks, mutate]
+    [slash, mention, emojiSug, pasteLink, blocks, mutate, positionAfter]
   );
 
  // Smart paste: clipboard image → upload + image block; markdown/multi-line
@@ -1096,11 +1359,82 @@ export const BlockEditor = forwardRef<
  // 1.5) rich HTML from outside (web / Google Docs): convert the block
  // structure to markdown and reuse the markdown pipeline below
       const htmlClip = cd.getData("text/html");
-      if (htmlClip) {
-        const md = htmlToMarkdownish(htmlClip);
-        if (md && looksLikeMarkdown(md)) text = md;
+      {
+ // Notion's clipboard converts to a typed TREE: toggles keep their type
+ // and nested blocks keep their parents — structure the flat markdown
+ // pipeline below cannot carry. The `text/_notion-blocks-v3-*` payload is
+ // the real block records (icons, colors, checked, bold runs, collapsed
+ // toggle children) and always beats the lossy HTML flavor; the HTML
+ // walker still covers older notion.so DOM-on-clipboard copies.
+        const notionType = Array.from(cd.types ?? []).find((t) =>
+          t.startsWith("text/_notion-blocks-")
+        );
+        const tree =
+          (notionType ? notionClipboardToBlocks(cd.getData(notionType)) : null) ??
+          (htmlClip ? (htmlToNotionBlocks(htmlClip) ?? htmlToNotionExportBlocks(htmlClip)) : null);
+        if (tree && tree.length) {
+          e.preventDefault();
+          mutate((prev) => {
+            const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
+            const cur = next.find((b) => b.id === id);
+            if (!cur) return prev;
+            const rootParent = cur.parentBlockId ?? null;
+            const lastAt: EBlock[] = [];
+            let anchorTop: EBlock = cur;
+            let start = 0;
+ // an empty target block becomes the first pasted block (no blank lead)
+            if (normalize(el).trim() === "" && cur.type === "paragraph" && tree[0].depth === 0) {
+              cur.type = tree[0].type;
+              cur.content = { ...tree[0].content };
+              cur.version++;
+              lastAt[0] = cur;
+              start = 1;
+            }
+            for (let k = start; k < tree.length; k++) {
+              const pb = tree[k];
+ // clamp: a child can only hang off a block that actually got emitted
+              const d = Math.min(pb.depth, lastAt.length);
+              let parentBlockId: string | null;
+              let position: number;
+              if (d === 0) {
+                parentBlockId = rootParent;
+                position = positionAfter(next, anchorTop);
+              } else {
+                const parent = lastAt[d - 1];
+                parentBlockId = parent.id;
+                position =
+                  Math.max(0, ...next.filter((b) => b.parentBlockId === parent.id).map((b) => b.position)) + 1;
+              }
+              const nb: EBlock = {
+                id: newId(),
+                type: pb.type,
+                content: { ...pb.content },
+                parentBlockId,
+                position,
+                version: 0,
+              };
+              next.push(nb);
+              lastAt.length = d + 1;
+              lastAt[d] = nb;
+              if (d === 0) anchorTop = nb;
+            }
+            pendingFocus.current = { id: anchorTop.id, pos: "end" };
+            return next;
+          });
+          return;
+        }
+        if (htmlClip) {
+          const md = htmlToMarkdownish(htmlClip);
+          if (md && looksLikeMarkdown(md)) text = md;
+        }
       }
-      if (!text) return; // nothing pasteable — let the browser default run
+      if (!text) {
+ // rich HTML we could not convert must NOT fall through to the browser
+ // default — that dumps the clipboard's raw styled DOM (a whole Notion
+ // page, sidebar and all) into this one contenteditable block
+        if (htmlClip) e.preventDefault();
+        return;
+      }
 
  // 2) Markdown / multi-line text → parse and split the current block.
       if (looksLikeMarkdown(text)) {
@@ -1290,6 +1624,66 @@ export const BlockEditor = forwardRef<
     clearSelection();
   }, [mutate, positionAfter, visualOrder, clearSelection]);
 
+ // A drag that crosses a block boundary becomes BLOCK selection, live, the
+ // way the original does it. This can't ride on the native selection: every
+ // block is its own contenteditable, and the browser CLAMPS a selection to
+ // the editable the drag started in — dragging over several blocks selected
+ // nothing beyond the first, and Backspace silently did nothing.
+  const onEditorMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      const t = e.target as HTMLElement;
+ // buttons, checkboxes and the drag grip keep their own gestures
+      if (t.closest("button, input, textarea, [draggable='true']")) return;
+ // a row peek nests another editor inside a database block — each editor
+ // only converts drags over its OWN blocks (the event bubbles to both)
+      if (t.closest('[data-testid="editor-root"]') !== e.currentTarget) return;
+      const root = e.currentTarget as HTMLElement;
+      const tid = t.closest("[data-block-type]")?.getAttribute("data-testid");
+ // no anchor yet is fine: a drag can start in the empty space below the
+ // last block (the usual bottom-up sweep) — the first block the pointer
+ // enters becomes the anchor
+      let anchor: string | null = tid?.startsWith("block-")
+        ? tid.slice("block-".length)
+        : null;
+      const startedOnBlock = anchor !== null;
+      let active = false;
+      const onMove = (ev: MouseEvent) => {
+        const overEl = document
+          .elementFromPoint(ev.clientX, ev.clientY)
+          ?.closest?.("[data-block-type]");
+        const overTid =
+          overEl && overEl.closest('[data-testid="editor-root"]') === root
+            ? overEl.getAttribute("data-testid")
+            : null;
+        const over = overTid?.startsWith("block-") ? overTid.slice("block-".length) : null;
+ // within the starting block, native text selection stays in charge
+        if (!active && startedOnBlock && (!over || over === anchor)) return;
+        if (!over && !active) return;
+        if (!active) {
+          active = true;
+          (document.activeElement as HTMLElement | null)?.blur?.();
+        }
+ // once block selection is live, the pointer drives the focus edge; off
+ // any block (margins) the last range simply holds
+        if (!over) return;
+        anchor ??= over;
+        window.getSelection()?.removeAllRanges();
+        selAnchorRef.current = anchor;
+        selFocusRef.current = over;
+        setSelectedIds(rangeIds(anchor, over));
+        ev.preventDefault();
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [rangeIds]
+  );
+
  // In selection mode the caret is blurred, so keys are handled at the window.
   useEffect(() => {
     if (selectedIds.size === 0) return;
@@ -1336,6 +1730,7 @@ export const BlockEditor = forwardRef<
         const idx = sibs.findIndex((s) => s.id === id);
         const prevSib = sibs[idx - 1];
         if (!prevSib) return prev; // first child can't indent
+        if (NO_CHILDREN.has(prevSib.type)) return prev; // the original: a heading (divider, code…) takes no children
         const kids = next
           .filter((b) => b.parentBlockId === prevSib.id)
           .sort((a, b) => a.position - b.position);
@@ -1370,6 +1765,35 @@ export const BlockEditor = forwardRef<
     (id: string, e: React.KeyboardEvent, el: HTMLElement) => {
       const block = blocks.find((b) => b.id === id);
       if (!block) return;
+
+ // While an IME is composing, the keystroke belongs to the IME, not to us:
+ // Chrome delivers keydown with isComposing=true BEFORE it commits the
+ // syllable. Splitting here moved focus to the new block while the IME still
+ // owned "트", so its commit landed there — 프로젝트 + Enter came out as
+ // "프로젝트" / "트". Remember the Enter and split once the text is committed
+ // (Latin typing never composes, which is why it looked fine in English).
+ // The event's own flag decides, never composingRef: were a compositionend
+ // ever missed, a sticky ref would swallow every keystroke that follows.
+      if ((e.nativeEvent as KeyboardEvent).isComposing) {
+        if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
+ // preventDefault stops the browser's own newline; the IME still commits
+          e.preventDefault();
+          splitOnComposeEnd.current = id;
+        }
+        return;
+      }
+
+ // Some IMEs hand the committing Enter back as a second keydown, this time
+ // with isComposing=false. We already split for it from compositionend, so
+ // splitting again is the "one Enter, two blank lines" report. Only a
+ // pass-through can land this soon after that split — a person pressing Enter
+ // twice needs a key release in between (~100ms at the very fastest, and key
+ // repeat waits far longer).
+      if (e.key === "Enter" && !e.shiftKey && Date.now() - composedSplitAt.current < 50) {
+        composedSplitAt.current = 0;
+        e.preventDefault();
+        return;
+      }
 
       if (slash && slash.blockId === id) {
         const items = filterSlashItems(slash.query);
@@ -1455,6 +1879,9 @@ export const BlockEditor = forwardRef<
       }
 
       if (e.key === ":" && !slash && !mention && !emojiSug) {
+ // the emoji catalogue is a lazy chunk; start it on the opening ':' so the
+ // suggestions and the `:shortcode:` expansion have it a keystroke later
+        void loadEmojiSet();
         const rect = caretRect() ?? el.getBoundingClientRect();
         setEmojiSug({
           blockId: id,
@@ -1484,6 +1911,28 @@ export const BlockEditor = forwardRef<
         el.blur();
         selectBlock(id);
         return;
+      }
+
+ // Ctrl/Cmd+A: the first press keeps the browser default (select this
+ // block's text). Once that covers the whole block — or the block is
+ // empty — the next press escalates to selecting EVERY block, as the
+ // original does; Backspace then deletes them via selection mode.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+        const sel = window.getSelection();
+        const whole = (el.textContent ?? "").trim();
+        const covered = whole === "" || (sel?.toString().trim() ?? "") === whole;
+        if (covered) {
+          e.preventDefault();
+          const order = visualOrder();
+          if (order.length) {
+            el.blur();
+            sel?.removeAllRanges();
+            selAnchorRef.current = order[0];
+            selFocusRef.current = order[order.length - 1];
+            setSelectedIds(new Set(order));
+          }
+          return;
+        }
       }
 
       if (e.key === "/" && !slash) {
@@ -1546,7 +1995,24 @@ export const BlockEditor = forwardRef<
         }
       }
     },
-    [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock]
+    [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock, visualOrder]
+  );
+
+  const onCompositionStart = useCallback(() => {
+    composingRef.current = true;
+  }, []);
+
+ // The IME has committed: the syllable is in the DOM (and no longer composing),
+ // so an Enter we held back can now split the block at the real caret.
+  const onCompositionEnd = useCallback(
+    (id: string, el: HTMLElement) => {
+      composingRef.current = false;
+      if (splitOnComposeEnd.current !== id) return;
+      splitOnComposeEnd.current = null;
+      splitBlock(id, el);
+      composedSplitAt.current = Date.now();
+    },
+    [splitBlock]
   );
 
   const toggleExpand = useCallback(
@@ -1696,18 +2162,28 @@ export const BlockEditor = forwardRef<
     (id: string) => {
  // standard behavior: + inserts a block AND opens the type menu — a silent
  // empty block reads as "nothing happened".
-      const nb = freshParagraph(null, 0);
-      nb.content.text = "/";
-      mutate((prev) => {
-        const next = prev.map((b) => ({ ...b }));
-        const cur = next.find((b) => b.id === id);
-        if (!cur) return prev;
-        nb.parentBlockId = cur.parentBlockId;
-        nb.position = positionAfter(next, cur);
-        next.push(nb);
-        return next;
-      });
-      pendingFocus.current = { id: nb.id, pos: "end" };
+ // the original: + opens the type menu on an EMPTY line — this one if it is
+ // already an empty paragraph, otherwise a new one below — with a filter
+ // placeholder, the caret at its start, and no "/" to delete afterwards
+      const here = blocks.find((b) => b.id === id);
+      const reuse = !!here && here.type === "paragraph" && (here.content.text ?? "") === "";
+      const nb = reuse ? here : freshParagraph(null, 0);
+      if (!reuse) {
+        mutate((prev) => {
+          const next = prev.map((b) => ({ ...b }));
+          const cur = next.find((b) => b.id === id);
+          if (!cur) return prev;
+          nb.parentBlockId = cur.parentBlockId;
+          nb.position = positionAfter(next, cur);
+          next.push(nb);
+          return next;
+        });
+      }
+      pendingFocus.current = { id: nb.id, pos: "start" };
+ // Open the menu in the SAME batch as the line, so the line's first paint
+ // already carries the filter placeholder (a frame of the default English
+ // placeholder flashed otherwise); the anchor is refined once the row exists.
+      setSlash({ blockId: nb.id, offset: 0, query: "", selected: 0, bare: true, anchor: { x: -9999, y: -9999 }, anchorHeight: 40 });
  // The new block's editable may take more than one frame to mount on
  // slow renders — retry briefly instead of silently leaving a bare "/".
       const openMenu = (attempt: number) => {
@@ -1716,18 +2192,22 @@ export const BlockEditor = forwardRef<
           if (attempt < 10) requestAnimationFrame(() => openMenu(attempt + 1));
           return;
         }
-        const rect = caretRect() ?? el.getBoundingClientRect();
-        setSlash({
-          blockId: nb.id,
-          offset: 1,
-          query: "",
-          selected: 0,
-          anchor: { x: rect.left, y: rect.top },
-        });
+ // reusing the line changes no state, so pendingFocus is never consumed —
+ // put the caret there ourselves (the placeholder pill needs :focus)
+        if (reuse) setCaret(el, "start");
+        const row = document.querySelector(`[data-testid="block-${nb.id}"]`) as HTMLElement | null;
+        const rect = row?.getBoundingClientRect() ?? el.getBoundingClientRect();
+ // the original's + menu: left edge on the block box, 8px below the line (or
+ // above it when the window's bottom is too close)
+        setSlash((prev) =>
+          prev && prev.blockId === nb.id
+            ? { ...prev, anchor: { x: rect.left, y: rect.top }, anchorHeight: rect.height }
+            : prev
+        );
       };
       requestAnimationFrame(() => openMenu(0));
     },
-    [mutate, positionAfter]
+    [blocks, mutate, positionAfter]
   );
 
   const deleteBlock = useCallback(
@@ -1779,7 +2259,7 @@ export const BlockEditor = forwardRef<
           if (type === "todo") content.checked = false;
           if (type === "toggle") content.expanded = true;
           if (type === "table")
-            content.table = { cells: [["", ""], ["", ""]], headerRow: true };
+            content.table = { cells: [["", "", ""], ["", "", ""], ["", "", ""]] };
           return { ...b, type, content, version: b.version + 1 };
         })
       );
@@ -1962,6 +2442,8 @@ export const BlockEditor = forwardRef<
       registerEl,
       onInput,
       onKeyDown,
+      onCompositionStart,
+      onCompositionEnd,
       onPaste,
       toggleExpand,
       addInsideToggle,
@@ -1977,6 +2459,7 @@ export const BlockEditor = forwardRef<
       setTemplateData,
       setButtonData,
       updateTable,
+      focusNeighbour,
       insertBelow,
       indentBlock,
       outdentBlock,
@@ -1990,6 +2473,7 @@ export const BlockEditor = forwardRef<
       childrenOf,
       numberOf,
       selectedIds,
+      slashBareBlockId: slash?.bare ? slash.blockId : null,
       shiftSelect,
       clearSelection,
     }),
@@ -1998,6 +2482,8 @@ export const BlockEditor = forwardRef<
       registerEl,
       onInput,
       onKeyDown,
+      onCompositionStart,
+      onCompositionEnd,
       onPaste,
       toggleExpand,
       addInsideToggle,
@@ -2013,6 +2499,7 @@ export const BlockEditor = forwardRef<
       setTemplateData,
       setButtonData,
       updateTable,
+      focusNeighbour,
       insertBelow,
       indentBlock,
       outdentBlock,
@@ -2026,6 +2513,7 @@ export const BlockEditor = forwardRef<
       childrenOf,
       numberOf,
       selectedIds,
+      slash,
       shiftSelect,
       clearSelection,
     ]
@@ -2040,6 +2528,7 @@ export const BlockEditor = forwardRef<
         data-testid="editor-root"
         data-save-state={saveState}
         className="relative mt-2 min-h-[40vh] pb-8"
+        onMouseDown={onEditorMouseDown}
         onDragOver={(e) => {
  // OS file drag → allow dropping (else the browser navigates away)
           if (e.dataTransfer.types.includes("Files")) e.preventDefault();
@@ -2078,6 +2567,11 @@ export const BlockEditor = forwardRef<
           );
           if (!files.length) return; // internal block drags keep their handlers
           e.preventDefault();
+ // a row-peek's editor sits INSIDE the host page's editor (React tree), so
+ // without this the host would re-handle the same drop: a second upload of
+ // the same bytes, appended to the host page (how images ended up under the
+ // Projects database, 2026-08-19)
+          e.stopPropagation();
           void (async () => {
             for (const f of files) {
               const up = await uploadBlob(f);
@@ -2144,7 +2638,39 @@ export const BlockEditor = forwardRef<
         {blocks.length === 1 &&
           blocks[0].type === "paragraph" &&
           !(blocks[0].content.text ?? "").trim() && (
-            <div data-testid="page-template-strip" className="mt-6 text-sm text-neutral-400">
+          <>
+            {/* An empty page offers what it can become — Notion's 시작하기 row.
+                The template list below is the same one that used to sit here
+                unconditionally; it now opens from the 템플릿 button. A row opened
+                in a peek gets the one line Notion shows there instead: the row
+                is an entry in a database, not a page you are starting fresh. */}
+            {emptyVariant === "row" ? (
+              <p
+                data-testid="empty-row-hint"
+                className="pb-6 pl-2 pt-2 text-sm text-neutral-400"
+              >
+                &apos;Enter&apos; 키를 눌러 빈 페이지에 입력을 시작하거나{" "}
+                <button
+                  data-testid="empty-row-templates"
+                  onClick={() => setTemplatesOpen((v) => !v)}
+                  className="underline decoration-neutral-300 transition-colors hover:text-neutral-600 dark:hover:text-neutral-200"
+                >
+                  템플릿을 생성하세요
+                </button>
+                .
+              </p>
+            ) : (
+            <EmptyPageStarter
+              onPick={(type, preset) =>
+                type === "database"
+                  ? void becomeDatabasePage(blocks[0].id)
+                  : applyPick(type, preset, { blockId: blocks[0].id, offset: 0, query: "" })
+              }
+              onTemplates={() => setTemplatesOpen((v) => !v)}
+            />
+            )}
+            {templatesOpen && (
+            <div data-testid="page-template-strip" className="mt-4 text-sm text-neutral-400">
               <p className="mb-1.5 text-xs uppercase tracking-wide">Start with a template</p>
               <div className="flex flex-col items-start gap-0.5">
                 {PAGE_TEMPLATES.map((t) => (
@@ -2163,10 +2689,14 @@ export const BlockEditor = forwardRef<
                 ))}
               </div>
             </div>
+            )}
+          </>
           )}
         {slash && (
           <SlashMenu
             anchor={slash.anchor}
+            gap={slash.bare ? 8 : 2}
+            anchorHeight={slash.anchorHeight}
             query={slash.query}
             selectedIndex={slash.selected}
             onPick={applySlashPick}

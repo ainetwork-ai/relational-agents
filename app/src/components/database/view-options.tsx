@@ -1,33 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {useRef, useState} from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
+import { useAnchored } from "@/hooks/use-anchored";
+import { createPortal } from "react-dom";
 import { Settings2, Eye, EyeOff } from "lucide-react";
 import { useDb } from "./database-block";
+import { isGroupable } from "@/lib/db-values";
+import { useT } from "@/i18n/provider";
 
 /** Per-view property visibility: toggle any property shown/hidden in the
  * active view. Persisted in ViewConfig.hiddenProperties; every view
  * (table/board/list/gallery/calendar) respects it. */
 export function ViewOptions() {
   const db = useDb();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const hidden = db.activeView.config.hiddenProperties ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(open, () => {
+    setOpen(false);
+  }, ref, popRef);
 
   function toggle(propId: string) {
     const set = new Set(hidden);
@@ -36,27 +32,37 @@ export function ViewOptions() {
     db.patchView({ ...db.activeView.config, hiddenProperties: [...set] });
   }
 
+ // portalled and placed — inside the page's scroller this popover was cut off
+ // when its trigger sat low in the window
+  useAnchored(open, btnRef, popRef, { align: "end" });
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         data-testid="db-view-options"
         onClick={() => setOpen((v) => !v)}
-        data-tip="View settings"
-        aria-label="Properties"
-        className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+        data-tip={t("보기 설정")}
+        aria-label={t("속성")}
+                // 28×28, radius 6, 16px icon — and ACTIVE means a blue icon, not a
+        // blue chip: the original never fills these (measured toolbar, six of
+        // them at a 28px pitch)
+        className={`flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors ${
           hidden.length
-            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"
-            : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            ? "text-[rgb(39,131,222)] hover:bg-[rgba(33,27,23,0.05)]"
+            : "text-[rgb(90,90,88)] hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
       >
-        <Settings2 size={14} />
-        {hidden.length > 0 && <span className="text-[10px] font-semibold">{hidden.length}</span>}
+        <Settings2 size={16} />
       </button>
-      {open && (
-        <div className="popover-anim absolute right-0 top-8 z-40 w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+      {open &&
+        createPortal(
+          <div ref={popRef}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 overflow-y-auto w-52 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {/* Group by lives in view options — not a strip above the view */}
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-            Group by
+            {t("그룹화")}
           </span>
           <select
             data-testid="db-group-by-select"
@@ -69,9 +75,9 @@ export function ViewOptions() {
             }
             className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded border border-neutral-200 bg-transparent px-1 py-0.5 text-xs text-neutral-600 outline-none dark:border-neutral-600 dark:text-neutral-300"
           >
-            <option value="">None</option>
+            <option value="">{t("없음")}</option>
             {db.properties
-              .filter((p) => (p.config.options?.length ?? 0) > 0 || p.type === "select" || p.type === "status")
+              .filter((p) => isGroupable(p) || (p.config.options?.length ?? 0) > 0)
               .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -79,7 +85,7 @@ export function ViewOptions() {
               ))}
           </select>
           <span className="block px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-            Properties
+            {t("속성")}
           </span>
           {db.properties.map((p) => {
             const isHidden = hidden.includes(p.id);
@@ -99,8 +105,9 @@ export function ViewOptions() {
               </button>
             );
           })}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }

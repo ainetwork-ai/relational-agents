@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { MarkdownContent } from "@/app/(app)/chat/[chatId]/markdown";
+import { useT } from "@/i18n/provider";
 
 type SharedMessage = {
   role: "user" | "assistant";
@@ -22,6 +23,7 @@ export default function SharedChatPage() {
   const [data, setData] = useState<SharedChat | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -46,7 +48,7 @@ export default function SharedChatPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white dark:bg-[#191919]">
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-sm text-neutral-400">{t("불러오는 중…")}</p>
       </main>
     );
   }
@@ -55,7 +57,7 @@ export default function SharedChatPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white dark:bg-[#191919]">
         <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Shared chat not found
+          {t("공유된 채팅을 찾을 수 없습니다")}
         </p>
       </main>
     );
@@ -67,13 +69,13 @@ export default function SharedChatPage() {
         <div className="flex items-center gap-2">
           <h1 className="truncate text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
             {data.chat.icon ? `${data.chat.icon} ` : ""}
-            {data.chat.title || "Untitled chat"}
+            {data.chat.title || t("제목 없는 채팅")}
           </h1>
           <span
             data-testid="chat-readonly-badge"
             className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
           >
-            Read-only share
+            {t("읽기 전용 공유")}
           </span>
         </div>
 
@@ -106,7 +108,7 @@ export default function SharedChatPage() {
                         data-testid="chat-sources"
                         className="mt-2 space-y-0.5 text-xs text-neutral-400 dark:text-neutral-500"
                       >
-                        <p>Sources</p>
+                        <p>{t("출처")}</p>
                         <ul className="space-y-0.5">
                           {m.sources.map((s, sIdx) => (
                             <li key={s.id}>

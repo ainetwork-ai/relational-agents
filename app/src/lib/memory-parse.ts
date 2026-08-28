@@ -1,4 +1,5 @@
 import type { BlockType, BlockContent, PropertyType, SelectOption } from "@/lib/db/schema";
+import { firstGlyphs, isEmojiGlyph } from "@/lib/glyph";
 
 // ===========================================================================
 // OKF (Open Knowledge Format): the md/csv files ARE the content DB. These are
@@ -72,7 +73,7 @@ export function mdInlineToHtml(text: string): string | undefined {
 }
 
 /** Strip inline markers for the plain-text mirror. */
-function mdInlinePlain(text: string): string {
+export function mdInlinePlain(text: string): string {
   return text
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
@@ -133,12 +134,23 @@ export function parseMarkdown(
     }
     if (t.startsWith("|") && t.endsWith("|")) {
       const rows: string[][] = [];
+ // the separator row carries per-column alignment (|:---:| / |---:|)
+      let colAlign: string[] | null = null;
       while (i < lines.length && lines[i].trim().startsWith("|")) {
         const cells = lines[i].trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripLinks(c.trim()));
-        if (!cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) rows.push(cells);
+        if (cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) {
+          colAlign = cells.map((c) =>
+            c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "default"
+          );
+        } else rows.push(cells);
         i++;
       }
-      if (rows.length) push("table", { table: { cells: rows, headerRow: true } });
+      if (rows.length) {
+        const align = colAlign?.some((a) => a !== "default")
+          ? rows.map((row) => row.map((_, c) => colAlign![c] ?? "default"))
+          : undefined;
+        push("table", { table: { cells: rows, headerRow: true, ...(align ? { align } : {}) } });
+      }
       continue;
     }
     if (/^#{1,6}\s/.test(t)) {
@@ -157,10 +169,15 @@ export function parseMarkdown(
     if (/^\d+\.\s/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s/, "")) }); i++; continue; }
     if (t.startsWith("> ")) {
       // `> 💡 text` is the serialized form of a callout — an emoji right after
-      // the marker brings it back as one (plain `> text` stays a quote)
-      const co = t.slice(2).match(/^(\p{Extended_Pictographic}[️‍]*)\s+([\s\S]*)$/u);
-      if (co) push("callout", { icon: co[1], text: stripLinks(co[2]) });
-      else push("quote", { text: stripLinks(t.slice(2)) });
+      // the marker brings it back as one (plain `> text` stays a quote).
+      // Matched a grapheme at a time: a pictographic-plus-ZWJ pattern used to
+      // drop 🧑‍💻, 👋🏽 and 🇰🇷 callouts back to quotes on every round trip.
+      const rest = t.slice(2);
+      const icon = firstGlyphs(rest, 1);
+      const after = rest.slice(icon.length);
+      if (isEmojiGlyph(icon) && /^\s/.test(after)) {
+        push("callout", { icon, text: stripLinks(after.replace(/^\s+/, "")) });
+      } else push("quote", { text: stripLinks(rest) });
       i++; continue;
     }
     const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);

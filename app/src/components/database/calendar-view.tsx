@@ -5,12 +5,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DbView } from "@/lib/db/schema";
 import { applyView, dateStart } from "@/lib/db-values";
 import { useDb } from "./database-block";
+import { useT } from "@/i18n/provider";
 
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -19,6 +16,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * months. Defaults to the current month (new Date() is fine in the client). */
 export function CalendarView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const dateProps = db.properties.filter((p) => p.type === "date");
   const datePropId = view.config.calendarDatePropertyId ?? dateProps[0]?.id ?? "";
   const dateProp = db.properties.find((p) => p.id === datePropId);
@@ -88,7 +86,7 @@ export function CalendarView({ view }: { view: DbView }) {
         <button
           data-testid="db-calendar-prev"
           onClick={prev}
-          aria-label="Previous month"
+          aria-label={t("이전 달")}
           className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronLeft size={14} />
@@ -98,20 +96,20 @@ export function CalendarView({ view }: { view: DbView }) {
           className="min-w-[9rem] text-center text-sm font-medium text-neutral-800 dark:text-neutral-100"
         >
           {mode === "month"
-            ? `${MONTHS[month]} ${year}`
-            : `${MONTHS[weekDays[0].getMonth()].slice(0, 3)} ${weekDays[0].getDate()} – ${MONTHS[weekDays[6].getMonth()].slice(0, 3)} ${weekDays[6].getDate()}, ${weekDays[6].getFullYear()}`}
+            ? t("{year}년 {month}월", { year, month: month + 1 })
+            : `${t("{month}월 {day}일", { month: weekDays[0].getMonth() + 1, day: weekDays[0].getDate() })} – ${t("{year}년 {month}월 {day}일", { year: weekDays[6].getFullYear(), month: weekDays[6].getMonth() + 1, day: weekDays[6].getDate() })}`}
         </span>
         <button
           data-testid="db-calendar-mode"
           onClick={() => setMode((m) => (m === "month" ? "week" : "month"))}
           className="rounded border border-neutral-200 px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          {mode === "month" ? "Week" : "Month"}
+          {mode === "month" ? t("주") : t("월")}
         </button>
         <button
           data-testid="db-calendar-next"
           onClick={next}
-          aria-label="Next month"
+          aria-label={t("다음 달")}
           className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronRight size={14} />
@@ -136,7 +134,7 @@ export function CalendarView({ view }: { view: DbView }) {
 
       {!dateProp ? (
         <div className="py-4 text-sm text-neutral-400">
-          Add a date property to use the calendar.
+          {t("캘린더를 사용하려면 날짜 속성을 추가하세요.")}
         </div>
       ) : mode === "week" ? (
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-700">
@@ -150,7 +148,7 @@ export function CalendarView({ view }: { view: DbView }) {
                 className="min-h-[200px] bg-white p-1 dark:bg-neutral-900"
               >
                 <div className="mb-1 text-[10px] text-neutral-400">
-                  {WEEKDAYS[i]}{" "}
+                  {t(WEEKDAYS[i])}{" "}
                   {dayStr === todayStr ? (
                     <span
                       data-testid="db-calendar-today"
@@ -170,7 +168,7 @@ export function CalendarView({ view }: { view: DbView }) {
                       onClick={() => db.openRow(r.id)}
                       className="truncate rounded bg-blue-100 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200"
                     >
-                      {(titleProp && (r.values[titleProp.id] as string)) || "Untitled"}
+                      {(titleProp && (r.values[titleProp.id] as string)) || t("제목 없음")}
                     </button>
                   ))}
                 </div>
@@ -185,7 +183,7 @@ export function CalendarView({ view }: { view: DbView }) {
               key={w}
               className="bg-neutral-50 px-1 py-1 text-center text-[10px] font-medium uppercase text-neutral-400 dark:bg-neutral-800"
             >
-              {w}
+              {t(w)}
             </div>
           ))}
           {cells.map((d, i) => {
@@ -221,7 +219,7 @@ export function CalendarView({ view }: { view: DbView }) {
                       onClick={() => db.openRow(r.id)}
                       className="truncate rounded bg-blue-100 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200"
                     >
-                      {(titleProp && (r.values[titleProp.id] as string)) || "Untitled"}
+                      {(titleProp && (r.values[titleProp.id] as string)) || t("제목 없음")}
                     </button>
                   ))}
                 </div>

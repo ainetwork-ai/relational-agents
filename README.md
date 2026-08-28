@@ -1,106 +1,81 @@
-# You see me, therefore I am.
+# ainmem
 
-**🌐 Live demo: [memory.ainetwork.ai](https://memory.ainetwork.ai)**
+A workspace that remembers the conversations inside it.
 
-<p align="center">
-  <img src="https://miro.medium.com/v2/resize:fit:1100/format:webp/1*8BgszdbJ7G507507tPH2AQ.gif" alt="Relational agents" width="720">
-</p>
+**🌐 [ainmem.ainetwork.ai](https://ainmem.ainetwork.ai)** — sign in with Google.
 
-**An agent is born only when people — at least two — see each other.**
+Pages, databases and chat in one place, plus an agent per conversation that keeps a written
+record of it. The memory is a folder of Markdown, not a vector store, and each conversation's
+folder is reachable only by the people in it.
 
-Every relationship gets its own agent, holding only what that relationship shared.
-One relationship = one agent = one memory bundle.
+## What it does
 
-## Why not one agent per person?
+**Write.** A block editor with the usual page tree — headings, lists, toggles, code, tables,
+callouts, embeds — plus databases (table/board/calendar views), comments, page-level sharing
+and per-person invites. Every page is mirrored to Markdown on disk (`md-mirror/`), so the
+content is readable without the app.
 
-Chanho ate egg tarts in Lisbon with **Hannah**. Tonight **Ava** asks his agent an innocent
-question: *"Remember the egg tart?"* 🥧
+**Talk.** Direct and group conversations alongside the pages, with an AI chat panel for
+one-off questions.
 
-### 😈 One agent per person
+**Remember.** Invite an agent into a conversation and it starts keeping that conversation's
+record: appending what was said to a document, answering questions from it with links back
+to the original messages, and — when a draft contradicts the record — saying so before the
+message goes out. Two built-in profiles shape what it keeps and how it speaks
+([`agent/profiles`](app/src/lib/agent/profiles/)): `romantic` (Timeline, People, Open topics)
+and `business` (Decisions, Action items).
 
-<img src="docs/img/agent.png" width="720" alt="One agent per human: a shared memory store holds the egg tart memory with Hannah, and Ava's question leaks it">
+## The memory is a folder
 
-**Nobody hacked anything.** One shared memory store, so a friendly question from Ava walks
-out with Hannah's memory. Swap Ava for a stranger and the question for an injection:
-**same door, his whole life.**
+Agent memory is **OKF** ([Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)) — the folder tree *is* the database. Each conversation gets one
+bundle: Markdown files the agent appends to when it records, and reads back when it answers.
+No embeddings, no separate index; `git diff` shows exactly what an agent decided to remember.
 
-### 🛡️ One agent per relationship
+Isolation follows from that. A bundle is one folder gated by
+[`okf_acl`](app/src/lib/okf-acl.ts), which registers the folder against its participants and
+refuses every path under it to anyone else. So an agent in one conversation cannot open
+another conversation's folder — not because a prompt tells it not to, but because the read
+fails. That matters most in the failure mode this design exists for: one shared memory store
+answers a friendly question with someone else's private detail, and nothing looks broken
+while it happens.
 
-<img src="docs/img/relational_agent.png" width="720" alt="One agent per relationship: the Chanho–Hannah agent holds the egg tart memory, the Chanho–Ava agent has none, so nothing leaks">
+## The agent is an A2A participant
 
-**No egg tart memory — no leak.** The Chanho–Ava agent is right there and answers honestly —
-it just holds nothing beyond what Chanho and Ava shared. Lisbon **does not exist** in there.
-Isolation is structural, not a rule the model has to remember.
+Once provisioned, an agent is not an in-app special case. It publishes an agent card at
+`/.well-known/agent-card.json` and speaks JSON-RPC `SendMessage` over
+[A2A](https://a2a-protocol.org) at
+[`/api/a2a/[agentUserId]`](app/src/app/api/a2a/%5BagentUserId%5D/route.ts), so any A2A client
+reaches it the same way the in-app dispatcher does. Membership is authorized per member with
+a Bearer token; knowing the URL is not enough.
 
-## The contract — consent, on-chain
-
-The birth rule is enforced by [`RelationalAgentRegistry`](contracts/RelationalAgentRegistry.sol),
-an **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (Trustless Agents) compatible identity
-registry** with one twist: an agent can only be minted from a relationship.
-
-```solidity
-registerRelationalAgent(bytes32 relationId, address[] parties, string agentURI, bytes[] sigs)
-```
-
-- Every member — couple or group — signs the same **EIP-712 `RelationConsent`** in their own
-  wallet. The app collects the signatures ([`/consent`](app/src/app/api/dm/rooms/%5BroomId%5D/consent/route.ts));
-  the set is relayable on-chain as-is, so **no member ever pays gas**.
-- One missing or invalid signature → no agent. The registry verifies every signer itself.
-- The agent NFT (**agentId**, ERC-721 per ERC-8004, `tokenURI` → agent card) is **held by the
-  registry, not by any member**: the agent belongs to the relationship. There is no transfer
-  function — and no unmint. People can leave; the agent, and what was shared, remains.
-- Standard ERC-8004 surface for indexers: `register()` overloads, `Registered` /
-  `MetadataSet` events, per-agent key-value metadata (`relationId`, `parties`).
-
-Live on Sepolia: [`0xf1dc0686c8b22a1afe8941c2613f7efa4e439256`](https://sepolia.etherscan.io/address/0xf1dc0686c8b22a1afe8941c2613f7efa4e439256)
-([deployment record](contracts/deployments/sepolia.json))
-
-## The agent — A2A wire, OKF memory
-
-Once born, the agent is a first-class [A2A](https://a2a-protocol.org) participant, not an
-in-app special case. It publishes an **agent card** at `/.well-known/agent-card.json` and
-speaks **JSON-RPC `SendMessage`** over A2A ([`/api/a2a/[agentUserId]`](app/src/app/api/a2a/%5BagentUserId%5D/route.ts)),
-so any A2A client — our own dispatcher, a Kakao bot, an external
-[eve](relation-agent/) agent — talks to it the same way. Membership is authorized by a
-per-member Bearer token; a third party who only knows the URL is refused.
-
-Its memory is **OKF** ([Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)) — the folder tree *is* the database. Each relationship gets one bundle:
-a folder of Markdown (Overview, Timeline, People notes, Decisions, Open topics). The agent
-*writes* memories by appending to those files, and *answers* by reading them back with source
-links. Because a bundle is one folder gated by [`okf_acl`](app/src/lib/okf-acl.ts), the
-isolation the diagrams promise is a filesystem boundary: the Chanho–Ava agent literally cannot
-open the Chanho–Hannah folder. The [`relational-memory-mcp`](relational-memory-mcp/) server exposes that same OKF
-surface as MCP tools, so an external agent reads and writes the exact bundle the in-app agent does.
-
-One relationship = one A2A endpoint = one OKF bundle = one on-chain agent.
+[`relational-memory-mcp`](relational-memory-mcp/) exposes the same OKF surface as MCP tools,
+so an external agent reads and writes the exact bundle the in-app agent does — through the
+same ACL.
 
 ## Architecture
 
-A workspace is a **team**. Relationships form between its members — BD ⇄ Dev,
-Marketing ⇄ Dev, any pair that agrees. Each relationship, once both members sign the
-contract, gets its own A2A agent; the agent reaches its memory through `relational-memory-mcp` into a
-single OKF bundle — and the `okf_acl` gate makes every other bundle unreachable. (The
-couples demo above is just one instance of the same model.)
+A workspace is a team. Conversations form between its members, each with its own agent and
+its own memory bundle.
 
 ```mermaid
 flowchart TB
-    subgraph WS["🏢 ComCom workspace (a team)"]
+    subgraph WS["🏢 workspace (a team)"]
         direction LR
         BD(["👤 BD"])
         MK(["👤 Marketing"])
         DV(["👤 Dev"])
     end
 
-    subgraph REL1["🤝 BD ⇄ Dev"]
+    subgraph REL1["💬 BD ⇄ Dev"]
         A1["🤖 A2A agent"]
     end
-    subgraph REL2["🤝 Marketing ⇄ Dev"]
+    subgraph REL2["💬 Marketing ⇄ Dev"]
         A2["🤖 A2A agent"]
     end
 
-    BD -->|"EIP-712<br/>contract"| REL1
+    BD --> REL1
     DV --> REL1
-    MK -->|"EIP-712<br/>contract"| REL2
+    MK --> REL2
     DV --> REL2
 
     A1 -->|"MCP tools"| M1["🔌 relational-memory-mcp"] -->|"okf_acl gated"| O1["📁 OKF bundle<br/>BD–Dev"]
@@ -123,30 +98,46 @@ flowchart TB
     style O2 fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
 ```
 
-**Team → relationships between members → one A2A agent per relationship → MCP → one OKF
-bundle each.** Dev is in two relationships and gets two separate agents — what BD shared
-with Dev never reaches the Marketing ⇄ Dev bundle. The crossed-out paths are the point:
-isolation isn't a policy the model follows, it's a boundary in the filesystem and the contract.
+Dev is in two conversations and gets two agents. What BD shared with Dev never reaches the
+Marketing ⇄ Dev bundle — the crossed-out paths are the design, enforced in the filesystem
+rather than in a prompt.
 
----
+**Stack.** Next.js 16 (App Router) · Postgres via Drizzle · iron-session · any
+OpenAI-compatible endpoint for the LLM · Playwright for e2e. Production runs as a container
+behind nginx; see [`docs/deployment.md`](docs/deployment.md).
 
-## Final remarks
+## Running it
 
-We didn't want to build an agent that **replaces** humans. We wanted one that makes
-**human-to-human** stronger.
+```bash
+cd app
+cp .env.example .env.local     # POSTGRES_URL, SESSION_SECRET, GOOGLE_CLIENT_ID/SECRET, OKF_ROOT
+pnpm install
+pnpm db:push                   # apply the schema
+pnpm dev                       # http://localhost:3110
+```
 
-Most agents today stand in for you — they answer for you, decide for you, and slowly
-push the other person out of the loop. That's how misunderstanding creeps in: the agent
-speaks, but the relationship doesn't. So I flipped it. Here the agent has no self of its
-own; it exists only *between* two people, born the moment both of them say yes. It can't
-act until the relationship does. It remembers only what the two of them made together —
-and forgets nothing to anyone else.
+Sign-in is Google OAuth, so a client ID is needed even locally: register
+`http://localhost:3110` as an authorized origin and
+`http://localhost:3110/api/auth/google/callback` as the redirect URI. Google only accepts
+`http` for `localhost` — developing on a remote host means tunnelling
+(`ssh -L 3110:localhost:3110 …`) rather than browsing to its LAN address.
 
-An agent like that doesn't compete with the human bond. It **holds** it — carries the
-small things we forget, keeps each relationship's memory where it belongs, and never
-leaks one person's story into another's. Our hope is a world where agents and humans
-coexist so quietly that there's **less to fight about, less to misunderstand, less to
-lose** — because none of us stands alone. We exist by leaning on one another, and the
-agent is just one more thing two people hold **together**.
+Without an LLM endpoint the app still runs: pages, chat and sharing are unaffected, the
+agent records deterministically, and only the AI answering paths fail.
 
-**You see me, therefore I am.**
+## Where things are
+
+| Path | What |
+|---|---|
+| [`app/src/app`](app/src/app) | routes — pages, DMs, API |
+| [`app/src/lib/agent`](app/src/lib/agent) | the recording pipeline, answering, the send-guard |
+| [`app/src/lib/okf-store.ts`](app/src/lib/okf-store.ts) · [`okf-acl.ts`](app/src/lib/okf-acl.ts) | the memory files and who may read them |
+| [`relational-memory-mcp`](relational-memory-mcp/) | the MCP server over the same bundles |
+| [`docs/deployment.md`](docs/deployment.md) | how production is put together, and what has bitten us |
+
+## Why build it this way
+
+Most agents stand in for a person: they answer for you, decide for you, and gradually push
+the other person out of the loop. This one has no self to speak from. It sits between people,
+holds only what they made together, and cannot carry any of it elsewhere — the boundary is a
+folder permission, not a promise.

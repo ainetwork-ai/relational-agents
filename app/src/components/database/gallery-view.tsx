@@ -2,25 +2,26 @@
 
 import { Plus } from "lucide-react";
 import type { DbView } from "@/lib/db/schema";
-import { applyView, groupRowsBy } from "@/lib/db-values";
+import { applyView, groupRowsBy, isGroupable, visibleColumns } from "@/lib/db-values";
 import { resolveAppUrl } from "@/lib/compat";
 import { useDb } from "./database-block";
+import { useT } from "@/i18n/provider";
 import { PropertyValue } from "./property-value";
 
 /** Card grid: each row is a card with its title and property values stacked.
  * Supports the shared group-by (select/status → labelled sections). */
 export function GalleryView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const visible = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const titleProp = db.properties.find((p) => p.type === "title");
-  const hidden = view.config.hiddenProperties ?? [];
-  const shown = db.properties.filter((p) => p.type !== "title" && !hidden.includes(p.id));
+  const shown = visibleColumns(db.properties, view.config).filter((p) => p.type !== "title");
  // visible url properties become card ACTION BUTTONS (call / message / docs …)
  // — except the one already consumed as the card cover
   const rest = shown.filter((p) => p.type !== "url");
-  const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+  const groupable = db.properties.filter(isGroupable);
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
-  const groups = groupRowsBy(visible, groupProp);
+  const groups = groupRowsBy(visible, groupProp, db.members);
  // card cover: the first url/files property's value.
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
@@ -48,7 +49,7 @@ export function GalleryView({ view }: { view: DbView }) {
       )}
       <div className="p-3">
         <div className="mb-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          {(titleProp && (row.values[titleProp.id] as string)) || "Untitled"}
+          {(titleProp && (row.values[titleProp.id] as string)) || t("제목 없음")}
         </div>
         <div className="flex flex-col gap-1.5">
           {rest.map((p) => (
@@ -94,7 +95,7 @@ export function GalleryView({ view }: { view: DbView }) {
           onClick={() => db.addRow()}
           className="flex min-h-[80px] items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          <Plus size={13} /> New
+          <Plus size={13} /> {t("새 {name}", { name: db.itemName })}
         </button>
       )}
     </div>

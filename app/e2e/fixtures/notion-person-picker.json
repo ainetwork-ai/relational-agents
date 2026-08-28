@@ -1,0 +1,34 @@
+{
+  "_source": "app.notion.com ComCom > Projects, table view, person cells (TL 250px / Sherpa 117px empty / Assignee 469px), 2026-08-06. Read-only: cell clicked to open, measured, hovered a selected person, Escape. px, positions relative to the menu's top-left.",
+  "box": {
+    "widthRule": "max(240, cellWidth)",
+    "widthSamples": [{ "cell": 250, "box": 250 }, { "cell": 117, "box": 240 }, { "cell": 469, "box": 469 }],
+    "h": 333,
+    "dxFromCell": -1,
+    "dyFromCell": -1,
+    "radius": "6px",
+    "bg": "rgb(255, 255, 255)"
+  },
+  "bar": {
+    "bg": "rgba(242, 241, 238, 0.6)",
+    "radius": "6px",
+    "emptyH": 39,
+    "oneRowH": 63,
+    "maxH": "240px",
+    "itemY": 9,
+    "itemPitch": 24,
+    "avatarX": 12,
+    "avatarSize": 20,
+    "nameX": 38,
+    "nameFs": "14px",
+    "removeSize": 20,
+    "removeIconSize": 12,
+    "removeLabel": "항목 제거",
+    "inputH": 20,
+    "inputFs": "14px"
+  },
+  "label": { "text": "원하는 만큼 선택", "x": 12, "fs": "12px", "fw": "500", "h": 14, "gapAfterBar": 10 },
+  "row": { "x": 4, "h": 28, "pitch": 29, "gapAfterLabel": 9, "avatarX": 12, "avatarSize": 20, "nameX": 40, "nameFs": "14px", "radius": "6px" },
+  "me": { "suffix": "(나)", "sameLine": true },
+  "unmeasured": ["dark theme", "the hover tint of an option row (only the status menu's was sampled)", "what happens when the member list is shorter than the box"]
+}

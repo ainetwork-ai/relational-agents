@@ -29,7 +29,11 @@ export const workspaces = pgTable("workspaces", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  ainAddress: text("ain_address").unique().notNull(),
+  // Google sign-in identity. `sub` is the stable one — an account can change
+  // its email — so lookups go through sub first and fall back to email for
+  // rows that predate it (and for page_invites, which invites by email).
+  googleSub: text("google_sub").unique(),
+  email: text("email").unique(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
  // /home dashboard cover the user picked (uploaded or built-in); null = default
@@ -46,11 +50,12 @@ export const users = pgTable("users", {
   agentVisibility: text("agent_visibility").default("private"),
   agentCategory: text("agent_category"),
   agentTags: jsonb("agent_tags").$type<string[]>().default([]),
-  encryptedPrivateKey: text("encrypted_private_key"),
  // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
   timezone: text("timezone"),
+  // UI language (ko | en); null = follow the browser. Per user, like Notion.
+  language: text("language"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -157,6 +162,16 @@ export type BlockType =
  * flags mirror "header row / header column" toggles. */
 export interface TableData {
   cells: string[][];
+  /** per-cell sanitized inline HTML, mirroring a block's content.text/html
+   * pair — present only for cells edited since formatting arrived. */
+  html?: string[][];
+  /** per-cell text colour / background, by palette name ("gray", "blue", …).
+   * The row and column menus write a whole line at once, as the original does. */
+  color?: string[][];
+  bg?: string[][];
+  /** per-cell text alignment ("center" / "right"; absent = left). Ours, not
+   * the original's — Notion's simple table has no alignment at all. */
+  align?: string[][];
   headerRow?: boolean;
   headerCol?: boolean;
 }
@@ -279,9 +294,25 @@ export interface RollupConfig {
 
 export interface PropertyConfig {
   options?: SelectOption[]; // select / status
+  /** status: its options bucketed into groups — the original's Status carries
+   * `To-do · In progress · Complete`, and one of its views filters by the
+   * GROUP rather than by an option (docs/notion-projects-spec.md) */
+  optionGroups?: { id: string; name: string; color?: string; optionIds: string[] }[];
+  /** status: the option new rows start on — the original tags it `기본` in the
+   * property editor and applies it to every page created without a value */
+  defaultOptionId?: string;
+  /** status/select: the property editor's 콘텐츠 줄바꿈하기 switch. Stored so the
+   * toggle round-trips; table cells still clip to one line (table_wrap: false
+   * in every capture), so nothing reads it yet. */
+  wrapContent?: boolean;
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
  * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";
+  /** date: how every cell in the column reads — the picker's `날짜 형식` row.
+   * The original keeps this on the property, which is why its Projects table
+   * shows `Start date` as 08/04/2026 and `End date` as 2026년 8월 4일 at the
+   * same time. One of DateFormat; undefined means 전체 날짜. */
+  dateFormat?: string;
   /** relation: the target database whose rows this links to */
   relationDatabaseId?: string;
   /** relation: this prop is a COMPUTED mirror of a relation on another db
@@ -297,6 +328,21 @@ export interface PropertyConfig {
   numberFormat?: string;
   /** number: how to render the value — "number" | "bar" (progress) */
   display?: string;
+  /** show this property above a row page's body rather than in its 속성 panel
+   * — what the original's 레이아웃 사용자 지정 chooses. Lives on the property
+   * because `config` is already JSON: pinning needed no new column. Undefined
+   * on every property means nobody has chosen, and the first few stand in. */
+  pinned?: boolean;
+  /** where this property sits in the band, low first. The original's layout
+   * editor orders the pinned properties independently of the property list
+   * (its band reads TL · Assignee · End date · Evaluation while the property
+   * order starts elsewhere) — so the order is its own field, not `position`.
+   * Undefined falls back to `position`. */
+  pinnedOrder?: number;
+  /** 속성 표시 여부 — what the 속성 panel's label menu sets for a property that
+   * is NOT pinned: "always" (the default) · "hide_empty" · "never". The band
+   * ignores it; a pinned property keeps its slot however empty it is. */
+  pageVisibility?: "always" | "hide_empty" | "never";
   [key: string]: unknown;
 }
 
@@ -340,7 +386,33 @@ export interface ViewFilterGroup {
   conjunction?: "and" | "or";
   filters: ViewFilter[];
 }
-export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "dashboard";
+export type ViewType =
+  | "table"
+  | "board"
+  | "list"
+  | "gallery"
+  | "calendar"
+  | "timeline"
+  | "dashboard"
+  | "chart";
+
+/** A chart view's own settings — mirrors the original's `chart_config`
+ * (docs/notion-projects-spec.md): a column chart grouped by a property,
+ * measuring count or a sum, optionally stacked by a second property. */
+export interface ChartConfig {
+  type?: "column" | "bar" | "line" | "donut";
+  groupByPropertyId?: string;
+  aggregate?: "count" | "sum";
+  aggregatePropertyId?: string;
+  stackByPropertyId?: string;
+  height?: "small" | "medium" | "large";
+  caption?: string;
+  showCaption?: boolean;
+  showDataLabels?: boolean;
+  hideEmptyGroups?: boolean;
+}
+
+export type TimelineZoom = "month" | "quarter" | "year";
 
 export interface ViewConfig {
   groupByPropertyId?: string; // board grouping
@@ -352,15 +424,38 @@ export interface ViewConfig {
   filterConjunction?: "and" | "or";
   /** property ids hidden in this view */
   hiddenProperties?: string[];
+  /** column order for THIS view (property ids). Notion keeps order per view —
+   * the same database starts with a different column in each of its views. */
+  propertyOrder?: string[];
+  /** draw the row's icon in the title cell. The original leaves it on for its
+   * tables and turns it off for `My`, `All Projects` and `My Timeline`. */
+  showPageIcon?: boolean;
+  /** freeze columns up to and including this index while the table scrolls
+   * sideways. -1 (the default, and what every view of the original carries in
+   * `table_frozen_column_index`) freezes nothing. */
+  frozenColumnIndex?: number;
   /** per-property column widths in px (table view; drag the column edge) */
   widths?: Record<string, number>;
   /** which date property the calendar view lays rows out on */
   calendarDatePropertyId?: string;
+  /** timeline: how wide a window one screen covers, and whether the side table
+   * is open (the original's `My Timeline` keeps it open at quarter zoom) */
+  timelineZoom?: TimelineZoom;
+  timelineShowTable?: boolean;
   /** a linked database view embedded inside another page */
   embedded?: boolean;
   /** per-property column-footer aggregation:
  * { [propertyId]: "count" | "count_values" | "empty" | "sum" | "avg" | "min" | "max" } */
   calcs?: Record<string, string>;
+  /** grouped table: collapsed section keys, and whether each section header
+   * shows its row count (the capture renders the count slot empty — off) */
+  collapsedGroups?: string[];
+  showGroupCount?: boolean;
+  /** drop sections that hold no rows (every grouped view in the original has
+   * this on; a chart there has it off) */
+  hideEmptyGroups?: boolean;
+  /** chart view: what it plots */
+  chart?: ChartConfig;
   /** dashboard view: its widget layout (.com/help/dashboards — up to 12
  * widgets, up to 4 per row; each widget carries its own data config) */
   widgets?: DashWidget[];
@@ -391,6 +486,13 @@ export const databases = pgTable("databases", {
   title: text("title").default("Untitled Database").notNull(),
  // editable text under the DB title
   description: text("description").default("").notNull(),
+ // 설명 표시 / 설명 숨기기. Deliberately nullable: null means nobody has toggled
+ // it, and then the description shows if there is any — a database that already
+ // has text must not go blank the moment this column exists.
+  descriptionVisible: boolean("description_visible"),
+ // What one row is called, used wherever the UI offers to make one: the
+ // original's Projects says "새 프로젝트", not "새 페이지". Null = 페이지.
+  itemName: text("item_name"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -451,6 +553,9 @@ export const dbViews = pgTable(
 // ---------------------------------------------------------------------------
 // Teamspaces: a named grouping of pages inside a workspace (pages.teamspaceId).
 // ---------------------------------------------------------------------------
+/** Who can see and join a teamspace — the "보안" field of the create dialog. */
+export type TeamspaceVisibility = "open" | "closed" | "private";
+
 export const teamspaces = pgTable(
   "teamspaces",
   {
@@ -460,10 +565,31 @@ export const teamspaces = pgTable(
       .notNull(),
     name: text("name").notNull(),
     icon: text("icon"),
+ // "이 팀스페이스의 용도는 무엇인가요?" — optional, shown under the name
+    description: text("description").default("").notNull(),
+ // open = anyone in the workspace can see and join (Notion's default 공개)
+    visibility: text("visibility").$type<TeamspaceVisibility>().default("open").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("teamspaces_workspace_idx").on(t.workspaceId)]
+);
+
+/** Teamspace membership — what step 2 of the create flow writes. The creator is
+ *  inserted as owner; invitees added from the member search land as members. */
+export const teamspaceMembers = pgTable(
+  "teamspace_members",
+  {
+    teamspaceId: uuid("teamspace_id")
+      .references(() => teamspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    role: text("role").default("member").notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("teamspace_members_pk").on(t.teamspaceId, t.userId)]
 );
 
 // Invite specific people to a page. permission ∈ view|comment|edit|full.
@@ -542,6 +668,7 @@ export const comments = pgTable(
       .references(() => users.id)
       .notNull(),
     body: text("body").notNull(),
+ // attachments are rows in `files`, not a column here — see that table for why
     resolved: boolean("resolved").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -551,6 +678,45 @@ export const comments = pgTable(
 // Inbox notifications: a mention/comment/invite raised for a recipient user.
 // pageId/commentId are plain uuids (nullable) — no FK, so an OKF-page mention
 // or a churning autosave block id never dangles a cascade.
+/**
+ * An attached file, as a first-class row.
+ *
+ * The bytes live in object storage under a key that IS their SHA-256, so the
+ * same bytes are one object however many times they are uploaded. What cannot
+ * be derived from the bytes lives here: the name a person gave it, its size
+ * and type, and which comment it hangs off.
+ *
+ * `fileUrl` is `s3://<bucket>/files/<sha256>.<ext>` — or, until the migration
+ * finishes, a legacy `/uploads/<name>` path. The proxy routes read both.
+ *
+ * `commentId` cascades: deleting a comment deletes its file rows, which makes
+ * "is this object still referenced?" answerable with one query instead of a
+ * scan through jsonb. The row is created when the comment is inserted, not
+ * when the upload finishes — an upload that is never sent leaves no row.
+ */
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commentId: uuid("comment_id")
+      .references(() => comments.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    fileName: text("file_name").notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileSize: integer("file_size"),
+    mimeType: text("mime_type"),
+ // captured at upload for images, so a comment can size the box before the
+ // bytes arrive instead of jumping when they do
+    width: integer("width"),
+    height: integer("height"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("files_comment_idx").on(t.commentId), index("files_user_idx").on(t.userId)]
+);
+
 export const notifications = pgTable(
   "notifications",
   {
@@ -613,59 +779,11 @@ export const chatRooms = pgTable("chat_rooms", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// The relational agent contract — the signature record behind "an agent is
-// born only when everyone signs". Each room member's wallet signature adds a
-// row; when the set completes, chat_rooms.consentAt is stamped. The signed
-// payload and signature are preserved verbatim for later re-verification.
-export const relationContracts = pgTable(
-  "relation_contracts",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    address: text("address").notNull(), // wallet address at signing time (lowercase)
-    message: text("message").notNull(), // the signed contract payload, verbatim
-    signature: text("signature").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("relation_contracts_room_user").on(t.roomId, t.userId)]
-);
-
-// Dissolution mirrors consent: one signed RelationDissolve row per member;
-// when the set completes, chat_rooms.dissolvedAt is stamped and the set can be
-// relayed to dissolveRelationalAgent() on-chain as-is.
-export const relationDissolves = pgTable(
-  "relation_dissolves",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    address: text("address").notNull(), // wallet address at signing time (lowercase)
-    message: text("message").notNull(), // the signed dissolve payload, verbatim
-    signature: text("signature").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("relation_dissolves_room_user").on(t.roomId, t.userId)]
-);
-
-// Proof-of-personhood behind a signature. A World ID nullifier hash is the
-// anonymous, per-action fingerprint of one unique human — it says "a real
-// person, and not the same person twice" without saying who. One row per
-// (room, member): the signer must prove they are human before their consent
-// counts, and the pair of nullifiers is what the registry binds on-chain.
-export const personhoodProofs = pgTable(
-  "personhood_proofs",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    nullifierHash: text("nullifier_hash").notNull(),
- // "orb" | "device" from the proof, or "dev-simulator" when no portal app_id
-    verificationLevel: text("verification_level"),
-    verifiedAt: timestamp("verified_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("personhood_proofs_room_user").on(t.roomId, t.userId)]
-);
+// relation_contracts / relation_dissolves lived here: one wallet-signed row per
+// member, completing the set stamped chat_rooms.consent_at / dissolved_at, and
+// the set could be relayed on-chain verbatim. Wallets are gone, so nothing can
+// produce a signature; both tables are dropped. chat_rooms keeps consent_at and
+// dissolved_at — they are plain timestamps the app still reads.
 
 // DM membership + read state. (roomId,userId) composite unique — no id column (workspace_members pattern).
 export const chatRoomMembers = pgTable(
@@ -932,6 +1050,7 @@ export type AiChatMute = typeof aiChatMutes.$inferSelect;
 export type Page = typeof pages.$inferSelect;
 export type Block = typeof blocks.$inferSelect;
 export type Teamspace = typeof teamspaces.$inferSelect;
+export type TeamspaceMember = typeof teamspaceMembers.$inferSelect;
 export type PageMember = typeof pageMembers.$inferSelect;
 export type PageInvite = typeof pageInvites.$inferSelect;
 export type Comment = typeof comments.$inferSelect;

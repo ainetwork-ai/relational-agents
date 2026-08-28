@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/db/schema";
 import { Check, ChevronDown } from "lucide-react";
 import { sanitizeInline } from "@/lib/rich-text";
+import { alignClass } from "@/lib/editor/table-data";
 
 /** Inline rich text for the public read-only view (sanitized twice: at write
  * and again here at render). */
@@ -31,7 +32,7 @@ function renderBlock(
   depth: number
 ): React.ReactNode {
   const text = b.content.text ?? "";
-  const base = "text-[15px] leading-7 text-neutral-800 dark:text-neutral-200";
+  const base = "text-base leading-7 text-neutral-800 dark:text-neutral-200";
 
   switch (b.type) {
     case "heading1":
@@ -145,11 +146,16 @@ function renderBlock(
                     return (
                       <Tag
                         key={c}
-                        className={`min-w-[100px] border border-neutral-200 px-2 py-1 text-left align-top dark:border-neutral-700 ${
-                          header ? "bg-neutral-50 font-medium dark:bg-neutral-800/60" : ""
-                        }`}
+                        className={`min-w-[100px] border border-neutral-200 px-2 py-1 align-top dark:border-neutral-700 ${
+                          header ? "bg-[#f7f6f3] font-medium dark:bg-neutral-800/60" : ""
+                        } ${t.bg?.[r]?.[c] && t.bg[r][c] !== "default" ? `hl-${t.bg[r][c]}` : ""} ${
+                          t.color?.[r]?.[c] && t.color[r][c] !== "default" ? `c-${t.color[r][c]}` : ""
+                        } ${alignClass(t, r, c) || "text-left"}`}
+                        {...(t.html?.[r]?.[c]
+                          ? { dangerouslySetInnerHTML: { __html: sanitizeInline(t.html[r][c]) } }
+                          : {})}
                       >
-                        {cell}
+                        {t.html?.[r]?.[c] ? undefined : cell}
                       </Tag>
                     );
                   })}

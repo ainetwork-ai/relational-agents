@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, memo } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useAnchored } from "@/hooks/use-anchored";
+import { useDismiss } from "@/hooks/use-dismiss";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -11,18 +15,21 @@ import {
   StarOff,
   Trash2,
   Pencil,
-  GripVertical,
+  Table2,
 } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
+import { pageLabel, type PageRow } from "@/lib/page-label";
 import { usePagesStore } from "@/stores/pages";
 import { useShallow } from "zustand/react/shallow";
 import { useUiStore } from "@/stores/ui";
 import { PageIcon } from "@/components/page-icon";
 import { useToastStore } from "@/stores/toast";
+import { useT } from "@/i18n/provider";
 
 const EMPTY_CHILDREN: Page[] = [];
 
 export const PageItem = memo(function PageItem({ page, depth }: { page: Page; depth: number }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const createPage = usePagesStore((s) => s.createPage);
@@ -32,29 +39,30 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   const expanded = useUiStore((s) => s.expanded[page.id] ?? false);
   const toggleExpanded = useUiStore((s) => s.toggleExpanded);
   const expand = useUiStore((s) => s.expand);
+  const openPeek = useUiStore((s) => s.openPeek);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(page.title);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const children = usePagesStore(
     useShallow((s) => s.childrenOf.get(page.id) ?? EMPTY_CHILDREN)
   );
+ // the whole tree is loaded up front (stores/pages.ts), so leaf-ness is known
+ // at render time — no lazy fetch to wait for
+  const hasChildren = children.length > 0;
   const isActive = pathname === `/p/${page.id}`;
   const dropHint = useUiStore((s) =>
     s.dropHint?.targetId === page.id ? s.dropHint.zone : null
   );
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+ // portalled and placed: inside the sidebar's scroller this menu was cut off
+ // by 90px on the lower pages. Both refs count as inside for dismissal.
+  useAnchored(menuOpen, menuBtnRef, menuRef);
+  useDismiss(menuOpen, () => setMenuOpen(false), menuBtnRef, menuRef);
 
   function startRenaming() {
     setDraft(page.title);
@@ -64,7 +72,10 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
   async function addChild() {
     const child = await createPage(page.id);
     expand(page.id);
-    router.push(`/p/${child.id}`);
+ // Notion opens a new sub-page in the center peek rather than navigating away
+ // — the popup header says where it went ("추가 대상 🏠 팀스페이스 홈"), and you
+ // keep the page you were reading behind it. ⤢ in the peek makes it full-page.
+    openPeek(child.id, page.id);
   }
 
   function commitRename() {
@@ -76,6 +87,9 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
  // onto the middle of a row → nest as a child). Persists position/parentPageId.
   function onGripPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
+ // the original has no grip in the sidebar: you drag the row itself. Buttons
+ // and the rename input inside it keep their own clicks.
+    if ((e.target as HTMLElement).closest("button,input")) return;
     e.preventDefault();
  // live three-zone preview (above / inside / below) while dragging
     const onMove = (ev: PointerEvent) => {
@@ -137,6 +151,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-700/50 dark:text-neutral-100"
             : "text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
+        onPointerDown={onGripPointerDown}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
         {dropHint === "before" && (
@@ -149,27 +164,27 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           <span data-testid={`page-drop-hint-${page.id}`} className="pointer-events-none absolute inset-0 rounded-md bg-blue-500/10 ring-2 ring-inset ring-blue-400/70" />
         )}
         <button
-          data-testid={`page-drag-${page.id}`}
-          onPointerDown={onGripPointerDown}
-          aria-label="Drag to reorder"
-          className="flex h-5 w-3 shrink-0 cursor-grab items-center justify-center text-neutral-300 opacity-40 transition-opacity hover:text-neutral-500 group-hover:opacity-100 dark:text-neutral-600"
-        >
-          <GripVertical size={12} />
-        </button>
-        <button
           data-testid={`page-tree-toggle-${page.id}`}
-          onClick={() => toggleExpanded(page.id)}
+          onClick={hasChildren ? () => toggleExpanded(page.id) : undefined}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-          aria-label={expanded ? "Collapse" : "Expand"}
+          aria-label={hasChildren ? (expanded ? t("접기") : t("펼치기")) : undefined}
         >
-          {/* Swap the page icon for the chevron on row hover */}
-          <span className="text-[15px] leading-none group-hover:hidden">
-            <PageIcon icon={page.icon} fallback="📄" />
+          {/* Swap the page icon for the chevron on row hover. A leaf keeps its
+              icon — a deliberate divergence from the original, which offers the
+              chevron (and "No pages inside") on every page (comcom, 2026-08-19) */}
+          <span className={`text-[15px] leading-none ${hasChildren ? "group-hover:hidden" : ""}`}>
+            {(page as PageRow).isDatabase && !page.icon ? (
+              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label={t("데이터베이스")} />
+            ) : (
+              <PageIcon icon={page.icon} fallback="📄" />
+            )}
           </span>
-          <ChevronRight
-            size={14}
-            className={`hidden transition-transform duration-150 group-hover:block ${expanded ? "rotate-90" : ""}`}
-          />
+          {hasChildren && (
+            <ChevronRight
+              size={12}
+              className={`hidden transition-transform duration-150 group-hover:block ${expanded ? "rotate-90" : ""}`}
+            />
+          )}
         </button>
 
         {renaming ? (
@@ -182,7 +197,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
+              if (!isImeComposing(e) && e.key === "Enter") commitRename();
               if (e.key === "Escape") setRenaming(false);
             }}
             className="min-w-0 flex-1 rounded border border-blue-400 bg-white px-1 py-0 text-sm outline-none dark:bg-neutral-900"
@@ -193,39 +208,50 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             aria-current={isActive ? "page" : undefined}
             className="flex min-w-0 flex-1 items-center gap-1.5"
           >
-            <span className="truncate">{page.title || "Untitled"}</span>
+            <span className="truncate">{t(pageLabel(page as PageRow))}</span>
           </Link>
         )}
 
-        <div className="ml-auto hidden shrink-0 items-center gap-0.5 group-hover:flex">
+        {/* while the menu is open these must stay laid out: the panel is anchored
+            to the ⋯ button, and `group-hover:flex` alone removed that button the
+            moment the pointer left the row for the menu — the menu folded away
+            before any item could be clicked */}
+        <div
+          className={`ml-auto shrink-0 items-center gap-0.5 group-hover:flex ${
+            menuOpen ? "flex" : "hidden"
+          }`}
+        >
           <button
+            ref={menuBtnRef}
             data-testid={`page-item-menu-${page.id}`}
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label="Page options"
+            aria-label={t("페이지 옵션")}
           >
-            <MoreHorizontal size={14} />
+            <MoreHorizontal size={16} />
           </button>
           <button
             data-testid={`page-add-child-${page.id}`}
             onClick={addChild}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label="Add sub-page"
+            aria-label={t("하위 페이지 추가")}
           >
-            <Plus size={14} />
+            <Plus size={16} />
           </button>
         </div>
 
-        {menuOpen && (
-          <div
-            ref={menuRef}
-            data-testid={`page-menu-${page.id}`}
-            className="popover-anim absolute left-6 top-7 z-50 w-44 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
-          >
+        {menuOpen &&
+          createPortal(
+            <div
+              ref={menuRef}
+              data-testid={`page-menu-${page.id}`}
+              style={{ visibility: "hidden" }}
+              className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+            >
             <MenuButton
               testid={`page-menu-rename-${page.id}`}
               icon={<Pencil size={14} />}
-              label="Rename"
+              label={t("이름 바꾸기")}
               onClick={() => {
                 setMenuOpen(false);
                 startRenaming();
@@ -234,7 +260,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-favorite-${page.id}`}
               icon={page.isFavorite ? <StarOff size={14} /> : <Star size={14} />}
-              label={page.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
               onClick={() => {
                 setMenuOpen(false);
                 updatePage(page.id, { isFavorite: !page.isFavorite });
@@ -243,40 +269,29 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-delete-${page.id}`}
               icon={<Trash2 size={14} />}
-              label="Delete"
+              label={t("삭제")}
               danger
               onClick={async () => {
                 setMenuOpen(false);
                 await archivePage(page.id);
                 useToastStore
                   .getState()
-                  .show("Moved to Trash", { onUndo: () => restorePage(page.id) });
+                  .show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
                 if (isActive) router.push("/");
               }}
             />
-          </div>
-        )}
+            </div>,
+            document.body
+          )}
       </div>
 
-      {expanded && (
-        <div className="relative">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 top-0 w-px bg-neutral-200/80 dark:bg-neutral-700/60"
-            style={{ left: `${depth * 12 + 26}px` }}
-          />
-          {children.length === 0 ? (
-            <p
-              className="py-1 text-xs text-neutral-400"
-              style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
-            >
-              No pages inside
-            </p>
-          ) : (
-            children.map((child) => (
-              <PageItem key={child.id} page={child} depth={depth + 1} />
-            ))
-          )}
+      {/* a stale expanded flag (last child deleted) renders nothing — the
+          toggle is gone with the children, so there'd be no way to collapse */}
+      {expanded && hasChildren && (
+        <div>
+          {children.map((child) => (
+            <PageItem key={child.id} page={child} depth={depth + 1} />
+          ))}
         </div>
       )}
     </div>

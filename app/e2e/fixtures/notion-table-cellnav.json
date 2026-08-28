@@ -1,0 +1,74 @@
+{
+  "_": "노션 '표'(simple table) 블록을 CDP로 직접 재서 적은 값. 2026-08-28, 테이블 테스트 페이지(3cad8655…), 3x3 표 + 표 뒤 문단 하나.",
+  "table": {
+    "cells": [["Alpha", "Beta", "Gamma"], ["one", "two", "three"], ["four", "five", "six"]],
+    "after": "after"
+  },
+  "geometry": {
+    "_": "빈 표를 넣었을 때. 본문 폭 720 을 3열이 정확히 나눠 갖는다(240 = 720/3).",
+    "cellWidth": 240,
+    "cellMinHeight": 35,
+    "border": "rgb(230, 229, 227) 1px",
+    "selectorPill": {
+      "_": "표에 마우스를 올릴 때만 보이는 회색 그립. 열은 표 위 -2px, 행은 표 왼쪽 -2px.",
+      "col": { "w": 18, "h": 6, "dy": -2, "bg": "rgb(173, 169, 163)", "borderWidth": 2 },
+      "row": { "w": 6, "h": 18, "dx": -2, "bg": "rgb(173, 169, 163)", "borderWidth": 2 }
+    },
+    "selection": {
+      "_": "캐럿이 있는 셀에도, 드래그로 고른 범위에도 같은 테두리 한 겹. 배경 채움 없음. 셀 경계선 위에 얹히려고 union 보다 1px 크다.",
+      "borderWidth": 2,
+      "borderColor": "rgb(39, 131, 222)",
+      "borderRadius": 2,
+      "background": "rgba(0, 0, 0, 0)",
+      "insetFromUnion": -1,
+      "handle": {
+        "_": "범위 선택에만 붙는 손잡이. 선택 오른쪽 변의 세로 가운데.",
+        "w": 6, "h": 12, "bg": "rgb(255, 255, 255)", "borderWidth": 2, "borderColor": "rgb(39, 131, 222)"
+      }
+    }
+  },
+  "nav": [
+    { "id": "right-at-end",       "from": [1, 1], "caret": "end",   "key": "ArrowRight",  "cell": [1, 2], "offset": 0 },
+    { "id": "right-mid",          "from": [1, 2], "caret": "start", "key": "ArrowRight",  "cell": [1, 2], "offset": 1 },
+    { "id": "left-at-start",      "from": [1, 2], "caret": "start", "key": "ArrowLeft",   "cell": [1, 1], "offset": 3 },
+    { "id": "left-mid",           "from": [1, 1], "caret": "end",   "key": "ArrowLeft",   "cell": [1, 1], "offset": 2 },
+    { "id": "right-row-wrap",     "from": [0, 2], "caret": "end",   "key": "ArrowRight",  "cell": [1, 0], "offset": 0 },
+    { "id": "left-row-wrap",      "from": [1, 0], "caret": "start", "key": "ArrowLeft",   "cell": [0, 2], "offset": 5 },
+    { "id": "down",               "from": [1, 1], "caret": "end",   "key": "ArrowDown",   "cell": [2, 1], "offset": 4 },
+    { "id": "up",                 "from": [2, 1], "caret": "end",   "key": "ArrowUp",     "cell": [1, 1], "offset": 3 },
+    { "id": "up-first-row",       "from": [0, 1], "caret": "end",   "key": "ArrowUp",     "outside": true },
+    { "id": "down-last-row",      "from": [2, 1], "caret": "end",   "key": "ArrowDown",   "outside": true },
+    { "id": "right-last-cell",    "from": [2, 2], "caret": "end",   "key": "ArrowRight",  "outside": true, "offset": 0 },
+    { "id": "left-first-cell",    "from": [0, 0], "caret": "start", "key": "ArrowLeft",   "outside": true },
+    { "id": "tab",                "from": [1, 1], "caret": "end",   "key": "Tab",         "cell": [1, 2], "offset": 5 },
+    { "id": "shift-tab",          "from": [1, 2], "caret": "end",   "key": "Shift+Tab",   "cell": [1, 1], "offset": 3 },
+    { "id": "tab-row-wrap",       "from": [0, 2], "caret": "end",   "key": "Tab",         "cell": [1, 0], "offset": 3 },
+    { "id": "shift-tab-row-wrap", "from": [1, 0], "caret": "start", "key": "Shift+Tab",   "cell": [0, 2], "offset": 5 },
+    { "id": "tab-last-cell",      "from": [2, 2], "caret": "end",   "key": "Tab",         "cell": [2, 2], "offset": 3, "rows": 3 }
+  ],
+  "wrapped": {
+    "_": "한 셀 안에서 두 줄이 되면 세로 방향키는 먼저 셀 안의 줄을 옮긴다. 텍스트는 'two ' + 70자.",
+    "text": "two wrapped text long enough to become two lines in this cell hopefully yes",
+    "cellHeight": 75,
+    "downStaysInCell": true,
+    "upStaysInCell": true
+  },
+  "select": [
+    { "id": "escape-selects-cell",  "from": [1, 1], "key": "Escape",           "range": [[1, 1], [1, 1]], "domSelection": "none" },
+    { "id": "shift-right-extends",  "from": [0, 0], "caret": "end", "key": "Shift+ArrowRight", "range": [[0, 0], [0, 1]], "domSelection": "none" },
+    { "id": "shift-down-extends",   "from": [0, 0], "caret": "end", "keys": ["Shift+ArrowRight", "Shift+ArrowDown"], "range": [[0, 0], [1, 1]], "domSelection": "none" }
+  ],
+  "drag": [
+    { "id": "cross-cell", "_": "셀을 넘는 드래그는 텍스트를 고르지 않는다 — 셀 범위 선택이 된다.",
+      "from": [0, 0], "to": [1, 1], "range": [[0, 0], [1, 1]], "domSelection": "none", "toolbar": false },
+    { "id": "in-cell",    "_": "한 셀 안에서의 드래그는 그냥 텍스트 선택이고, 서식 툴바가 뜬다.",
+      "cell": [1, 1], "domSelection": "text", "toolbar": true }
+  ],
+  "columnMenu": {
+    "_": "그립을 눌러 열을 고른 뒤 다시 누르면 뜨는 메뉴. 정렬(가운데 정렬 등) 항목은 노션에 없다.",
+    "items": ["제목 행", "색", "왼쪽에 삽입", "오른쪽에 삽입", "복제", "콘텐츠 삭제", "삭제"],
+    "width": 265,
+    "hasAlign": false
+  },
+  "cellMenu": { "items": ["색", "콘텐츠 삭제"], "width": 265 }
+}

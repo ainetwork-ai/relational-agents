@@ -11,6 +11,16 @@ export interface PageComment {
   parentId: string | null;
   authorId: string;
   body: string;
+ // files on the comment. The client never sees a storage url — it addresses
+ // bytes by id through /api/files/<id>/{stream,download}.
+  attachments?: {
+    id: string;
+    name: string;
+    size?: number;
+    mimeType?: string;
+    width?: number;
+    height?: number;
+  }[];
   resolved: boolean;
   createdAt: string;
   author: PublicUser | null;
@@ -18,8 +28,19 @@ export interface PageComment {
 
 interface CommentsState {
   byPage: Record<string, PageComment[]>;
+ // { [pageId]: n } for the rows of a database — what the table's title-cell
+ // badge reads. Kept apart from byPage because the table wants a number for
+ // twenty pages, not twenty threads.
+  countByPage: Record<string, number>;
   load: (pageId: string) => Promise<void>;
-  add: (pageId: string, body: string, blockId?: string | null) => Promise<PageComment | null>;
+  loadCounts: (databaseId: string) => Promise<void>;
+  add: (
+    pageId: string,
+    body: string,
+    blockId?: string | null,
+   // what the upload returned; the server turns these into file rows
+    attachments?: { url: string; name: string; size?: number; mimeType?: string }[]
+  ) => Promise<PageComment | null>;
   reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;
   remove: (pageId: string, commentId: string) => Promise<void>;
@@ -27,19 +48,32 @@ interface CommentsState {
 
 export const useCommentsStore = create<CommentsState>((set, get) => ({
   byPage: {},
+  countByPage: {},
 
   load: async (pageId) => {
     const res = await fetch(`/api/pages/${pageId}/comments`).catch(() => null);
     if (!res?.ok) return;
     const { comments } = await res.json();
-    set((s) => ({ byPage: { ...s.byPage, [pageId]: comments as PageComment[] } }));
+    const list = comments as PageComment[];
+    set((s) => ({
+      byPage: { ...s.byPage, [pageId]: list },
+ // the thread we just read is the truth for this page's badge
+      countByPage: { ...s.countByPage, [pageId]: list.length },
+    }));
   },
 
-  add: async (pageId, body, blockId = null) => {
+  loadCounts: async (databaseId) => {
+    const res = await fetch(`/api/databases/${databaseId}/comment-counts`).catch(() => null);
+    if (!res?.ok) return;
+    const { counts } = await res.json();
+    set((s) => ({ countByPage: { ...s.countByPage, ...(counts as Record<string, number>) } }));
+  },
+
+  add: async (pageId, body, blockId = null, attachments = []) => {
     const res = await fetch(`/api/pages/${pageId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body, blockId }),
+      body: JSON.stringify({ body, blockId, attachments }),
     });
     if (!res.ok) return null;
     const { comment } = await res.json();
@@ -48,6 +82,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
         ...s.byPage,
         [pageId]: [...(s.byPage[pageId] ?? []), comment as PageComment],
       },
+      countByPage: { ...s.countByPage, [pageId]: (s.countByPage[pageId] ?? 0) + 1 },
     }));
     return comment as PageComment;
   },
@@ -68,6 +103,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
         ...s.byPage,
         [pageId]: [...(s.byPage[pageId] ?? []), comment as PageComment],
       },
+      countByPage: { ...s.countByPage, [pageId]: (s.countByPage[pageId] ?? 0) + 1 },
     }));
     return comment as PageComment;
   },
@@ -98,6 +134,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
         ...s.byPage,
         [pageId]: (s.byPage[pageId] ?? []).filter((c) => c.id !== commentId),
       },
+      countByPage: { ...s.countByPage, [pageId]: Math.max(0, (s.countByPage[pageId] ?? 1) - 1) },
     }));
   },
 }));

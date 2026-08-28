@@ -1,17 +1,18 @@
 import type { User } from "@/lib/db/schema";
 
 /** Whitelist of user fields safe to send to the client (never the full row —
- * users carries encryptedPrivateKey and other agent internals). */
+ * users carries agent internals like its A2A card and config). */
 export function toPublicUser(user: User) {
   return {
     id: user.id,
-    ainAddress: user.ainAddress,
+    email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     homeCoverUrl: user.homeCoverUrl,
     status: user.status,
     isAgent: user.isAgent,
     timezone: user.timezone,
+    language: user.language,
     createdAt: user.createdAt,
   };
 }

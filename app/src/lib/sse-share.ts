@@ -25,6 +25,15 @@ const pool = new Map<string, SharedStream>();
 
 function connect(url: string, s: SharedStream) {
   if (s.closed) return;
+  // An EventSource opened before the window load event keeps the browser tab
+  // spinner running for as long as the stream lives — and these streams are
+  // infinite by design, so the page looks like it never finishes loading.
+  // Defer the FIRST connect until load; error-path reconnects come through
+  // here too but by then readyState is "complete" and this is a no-op.
+  if (document.readyState !== "complete") {
+    window.addEventListener("load", () => connect(url, s), { once: true });
+    return;
+  }
   const es = new EventSource(url);
   s.es = es;
   es.onopen = () => {

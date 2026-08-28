@@ -2,9 +2,10 @@
 
 import { create } from "zustand";
 import type { Page } from "@/lib/db/schema";
+import type { PageRow } from "@/lib/page-label";
 
 interface PagesState {
-  pages: Record<string, Page>;
+  pages: Record<string, PageRow>;
   /** derived once per pages change — 1600+ PageItems must not each rescan
  * the whole map (that made page creation take ~10s at scale) */
   roots: Page[];
@@ -16,6 +17,8 @@ interface PagesState {
   load: () => Promise<void>;
   loadArchived: () => Promise<void>;
   createPage: (parentPageId?: string | null, teamspaceId?: string | null) => Promise<Page>;
+  /** flag a page whose body just became a full-page database */
+  markAsDatabase: (pageId: string) => void;
   updatePage: (id: string, patch: Partial<Page>) => Promise<void>;
   archivePage: (id: string) => Promise<void>;
   restorePage: (id: string) => Promise<void>;
@@ -36,13 +39,24 @@ function derive(pages: Record<string, Page>) {
   const byTeamspace = new Map<string, Page[]>();
   for (const p of Object.values(pages)) {
     if (p.isFavorite) favorites.push(p);
-    if (p.teamspaceId) {
+    const top = isRoot(p, pages);
+ // A database ENTRY's page never renders in the sidebar tree — not at the
+ // root (below) and, now that it is parented under the database's host page
+ // for the breadcrumb's sake, not as that page's child either.
+    if ((p as PageRow).isRow) continue;
+ // A teamspace's rows are its TOP-LEVEL pages; deeper ones already appear
+ // nested under their parent, so listing them here too would duplicate them.
+    if (p.teamspaceId && top) {
       const t = byTeamspace.get(p.teamspaceId);
       if (t) t.push(p);
       else byTeamspace.set(p.teamspaceId, [p]);
     }
-    if (isRoot(p, pages)) {
-      roots.push(p);
+    if (top) {
+   // Private is what is left over: a page that belongs to a teamspace lives
+   // there, not in both places (it used to show up under Private as well).
+   // A database ENTRY's page is not a sidebar page at all — it belongs to its
+   // database, and listing every row would bury the tree in "Untitled".
+      if (!p.teamspaceId && !(p as PageRow).isRow) roots.push(p);
     } else {
       const pid = p.parentPageId!; // non-root ⇒ parent id present (isRoot above)
       const arr = childrenOf.get(pid);
@@ -105,6 +119,14 @@ export const usePagesStore = create<PagesState>((set, get) => ({
     });
     return page;
   },
+
+  markAsDatabase: (pageId) =>
+    set((s) => {
+      const cur = s.pages[pageId];
+      if (!cur || cur.isDatabase) return s;
+      const pages = { ...s.pages, [pageId]: { ...cur, isDatabase: true } };
+      return { pages, ...derive(pages) };
+    }),
 
   updatePage: async (id, patch) => {
  // optimistic — but never fabricate a partial entry for a page the store
@@ -182,10 +204,11 @@ export const usePagesStore = create<PagesState>((set, get) => ({
   },
 }));
 
-/** Root-level pages sorted by position. */
+/** Root-level Private pages sorted by position — teamspace pages excluded, the
+ *  same rule derive() uses for the sidebar. */
 export function selectRoots(pages: Record<string, Page>): Page[] {
   return Object.values(pages)
-    .filter((p) => isRoot(p, pages))
+    .filter((p) => isRoot(p, pages) && !p.teamspaceId)
     .sort(byPos);
 }
 

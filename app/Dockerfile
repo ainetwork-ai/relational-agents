@@ -27,10 +27,6 @@ COPY . .
 # build args rather than runtime env — changing one requires a rebuild.
 ARG NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS
 ARG NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID
-ARG NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS
-ARG NEXT_PUBLIC_WORLD_ID_APP_ID
-ARG NEXT_PUBLIC_WORLD_ID_ACTION
-ARG NEXT_PUBLIC_SUI_PACKAGE_ID
 ENV NEXT_STANDALONE=1 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 # Invoke the binary directly: `pnpm exec` re-runs the dependency status check
 # first, which trips over the same unanswered allowBuilds entries.

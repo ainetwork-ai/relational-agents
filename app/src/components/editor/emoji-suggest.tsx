@@ -1,38 +1,40 @@
 "use client";
 
-import { EMOJI } from "@/lib/editor/inline-autoformat";
-import { EMOJI_CATEGORIES } from "@/lib/emoji-data";
+import { useEffect, useState, useRef } from "react";
+import { useAnchoredAt } from "@/hooks/use-anchored";
+import { emojiSetReady, loadEmojiSet, searchEmoji, searchShortcodes } from "@/lib/emoji-data";
 
 export interface EmojiCandidate {
   emoji: string;
+  /** what the row reads as: a shortcode, or the emoji's name */
   label: string;
+  /** set when `label` is a real `:shortcode:` and can be shown as one */
+  code?: string;
 }
 
+const LIMIT = 12;
+/** Keep room for name matches even when a short prefix has plenty of
+ * shortcodes: typing ":cat" should still be able to reach 🐈‍⬛. */
+const SHORTCODE_SLOTS = 8;
+
 /** Candidates for the `:query` popup — shortcodes first (their names are the
- * ones people type), then keyword matches from the full emoji dataset. */
+ * ones people type), then name/keyword matches across the whole emoji set. */
 export function emojiCandidates(query: string): EmojiCandidate[] {
   const q = query.toLowerCase();
   if (!q) return [];
   const out: EmojiCandidate[] = [];
   const seen = new Set<string>();
-  for (const [code, emoji] of Object.entries(EMOJI)) {
-    if (code.startsWith(q) && !seen.has(emoji)) {
-      out.push({ emoji, label: code });
-      seen.add(emoji);
-    }
+  for (const [code, emoji] of searchShortcodes(q, SHORTCODE_SLOTS)) {
+    out.push({ emoji, label: code, code });
+    seen.add(emoji);
   }
-  outer: for (const cat of EMOJI_CATEGORIES) {
-    for (const [emoji, terms] of cat.emojis) {
-      if (out.length >= 12) break outer;
-      if (seen.has(emoji)) continue;
-      const words = terms.split(" ");
-      if (words.some((t) => t.startsWith(q))) {
-        out.push({ emoji, label: words[0] });
-        seen.add(emoji);
-      }
-    }
+  for (const { emoji, label } of searchEmoji(q, LIMIT)) {
+    if (out.length >= LIMIT) break;
+    if (seen.has(emoji)) continue;
+    out.push({ emoji, label });
+    seen.add(emoji);
   }
-  return out.slice(0, 12);
+  return out.slice(0, LIMIT);
 }
 
 /** emoji autocomplete popup shown while typing `:que…`. */
@@ -47,13 +49,32 @@ export function EmojiSuggestMenu({
   selectedIndex: number;
   onPick: (item: EmojiCandidate) => void;
 }) {
+ // the editor starts the catalogue chunk on the opening ':'; if it has not
+ // arrived yet, re-render once it does instead of leaving the legacy few on
+ // screen until the next keystroke
+  const [ready, setReady] = useState(emojiSetReady);
+  useEffect(() => {
+    if (ready) return;
+    let live = true;
+    void loadEmojiSet().then((ok) => {
+      if (live && ok) setReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ready]);
+
   const items = emojiCandidates(query);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useAnchoredAt(true, anchor, menuRef);
   if (!items.length) return null;
   return (
     <div
+      ref={menuRef}
       data-testid="emoji-suggest-menu"
       className="popover-anim fixed z-50 max-h-64 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
-      style={{ left: anchor.x, top: anchor.y + 24 }}
+ // placed by useAnchoredAt — flips above the caret at the bottom of the window
+      style={{ visibility: "hidden" }}
     >
       {items.map((it, i) => (
         <button
@@ -71,7 +92,7 @@ export function EmojiSuggestMenu({
         >
           <span className="text-base">{it.emoji}</span>
           <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-            :{it.label}:
+            {it.code ? `:${it.code}:` : it.label}
           </span>
         </button>
       ))}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, MessageCircle, Users, HardDrive } from "lucide-react";
+import { useT } from "@/i18n/provider";
 
 type Provider = "slack" | "teams" | "drive";
 
@@ -28,6 +29,7 @@ const PROVIDER_ICON: Record<Provider, React.ComponentType<{ size?: number }>> = 
 export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
   const [connectors, setConnectors] = useState<ConnectorState[] | null>(null);
   const [busy, setBusy] = useState<Provider | null>(null);
+  const t = useT();
 
   async function load() {
     const res = await fetch("/api/ai/connectors");
@@ -77,11 +79,11 @@ export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
       className="absolute right-4 top-12 z-20 w-72 rounded-lg border border-neutral-200 bg-white p-3 shadow-lg dark:border-neutral-700 dark:bg-[#252525]"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Connectors</h2>
+        <h2 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{t("연결")}</h2>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("닫기")}
           className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
         >
           <X size={14} />
@@ -110,7 +112,7 @@ export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
                       : "text-neutral-400 dark:text-neutral-500"
                   }`}
                 >
-                  {c.status}
+                  {connected ? t("연결됨") : t("연결 안 됨")}
                 </span>
               </div>
               {connected && c.accountLabel && (
@@ -131,7 +133,7 @@ export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
                       onClick={() => void disconnect(c.provider)}
                       className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-300 dark:hover:bg-neutral-700"
                     >
-                      Disconnect
+                      {t("연결 해제")}
                     </button>
                     <button
                       type="button"
@@ -140,7 +142,7 @@ export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
                       onClick={() => void reauth(c.provider)}
                       className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 dark:text-neutral-300 dark:hover:bg-neutral-700"
                     >
-                      Reauthenticate
+                      {t("다시 인증")}
                     </button>
                   </>
                 ) : (
@@ -151,7 +153,7 @@ export function ConnectorsPanel({ onClose }: { onClose: () => void }) {
                     onClick={() => void connect(c.provider)}
                     className="rounded bg-neutral-800 px-2 py-1 text-xs text-white hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
                   >
-                    Connect
+                    {t("연결")}
                   </button>
                 )}
               </div>

@@ -13,9 +13,12 @@ import type { PublicUser } from "@/lib/auth/public-user";
 export interface CursorInfo {
   label: string;
   color: string;
+  /** the block the caret is in, and the caret's character offset inside it —
+   * a DOCUMENT position. Each viewer resolves it against its own DOM, so the
+   * caret scrolls with the text; viewport x/y from the sender's window meant
+   * nothing on a different scroll position or window size. */
   blockId?: string;
-  x?: number;
-  y?: number;
+  offset?: number;
 }
 
 export interface PageEvent {

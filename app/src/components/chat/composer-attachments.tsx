@@ -2,31 +2,43 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Paperclip, X } from "lucide-react";
-import { uploadBlob } from "@/lib/upload";
+import { uploadResumable } from "@/lib/upload";
 import { newId } from "@/lib/compat";
+import { useT } from "@/i18n/provider";
 
 export interface ComposerAttachment {
   id: string;
   name: string;
   url: string;
   isImage: boolean;
+ // bytes, for the "12.7 KiB" line a comment attachment carries
+  size?: number;
+ // what the browser reported — the server keeps it so the stream route can
+ // decide whether the file may be served inline
+  mimeType?: string;
 }
 
-/** Attachment state: file pick/paste → upload via the existing /api/upload
- * (kind=file) → kept as a chip list. Reaches the server only merged into the
- * message body string at send time (demo). */
+/** Attachment state: file pick/paste → resumable upload (/api/upload/tus) →
+ * kept as a chip list.
+ *
+ * The upload is chunked and resumable rather than one buffered request: the
+ * files people actually attach run to tens of MB, where a single POST is
+ * memory on both ends and any blip starts over. Type and size are pre-checked
+ * client-side against the shared allowlist and the server's own limit, so a
+ * refusal costs no round trip. */
 export function useComposerAttachments() {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const t = useT();
 
   const addFiles = useCallback(async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     setError(null);
     for (const file of Array.from(files)) {
-      const result = await uploadBlob(file, "file");
+      const result = await uploadResumable(file);
       if (!result) {
-        setError(`Could not upload "${file.name}"`);
+        setError(t("\"{name}\"을(를) 업로드할 수 없습니다", { name: file.name }));
         continue;
       }
       setAttachments((prev) => [
@@ -36,10 +48,12 @@ export function useComposerAttachments() {
           name: result.name ?? file.name,
           url: result.url,
           isImage: file.type.startsWith("image/"),
+          size: result.size ?? file.size,
+          mimeType: file.type || undefined,
         },
       ]);
     }
-  }, []);
+  }, [t]);
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -102,6 +116,7 @@ export function AttachButton({
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <>
       <button
@@ -109,7 +124,7 @@ export function AttachButton({
         data-testid="composer-attach-btn"
         onClick={onOpen}
         disabled={disabled}
-        aria-label="Attach a file"
+        aria-label={t("파일 첨부")}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <Paperclip size={15} />
@@ -136,6 +151,7 @@ export function AttachmentsList({
   error: string | null;
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   if (attachments.length === 0 && !error) return null;
   return (
     <div className="mb-2 space-y-1.5">
@@ -171,7 +187,7 @@ export function AttachmentsList({
                 type="button"
                 data-testid="attachment-remove"
                 onClick={() => onRemove(a.id)}
-                aria-label={`Remove ${a.name}`}
+                aria-label={t("{name} 제거", { name: a.name })}
                 className="rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
                 <X size={12} />
