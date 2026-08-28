@@ -113,6 +113,25 @@ services:
 
   # This service's own database — not shared with ainmem dev (ainmem_dev_postgres,
   # host 5434) and not with any other stack on this host.
+  # 파일 바이트가 사는 곳. **포트를 열지 않는다** — 바이트는 앱의 프록시 라우트
+  # (/api/files/…)로만 나가고, presigned URL 도 쓰지 않는다. 접근 제어를 우리가 쥔다.
+  # docs/object-storage.md.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: ainmem_prod_minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY required}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY required}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   postgres:
     image: postgres:16-alpine
     container_name: ainmem_prod_postgres
@@ -135,3 +154,4 @@ services:
 volumes:
   pgdata:
   mdmirror:
+  miniodata:

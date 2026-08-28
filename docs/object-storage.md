@@ -76,7 +76,18 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
       참조 모양이 둘인 이유: 댓글 첨부는 `files` 행이 있어 **id** 로 부르고, 블록·커버는
       행이 없이 `content.url` 로 바로 렌더되므로 **키 주소 경로**를 그 자리에 넣는다.
       그래서 렌더러를 하나도 안 고쳤다.
-      ⚠️ **prod 는 아직이다** — 스키마·MinIO 컨테이너·자격증명이 먼저다.
+      **prod 도 완료(2026-08-28)**: 참조 1,062건(covers 3 · blocks 1,059), 전송 4,459MB,
+      **중복 711MB 제거**, MinIO 오브젝트 963개. 디스크에 없던 참조 1건은 이관 전부터
+      깨져 있던 것이라 그대로 뒀다. 원본 `deploy/uploads` 는 지우지 않았다.
+      스크립트는 이제 `POSTGRES_URL`·`MINIO_*`·`UPLOADS_DIR` 을 환경변수로 받아 dev/prod
+      양쪽에 쓴다. prod 는 MinIO 포트가 없으므로 컴포즈 네트워크 안의 일회성 컨테이너에서
+      돌린다:
+      ```
+      docker run --rm --network ainmem_prod_default -v /home/comcom/ainmem:/repo -w /repo/app \
+        -e POSTGRES_URL=… -e MINIO_ENDPOINT=minio:9000 -e MINIO_ACCESS_KEY=… \
+        -e MINIO_SECRET_KEY=… -e MINIO_BUCKET=ainmem-files -e UPLOADS_DIR=/repo/deploy/uploads \
+        --user "$(id -u):$(id -g)" node:22-alpine npx tsx ../scripts/migrate-uploads-to-storage.mjs
+      ```
 - [ ] 6. `/uploads/*` 정적 서빙 제거, CSP 방어선을 프록시 라우트로 ⚠️ 운영
       (dev 의 디스크 원본 5GB 는 이관 후에도 그대로 남아 있다 — 확인 뒤 지운다)
 - [ ] 7. 백업 재구성(오브젝트 미러 + DB 분리), pause 제거, 워치독이 paused 를 알게 ⚠️ 운영
