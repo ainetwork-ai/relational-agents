@@ -8,7 +8,8 @@ import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, GripVertical, Plus, Trash2, Copy, Repeat, FileText, MessageSquare, AlignLeft, AlignCenter, Maximize, Check, Link2 } from "lucide-react";
+import { ChevronRight, GripVertical, Plus, Trash2, Copy, Repeat, FileText, MessageSquare, AlignLeft, AlignCenter, Maximize, Check, Link2, PanelTop, PanelLeft, TextAlignStart, TextAlignCenter, TextAlignEnd } from "lucide-react";
+import { ALIGNS, setAll, uniformField, type Align } from "@/lib/editor/table-data";
 import { CODE_LANGUAGES } from "@/lib/editor/block-defs";
 import { sanitizeInline } from "@/lib/rich-text";
 import { copyText, resolveAppUrl } from "@/lib/compat";
@@ -358,8 +359,12 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
 function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
+  /** the 표 section's `정렬` submenu (ours — the original has no alignment) */
+  const [alignOpen, setAlignOpen] = useState(false);
+  const alignRef = useRef<HTMLDivElement>(null);
   const [commentOpen, setCommentOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -376,7 +381,26 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
   useDismiss(open, () => {
     setOpen(false);
     setTurnOpen(false);
-  }, ref, menuRef);
+    setAlignOpen(false);
+ // the submenu is portalled too — both count as inside
+  }, ref, menuRef, alignRef);
+
+ // place the 정렬 submenu beside its row and keep it in the window
+  useEffect(() => {
+    if (!alignOpen) return;
+    const panel = alignRef.current;
+    const row = document.querySelector(`[data-testid="block-table-align-${block.id}"]`);
+    const menu = menuRef.current;
+    if (!panel || !(row instanceof HTMLElement) || !menu) return;
+    const rb = row.getBoundingClientRect(), mb = menu.getBoundingClientRect();
+    const margin = 8;
+    panel.style.left = `${mb.right + 4}px`;
+    panel.style.top = `${rb.top}px`;
+    panel.style.visibility = "visible";
+    const pb = panel.getBoundingClientRect();
+    if (pb.right > window.innerWidth - margin) panel.style.left = `${mb.left - pb.width - 4}px`;
+    if (pb.bottom > window.innerHeight - margin) panel.style.top = `${window.innerHeight - margin - pb.height}px`;
+  }, [alignOpen, block.id]);
 
   async function submitComment() {
     const body = draft.trim();
@@ -434,6 +458,81 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
+          {block.type === "table" && block.content.table && (() => {
+            const table = block.content.table;
+ // null when the cells disagree; "default" reads as left
+            const raw = uniformField(table, "align");
+            const align: Align | null = raw == null ? null : ((raw === "default" ? "left" : raw) as Align);
+            return (
+              <>
+                {/* Measured: the original opens this menu on a table with a 표
+                    section on top — 데이터베이스로 전환 / 너비에 맞추기 /
+                    제목 행 / 제목 열 (both labelled "제목 행" there, and told
+                    apart only by their icon). Ours carries the two header
+                    toggles plus 정렬, which the original does not have.
+                    e2e/fixtures/notion-table-block-menu.json */}
+                <div
+                  data-testid={`block-table-section-${block.id}`}
+                  className="px-3 pb-0.5 pt-1 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+                >
+                  {t("표")}
+                </div>
+                <MenuToggle
+                  testid={`block-table-headerrow-${block.id}`}
+                  icon={<PanelTop size={13} />}
+                  label={t("제목 행")}
+                  on={!!table.headerRow}
+                  onClick={() => editor.updateTable(block.id, { ...table, headerRow: !table.headerRow })}
+                />
+                <MenuToggle
+                  testid={`block-table-headercol-${block.id}`}
+                  icon={<PanelLeft size={13} />}
+                  label={t("제목 열")}
+                  on={!!table.headerCol}
+                  onClick={() => editor.updateTable(block.id, { ...table, headerCol: !table.headerCol })}
+                />
+                <div>
+                  <MenuBtn
+                    testid={`block-table-align-${block.id}`}
+                    icon={<TextAlignStart size={13} />}
+                    label={t("정렬")}
+                    onClick={() => setAlignOpen((v) => !v)}
+                  />
+                  {/* portalled: the menu box scrolls (overflow-y-auto), and an
+                      absolutely positioned child of it gets clipped on the x
+                      axis — the submenu was in the DOM but invisible. */}
+                  {alignOpen && createPortal(
+                    <div
+                      ref={alignRef}
+                      data-testid={`block-table-align-menu-${block.id}`}
+                      style={{ visibility: "hidden" }}
+                      className="popover-anim fixed z-[60] w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                    >
+                      {ALIGNS.map((a) => (
+                        <button
+                          key={a}
+                          data-testid={`block-table-align-${block.id}-${a}`}
+                          data-on={align === a ? "1" : undefined}
+                          onClick={() => {
+                            setAlignOpen(false);
+                            setOpen(false);
+                            editor.updateTable(block.id, setAll(table, "align", a));
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                        >
+                          {a === "left" ? <TextAlignStart size={13} /> : a === "center" ? <TextAlignCenter size={13} /> : <TextAlignEnd size={13} />}
+                          <span className="flex-1">{t(a === "left" ? "왼쪽" : a === "center" ? "가운데" : "오른쪽")}</span>
+                          {align === a && <Check size={12} className="text-neutral-400" />}
+                        </button>
+                      ))}
+                    </div>,
+                    document.body
+                  )}
+                </div>
+                <div className="my-1 h-px bg-neutral-100 dark:bg-neutral-700" />
+              </>
+            );
+          })()}
           <MenuBtn
             testid={`block-delete-${block.id}`}
             icon={<Trash2 size={13} />}
@@ -750,6 +849,42 @@ function CalloutBlock({ block }: { block: EBlock }) {
       </div>
     </div>
     </div>
+  );
+}
+
+/** A menu row with a switch on the right — the original's 제목 행/열 rows.
+ * Track 30×18 (radius 44), knob 14, on = rgb(39,131,222): measured. */
+function MenuToggle({
+  testid,
+  icon,
+  label,
+  on,
+  onClick,
+}: {
+  testid: string;
+  icon: React.ReactNode;
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      data-testid={testid}
+      data-on={on ? "1" : "0"}
+      onClick={onClick}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+    >
+      {icon}
+      <span className="flex-1 truncate">{label}</span>
+      <span
+        style={{ width: 30, height: 18, borderRadius: 44, background: on ? "rgb(39, 131, 222)" : "rgba(135, 131, 120, 0.3)" }}
+        className="relative shrink-0"
+      >
+        <span
+          style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 14, height: 14, borderRadius: 44, background: "rgb(255, 255, 255)", transition: "left 0.15s ease-in-out" }}
+        />
+      </span>
+    </button>
   );
 }
 
