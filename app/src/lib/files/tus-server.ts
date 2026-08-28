@@ -20,13 +20,13 @@
 // exists.
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { randomBytes, randomUUID } from "node:crypto";
-import path from "node:path";
-import { mkdir, rename } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { Server, type DataStore } from "@tus/server";
 import { FileStore } from "@tus/file-store";
 import { checkUploadType } from "./allowed-types";
 import { getMaxUploadBytes } from "./upload-limit";
+import { finalizeTusUpload } from "./finalize-upload";
+import { TUS_LOCAL_DIRECTORY } from "./tus-server-config";
 
 export const TUS_PATH = "/api/upload/tus";
 
@@ -37,8 +37,7 @@ export const TUS_KEY_PREFIX = "tus-";
 /** Unfinished uploads expire; after this HEAD/PATCH answer 410. */
 export const TUS_EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
-/** Staging for partial uploads — deliberately NOT under public/. */
-export const TUS_LOCAL_DIRECTORY = path.join(process.cwd(), ".uploads-tus");
+export { TUS_LOCAL_DIRECTORY };
 
 const authContext = new AsyncLocalStorage<{ userId: string }>();
 
@@ -102,22 +101,22 @@ export function getTusServer(): Server {
     onUploadFinish: async (_req, upload) => {
      // creation guarantees a size (deferred length is a 400) — missing here is a bug
       if (upload.size == null) throw { status_code: 500, body: "finished upload has no size" };
-      const name = upload.metadata?.filename || "file";
-      const ext = (name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
-      const stored = `${randomUUID()}.${ext}`;
-      const dir = path.join(process.cwd(), "public", "uploads");
-      await mkdir(dir, { recursive: true });
-     // move, not copy: the bytes are already whole on the same filesystem
-      await rename(path.join(TUS_LOCAL_DIRECTORY, upload.id), path.join(dir, stored));
-     // drop the sidecar through the store's own API — we do not want to know
-     // its layout. Best-effort: whatever is left expires.
+     // hand off to the storage contract — content-addressed when MinIO is
+     // configured, the old disk move when it is not
+      const finalized = await finalizeTusUpload({
+        id: upload.id,
+        size: upload.size,
+        metadata: upload.metadata,
+      });
+     // drop the leftovers through the store's own API — we do not want to know
+     // its layout. Best-effort: whatever survives expires.
       void store.remove(upload.id).catch(() => {});
      // outside the tus spec, but tus-js-client reads it — same shape as the
      // buffered /api/upload response, so callers consume one thing
       return {
         status_code: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: `/uploads/${stored}`, name, size: upload.size }),
+        body: JSON.stringify(finalized),
       };
     },
   });

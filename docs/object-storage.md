@@ -51,7 +51,13 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
       **둘 다** 읽으므로 5단계를 파일 단위로 나눠 할 수 있다. 아직 아무도 안 쓴다.
       `e2e/file-routes.check.mjs` 가 계약을 고정한다. 로컬 MinIO 는
       `docker-compose.local.yml`.
-- [ ] 3. tus 완료 훅에서 승격 — 스트리밍 해시 → `contentKey`, `statFile` 로 dedup·멱등
+- [x] **3. tus 완료 훅에서 승격** — `finalize-upload.ts`. 스트리밍 해시(1GB 에서
+      `arrayBuffer()` 는 성립하지 않는다) → `contentKey` → `statFile` 로 있으면 건너뜀.
+      그 한 번의 조회가 **dedup 이자 멱등성**이다 — 같은 pdf 를 열 번째로 붙이는 사람은
+      바이트를 하나도 쓰지 않고, 클라 재시도로 완료 훅이 다시 돌아도 안전하다.
+      MinIO 미설정이면 예전 그대로 디스크로 옮긴다.
+      `e2e/upload-promotion.check.mjs`(실제 MinIO 필요)가 넷을 고정한다: 키가 내용 해시 ·
+      같은 바이트 다른 이름 = 오브젝트 1개 · 재실행 안전 · 미설정 시 디스크.
 - [ ] 4. 댓글 첨부를 `files` 행 참조로 (지금 jsonb. prod 에 그 컬럼이 아직 없어서
       실데이터 마이그레이션이 0 인 지금이 제일 싸다)
 - [ ] 5. 기존 5GB 이관 + DB 참조 치환 ⚠️ 운영
