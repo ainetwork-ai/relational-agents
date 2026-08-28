@@ -72,7 +72,13 @@ docker images ainmem_prod   # 되돌릴 수 있는 후보 목록
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
 # PROD_URL 을 반드시 준다: 기본값이 memory.ainetwork.ai(다른 머신, §4.3)다.
-cd app && PROD_URL=https://ainmem.ainetwork.ai npx playwright test -c playwright.prod.config.ts
+cd app && PROD_URL=https://ainmem.ainetwork.ai \
+  PROD_SESSION_SECRET="$(grep '^SESSION_SECRET=' ../.env.prod | cut -d= -f2-)" \
+  PROD_USER_ID=8ccf17a7-24fb-4ae9-974c-94bf5db0cf85 \
+  PROD_PAGE_ID=2ccdf2b6-66f6-4d58-9ea7-0c5fff97d2db \
+  PROD_IMAGE_PAGE_ID=27b5c5e5-467c-4620-bde7-8d087e8a9875 \
+  npx playwright test -c playwright.prod.config.ts
+# 비밀값 없이 돌리면 익명으로 볼 수 있는 것(헬스·로그인 화면·파일 접근 거부)만 돈다.
 
 # 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
 # -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
