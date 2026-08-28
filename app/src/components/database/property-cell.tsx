@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { StatusPicker } from "./status-picker";
 import { useAnchored } from "@/hooks/use-anchored";
@@ -486,7 +487,7 @@ function TextCell({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== value && onCommit(draft)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
       className={`bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200 ${
         shrinkToText ? "absolute inset-0 w-full" : "w-full"
@@ -678,7 +679,7 @@ function UrlCell({
           if (draft !== value) onCommit(draft);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         className="w-full bg-transparent px-2 py-1 text-sm outline-none dark:text-neutral-200"
       />
@@ -942,7 +943,7 @@ function FilesCell({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") add();
+          if (!isImeComposing(e) && e.key === "Enter") add();
         }}
         onBlur={add}
         placeholder={t("파일 URL 추가…")}

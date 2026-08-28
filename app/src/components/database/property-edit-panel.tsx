@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
 import type { DbProperty, PropertyConfig, SelectOption } from "@/lib/db/schema";
 import { COLOR_CYCLE } from "@/lib/db-values";
@@ -448,7 +449,7 @@ export function PropertyEditPanel({
                     const v = e.target.value.trim();
                     if (v && v !== prop.name) db.updateProperty(prop.id, { name: v });
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                  onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                   className="h-5 w-full bg-transparent text-[14px] leading-5 outline-none dark:text-neutral-200"
                   style={{ color: TEXT }}
                 />
@@ -523,7 +524,7 @@ export function PropertyEditPanel({
                               setAddDraft("");
                             }}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") commitAdd();
+                              if (!isImeComposing(e) && e.key === "Enter") commitAdd();
                               if (e.key === "Escape") {
                                 e.stopPropagation();
                                 setAdding(null);
@@ -676,7 +677,7 @@ export function PropertyEditPanel({
               onFocus={(e) => e.target.select()}
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && closeMenu()}
+              onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && closeMenu()}
               className="h-5 w-full bg-transparent text-[14px] leading-5 outline-none dark:text-neutral-200"
               style={{ color: TEXT }}
             />

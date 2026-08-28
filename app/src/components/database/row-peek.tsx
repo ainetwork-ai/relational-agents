@@ -1,6 +1,7 @@
 "use client";
 
 import { EmojiFaceIcon } from "@/components/icons/page-controls";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useEffect, useRef, useState } from "react";
 import {
   X,
@@ -723,7 +724,7 @@ function PeekTitle({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== value && onCommit(draft)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
       className="mt-2 w-full bg-transparent text-[32px] font-bold leading-tight text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600"
     />

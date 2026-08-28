@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { Globe, Link as LinkIcon, UserPlus } from "lucide-react";
 import { copyText } from "@/lib/compat";
 import { MemorySelect } from "@/components/database/memory-select";
@@ -257,7 +258,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void invite();
+                  if (!isImeComposing(e) && e.key === "Enter") void invite();
                 }}
                 placeholder={t("이메일…")}
                 className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"

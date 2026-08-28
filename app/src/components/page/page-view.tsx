@@ -1,6 +1,7 @@
 "use client";
 
 import { CommentIcon, EmojiFaceIcon, PhotoIcon } from "@/components/icons/page-controls";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useEffect, useRef, useState } from "react";
 import type { Block, Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
@@ -492,7 +493,7 @@ export function PageView({
             saveTitle.call(v);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (!isImeComposing(e) && e.key === "Enter") {
               e.preventDefault();
               editorRef.current?.focusFirst();
             }

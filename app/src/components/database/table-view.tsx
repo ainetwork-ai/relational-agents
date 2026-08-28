@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
 import { useAnchored } from "@/hooks/use-anchored";
 import {
@@ -1445,7 +1446,7 @@ function ColumnHeader({
             setRenaming(false);
             if (draft.trim() && draft !== prop.name) db.updateProperty(prop.id, { name: draft.trim() });
           }}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="w-full bg-white px-2 py-1 text-xs outline-none dark:bg-neutral-900 dark:text-neutral-200"
         />
       ) : (

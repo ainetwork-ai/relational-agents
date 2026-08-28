@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useRouter } from "next/navigation";
 import { Bot, Pencil, Check } from "lucide-react";
 import { useDmEvents } from "@/hooks/use-dm-events";
@@ -76,7 +77,7 @@ export function RelationAgentsSection() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void rename(a);
+                  if (!isImeComposing(e) && e.key === "Enter") void rename(a);
                   if (e.key === "Escape") setRenameFor(null);
                 }}
                 onBlur={() => void rename(a)}

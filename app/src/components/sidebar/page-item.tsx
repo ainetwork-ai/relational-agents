@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, memo } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useAnchored } from "@/hooks/use-anchored";
@@ -196,7 +197,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
+              if (!isImeComposing(e) && e.key === "Enter") commitRename();
               if (e.key === "Escape") setRenaming(false);
             }}
             className="min-w-0 flex-1 rounded border border-blue-400 bg-white px-1 py-0 text-sm outline-none dark:bg-neutral-900"

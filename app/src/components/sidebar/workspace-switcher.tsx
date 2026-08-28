@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -244,7 +245,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void createWorkspace();
+                  if (!isImeComposing(e) && e.key === "Enter") void createWorkspace();
                   if (e.key === "Escape") setCreating(false);
                 }}
                 placeholder={t("워크스페이스 이름")}

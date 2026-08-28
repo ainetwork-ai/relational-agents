@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { usePathname } from "next/navigation";
 import { Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Unlink, MessageSquarePlus, Palette, ChevronDown } from "lucide-react";
 
@@ -409,7 +410,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
             data-testid="format-link-input"
             placeholder={t("링크를 붙여넣고 Enter를 누르세요")}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (!isImeComposing(e) && e.key === "Enter") {
                 const v = (e.target as HTMLInputElement).value.trim();
                 if (v) applyLink(v);
               }
@@ -426,7 +427,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
             data-testid="comment-range-input"
             placeholder={t("선택 영역에 댓글 달기…")}
             onKeyDown={(e) => {
-              if (e.key === "Enter") submitRangeComment((e.target as HTMLInputElement).value);
+              if (!isImeComposing(e) && e.key === "Enter") submitRangeComment((e.target as HTMLInputElement).value);
               if (e.key === "Escape") setCommentOpen(false);
             }}
             className="w-56 rounded border border-neutral-200 px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"

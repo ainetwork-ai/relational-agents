@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { Users, X, ChevronDown, Link as LinkIcon, Check } from "lucide-react";
 import { useToastStore } from "@/stores/toast";
 import { UserAvatar } from "@/components/user-avatar";
@@ -213,7 +214,7 @@ export function TeamspaceCreateModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void create();
+                  if (!isImeComposing(e) && e.key === "Enter") void create();
                 }}
                 placeholder={t("예: 엔지니어링")}
                 className="h-9 flex-1 rounded-md border border-neutral-200 px-2.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"

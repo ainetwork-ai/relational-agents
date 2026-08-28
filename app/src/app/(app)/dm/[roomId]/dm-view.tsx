@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
@@ -623,7 +624,7 @@ export function DmView({ roomId }: { roomId: string }) {
             value={renameDraft}
             onChange={(e) => setRenameDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void commitRename();
+              if (!isImeComposing(e) && e.key === "Enter") void commitRename();
               else if (e.key === "Escape") setRenaming(false);
             }}
             onBlur={() => void commitRename()}

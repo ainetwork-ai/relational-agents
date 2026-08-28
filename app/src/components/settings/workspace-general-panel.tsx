@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { Download, ImagePlus } from "lucide-react";
 import type { ActiveWorkspace } from "@/components/sidebar/workspace-switcher";
 import { IconPicker } from "@/components/page/icon-picker";
@@ -128,7 +129,7 @@ export function WorkspaceGeneralPanel({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void save();
+              if (!isImeComposing(e) && e.key === "Enter") void save();
             }}
             className={`${INPUT} w-56`}
           />

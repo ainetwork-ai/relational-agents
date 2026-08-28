@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -182,7 +183,7 @@ export function AgentsSection() {
                 value={renameDraft}
                 onChange={(e) => setRenameDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void commitRename(a.id);
+                  if (!isImeComposing(e) && e.key === "Enter") void commitRename(a.id);
                   else if (e.key === "Escape") setRenameFor(null);
                 }}
                 onBlur={() => void commitRename(a.id)}

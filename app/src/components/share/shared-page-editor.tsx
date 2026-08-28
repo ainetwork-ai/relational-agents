@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import type { Block, Page } from "@/lib/db/schema";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
@@ -114,7 +115,7 @@ export function SharedPageEditor({
               });
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (!isImeComposing(e) && e.key === "Enter") {
                 e.preventDefault();
                 editorRef.current?.focusFirst();
               }

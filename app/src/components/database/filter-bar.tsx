@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import { createPortal } from "react-dom";
@@ -242,7 +243,7 @@ function FilterValueEditor({
             type="date"
             value={(f.value as string) ?? ""}
             onChange={(e) => update(i, { value: e.target.value || undefined })}
-            onKeyDown={(e) => e.key === "Enter" && onCommit?.()}
+            onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && onCommit?.()}
             className={`${selectCls} w-full`}
           />
         )}
@@ -255,7 +256,7 @@ function FilterValueEditor({
       type={prop.type === "number" ? "number" : "text"}
       value={(f.value as string) ?? ""}
       onChange={(e) => update(i, { value: e.target.value || undefined })}
-      onKeyDown={(e) => e.key === "Enter" && onCommit?.()}
+      onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && onCommit?.()}
       placeholder={t("값")}
       className={`${selectCls} w-full min-w-28`}
     />
@@ -370,7 +371,7 @@ export function FilterBar() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && matches[0]) {
+              if (!isImeComposing(e) && e.key === "Enter" && matches[0]) {
  // clear the suppress-flag in the SAME batch so the new
  // filter's chip editor auto-opens below
                 db.setFilterUiOpen(false);

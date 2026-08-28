@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { Check, ChevronLeft, ChevronRight, ChevronRight as Caret, HelpCircle } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import {
@@ -370,7 +371,7 @@ function DateBox({
           }
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") setDraft(null);
         }}
         className={`h-7 min-w-0 flex-1 rounded-md bg-[rgba(66,35,3,0.03)] px-2 text-[14px] leading-[16.8px] text-[#2c2c2b] outline-none placeholder:text-[#8e8b86] dark:bg-white/5 dark:text-neutral-100 ${

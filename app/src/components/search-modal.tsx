@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useUiStore } from "@/stores/ui";
@@ -170,7 +171,7 @@ export function SearchModal() {
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 setSelected((s) => Math.max(s - 1, 0));
-              } else if (e.key === "Enter" && results[selected]) {
+              } else if (!isImeComposing(e) && e.key === "Enter" && results[selected]) {
                 go(results[selected].id);
               }
             }}

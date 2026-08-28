@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/user-avatar";
 import { useMe, useMeStore } from "@/stores/me";
@@ -98,7 +99,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
               value={name}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && name.trim()) void patch({ displayName: name });
+                if (!isImeComposing(e) && e.key === "Enter" && name.trim()) void patch({ displayName: name });
               }}
               className="h-7 w-56 rounded-md border border-[rgba(28,19,1,0.11)] bg-transparent px-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-600 dark:text-neutral-100"
             />

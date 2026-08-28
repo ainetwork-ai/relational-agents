@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import {
   useCallback,
   useEffect,
@@ -1128,7 +1129,7 @@ export function DatabaseBlock({
                   renameView(v.id, viewNameDraft);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (!isImeComposing(e) && e.key === "Enter") (e.target as HTMLInputElement).blur();
                   if (e.key === "Escape") setRenamingViewId(null);
                 }}
                 className="w-24 rounded border border-neutral-200 bg-white px-1.5 py-0.5 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
@@ -1555,7 +1556,7 @@ export function DatabaseBlock({
               body: JSON.stringify({ description: v }),
             });
           }}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          onKeyDown={(e) => !isImeComposing(e) && e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="mb-1 w-full bg-transparent px-1 text-xs text-neutral-500 outline-none placeholder:text-neutral-300 dark:text-neutral-400 dark:placeholder:text-neutral-600"
         />
         )}

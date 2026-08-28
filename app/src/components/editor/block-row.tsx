@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n/provider";
 import { useDismiss } from "@/hooks/use-dismiss";
@@ -522,7 +523,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (!isImeComposing(e) && e.key === "Enter") {
                     e.preventDefault();
                     void submitComment();
                   } else if (e.key === "Escape") {
@@ -1066,7 +1067,7 @@ function EmbedBody({ block, kind }: { block: EBlock; kind: "bookmark" | "video" 
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
           onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
+            if (!isImeComposing(e) && e.key === "Enter") commit();
           }}
           className="flex-1 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-300"
         />
@@ -1150,7 +1151,7 @@ function ImageBody({ block }: { block: EBlock }) {
           data-testid="image-url-input"
           placeholder="Paste an image URL, or upload a file"
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (!isImeComposing(e) && e.key === "Enter") {
               const url = (e.target as HTMLInputElement).value.trim();
               if (url) editor.setImageUrl(block.id, url);
             }
@@ -1728,7 +1729,7 @@ function AiPromptBody({ block }: { block: EBlock }) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (!isImeComposing(e) && e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void generate();
             }
