@@ -186,6 +186,28 @@ console.log("\n— 속성 패널의 라벨 메뉴 —");
   await page.waitForTimeout(300);
 }
 
+// ── 긴 목록이 화면을 뚫지 않는다 (창을 낮춰서) ──
+console.log("\n— 화면에 맞추기 —");
+for (const h of [700, 520]) {
+  await page.setViewportSize({ width: 1400, height: h });
+  await page.waitForTimeout(500);
+  await page.locator("[data-testid='db-row-peek'] [data-role='label']").first().click();
+  await page.waitForSelector("[data-testid='db-prop-label-menu']", { timeout: 5000 });
+  await page.locator("[data-testid='db-prop-menu-layout']").click();
+  await page.waitForSelector("[data-testid='db-peek-layout-menu']", { timeout: 5000 });
+  await page.waitForTimeout(300);
+  const box = await page.evaluate((vh) => {
+    const el = document.querySelector("[data-testid='db-peek-layout-menu']");
+    const r = el.getBoundingClientRect();
+    return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), scrollH: el.scrollHeight, clientH: el.clientHeight, vh };
+  }, h);
+  ok(box.top >= 0 && box.bottom <= h, `창 높이 ${h}: 상자 ${box.top}..${box.bottom} 가 화면 안`);
+  ok(box.scrollH > box.clientH ? true : box.scrollH === box.clientH, `창 높이 ${h}: 넘치면 안에서 스크롤 (내용 ${box.scrollH} / 보이는 ${box.clientH})`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+}
+await page.setViewportSize({ width: 1400, height: 950 });
+
 await browser.close();
 if (fails.length) { console.error(`\n${fails.length}개 실패`); process.exit(1); }
 console.log("\n원본과 차이 없음 — exit 0");

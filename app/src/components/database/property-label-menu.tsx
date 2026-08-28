@@ -117,7 +117,18 @@ export function PropertyLabelMenu({
  // 라벨 왼쪽에 맞춰 라벨 아래 1px; 창 밖으로 나가면 안쪽으로 당긴다
   const width = view === "edit" ? 290 : view === "layout" ? 260 : 220;
   const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
-  const top = anchor.bottom + 1;
+ // The measured position is 1px under the label. A long list (레이아웃 사용자
+ // 지정 on a database with many properties) would run off the bottom from
+ // there, so the box is capped to the room it has and scrolls inside; when the
+ // label sits low enough that the room below is not worth having, it opens
+ // upward instead.
+  const MARGIN = 8;
+  const roomBelow = window.innerHeight - (anchor.bottom + 1) - MARGIN;
+  const roomAbove = anchor.top - 1 - MARGIN;
+  const flip = roomBelow < 240 && roomAbove > roomBelow;
+  const place = flip
+    ? { bottom: window.innerHeight - anchor.top + 1, maxHeight: roomAbove }
+    : { top: anchor.bottom + 1, maxHeight: roomBelow };
 
   const menu = createPortal(
     <div
@@ -126,8 +137,8 @@ export function PropertyLabelMenu({
       data-testid={
         view === "edit" ? "db-prop-edit-popover" : view === "layout" ? "db-peek-layout-menu" : "db-prop-label-menu"
       }
-      style={{ left, top, width, boxShadow: MENU_SHADOW }}
-      className={`popover-anim fixed z-50 flex flex-col gap-px rounded-[10px] bg-white dark:bg-neutral-800 ${
+      style={{ left, width, boxShadow: MENU_SHADOW, ...place }}
+      className={`popover-anim fixed z-50 flex flex-col gap-px overflow-y-auto rounded-[10px] bg-white dark:bg-neutral-800 ${
         view === "menu" ? "p-1" : "p-2"
       }`}
     >
@@ -216,7 +227,7 @@ export function PropertyLabelMenu({
              // 원본은 패널이 창 오른쪽에 붙어 있어 왼쪽으로 펼친다: 하위 메뉴의
              // 오른쪽 끝이 부모 메뉴 왼쪽 +4, 위쪽은 누른 줄보다 33 위
               left: Math.max(8, left + 4 - 180),
-              top: Math.max(8, subAnchor.top - 33),
+              top: Math.min(Math.max(8, subAnchor.top - 33), window.innerHeight - 94 - 8),
               width: 180,
               boxShadow: MENU_SHADOW,
             }}
