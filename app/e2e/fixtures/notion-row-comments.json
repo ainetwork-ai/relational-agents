@@ -249,9 +249,61 @@
     "inputAccept": null,
     "inputMultiple": true,
     "unmeasured": [
-      "고른 파일이 보내기 전 입력줄에 어떻게 서는지 — 파일을 고르면 노션이 바로 업로드해서 원본에 흔적이 남는다. 안 했다.",
-      "첨부된 댓글이 어떻게 그려지는지 — 워크스페이스에 첨부가 달린 댓글이 하나도 없다. 우리는 이미지는 그대로, 그 외는 열 수 있는 한 줄로 그린다."
-    ]
+      "고른 파일이 보내기 전 입력줄에 어떻게 서는지 — 파일을 고르면 노션이 바로 업로드해서 원본에 흔적이 남는다. 안 했다."
+    ],
+    "attachmentRendering": {
+      "_source": "0G 제안서 작성 페이지의 댓글(2026-08-28). 이미지 3장과 xlsx·hwp·pdf·pptx·zip 이 각각 첨부된 댓글을 열어 쟀다. inDiscussion=true — 페이지 본문이 아니라 댓글 안이다.",
+      "image": {
+        "_rule": "240×240 상자에 가둔다. 긴 쪽이 240 에 걸리고 비율은 유지된다 — 세로로 긴 이미지가 실제 크기로 늘어지지 않는 이유.",
+        "maxWidth": "240px",
+        "maxHeight": "240px",
+        "objectFit": "contain",
+        "borderRadius": "8px",
+        "observed": [
+          {
+            "natural": "512x180",
+            "rendered": "240x85.7"
+          },
+          {
+            "natural": "2048x2731",
+            "rendered": "180.5x240"
+          },
+          {
+            "natural": "1000x100",
+            "rendered": "240x48"
+          }
+        ],
+        "_note": "1000x100 이 240x48 로 나온 건 비율(240x24)과 안 맞는다 — 노션이 CDN 에서 변환한 이미지라 naturalWidth/Height 가 원본 치수가 아니다. 상자 규칙 자체는 세 장 모두 같다."
+      },
+      "file": {
+        "_rule": "아이콘도 테두리도 배경도 없다. 이름과 크기 두 줄뿐.",
+        "name": {
+          "fs": "14px",
+          "fw": "500",
+          "lh": "18px",
+          "color": "rgb(44, 44, 43)"
+        },
+        "size": {
+          "fs": "12px",
+          "fw": "400",
+          "lh": "15px",
+          "color": "rgb(125, 122, 117)"
+        },
+        "rowH": 33,
+        "icon": null,
+        "border": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px",
+        "sizeFormat": "이진 단위 · 소수 1자리 — 12.7 KiB / 14.4 MiB / 65.8 MiB",
+        "observedTypes": [
+          "xlsx",
+          "hwp",
+          "pdf",
+          "pptx",
+          "zip"
+        ]
+      }
+    }
   },
   "mention": {
     "_note": "칩이 아니다. 배경·라운드·패딩 전부 0 인 인라인 텍스트로, @ 글자만 더 흐리다.",

@@ -1,8 +1,8 @@
 "use client";
 
 import { useToastStore } from "@/stores/toast";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/upload-limits";
 
-const MAX_BYTES = 10 * 1024 * 1024; // keep in sync with /api/upload
 
 /** Upload a blob to /api/upload. On ANY failure the user gets a toast that
  * says why (silent failures read as "upload is broken" — user report
@@ -11,10 +11,10 @@ const MAX_BYTES = 10 * 1024 * 1024; // keep in sync with /api/upload
 export async function uploadBlob(
   file: File,
   kind?: "file"
-): Promise<{ url: string; name?: string } | null> {
+): Promise<{ url: string; name?: string; size?: number } | null> {
   const toast = useToastStore.getState();
-  if (file.size > MAX_BYTES) {
-    toast.show(`"${file.name}" is larger than 10 MB — too big to upload`);
+  if (file.size > MAX_UPLOAD_BYTES) {
+    toast.show(`"${file.name}" is larger than ${MAX_UPLOAD_LABEL} — too big to upload`);
     return null;
   }
   const fd = new FormData();
@@ -27,12 +27,12 @@ export async function uploadBlob(
     toast.show("Upload failed — you appear to be offline");
     return null;
   }
-  if (res.ok) return (await res.json()) as { url: string; name?: string };
+  if (res.ok) return (await res.json()) as { url: string; name?: string; size?: number };
   const msg =
     res.status === 413
-      ? `"${file.name}" is larger than 10 MB — too big to upload`
+      ? `"${file.name}" is larger than ${MAX_UPLOAD_LABEL} — too big to upload`
       : res.status === 415
-        ? `Unsupported image type${file.type ? ` (${file.type})` : ""} — use PNG, JPEG, GIF, WebP or SVG`
+        ? `Unsupported image type${file.type ? ` (${file.type})` : ""} — use PNG, JPEG, GIF, WebP or AVIF`
         : ((await res.json().catch(() => null))?.error ?? "Upload failed");
   toast.show(msg);
   return null;

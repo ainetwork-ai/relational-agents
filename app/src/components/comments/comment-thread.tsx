@@ -61,19 +61,25 @@ export function CommentRow({
 }
 
 /**
- * The files on a comment. An image shows itself; anything else is a line you
- * can open. How the ORIGINAL draws an attached file is unmeasured — no comment
- * in the workspace has one, and attaching a test file would have written to
- * the company's real Notion.
+ * The files on a comment, drawn the way the original draws them
+ * (e2e/fixtures/notion-row-comments.json — clip.attachmentRendering).
+ *
+ * An image goes into a 240×240 box, `object-fit: contain`, radius 8 — so a
+ * tall shot lands at 180×240 rather than running down the page, and a wide
+ * banner at 240×86.
+ *
+ * Anything else is two lines and nothing else: the name at 14/500/18 and the
+ * size under it at 12/400/15 in rgb(125,122,117). No icon, no border, no
+ * background — the original has none of those here.
  */
 export function CommentAttachments({
   attachments,
 }: {
-  attachments?: { url: string; name: string }[];
+  attachments?: { url: string; name: string; size?: number }[];
 }) {
   if (!attachments?.length) return null;
   return (
-    <div className="flex flex-col items-start gap-1 py-[2px]">
+    <div className="flex flex-col items-start gap-2 py-[2px]">
       {attachments.map((a) =>
         IMAGE.test(a.name) ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -82,7 +88,7 @@ export function CommentAttachments({
             src={a.url}
             alt={a.name}
             data-testid="comment-attachment-image"
-            className="max-h-60 max-w-full rounded-[4px] border border-[rgba(55,53,47,0.09)] object-contain dark:border-neutral-700"
+            className="max-h-[240px] max-w-[240px] rounded-[8px] object-contain"
           />
         ) : (
           <a
@@ -90,11 +96,24 @@ export function CommentAttachments({
             href={a.url}
             target="_blank"
             rel="noreferrer"
+            download={a.name}
             data-testid="comment-attachment-file"
-            className="flex items-center gap-1.5 rounded-[4px] px-1 py-0.5 text-[14px] leading-5 text-[rgb(125,122,117)] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-white/10"
+            className="block max-w-full"
           >
-            <Paperclip size={14} className="shrink-0" />
-            <span className="truncate">{a.name}</span>
+            <span
+              data-testid="comment-attachment-name"
+              className="block truncate text-[14px] font-medium leading-[18px] text-[#2c2c2b] hover:underline dark:text-neutral-200"
+            >
+              {a.name}
+            </span>
+            {a.size !== undefined && (
+              <span
+                data-testid="comment-attachment-size"
+                className="block text-[12px] font-normal leading-[15px] text-[rgb(125,122,117)]"
+              >
+                {fmtBytes(a.size)}
+              </span>
+            )}
           </a>
         )
       )}
@@ -102,7 +121,21 @@ export function CommentAttachments({
   );
 }
 
-const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg|bmp)$/i;
+/** What the browser can actually draw inline. `.svg` is missing on purpose —
+ *  /api/upload stores an svg as .txt so it can never run same-origin. */
+const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
+
+/** The original writes binary units to one decimal: 12.7 KiB · 65.8 MiB. */
+export function fmtBytes(n: number): string {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${i === 0 ? v : v.toFixed(1)} ${units[i]}`;
+}
 
 /**
  * A mention inside a comment. The original does NOT draw a chip: no
@@ -151,7 +184,7 @@ export function CommentComposer({
     const body = draft.trim();
  // files alone are a comment — the original lets you send with nothing typed
     if (!body && !attach.attachments.length) return;
-    const files = attach.attachments.map((a) => ({ url: a.url, name: a.name }));
+    const files = attach.attachments.map((a) => ({ url: a.url, name: a.name, size: a.size }));
     setDraft("");
     attach.clear();
     await add(pageId, body, blockId, files);

@@ -20,15 +20,20 @@ const MAX_ATTACHMENT_NAME = 200;
 
 /** Only same-origin /uploads/* paths from the upload API are allowed (blocks
  *  external/scheme injection) — the same rule DM messages use. */
-function parseAttachments(raw: unknown): { url: string; name: string }[] | null {
+function parseAttachments(raw: unknown): { url: string; name: string; size?: number }[] | null {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) return null;
-  const out: { url: string; name: string }[] = [];
+  const out: { url: string; name: string; size?: number }[] = [];
   for (const item of raw) {
     const url = (item as { url?: unknown })?.url;
     const name = (item as { name?: unknown })?.name;
+    const size = (item as { size?: unknown })?.size;
     if (typeof url !== "string" || !/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return null;
-    out.push({ url, name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file" });
+    out.push({
+      url,
+      name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file",
+      ...(typeof size === "number" && size >= 0 ? { size } : {}),
+    });
   }
   return out;
 }

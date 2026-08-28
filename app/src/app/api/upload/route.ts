@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { requireAuth } from "@/lib/auth/middleware";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,6 @@ const ALLOWED = new Set([
   "image/webp",
   "image/avif",
 ]);
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 /** Blob upload: stores a file under public/uploads and returns its served URL. */
 export async function POST(req: Request) {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "no file" }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json({ error: "file too large" }, { status: 413 });
   }
  // kind=file → generic attachment (any type); default keeps the image allowlist
@@ -48,5 +48,5 @@ export async function POST(req: Request) {
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
 
-  return NextResponse.json({ url: `/uploads/${name}`, name: file.name });
+  return NextResponse.json({ url: `/uploads/${name}`, name: file.name, size: file.size });
 }

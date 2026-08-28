@@ -162,6 +162,9 @@ export type BlockType =
  * flags mirror "header row / header column" toggles. */
 export interface TableData {
   cells: string[][];
+  /** per-cell sanitized inline HTML, mirroring a block's content.text/html
+   * pair — present only for cells edited since formatting arrived. */
+  html?: string[][];
   headerRow?: boolean;
   headerCol?: boolean;
 }
@@ -657,7 +660,7 @@ export const comments = pgTable(
  // uploaded images/files on a comment — [{url,name}], urls restricted to
  // /uploads/*, the same shape dmMessages uses
     attachments: jsonb("attachments")
-      .$type<{ url: string; name: string }[]>()
+      .$type<{ url: string; name: string; size?: number }[]>()
       .default([])
       .notNull(),
     resolved: boolean("resolved").default(false).notNull(),

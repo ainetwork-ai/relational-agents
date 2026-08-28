@@ -12,7 +12,7 @@ export interface PageComment {
   authorId: string;
   body: string;
  // uploaded files on the comment — [{url,name}], urls are always /uploads/*
-  attachments?: { url: string; name: string }[];
+  attachments?: { url: string; name: string; size?: number }[];
   resolved: boolean;
   createdAt: string;
   author: PublicUser | null;
@@ -30,7 +30,7 @@ interface CommentsState {
     pageId: string,
     body: string,
     blockId?: string | null,
-    attachments?: { url: string; name: string }[]
+    attachments?: { url: string; name: string; size?: number }[]
   ) => Promise<PageComment | null>;
   reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;

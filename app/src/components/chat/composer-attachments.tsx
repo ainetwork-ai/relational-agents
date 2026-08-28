@@ -11,6 +11,8 @@ export interface ComposerAttachment {
   name: string;
   url: string;
   isImage: boolean;
+ // bytes, for the "12.7 KiB" line a comment attachment carries
+  size?: number;
 }
 
 /** Attachment state: file pick/paste → upload via the existing /api/upload
@@ -38,6 +40,7 @@ export function useComposerAttachments() {
           name: result.name ?? file.name,
           url: result.url,
           isImage: file.type.startsWith("image/"),
+          size: result.size ?? file.size,
         },
       ]);
     }
