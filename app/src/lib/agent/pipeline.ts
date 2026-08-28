@@ -166,7 +166,7 @@ async function llmEdits(
           `Ordinary chatter gets no event field. ` +
           `Today is ${isoDay(batch[batch.length - 1]!.createdAt)} — date the event by when it happened, not when it was told.\n` +
           `Do not repeat facts already in the document — only what is newly learned. Every entry must carry its supporting message ids.\n` +
-          `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the /uploads/... url exactly as given). ` +
+          `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the image url exactly as given — do not alter the path). ` +
           `The image must sit on its own line with nothing before it — a leading "- " turns it into a bullet and the photo stops rendering.\n` +
           `Write entries someone can answer questions from later: name the food, place, and people plainly, and say what the members did. ` +
           `Casual or misspelled wording is not a proper noun — "midnight natas" is a late-night pastel de nata, not a person called Natas. When a word is ambiguous, trust the photo over the spelling.`,

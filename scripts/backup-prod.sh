@@ -13,8 +13,9 @@
 #
 # 무엇을 뜨는가
 #   db.dump       pg_dump -Fc (단일 스냅샷 트랜잭션이라 DB 내부는 일관적)
-#   files.tar.gz  deploy/{okf-content,uploads,avatars}
-#                 — OKF 트리는 파생물이 아니라 콘텐츠 원본이다(docs §3.2).
+#   files.tar.gz  deploy/{okf-content,avatars} — OKF 트리는 파생물이 아니라 콘텐츠
+#                 원본이다(docs §3.2). 업로드 파일은 여기 없다 — MinIO 로 옮겼고
+#                 scripts/backup-objects.sh 가 뜬다. **둘 다 있어야 복원된다.**
 #   MANIFEST      복원할 때 "이게 어느 코드 시점의 데이터인가"를 알기 위한 것 —
 #                 커밋 SHA, 이미지 태그, 테이블·행 수, sha256, 그리고 덤프에서
 #                 실제로 읽어낸 객체 수
@@ -75,7 +76,10 @@ if [ "$PAUSE" = 1 ] && running "$APP"; then
 fi
 
 docker exec "$PG" pg_dump -U "$DB_USER" --no-owner --no-acl -Fc "$DB_NAME" > "$DEST/db.dump"
-tar czf "$DEST/files.tar.gz" -C "$REPO/deploy" okf-content uploads avatars
+# `uploads` 는 더 이상 없다 — 파일 바이트는 MinIO 에 있고 scripts/backup-objects.sh 가
+# API 로 따로 뜬다(앱 정지 불필요). 여기 남은 것은 OKF 콘텐츠 트리와 아바타뿐이라
+# 이 tar 는 이제 몇 MB 다. 정지가 3분대에서 몇 초로 줄어든 이유가 이것이다.
+tar czf "$DEST/files.tar.gz" -C "$REPO/deploy" okf-content avatars
 
 # 여기서 푼다. 아래 판독 검증은 **이미 다 쓰인 파일을 읽을 뿐**이라 앱이 돌아도 상관없는데,
 # 그 40초까지 얼려 두고 있었다. 정지 시간이 짧을수록 좋다 — 90초(헬스체크 30s×3)를 넘기면

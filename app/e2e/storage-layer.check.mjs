@@ -59,7 +59,9 @@ if (mod.thumbnailKey(`files/${HASH}.png`, 0) !== null) d.push("thumbnailKey 가 
 for (const k of ["MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY"]) delete process.env[k];
 if (mod.isStorageConfigured()) d.push("MINIO_* 가 없는데 isStorageConfigured() 가 참입니다");
 
-// 3) 그리고 그 상태에서 앱의 업로드가 **여전히 디스크로 동작**해야 한다
+// 3) 앱의 업로드 응답은 브라우저가 쥘 두 모양 중 하나여야 하고, 스토리지 토큰은 새면 안 된다.
+//    (이 프로세스의 env 를 지운 것이지 공유 dev 서버의 env 가 아니다 — 서버가 MinIO 를 켰으면
+//    키 경로, 아니면 /uploads 다. "미설정이면 디스크" 자체는 upload-promotion.check 5) 가 본다.)
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
 const form = new FormData();
 form.append("file", new File([new Uint8Array(64)], "fallback.txt", { type: "text/plain" }));
@@ -71,8 +73,10 @@ const res = await fetch(`${BASE}/api/upload`, {
 });
 const body = await res.json().catch(() => ({}));
 if (!res.ok) d.push(`MinIO 미설정 상태에서 업로드가 ${res.status} 입니다 — 디스크 폴백이 동작해야 합니다: ${JSON.stringify(body).slice(0, 120)}`);
-else if (!/^\/uploads\//.test(body.url ?? "")) d.push(`폴백 업로드가 ${body.url} 를 돌려줬습니다 — /uploads/ 여야 합니다`);
-else fs.rmSync(path.join("public", body.url.replace(/^\//, "")), { force: true });
+else if (!/^\/(uploads\/[A-Za-z0-9._-]+|api\/files\/key\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8})$/.test(body.url ?? ""))
+  d.push(`업로드가 ${body.url} 를 돌려줬습니다 — /uploads/<이름> 또는 /api/files/key/<키> 여야 합니다`);
+else if ("storageUrl" in body || /^s3:/.test(body.url)) d.push(`업로드 응답에 스토리지 토큰이 샙니다: ${JSON.stringify(body).slice(0, 120)}`);
+else if (/^\/uploads\//.test(body.url)) fs.rmSync(path.join("public", body.url.replace(/^\//, "")), { force: true });
 
 if (d.length) {
   console.error("\n  ┌─ 스토리지 계층이 계약과 다릅니다 ─────────────────────────");
@@ -80,4 +84,4 @@ if (d.length) {
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("스토리지 계층 OK — 키는 files/<sha256>.<ext>, s3:// 왕복, 파생 네임스페이스 분리, MinIO 미설정 시 디스크 폴백 유지");
+console.log("스토리지 계층 OK — 키는 files/<sha256>.<ext>, s3:// 왕복, 파생 네임스페이스 분리, 업로드 응답은 서빙 경로만(토큰 안 샘)");

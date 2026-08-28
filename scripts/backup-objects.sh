@@ -22,9 +22,16 @@
 # 번에 사용자 파일이 커밋될 수 있다(backup-prod.sh 와 같은 이유).
 set -euo pipefail
 
+# cron 은 환경이 비어 있다 — 안 주면 .env.prod 에서 읽는다(레포 밖 목적지와 같은 이유로
+# 자격증명을 스크립트에 박지 않는다).
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -z "${MINIO_ACCESS_KEY:-}" ] && [ -f "$REPO/.env.prod" ]; then
+  set -a; . "$REPO/.env.prod"; set +a
+fi
+
 OUT="${1:-$HOME/ainmem-backups/objects}"
 KEEP="${KEEP:-4}"
-NET="${MINIO_NETWORK:-ainmem_default}"
+NET="${MINIO_NETWORK:-ainmem_prod_default}"
 ENDPOINT="${MINIO_ENDPOINT:-minio:9000}"
 BUCKET="${MINIO_BUCKET:-ainmem-files}"
 : "${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY 가 필요하다}"

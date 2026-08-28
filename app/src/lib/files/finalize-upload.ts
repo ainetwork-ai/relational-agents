@@ -13,6 +13,7 @@ import {
   storageBucket,
 } from "./storage";
 import { TUS_LOCAL_DIRECTORY } from "./tus-server-config";
+import { servePathForKey } from "./client-url";
 
 /**
  * Promote a finished tus upload to the storage contract.
@@ -33,7 +34,10 @@ import { TUS_LOCAL_DIRECTORY } from "./tus-server-config";
  * file is moved into public/uploads under a random name.
  */
 export interface FinalizedUpload {
+  /** what the browser may hold: the key-addressed serving path, or a disk path */
   url: string;
+  /** the `s3://` token a row stores — server-side only, never sent to a client */
+  storageUrl?: string;
   name: string;
   size: number;
   mimeType: string;
@@ -68,7 +72,17 @@ export async function finalizeTusUpload(upload: {
     const size = (await stat(staged)).size;
     await putStream(key, createReadStream(staged), size, mimeType);
   }
-  return { url: buildStorageUrl(bucket, key), name, size: upload.size, mimeType };
+ // The client gets the serving path, not the token. It was handing the raw
+ // s3:// url back to us (and, in the AI chat, writing it into the message
+ // body, where it neither rendered nor belonged); a row derives the token from
+ // the path on the server instead — storageRefFromClientUrl.
+  return {
+    url: servePathForKey(key),
+    storageUrl: buildStorageUrl(bucket, key),
+    name,
+    size: upload.size,
+    mimeType,
+  };
 }
 
 function sha256File(file: string): Promise<string> {

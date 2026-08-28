@@ -30,12 +30,15 @@ process.chdir(APP);
 // 앱 쪽에서 해석한다.
 const { Client } = createRequire(path.join(APP, "package.json"))("pg");
 
-const env = fs.readFileSync(".env.local", "utf8");
-const pgUrl = env.match(/^POSTGRES_URL=(.*)$/m)[1].trim();
-for (const k of ["MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_BUCKET"]) {
-  const m = env.match(new RegExp(`^${k}=(.*)$`, "m"));
-  if (m && !process.env[k]) process.env[k] = m[1].trim();
+// 환경변수가 이기고, 없으면 app/.env.local 에서 읽는다 — dev 는 그냥 돌리면 되고,
+// prod 는 POSTGRES_URL·MINIO_*·UPLOADS_DIR 을 넘겨서 같은 스크립트를 쓴다.
+const envFile = fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "";
+const fromFile = (k) => envFile.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1].trim();
+for (const k of ["POSTGRES_URL", "MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_BUCKET"]) {
+  if (!process.env[k]) { const v = fromFile(k); if (v) process.env[k] = v; }
 }
+const pgUrl = process.env.POSTGRES_URL;
+if (!pgUrl) { console.error("POSTGRES_URL 이 없다."); process.exit(1); }
 
 const storage = await import(pathToFileURL(path.join(APP, "src/lib/files/storage.ts")).href);
 if (!storage.isStorageConfigured()) {
@@ -44,7 +47,11 @@ if (!storage.isStorageConfigured()) {
 }
 const BUCKET = storage.storageBucket();
 
-const UPLOADS = path.join(APP, "public", "uploads");
+// dev 는 앱의 public/uploads, prod 는 컨테이너에 바인드되는 deploy/uploads —
+// 어느 트리를 읽을지는 호출자가 정한다.
+const UPLOADS = process.env.UPLOADS_DIR || path.join(APP, "public", "uploads");
+if (!fs.existsSync(UPLOADS)) { console.error(`업로드 트리가 없다: ${UPLOADS}`); process.exit(1); }
+console.log(`읽는 곳: ${UPLOADS}`);
 const seen = new Map(); // /uploads/... → { key, url, servePath, bytes, deduped }
 let missing = 0;
 let bytesMoved = 0;
@@ -61,7 +68,12 @@ async function promote(ref) {
     return null;
   }
   const bytes = fs.statSync(abs).size;
-  const hash = createHash("sha256").update(fs.readFileSync(abs)).digest("hex");
+ // 스트리밍 해시 — 업로드 상한이 1GB 라 파일 하나를 통째로 메모리에 올릴 수 없다
+ // (finalize-upload.ts 와 같은 이유)
+  const hash = await new Promise((resolve, reject) => {
+    const h = createHash("sha256");
+    fs.createReadStream(abs).on("data", (c) => h.update(c)).on("error", reject).on("end", () => resolve(h.digest("hex")));
+  });
   const ext = (path.extname(abs).slice(1) || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
   const key = storage.contentKey(hash, ext);
   const already = await storage.statFile(BUCKET, key);

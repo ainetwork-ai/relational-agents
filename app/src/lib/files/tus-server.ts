@@ -21,6 +21,8 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
+import path from "node:path";
+import { readdir, rm, stat } from "node:fs/promises";
 import { Server, type DataStore } from "@tus/server";
 import { FileStore } from "@tus/file-store";
 import { checkUploadType } from "./allowed-types";
@@ -56,6 +58,39 @@ function currentUserId(): string {
 }
 
 const ownerPrefix = (userId: string) => `${TUS_KEY_PREFIX}${userId}-`;
+
+/** Remove an upload's staging files. Both, and never throwing — a leftover
+ *  here is rubbish, not a reason to fail a finished upload. */
+export async function dropStagingEntry(id: string): Promise<void> {
+  for (const f of [id, `${id}.json`])
+    await rm(path.join(TUS_LOCAL_DIRECTORY, f), { force: true }).catch(() => {});
+}
+
+/**
+ * Sweep staging.
+ *
+ * The library's `cleanUpExpiredUploads()` handles abandoned in-flight uploads —
+ * ones where the data file is still there. It cannot handle the other shape we
+ * produce: a sidecar whose data file finalize already moved out. Those are
+ * invisible to it, so they are swept here by age.
+ */
+export async function sweepStaging(maxAgeMs = TUS_EXPIRATION_MS): Promise<number> {
+  const entries = await readdir(TUS_LOCAL_DIRECTORY).catch(() => [] as string[]);
+  const cutoff = Date.now() - maxAgeMs;
+  let removed = 0;
+  for (const name of entries) {
+    if (!name.endsWith(".json")) continue;
+    const id = name.slice(0, -".json".length);
+   // a pair is still a real upload — leave it to cleanUpExpiredUploads
+    if (entries.includes(id)) continue;
+    const p = path.join(TUS_LOCAL_DIRECTORY, name);
+    const s = await stat(p).catch(() => null);
+    if (!s || s.mtimeMs > cutoff) continue;
+    await rm(p, { force: true }).catch(() => {});
+    removed++;
+  }
+  return removed;
+}
 
 let server: Server | null = null;
 
@@ -108,15 +143,21 @@ export function getTusServer(): Server {
         size: upload.size,
         metadata: upload.metadata,
       });
-     // drop the leftovers through the store's own API — we do not want to know
-     // its layout. Best-effort: whatever survives expires.
-      void store.remove(upload.id).catch(() => {});
+     // Clear the staging entry ourselves. `store.remove()` looks the upload up
+     // first, and finalize has already moved the data file away, so it cannot
+     // find it — the sidecar stayed behind, and the library's own collector
+     // never sees it either: FileKvStore.list() only reports an id when BOTH
+     // <id> and <id>.json are present. 58 orphans had accumulated in dev
+     // before anyone looked.
+      await dropStagingEntry(upload.id);
      // outside the tus spec, but tus-js-client reads it — same shape as the
      // buffered /api/upload response, so callers consume one thing
+      const { storageUrl: _token, ...forClient } = finalized;
+      void _token;
       return {
         status_code: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalized),
+        body: JSON.stringify(forClient),
       };
     },
   });
