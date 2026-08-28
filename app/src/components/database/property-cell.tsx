@@ -1043,8 +1043,10 @@ function PersonCell({
       >
         {people.length ? (
           <>
+            {/* avatar → name is 6px in the original (margin-inline-end: 6px on the
+                avatar), in the table's cells as well as the page's band */}
             {(collapse ? people.slice(0, 1) : people).map((p) => (
-              <span key={p.id} className="flex shrink-0 items-center gap-1">
+              <span key={p.id} className="flex shrink-0 items-center gap-1.5">
                 <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
                 <span className="whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-200">
                   {p.label}

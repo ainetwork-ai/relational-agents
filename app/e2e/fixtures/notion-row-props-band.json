@@ -90,7 +90,8 @@
       "color": "rgb(44, 44, 43)",
       "avatar": 20,
       "avatarRadius": "100%",
-      "avatarGap": 6
+      "avatarGap": 6,
+      "avatarGapNote": "아바타 오른쪽 6px 뒤에 이름(원본 margin-inline-end: 6px) — 표의 셀도 같다."
     },
     "badge": {
       "width": 19,
@@ -247,5 +248,23 @@
       "item": 200
     },
     "selectChip": "Evaluation 의 칩도 같은 방식으로 줄어든다(칩 안쪽까지 nowrap/ellipsis 가 중첩되어 있다)"
+  },
+  "label": {
+    "note": "2026-08-28 원본 라벨 버튼 실측(행 'X 관리 + Telegram EN/KR (Round 1)'): 높이 24 · radius 6 · 좌우 패딩 6 · 아이콘은 18px 박스 안의 16px 글리프(x6, transform 없음) · 글자는 라벨 왼쪽에서 26 (=6+18+2), 아이콘 오른쪽 끝에서 3. 13px/500.",
+    "height": 24,
+    "radius": 6,
+    "paddingX": 6,
+    "iconBox": 18,
+    "iconGlyph": 16,
+    "iconX": 6,
+    "textX": 26,
+    "gapIconToText": 3,
+    "widths": {
+      "TL": 51.7,
+      "Assignee": 106.7,
+      "End date": 90.6,
+      "Evaluation": 99.9
+    },
+    "widthNote": "라벨 폭 = 32 + 글자 폭. 우리 글자는 같은 13px/500 에서 4~5px 좁게 그려진다(폰트 차이, 밴드만의 문제가 아님). Assignee 만 18px 더 넓은데, 원본에는 속성 설명(ⓘ) 아이콘이 라벨에 붙어 있기 때문이다 — 우리에게 없는 기능."
   }
 }

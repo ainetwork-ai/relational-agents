@@ -305,13 +305,14 @@ function PinnedItem({
         className={`flex h-6 w-min max-w-full items-center rounded-[6px] px-1.5 ${LABEL_COLOR}`}
       >
         <div className="flex min-w-0 items-center gap-[2px] text-[13px] font-medium leading-[18px]">
-          {/* 14px glyph drawn at 1.2× — the original's `transform: scale(1.2)` */}
+          {/* the original's icon sits in an 18px box with a 16px glyph, so the
+              name starts 26px in from the label's left edge (6 padding + 18 + 2)
+              — measured 2026-08-28 on the original's own label button */}
           <span
             data-role="icon"
-            className="block h-[14px] w-[14px] shrink-0"
-            style={{ transform: "scale(1.2)" }}
+            className="flex h-[18px] w-[18px] shrink-0 items-center justify-center"
           >
-            <PropertyTypeIcon type={prop.type} size={14} className="text-current" />
+            <PropertyTypeIcon type={prop.type} size={16} className="text-current" />
           </span>
           <span data-role="label-text" className="truncate">
             {prop.name}
