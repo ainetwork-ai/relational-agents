@@ -43,7 +43,8 @@ function chipsToSource(el: HTMLElement) {
   }
 }
 
-const EMPTY: TableData = { cells: [["", ""], ["", ""]], headerRow: true };
+/** A table the original just inserted: 3×3, no header (measured). */
+const EMPTY: TableData = { cells: [["", "", ""], ["", "", ""], ["", "", ""]] };
 
 /** Notion's cell-selection blue (measured: rgb(39, 131, 222), 2px, radius 2). */
 const SEL_COLOR = "rgb(39, 131, 222)";
@@ -764,7 +765,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                     c === 0 ? "" : "-ml-px"
                   } ${r === 0 ? "" : "-mt-px"} ${
                     (!!table.headerRow && r === 0) || (!!table.headerCol && c === 0)
-                      ? "bg-neutral-50 font-medium dark:bg-neutral-800/60"
+                      ? "bg-[#f7f6f3] font-medium dark:bg-neutral-800/60"
                       : ""
                   } ${cellBg(r, c) ? `hl-${cellBg(r, c)}` : ""}`}
                 >
@@ -927,7 +928,15 @@ export function TableBlock({ block }: { block: EBlock }) {
         <GripMenu
           blockId={block.id}
           grip={gripMenu}
-          headerRow={!!table.headerRow}
+ // only the first row's and first column's grips carry the header toggle, and
+ // each flips its own axis (measured: the column grip makes a header COLUMN)
+          header={
+            gripMenu.i !== 0
+              ? null
+              : gripMenu.kind === "col"
+                ? !!table.headerCol
+                : !!table.headerRow
+          }
           canDelete={gripMenu.kind === "col" ? nCols > 1 : nRows > 1}
           onClose={() => setGripMenu(null)}
           onColor={(which, value) => {
@@ -940,7 +949,8 @@ export function TableBlock({ block }: { block: EBlock }) {
  // the original keeps the dropdown open while the header switch flips
             if (action !== "header") setGripMenu(null);
             const col = kind === "col";
-            if (action === "header") commit({ ...table, headerRow: !table.headerRow });
+            if (action === "header")
+              commit(col ? { ...table, headerCol: !table.headerCol } : { ...table, headerRow: !table.headerRow });
             else if (action === "before") { if (col) insertCol(i); else insertRow(i); }
             else if (action === "after") { if (col) insertCol(i + 1); else insertRow(i + 1); }
             else if (action === "duplicate") { if (col) insertCol(i + 1, i); else insertRow(i + 1, i); }
@@ -1057,7 +1067,7 @@ type GripAction = "header" | "before" | "after" | "duplicate" | "clear" | "delet
 function GripMenu({
   blockId,
   grip,
-  headerRow,
+  header,
   canDelete,
   onClose,
   onAction,
@@ -1065,7 +1075,8 @@ function GripMenu({
 }: {
   blockId: string;
   grip: Grip;
-  headerRow: boolean;
+  /** header toggle state, or null when this grip has no such item */
+  header: boolean | null;
   canDelete: boolean;
   onClose: () => void;
   onAction: (a: GripAction) => void;
@@ -1098,7 +1109,11 @@ function GripMenu({
     toggle?: boolean;
     submenu?: boolean;
   }> = [
-    { key: "header", label: t("제목 행"), Icon: Table2, toggle: true },
+ // the toggle only exists on the first row's and first column's grips, and the
+ // original labels it "제목 행" in both — even where it makes a header COLUMN
+    ...(header == null
+      ? []
+      : [{ key: "header" as const, label: t("제목 행"), Icon: Table2, toggle: true }]),
     { key: "color", label: t("색"), Icon: Palette, submenu: true },
     { key: "before", label: col ? t("왼쪽에 삽입") : t("위에 삽입"), Icon: col ? ArrowLeft : ArrowUp },
     { key: "after", label: col ? t("오른쪽에 삽입") : t("아래에 삽입"), Icon: col ? ArrowRight : ArrowDown },
@@ -1145,7 +1160,7 @@ function GripMenu({
           <div key={item.key} className="relative">
             <button
               role="option"
-              aria-selected={item.key === "header" ? headerRow : undefined}
+              aria-selected={item.key === "header" ? !!header : undefined}
               data-testid={`table-grip-menu-item-${item.key}`}
               onMouseEnter={() => setColorOpen(item.key === "color")}
               onClick={() => {
@@ -1174,12 +1189,12 @@ function GripMenu({
               {item.toggle && (
                 <span
                   data-testid={`table-grip-menu-switch-${blockId}`}
-                  data-on={headerRow ? "1" : "0"}
+                  data-on={header ? "1" : "0"}
                   style={{
                     width: MENU.switchW,
                     height: MENU.switchH,
                     borderRadius: 44,
-                    background: headerRow ? SEL_COLOR : MENU.switchOff,
+                    background: header ? SEL_COLOR : MENU.switchOff,
                   }}
                   className="relative shrink-0"
                 >
@@ -1187,7 +1202,7 @@ function GripMenu({
                     style={{
                       position: "absolute",
                       top: (MENU.switchH - MENU.switchKnob) / 2,
-                      left: headerRow ? MENU.switchW - MENU.switchKnob - 2 : 2,
+                      left: header ? MENU.switchW - MENU.switchKnob - 2 : 2,
                       width: MENU.switchKnob,
                       height: MENU.switchKnob,
                       borderRadius: 44,

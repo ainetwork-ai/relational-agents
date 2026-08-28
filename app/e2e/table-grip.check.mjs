@@ -174,13 +174,13 @@ const clearAll = async () => {
 // ── 3. 클릭 → 열 전체 선택 + 파란 버튼 + 드롭다운 ──────────────────
 {
   await clearAll();
-  await cell(0, 1).hover();
-  await page.locator(gripSel("col", 1)).hover();
+  await cell(0, 0).hover();
+  await page.locator(gripSel("col", 0)).hover();
   await page.waitForTimeout(150);
-  await page.locator(gripSel("col", 1)).click();
+  await page.locator(gripSel("col", 0)).click();
   await page.waitForTimeout(300);
-  eq("클릭: 열 전체 선택", await selRange(), `0,1,${CELLS.length - 1},1`);
-  const s = await shape("col", 1);
+  eq("클릭: 열 전체 선택", await selRange(), `0,0,${CELLS.length - 1},0`);
+  const s = await shape("col", 0);
   eq("클릭: 버튼 파란 배경", s.btn.bg, G.button.active.bg);
   eq("클릭: 버튼 파란 테두리", s.btn.border, G.button.active.border);
   eq("클릭: 점 흰색", s.btn.fill, G.button.active.dotColor);
@@ -273,35 +273,15 @@ const clearAll = async () => {
   await page.waitForTimeout(400);
 }
 
-// ── 3c. 제목 행 스위치는 메뉴를 닫지 않는다 ──────────────────────
-{
-  await clearAll();
-  await cell(0, 0).hover();
-  await page.locator(gripSel("col", 0)).hover();
-  await page.waitForTimeout(120);
-  await page.locator(gripSel("col", 0)).click();
-  await page.waitForTimeout(250);
-  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
-  await page.waitForTimeout(300);
-  const m = await menu();
-  eq("제목 행 토글 후에도 메뉴 열림", !!m, G.menu.switch.keepsMenuOpen);
-  eq("스위치 켜짐 색", m?.items[0].sw.bg, G.menu.switch.on);
-  eq("첫 행이 제목 행이 된다", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).fontWeight, tableId), "500");
-  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
-  await page.waitForTimeout(300);
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(200);
-}
-
 // ── 4. 행 그립 메뉴 ─────────────────────────────────────────────
 {
   await clearAll();
-  await cell(1, 0).hover();
-  await page.locator(gripSel("row", 1)).hover();
+  await cell(0, 0).hover();
+  await page.locator(gripSel("row", 0)).hover();
   await page.waitForTimeout(150);
-  await page.locator(gripSel("row", 1)).click();
+  await page.locator(gripSel("row", 0)).click();
   await page.waitForTimeout(300);
-  eq("클릭: 행 전체 선택", await selRange(), `1,0,1,${CELLS[0].length - 1}`);
+  eq("클릭: 행 전체 선택", await selRange(), `0,0,0,${CELLS[0].length - 1}`);
   const m = await menu();
   eq("메뉴 항목(행)", m?.items.map((i) => i.label), G.menu.row);
   await page.keyboard.press("Escape");
@@ -449,6 +429,105 @@ const clearAll = async () => {
   await page.waitForTimeout(400);
   eq("삭제 → 행 2", (await count()).rows, 2);
 }
+
+// ── 7. 제목 토글: 첫 행·첫 열 그립에만, 각자 자기 축 ────────────
+{
+  /** 셀별 (굵음, 배경있음) 지도 */
+  const look = () => page.evaluate((tid) => {
+    const out = [];
+    for (let r = 0; ; r++) {
+      const row = [];
+      for (let c = 0; ; c++) {
+        const el = document.querySelector(`[data-testid="table-cell-${tid}-${r}-${c}"]`);
+        if (!el) break;
+        const w = el.parentElement;
+        const ws = getComputedStyle(w);
+        row.push((parseInt(getComputedStyle(el).fontWeight, 10) >= 500 || parseInt(ws.fontWeight, 10) >= 500 ? "B" : ".") +
+          (ws.backgroundColor === "rgba(0, 0, 0, 0)" ? "." : "G"));
+      }
+      if (!row.length) break;
+      out.push(row.join(" "));
+    }
+    return out;
+  }, tableId);
+  const open = async (kind, i) => {
+    await clearAll();
+    await cell(kind === "col" ? 0 : i, kind === "col" ? i : 0).hover();
+    await page.locator(gripSel(kind, i)).hover();
+    await page.waitForTimeout(120);
+    await page.locator(gripSel(kind, i)).click();
+    await page.waitForTimeout(250);
+  };
+  const H = G.menu.headerItem;
+  const dim = async () => (await look()).length ? { rows: (await look()).length, cols: (await look())[0].split(" ").length } : { rows: 0, cols: 0 };
+  const map = ({ rows, cols }, kind) =>
+    Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => {
+        const head = (kind === "col" && c === 0) || (kind === "row" && r === 0) || (kind === "both" && (c === 0 || r === 0));
+        return head ? "BG" : "..";
+      }).join(" ")
+    );
+
+  await open("col", 1);
+  let m = await menu();
+  eq("열1 메뉴에는 제목 토글이 없다", m.items.length, H.itemCountWithout, 0);
+  eq("열1 메뉴 첫 항목", m.items[0].label, "색");
+  await page.keyboard.press("Escape");
+
+  await open("col", 0);
+  m = await menu();
+  eq("열0 메뉴에는 제목 토글이 있다", m.items.length, H.itemCountWith, 0);
+  eq("제목 토글 라벨", m.items[0].label, H.label);
+  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
+  await page.waitForTimeout(350);
+  m = await menu();
+  eq("제목 토글 후에도 메뉴 열림", !!m, G.menu.switch.keepsMenuOpen);
+  eq("스위치 켜짐 색", m?.items[0].sw.bg, G.menu.switch.on);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  eq("열0 토글 → 첫 열이 제목", await look(), map(await dim(), "col"));
+  const hb = await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId);
+  eq("제목 셀 배경", hb, G.headerCell.bg);
+  eq("제목 셀 굵기", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).fontWeight, tableId), G.headerCell.fontWeight);
+
+  await open("row", 0);
+  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
+  await page.waitForTimeout(350);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  eq("행0 토글 → 첫 행도 제목 (둘은 따로)", await look(), map(await dim(), "both"));
+
+ // 자리에 붙는다: 첫 행을 지우면 새 첫 행이 제목
+  await open("row", 0);
+  await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
+  await page.waitForTimeout(450);
+  eq("첫 행 삭제 후에도 새 첫 행이 제목", await look(), map(await dim(), "both"));
+
+ // 첫 열을 오른쪽으로 옮겨도 제목은 자리에 남는다
+  await clearAll();
+  await cell(0, 0).hover();
+  const grip = page.locator(gripSel("col", 0));
+  await grip.hover();
+  await page.waitForTimeout(120);
+  const gb = await grip.boundingBox(), tb = await cell(0, 2).boundingBox();
+  await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await page.mouse.down();
+  for (let k = 1; k <= 10; k++) { await page.mouse.move(gb.x + gb.width / 2 + ((tb.x + tb.width / 2 - gb.x - gb.width / 2) * k) / 10, gb.y + gb.height / 2); await page.waitForTimeout(30); }
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  eq("첫 열을 옮겨도 제목은 자리에", await look(), map(await dim(), "both"));
+
+ // 원래대로 (제목 둘 다 끄기)
+  for (const kind of ["col", "row"]) {
+    await open(kind, 0);
+    await page.locator('[data-testid="table-grip-menu-item-header"]').click();
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  }
+  eq("둘 다 끄면 평범해진다", (await look()).join("/").includes("G"), false);
+}
+
 
 await browser.close();
 await fetch(`${BASE}/api/pages/${pageId}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});

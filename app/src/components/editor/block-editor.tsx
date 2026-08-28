@@ -847,10 +847,11 @@ export const BlockEditor = forwardRef<
         if (type === "todo") cur.content.checked = cur.content.checked ?? false;
         if (type === "toggle") cur.content.expanded = true;
         if (type === "image") cur.content.url = cur.content.url ?? "";
+ // a fresh table is 3×3 with no header row, like the original's (measured:
+ // e2e/fixtures/notion-table-grip.json §newTable)
         if (type === "table")
           cur.content.table = cur.content.table ?? {
-            cells: [["", ""], ["", ""]],
-            headerRow: true,
+            cells: [["", "", ""], ["", "", ""], ["", "", ""]],
           };
         if (preset) Object.assign(cur.content, preset);
         cur.version++;
@@ -2258,7 +2259,7 @@ export const BlockEditor = forwardRef<
           if (type === "todo") content.checked = false;
           if (type === "toggle") content.expanded = true;
           if (type === "table")
-            content.table = { cells: [["", ""], ["", ""]], headerRow: true };
+            content.table = { cells: [["", "", ""], ["", "", ""], ["", "", ""]] };
           return { ...b, type, content, version: b.version + 1 };
         })
       );
@@ -2498,6 +2499,7 @@ export const BlockEditor = forwardRef<
       setTemplateData,
       setButtonData,
       updateTable,
+      focusNeighbour,
       insertBelow,
       indentBlock,
       outdentBlock,
