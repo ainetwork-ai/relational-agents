@@ -74,7 +74,8 @@ services:
       - ./deploy/okf-content:/data/okf
       # Uploads/avatars are written at runtime under public/, so they get the
       # same treatment as the OKF tree: mounted, never baked into the image.
-      - ./deploy/uploads:/app/public/uploads
+      # deploy/uploads 는 없어졌다 — 파일 바이트는 MinIO 에 있고, 앱은
+      # /api/files/… 프록시로만 내보낸다 (docs/object-storage.md, 2026-08-28).
       - ./deploy/avatars:/app/public/avatars
       - mdmirror:/data/md-mirror
     ports:
