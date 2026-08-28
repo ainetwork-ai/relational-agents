@@ -48,6 +48,10 @@ const eq = (label, got, want, tol = 1) => {
 };
 const cell = (r, c) => page.locator(`[data-testid="table-cell-${tableId}-${r}-${c}"]`);
 const gripSel = (kind, i) => `[data-testid="table-grip-${kind}-${tableId}-${i}"]`;
+const litStr = async () => {
+  const st = await gripState();
+  return { cols: st.col.map((x) => (x === "off" ? "0" : "1")).join(""), rows: st.row.map((x) => (x === "off" ? "0" : "1")).join("") };
+};
 const gripState = () => page.evaluate((tid) => {
   const out = { col: [], row: [] };
   for (const kind of ["col", "row"]) {
@@ -183,20 +187,113 @@ const clearAll = async () => {
   await page.waitForTimeout(200);
 }
 
-// ── 5. 드래그로 셀을 고르면 걸친 행·열의 선이 모두 켜진다 ──────────
+// ── 5. 어떤 그립이 켜지나 — 선택의 왼쪽위 셀 + 호버 셀 ─────────────
 {
-  await clearAll();
-  const a = await cell(0, 0).boundingBox(), b = await cell(1, 1).boundingBox();
-  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
-  await page.mouse.down();
-  for (let i = 1; i <= 8; i++) { await page.mouse.move(a.x + a.width / 2 + ((b.x - a.x) * i) / 8, a.y + a.height / 2 + ((b.y - a.y) * i) / 8); await page.waitForTimeout(25); }
-  await page.mouse.up();
-  await page.waitForTimeout(250);
-  const st = await gripState();
-  eq("드래그 후 열 선", st.col, ["idle", "idle", "off"]);
-  eq("드래그 후 행 선", st.row, ["idle", "idle", "off"]);
+  const dragCells = async (from, to) => {
+    const a = await cell(from[0], from[1]).boundingBox(), b = await cell(to[0], to[1]).boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) { await page.mouse.move(a.x + a.width / 2 + ((b.x - a.x) * i) / 8, a.y + a.height / 2 + ((b.y - a.y) * i) / 8); await page.waitForTimeout(25); }
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+  };
+  for (const t of G.lit.cases) {
+    if (t.drag) { await clearAll(); await dragCells(t.drag[0], t.drag[1]); }
+    else if (t.click) { await clearAll(); await cell(t.click[0], t.click[1]).click(); await page.waitForTimeout(200); await page.mouse.move(20, 700); await page.waitForTimeout(200); }
+    else if (t.gripCol != null) {
+      await clearAll();
+      await cell(0, t.gripCol).hover();
+      await page.locator(gripSel("col", t.gripCol)).hover();
+      await page.waitForTimeout(120);
+      await page.locator(gripSel("col", t.gripCol)).click();
+      await page.waitForTimeout(250);
+      await page.keyboard.press("Escape"); // 메뉴만 닫고 선택은 남긴다
+      await page.mouse.move(20, 700);
+      await page.waitForTimeout(250);
+    } else if (t.hover === null) { await page.mouse.move(20, 700); await page.waitForTimeout(250); }
+    else if (t.hover) { await cell(t.hover[0], t.hover[1]).hover(); await page.waitForTimeout(250); }
+    const s = await litStr();
+    eq(`선 켜짐(${t.id}) 열`, s.cols, t.cols);
+    eq(`선 켜짐(${t.id}) 행`, s.rows, t.rows);
+  }
   const bg = await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId);
   eq("고른 셀에 배경 채움 없음", bg, G.noCellFill.cellBackground);
+}
+
+// ── 5b. 그립을 끌어서 행·열 옮기기 ───────────────────────────────
+{
+  const texts = () => page.evaluate((tid) => {
+    const rows = [];
+    for (let r = 0; ; r++) {
+      const row = [];
+      for (let c = 0; ; c++) {
+        const el = document.querySelector(`[data-testid="table-cell-${tid}-${r}-${c}"]`);
+        if (!el) break;
+        row.push(el.innerText);
+      }
+      if (!row.length) break;
+      rows.push(row);
+    }
+    return rows;
+  }, tableId);
+  const dragGrip = async (kind, i, toCell, { checkMid = false } = {}) => {
+    await clearAll();
+    await cell(kind === "col" ? 0 : i, kind === "col" ? i : 0).hover();
+    const grip = page.locator(gripSel(kind, i));
+    await grip.hover();
+    await page.waitForTimeout(120);
+    const gb = await grip.boundingBox();
+    const tb = await cell(toCell[0], toCell[1]).boundingBox();
+    await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+    await page.mouse.down();
+    const to = { x: kind === "col" ? tb.x + tb.width / 2 : gb.x + gb.width / 2, y: kind === "row" ? tb.y + tb.height / 2 : gb.y + gb.height / 2 };
+    for (let k = 1; k <= 10; k++) {
+      await page.mouse.move(gb.x + gb.width / 2 + ((to.x - gb.x - gb.width / 2) * k) / 10, gb.y + gb.height / 2 + ((to.y - gb.y - gb.height / 2) * k) / 10);
+      await page.waitForTimeout(30);
+    }
+    let mid = null;
+    if (checkMid) mid = await page.evaluate((tid) => {
+      const R = (e) => { const b = e.getBoundingClientRect(); return { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) }; };
+      const gh = document.querySelector(`[data-testid="table-move-ghost-${tid}"]`);
+      const bar = document.querySelector(`[data-testid="table-drop-bar-${tid}"]`);
+      const gs = gh && getComputedStyle(gh), bs = bar && getComputedStyle(bar);
+      return {
+        ghost: gh ? { ...R(gh), op: gs.opacity, bg: gs.backgroundColor, shadow: gs.boxShadow, border: `${gs.borderTopWidth} ${gs.borderTopStyle} ${gs.borderTopColor}` } : null,
+        bar: bar && bs.display !== "none" ? { ...R(bar), bg: bs.backgroundColor } : null,
+      };
+    }, tableId);
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    return mid;
+  };
+
+  const before = await texts();
+  const mid = await dragGrip("col", 0, [0, 1], { checkMid: true });
+  if (!mid?.ghost) fails.push("열 이동: 따라오는 복사본 없음"), checks++;
+  else {
+    eq("고스트 불투명도", mid.ghost.op, String(G.move.ghost.opacity));
+    eq("고스트 배경", mid.ghost.bg, G.move.ghost.bg);
+    eq("고스트 그림자", mid.ghost.shadow, G.move.ghost.shadow);
+    eq("고스트 테두리", mid.ghost.border, G.move.ghost.border.replace("solid ", "solid "));
+  }
+  if (!mid?.bar) fails.push("열 이동: 드롭 표시선 없음"), checks++;
+  else {
+    eq("드롭 표시선 두께", mid.bar.w, G.move.dropBar.thickness);
+    eq("드롭 표시선 색", mid.bar.bg, G.move.dropBar.color);
+  }
+  const after = await texts();
+  eq("열 이동 결과", after[0].join(","), [before[0][1], before[0][0], before[0][2]].join(","));
+  eq("열 이동 뒤에도 선택은 남는다", await selRange(), `0,1,${after.length - 1},1`);
+
+  const b2 = await texts();
+  await dragGrip("row", 0, [1, 0]);
+  const a2 = await texts();
+  eq("행 이동 결과", a2.map((r) => r[0]).join(","), [b2[1][0], b2[0][0], b2[2][0]].join(","));
+  eq("행 이동 뒤에도 선택은 남는다", await selRange(), `1,0,1,${a2[0].length - 1}`);
+
+  // 같은 자리면 표시선이 뜨지 않는다
+  const same = await dragGrip("col", 1, [0, 1], { checkMid: true });
+  eq("같은 자리로 끌면 표시선 없음", same?.bar ?? null, null);
 }
 
 // ── 6. 메뉴 동작: 오른쪽에 삽입 / 콘텐츠 삭제 / 삭제 ────────────────

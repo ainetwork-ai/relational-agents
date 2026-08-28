@@ -57,6 +57,11 @@ const GRIP = {
   btnShort: 14,
   btnBg: "rgb(255, 255, 255)",
   btnBorder: "rgb(230, 229, 227)",
+ // dragging a grip: a 3px blue bar marks where the row/column will land, and a
+ // 0.9-opacity white copy of it follows the pointer
+  dropBar: 3,
+  ghostOpacity: 0.9,
+  ghostShadow: "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px",
 } as const;
 
 /** Notion's own six-dot glyph: 20×20 viewBox, r=1.25 dots at x 7.5/12.5 and
@@ -68,8 +73,10 @@ type GripKind = "col" | "row";
 type Grip = { kind: GripKind; i: number };
 
 type Cell = { r: number; c: number };
-/** anchor + focus cell, like a text selection's two ends */
-type CellRange = { a: Cell; f: Cell };
+/** anchor + focus cell, like a text selection's two ends. `kind` remembers how
+ * the selection was made: by dragging cells, or by picking a whole row/column
+ * from its grip — the original lights different grips for the two. */
+type CellRange = { a: Cell; f: Cell; kind?: "cells" | "col" | "row" };
 
 const normalize = (g: CellRange) => ({
   r1: Math.min(g.a.r, g.f.r),
@@ -123,6 +130,13 @@ export function TableBlock({ block }: { block: EBlock }) {
   const [gripHover, setGripHover] = useState<Grip | null>(null);
   /** grip whose dropdown is open (its button stays blue while it is) */
   const [gripMenu, setGripMenu] = useState<Grip | null>(null);
+  /** grip being dragged to a new position, with the copy's geometry */
+  const [moving, setMoving] = useState<
+    (Grip & { geo: { left: number; top: number; w: number; h: number }; sizes: { w: number; h: number }[] }) | null
+  >(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef<number | null>(null);
  // the border/handle are positioned imperatively — they are a readout of the
  // laid-out grid, not state React should re-render for
   const borderRef = useRef<HTMLDivElement>(null);
@@ -347,6 +361,9 @@ export function TableBlock({ block }: { block: EBlock }) {
    * Arrows walk/extend the range, Backspace clears the cells' contents. */
   const onRangeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!range) return;
+ // one Escape closes one layer: if the grip's dropdown already took it (its
+ // useDismiss preventDefaults in the capture phase), the selection stays
+    if (e.defaultPrevented) return;
     const stop = () => {
       e.preventDefault();
       e.stopPropagation();
@@ -518,14 +535,20 @@ export function TableBlock({ block }: { block: EBlock }) {
    * column a cell selection covers (measured: the original lights all of them) */
   const litCols = new Set<number>();
   const litRows = new Set<number>();
-  if (sel) {
-    for (let c = sel.c1; c <= sel.c2; c++) litCols.add(c);
-    for (let r = sel.r1; r <= sel.r2; r++) litRows.add(r);
-  } else if (hoverCell) {
+ // Measured: a cell selection lights the grips of its **top-left** cell (not of
+ // every row and column it spans), a whole-row/column selection lights only
+ // that one grip, and the cell under the pointer always lights its own two.
+ // A caret alone lights nothing.
+  if (sel && range) {
+    if (range.kind === "col") litCols.add(sel.c1);
+    else if (range.kind === "row") litRows.add(sel.r1);
+    else { litCols.add(sel.c1); litRows.add(sel.r1); }
+  }
+  if (hoverCell) {
     litCols.add(hoverCell.c);
     litRows.add(hoverCell.r);
   }
-  for (const g of [gripHover, gripMenu]) if (g) (g.kind === "col" ? litCols : litRows).add(g.i);
+  for (const g of [gripHover, gripMenu, moving]) if (g) (g.kind === "col" ? litCols : litRows).add(g.i);
 
   /** a grip's button is blue once its whole row/column is the selection */
   const gripSelected = (kind: GripKind, i: number) =>
@@ -534,13 +557,125 @@ export function TableBlock({ block }: { block: EBlock }) {
       ? sel.c1 === i && sel.c2 === i && sel.r1 === 0 && sel.r2 === nRows - 1
       : sel.r1 === i && sel.r2 === i && sel.c1 === 0 && sel.c2 === nCols - 1);
 
-  const openGrip = (kind: GripKind, i: number) => {
+  /** pick a whole row/column, the way its grip does */
+  const selectLine = (kind: GripKind, i: number) =>
     selectCells(
       kind === "col"
-        ? { a: { r: 0, c: i }, f: { r: nRows - 1, c: i } }
-        : { a: { r: i, c: 0 }, f: { r: i, c: nCols - 1 } }
+        ? { a: { r: 0, c: i }, f: { r: nRows - 1, c: i }, kind: "col" }
+        : { a: { r: i, c: 0 }, f: { r: i, c: nCols - 1 }, kind: "row" }
     );
-    setGripMenu({ kind, i });
+
+  /** move a row/column to another index and keep it selected, as the original does */
+  function moveLine(kind: GripKind, from: number, to: number) {
+    const shift = <T,>(arr: T[]) => {
+      const next = arr.slice();
+      const [taken] = next.splice(from, 1);
+      next.splice(to, 0, taken);
+      return next;
+    };
+    if (kind === "col")
+      commit({ ...table, cells: cells.map((row) => shift(row)), html: table.html?.map((row) => shift(row)) });
+    else
+      commit({ ...table, cells: shift(cells.map((r) => r.slice())), html: table.html ? shift(table.html.map((r) => r.slice())) : undefined });
+    selectLine(kind, to);
+  }
+
+  /** which row/column is under the pointer */
+  const lineFromPoint = (kind: GripKind, x: number, y: number): number | null => {
+    const n = kind === "col" ? nCols : nRows;
+    for (let i = 0; i < n; i++) {
+      const el = cellAt(kind === "col" ? 0 : i, kind === "col" ? i : 0);
+      if (!el) continue;
+      const b = el.getBoundingClientRect();
+      if (kind === "col" ? x >= b.left && x < b.right : y >= b.top && y < b.bottom) return i;
+    }
+    return null;
+  };
+
+  /**
+   * Press on a grip: the row/column is selected right away. Then it is either
+   * moved (pointer travels — a floating copy follows it and a 3px blue bar
+   * marks where it lands) or, on a release that never moved, its dropdown opens.
+   */
+  const startGripDrag = (kind: GripKind, i: number, ev: React.MouseEvent) => {
+    selectLine(kind, i);
+    const wrap = wrapRef.current;
+    const head = cellAt(kind === "col" ? 0 : i, kind === "col" ? i : 0);
+    const tail = cellAt(kind === "col" ? nRows - 1 : i, kind === "col" ? i : nCols - 1);
+    if (!wrap || !head || !tail) return;
+    const wb = wrap.getBoundingClientRect();
+    const hb = head.getBoundingClientRect();
+    const tb = tail.getBoundingClientRect();
+    const geo = {
+      left: hb.left - wb.left,
+      top: hb.top - wb.top,
+      w: kind === "col" ? hb.width : tb.right - hb.left,
+      h: kind === "col" ? tb.bottom - hb.top : hb.height,
+    };
+    const sizes = Array.from({ length: kind === "col" ? nRows : nCols }, (_, k) => {
+      const el = cellAt(kind === "col" ? k : i, kind === "col" ? i : k);
+      const b = el?.getBoundingClientRect();
+      return { w: b?.width ?? 0, h: b?.height ?? 0 };
+    });
+    const grab = { x: ev.clientX - hb.left, y: ev.clientY - hb.top };
+    const start = { x: ev.clientX, y: ev.clientY };
+    let dragging = false;
+    targetRef.current = null;
+
+    const move = (e: MouseEvent) => {
+      if (!dragging && Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;
+      if (!dragging) {
+        dragging = true;
+        setGripMenu(null);
+        setMoving({ kind, i, geo, sizes });
+      }
+      const gh = ghostRef.current;
+      if (gh) {
+        gh.style.left = `${kind === "col" ? e.clientX - wb.left - grab.x : geo.left}px`;
+        gh.style.top = `${kind === "row" ? e.clientY - wb.top - grab.y : geo.top}px`;
+      }
+      const to = lineFromPoint(kind, e.clientX, e.clientY);
+      targetRef.current = to != null && to !== i ? to : null;
+      const bar = dropRef.current;
+      if (!bar) return;
+      if (targetRef.current == null) {
+        bar.style.display = "none";
+        return;
+      }
+      const t = targetRef.current;
+      const tHead = cellAt(kind === "col" ? 0 : t, kind === "col" ? t : 0)?.getBoundingClientRect();
+      const tTail = cellAt(kind === "col" ? nRows - 1 : t, kind === "col" ? t : nCols - 1)?.getBoundingClientRect();
+      if (!tHead || !tTail) return;
+      bar.style.display = "block";
+      if (kind === "col") {
+        const edge = t > i ? tHead.right - GRIP.dropBar : tHead.left;
+        bar.style.left = `${edge - wb.left}px`;
+        bar.style.top = `${hb.top - wb.top - 1}px`;
+        bar.style.width = `${GRIP.dropBar}px`;
+        bar.style.height = `${tTail.bottom - tHead.top + 2}px`;
+      } else {
+        const edge = t > i ? tHead.bottom - GRIP.dropBar : tHead.top;
+        bar.style.top = `${edge - wb.top}px`;
+        bar.style.left = `${tHead.left - wb.left - 1}px`;
+        bar.style.height = `${GRIP.dropBar}px`;
+        bar.style.width = `${tTail.right - tHead.left + 2}px`;
+      }
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move, true);
+      window.removeEventListener("mouseup", up, true);
+      if (ghostRef.current) ghostRef.current.style.display = "none";
+      if (dropRef.current) dropRef.current.style.display = "none";
+      if (!dragging) {
+        setGripMenu({ kind, i });
+        return;
+      }
+      const to = targetRef.current;
+      setMoving(null);
+      if (to != null) moveLine(kind, i, to);
+    };
+    window.addEventListener("mousemove", move, true);
+    window.addEventListener("mouseup", up, true);
   };
 
   return (
@@ -612,7 +747,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                       label={t("열 이동")}
                       onEnter={() => setGripHover({ kind: "col", i: c })}
                       onLeave={() => setGripHover((g) => (g?.kind === "col" && g.i === c ? null : g))}
-                      onClick={() => openGrip("col", c)}
+                      onPress={(e) => startGripDrag("col", c, e)}
                     />
                   )}
                   {/* row grip: on this row's left border (first column only) */}
@@ -626,7 +761,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                       label={t("행 이동")}
                       onEnter={() => setGripHover({ kind: "row", i: r })}
                       onLeave={() => setGripHover((g) => (g?.kind === "row" && g.i === r ? null : g))}
-                      onClick={() => openGrip("row", r)}
+                      onPress={(e) => startGripDrag("row", r, e)}
                     />
                   )}
                 </div>
@@ -666,6 +801,47 @@ export function TableBlock({ block }: { block: EBlock }) {
               border: `2px solid ${SEL_COLOR}`,
             }}
           />
+          {/* where a dragged row/column will land: a 3px blue bar on that edge */}
+          <div
+            ref={dropRef}
+            data-testid={`table-drop-bar-${block.id}`}
+            className="pointer-events-none absolute z-30"
+            style={{ display: "none", background: SEL_COLOR }}
+          />
+          {/* the dragged row/column itself, following the pointer */}
+          {moving && (
+            <div
+              ref={ghostRef}
+              data-testid={`table-move-ghost-${block.id}`}
+              className="pointer-events-none absolute z-40 flex"
+              style={{
+                left: moving.geo.left,
+                top: moving.geo.top,
+                width: moving.geo.w,
+                height: moving.geo.h,
+                flexDirection: moving.kind === "col" ? "column" : "row",
+                background: "rgb(255, 255, 255)",
+                opacity: GRIP.ghostOpacity,
+                boxShadow: GRIP.ghostShadow,
+                border: `2px solid ${SEL_COLOR}`,
+                borderRadius: 2,
+              }}
+            >
+              {moving.sizes.map((box, k) => (
+                <div
+                  key={k}
+                  style={{ width: moving.kind === "col" ? "100%" : box.w, height: moving.kind === "col" ? box.h : "100%" }}
+                  className="overflow-hidden whitespace-pre-wrap px-2 py-1 text-sm text-neutral-800 dark:text-neutral-200"
+                  dangerouslySetInnerHTML={{
+                    __html: cellHtml(
+                      moving.kind === "col" ? cells[k]?.[moving.i] ?? "" : cells[moving.i]?.[k] ?? "",
+                      moving.kind === "col" ? table.html?.[k]?.[moving.i] : table.html?.[moving.i]?.[k]
+                    ),
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
         {/* add column */}
         <button
@@ -728,7 +904,7 @@ function TableGrip({
   label,
   onEnter,
   onLeave,
-  onClick,
+  onPress,
 }: {
   kind: GripKind;
   testid: string;
@@ -738,7 +914,7 @@ function TableGrip({
   label: string;
   onEnter: () => void;
   onLeave: () => void;
-  onClick: () => void;
+  onPress: (e: React.MouseEvent) => void;
 }) {
   const col = kind === "col";
   const asButton = hovered || selected;
@@ -755,7 +931,7 @@ function TableGrip({
       onMouseDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onClick();
+        onPress(e);
       }}
       className="absolute z-20 flex items-center justify-center"
       style={{ ...box, opacity: lit ? 1 : 0, pointerEvents: lit ? "auto" : "none", cursor: "pointer" }}
@@ -829,6 +1005,11 @@ function GripMenu({
   const panel = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => search.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, []);
   useEffect(() => {
     anchor.current = document.querySelector(
       `[data-testid="table-grip-${grip.kind}-${blockId}-${grip.i}"]`
@@ -859,7 +1040,7 @@ function GripMenu({
     >
       <div className="px-2 pb-1 pt-1">
         <input
-          autoFocus
+          ref={search}
           data-testid={`table-grip-menu-search-${blockId}`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
