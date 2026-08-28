@@ -23,6 +23,75 @@ const ALIGN_CLASS: Record<Align, string> = {
   right: "text-right",
 };
 
+/**
+ * Every grid that has to move with the text. A structural edit that forgets one
+ * of these leaves the colour (or alignment) behind while the content shifts —
+ * which is exactly how "insert left" ended up looking like "insert right".
+ * Add a new per-cell field here and every insert/delete/move follows.
+ */
+export const CELL_GRIDS = ["html", "color", "bg", "align"] as const;
+
+/** Apply the same index surgery to `cells` and to every grid it carries. */
+function mapGrids(table: TableData, f: (grid: string[][]) => string[][]): TableData {
+  const next: TableData = { ...table, cells: f(table.cells) };
+  for (const g of CELL_GRIDS) if (table[g]) next[g] = f(table[g]!);
+  return next;
+}
+
+/** Insert a blank row/column at `at`, or a copy of `copyFrom` (duplicate). */
+export function insertLine(
+  table: TableData,
+  kind: LineKind,
+  at: number,
+  copyFrom?: number
+): TableData {
+  if (kind === "col")
+    return mapGrids(table, (grid) =>
+      grid.map((row) => {
+        const next = row.slice();
+        next.splice(at, 0, copyFrom != null ? row[copyFrom] ?? "" : "");
+        return next;
+      })
+    );
+  return mapGrids(table, (grid) => {
+    const next = grid.map((row) => row.slice());
+    const source = copyFrom != null ? next[copyFrom] : null;
+    next.splice(at, 0, source ? source.slice() : Array(next[0]?.length ?? 0).fill(""));
+    return next;
+  });
+}
+
+/** Drop a row/column, never the last one. */
+export function removeLine(table: TableData, kind: LineKind, i: number): TableData {
+  const { rows, cols } = dims(table);
+  if (kind === "col" ? cols <= 1 : rows <= 1) return table;
+  return kind === "col"
+    ? mapGrids(table, (grid) => grid.map((row) => row.filter((_, c) => c !== i)))
+    : mapGrids(table, (grid) => grid.filter((_, r) => r !== i));
+}
+
+/** Move a row/column to another index (the grip drag). */
+export function moveLine(table: TableData, kind: LineKind, from: number, to: number): TableData {
+  const shift = <T,>(arr: T[]): T[] => {
+    const next = arr.slice();
+    const [taken] = next.splice(from, 1);
+    next.splice(to, 0, taken);
+    return next;
+  };
+  return kind === "col"
+    ? mapGrids(table, (grid) => grid.map((row) => shift(row)))
+    : mapGrids(table, (grid) => shift(grid));
+}
+
+/** "콘텐츠 삭제": blank the text (and its html) but keep colour and alignment. */
+export function clearLineContents(table: TableData, kind: LineKind, i: number): TableData {
+  const blank = (grid: string[][]) =>
+    grid.map((row, r) => row.map((v, c) => ((kind === "row" ? r === i : c === i) ? "" : v)));
+  const next: TableData = { ...table, cells: blank(table.cells) };
+  if (table.html) next.html = blank(table.html);
+  return next;
+}
+
 export function dims(table: TableData): { rows: number; cols: number } {
   return { rows: table.cells.length, cols: table.cells[0]?.length ?? 0 };
 }

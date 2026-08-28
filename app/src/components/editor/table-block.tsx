@@ -12,7 +12,10 @@ import { useAnchored } from "@/hooks/use-anchored";
 import type { TableData } from "@/lib/db/schema";
 import { sanitizeInline } from "@/lib/rich-text";
 import { caretOffset, caretOnEdgeLine, caretRect, setCaret, setCaretAtX } from "@/lib/editor/caret";
-import { ALIGNS, alignClass, cellField, setLine, type Align, type CellField } from "@/lib/editor/table-data";
+import {
+  ALIGNS, alignClass, cellField, clearLineContents, insertLine, moveLine, removeLine, setLine,
+  type Align, type CellField,
+} from "@/lib/editor/table-data";
 import { useT } from "@/i18n/provider";
 import { useEditor, type EBlock } from "./block-editor";
 
@@ -204,63 +207,31 @@ export function TableBlock({ block }: { block: EBlock }) {
     [cells, table]
   );
 
+  // Every structural edit goes through lib/editor/table-data.ts so the colour,
+  // alignment and html grids move with the text. They did not, once: "왼쪽에
+  // 삽입" shifted only `cells`, so the colour stayed on the new blank column and
+  // the real one came out plain — it looked like the column was inserted right.
   function addRow() {
-    commit({
-      ...table,
-      cells: [...cells.map((r) => r.slice()), Array(nCols).fill("")],
-      html: table.html ? [...table.html.map((r) => r.slice()), Array(nCols).fill("")] : undefined,
-    });
+    commit(insertLine(table, "row", nRows));
   }
   function addCol() {
-    commit({
-      ...table,
-      cells: cells.map((r) => [...r, ""]),
-      html: table.html?.map((r) => [...r, ""]),
-    });
+    commit(insertLine(table, "col", nCols));
   }
   function delRow(r: number) {
-    if (nRows <= 1) return;
     setRange(null);
-    commit({
-      ...table,
-      cells: cells.filter((_, i) => i !== r),
-      html: table.html?.filter((_, i) => i !== r),
-    });
+    commit(removeLine(table, "row", r));
   }
   function delCol(c: number) {
-    if (nCols <= 1) return;
     setRange(null);
-    commit({
-      ...table,
-      cells: cells.map((row) => row.filter((_, i) => i !== c)),
-      html: table.html?.map((row) => row.filter((_, i) => i !== c)),
-    });
+    commit(removeLine(table, "col", c));
   }
 
  // --- row/column operations behind the grip menu ---------------------------
 
-  /** insert a row at `at`, copying `from` when duplicating */
-  function insertRow(at: number, from?: number) {
-    const blank = Array(nCols).fill("");
-    const rowOf = (grid?: string[][]) => (from != null ? (grid?.[from] ?? blank).slice() : blank.slice());
-    const nextCells = cells.map((r) => r.slice());
-    nextCells.splice(at, 0, rowOf(cells));
-    const nextHtml = table.html
-      ? (() => { const h = table.html!.map((r) => r.slice()); h.splice(at, 0, rowOf(table.html)); return h; })()
-      : undefined;
+  /** insert a row/column at `at`, or a copy of `from` (복제) */
+  function insertAt(kind: GripKind, at: number, from?: number) {
     setRange(null);
-    commit({ ...table, cells: nextCells, html: nextHtml });
-  }
-
-  /** insert a column at `at`, copying `from` when duplicating */
-  function insertCol(at: number, from?: number) {
-    const put = (row: string[]) => {
-      const next = row.slice();
-      next.splice(at, 0, from != null ? (row[from] ?? "") : "");
-      return next;
-    };
-    setRange(null);
-    commit({ ...table, cells: cells.map(put), html: table.html?.map(put) });
+    commit(insertLine(table, kind, at, from));
   }
 
   /** write one per-cell field (colour, background, alignment) across a line */
@@ -268,19 +239,15 @@ export function TableBlock({ block }: { block: EBlock }) {
     commit(setLine(table, field, kind, i, value));
   }
 
-  /** blank every cell of a row / column (the menu's "콘텐츠 삭제") */
+  /** blank every cell of a row / column, keeping its colour ("콘텐츠 삭제") */
   function clearLine(kind: GripKind, i: number) {
-    const copy = cells.map((row) => row.slice());
-    const htmlGrid = htmlGridOf(cells);
     for (let r = 0; r < nRows; r++)
       for (let c = 0; c < nCols; c++) {
         if (kind === "row" ? r !== i : c !== i) continue;
-        copy[r][c] = "";
-        htmlGrid[r][c] = "";
         const el = cellAt(r, c);
         if (el) { el.dataset.raw = ""; el.innerHTML = ""; }
       }
-    commit({ ...table, cells: copy, html: htmlGrid });
+    commit(clearLineContents(table, kind, i));
   }
 
  // --- selection overlay ----------------------------------------------------
@@ -614,17 +581,8 @@ export function TableBlock({ block }: { block: EBlock }) {
     );
 
   /** move a row/column to another index and keep it selected, as the original does */
-  function moveLine(kind: GripKind, from: number, to: number) {
-    const shift = <T,>(arr: T[]) => {
-      const next = arr.slice();
-      const [taken] = next.splice(from, 1);
-      next.splice(to, 0, taken);
-      return next;
-    };
-    if (kind === "col")
-      commit({ ...table, cells: cells.map((row) => shift(row)), html: table.html?.map((row) => shift(row)) });
-    else
-      commit({ ...table, cells: shift(cells.map((r) => r.slice())), html: table.html ? shift(table.html.map((r) => r.slice())) : undefined });
+  function moveLineTo(kind: GripKind, from: number, to: number) {
+    commit(moveLine(table, kind, from, to));
     selectLine(kind, to);
   }
 
@@ -720,7 +678,7 @@ export function TableBlock({ block }: { block: EBlock }) {
       }
       const to = targetRef.current;
       setMoving(null);
-      if (to != null) moveLine(kind, i, to);
+      if (to != null) moveLineTo(kind, i, to);
     };
     window.addEventListener("mousemove", move, true);
     window.addEventListener("mouseup", up, true);
@@ -953,9 +911,9 @@ export function TableBlock({ block }: { block: EBlock }) {
             const col = kind === "col";
             if (action === "header")
               commit(col ? { ...table, headerCol: !table.headerCol } : { ...table, headerRow: !table.headerRow });
-            else if (action === "before") { if (col) insertCol(i); else insertRow(i); }
-            else if (action === "after") { if (col) insertCol(i + 1); else insertRow(i + 1); }
-            else if (action === "duplicate") { if (col) insertCol(i + 1, i); else insertRow(i + 1, i); }
+            else if (action === "before") insertAt(kind, i);
+            else if (action === "after") insertAt(kind, i + 1);
+            else if (action === "duplicate") insertAt(kind, i + 1, i);
             else if (action === "clear") clearLine(kind, i);
             else if (action === "delete") { if (col) delCol(i); else delRow(i); }
           }}
@@ -1300,8 +1258,28 @@ function GripSubmenu({
   sections: SubSection[];
   onPick: (field: CellField, value: string) => void;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+ // The colour list is ~600 tall: opened from a row near the bottom of the
+ // window it ran off screen and its last swatches could not be clicked. The
+ // original clamps its submenu into the viewport, so we do too — beside the
+ // row, then nudged up (or flipped left) until it fits.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const margin = 8;
+    const top0 = parseFloat(el.style.top || "0");
+    let b = el.getBoundingClientRect();
+    const over = b.bottom - (window.innerHeight - margin);
+    if (over > 0) el.style.top = `${top0 - over}px`;
+    b = el.getBoundingClientRect();
+    if (b.top < margin) el.style.top = `${parseFloat(el.style.top || "0") + (margin - b.top)}px`;
+    b = el.getBoundingClientRect();
+    if (b.right > window.innerWidth - margin)
+      el.style.left = `${-b.width - MENU.listPad}px`;
+  }, []);
   return (
     <div
+      ref={box}
       data-testid={`table-grip-${which}-menu-${blockId}`}
       style={{
         width: MENU.subWidth,

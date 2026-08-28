@@ -504,6 +504,124 @@ const clearAll = async () => {
   eq("삭제 → 행 2", (await count()).rows, 2);
 }
 
+// ── 6b. 구조 편집이 색·정렬을 데리고 다니는지 (회귀) ──────────────
+// 한 번 틀렸다: `왼쪽에 삽입` 이 cells 만 밀어서, 색은 새 빈 열에 남고 원래 열이
+// 맨몸으로 오른쪽에 나왔다. 이제 모든 구조 편집이 lib/editor/table-data.ts 를
+// 지나가므로 격자가 같이 움직인다.
+{
+  const grid = () => page.evaluate((tid) => {
+    const rows = [];
+    for (let r = 0; ; r++) {
+      const row = [];
+      for (let c = 0; ; c++) {
+        const el = document.querySelector(`[data-testid="table-cell-${tid}-${r}-${c}"]`);
+        if (!el) break;
+        const w = el.parentElement;
+        const a = getComputedStyle(w).textAlign;
+        row.push(`${el.innerText || "∅"}/${w.className.match(/hl-\w+/)?.[0]?.slice(3) ?? "-"}/${a === "start" ? "left" : a === "end" ? "right" : a}`);
+      }
+      if (!row.length) break;
+      rows.push(row.join(" "));
+    }
+    return rows;
+  }, tableId);
+  const open = async (kind, i) => {
+    await clearAll();
+    await cell(kind === "col" ? 0 : i, kind === "col" ? i : 0).hover();
+    await page.locator(gripSel(kind, i)).hover();
+    await page.waitForTimeout(120);
+    await page.locator(gripSel(kind, i)).click();
+    await page.waitForTimeout(250);
+  };
+  const pick = async (item, opt) => {
+    await page.locator(`[data-testid="table-grip-menu-item-${item}"]`).hover();
+    await page.waitForTimeout(250);
+    await page.locator(`[data-testid="table-grip-opt-${opt}"]`).click();
+    await page.waitForTimeout(450);
+  };
+
+ // 열1 을 파란 배경 + 가운데로
+  await open("col", 1);
+  await pick("color", "bg-blue");
+  await open("col", 1);
+  await pick("align", "align-center");
+  let g0 = await grid();
+  eq("셋업: 열1 만 파랑/가운데", g0[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
+
+ // 왼쪽에 삽입 → 새 열은 맨몸, 색은 원래 열과 함께 오른쪽으로
+  await open("col", 1);
+  await page.locator('[data-testid="table-grip-menu-item-before"]').click();
+  await page.waitForTimeout(500);
+  let g = await grid();
+  eq("왼쪽에 삽입: 새 열(1)은 맨몸", g[0].split(" ")[1], "∅/-/left");
+  eq("왼쪽에 삽입: 색·정렬은 옮겨간 열(2)에", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
+  eq("왼쪽에 삽입: 텍스트도 그 열에", g[0].split(" ")[2].split("/")[0], g0[0].split(" ")[1].split("/")[0]);
+
+ // 오른쪽에 삽입 → 색은 제자리, 새 열이 오른쪽
+  await open("col", 2);
+  await page.locator('[data-testid="table-grip-menu-item-after"]').click();
+  await page.waitForTimeout(500);
+  g = await grid();
+  eq("오른쪽에 삽입: 색은 열2 에 그대로", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
+  eq("오른쪽에 삽입: 새 열(3)이 맨몸", g[0].split(" ")[3], "∅/-/left");
+
+ // 복제 → 사본도 색·정렬을 가진다
+  await open("col", 2);
+  await page.locator('[data-testid="table-grip-menu-item-duplicate"]').click();
+  await page.waitForTimeout(500);
+  g = await grid();
+  eq("복제: 사본도 파랑/가운데", g[0].split(" ")[3].split("/").slice(1).join("/"), "blue/center");
+  eq("복제: 내용까지 같다", g[0].split(" ")[3].split("/")[0], g[0].split(" ")[2].split("/")[0]);
+
+ // 삭제 → 남은 열들의 색이 어긋나지 않는다
+  await open("col", 0);
+  await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
+  await page.waitForTimeout(500);
+  g = await grid();
+  eq("삭제: 파란 열이 한 칸 왼쪽으로", g[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
+  eq("삭제: 그 왼쪽 열은 맨몸", g[0].split(" ")[0], "∅/-/left");
+
+ // 그립을 끌어 옮겨도 색이 따라간다
+  await clearAll();
+  await cell(0, 1).hover();
+  const grip = page.locator(gripSel("col", 1));
+  await grip.hover();
+  await page.waitForTimeout(120);
+  const gb = await grip.boundingBox();
+  const last = (await grid())[0].split(" ").length - 1;
+  const tb = await cell(0, last).boundingBox();
+  await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await page.mouse.down();
+  for (let k = 1; k <= 10; k++) { await page.mouse.move(gb.x + gb.width / 2 + ((tb.x + tb.width / 2 - gb.x - gb.width / 2) * k) / 10, gb.y + gb.height / 2); await page.waitForTimeout(30); }
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  g = await grid();
+  eq("이동: 색·정렬이 함께 옮겨간다", g[0].split(" ")[last].split("/").slice(1).join("/"), "blue/center");
+
+ // 행도 같은 규칙
+  await open("row", 1);
+  await pick("color", "bg-red");
+  g0 = await grid();
+  eq("셋업: 행1 이 빨강", g0[1].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
+  await open("row", 1);
+  await page.locator('[data-testid="table-grip-menu-item-before"]').click();
+  await page.waitForTimeout(500);
+  g = await grid();
+  eq("위에 삽입: 새 행은 맨몸", g[1].split(" ").every((cellStr) => cellStr.endsWith("/-/left")), true);
+  eq("위에 삽입: 빨강은 아래 행으로", g[2].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
+
+ // 색·정렬을 원래대로 (뒤 섹션이 평범한 표를 본다)
+ // 색은 셀 단위라 열을 전부 훑으면 모든 칸이 덮인다
+  const width = (await grid())[0].split(" ").length;
+  for (let i = 0; i < width; i++) {
+    await open("col", i);
+    await pick("color", "bg-default");
+    await open("col", i);
+    await pick("align", "align-left");
+  }
+  eq("되돌림: 색·정렬 없음", (await grid()).join(" ").includes("/blue/") || (await grid()).join(" ").includes("/red/"), false);
+}
+
 // ── 7. 제목 토글: 첫 행·첫 열 그립에만, 각자 자기 축 ────────────
 {
   /** 셀별 (굵음, 배경있음) 지도 */
