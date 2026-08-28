@@ -266,5 +266,85 @@
       "Evaluation": 99.9
     },
     "widthNote": "라벨 폭 = 32 + 글자 폭. 우리 글자는 같은 13px/500 에서 4~5px 좁게 그려진다(폰트 차이, 밴드만의 문제가 아님). Assignee 만 18px 더 넓은데, 원본에는 속성 설명(ⓘ) 아이콘이 라벨에 붙어 있기 때문이다 — 우리에게 없는 기능."
+  },
+  "labelMenu": {
+    "note": "2026-08-28 원본 실측(행 'X 관리 + Telegram EN/KR (Round 1)' 의 TL 라벨). 라벨은 role=cell·aria-haspopup=dialog 버튼이고 호버하면 값 셀과 같은 물(rgba(33,27,23,0.051))이 깔린다. 메뉴는 라벨 왼쪽에 맞춰 라벨 아래 1px 에 뜬다.",
+    "width": 220,
+    "height": 168,
+    "radius": 10,
+    "gapBelowLabel": 1,
+    "alignsToLabelLeft": true,
+    "items": [
+      "이름 바꾸기",
+      "속성 편집",
+      "댓글",
+      "속성 삭제",
+      "레이아웃 사용자 지정"
+    ],
+    "itemHeight": 28,
+    "itemWidth": 212,
+    "itemRadius": 6,
+    "itemGap": 1,
+    "gapAcrossSeparator": 9,
+    "fontSize": 14,
+    "fontWeight": 400,
+    "color": "rgb(44, 44, 43)",
+    "iconSize": 20,
+    "iconX": 8,
+    "textX": 36,
+    "separatorsAfter": [
+      "댓글",
+      "속성 삭제"
+    ],
+    "separatorColor": "rgba(42, 28, 0, 0.07)",
+    "hoverBackground": "rgba(33, 27, 23, 0.051)",
+    "icons": {
+      "이름 바꾸기": "pencil",
+      "속성 편집": "sliders",
+      "댓글": "commentFilled",
+      "속성 삭제": "trash",
+      "레이아웃 사용자 지정": "layout"
+    },
+    "ours": "댓글(속성 댓글)은 우리에게 없는 기능이라 비활성으로 그린다."
+  },
+  "editPopover": {
+    "note": "'이름 바꾸기' 와 '속성 편집' 은 같은 팝오버를 연다 — 이름이 선택된 채로. 290×253, radius 10, 그림자는 피커와 같은 3겹.",
+    "width": 290,
+    "height": 253,
+    "radius": 10,
+    "shadow": "rgba(25,25,25,0.05) 0 20px 24px, rgba(25,25,25,0.027) 0 5px 8px, rgba(42,28,0,0.07) 0 0 0 1px",
+    "nameField": {
+      "typeIconBox": 28,
+      "typeIconX": 12,
+      "inputX": 54,
+      "height": 20,
+      "fontSize": 14,
+      "infoIconX": 256.7,
+      "infoIconSize": 15.3
+    },
+    "rows": [
+      "유형 사람",
+      "제한 제한 없음",
+      "기본값 기본값 없음",
+      "알림 사용자만",
+      "속성 복제",
+      "속성 삭제"
+    ],
+    "rowHeight": 28,
+    "rowWidth": 274,
+    "rowX": 8,
+    "rowRadius": 6,
+    "rowIconSize": 20,
+    "rowIconX": 8,
+    "chevronX": 250,
+    "rowY": [
+      56,
+      85,
+      114,
+      143,
+      188,
+      217
+    ],
+    "ours": "제한·기본값·알림·속성 복제와 ⓘ 는 원본에 있으나 우리에게 없는 기능이라 비활성으로 그린다. 유형은 값만 보여주고 바꾸지는 않는다."
   }
 }

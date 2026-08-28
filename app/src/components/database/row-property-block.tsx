@@ -7,6 +7,8 @@ import type { DbProperty, DbRow } from "@/lib/db/schema";
 import { useDb } from "./database-block";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-type-icon";
+import { PropertyLabelMenu } from "./property-label-menu";
+import { hasValue, splitPinned } from "./pinned";
 import { useT } from "@/i18n/provider";
 import { PageCommentSection } from "@/components/comments/page-comment-section";
 
@@ -33,54 +35,7 @@ import { PageCommentSection } from "@/components/comments/page-comment-section";
  * from the table.
  */
 
-/** How many properties sit above the body rather than in the 속성 panel until
- *  someone chooses (레이아웃 사용자 지정). The original pins four
- *  (TL · Assignee · End date · Evaluation). */
-export const PINNED_COUNT = 4;
-
-/** Does this cell hold anything? Empty string, empty list and a date object
- *  with no start all count as blank — the same states the table draws as an
- *  empty cell. */
-export function hasValue(v: unknown): boolean {
-  if (v === null || v === undefined || v === "") return false;
-  if (Array.isArray(v)) return v.length > 0;
-  if (typeof v === "object")
-    return Object.values(v as Record<string, unknown>).some(
-      (x) => x !== null && x !== undefined && x !== ""
-    );
-  return true;
-}
-
-/** Pinned vs the rest. Which properties are pinned is a choice kept on each
- *  property (`config.pinned`); until somebody makes it, the first few stand in.
- *
- *  The band's order is its own (`config.pinnedOrder`), not the property list's:
- *  measured on the original, its band reads TL · Assignee · End date ·
- *  Evaluation while neither the table's columns nor the 속성 panel start there
- *  (e2e/fixtures/notion-row-props-band.json §set). Properties with no order
- *  yet fall back to their position, after the ordered ones. */
-export function splitPinned(properties: DbProperty[]): {
-  pinned: DbProperty[];
-  rest: DbProperty[];
-  chosen: boolean;
-} {
-  const nonTitle = properties.filter((p) => p.type !== "title");
-  const chosen = nonTitle.some((p) => p.config?.pinned !== undefined);
-  const isPinned = (p: DbProperty, i: number) =>
-    chosen ? !!p.config?.pinned : i < PINNED_COUNT;
-  const order = (p: DbProperty) =>
-    typeof p.config?.pinnedOrder === "number" ? p.config.pinnedOrder : Number.MAX_SAFE_INTEGER;
-  const pinned = nonTitle
-    .filter(isPinned)
-    .map((p, i) => ({ p, i }))
-    .sort((a, b) => order(a.p) - order(b.p) || a.i - b.i)
-    .map(({ p }) => p);
-  return {
-    pinned,
-    rest: nonTitle.filter((p, i) => !isPinned(p, i)),
-    chosen,
-  };
-}
+export { PINNED_COUNT, hasValue, splitPinned } from "./pinned";
 
 const LABEL_COLOR = "text-[rgb(125,122,117)] dark:text-neutral-400";
 
@@ -290,6 +245,9 @@ function PinnedItem({
   collapsePeople?: boolean;
 }) {
   const t = useT();
+ // the label's menu is anchored to the box the click came from, captured then
+ // rather than read off a ref while rendering
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
  // computed properties draw their own value from the row itself (createdAt,
  // formulas…), never from row.values — 비어 있음 must not be painted over them
   const COMPUTED = new Set(["created_time", "last_edited_time", "created_by", "last_edited_by", "formula", "rollup"]);
@@ -300,9 +258,21 @@ function PinnedItem({
       data-type={prop.type}
       className="flex min-w-[80px] max-w-[200px] flex-col"
     >
-      <div
+      {/* the label is a button in the original too (role=cell, aria-haspopup),
+          with the same hover wash the value cell wears; it stays washed while
+          its menu is open */}
+      <button
+        type="button"
         data-role="label"
-        className={`flex h-6 w-min max-w-full items-center rounded-[6px] px-1.5 ${LABEL_COLOR}`}
+        aria-haspopup="dialog"
+        aria-expanded={!!menuAnchor}
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect();
+          setMenuAnchor((cur) => (cur ? null : box));
+        }}
+        className={`flex h-6 w-min max-w-full items-center rounded-[6px] px-1.5 ${LABEL_COLOR} ${HOVER_BG} ${
+          menuAnchor ? "bg-[rgba(33,27,23,0.051)] dark:bg-neutral-800" : ""
+        }`}
       >
         <div className="flex min-w-0 items-center gap-[2px] text-[13px] font-medium leading-[18px]">
           {/* the original's icon sits in an 18px box with a 16px glyph, so the
@@ -318,7 +288,10 @@ function PinnedItem({
             {prop.name}
           </span>
         </div>
-      </div>
+      </button>
+      {menuAnchor && (
+        <PropertyLabelMenu prop={prop} anchor={menuAnchor} onClose={() => setMenuAnchor(null)} />
+      )}
       {/* the value is the real editor; an empty one wears 비어 있음 on top so a
           click still reaches the editor underneath */}
       {/* the original insets the value 6px sideways and 5px vertically — except a
