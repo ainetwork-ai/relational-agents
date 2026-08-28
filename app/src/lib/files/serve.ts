@@ -66,3 +66,16 @@ export async function openFileBytes(
 export function toWebStream(stream: Readable): ReadableStream {
   return stream as unknown as ReadableStream;
 }
+
+/**
+ * Values a column may hold for an image the app renders directly (an avatar, a
+ * page cover). Either the pre-migration disk path or the key-addressed serving
+ * path — never an arbitrary url, or a row becomes a way to point the app's own
+ * markup at somebody else's server.
+ */
+export function isServableAssetUrl(url: string): boolean {
+  return (
+    /^\/uploads\/[\w.-]+$/.test(url) ||
+    /^\/api\/files\/key\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8}$/.test(url)
+  );
+}

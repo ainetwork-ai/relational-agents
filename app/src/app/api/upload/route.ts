@@ -4,6 +4,15 @@ import path from "path";
 import { requireAuth } from "@/lib/auth/middleware";
 import { getMaxUploadBytes } from "@/lib/files/upload-limit";
 import { checkUploadType } from "@/lib/files/allowed-types";
+import { createHash } from "crypto";
+import {
+  buildStorageUrl,
+  contentKey,
+  isStorageConfigured,
+  putFile,
+  statFile,
+  storageBucket,
+} from "@/lib/files/storage";
 
 export const runtime = "nodejs";
 
@@ -70,6 +79,24 @@ export async function POST(req: Request) {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
     .slice(0, 8);
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+ // Object storage, when it is configured. Callers of this route (avatar, page
+ // cover, workspace icon, home cover) put the returned value straight into an
+ // <img src> and have no row to address it by, so they get the key-addressed
+ // serving path — the same one the migration wrote into blocks.content. That
+ // way nothing new lands on disk and /uploads/* can eventually go away.
+  if (isStorageConfigured()) {
+    const key = contentKey(createHash("sha256").update(bytes).digest("hex"), ext);
+    const bucket = storageBucket();
+    if (!(await statFile(bucket, key))) await putFile(key, bytes, file.type || undefined);
+    return NextResponse.json({
+      url: `/api/files/key/${key}`,
+      storageUrl: buildStorageUrl(bucket, key),
+      name: file.name,
+      size: file.size,
+    });
+  }
  // The real extension is kept. html/htm/svg used to be flattened to .txt here
  // because /uploads/* is served same-origin; next.config.ts now serves that
  // path with `Content-Security-Policy: sandbox` + `nosniff`, which stops the
@@ -78,7 +105,7 @@ export async function POST(req: Request) {
   const name = `${crypto.randomUUID()}.${ext}`;
   const dir = path.join(process.cwd(), "public", "uploads");
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
+  await writeFile(path.join(dir, name), bytes);
 
   return NextResponse.json({ url: `/uploads/${name}`, name: file.name, size: file.size });
 }

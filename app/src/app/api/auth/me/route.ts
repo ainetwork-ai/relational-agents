@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isServableAssetUrl } from "@/lib/files/serve";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -33,14 +34,24 @@ export async function PATCH(req: Request) {
     if (!renamed) return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
   if (typeof body?.avatarUrl === "string") {
-    if (body.avatarUrl !== "" && !/^\/uploads\/[\w.-]+$/.test(body.avatarUrl))
-      return NextResponse.json({ error: "avatarUrl must be an /uploads/ path" }, { status: 400 });
+   // either the pre-migration disk path or the key-addressed serving path the
+   // upload route returns once object storage is on — nothing else, so a
+   // caller cannot point an avatar at an arbitrary url
+    if (body.avatarUrl !== "" && !isServableAssetUrl(body.avatarUrl))
+      return NextResponse.json(
+        { error: "avatarUrl must be an /uploads/ or /api/files/key/ path" },
+        { status: 400 }
+      );
     patch.avatarUrl = body.avatarUrl === "" ? null : body.avatarUrl;
   }
   if (typeof body?.homeCoverUrl === "string") {
-    if (body.homeCoverUrl !== "" && !/^\/(uploads|covers)\/[\w.-]+$/.test(body.homeCoverUrl))
+    if (
+      body.homeCoverUrl !== "" &&
+      !isServableAssetUrl(body.homeCoverUrl) &&
+      !/^\/covers\/[\w.-]+$/.test(body.homeCoverUrl)
+    )
       return NextResponse.json(
-        { error: "homeCoverUrl must be an /uploads/ or /covers/ path" },
+        { error: "homeCoverUrl must be an /uploads/, /covers/ or /api/files/key/ path" },
         { status: 400 }
       );
     patch.homeCoverUrl = body.homeCoverUrl === "" ? null : body.homeCoverUrl;

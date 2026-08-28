@@ -28,7 +28,12 @@
 #   DB 행이 OKF 경로와 업로드 URL을 가리키므로 둘의 시점이 어긋나면 참조가 깨진다.
 #   순서를 DB→파일로 고정한 이유가 이것이다: 그 사이 생긴 파일은 덤프에 없으니
 #   고아 파일로 남을 뿐 무해하다. 반대 순서면 DB가 없는 파일을 가리켜 깨진다.
-#   --pause(기본)는 그 틈마저 없앤다 — 스냅샷 동안 앱을 몇 초 얼린다.
+#   --pause(기본)는 그 틈마저 없앤다 — 스냅샷 동안 앱을 얼린다. 정지는 pg_dump + tar 까지고,
+#   판독 검증은 이미 쓰인 파일을 읽을 뿐이라 정지 밖에서 한다.
+#
+#   ⚠️ 파일이 오브젝트 스토리지로 옮겨가면 이 tar 자체가 없어진다 — 그때는 정지가 pg_dump
+#   몇 초로 줄고, 오브젝트는 scripts/backup-objects.sh 가 API 로 따로 뜬다(앱 정지 불필요).
+#   docs/object-storage.md 7단계.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -72,6 +77,11 @@ fi
 docker exec "$PG" pg_dump -U "$DB_USER" --no-owner --no-acl -Fc "$DB_NAME" > "$DEST/db.dump"
 tar czf "$DEST/files.tar.gz" -C "$REPO/deploy" okf-content uploads avatars
 
+# 여기서 푼다. 아래 판독 검증은 **이미 다 쓰인 파일을 읽을 뿐**이라 앱이 돌아도 상관없는데,
+# 그 40초까지 얼려 두고 있었다. 정지 시간이 짧을수록 좋다 — 90초(헬스체크 30s×3)를 넘기면
+# 워치독이 고장으로 오해한다(그 오해 자체는 watchdog-prod.sh 가 따로 막는다).
+unpause
+
 # 판독 검증. `pg_dump` 의 exit 0 은 "쓰기가 실패하지 않았다" 이지 "읽을 수 있다" 가
 # 아니다 — 디스크가 차거나 파이프가 끊기면 잘린 파일이 성공으로 남는다. TOC 를 실제로
 # 파싱해 객체 수를 세고, 0 이면 백업 자체를 실패로 처리한다(빈 세트를 보존 대상으로
@@ -85,7 +95,6 @@ if [ "${OBJECTS:-0}" -lt 1 ]; then
 fi
 tar tzf "$DEST/files.tar.gz" > /dev/null || { echo "files.tar.gz 판독 실패" >&2; rm -rf "$DEST"; exit 1; }
 
-unpause
 trap - EXIT INT TERM
 
 # 스키마 버전이 다른 덤프를 지금 코드에 복원하면 /api/health 가 503 으로 잡아주지만,
