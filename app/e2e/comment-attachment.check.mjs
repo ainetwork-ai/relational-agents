@@ -126,7 +126,19 @@ page.on("request", (r) => {
   const p2 = new URL(r.url()).pathname;
   if (p2 === "/api/upload" && r.method() === "POST") tusHits.buffered++;
   else if (p2 === "/api/upload/tus" && r.method() === "POST") tusHits.create++;
-  else if (p2.startsWith("/api/upload/tus/") && r.method() === "PATCH") tusHits.patch++;
+  else if (p2.startsWith("/api/upload/tus/") && r.method() === "PATCH") {
+    tusHits.patch++;
+   // 마지막 PATCH 의 본문이 브라우저가 쥐게 되는 url — 스토리지 토큰이면 안 된다
+    r.response().then((res) => res?.text()).then((body) => {
+      if (!body) return;
+      try {
+        const j = JSON.parse(body);
+        if (typeof j.url === "string" && !/^\/(api\/files\/key\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8}|uploads\/[A-Za-z0-9._-]+)$/.test(j.url))
+          tusHits.badUrl = j.url;
+        if ("storageUrl" in j) tusHits.badUrl = `storageUrl 노출: ${j.storageUrl}`;
+      } catch { /* not the finish body */ }
+    }).catch(() => {});
+  }
 });
 const chooser = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
 await page.click("[aria-label='파일 첨부']");
@@ -274,6 +286,7 @@ if (fc) {
 
  // 재개 가능 경로를 실제로 탔는가. 13MB 짜리는 8MB 청크라 PATCH 가 둘 이상이어야 한다.
   if (tusHits.buffered) d.push(`버퍼링 경로(POST /api/upload)로 ${tusHits.buffered}건 올라갔습니다 — 첨부는 tus 여야 합니다`);
+  if (tusHits.badUrl) d.push(`업로드 응답이 브라우저에 ${tusHits.badUrl} 를 줬습니다 — 클라이언트는 서빙 경로만 쥐어야 합니다(스토리지 키는 서버 몫)`);
   if (tusHits.create !== 1 + others.length)
     d.push(`tus creation 이 ${tusHits.create}건입니다 — 파일 수(${1 + others.length})와 같아야 합니다`);
   if (tusHits.patch <= tusHits.create)

@@ -55,7 +55,9 @@ export async function openFileBytes(
   const parsed = parseStorageUrl(fileUrl);
   if (parsed) return { stream: await streamFile(parsed.bucket, parsed.key) };
 
-  if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(fileUrl)) return null;
+ // a bare file name only — `..` matches the class but would resolve to public/
+ // itself and hand createReadStream a directory
+  if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(fileUrl) || fileUrl.includes("..")) return null;
   const abs = path.join(process.cwd(), "public", fileUrl.replace(/^\//, ""));
   const s = await stat(abs).catch(() => null);
   if (!s) return null;
@@ -67,15 +69,6 @@ export function toWebStream(stream: Readable): ReadableStream {
   return stream as unknown as ReadableStream;
 }
 
-/**
- * Values a column may hold for an image the app renders directly (an avatar, a
- * page cover). Either the pre-migration disk path or the key-addressed serving
- * path — never an arbitrary url, or a row becomes a way to point the app's own
- * markup at somebody else's server.
- */
-export function isServableAssetUrl(url: string): boolean {
-  return (
-    /^\/uploads\/[\w.-]+$/.test(url) ||
-    /^\/api\/files\/key\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8}$/.test(url)
-  );
-}
+// the url-shape helpers live in client-url.ts (no Next/db imports, so the
+// contract checks can load them under plain tsx); re-exported for callers here
+export { isServableAssetUrl, servePathForKey, storageRefFromClientUrl } from "./client-url";

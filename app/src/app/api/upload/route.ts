@@ -6,7 +6,6 @@ import { getMaxUploadBytes } from "@/lib/files/upload-limit";
 import { checkUploadType } from "@/lib/files/allowed-types";
 import { createHash } from "crypto";
 import {
-  buildStorageUrl,
   contentKey,
   isStorageConfigured,
   putFile,
@@ -90,12 +89,9 @@ export async function POST(req: Request) {
     const key = contentKey(createHash("sha256").update(bytes).digest("hex"), ext);
     const bucket = storageBucket();
     if (!(await statFile(bucket, key))) await putFile(key, bytes, file.type || undefined);
-    return NextResponse.json({
-      url: `/api/files/key/${key}`,
-      storageUrl: buildStorageUrl(bucket, key),
-      name: file.name,
-      size: file.size,
-    });
+   // the serving path only — the s3:// token stays on the server (a row that
+   // needs it derives it from this path, storageRefFromClientUrl)
+    return NextResponse.json({ url: `/api/files/key/${key}`, name: file.name, size: file.size });
   }
  // The real extension is kept. html/htm/svg used to be flattened to .txt here
  // because /uploads/* is served same-origin; next.config.ts now serves that

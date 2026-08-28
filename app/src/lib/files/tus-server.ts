@@ -152,10 +152,12 @@ export function getTusServer(): Server {
       await dropStagingEntry(upload.id);
      // outside the tus spec, but tus-js-client reads it — same shape as the
      // buffered /api/upload response, so callers consume one thing
+      const { storageUrl: _token, ...forClient } = finalized;
+      void _token;
       return {
         status_code: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalized),
+        body: JSON.stringify(forClient),
       };
     },
   });

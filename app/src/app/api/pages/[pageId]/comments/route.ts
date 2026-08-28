@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { comments, files, pages, users, workspaceMembers } from "@/lib/db/schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
-import { parseStorageUrl, storageBucket } from "@/lib/files/storage";
+import { storageRefFromClientUrl } from "@/lib/files/serve";
 import { isOkfId } from "@/lib/okf-store";
 import { notifyMentions, notifyPageComment } from "@/lib/notifications";
 import {
@@ -27,9 +27,10 @@ interface IncomingAttachment {
 }
 
 /**
- * Only urls the upload path itself produced. An `s3://` token must name OUR
- * bucket, and a legacy `/uploads/` path must be a plain file name — anything
- * else is an attempt to make the proxy route fetch something we did not store.
+ * Only urls the upload path itself produced — the key-addressed serving path,
+ * or a legacy `/uploads/` file name. The `s3://` token the row stores is
+ * derived on the server (storageRefFromClientUrl); a client never holds one,
+ * so one arriving here is not ours and is refused like any other url.
  */
 function parseAttachments(raw: unknown): IncomingAttachment[] | null {
   if (raw === undefined || raw === null) return [];
@@ -41,12 +42,10 @@ function parseAttachments(raw: unknown): IncomingAttachment[] | null {
     const size = (item as { size?: unknown })?.size;
     const mimeType = (item as { mimeType?: unknown })?.mimeType;
     if (typeof url !== "string") return null;
-    const parsed = parseStorageUrl(url);
-    if (parsed) {
-      if (parsed.bucket !== storageBucket()) return null;
-    } else if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return null;
+    const ref = storageRefFromClientUrl(url);
+    if (!ref) return null;
     out.push({
-      url,
+      url: ref,
       name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file",
       ...(typeof size === "number" && size >= 0 ? { size } : {}),
       ...(typeof mimeType === "string" ? { mimeType: mimeType.slice(0, 200) } : {}),
