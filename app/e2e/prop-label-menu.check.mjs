@@ -135,6 +135,57 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 ok((await page.locator("[data-testid='db-peek-layout-menu']").count()) === 0, "Escape 로 닫힘");
 
+// ── 속성 패널의 라벨 메뉴는 다른 목록이다 ──
+console.log("\n— 속성 패널의 라벨 메뉴 —");
+{
+  const P = G.panelLabelMenu;
+  await page.locator("[data-testid='db-row-peek'] [data-testid='row-props-toggle']").click();
+  await page.waitForSelector("[data-testid='db-peek-details']", { timeout: 8000 });
+  await page.waitForTimeout(600);
+  const plabel = page.locator("[data-testid='db-peek-details'] [data-role='label']").first();
+  const pbox = await plabel.boundingBox();
+  await plabel.click();
+  const pmenu = page.locator("[data-testid='db-prop-label-menu']");
+  await pmenu.waitFor({ timeout: 5000 });
+  await page.waitForTimeout(250);
+  const pm = await pmenu.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: +r.left.toFixed(1), y: +r.top.toFixed(1), w: +r.width.toFixed(1), h: +r.height.toFixed(1),
+      items: [...el.querySelectorAll("[role='menuitem']")].map((it) => ({ text: it.innerText.trim(), y: +(it.getBoundingClientRect().top - r.top).toFixed(1) })) };
+  });
+  ok(near(pm.x, pbox.x, 1), `패널: 라벨 왼쪽에 맞춤 (${pm.x} vs ${pbox.x.toFixed(1)})`);
+  ok(near(pm.y - (pbox.y + pbox.height), 1, 1), `패널: 라벨 아래 ${(pm.y - pbox.y - pbox.height).toFixed(1)}px`);
+  ok(near(pm.w, P.width, 1), `패널 메뉴 폭 ${pm.w} (원본 ${P.width})`);
+  ok(near(pm.h, P.height, 1), `패널 메뉴 높이 ${pm.h} (원본 ${P.height})`);
+  ok(JSON.stringify(pm.items.map((i) => i.text)) === JSON.stringify(P.items),
+    `패널 항목: ${pm.items.map((i) => i.text).join(" · ")}`);
+  for (const [i, it] of pm.items.entries())
+    ok(near(it.y, P.itemY[i], 1), `패널 ${it.text}: y${it.y} (원본 ${P.itemY[i]})`);
+
+  // 속성 표시 여부 → 하위 메뉴
+  const S = P.visibilitySubmenu;
+  await page.locator("[data-testid='db-prop-menu-visibility']").hover();
+  const sub = page.locator("[data-testid='db-prop-visibility-menu']");
+  await sub.waitFor({ timeout: 5000 });
+  await page.waitForTimeout(250);
+  const sm = await sub.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { w: +r.width.toFixed(1), h: +r.height.toFixed(1), radius: parseFloat(getComputedStyle(el).borderRadius),
+      items: [...el.querySelectorAll("[role='menuitem']")].map((it) => ({ text: it.innerText.trim(), y: +(it.getBoundingClientRect().top - r.top).toFixed(1),
+        h: +it.getBoundingClientRect().height.toFixed(1), w: +it.getBoundingClientRect().width.toFixed(1), checked: !!it.querySelector("svg") })) };
+  });
+  ok(near(sm.w, S.width, 1), `하위 메뉴 폭 ${sm.w} (원본 ${S.width})`);
+  ok(near(sm.h, S.height, 1), `하위 메뉴 높이 ${sm.h} (원본 ${S.height})`);
+  ok(JSON.stringify(sm.items.map((i) => i.text)) === JSON.stringify(S.items), `하위 항목: ${sm.items.map((i) => i.text).join(" · ")}`);
+  for (const [i, it] of sm.items.entries()) {
+    ok(near(it.y, S.itemY[i], 1), `${it.text}: y${it.y} (원본 ${S.itemY[i]})`);
+    ok(near(it.w, S.itemWidth, 1), `${it.text}: 폭 ${it.w} (원본 ${S.itemWidth})`);
+  }
+  ok(sm.items[0].checked && !sm.items[1].checked && !sm.items[2].checked, `기본값 '${S.current}' 에 체크`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+}
+
 await browser.close();
 if (fails.length) { console.error(`\n${fails.length}개 실패`); process.exit(1); }
 console.log("\n원본과 차이 없음 — exit 0");

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Pencil, SlidersHorizontal, MessageSquare, Trash2, LayoutPanelLeft, ChevronRight, Copy, Bell, Hash, UserCircle2, RefreshCw, Info } from "lucide-react";
+import { Pencil, SlidersHorizontal, MessageSquare, Trash2, LayoutPanelLeft, ChevronRight, Copy, Bell, Hash, UserCircle2, RefreshCw, Info, Eye, Check } from "lucide-react";
 import type { DbProperty, PropertyType } from "@/lib/db/schema";
 import { useDb } from "./database-block";
 import { useDismiss } from "@/hooks/use-dismiss";
@@ -41,10 +41,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 function Row({
-  icon, label, value, chevron, disabled, onClick, testid, danger,
+  icon, label, value, chevron, disabled, onClick, onMouseEnter, testid, danger, trailing,
 }: {
   icon: ReactNode; label: string; value?: string; chevron?: boolean;
-  disabled?: boolean; onClick?: () => void; testid?: string; danger?: boolean;
+  disabled?: boolean; onClick?: (box: DOMRect) => void; onMouseEnter?: (box: DOMRect) => void;
+  testid?: string; danger?: boolean; trailing?: ReactNode;
 }) {
   return (
     <button
@@ -52,14 +53,18 @@ function Row({
       role="menuitem"
       data-testid={testid}
       disabled={disabled}
-      onClick={onClick}
+      onMouseEnter={onMouseEnter ? (e) => onMouseEnter(e.currentTarget.getBoundingClientRect()) : undefined}
+      onClick={onClick ? (e) => onClick(e.currentTarget.getBoundingClientRect()) : undefined}
       className={`flex h-7 w-full items-center rounded-[6px] px-2 text-[14px] font-normal leading-5 ${
         disabled ? "cursor-default opacity-40" : HOVER
       } ${danger ? "text-[rgb(235,87,87)]" : TEXT}`}
     >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[rgb(142,139,134)]">{icon}</span>
-      <span className="ml-2 truncate">{label}</span>
+      {icon !== null && (
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[rgb(142,139,134)]">{icon}</span>
+      )}
+      <span className={`${icon !== null ? "ml-2" : ""} truncate`}>{label}</span>
       {value && <span className="ml-auto truncate pl-2 text-[rgb(142,139,134)]">{value}</span>}
+      {trailing && <span className="ml-auto shrink-0 pl-2 text-[rgb(142,139,134)]">{trailing}</span>}
       {chevron && <ChevronRight size={14} className={`${value ? "ml-1" : "ml-auto"} shrink-0 text-[rgb(142,139,134)]`} />}
     </button>
   );
@@ -76,27 +81,45 @@ const Separator = ({ air = 3 }: { air?: number }) => (
   />
 );
 
+/** 속성 표시 여부 — what the panel's submenu sets. The band never asks: a pinned
+ *  property keeps its slot however empty it is (fixtures §set.emptyKeepsSlot). */
+export type PageVisibility = "always" | "hide_empty" | "never";
+const VISIBILITY: { value: PageVisibility; label: string }[] = [
+  { value: "always", label: "항상 표시" },
+  { value: "hide_empty", label: "비어있을 때 숨기기" },
+  { value: "never", label: "항상 숨기기" },
+];
+
 export function PropertyLabelMenu({
   prop,
   anchor,
   onClose,
+ // the band's menu and the 속성 panel's are different lists in the original:
+ // the band has 댓글, the panel has 속성 표시 여부 · 속성 복제 instead
+  surface = "band",
 }: {
   prop: DbProperty;
   anchor: DOMRect;
   onClose: () => void;
+  surface?: "band" | "panel";
 }) {
   const db = useDb();
   const t = useT();
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const subRef = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<"menu" | "edit" | "layout">("menu");
-  useDismiss(true, onClose, boxRef);
+ // the 속성 표시 여부 row's box, so the submenu can hang off it
+  const [subAnchor, setSubAnchor] = useState<DOMRect | null>(null);
+  useDismiss(true, onClose, boxRef, subRef);
+  const visibility: PageVisibility =
+    (prop.config?.pageVisibility as PageVisibility | undefined) ?? "always";
 
  // 라벨 왼쪽에 맞춰 라벨 아래 1px; 창 밖으로 나가면 안쪽으로 당긴다
   const width = view === "edit" ? 290 : view === "layout" ? 260 : 220;
   const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
   const top = anchor.bottom + 1;
 
-  return createPortal(
+  const menu = createPortal(
     <div
       ref={boxRef}
       role="menu"
@@ -146,8 +169,25 @@ export function PropertyLabelMenu({
         <>
           <Row icon={<Pencil size={16} />} label={t("이름 바꾸기")} testid="db-prop-menu-rename" onClick={() => setView("edit")} />
           <Row icon={<SlidersHorizontal size={16} />} label={t("속성 편집")} testid="db-prop-menu-edit" onClick={() => setView("edit")} />
-          <Row icon={<MessageSquare size={16} />} label={t("댓글")} disabled />
-          <Separator />
+          {surface === "band" ? (
+            <>
+              <Row icon={<MessageSquare size={16} />} label={t("댓글")} disabled />
+              <Separator />
+            </>
+          ) : (
+            <>
+              <Separator />
+              <Row
+                icon={<Eye size={16} />}
+                label={t("속성 표시 여부")}
+                chevron
+                testid="db-prop-menu-visibility"
+                onMouseEnter={(box) => setSubAnchor(box)}
+                onClick={(box) => setSubAnchor((cur) => (cur ? null : box))}
+              />
+              <Row icon={<Copy size={16} />} label={t("속성 복제")} disabled />
+            </>
+          )}
           <Row icon={<Trash2 size={16} />} label={t("속성 삭제")} testid="db-prop-menu-delete"
             onClick={() => { db.deleteProperty(prop.id); onClose(); }} />
           <Separator />
@@ -161,6 +201,46 @@ export function PropertyLabelMenu({
       )}
     </div>,
     document.body
+  );
+
+  return (
+    <>
+      {menu}
+      {subAnchor &&
+        createPortal(
+          <div
+            ref={subRef}
+            role="menu"
+            data-testid="db-prop-visibility-menu"
+            style={{
+             // 원본은 패널이 창 오른쪽에 붙어 있어 왼쪽으로 펼친다: 하위 메뉴의
+             // 오른쪽 끝이 부모 메뉴 왼쪽 +4, 위쪽은 누른 줄보다 33 위
+              left: Math.max(8, left + 4 - 180),
+              top: Math.max(8, subAnchor.top - 33),
+              width: 180,
+              boxShadow: MENU_SHADOW,
+            }}
+            className="popover-anim fixed z-50 flex flex-col gap-px rounded-[10px] bg-white p-1 dark:bg-neutral-800"
+          >
+            {VISIBILITY.map((v) => (
+              <Row
+                key={v.value}
+                icon={null}
+                label={t(v.label)}
+                testid={`db-prop-visibility-${v.value}`}
+                trailing={visibility === v.value ? <Check size={14} /> : null}
+                onClick={() => {
+                  db.updateProperty(prop.id, {
+                    config: { ...prop.config, pageVisibility: v.value },
+                  });
+                  onClose();
+                }}
+              />
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 

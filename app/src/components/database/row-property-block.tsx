@@ -239,10 +239,13 @@ function PinnedItem({
  // the band collapses several people to one chip + `+ N`; the 속성 panel is
  // left as it was — the original was only measured in the band
   collapsePeople,
+  surface = "band",
 }: {
   prop: DbProperty;
   row: DbRow;
   collapsePeople?: boolean;
+  /** which label menu this item's label opens — the two lists differ */
+  surface?: "band" | "panel";
 }) {
   const t = useT();
  // the label's menu is anchored to the box the click came from, captured then
@@ -290,7 +293,12 @@ function PinnedItem({
         </div>
       </button>
       {menuAnchor && (
-        <PropertyLabelMenu prop={prop} anchor={menuAnchor} onClose={() => setMenuAnchor(null)} />
+        <PropertyLabelMenu
+          prop={prop}
+          anchor={menuAnchor}
+          surface={surface}
+          onClose={() => setMenuAnchor(null)}
+        />
       )}
       {/* the value is the real editor; an empty one wears 비어 있음 on top so a
           click still reaches the editor underneath */}
@@ -356,9 +364,18 @@ export function RowDetailsPanel({
         <span data-role="panel-title">{t("속성")}</span>
       </div>
       <div className="mt-2 flex flex-col gap-2">
-        {rest.map((p) => (
-          <PinnedItem key={p.id} prop={p} row={row} />
-        ))}
+        {rest
+ // 속성 표시 여부 (the panel's own menu): 항상 표시 · 비어있을 때 숨기기 ·
+ // 항상 숨기기. The band never asks — a pinned property keeps its slot.
+          .filter((p) => {
+            const v = p.config?.pageVisibility;
+            if (v === "never") return false;
+            if (v === "hide_empty") return hasValue(row.values[p.id]);
+            return true;
+          })
+          .map((p) => (
+            <PinnedItem key={p.id} prop={p} row={row} surface="panel" />
+          ))}
         {footer}
       </div>
     </aside>

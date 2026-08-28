@@ -336,6 +336,10 @@ export interface PropertyConfig {
    * order starts elsewhere) — so the order is its own field, not `position`.
    * Undefined falls back to `position`. */
   pinnedOrder?: number;
+  /** 속성 표시 여부 — what the 속성 panel's label menu sets for a property that
+   * is NOT pinned: "always" (the default) · "hide_empty" · "never". The band
+   * ignores it; a pinned property keeps its slot however empty it is. */
+  pageVisibility?: "always" | "hide_empty" | "never";
   [key: string]: unknown;
 }
 
