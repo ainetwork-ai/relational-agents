@@ -6,7 +6,7 @@ import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useCommentsStore } from "@/stores/comments";
 import { useT } from "@/i18n/provider";
-import { CommentList, CommentComposer } from "./comment-thread";
+import { CommentRow, CommentComposer } from "./comment-thread";
 
 /**
  * What the original opens when you press a row's comment badge: a 480px card
@@ -58,15 +58,17 @@ export function RowCommentPopover({
     >
       {/* 14px in from the card's top and left edge — the avatars line up on 14,
           the text column on 46.
-          The page's own 댓글 section has no cap and simply grows (the page
-          scrolls); a card cannot, so this one scrolls inside itself. How the
-          original caps a long thread HERE is not measured — the workspace has
-          no row with more than four. */}
+          Every comment, and the card scrolls. NOT the page section's
+          fold-after-three: this is a card, it cannot grow with the page, and
+          the original is understood to scroll here too. Unmeasured either way
+          — the badge would not open under CDP on a row long enough to tell. */}
       <div className="max-h-[420px] overflow-y-auto px-[14px] pt-[14px]">
         {comments.length === 0 && (
           <p className="pb-3 text-[14px] text-neutral-400">{t("아직 댓글이 없습니다.")}</p>
         )}
-        <CommentList comments={comments} />
+        {comments.map((c) => (
+          <CommentRow key={c.id} comment={c} />
+        ))}
       </div>
       <div className="px-[14px] pb-3">
         <CommentComposer pageId={pageId} />
