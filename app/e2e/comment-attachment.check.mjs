@@ -177,8 +177,12 @@ if (fc) {
   for (const u of srcs.links)
     if (!/^\/api\/files\/[0-9a-f-]{36}\/download$/.test(u ?? ""))
       d.push(`파일 링크가 ${u} 입니다 — /api/files/<id>/download 여야 합니다`);
+ // 저장 위치는 둘 중 하나여야 한다 — 오브젝트 스토리지의 내용 주소이거나,
+ // 아직 이관 전의 디스크 파일명이거나. 그 밖이면 우리가 만든 url 이 아니다.
   for (const a of att)
-    if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(a.url)) d.push(`첨부 url 이 이상합니다: ${a.url}`);
+    if (!/^s3:\/\/[^/]+\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8}$/.test(a.url) &&
+        !/^\/uploads\/[A-Za-z0-9._-]+$/.test(a.url))
+      d.push(`첨부 url 이 이상합니다: ${a.url}`);
 
   const R = F.clip.attachmentRendering;
  // html 이 실행 가능한 문서로 서빙되지는 않는가
@@ -286,9 +290,12 @@ const { rows: gone } = await pg.query(
 );
 await pg.query("delete from comments where page_id=$1 and author_id=$2", [PAGE_ID, USER_ID]);
 await pg.end();
-for (const r of gone)
+for (const r of gone) {
   if (/^\/uploads\//.test(r.file_url))
     fs.rmSync(path.join(process.cwd(), "public", r.file_url.replace(/^\//, "")), { force: true });
+ // 스토리지에 올라간 것은 남겨 둔다 — 같은 바이트를 다른 댓글이 참조할 수 있고
+ // (내용 주소라 공유된다), 고아 청소는 별도 관심사다
+}
 fs.rmSync(tmp, { recursive: true, force: true });
 
 if (d.length) {

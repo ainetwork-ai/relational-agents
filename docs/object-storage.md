@@ -34,6 +34,10 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
 
 - `/api/files/[id]/download` — 언제나 `Content-Disposition: attachment`
 - `/api/files/[id]/stream` — `isStreamableMedia` 를 통과한 미디어만 인라인
+- `/api/files/key/files/<sha256>.<ext>` — **키 주소**. 댓글 첨부와 달리 `files` 행이 없는
+  것들(블록 이미지·페이지 커버)의 문. 로그인만 하면 되는데, 이는 대체 대상인
+  `/uploads/*`(**누구나** 접근)보다 강하다. 페이지별 권한까지 가려면 블록 자산에도 행이
+  필요하고 그건 이관보다 큰 작업이다.
 
 **이 두 갈래가 업로드 allowlist 의 html/svg 허용 근거다.** 지금은 그 역할을
 `next.config.ts` 의 `/uploads/*` CSP sandbox + nosniff 가 하고 있고, 6단계에서 이쪽으로
@@ -64,8 +68,17 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
       바이트에 닿는다. 들어오는 url 은 우리 버킷의 `s3://` 이거나 이관 전 `/uploads/`
       파일명이어야 한다(프록시가 남의 것을 가져오게 만드는 시도 차단).
       prod 에 그 컬럼이 없던 덕에 실데이터 마이그레이션은 0 이었다.
-- [ ] 5. 기존 5GB 이관 + DB 참조 치환 ⚠️ 운영
+- [x] **5. 이관 (dev 만)** — `scripts/migrate-uploads-to-storage.mjs`. 기본이 dry-run,
+      `--apply` 로만 쓴다. **원본을 지우지 않고**(되돌리려면 DB 참조만 되돌리면 된다)
+      **멱등**하다(이미 옮긴 참조는 건너뛰고 같은 바이트는 statFile 이 거른다).
+      dev 결과: 참조 1,046건(covers 3 · blocks 1,043), 전송 4,369MB,
+      **중복 711MB 자동 제거** — 내용 주소 방식의 실제 이득.
+      참조 모양이 둘인 이유: 댓글 첨부는 `files` 행이 있어 **id** 로 부르고, 블록·커버는
+      행이 없이 `content.url` 로 바로 렌더되므로 **키 주소 경로**를 그 자리에 넣는다.
+      그래서 렌더러를 하나도 안 고쳤다.
+      ⚠️ **prod 는 아직이다** — 스키마·MinIO 컨테이너·자격증명이 먼저다.
 - [ ] 6. `/uploads/*` 정적 서빙 제거, CSP 방어선을 프록시 라우트로 ⚠️ 운영
+      (dev 의 디스크 원본 5GB 는 이관 후에도 그대로 남아 있다 — 확인 뒤 지운다)
 - [ ] 7. 백업 재구성(오브젝트 미러 + DB 분리), pause 제거, 워치독이 paused 를 알게 ⚠️ 운영
 
 5~7 은 착수 전에 사람에게 확인받는다.
