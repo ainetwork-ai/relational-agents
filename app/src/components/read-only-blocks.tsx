@@ -148,8 +148,11 @@ function renderBlock(
                         className={`min-w-[100px] border border-neutral-200 px-2 py-1 text-left align-top dark:border-neutral-700 ${
                           header ? "bg-neutral-50 font-medium dark:bg-neutral-800/60" : ""
                         }`}
+                        {...(t.html?.[r]?.[c]
+                          ? { dangerouslySetInnerHTML: { __html: sanitizeInline(t.html[r][c]) } }
+                          : {})}
                       >
-                        {cell}
+                        {t.html?.[r]?.[c] ? undefined : cell}
                       </Tag>
                     );
                   })}

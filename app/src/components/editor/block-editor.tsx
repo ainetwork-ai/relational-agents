@@ -104,6 +104,9 @@ interface EditorApi {
     meta: { caption?: string; width?: number; align?: string; icon?: string | null; color?: string }
   ) => void;
   updateTable: (id: string, table: TableData) => void;
+  /** move the caret into the nearest editable block in `dir` — the table block
+   * uses it to let an arrow key leave the grid at its edge */
+  focusNeighbour: (id: string, dir: -1 | 1) => boolean;
   insertBelow: (id: string) => void;
   indentBlock: (id: string, el: HTMLElement) => void;
   outdentBlock: (id: string, el: HTMLElement) => void;
@@ -2455,6 +2458,7 @@ export const BlockEditor = forwardRef<
       setTemplateData,
       setButtonData,
       updateTable,
+      focusNeighbour,
       insertBelow,
       indentBlock,
       outdentBlock,

@@ -5,6 +5,15 @@ import { isImeComposing } from "@/hooks/use-ime-guard";
 import { usePathname } from "next/navigation";
 import { Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Unlink, MessageSquarePlus, Palette, ChevronDown } from "lucide-react";
 
+/** Hosts a selection may live in: a block's editable, or a table cell —
+ * the original shows the same formatting bar for text picked inside a cell. */
+const HOST_SEL = '[data-testid^="block-editable-"], [data-testid^="table-cell-"]';
+
+/** Is this host a table cell? Cells have no block id of their own, so the
+ * actions that need one (turn-into, range comment) stay out of their bar. */
+const isCellHost = (el: Element | null | undefined) =>
+  !!el?.getAttribute("data-testid")?.startsWith("table-cell-");
+
 /** inline color palette (class-based so the sanitizer keeps it). */
 const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
 
@@ -13,7 +22,7 @@ function wrapColor(cls: string) {
   if (!sel || sel.isCollapsed) return;
   const host = (
     sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement
-  )?.closest('[data-testid^="block-editable-"]') as HTMLElement | null;
+  )?.closest(HOST_SEL) as HTMLElement | null;
   const text = sel.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;");
   document.execCommand("insertHTML", false, `<span class="${cls}">${text}</span>`);
   host?.dispatchEvent(new Event("input", { bubbles: true }));
@@ -55,6 +64,9 @@ const COLOR_KO: Record<string, string> = {
 interface ToolbarState {
   x: number;
   y: number;
+  /** selection lives in a table cell — the cell has no block id, so the
+   * actions that need one (AI, 전환, 댓글) are not offered there */
+  inCell?: boolean;
 }
 
 function exec(
@@ -115,7 +127,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
           ? range.commonAncestorContainer
           : range.commonAncestorContainer.parentElement;
  // only for selections inside an editable block of THIS editor
-      if (!anchorEl?.closest('[data-testid^="block-editable-"]')) {
+      if (!anchorEl?.closest(HOST_SEL)) {
         setState(null);
         return;
       }
@@ -128,7 +140,11 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         setState(null);
         return;
       }
-      setState({ x: rect.left + rect.width / 2, y: rect.top });
+      setState({
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        inCell: isCellHost(anchorEl.closest(HOST_SEL)),
+      });
     };
 
     const onSelectionChange = () => {
@@ -154,7 +170,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
       if (
         !sel ||
         sel.isCollapsed ||
-        !anchor?.closest('[data-testid^="block-editable-"]')
+        !anchor?.closest(HOST_SEL)
       ) {
         return;
       }
@@ -211,7 +227,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
       a.appendChild(saved.extractContents());
       saved.insertNode(a);
     }
-    const host = a.closest('[data-testid^="block-editable-"]') as HTMLElement | null;
+    const host = a.closest(HOST_SEL) as HTMLElement | null;
     host?.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -230,7 +246,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
       span.appendChild(saved.extractContents());
       saved.insertNode(span);
     }
-    const host = span.closest('[data-testid^="block-editable-"]') as HTMLElement | null;
+    const host = span.closest(HOST_SEL) as HTMLElement | null;
     host?.dispatchEvent(new Event("input", { bubbles: true }));
     const blockId = host?.getAttribute("data-testid")?.replace("block-editable-", "") ?? null;
     const pageId = pathname?.match(/\/p\/([0-9a-f-]{36})/)?.[1] ?? null;
@@ -246,7 +262,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
       onMouseDown={(e) => e.preventDefault() /* keep the text selection */}
     >
       <div className="flex items-center p-1">
-        <ToolButton
+        {!state.inCell && <ToolButton
           testid="format-ask-ai"
           label={t("AI에게 요청")}
           onClick={() => {
@@ -254,14 +270,14 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
             const host = (sel?.anchorNode instanceof Element
               ? sel.anchorNode
               : sel?.anchorNode?.parentElement
-            )?.closest('[data-testid^="block-editable-"]') as HTMLElement | null;
+            )?.closest(HOST_SEL) as HTMLElement | null;
             const blockId = host?.getAttribute("data-testid")?.replace("block-editable-", "");
             if (blockId) editor.insertAiPromptAfter(blockId);
           }}
         >
           <span className="px-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">✨ AI</span>
-        </ToolButton>
-        <div className="relative">
+        </ToolButton>}
+        {!state.inCell && <div className="relative">
           <ToolButton
             testid="format-turninto"
             label={t("전환")}
@@ -283,7 +299,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
                     const host = (sel?.anchorNode instanceof Element
                       ? sel.anchorNode
                       : sel?.anchorNode?.parentElement
-                    )?.closest('[data-testid^="block-editable-"]') as HTMLElement | null;
+                    )?.closest(HOST_SEL) as HTMLElement | null;
                     const blockId = host
                       ?.getAttribute("data-testid")
                       ?.replace("block-editable-", "");
@@ -297,8 +313,8 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
               ))}
             </div>
           )}
-        </div>
-        <div className="mx-0.5 h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
+        </div>}
+        {!state.inCell && <div className="mx-0.5 h-4 w-px bg-neutral-200 dark:bg-neutral-700" />}
         <ToolButton testid="format-bold" label={t("굵게 (Ctrl+B)")} onClick={() => exec("bold")}>
           <Bold size={14} />
         </ToolButton>
@@ -337,7 +353,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
               ? (sel.anchorNode instanceof Element
                   ? sel.anchorNode
                   : sel.anchorNode.parentElement
-                )?.closest('[data-testid^="block-editable-"]')
+                )?.closest(HOST_SEL)
               : null;
             exec("unlink");
             (host as HTMLElement | null)?.dispatchEvent(
@@ -354,7 +370,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         >
           <Palette size={14} />
         </ToolButton>
-        <ToolButton
+        {!state.inCell && <ToolButton
           testid="format-comment"
           label={t("댓글")}
           onClick={() => {
@@ -367,7 +383,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
           }}
         >
           <MessageSquarePlus size={14} />
-        </ToolButton>
+        </ToolButton>}
       </div>
       {colorOpen && (
         <div className="border-t border-neutral-100 p-1.5 dark:border-neutral-700">

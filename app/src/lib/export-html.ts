@@ -76,9 +76,12 @@ export function blocksToHtml(title: string, blocksIn: ExportBlock[]): string {
               .map(
                 (r, ri) =>
                   `<tr>${r
-                    .map((c) =>
-                      t.headerRow && ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`
-                    )
+                    .map((c, ci) => {
+ // a cell edited since inline formatting arrived carries its own html
+                      const rich = t.html?.[ri]?.[ci];
+                      const inner = rich || esc(c); // html is sanitized at write time, like inline()
+                      return t.headerRow && ri === 0 ? `<th>${inner}</th>` : `<td>${inner}</td>`;
+                    })
                     .join("")}</tr>`
               )
               .join("");
