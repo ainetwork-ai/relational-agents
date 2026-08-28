@@ -5,6 +5,7 @@ import { MessageSquare, X, Check, CornerDownRight } from "lucide-react";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { useT } from "@/i18n/provider";
+import { useImeGuard } from "@/hooks/use-ime-guard";
 
 /** R016–R018 — comments. A thread opens in a side panel anchored
  * to its block (or the page-level discussion), shows the root + threaded
@@ -90,6 +91,7 @@ function ThreadCard({
   const setResolved = useCommentsStore((s) => s.setResolved);
   const reply = useCommentsStore((s) => s.reply);
   const [draft, setDraft] = useState("");
+  const ime = useImeGuard();
 
   async function submitReply() {
     const body = draft.trim();
@@ -144,11 +146,11 @@ function ThreadCard({
           data-testid={`comment-reply-input-${root.id}`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          {...ime.imeProps}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void submitReply();
-            }
+            if (e.key !== "Enter" || ime.composing(e)) return;
+            e.preventDefault();
+            void submitReply();
           }}
           placeholder={t("답글…")}
           className="min-w-0 flex-1 rounded border border-neutral-300 bg-transparent px-2 py-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"
@@ -197,6 +199,7 @@ function NewComment({ pageId, anchor }: { pageId: string; anchor: string }) {
   const t = useT();
   const add = useCommentsStore((s) => s.add);
   const [draft, setDraft] = useState("");
+  const ime = useImeGuard();
 
   async function submit() {
     const body = draft.trim();
@@ -211,11 +214,11 @@ function NewComment({ pageId, anchor }: { pageId: string; anchor: string }) {
         data-testid="comment-input"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        {...ime.imeProps}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void submit();
-          }
+          if (e.key !== "Enter" || ime.composing(e)) return;
+          e.preventDefault();
+          void submit();
         }}
         placeholder={t("댓글 추가…")}
         className="flex-1 rounded-md border border-neutral-300 bg-transparent px-3 py-1.5 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"

@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { useMe } from "@/stores/me";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useT, useIntlLocale } from "@/i18n/provider";
+import { useImeGuard } from "@/hooks/use-ime-guard";
 
 /**
  * One comment, and the row of them — the shape the original uses in BOTH
@@ -83,6 +84,7 @@ export function CommentComposer({
   const me = useMe();
   const add = useCommentsStore((s) => s.add);
   const [draft, setDraft] = useState("");
+  const ime = useImeGuard();
 
   async function submit() {
     const body = draft.trim();
@@ -99,11 +101,14 @@ export function CommentComposer({
         value={draft}
         autoFocus={autoFocus}
         onChange={(e) => setDraft(e.target.value)}
+        {...ime.imeProps}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void submit();
-          }
+          if (e.key !== "Enter") return;
+         // Enter that is settling a Korean syllable is not a send — without
+         // this the same keypress posted the text and then its last letter
+          if (ime.composing(e)) return;
+          e.preventDefault();
+          void submit();
         }}
         placeholder={t("댓글 추가")}
        // 2.5px of its own padding, so the BOX starts at 29.5 and the text at
