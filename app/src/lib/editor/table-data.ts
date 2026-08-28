@@ -107,6 +107,24 @@ export function cellField(table: TableData, field: CellField, r: number, c: numb
   return v && v !== "default" ? v : "";
 }
 
+/** Write `value` into every cell — what the block handle's menu does, since it
+ * has no row or column in hand. */
+export function setAll(table: TableData, field: CellField, value: string): TableData {
+  return { ...table, [field]: table.cells.map((row) => row.map(() => value)) };
+}
+
+/** The value `field` has in every cell, or null when they disagree. */
+export function uniformField(table: TableData, field: CellField): string | null {
+  let seen: string | null = null;
+  for (let r = 0; r < table.cells.length; r++)
+    for (let c = 0; c < table.cells[r].length; c++) {
+      const v = table[field]?.[r]?.[c] || "default";
+      if (seen == null) seen = v;
+      else if (seen !== v) return null;
+    }
+  return seen ?? "default";
+}
+
 /** Write `value` across a whole row or column, leaving the rest as it was. */
 export function setLine(
   table: TableData,
