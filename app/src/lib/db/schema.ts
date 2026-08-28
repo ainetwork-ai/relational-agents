@@ -169,6 +169,9 @@ export interface TableData {
    * The row and column menus write a whole line at once, as the original does. */
   color?: string[][];
   bg?: string[][];
+  /** per-cell text alignment ("center" / "right"; absent = left). Ours, not
+   * the original's — Notion's simple table has no alignment at all. */
+  align?: string[][];
   headerRow?: boolean;
   headerCol?: boolean;
 }

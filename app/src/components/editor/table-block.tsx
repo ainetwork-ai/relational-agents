@@ -11,6 +11,7 @@ import { useAnchored } from "@/hooks/use-anchored";
 import type { TableData } from "@/lib/db/schema";
 import { sanitizeInline } from "@/lib/rich-text";
 import { caretOffset, caretOnEdgeLine, caretRect, setCaret, setCaretAtX } from "@/lib/editor/caret";
+import { alignClass, cellField, setLine, type CellField } from "@/lib/editor/table-data";
 import { useT } from "@/i18n/provider";
 import { useEditor, type EBlock } from "./block-editor";
 
@@ -261,13 +262,9 @@ export function TableBlock({ block }: { block: EBlock }) {
     commit({ ...table, cells: cells.map(put), html: table.html?.map(put) });
   }
 
-  /** paint a text colour / background over a whole row or column */
-  function colorLine(kind: GripKind, i: number, which: "color" | "bg", value: CellColor) {
-    const grid = cells.map((row, r) => row.map((_, c) => table[which]?.[r]?.[c] ?? "default"));
-    for (let r = 0; r < nRows; r++)
-      for (let c = 0; c < nCols; c++)
-        if (kind === "row" ? r === i : c === i) grid[r][c] = value;
-    commit({ ...table, [which]: grid });
+  /** write one per-cell field (colour, background, alignment) across a line */
+  function setLineField(kind: GripKind, i: number, field: CellField, value: string) {
+    commit(setLine(table, field, kind, i, value));
   }
 
   /** blank every cell of a row / column (the menu's "콘텐츠 삭제") */
@@ -578,15 +575,8 @@ export function TableBlock({ block }: { block: EBlock }) {
   useDismiss(!!range && !gripMenu, dropRange, wrapRef);
 
   const sel = range ? normalize(range) : null;
-  /** palette name for a cell, or "" for the default */
-  const cellBg = (r: number, c: number) => {
-    const v = table.bg?.[r]?.[c];
-    return v && v !== "default" ? v : "";
-  };
-  const cellColor = (r: number, c: number) => {
-    const v = table.color?.[r]?.[c];
-    return v && v !== "default" ? v : "";
-  };
+  const cellBg = (r: number, c: number) => cellField(table, "bg", r, c);
+  const cellColor = (r: number, c: number) => cellField(table, "color", r, c);
 
   /** grip lines are lit for the pointer's row+column, and for every row and
    * column a cell selection covers (measured: the original lights all of them) */
@@ -942,7 +932,7 @@ export function TableBlock({ block }: { block: EBlock }) {
           onColor={(which, value) => {
             const { kind, i } = gripMenu;
             setGripMenu(null);
-            colorLine(kind, i, which, value);
+            setLineField(kind, i, which, value);
           }}
           onAction={(action) => {
             const { kind, i } = gripMenu;
