@@ -165,6 +165,10 @@ export interface TableData {
   /** per-cell sanitized inline HTML, mirroring a block's content.text/html
    * pair — present only for cells edited since formatting arrived. */
   html?: string[][];
+  /** per-cell text colour / background, by palette name ("gray", "blue", …).
+   * The row and column menus write a whole line at once, as the original does. */
+  color?: string[][];
+  bg?: string[][];
   headerRow?: boolean;
   headerCol?: boolean;
 }

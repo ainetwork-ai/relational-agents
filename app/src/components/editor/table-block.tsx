@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import {
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, CircleX, Copy, Palette, Plus, Table2, Trash2,
+} from "lucide-react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import type { TableData } from "@/lib/db/schema";
@@ -71,6 +73,42 @@ const DOTS_PATH =
 
 type GripKind = "col" | "row";
 type Grip = { kind: GripKind; i: number };
+
+/** The grip dropdown, measured — fixtures/notion-table-grip.json §menu. */
+const MENU = {
+  width: 265,
+  radius: 10,
+  shadow:
+    "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+  listPad: 4,
+  itemW: 257,
+  itemH: 28,
+  itemGap: 1,
+  itemRadius: 6,
+  itemPadX: 8,
+  iconBox: 20,
+  iconGap: 8,
+  hoverBg: "rgba(33, 27, 23, 0.05)",
+  searchPad: "8px 4px 4px",
+  searchRowH: 36,
+  switchW: 30,
+  switchH: 18,
+  switchKnob: 14,
+  switchOff: "rgba(135, 131, 120, 0.3)",
+  subWidth: 220,
+  subItemW: 212,
+  subSwatch: 26,
+} as const;
+
+/** Cell colours. The names and the ten-swatch layout are the original's; the
+ * values reuse this app's own Notion palette (globals.css .c-* / .hl-*) so a
+ * cell colour survives dark mode like every other coloured text here. */
+const CELL_COLORS = ["default", "gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
+type CellColor = (typeof CELL_COLORS)[number];
+const COLOR_KO: Record<CellColor, string> = {
+  default: "기본", gray: "회색", brown: "갈색", orange: "주황색", yellow: "노란색",
+  green: "초록색", blue: "파란색", purple: "보라색", pink: "분홍색", red: "빨간색",
+};
 
 type Cell = { r: number; c: number };
 /** anchor + focus cell, like a text selection's two ends. `kind` remembers how
@@ -220,6 +258,15 @@ export function TableBlock({ block }: { block: EBlock }) {
     };
     setRange(null);
     commit({ ...table, cells: cells.map(put), html: table.html?.map(put) });
+  }
+
+  /** paint a text colour / background over a whole row or column */
+  function colorLine(kind: GripKind, i: number, which: "color" | "bg", value: CellColor) {
+    const grid = cells.map((row, r) => row.map((_, c) => table[which]?.[r]?.[c] ?? "default"));
+    for (let r = 0; r < nRows; r++)
+      for (let c = 0; c < nCols; c++)
+        if (kind === "row" ? r === i : c === i) grid[r][c] = value;
+    commit({ ...table, [which]: grid });
   }
 
   /** blank every cell of a row / column (the menu's "콘텐츠 삭제") */
@@ -530,6 +577,15 @@ export function TableBlock({ block }: { block: EBlock }) {
   useDismiss(!!range && !gripMenu, dropRange, wrapRef);
 
   const sel = range ? normalize(range) : null;
+  /** palette name for a cell, or "" for the default */
+  const cellBg = (r: number, c: number) => {
+    const v = table.bg?.[r]?.[c];
+    return v && v !== "default" ? v : "";
+  };
+  const cellColor = (r: number, c: number) => {
+    const v = table.color?.[r]?.[c];
+    return v && v !== "default" ? v : "";
+  };
 
   /** grip lines are lit for the pointer's row+column, and for every row and
    * column a cell selection covers (measured: the original lights all of them) */
@@ -710,12 +766,13 @@ export function TableBlock({ block }: { block: EBlock }) {
                     (!!table.headerRow && r === 0) || (!!table.headerCol && c === 0)
                       ? "bg-neutral-50 font-medium dark:bg-neutral-800/60"
                       : ""
-                  }`}
+                  } ${cellBg(r, c) ? `hl-${cellBg(r, c)}` : ""}`}
                 >
                   <Cell
                     testid={`table-cell-${block.id}-${r}-${c}`}
                     value={value}
                     html={table.html?.[r]?.[c]}
+                    color={cellColor(r, c)}
                     version={block.version}
                     register={(el) => {
                       if (el) cellEls.current.set(key(r, c), el);
@@ -873,9 +930,15 @@ export function TableBlock({ block }: { block: EBlock }) {
           headerRow={!!table.headerRow}
           canDelete={gripMenu.kind === "col" ? nCols > 1 : nRows > 1}
           onClose={() => setGripMenu(null)}
-          onAction={(action) => {
+          onColor={(which, value) => {
             const { kind, i } = gripMenu;
             setGripMenu(null);
+            colorLine(kind, i, which, value);
+          }}
+          onAction={(action) => {
+            const { kind, i } = gripMenu;
+ // the original keeps the dropdown open while the header switch flips
+            if (action !== "header") setGripMenu(null);
             const col = kind === "col";
             if (action === "header") commit({ ...table, headerRow: !table.headerRow });
             else if (action === "before") { if (col) insertCol(i); else insertRow(i); }
@@ -984,8 +1047,13 @@ function TableGrip({
 
 type GripAction = "header" | "before" | "after" | "duplicate" | "clear" | "delete";
 
-/** The grip's dropdown. Item metrics are the measured ones: 265 wide, rows 28
- * high on a 29 pitch, 6px corners, search field on top. */
+/**
+ * The grip's dropdown, built to the measured original: a 265-wide panel with
+ * 10px corners and a three-layer shadow, a search field on top, then 28-high
+ * rows on a 29 pitch — 20px icon at 8, label at 36, and the row's accessory
+ * (the header switch, `색`'s chevron, `복제`'s ⌘D) 8px in from the right.
+ * Toggling the header row leaves the menu open; every other row closes it.
+ */
 function GripMenu({
   blockId,
   grip,
@@ -993,6 +1061,7 @@ function GripMenu({
   canDelete,
   onClose,
   onAction,
+  onColor,
 }: {
   blockId: string;
   grip: Grip;
@@ -1000,71 +1069,204 @@ function GripMenu({
   canDelete: boolean;
   onClose: () => void;
   onAction: (a: GripAction) => void;
+  onColor: (which: "color" | "bg", value: CellColor) => void;
 }) {
   const t = useT();
   const panel = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
+  const [colorOpen, setColorOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => search.current?.focus());
-    return () => cancelAnimationFrame(id);
-  }, []);
   useEffect(() => {
     anchor.current = document.querySelector(
       `[data-testid="table-grip-${grip.kind}-${blockId}-${grip.i}"]`
     ) as HTMLElement | null;
   }, [blockId, grip.kind, grip.i]);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => search.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, []);
   useAnchored(true, anchor, panel);
   useDismiss(true, onClose, panel);
 
   const col = grip.kind === "col";
-  const items: Array<{ key: GripAction; label: string; shortcut?: string; on?: boolean; danger?: boolean }> = [
-    { key: "header", label: t("제목 행"), on: headerRow },
-    { key: "before", label: col ? t("왼쪽에 삽입") : t("위에 삽입") },
-    { key: "after", label: col ? t("오른쪽에 삽입") : t("아래에 삽입") },
-    { key: "duplicate", label: t("복제"), shortcut: "⌘D" },
-    { key: "clear", label: t("콘텐츠 삭제") },
-    ...(canDelete ? [{ key: "delete" as GripAction, label: t("삭제") }] : []),
+  const items: Array<{
+    key: GripAction | "color";
+    label: string;
+    Icon: typeof Table2;
+    shortcut?: string;
+    toggle?: boolean;
+    submenu?: boolean;
+  }> = [
+    { key: "header", label: t("제목 행"), Icon: Table2, toggle: true },
+    { key: "color", label: t("색"), Icon: Palette, submenu: true },
+    { key: "before", label: col ? t("왼쪽에 삽입") : t("위에 삽입"), Icon: col ? ArrowLeft : ArrowUp },
+    { key: "after", label: col ? t("오른쪽에 삽입") : t("아래에 삽입"), Icon: col ? ArrowRight : ArrowDown },
+    { key: "duplicate", label: t("복제"), Icon: Copy, shortcut: "⌘D" },
+    { key: "clear", label: t("콘텐츠 삭제"), Icon: CircleX },
+    ...(canDelete ? [{ key: "delete" as GripAction, label: t("삭제"), Icon: Trash2 }] : []),
   ];
-  const shown = query
-    ? items.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()))
-    : items;
+  const shown = query ? items.filter((i) => i.label.includes(query)) : items;
 
   return createPortal(
     <div
       ref={panel}
       data-testid={`table-grip-menu-${blockId}`}
-      style={{ visibility: "hidden", width: 265 }}
-      className="popover-anim fixed z-50 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+      style={{
+        visibility: "hidden",
+        width: MENU.width,
+        borderRadius: MENU.radius,
+        boxShadow: MENU.shadow,
+      }}
+      className="popover-anim fixed z-50 bg-white dark:bg-neutral-800"
     >
-      <div className="px-2 pb-1 pt-1">
-        <input
-          ref={search}
-          data-testid={`table-grip-menu-search-${blockId}`}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("작업을 검색하세요")}
-          className="h-5 w-full bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100"
-        />
-      </div>
-      {shown.map((item) => (
-        <button
-          key={item.key}
-          data-testid={`table-grip-menu-item-${item.key}`}
-          onClick={() => onAction(item.key)}
-          className="mx-1 flex h-7 items-center justify-between rounded-md px-2 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-          style={{ width: 257 }}
+      <div style={{ padding: MENU.searchPad }}>
+        <div
+          style={{ height: MENU.searchRowH, padding: "4px 8px" }}
+          className="flex items-center"
         >
-          <span>{item.label}</span>
-          {item.shortcut && <span className="text-xs text-neutral-400">{item.shortcut}</span>}
-          {item.on != null && (
-            <span className="text-xs text-neutral-400">{item.on ? t("켜짐") : ""}</span>
-          )}
-        </button>
-      ))}
+          <input
+            ref={search}
+            data-testid={`table-grip-menu-search-${blockId}`}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("작업을 검색하세요")}
+ // the app's global :focus-visible ring would draw a box the original has not
+            style={{ fontSize: 14, outline: "none" }}
+            className="w-full bg-transparent text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100"
+          />
+        </div>
+      </div>
+      <div
+        role="listbox"
+        style={{ padding: MENU.listPad, display: "flex", flexDirection: "column", gap: MENU.itemGap }}
+      >
+        {shown.map((item) => (
+          <div key={item.key} className="relative">
+            <button
+              role="option"
+              aria-selected={item.key === "header" ? headerRow : undefined}
+              data-testid={`table-grip-menu-item-${item.key}`}
+              onMouseEnter={() => setColorOpen(item.key === "color")}
+              onClick={() => {
+                if (item.key === "color") setColorOpen(true);
+                else onAction(item.key as GripAction);
+              }}
+              style={{
+                width: MENU.itemW,
+                height: MENU.itemH,
+                borderRadius: MENU.itemRadius,
+                padding: `0 ${MENU.itemPadX}px`,
+                gap: MENU.iconGap,
+              }}
+              className="flex items-center text-left text-neutral-800 hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-100 dark:hover:bg-neutral-700"
+            >
+              <item.Icon size={MENU.iconBox} className="shrink-0 text-neutral-500 dark:text-neutral-400" />
+              <span style={{ fontSize: 14 }} className="flex-1 truncate">
+                {item.label}
+              </span>
+              {item.shortcut && (
+                <span style={{ fontSize: 12 }} className="text-neutral-400">
+                  {item.shortcut}
+                </span>
+              )}
+              {item.submenu && <ChevronRight size={16} className="text-neutral-400" />}
+              {item.toggle && (
+                <span
+                  data-testid={`table-grip-menu-switch-${blockId}`}
+                  data-on={headerRow ? "1" : "0"}
+                  style={{
+                    width: MENU.switchW,
+                    height: MENU.switchH,
+                    borderRadius: 44,
+                    background: headerRow ? SEL_COLOR : MENU.switchOff,
+                  }}
+                  className="relative shrink-0"
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: (MENU.switchH - MENU.switchKnob) / 2,
+                      left: headerRow ? MENU.switchW - MENU.switchKnob - 2 : 2,
+                      width: MENU.switchKnob,
+                      height: MENU.switchKnob,
+                      borderRadius: 44,
+                      background: "rgb(255, 255, 255)",
+                      transition: "left 0.15s ease-in-out",
+                    }}
+                  />
+                </span>
+              )}
+            </button>
+            {item.key === "color" && colorOpen && (
+              <ColorSubmenu blockId={blockId} onPick={onColor} />
+            )}
+          </div>
+        ))}
+      </div>
     </div>,
     document.body
+  );
+}
+
+/** `색`'s submenu: ten text colours then ten backgrounds, 220 wide with 26px
+ * swatches — the same two sections the original opens beside the row. */
+function ColorSubmenu({
+  blockId,
+  onPick,
+}: {
+  blockId: string;
+  onPick: (which: "color" | "bg", value: CellColor) => void;
+}) {
+  const t = useT();
+  return (
+    <div
+      data-testid={`table-grip-color-menu-${blockId}`}
+      style={{
+        width: MENU.subWidth,
+        borderRadius: MENU.radius,
+        boxShadow: MENU.shadow,
+        padding: MENU.listPad,
+        left: MENU.itemW + MENU.listPad,
+        top: -MENU.listPad,
+        maxHeight: "70vh",
+      }}
+      className="popover-anim absolute z-50 overflow-y-auto bg-white dark:bg-neutral-800"
+    >
+      {(["color", "bg"] as const).map((which) => (
+        <div key={which}>
+          <div
+            style={{ fontSize: 12, fontWeight: 500, padding: "6px 8px 4px" }}
+            className="text-neutral-500 dark:text-neutral-400"
+          >
+            {which === "color" ? t("텍스트 색상") : t("배경 색상")}
+          </div>
+          {CELL_COLORS.map((name) => (
+            <button
+              key={name}
+              data-testid={`table-grip-color-${which}-${name}`}
+              onClick={() => onPick(which, name)}
+              style={{ width: MENU.subItemW, height: MENU.itemH, borderRadius: MENU.itemRadius, padding: `0 ${MENU.itemPadX}px`, gap: MENU.iconGap }}
+              className="flex items-center text-left hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-neutral-700"
+            >
+              <span
+                style={{ width: MENU.subSwatch, height: MENU.subSwatch, borderRadius: MENU.itemRadius, fontSize: 16, fontWeight: 500 }}
+                className={`flex shrink-0 items-center justify-center border border-neutral-200 dark:border-neutral-600 ${
+                  which === "color"
+                    ? name === "default" ? "text-neutral-800 dark:text-neutral-100" : `c-${name}`
+                    : name === "default" ? "" : `hl-${name}`
+                }`}
+              >
+                {which === "color" ? "A" : ""}
+              </span>
+              <span style={{ fontSize: 14 }} className="flex-1 truncate text-neutral-800 dark:text-neutral-100">
+                {t(COLOR_KO[name])} {which === "color" ? t("텍스트") : t("배경")}
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1072,6 +1274,7 @@ function Cell({
   testid,
   value,
   html,
+  color,
   version,
   register,
   onChange,
@@ -1083,6 +1286,7 @@ function Cell({
   testid: string;
   value: string;
   html?: string;
+  color?: string;
   version: number;
   register: (el: HTMLDivElement | null) => void;
   onChange: (text: string, html: string) => void;
@@ -1153,7 +1357,9 @@ function Cell({
           onChange(raw, safe);
         }}
         onKeyDown={onKeyDownCell}
-        className="min-h-[2rem] whitespace-pre-wrap px-2 py-1 text-sm text-neutral-800 outline-none dark:text-neutral-200"
+        className={`min-h-[2rem] whitespace-pre-wrap px-2 py-1 text-sm outline-none ${
+          color ? `c-${color}` : "text-neutral-800 dark:text-neutral-200"
+        }`}
       />
   );
 }

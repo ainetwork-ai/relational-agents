@@ -82,12 +82,40 @@ const menu = () => page.evaluate((tid) => {
   const p = document.querySelector(`[data-testid="table-grip-menu-${tid}"]`);
   if (!p) return null;
   const b = p.getBoundingClientRect();
+  const ps = getComputedStyle(p);
   const items = [...p.querySelectorAll('[data-testid^="table-grip-menu-item-"]')].map((e) => {
     const r = e.getBoundingClientRect(); const s = getComputedStyle(e);
-    return { label: e.innerText.split("\n")[0].trim(), w: +r.width.toFixed(1), h: +r.height.toFixed(1), radius: s.borderTopLeftRadius, y: +r.y.toFixed(1) };
+    const icon = e.querySelector("svg");
+    const label = [...e.querySelectorAll("span")].find((n) => n.textContent.trim() && !n.dataset.testid);
+    const short = [...e.querySelectorAll("span")].find((n) => /⌘/.test(n.textContent));
+    const chev = [...e.querySelectorAll("svg")][1];
+    const sw = e.querySelector(`[data-testid^="table-grip-menu-switch-"]`);
+    const box = (n) => { if (!n) return null; const q = n.getBoundingClientRect(); const cs = getComputedStyle(n);
+      return { x: +q.x.toFixed(1), y: +q.y.toFixed(1), w: +q.width.toFixed(1), h: +q.height.toFixed(1), fs: cs.fontSize, color: cs.color, bg: cs.backgroundColor, radius: cs.borderTopLeftRadius }; };
+    return { label: e.innerText.split("\n")[0].trim(), x: +r.x.toFixed(1), w: +r.width.toFixed(1), h: +r.height.toFixed(1), radius: s.borderTopLeftRadius, y: +r.y.toFixed(1),
+      icon: box(icon), lbl: box(label), short: box(short), chev: box(chev),
+      sw: sw ? { ...box(sw), on: sw.getAttribute("data-on"), knob: box(sw.firstElementChild) } : null };
   });
   const input = p.querySelector("input");
-  return { w: +b.width.toFixed(1), items, search: input ? { ph: input.placeholder } : null };
+  const inputBox = input ? { ...(() => { const q = input.getBoundingClientRect(); const cs = getComputedStyle(input); return { fs: cs.fontSize, y: +q.y.toFixed(1) }; })(), ph: input.placeholder } : null;
+  const list = p.querySelector('[role="listbox"]');
+  const sub = document.querySelector(`[data-testid="table-grip-color-menu-${tid}"]`);
+  const subInfo = sub ? (() => {
+    const sb = sub.getBoundingClientRect(); const ss = getComputedStyle(sub);
+    const rows = [...sub.querySelectorAll('[data-testid^="table-grip-color-"]')].map((e) => {
+      const q = e.getBoundingClientRect(); const swn = e.firstElementChild; const sq = swn.getBoundingClientRect();
+      const lab = e.lastElementChild;
+      return { id: e.getAttribute("data-testid").replace(`table-grip-color-`, ""), w: +q.width.toFixed(1), h: +q.height.toFixed(1), y: +q.y.toFixed(1),
+        swatch: { w: +sq.width.toFixed(1), h: +sq.height.toFixed(1), radius: getComputedStyle(swn).borderTopLeftRadius, color: getComputedStyle(swn).color, bg: getComputedStyle(swn).backgroundColor },
+        labelDx: +(lab.getBoundingClientRect().x - q.x).toFixed(1) };
+    });
+    const heads = [...sub.children].flatMap((sec) => [...sec.children]).filter((e) => !e.getAttribute("data-testid")).map((e) => {
+      const cs = getComputedStyle(e); return { txt: e.textContent.trim(), fs: cs.fontSize, fw: cs.fontWeight };
+    });
+    return { w: +sb.width.toFixed(1), radius: ss.borderTopLeftRadius, rows, heads };
+  })() : null;
+  return { w: +b.width.toFixed(1), radius: ps.borderTopLeftRadius, shadow: ps.boxShadow, bg: ps.backgroundColor,
+    items, search: inputBox, listPad: list ? getComputedStyle(list).padding : null, gap: list ? getComputedStyle(list).gap : null, sub: subInfo };
 }, tableId);
 const selRange = () => page.evaluate((tid) => document.querySelector(`[data-testid="table-selection-${tid}"]`)?.getAttribute("data-range") ?? null, tableId);
 const clearAll = async () => {
@@ -160,16 +188,109 @@ const clearAll = async () => {
   if (!m) fails.push("클릭: 드롭다운 없음"), checks++;
   else {
     eq("메뉴 폭", m.w, G.menu.width);
+    eq("메뉴 라운드", m.radius, `${G.menu.radius}px`);
+    eq("메뉴 그림자", m.shadow, G.menu.shadow);
+    eq("메뉴 배경", m.bg, G.menu.bg);
     eq("메뉴 검색창", m.search?.ph, G.menu.search.placeholder);
-    eq("메뉴 항목(열)", m.items.map((i) => i.label), G.menu.col.filter((l) => l !== "색"));
+    eq("검색창 글자 크기", m.search?.fs, G.menu.searchArea.inputFontSize);
+    eq("목록 패딩", m.listPad, `${G.menu.listPad}px`);
+    eq("항목 간격", m.gap, `${G.menu.itemGap}px`);
+    eq("메뉴 항목(열)", m.items.map((i) => i.label), G.menu.col);
     eq("항목 폭", m.items[0].w, G.menu.itemWidth);
     eq("항목 높이", m.items[0].h, G.menu.itemHeight);
     eq("항목 라운드", m.items[0].radius, `${G.menu.itemRadius}px`);
     eq("항목 pitch", m.items[1].y - m.items[0].y, G.menu.itemPitch);
+ // 아이콘 20 at +8, 라벨 at +36
+    const it = m.items[2];
+    eq("아이콘 크기", `${it.icon.w}x${it.icon.h}`, `${G.menu.item.iconBox}x${G.menu.item.iconBox}`);
+    eq("아이콘 x", it.icon.x - it.x, G.menu.item.iconDx);
+    eq("라벨 x", it.lbl.x - it.x, G.menu.item.labelDx);
+    eq("라벨 글자 크기", it.lbl.fs, G.menu.item.labelFontSize);
+ // ⌘D · 색의 화살표 · 제목 행의 스위치
+    const dup = m.items.find((i) => i.label === "복제");
+    eq("⌘D 글자 크기", dup.short.fs, G.menu.shortcut.fontSize);
+    eq("⌘D 오른쪽 여백", dup.x + dup.w - (dup.short.x + dup.short.w), G.menu.item.accessoryInset);
+    const colorItem = m.items.find((i) => i.label === "색");
+    eq("색 화살표 크기", colorItem.chev.w, G.menu.chevron.size);
+    const hdr = m.items[0];
+    eq("스위치 크기", `${hdr.sw.w}x${hdr.sw.h}`, `${G.menu.switch.w}x${G.menu.switch.h}`);
+    eq("스위치 꺼짐 색", hdr.sw.bg, G.menu.switch.off);
+    eq("스위치 손잡이", `${hdr.sw.knob.w}x${hdr.sw.knob.h}`, `${G.menu.switch.knob}x${G.menu.switch.knob}`);
+    eq("스위치 오른쪽 여백", hdr.x + hdr.w - (hdr.sw.x + hdr.sw.w), G.menu.item.accessoryInset);
   }
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
   eq("Escape 로 메뉴 닫힘", await menu(), null);
+}
+
+// ── 3b. `색` 서브메뉴 ───────────────────────────────────────────
+{
+  await clearAll();
+  await cell(0, 1).hover();
+  await page.locator(gripSel("col", 1)).hover();
+  await page.waitForTimeout(120);
+  await page.locator(gripSel("col", 1)).click();
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="table-grip-menu-item-color"]').hover();
+  await page.waitForTimeout(300);
+  const m = await menu();
+  const S = G.colorSubmenu;
+  if (!m?.sub) fails.push("색 서브메뉴: 안 열림"), checks++;
+  else {
+    eq("서브 폭", m.sub.w, S.width);
+    eq("서브 라운드", m.sub.radius, `${S.radius}px`);
+    eq("서브 섹션", m.sub.heads.map((h) => h.txt), S.sections);
+    eq("섹션 머리 글자", m.sub.heads[0].fs, S.sectionHeader.fontSize);
+    eq("섹션 머리 굵기", m.sub.heads[0].fw, S.sectionHeader.weight);
+    eq("색 개수", m.sub.rows.length, S.names.length * 2, 0);
+    const first = m.sub.rows[0];
+    eq("색 항목 폭", first.w, S.itemW);
+    eq("색 항목 높이", first.h, S.itemH);
+    eq("스와치 크기", `${first.swatch.w}x${first.swatch.h}`, `${S.swatch.size}x${S.swatch.size}`);
+    eq("스와치 라운드", first.swatch.radius, `${S.swatch.radius}px`);
+    eq("색 라벨 x", first.labelDx, S.labelDx);
+    eq("색 항목 pitch", m.sub.rows[1].y - m.sub.rows[0].y, S.pitch);
+  }
+ // 파란 배경을 골라 열 전체에 칠해진다
+  await page.locator('[data-testid="table-grip-color-bg-blue"]').click();
+  await page.waitForTimeout(500);
+  const painted = await page.evaluate((tid) => [0, 1, 2].map((r) => {
+    const w = document.querySelector(`[data-testid="table-cell-${tid}-${r}-1"]`).parentElement;
+    return { cls: w.className.includes("hl-blue"), bg: getComputedStyle(w).backgroundColor };
+  }), tableId);
+  eq("배경색: 열 전체에 칠해짐", painted.every((p) => p.cls), true);
+  eq("배경색: 다른 열은 그대로", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId), G.noCellFill.cellBackground);
+ // 되돌린다
+  await clearAll();
+  await cell(0, 1).hover();
+  await page.locator(gripSel("col", 1)).hover();
+  await page.waitForTimeout(120);
+  await page.locator(gripSel("col", 1)).click();
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="table-grip-menu-item-color"]').hover();
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="table-grip-color-bg-default"]').click();
+  await page.waitForTimeout(400);
+}
+
+// ── 3c. 제목 행 스위치는 메뉴를 닫지 않는다 ──────────────────────
+{
+  await clearAll();
+  await cell(0, 0).hover();
+  await page.locator(gripSel("col", 0)).hover();
+  await page.waitForTimeout(120);
+  await page.locator(gripSel("col", 0)).click();
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
+  await page.waitForTimeout(300);
+  const m = await menu();
+  eq("제목 행 토글 후에도 메뉴 열림", !!m, G.menu.switch.keepsMenuOpen);
+  eq("스위치 켜짐 색", m?.items[0].sw.bg, G.menu.switch.on);
+  eq("첫 행이 제목 행이 된다", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).fontWeight, tableId), "500");
+  await page.locator('[data-testid="table-grip-menu-item-header"]').click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
 }
 
 // ── 4. 행 그립 메뉴 ─────────────────────────────────────────────
@@ -182,7 +303,7 @@ const clearAll = async () => {
   await page.waitForTimeout(300);
   eq("클릭: 행 전체 선택", await selRange(), `1,0,1,${CELLS[0].length - 1}`);
   const m = await menu();
-  eq("메뉴 항목(행)", m?.items.map((i) => i.label), G.menu.row.filter((l) => l !== "색"));
+  eq("메뉴 항목(행)", m?.items.map((i) => i.label), G.menu.row);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
 }
