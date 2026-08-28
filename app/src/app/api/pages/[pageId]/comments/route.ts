@@ -15,6 +15,24 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const MAX_ATTACHMENTS = 8;
+const MAX_ATTACHMENT_NAME = 200;
+
+/** Only same-origin /uploads/* paths from the upload API are allowed (blocks
+ *  external/scheme injection) — the same rule DM messages use. */
+function parseAttachments(raw: unknown): { url: string; name: string }[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) return null;
+  const out: { url: string; name: string }[] = [];
+  for (const item of raw) {
+    const url = (item as { url?: unknown })?.url;
+    const name = (item as { name?: unknown })?.name;
+    if (typeof url !== "string" || !/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return null;
+    out.push({ url, name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file" });
+  }
+  return out;
+}
+
 async function loadAccessiblePage(pageId: string, userId: string) {
   if (isOkfId(pageId)) return null; // file-backed page: no SQL comment thread
   const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
@@ -86,7 +104,7 @@ export async function GET(
   return NextResponse.json({ comments: result });
 }
 
-/** POST { body, blockId? } → create a comment (blockId null = page thread). */
+/** POST { body, blockId?, attachments? } → create a comment (blockId null = page thread). */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }
@@ -125,7 +143,12 @@ export async function POST(
   const body = typeof raw?.body === "string" ? raw.body.trim() : "";
   const blockId = typeof raw?.blockId === "string" ? raw.blockId : null;
   const parentId = typeof raw?.parentId === "string" ? raw.parentId : null;
-  if (!body) return NextResponse.json({ error: "Empty body" }, { status: 400 });
+  const attachments = parseAttachments(raw?.attachments);
+  if (attachments === null)
+    return NextResponse.json({ error: "Bad attachments" }, { status: 400 });
+ // a comment may be nothing but files — the clip alone is a valid comment
+  if (!body && !attachments.length)
+    return NextResponse.json({ error: "Empty body" }, { status: 400 });
 
  // Snapshot who has already commented (page participants) before we add ours.
   const priorAuthors = await db
@@ -135,7 +158,7 @@ export async function POST(
 
   const [comment] = await db
     .insert(comments)
-    .values({ pageId, blockId, parentId, authorId: access.user.id, body })
+    .values({ pageId, blockId, parentId, authorId: access.user.id, body, attachments })
     .returning();
 
   if (!isOkfId(pageId))

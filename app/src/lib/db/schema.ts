@@ -648,6 +648,12 @@ export const comments = pgTable(
       .references(() => users.id)
       .notNull(),
     body: text("body").notNull(),
+ // uploaded images/files on a comment — [{url,name}], urls restricted to
+ // /uploads/*, the same shape dmMessages uses
+    attachments: jsonb("attachments")
+      .$type<{ url: string; name: string }[]>()
+      .default([])
+      .notNull(),
     resolved: boolean("resolved").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

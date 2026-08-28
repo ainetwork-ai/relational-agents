@@ -11,6 +11,8 @@ export interface PageComment {
   parentId: string | null;
   authorId: string;
   body: string;
+ // uploaded files on the comment — [{url,name}], urls are always /uploads/*
+  attachments?: { url: string; name: string }[];
   resolved: boolean;
   createdAt: string;
   author: PublicUser | null;
@@ -24,7 +26,12 @@ interface CommentsState {
   countByPage: Record<string, number>;
   load: (pageId: string) => Promise<void>;
   loadCounts: (databaseId: string) => Promise<void>;
-  add: (pageId: string, body: string, blockId?: string | null) => Promise<PageComment | null>;
+  add: (
+    pageId: string,
+    body: string,
+    blockId?: string | null,
+    attachments?: { url: string; name: string }[]
+  ) => Promise<PageComment | null>;
   reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;
   remove: (pageId: string, commentId: string) => Promise<void>;
@@ -53,11 +60,11 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     set((s) => ({ countByPage: { ...s.countByPage, ...(counts as Record<string, number>) } }));
   },
 
-  add: async (pageId, body, blockId = null) => {
+  add: async (pageId, body, blockId = null, attachments = []) => {
     const res = await fetch(`/api/pages/${pageId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body, blockId }),
+      body: JSON.stringify({ body, blockId, attachments }),
     });
     if (!res.ok) return null;
     const { comment } = await res.json();

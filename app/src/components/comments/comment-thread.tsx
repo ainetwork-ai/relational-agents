@@ -7,6 +7,7 @@ import { useMe } from "@/stores/me";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useT, useIntlLocale } from "@/i18n/provider";
 import { useImeGuard } from "@/hooks/use-ime-guard";
+import { useComposerAttachments, AttachmentsList } from "@/components/chat/composer-attachments";
 
 /**
  * One comment, and the row of them — the shape the original uses in BOTH
@@ -48,13 +49,60 @@ export function CommentRow({
         </div>
  {/* 2px above and below: the original's body element measures 24 on a
             20px line, which is what makes one comment 64 tall */}
-        <p className="whitespace-pre-wrap py-[2px] text-[14px] font-normal leading-5 text-[#2c2c2b] dark:text-neutral-200">
-          <CommentBody body={comment.body} />
-        </p>
+        {comment.body && (
+          <p className="whitespace-pre-wrap py-[2px] text-[14px] font-normal leading-5 text-[#2c2c2b] dark:text-neutral-200">
+            <CommentBody body={comment.body} />
+          </p>
+        )}
+        <CommentAttachments attachments={comment.attachments} />
       </div>
     </div>
   );
 }
+
+/**
+ * The files on a comment. An image shows itself; anything else is a line you
+ * can open. How the ORIGINAL draws an attached file is unmeasured — no comment
+ * in the workspace has one, and attaching a test file would have written to
+ * the company's real Notion.
+ */
+export function CommentAttachments({
+  attachments,
+}: {
+  attachments?: { url: string; name: string }[];
+}) {
+  if (!attachments?.length) return null;
+  return (
+    <div className="flex flex-col items-start gap-1 py-[2px]">
+      {attachments.map((a) =>
+        IMAGE.test(a.name) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={a.url}
+            src={a.url}
+            alt={a.name}
+            data-testid="comment-attachment-image"
+            className="max-h-60 max-w-full rounded-[4px] border border-[rgba(55,53,47,0.09)] object-contain dark:border-neutral-700"
+          />
+        ) : (
+          <a
+            key={a.url}
+            href={a.url}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="comment-attachment-file"
+            className="flex items-center gap-1.5 rounded-[4px] px-1 py-0.5 text-[14px] leading-5 text-[rgb(125,122,117)] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-white/10"
+          >
+            <Paperclip size={14} className="shrink-0" />
+            <span className="truncate">{a.name}</span>
+          </a>
+        )
+      )}
+    </div>
+  );
+}
+
+const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg|bmp)$/i;
 
 /**
  * A mention inside a comment. The original does NOT draw a chip: no
@@ -96,16 +144,27 @@ export function CommentComposer({
   const add = useCommentsStore((s) => s.add);
   const [draft, setDraft] = useState("");
   const ime = useImeGuard();
+ // the clip: same upload path the chat composer uses (/api/upload → chips)
+  const attach = useComposerAttachments();
 
   async function submit() {
     const body = draft.trim();
-    if (!body) return;
+ // files alone are a comment — the original lets you send with nothing typed
+    if (!body && !attach.attachments.length) return;
+    const files = attach.attachments.map((a) => ({ url: a.url, name: a.name }));
     setDraft("");
-    await add(pageId, body, blockId);
+    attach.clear();
+    await add(pageId, body, blockId, files);
   }
 
   return (
-    <div className="flex items-center">
+    <div>
+      <AttachmentsList
+        attachments={attach.attachments}
+        error={attach.error}
+        onRemove={attach.removeAttachment}
+      />
+      <div className="flex items-center">
       <UserAvatar user={me ?? { displayName: "" }} size={24} />
       <input
         data-testid="comment-composer-input"
@@ -127,9 +186,20 @@ export function CommentComposer({
         className="ml-[5.5px] min-w-0 flex-1 bg-transparent p-[2.5px] text-[14px] leading-5 text-[#2c2c2b] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
       />
       <div className="flex shrink-0 items-center gap-1.5">
-        <ComposerButton label={t("파일 첨부")}>
+        {/* the original's clip opens the OS picker straight away — no menu,
+            many files at once, no type restriction (measured: fileChooser
+            mode selectMultiple, accept null) */}
+        <ComposerButton label={t("파일 첨부")} onClick={attach.openFilePicker}>
           <Paperclip size={16} />
         </ComposerButton>
+        <input
+          ref={attach.fileInputRef}
+          type="file"
+          multiple
+          data-testid="comment-file-input"
+          onChange={attach.handleFileInputChange}
+          className="hidden"
+        />
         <ComposerButton label={t("멘션하려는 사용자, 페이지, 날짜를 입력하세요.")}>
           <AtSign size={16} />
         </ComposerButton>
@@ -137,10 +207,11 @@ export function CommentComposer({
           label={t("댓글 보내기")}
           testid="comment-composer-submit"
           onClick={() => void submit()}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() && !attach.attachments.length}
         >
           <ArrowUp size={16} />
         </ComposerButton>
+      </div>
       </div>
     </div>
   );

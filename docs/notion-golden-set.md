@@ -86,6 +86,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `ROW_PAGE_ID=… node e2e/page-comments-inline.check.mjs` | 페이지 안 `댓글` 섹션 — 안쪽 스크롤 없음, 한 칸 64, 멘션이 칩이 아님, 도킹 패널 없음 |
 | `ROW_PAGE_ID=… node e2e/comment-collapse.check.mjs` | 댓글이 4개부터 접히는 규칙 — 첫 개·마지막 개만 남고 `답글 (총−2)개 더 보기` |
 | `node e2e/ime-enter.check.mjs` | 한글 조합 중 Enter 가 댓글을 보내지 않는지 (조합 확정 후 1건) |
+| `ROW_PAGE_ID=… node e2e/comment-attachment.check.mjs` | 댓글 클립 — 다중 선택·확장자 제한 없는 선택창, 칩, 파일만으로도 전송, 저장·렌더 |
 | `node e2e/notion-paste.check.mjs` | 노션 전체 복사 → 붙여넣기 (콜아웃·토글·볼드 런·체크·중첩·저장까지) |
 | `node e2e/peek-inset.check.mjs` | 행 피크(사이드 페이지)의 폭 규칙과 콘텐츠 여백 76px |
 | `node e2e/block-spacing.check.mjs` | 기본 블록의 세로 여백(문단 6/6, H1·H2·H3 상단 30/26/22), 리스트 첫 항목 규칙, 거터(+ −52, 6점 −28, 첫 줄 중앙), 6점 클릭 하이라이트(2px inset·리스트 1px), 구분선·코드·콜아웃 구조 — 페이지를 스스로 만들어 551개 체크 |
