@@ -165,7 +165,10 @@ export function RowPropertiesPanel({
           body: JSON.stringify(patch),
         });
       },
-      deleteProperty: () => {},
+      deleteProperty: (id: string) => {
+        setProperties((prev) => prev.filter((p) => p.id !== id));
+        void fetch(`/api/databases/${ref.databaseId}/properties/${id}`, { method: "DELETE", headers });
+      },
       patchView: () => {},
       openRow: () => {},
  // this surface has no column headers to open, so the Status menu's 속성 편집
