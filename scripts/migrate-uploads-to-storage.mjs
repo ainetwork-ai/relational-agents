@@ -68,7 +68,12 @@ async function promote(ref) {
     return null;
   }
   const bytes = fs.statSync(abs).size;
-  const hash = createHash("sha256").update(fs.readFileSync(abs)).digest("hex");
+ // 스트리밍 해시 — 업로드 상한이 1GB 라 파일 하나를 통째로 메모리에 올릴 수 없다
+ // (finalize-upload.ts 와 같은 이유)
+  const hash = await new Promise((resolve, reject) => {
+    const h = createHash("sha256");
+    fs.createReadStream(abs).on("data", (c) => h.update(c)).on("error", reject).on("end", () => resolve(h.digest("hex")));
+  });
   const ext = (path.extname(abs).slice(1) || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
   const key = storage.contentKey(hash, ext);
   const already = await storage.statFile(BUCKET, key);
