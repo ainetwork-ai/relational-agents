@@ -152,6 +152,29 @@
       "independent": true,
       "itemCountWithout": 6,
       "itemCountWith": 7
+    },
+    "ours": {
+      "_": "노션 표에는 정렬이 없다 — 열 메뉴 7항목이고 메뉴 검색에 '정렬' 이 없다(측정됨). 사용자 요청으로 **일부러** 더한 항목이다. 파리티 회복이라며 지우지 말 것. 아래 measured 목록은 잰 값 그대로 두고, 대조는 measured + ours 를 조립해서 본다.",
+      "insertAfter": "색",
+      "items": [
+        "정렬"
+      ],
+      "submenu": {
+        "_": "`색` 서브메뉴와 같은 상자를 쓴다(220폭·radius 10·항목 212×28·pitch 29·미리보기 타일 26).",
+        "title": "정렬",
+        "options": [
+          "왼쪽",
+          "가운데",
+          "오른쪽"
+        ],
+        "default": "왼쪽",
+        "icons": [
+          "TextAlignStart",
+          "TextAlignCenter",
+          "TextAlignEnd"
+        ],
+        "storage": "TableData.align 셀 격자, 없으면 left. 마크다운 미러는 열 단위만 표현할 수 있어 각 열의 첫 행 값을 쓴다."
+      }
     }
   },
   "noCellFill": {

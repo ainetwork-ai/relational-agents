@@ -46,6 +46,11 @@ const eq = (label, got, want, tol = 1) => {
   const ok = typeof want === "number" && typeof got === "number" ? Math.abs(got - want) <= tol : JSON.stringify(got) === JSON.stringify(want);
   if (!ok) fails.push(`${label}: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
 };
+/** 측정된 원본 목록에 우리가 일부러 더한 항목을 끼운다 (§menu.ours) */
+const withOurs = (measured) => {
+  const at = measured.indexOf(G.menu.ours.insertAfter) + 1;
+  return [...measured.slice(0, at), ...G.menu.ours.items, ...measured.slice(at)];
+};
 const cell = (r, c) => page.locator(`[data-testid="table-cell-${tableId}-${r}-${c}"]`);
 const gripSel = (kind, i) => `[data-testid="table-grip-${kind}-${tableId}-${i}"]`;
 const litStr = async () => {
@@ -99,13 +104,13 @@ const menu = () => page.evaluate((tid) => {
   const input = p.querySelector("input");
   const inputBox = input ? { ...(() => { const q = input.getBoundingClientRect(); const cs = getComputedStyle(input); return { fs: cs.fontSize, y: +q.y.toFixed(1) }; })(), ph: input.placeholder } : null;
   const list = p.querySelector('[role="listbox"]');
-  const sub = document.querySelector(`[data-testid="table-grip-color-menu-${tid}"]`);
+  const sub = document.querySelector(`[data-testid="table-grip-color-menu-${tid}"], [data-testid="table-grip-align-menu-${tid}"]`);
   const subInfo = sub ? (() => {
     const sb = sub.getBoundingClientRect(); const ss = getComputedStyle(sub);
-    const rows = [...sub.querySelectorAll('[data-testid^="table-grip-color-"]')].map((e) => {
+    const rows = [...sub.querySelectorAll('[data-testid^="table-grip-opt-"]')].map((e) => {
       const q = e.getBoundingClientRect(); const swn = e.firstElementChild; const sq = swn.getBoundingClientRect();
       const lab = e.lastElementChild;
-      return { id: e.getAttribute("data-testid").replace(`table-grip-color-`, ""), w: +q.width.toFixed(1), h: +q.height.toFixed(1), y: +q.y.toFixed(1),
+      return { id: e.getAttribute("data-testid").replace(`table-grip-opt-`, ""), w: +q.width.toFixed(1), h: +q.height.toFixed(1), y: +q.y.toFixed(1),
         swatch: { w: +sq.width.toFixed(1), h: +sq.height.toFixed(1), radius: getComputedStyle(swn).borderTopLeftRadius, color: getComputedStyle(swn).color, bg: getComputedStyle(swn).backgroundColor },
         labelDx: +(lab.getBoundingClientRect().x - q.x).toFixed(1) };
     });
@@ -195,7 +200,7 @@ const clearAll = async () => {
     eq("검색창 글자 크기", m.search?.fs, G.menu.searchArea.inputFontSize);
     eq("목록 패딩", m.listPad, `${G.menu.listPad}px`);
     eq("항목 간격", m.gap, `${G.menu.itemGap}px`);
-    eq("메뉴 항목(열)", m.items.map((i) => i.label), G.menu.col);
+    eq("메뉴 항목(열) = 원본 + 우리 정렬", m.items.map((i) => i.label), withOurs(G.menu.col));
     eq("항목 폭", m.items[0].w, G.menu.itemWidth);
     eq("항목 높이", m.items[0].h, G.menu.itemHeight);
     eq("항목 라운드", m.items[0].radius, `${G.menu.itemRadius}px`);
@@ -252,7 +257,7 @@ const clearAll = async () => {
     eq("색 항목 pitch", m.sub.rows[1].y - m.sub.rows[0].y, S.pitch);
   }
  // 파란 배경을 골라 열 전체에 칠해진다
-  await page.locator('[data-testid="table-grip-color-bg-blue"]').click();
+  await page.locator('[data-testid="table-grip-opt-bg-blue"]').click();
   await page.waitForTimeout(500);
   const painted = await page.evaluate((tid) => [0, 1, 2].map((r) => {
     const w = document.querySelector(`[data-testid="table-cell-${tid}-${r}-1"]`).parentElement;
@@ -269,8 +274,77 @@ const clearAll = async () => {
   await page.waitForTimeout(250);
   await page.locator('[data-testid="table-grip-menu-item-color"]').hover();
   await page.waitForTimeout(250);
-  await page.locator('[data-testid="table-grip-color-bg-default"]').click();
+  await page.locator('[data-testid="table-grip-opt-bg-default"]').click();
   await page.waitForTimeout(400);
+}
+
+// ── 3d. 정렬 (원본에 없는, 우리가 더한 것 — §menu.ours) ───────────
+{
+  const O = G.menu.ours.submenu;
+  const alignOf = (r, c) => page.evaluate(({ tid, r, c }) => {
+    const el = document.querySelector(`[data-testid="table-cell-${tid}-${r}-${c}"]`);
+ // 브라우저 기본은 start/end 로 나온다 — 좌우로 정규화
+    const v = getComputedStyle(el.parentElement).textAlign;
+    return v === "start" ? "left" : v === "end" ? "right" : v;
+  }, { tid: tableId, r, c });
+  const openMenu = async (kind, i) => {
+    await clearAll();
+    await cell(kind === "col" ? 0 : i, kind === "col" ? i : 0).hover();
+    await page.locator(gripSel(kind, i)).hover();
+    await page.waitForTimeout(120);
+    await page.locator(gripSel(kind, i)).click();
+    await page.waitForTimeout(250);
+  };
+
+  await openMenu("col", 1);
+  await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
+  await page.waitForTimeout(300);
+  const m = await menu();
+  if (!m?.sub) fails.push("정렬 서브메뉴: 안 열림"), checks++;
+  else {
+    eq("정렬 서브 폭", m.sub.w, G.colorSubmenu.width);
+    eq("정렬 서브 라운드", m.sub.radius, `${G.colorSubmenu.radius}px`);
+    eq("정렬 섹션 제목", m.sub.heads.map((h) => h.txt), [O.title]);
+    eq("정렬 항목 3개", m.sub.rows.length, O.options.length, 0);
+    eq("정렬 항목 폭", m.sub.rows[0].w, G.colorSubmenu.itemW);
+    eq("정렬 항목 pitch", m.sub.rows[1].y - m.sub.rows[0].y, G.colorSubmenu.pitch);
+    eq("정렬 미리보기 타일", `${m.sub.rows[0].swatch.w}x${m.sub.rows[0].swatch.h}`, `${G.colorSubmenu.swatch.size}x${G.colorSubmenu.swatch.size}`);
+  }
+  eq("기본은 왼쪽", await alignOf(1, 1), "left");
+ // 가운데 정렬을 열1 에 적용
+  await page.locator('[data-testid="table-grip-opt-align-center"]').click();
+  await page.waitForTimeout(450);
+  eq("열 정렬: 그 열이 가운데", await Promise.all([0, 1, 2].map((r) => alignOf(r, 1))), ["center", "center", "center"]);
+  eq("열 정렬: 다른 열은 그대로", await alignOf(0, 0), "left");
+ // 행1 을 오른쪽 정렬 — 셀 격자라 열 정렬 위에 겹쳐진다
+  await openMenu("row", 1);
+  await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="table-grip-opt-align-right"]').click();
+  await page.waitForTimeout(450);
+  eq("행 정렬: 그 행이 오른쪽", await Promise.all([0, 1, 2].map((c) => alignOf(1, c))), ["right", "right", "right"]);
+  eq("행 정렬: 다른 행의 열 정렬은 유지", await alignOf(0, 1), "center");
+ // 현재 값에 체크가 붙는다
+  await openMenu("col", 1);
+  await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
+  await page.waitForTimeout(250);
+  eq("현재 값 표시", await page.evaluate(() => document.querySelector('[data-testid="table-grip-opt-align-center"]')?.getAttribute("data-on")), "1");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+ // 새로고침 후에도 남는다
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector(`[data-testid="table-cell-${tableId}-0-0"]`);
+  await page.waitForTimeout(600);
+  eq("새로고침 후에도 정렬 유지", await alignOf(0, 1), "center");
+ // 되돌린다 (뒤 섹션들이 왼쪽 정렬을 기대한다)
+  for (const [kind, i] of [["col", 1], ["row", 1]]) {
+    await openMenu(kind, i);
+    await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
+    await page.waitForTimeout(250);
+    await page.locator('[data-testid="table-grip-opt-align-left"]').click();
+    await page.waitForTimeout(400);
+  }
+  eq("왼쪽으로 되돌림", await alignOf(1, 1), "left");
 }
 
 // ── 4. 행 그립 메뉴 ─────────────────────────────────────────────
@@ -283,7 +357,7 @@ const clearAll = async () => {
   await page.waitForTimeout(300);
   eq("클릭: 행 전체 선택", await selRange(), `0,0,0,${CELLS[0].length - 1}`);
   const m = await menu();
-  eq("메뉴 항목(행)", m?.items.map((i) => i.label), G.menu.row);
+  eq("메뉴 항목(행) = 원본 + 우리 정렬", m?.items.map((i) => i.label), withOurs(G.menu.row));
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
 }
@@ -470,13 +544,13 @@ const clearAll = async () => {
 
   await open("col", 1);
   let m = await menu();
-  eq("열1 메뉴에는 제목 토글이 없다", m.items.length, H.itemCountWithout, 0);
+  eq("열1 메뉴에는 제목 토글이 없다", m.items.length, H.itemCountWithout + G.menu.ours.items.length, 0);
   eq("열1 메뉴 첫 항목", m.items[0].label, "색");
   await page.keyboard.press("Escape");
 
   await open("col", 0);
   m = await menu();
-  eq("열0 메뉴에는 제목 토글이 있다", m.items.length, H.itemCountWith, 0);
+  eq("열0 메뉴에는 제목 토글이 있다", m.items.length, H.itemCountWith + G.menu.ours.items.length, 0);
   eq("제목 토글 라벨", m.items[0].label, H.label);
   await page.locator('[data-testid="table-grip-menu-item-header"]').click();
   await page.waitForTimeout(350);

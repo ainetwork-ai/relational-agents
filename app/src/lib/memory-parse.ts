@@ -134,12 +134,23 @@ export function parseMarkdown(
     }
     if (t.startsWith("|") && t.endsWith("|")) {
       const rows: string[][] = [];
+ // the separator row carries per-column alignment (|:---:| / |---:|)
+      let colAlign: string[] | null = null;
       while (i < lines.length && lines[i].trim().startsWith("|")) {
         const cells = lines[i].trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripLinks(c.trim()));
-        if (!cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) rows.push(cells);
+        if (cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) {
+          colAlign = cells.map((c) =>
+            c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "default"
+          );
+        } else rows.push(cells);
         i++;
       }
-      if (rows.length) push("table", { table: { cells: rows, headerRow: true } });
+      if (rows.length) {
+        const align = colAlign?.some((a) => a !== "default")
+          ? rows.map((row) => row.map((_, c) => colAlign![c] ?? "default"))
+          : undefined;
+        push("table", { table: { cells: rows, headerRow: true, ...(align ? { align } : {}) } });
+      }
       continue;
     }
     if (/^#{1,6}\s/.test(t)) {

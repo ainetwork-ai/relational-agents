@@ -6,6 +6,7 @@ import { blocks, pages, workspaces } from "@/lib/db/schema";
 import type { Block, Page } from "@/lib/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { inlineHtmlToMd } from "@/lib/rich-text";
+import { columnAlign } from "@/lib/editor/table-data";
 
 /**
  * Markdown mirror — the workspace's canonical open-knowledge representation.
@@ -94,7 +95,12 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
             });
  // GFM tables require a header row; use the first row as header.
           out.push(`${indent}| ${pad(t.cells[0], 0).join(" | ")} |`);
-          out.push(`${indent}| ${Array(width).fill("---").join(" | ")} |`);
+ // markdown can only align per column, so the column's first row decides
+          const bar = Array.from({ length: width }, (_, i) => {
+            const a = columnAlign(t, i);
+            return a === "center" ? ":---:" : a === "right" ? "---:" : "---";
+          });
+          out.push(`${indent}| ${bar.join(" | ")} |`);
           for (let i = 1; i < t.cells.length; i++) {
             out.push(`${indent}| ${pad(t.cells[i], i).join(" | ")} |`);
           }

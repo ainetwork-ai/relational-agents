@@ -4,14 +4,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, CircleX, Copy, Palette, Plus, Table2, Trash2,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, CircleX, Copy, Palette, Plus, Table2,
+  Check, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2,
 } from "lucide-react";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import type { TableData } from "@/lib/db/schema";
 import { sanitizeInline } from "@/lib/rich-text";
 import { caretOffset, caretOnEdgeLine, caretRect, setCaret, setCaretAtX } from "@/lib/editor/caret";
-import { alignClass, cellField, setLine, type CellField } from "@/lib/editor/table-data";
+import { ALIGNS, alignClass, cellField, setLine, type Align, type CellField } from "@/lib/editor/table-data";
 import { useT } from "@/i18n/provider";
 import { useEditor, type EBlock } from "./block-editor";
 
@@ -757,7 +758,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                     (!!table.headerRow && r === 0) || (!!table.headerCol && c === 0)
                       ? "bg-[#f7f6f3] font-medium dark:bg-neutral-800/60"
                       : ""
-                  } ${cellBg(r, c) ? `hl-${cellBg(r, c)}` : ""}`}
+                  } ${cellBg(r, c) ? `hl-${cellBg(r, c)}` : ""} ${alignClass(table, r, c)}`}
                 >
                   <Cell
                     testid={`table-cell-${block.id}-${r}-${c}`}
@@ -879,7 +880,9 @@ export function TableBlock({ block }: { block: EBlock }) {
                 <div
                   key={k}
                   style={{ width: moving.kind === "col" ? "100%" : box.w, height: moving.kind === "col" ? box.h : "100%" }}
-                  className="overflow-hidden whitespace-pre-wrap px-2 py-1 text-sm text-neutral-800 dark:text-neutral-200"
+                  className={`overflow-hidden whitespace-pre-wrap px-2 py-1 text-sm text-neutral-800 dark:text-neutral-200 ${
+                    moving.kind === "col" ? alignClass(table, k, moving.i) : alignClass(table, moving.i, k)
+                  }`}
                   dangerouslySetInnerHTML={{
                     __html: cellHtml(
                       moving.kind === "col" ? cells[k]?.[moving.i] ?? "" : cells[moving.i]?.[k] ?? "",
@@ -933,6 +936,15 @@ export function TableBlock({ block }: { block: EBlock }) {
             const { kind, i } = gripMenu;
             setGripMenu(null);
             setLineField(kind, i, which, value);
+          }}
+ // alignment of the line this grip owns — read from its first cell
+          align={
+            (cellField(table, "align", gripMenu.kind === "col" ? 0 : gripMenu.i, gripMenu.kind === "col" ? gripMenu.i : 0) as Align) || "left"
+          }
+          onAlign={(value) => {
+            const { kind, i } = gripMenu;
+            setGripMenu(null);
+            setLineField(kind, i, "align", value);
           }}
           onAction={(action) => {
             const { kind, i } = gripMenu;
@@ -1062,6 +1074,8 @@ function GripMenu({
   onClose,
   onAction,
   onColor,
+  align,
+  onAlign,
 }: {
   blockId: string;
   grip: Grip;
@@ -1071,12 +1085,16 @@ function GripMenu({
   onClose: () => void;
   onAction: (a: GripAction) => void;
   onColor: (which: "color" | "bg", value: CellColor) => void;
+  /** alignment of the line this grip owns, and how to change it (ours) */
+  align: Align;
+  onAlign: (value: Align) => void;
 }) {
   const t = useT();
   const panel = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
-  const [colorOpen, setColorOpen] = useState(false);
+  /** which submenu is open, if any */
+  const [openSub, setOpenSub] = useState<"color" | "align" | null>(null);
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     anchor.current = document.querySelector(
@@ -1092,7 +1110,7 @@ function GripMenu({
 
   const col = grip.kind === "col";
   const items: Array<{
-    key: GripAction | "color";
+    key: GripAction | "color" | "align";
     label: string;
     Icon: typeof Table2;
     shortcut?: string;
@@ -1105,6 +1123,8 @@ function GripMenu({
       ? []
       : [{ key: "header" as const, label: t("제목 행"), Icon: Table2, toggle: true }]),
     { key: "color", label: t("색"), Icon: Palette, submenu: true },
+ // ours, not the original's — see fixtures/notion-table-grip.json §menu.ours
+    { key: "align", label: t("정렬"), Icon: TextAlignStart, submenu: true },
     { key: "before", label: col ? t("왼쪽에 삽입") : t("위에 삽입"), Icon: col ? ArrowLeft : ArrowUp },
     { key: "after", label: col ? t("오른쪽에 삽입") : t("아래에 삽입"), Icon: col ? ArrowRight : ArrowDown },
     { key: "duplicate", label: t("복제"), Icon: Copy, shortcut: "⌘D" },
@@ -1152,9 +1172,9 @@ function GripMenu({
               role="option"
               aria-selected={item.key === "header" ? !!header : undefined}
               data-testid={`table-grip-menu-item-${item.key}`}
-              onMouseEnter={() => setColorOpen(item.key === "color")}
+              onMouseEnter={() => setOpenSub(item.submenu ? (item.key as "color" | "align") : null)}
               onClick={() => {
-                if (item.key === "color") setColorOpen(true);
+                if (item.submenu) setOpenSub(item.key as "color" | "align");
                 else onAction(item.key as GripAction);
               }}
               style={{
@@ -1203,8 +1223,13 @@ function GripMenu({
                 </span>
               )}
             </button>
-            {item.key === "color" && colorOpen && (
-              <ColorSubmenu blockId={blockId} onPick={onColor} />
+            {item.submenu && openSub === item.key && (
+              <GripSubmenu
+                blockId={blockId}
+                which={item.key as "color" | "align"}
+                sections={item.key === "color" ? colorSections(t) : alignSections(t, align)}
+                onPick={(field, value) => (field === "align" ? onAlign(value as Align) : onColor(field as "color" | "bg", value as CellColor))}
+              />
             )}
           </div>
         ))}
@@ -1216,17 +1241,68 @@ function GripMenu({
 
 /** `색`'s submenu: ten text colours then ten backgrounds, 220 wide with 26px
  * swatches — the same two sections the original opens beside the row. */
-function ColorSubmenu({
+/** One submenu row: what to write, how to label it, what to show as its 26px
+ * preview tile. The two callers (`색`, `정렬`) only build these — the panel
+ * itself knows nothing about colours or alignment. */
+type SubOption = { value: string; label: string; preview: React.ReactNode; previewClass?: string; on?: boolean };
+type SubSection = { field: CellField; title: string; options: SubOption[] };
+
+/** `색`'s two sections, in the original's order and wording. */
+function colorSections(t: (s: string) => string): SubSection[] {
+  return (["color", "bg"] as const).map((field) => ({
+    field,
+    title: field === "color" ? t("텍스트 색상") : t("배경 색상"),
+    options: CELL_COLORS.map((name) => ({
+      value: name,
+      label: `${t(COLOR_KO[name])} ${field === "color" ? t("텍스트") : t("배경")}`,
+      preview: field === "color" ? "A" : "",
+      previewClass:
+        field === "color"
+          ? name === "default" ? "text-neutral-800 dark:text-neutral-100" : `c-${name}`
+          : name === "default" ? "" : `hl-${name}`,
+    })),
+  }));
+}
+
+/** `정렬` — ours. Left is the default and the original has no alignment at all. */
+function alignSections(t: (s: string) => string, current: Align): SubSection[] {
+  const ICON: Record<Align, typeof TextAlignStart> = {
+    left: TextAlignStart,
+    center: TextAlignCenter,
+    right: TextAlignEnd,
+  };
+  const KO: Record<Align, string> = { left: "왼쪽", center: "가운데", right: "오른쪽" };
+  return [
+    {
+      field: "align",
+      title: t("정렬"),
+      options: ALIGNS.map((a) => {
+        const Icon = ICON[a];
+        return { value: a, label: t(KO[a]), preview: <Icon size={16} />, on: a === current };
+      }),
+    },
+  ];
+}
+
+/**
+ * The panel that opens beside a menu row. Same box as the original's colour
+ * submenu (220 wide, 10px corners, 212×28 rows on a 29 pitch, 26px preview
+ * tile) — `색` and `정렬` both render through it.
+ */
+function GripSubmenu({
   blockId,
+  which,
+  sections,
   onPick,
 }: {
   blockId: string;
-  onPick: (which: "color" | "bg", value: CellColor) => void;
+  which: string;
+  sections: SubSection[];
+  onPick: (field: CellField, value: string) => void;
 }) {
-  const t = useT();
   return (
     <div
-      data-testid={`table-grip-color-menu-${blockId}`}
+      data-testid={`table-grip-${which}-menu-${blockId}`}
       style={{
         width: MENU.subWidth,
         borderRadius: MENU.radius,
@@ -1238,35 +1314,33 @@ function ColorSubmenu({
       }}
       className="popover-anim absolute z-50 overflow-y-auto bg-white dark:bg-neutral-800"
     >
-      {(["color", "bg"] as const).map((which) => (
-        <div key={which}>
+      {sections.map((section) => (
+        <div key={section.field}>
           <div
             style={{ fontSize: 12, fontWeight: 500, padding: "6px 8px 4px" }}
             className="text-neutral-500 dark:text-neutral-400"
           >
-            {which === "color" ? t("텍스트 색상") : t("배경 색상")}
+            {section.title}
           </div>
-          {CELL_COLORS.map((name) => (
+          {section.options.map((opt) => (
             <button
-              key={name}
-              data-testid={`table-grip-color-${which}-${name}`}
-              onClick={() => onPick(which, name)}
+              key={opt.value}
+              data-testid={`table-grip-opt-${section.field}-${opt.value}`}
+              data-on={opt.on ? "1" : undefined}
+              onClick={() => onPick(section.field, opt.value)}
               style={{ width: MENU.subItemW, height: MENU.itemH, borderRadius: MENU.itemRadius, padding: `0 ${MENU.itemPadX}px`, gap: MENU.iconGap }}
               className="flex items-center text-left hover:bg-[rgba(33,27,23,0.05)] dark:hover:bg-neutral-700"
             >
               <span
                 style={{ width: MENU.subSwatch, height: MENU.subSwatch, borderRadius: MENU.itemRadius, fontSize: 16, fontWeight: 500 }}
-                className={`flex shrink-0 items-center justify-center border border-neutral-200 dark:border-neutral-600 ${
-                  which === "color"
-                    ? name === "default" ? "text-neutral-800 dark:text-neutral-100" : `c-${name}`
-                    : name === "default" ? "" : `hl-${name}`
-                }`}
+                className={`flex shrink-0 items-center justify-center border border-neutral-200 text-neutral-500 dark:border-neutral-600 dark:text-neutral-400 ${opt.previewClass ?? ""}`}
               >
-                {which === "color" ? "A" : ""}
+                {opt.preview}
               </span>
               <span style={{ fontSize: 14 }} className="flex-1 truncate text-neutral-800 dark:text-neutral-100">
-                {t(COLOR_KO[name])} {which === "color" ? t("텍스트") : t("배경")}
+                {opt.label}
               </span>
+              {opt.on && <Check size={14} className="text-neutral-400" />}
             </button>
           ))}
         </div>
