@@ -1,7 +1,9 @@
 "use client";
 
 import { useToastStore } from "@/stores/toast";
+import * as tus from "tus-js-client";
 import { checkUploadType } from "@/lib/files/allowed-types";
+import { TUS_CLIENT_CHUNK_BYTES } from "@/lib/files/upload-protocol";
 
 
 /** Upload a blob to /api/upload. On ANY failure the user gets a toast that
@@ -69,4 +71,69 @@ export async function uploadBlob(
         : ((await res.json().catch(() => null))?.error ?? "Upload failed");
   toast.show(msg);
   return null;
+}
+
+/**
+ * The resumable path — what an attachment uses.
+ *
+ * The buffered `uploadBlob` reads the whole file into a request; at the sizes
+ * people actually attach (a 65 MiB zip on the original's own comments) that is
+ * memory on both ends and a full restart on any blip. tus sends
+ * TUS_CLIENT_CHUNK_BYTES at a time, resumes from the offset the server
+ * acknowledged, and — because tus-js-client keeps fingerprint→URL in
+ * localStorage — picks the same file back up after a reload.
+ *
+ * `onProgress` is called with 0..1. Resolves null on failure, after the toast.
+ */
+export async function uploadResumable(
+  file: File,
+  onProgress?: (fraction: number) => void
+): Promise<{ url: string; name?: string; size?: number } | null> {
+  const toast = useToastStore.getState();
+  const check = checkUploadType(file.name, file.type);
+  if (!check.allowed) {
+    toast.show(
+      check.reason === "ext"
+        ? `".${check.ext}" files cannot be attached`
+        : `"${check.mimeType}" files cannot be attached`
+    );
+    return null;
+  }
+  if (maxUploadBytes === null) await refreshUploadLimit();
+  if (maxUploadBytes !== null && file.size > maxUploadBytes) {
+    toast.show(
+      `"${file.name}" is larger than ${Math.floor(maxUploadBytes / (1024 * 1024))} MB — too big to upload`
+    );
+    return null;
+  }
+  return new Promise((resolve) => {
+    const upload = new tus.Upload(file, {
+      endpoint: "/api/upload/tus",
+      chunkSize: TUS_CLIENT_CHUNK_BYTES,
+      retryDelays: [0, 1000, 3000, 5000],
+      metadata: { filename: file.name, filetype: file.type },
+      onProgress: (sent, total) => onProgress?.(total ? sent / total : 0),
+      onError: (err) => {
+       // the server's own words when it gave any (415 type, 413 size)
+        const body = (err as { originalResponse?: { getBody?: () => string } })
+          ?.originalResponse?.getBody?.();
+        toast.show(body?.trim() || `"${file.name}" could not be uploaded`);
+        resolve(null);
+      },
+      onSuccess: (payload) => {
+       // tus-js-client v4 hands the final response to the callback; it is not
+       // a property on the Upload
+        const body = payload?.lastResponse?.getBody?.();
+        try {
+          resolve(JSON.parse(body ?? "") as { url: string; name?: string; size?: number });
+        } catch {
+         // finish returned no body we could read — the bytes are stored but we
+         // have no url, so treat it as a failure rather than attach nothing
+          toast.show(`"${file.name}" uploaded but the server sent no location`);
+          resolve(null);
+        }
+      },
+    });
+    upload.start();
+  });
 }

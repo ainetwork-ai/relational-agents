@@ -120,6 +120,14 @@ else {
   if (!attrs.multiple) d.push("여러 개를 못 고릅니다 — 원본은 selectMultiple 입니다");
   if (attrs.accept) d.push(`accept="${attrs.accept}" 가 걸려 있습니다 — 원본은 제한이 없습니다`);
 }
+// 업로드가 tus 로 나가는지 — 버퍼링 한 방(POST /api/upload)으로 되돌아가면 잡는다
+const tusHits = { create: 0, patch: 0, buffered: 0 };
+page.on("request", (r) => {
+  const p2 = new URL(r.url()).pathname;
+  if (p2 === "/api/upload" && r.method() === "POST") tusHits.buffered++;
+  else if (p2 === "/api/upload/tus" && r.method() === "POST") tusHits.create++;
+  else if (p2.startsWith("/api/upload/tus/") && r.method() === "PATCH") tusHits.patch++;
+});
 const chooser = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
 await page.click("[aria-label='파일 첨부']");
 const fc = await chooser;
@@ -181,6 +189,7 @@ if (fc) {
   page.on("request", onUpload);
   uploadedBlocked = false;
   const fc2 = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
+ // (아래 클릭이 그 선택창을 연다)
   await page.click("[aria-label='파일 첨부']");
   const c2 = await fc2;
   if (!c2) d.push("두 번째 클립 클릭에서 선택창이 안 열렸습니다 — 이 검사가 헛돌았습니다");
@@ -239,6 +248,13 @@ if (fc) {
       d.push(`크기 표기가 "${shown.size.text}" 입니다 — 원본은 12.7 KiB 같은 이진 단위입니다`);
   } else d.push("크기 줄이 없습니다 — 원본은 이름 아래 크기를 적습니다");
   if (shown.icons) d.push(`파일 줄에 아이콘이 ${shown.icons}개 있습니다 — 원본에는 없습니다`);
+
+ // 재개 가능 경로를 실제로 탔는가. 13MB 짜리는 8MB 청크라 PATCH 가 둘 이상이어야 한다.
+  if (tusHits.buffered) d.push(`버퍼링 경로(POST /api/upload)로 ${tusHits.buffered}건 올라갔습니다 — 첨부는 tus 여야 합니다`);
+  if (tusHits.create !== 1 + others.length)
+    d.push(`tus creation 이 ${tusHits.create}건입니다 — 파일 수(${1 + others.length})와 같아야 합니다`);
+  if (tusHits.patch <= tusHits.create)
+    d.push(`tus PATCH 가 ${tusHits.patch}건뿐입니다 — 8MB 청크라면 13MB 파일 하나만으로도 더 나와야 합니다(청크가 안 쪼개졌습니다)`);
 }
 
 await browser.close();
