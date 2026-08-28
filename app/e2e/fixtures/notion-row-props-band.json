@@ -1,0 +1,70 @@
+{
+  "note": "2026-08-28 원본(Projects) 실측 — 고정 속성 밴드의 '무엇이 나오는가·여러 명일 때·폭·피크와 풀페이지 차이'. 기하(라벨 24 / 값 30 / gap 8 / 화살표 32)는 notion-row-props.json 에 있고 여기서는 겹치지 않는 것만 잰다. 잰 스크립트: scratchpad/m-band-{0-cases,1-set,5-widths,6-peek,7-arrows,8-step-chip}.mjs, 원자료 scratchpad/band-{cases,set,widths,peek-widths,chips}.json.",
+  "tolerance": 2,
+
+  "set": {
+    "note": "33행 전부 같은 4개(TL·Assignee·End date·Evaluation)가 같은 순서로 나온다. 값이 비어도 '비어 있음'으로 자리를 지키고, 행마다 달라지지 않는다. 표의 열 순서(Status·Project name·TL·Assignee·Start date·End date·Evaluation·Effort)와도, 속성 패널의 순서(Start date·Evaluator·Team·Created time·Effort·Status·Sec.8 Deadline·Action·Bonus·Class·Law Firm·Notes)와도 다르다 — 즉 '앞에서 N개'가 아니라 데이터베이스마다 고른 목록이다.",
+    "properties": ["TL", "Assignee", "End date", "Evaluation"],
+    "perRow": false,
+    "emptyKeepsSlot": true,
+    "panelHasPinned": false,
+    "configuredBy": "속성 라벨 클릭 → 메뉴(이름 바꾸기 · 속성 편집 · 댓글 · 속성 삭제 · 레이아웃 사용자 지정) → 레이아웃 사용자 지정: 제목 블록(밴드)과 속성 그룹(패널) 사이로 속성을 옮기고 순서를 정하는 편집기. '모든 페이지에 적용' 으로 데이터베이스 전체에 적용된다.",
+    "labelMenuItems": ["이름 바꾸기", "속성 편집", "댓글", "속성 삭제", "레이아웃 사용자 지정"],
+    "labelMenu": { "width": 220, "height": 168 }
+  },
+
+  "width": {
+    "note": "항목 폭은 내용이 정한다 — 창 폭·표면(피크/풀페이지)이 달라져도 같은 값이었다(1000·1200·1500·1800 × 피크·풀페이지 모두 동일). 라벨이 값보다 길면 라벨이 정한다(빈 End date 90.6 = 라벨 폭). 아래는 실측 예.",
+    "rule": "clamp(max(라벨 잉크폭, 값 잉크폭), 80, 200)",
+    "min": 80,
+    "max": 200,
+    "labelInk": { "TL": 51.7, "Assignee": 106.7, "End date": 90.6, "Evaluation": 99.9 },
+    "samples": [
+      { "case": "TL 비어 있음 (라벨 51.7 < 80)", "name": "TL", "item": 80 },
+      { "case": "End date 비어 있음", "name": "End date", "item": 90.6 },
+      { "case": "Evaluation 비어 있음", "name": "Evaluation", "item": 99.9 },
+      { "case": "사람 1명 'BSebastian'", "name": "TL", "item": 110.6, "chip": 98.6 },
+      { "case": "사람 6명 'Bobae Jeon' + 5", "name": "Assignee", "item": 135, "chip": 100 },
+      { "case": "날짜+시각 '2026년 4월 2일 15:00'", "name": "End date", "item": 170.9 },
+      { "case": "긴 select 'Strongly Exceeds Expectation' (상한)", "name": "Evaluation", "item": 200 }
+    ]
+  },
+
+  "people": {
+    "note": "사람이 둘 이상이면 자리가 남아도(항목 135 < 상한 200) 첫 사람 칩 하나만 그리고 나머지는 '+ N'. 2·3·4·5·6명 모두 같았다. 칩과 배지 사이 4px, 값 높이는 +N 이 있을 때만 31(배지 21 + 위아래 5).",
+    "chipsShown": 1,
+    "overflowText": "+ {N}",
+    "gapChipToBadge": 4,
+    "chip": { "height": 20, "radius": 6, "fontSize": 14, "lineHeight": "21px", "weight": 400, "color": "rgb(44, 44, 43)", "avatar": 20, "avatarRadius": "100%", "avatarGap": 6 },
+    "badge": { "width": 19, "height": 21, "fontSize": 14, "lineHeight": "21px", "weight": 400, "color": "rgb(44, 44, 43)", "background": "none" },
+    "valueHeight": { "plain": 30, "withOverflow": 31 },
+    "cases": [
+      { "people": 2, "text": "SUBIN YOO + 1", "item": 134.3 },
+      { "people": 3, "text": "chanho lee + 2", "item": 131.2 },
+      { "people": 4, "text": "Yoojin Ko + 3", "item": 120.3 },
+      { "people": 5, "text": "jiyoung yang + 4", "item": 142.6 },
+      { "people": 6, "text": "Bobae Jeon + 5", "item": 135 }
+    ]
+  },
+
+  "surface": {
+    "note": "밴드 자체의 규칙은 두 표면이 같다. 다른 것은 '얼마나 보이나' 뿐 — 콘텐츠 칼럼 폭이 다르니 트랙이 넘치는 시점이 다르다. 피크 폭 = max(564, 창×0.5), 콘텐츠 인셋 좌우 76, 밴드는 제목보다 2px 오른쪽에서 시작하고 폭은 콘텐츠 폭 − 2.",
+    "peek": { "widthFraction": 0.5, "minWidth": 564, "insetX": 76, "bandOffsetFromTitle": 2,
+      "measured": [ { "win": 900, "peek": 564, "band": 394 }, { "win": 1128, "peek": 564, "band": 394 }, { "win": 1200, "peek": 600, "band": 430 }, { "win": 1500, "peek": 750, "band": 580 }, { "win": 1800, "peek": 900, "band": 730 } ] },
+    "full": { "columnMax": 720,
+      "measured": [ { "win": 1000, "band": 521 }, { "win": 1200, "band": 718 }, { "win": 1500, "band": 718 }, { "win": 1800, "band": 718 } ] },
+    "bandWidthNote": "같은 피크 폭에서도 본문이 짧아 세로 스크롤바가 없는 행은 밴드가 445, 있는 행은 430 이었다 — 스크롤바(16) 차이지 규칙 차이가 아니다."
+  },
+
+  "arrows": {
+    "note": "호버와 무관하다 — 넘칠 때 보이고, 끝에 닿은 쪽은 visibility:hidden/opacity 0. 한 번 누르면 (보이는 폭 − 200)만큼 스크롤하고, 남은 양이 그보다 적으면 끝까지만 간다.",
+    "hoverGated": false,
+    "step": "clientWidth - 200",
+    "stepEvidence": [
+      { "clientW": 394, "scrollW": 643, "click1": 194, "click2": 54.5, "end": 249 },
+      { "clientW": 430, "scrollW": 643, "click1": 212.5, "note": "남은 213 로 클램프" },
+      { "clientW": 621, "scrollW": 641, "click1": 21.5, "note": "남은 20 로 클램프" }
+    ],
+    "hiddenStyle": { "visibility": "hidden", "opacity": 0 }
+  }
+}

@@ -323,6 +323,12 @@ export interface PropertyConfig {
    * because `config` is already JSON: pinning needed no new column. Undefined
    * on every property means nobody has chosen, and the first few stand in. */
   pinned?: boolean;
+  /** where this property sits in the band, low first. The original's layout
+   * editor orders the pinned properties independently of the property list
+   * (its band reads TL · Assignee · End date · Evaluation while the property
+   * order starts elsewhere) — so the order is its own field, not `position`.
+   * Undefined falls back to `position`. */
+  pinnedOrder?: number;
   [key: string]: unknown;
 }
 

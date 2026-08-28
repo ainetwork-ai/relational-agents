@@ -52,7 +52,13 @@ export function hasValue(v: unknown): boolean {
 }
 
 /** Pinned vs the rest. Which properties are pinned is a choice kept on each
- *  property (`config.pinned`); until somebody makes it, the first few stand in. */
+ *  property (`config.pinned`); until somebody makes it, the first few stand in.
+ *
+ *  The band's order is its own (`config.pinnedOrder`), not the property list's:
+ *  measured on the original, its band reads TL · Assignee · End date ·
+ *  Evaluation while neither the table's columns nor the 속성 panel start there
+ *  (e2e/fixtures/notion-row-props-band.json §set). Properties with no order
+ *  yet fall back to their position, after the ordered ones. */
 export function splitPinned(properties: DbProperty[]): {
   pinned: DbProperty[];
   rest: DbProperty[];
@@ -62,8 +68,15 @@ export function splitPinned(properties: DbProperty[]): {
   const chosen = nonTitle.some((p) => p.config?.pinned !== undefined);
   const isPinned = (p: DbProperty, i: number) =>
     chosen ? !!p.config?.pinned : i < PINNED_COUNT;
+  const order = (p: DbProperty) =>
+    typeof p.config?.pinnedOrder === "number" ? p.config.pinnedOrder : Number.MAX_SAFE_INTEGER;
+  const pinned = nonTitle
+    .filter(isPinned)
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => order(a.p) - order(b.p) || a.i - b.i)
+    .map(({ p }) => p);
   return {
-    pinned: nonTitle.filter(isPinned),
+    pinned,
     rest: nonTitle.filter((p, i) => !isPinned(p, i)),
     chosen,
   };
@@ -221,7 +234,14 @@ function PinnedBand({ row, pinned }: { row: DbRow; pinned: DbProperty[] }) {
       aria-label={dir < 0 ? t("이전 고정된 속성으로 스크롤하기") : t("다음 고정된 속성으로 스크롤하기")}
       aria-hidden={hidden}
       tabIndex={hidden ? -1 : 0}
-      onClick={() => scroller.current?.scrollBy({ left: dir * 200, behavior: "smooth" })}
+ // one click moves the band by its visible width less 200 — the step measured
+ // on the original (394 wide → 194), clamped by the browser at either end
+      onClick={() =>
+        scroller.current?.scrollBy({
+          left: dir * Math.max(1, scroller.current.clientWidth - 200),
+          behavior: "smooth",
+        })
+      }
       style={{ top: 11.5, [dir < 0 ? "left" : "right"]: -4, opacity: hidden ? 0 : 1 }}
       className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-[6px] bg-white p-1 text-[rgb(142,139,134)] shadow-[0_0_0_1px_rgba(42,28,0,0.07),0_2px_4px_rgba(0,0,0,0.06)] transition-opacity dark:bg-neutral-900 ${
         hidden ? "pointer-events-none" : ""
@@ -248,7 +268,7 @@ function PinnedBand({ row, pinned }: { row: DbRow; pinned: DbProperty[] }) {
       >
         <div data-role="band-track" className="flex min-w-max flex-row items-stretch gap-2">
           {pinned.map((p) => (
-            <PinnedItem key={p.id} prop={p} row={row} />
+            <PinnedItem key={p.id} prop={p} row={row} collapsePeople />
           ))}
         </div>
       </div>
@@ -258,7 +278,17 @@ function PinnedBand({ row, pinned }: { row: DbRow; pinned: DbProperty[] }) {
   );
 }
 
-function PinnedItem({ prop, row }: { prop: DbProperty; row: DbRow }) {
+function PinnedItem({
+  prop,
+  row,
+ // the band collapses several people to one chip + `+ N`; the 속성 panel is
+ // left as it was — the original was only measured in the band
+  collapsePeople,
+}: {
+  prop: DbProperty;
+  row: DbRow;
+  collapsePeople?: boolean;
+}) {
   const t = useT();
  // computed properties draw their own value from the row itself (createdAt,
  // formulas…), never from row.values — 비어 있음 must not be painted over them
@@ -294,7 +324,7 @@ function PinnedItem({ prop, row }: { prop: DbProperty; row: DbRow }) {
         data-role="value"
         className={`relative flex min-h-[30px] w-full items-center rounded-[4px] px-1.5 py-[5px] ${HOVER_BG} ${BARE_EDITOR}`}
       >
-        <PropertyCell prop={prop} row={row} />
+        <PropertyCell prop={prop} row={row} collapsePeople={collapsePeople} />
         {empty && (
           <span
             data-role="empty"

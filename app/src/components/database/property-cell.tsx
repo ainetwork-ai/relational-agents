@@ -53,10 +53,16 @@ export function PropertyCell({
  // cell needs it: the original hangs the comment badge right after the title,
  // not out at the cell's right edge.
   shrinkToText,
+ // the row page's pinned band draws only the first person and counts the rest
+ // (`+ 5`), however much room is left — measured on the original, where a
+ // 6-person cell is 135px wide against a 200px cap
+ // (e2e/fixtures/notion-row-props-band.json §people). The table does not.
+  collapsePeople,
 }: {
   prop: DbProperty;
   row: DbRow;
   shrinkToText?: boolean;
+  collapsePeople?: boolean;
 }) {
   const intl = useIntlLocale();
   const db = useDb();
@@ -164,7 +170,7 @@ export function PropertyCell({
       return <MultiSelectCell testid={testid} prop={prop} row={row} />;
 
     case "person":
-      return <PersonCell testid={testid} value={value} onSet={set} />;
+      return <PersonCell testid={testid} value={value} onSet={set} collapse={collapsePeople} />;
 
     case "relation":
       return <RelationCell prop={prop} row={row} />;
@@ -957,10 +963,13 @@ function PersonCell({
   testid,
   value,
   onSet,
+  collapse,
 }: {
   testid: string;
   value: unknown;
   onSet: (v: unknown) => void;
+  /** the pinned band's rule: one chip, then `+ N` */
+  collapse?: boolean;
 }) {
   const db = useDb();
   const t = useT();
@@ -1026,7 +1035,7 @@ function PersonCell({
       >
         {people.length ? (
           <>
-            {people.map((p) => (
+            {(collapse ? people.slice(0, 1) : people).map((p) => (
               <span key={p.id} className="flex shrink-0 items-center gap-1">
                 <UserAvatar user={{ displayName: p.label, avatarUrl: p.avatarUrl }} size={20} />
                 <span className="whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-200">
@@ -1034,6 +1043,16 @@ function PersonCell({
                 </span>
               </span>
             ))}
+            {collapse && people.length > 1 && (
+              /* 4px after the chip, 21px tall — which is what makes the band's
+                 person value 31 rather than 30 */
+              <span
+                data-role="person-overflow"
+                className="flex h-[21px] shrink-0 items-center whitespace-nowrap text-sm leading-[21px] text-neutral-700 dark:text-neutral-200"
+              >
+                + {people.length - 1}
+              </span>
+            )}
           </>
         ) : (
           <span className="inline-block h-5 w-full" aria-hidden="true" />
