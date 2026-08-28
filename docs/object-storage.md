@@ -45,7 +45,12 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
       `putFile/putStream/statFile/streamFile`, lazy bucket. `isStorageConfigured()` 가
       false 면(= MINIO_* env 없음) **모든 호출자가 지금의 디스크 경로 그대로**라 동작이
       바뀌지 않는다. `e2e/storage-layer.check.mjs` 가 키 규칙과 폴백을 고정한다.
-- [ ] 2. `files` 테이블 + 프록시 라우트 (아직 아무도 안 씀)
+- [x] **2. `files` 테이블 + 프록시 라우트** — 첨부가 1급 행이 됐다(`comment_id` cascade).
+      `/api/files/[id]/download` 는 언제나 attachment, `/api/files/[id]/stream` 은
+      `isStreamableMedia` 통과 미디어만. 두 라우트가 `s3://` 와 이관 전 `/uploads/` 를
+      **둘 다** 읽으므로 5단계를 파일 단위로 나눠 할 수 있다. 아직 아무도 안 쓴다.
+      `e2e/file-routes.check.mjs` 가 계약을 고정한다. 로컬 MinIO 는
+      `docker-compose.local.yml`.
 - [ ] 3. tus 완료 훅에서 승격 — 스트리밍 해시 → `contentKey`, `statFile` 로 dedup·멱등
 - [ ] 4. 댓글 첨부를 `files` 행 참조로 (지금 jsonb. prod 에 그 컬럼이 아직 없어서
       실데이터 마이그레이션이 0 인 지금이 제일 싸다)
@@ -63,7 +68,13 @@ MinIO 포트는 **공개하지 않는다.** presigned URL 도 쓰지 않는다(�
 
 ## 로컬에서 MinIO 띄우기
 
-아직 compose 에 없다(2단계에서 추가). 그때까지 env 를 비워두면 디스크 경로로 동작한다.
+```bash
+docker compose -f docker-compose.local.yml up -d minio
+```
+
+**env 를 켰으면 컨테이너도 떠 있어야 한다.** ainteams 는 스택에서 minio 가 빠진 채
+`isStorageConfigured()` 만 true 여서 첫 업로드가 500 이었고 폴백에도 못 갔다. env 를
+비워두면 앱은 디스크로 동작하고 이 컨테이너는 필요 없다.
 
 ```
 MINIO_ENDPOINT=localhost:9000   # host 또는 host:port, 스킴 붙여도 된다

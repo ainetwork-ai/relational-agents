@@ -676,6 +676,45 @@ export const comments = pgTable(
 // Inbox notifications: a mention/comment/invite raised for a recipient user.
 // pageId/commentId are plain uuids (nullable) — no FK, so an OKF-page mention
 // or a churning autosave block id never dangles a cascade.
+/**
+ * An attached file, as a first-class row.
+ *
+ * The bytes live in object storage under a key that IS their SHA-256, so the
+ * same bytes are one object however many times they are uploaded. What cannot
+ * be derived from the bytes lives here: the name a person gave it, its size
+ * and type, and which comment it hangs off.
+ *
+ * `fileUrl` is `s3://<bucket>/files/<sha256>.<ext>` — or, until the migration
+ * finishes, a legacy `/uploads/<name>` path. The proxy routes read both.
+ *
+ * `commentId` cascades: deleting a comment deletes its file rows, which makes
+ * "is this object still referenced?" answerable with one query instead of a
+ * scan through jsonb. The row is created when the comment is inserted, not
+ * when the upload finishes — an upload that is never sent leaves no row.
+ */
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commentId: uuid("comment_id")
+      .references(() => comments.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    fileName: text("file_name").notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileSize: integer("file_size"),
+    mimeType: text("mime_type"),
+ // captured at upload for images, so a comment can size the box before the
+ // bytes arrive instead of jumping when they do
+    width: integer("width"),
+    height: integer("height"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("files_comment_idx").on(t.commentId), index("files_user_idx").on(t.userId)]
+);
+
 export const notifications = pgTable(
   "notifications",
   {
