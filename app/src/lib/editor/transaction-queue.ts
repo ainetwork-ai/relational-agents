@@ -29,7 +29,7 @@
  */
 import { newId } from "@/lib/compat";
 import type { BlockContent, BlockType } from "@/lib/db/schema";
-import type { SaveResponse, Transaction } from "@/lib/transactions/types";
+import type { SaveError, SaveResponse, Transaction } from "@/lib/transactions/types";
 
 const DB_NAME = "TransactionStore";
 const DB_VERSION = 1;
@@ -45,7 +45,7 @@ const HEARTBEAT_MS = 2500;
 const ORPHAN_AFTER_MS = 12500;
 const SWEEP_MS = 2500;
 
-export type FailureKind = "network" | "server" | null;
+export type FailureKind = "network" | "server" | "rejected" | null;
 
 export interface PageQueueState {
   /** transactions of this page still waiting for the server */
@@ -60,7 +60,8 @@ export interface PageQueueState {
 
 export interface AckInfo {
   transactions: Transaction[];
-  response: SaveResponse;
+  /** `{}` when the server took them; null when it refused them for good */
+  response: SaveResponse | null;
 }
 
 interface StoredTransaction extends Transaction {
@@ -131,7 +132,7 @@ export class TransactionQueue {
   private db: Promise<IDBDatabase> | null = null;
   /** everything this tab still owes the server, oldest first */
   private carried: Carried[] = [];
-  private inflightPage: string | null = null;
+  private inflight = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private lastResponseAt = 0;
   private failure: FailureKind = null;
@@ -187,8 +188,8 @@ export class TransactionQueue {
     const pending = this.carried.filter((c) => c.t.pageId === pageId).length;
     return {
       pending,
-      inflight: this.inflightPage === pageId,
-      lastFailure: pending > 0 ? this.failure : null,
+      inflight: this.inflight && pending > 0,
+      lastFailure: pending > 0 || this.failure === "rejected" ? this.failure : null,
       touched: this.touched.has(pageId),
     };
   }
@@ -224,7 +225,7 @@ export class TransactionQueue {
   /** Arrange a flush: synchronously if the line is idle, else 500ms after the
    * last response (or after `minDelay`). */
   private schedule(minDelay: number) {
-    if (this.timer || this.inflightPage) return;
+    if (this.timer || this.inflight) return;
     const sinceResponse = Date.now() - this.lastResponseAt;
     const delay = Math.max(minDelay, this.lastResponseAt ? POST_RESPONSE_DELAY_MS - sinceResponse : 0, 0);
     if (delay === 0) {
@@ -238,20 +239,22 @@ export class TransactionQueue {
   }
 
   /** Synchronous up to and including fetch(). Runs only for rows whose
-   * IndexedDB write has completed (see enqueue) or that were read back from it. */
+   * IndexedDB write has completed (see enqueue) or that were read back from it.
+   * One request carries everything pending, whatever page it belongs to —
+   * Notion's saveTransactionsFanout is one endpoint too. */
   private flush() {
-    if (this.inflightPage || this.carried.length === 0) return;
-    // one request, one page: the oldest pending transaction's page goes first
-    const pageId = this.carried[0].t.pageId;
-    const batch = this.carried.filter((c) => c.t.pageId === pageId);
-    this.inflightPage = pageId;
-    this.emit(pageId);
+    if (this.inflight || this.carried.length === 0) return;
+    const batch = [...this.carried];
+    this.inflight = true;
+    const pageIds = new Set(batch.map((c) => c.t.pageId));
+    for (const id of pageIds) this.emit(id);
     const headers: Record<string, string> = { "content-type": "application/json", "x-client-id": this.sessionId };
-    const token = this.shareTokens.get(pageId);
-    if (token) headers["x-share-token"] = token;
+    // a share-token viewer edits one page; only then can the header be right
+    const tokens = new Set([...pageIds].map((id) => this.shareTokens.get(id)).filter(Boolean));
+    if (tokens.size === 1) headers["x-share-token"] = [...tokens][0]!;
     let p: Promise<Response | null>;
     try {
-      p = fetch(`/api/pages/${pageId}/transactions`, {
+      p = fetch("/api/saveTransactions", {
         method: "POST",
         headers,
         body: JSON.stringify({ requestId: newId(), transactions: batch.map((c) => c.t) }),
@@ -261,42 +264,63 @@ export class TransactionQueue {
     } catch {
       p = Promise.resolve(null);
     }
-    void p.then((res) => this.settle(pageId, batch, res));
+    void p.then((res) => this.settle(batch, res));
   }
 
-  private async settle(pageId: string, batch: Carried[], res: Response | null) {
+  private async settle(batch: Carried[], res: Response | null) {
     this.lastResponseAt = Date.now();
+    const pageIds = new Set(batch.map((c) => c.t.pageId));
+    this.inflight = false;
     if (res?.ok) {
-      let body: SaveResponse = {};
-      try {
-        body = (await res.json()) as SaveResponse;
-      } catch {}
-      const ids = new Set(batch.map((c) => c.t.id));
-      this.carried = this.carried.filter((c) => !ids.has(c.t.id));
+      // 200 is `{}`: everything in the batch is on the server (or was already)
       this.failure = null;
-      this.inflightPage = null;
-      this.emit(pageId);
-      for (const fn of this.ackListeners.get(pageId) ?? []) fn({ transactions: batch.map((c) => c.t), response: body });
+      await this.acknowledge(batch, {});
       this.schedule(0);
-      if (this.carried.length === 0) void this.beat(); // drops the Session row
-      // the durable mirror: wait for the writes, then remove them
-      await Promise.all(batch.map((c) => c.persisted));
-      try {
-        const db = await this.open();
-        const tx = db.transaction("Transaction", "readwrite");
-        const st = tx.objectStore("Transaction");
-        for (const id of ids) {
-          const key = await req(st.index("byId").getKey(id));
-          if (key !== undefined) st.delete(key);
-        }
-        await done(tx);
-      } catch {}
-    } else {
-      this.failure = res ? "server" : "network";
-      this.inflightPage = null;
-      this.emit(pageId);
-      this.schedule(RETRY_MS);
+      return;
     }
+    if (res && res.status >= 400 && res.status < 500 && res.status !== 401) {
+      // it will never apply — no edit right on that page, or malformed. Drop
+      // exactly what the server named (or the whole batch if it named
+      // nothing) so the rest keeps retrying, and say so in the badge.
+      let named: string[] | null = null;
+      try {
+        named = ((await res.json()) as SaveError).rejectedIds ?? null;
+      } catch {}
+      const drop = batch.filter((c) => !named || named.includes(c.t.id));
+      this.failure = "rejected";
+      await this.acknowledge(drop, null);
+      this.schedule(drop.length === batch.length ? 0 : RETRY_MS);
+      return;
+    }
+    // network down, 5xx, or 401 (a session that may come back): keep everything, retry
+    this.failure = res ? "server" : "network";
+    for (const id of pageIds) this.emit(id);
+    this.schedule(RETRY_MS);
+  }
+
+  /** Remove rows the server has (response) or refused (null) from memory,
+   * tell the editors, then from the durable mirror. */
+  private async acknowledge(rows: Carried[], response: SaveResponse | null) {
+    const ids = new Set(rows.map((c) => c.t.id));
+    this.carried = this.carried.filter((c) => !ids.has(c.t.id));
+    const pageIds = new Set(rows.map((c) => c.t.pageId));
+    for (const id of pageIds) {
+      this.emit(id);
+      const own = rows.filter((c) => c.t.pageId === id).map((c) => c.t);
+      for (const fn of this.ackListeners.get(id) ?? []) fn({ transactions: own, response });
+    }
+    if (this.carried.length === 0) void this.beat(); // drops the Session row
+    await Promise.all(rows.map((c) => c.persisted));
+    try {
+      const db = await this.open();
+      const tx = db.transaction("Transaction", "readwrite");
+      const st = tx.objectStore("Transaction");
+      for (const id of ids) {
+        const key = await req(st.index("byId").getKey(id));
+        if (key !== undefined) st.delete(key);
+      }
+      await done(tx);
+    } catch {}
   }
 
   /** Heartbeat while anything is pending; when nothing is, the Session row is

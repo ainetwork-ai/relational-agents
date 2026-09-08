@@ -1,5 +1,6 @@
 import "server-only";
 import type { PublicUser } from "@/lib/auth/public-user";
+import type { Transaction } from "@/lib/transactions/types";
 
 /**
  * In-process pub/sub for page-level realtime events, fanned out over SSE.
@@ -23,13 +24,19 @@ export interface CursorInfo {
 
 export interface PageEvent {
   type:
+    /** "something changed, refetch" — disk edits and other writers that do not
+     * speak in transactions */
     | "blocks"
+    /** the applied save transactions themselves; receivers apply the same
+     * operations locally instead of refetching (target §4.4) */
+    | "transactions"
     | "page"
     | "cursor"
     | "presence"
     | "dm-message"
     | "dm-room"
     | "dm-typing";
+  transactions?: Transaction[];
   /** channel key — page id, database id, or DM inbox key (`dm-inbox:<userId>`) */
   pageId: string;
   /** originating editor instance — clients ignore their own echo */

@@ -63,6 +63,7 @@ export default async function PageRoute({
         content: { databaseId: pageId, fullPage: true },
         parentBlockId: null,
         position: 1,
+        alive: true,
         createdAt: now,
         updatedAt: now,
       };
@@ -103,7 +104,7 @@ export default async function PageRoute({
   const blockRows = await db
     .select()
     .from(blocks)
-    .where(eq(blocks.pageId, pageId))
+    .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
     .orderBy(blocks.position);
 
   // A page whose body IS a database renders wide regardless of the fullWidth

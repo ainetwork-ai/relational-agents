@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, and } from "drizzle-orm";
 import { blocksToMarkdown, type ParsedBlock } from "@/lib/memory-parse";
 import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 
@@ -32,7 +32,7 @@ export async function GET(
     const rows = await db
       .select()
       .from(blocks)
-      .where(eq(blocks.pageId, pageId))
+      .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
       .orderBy(asc(blocks.position));
     parsed = rows.map((b, i) => ({
       id: b.id,

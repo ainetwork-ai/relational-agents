@@ -38,6 +38,7 @@ import { EmptyPageStarter } from "./empty-page-starter";
 import { usePageSync } from "@/hooks/use-page-sync";
 import { diffBlocks } from "@/lib/editor/block-diff";
 import { getTransactionQueue, migrateLegacyDraft } from "@/lib/editor/transaction-queue";
+import type { Transaction } from "@/lib/transactions/types";
 import { usePagesStore } from "@/stores/pages";
 
 export interface EBlock {
@@ -315,9 +316,6 @@ export const BlockEditor = forwardRef<
     };
   }, []);
 
- // stable per-mount identity — the server echoes it so we can ignore our own
- // SSE events (aindrive's origin-tag pattern)
-  const [clientId] = useState(() => newId());
   const [dropTarget, setDropTarget] = useState<{ id: string; before: boolean; side?: "left" | "right" } | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "offline" | "error">("idle");
 
@@ -399,7 +397,7 @@ export const BlockEditor = forwardRef<
         }
         setSaveState(s.touched ? "saved" : "idle");
       } else if (s.lastFailure === "network") setSaveState("offline");
-      else if (s.lastFailure === "server") setSaveState("error");
+      else if (s.lastFailure === "server" || s.lastFailure === "rejected") setSaveState("error");
       else setSaveState("saving");
     });
     const offAck = queue.onAck(pageId, ({ transactions, response }) => {
@@ -411,9 +409,9 @@ export const BlockEditor = forwardRef<
           } else serverIdsRef.current.add(op.pointer.id);
         }
       }
- // some of our blocks were deleted elsewhere while we were stale —
- // reconcile with the authoritative list once nothing of ours is pending
-      if (response.dropped?.length) needResyncRef.current = true;
+ // refused for good (no edit right, malformed): what we show is not what the
+ // server has — take the server's version back
+      if (response === null) needResyncRef.current = true;
     });
  // an old-style draft (the failed-save localStorage copy) is an edit the
  // server never saw: hand it to the queue instead of throwing it away
@@ -623,8 +621,72 @@ export const BlockEditor = forwardRef<
     void applyRemoteRef.current();
   }, []);
 
-  usePageSync(pageId, clientId, (event) => {
-    if (event.type === "blocks") void applyRemote();
+ // Another client's save arrives as the transactions the server applied
+ // (target §4.4): apply the same operations here instead of refetching the
+ // page. Block-level LWW until the text CRDT (stage 3): the block the caret
+ // is in keeps the local version — a remote content change to it would yank
+ // the text out from under the typist — and is reconciled on the next full
+ // sync. "blocks" (disk edits, non-transaction writers) and reconnects still
+ // refetch.
+  const applyRemoteTransactions = useCallback((txs: Transaction[]) => {
+    const active = document.activeElement as HTMLElement | null;
+    const tid = active?.dataset?.testid;
+    const focusedId = tid?.startsWith("block-editable-") ? tid.slice("block-editable-".length) : null;
+    let deferred = false;
+    setBlocks((prev) => {
+      let next = prev;
+      for (const t of txs) {
+        for (const op of t.operations) {
+          const id = op.pointer.id;
+          if (op.command === "set") {
+            const a = op.args;
+            const cur = next.find((b) => b.id === id);
+            if (cur && id === focusedId) {
+              deferred = true;
+              continue;
+            }
+            const row: EBlock = { id, type: a.type, content: a.content ?? {}, parentBlockId: a.parentBlockId ?? null, position: a.position, version: (cur?.version ?? 0) + 1 };
+            next = cur ? next.map((b) => (b.id === id ? row : b)) : [...next, row];
+            serverIdsRef.current.add(id);
+          } else if (op.command === "update") {
+            const a = op.args;
+            if (a.alive === false) {
+              next = next.filter((b) => b.id !== id);
+              serverIdsRef.current.delete(id);
+              continue;
+            }
+            const cur = next.find((b) => b.id === id);
+            if (!cur) {
+              if (a.alive === true) deferred = true; // a revive we cannot rebuild from a partial update
+              continue;
+            }
+            if (id === focusedId && a.content !== undefined) {
+              deferred = true;
+              continue;
+            }
+            next = next.map((b) =>
+              b.id === id
+                ? {
+                    ...b,
+                    type: a.type ?? b.type,
+                    content: a.content ?? b.content,
+                    parentBlockId: a.parentBlockId !== undefined ? a.parentBlockId : b.parentBlockId,
+                    position: a.position ?? b.position,
+                    version: b.version + 1,
+                  }
+                : b
+            );
+          }
+        }
+      }
+      return next === prev ? prev : next;
+    });
+    if (deferred) needResyncRef.current = true;
+  }, []);
+
+  usePageSync(pageId, queue.sessionId, (event) => {
+    if (event.type === "transactions" && event.transactions) applyRemoteTransactions(event.transactions);
+    else if (event.type === "blocks") void applyRemote();
   }, shareToken);
 
   useImperativeHandle(apiRef, () => ({

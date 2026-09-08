@@ -163,7 +163,7 @@ export async function mirrorWorkspace(workspaceId: string): Promise<void> {
     ? await db
         .select()
         .from(blocks)
-        .where(inArray(blocks.pageId, pageList.map((p) => p.id)))
+        .where(and(inArray(blocks.pageId, pageList.map((p) => p.id)), eq(blocks.alive, true)))
     : [];
   const blocksByPage = new Map<string, Block[]>();
   for (const b of blockRows) {

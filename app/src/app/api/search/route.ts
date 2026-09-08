@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
     .innerJoin(pages, eq(blocks.pageId, pages.id))
     .where(
       and(
+        eq(blocks.alive, true),
         eq(pages.workspaceId, workspaceId),
         eq(pages.isArchived, false),
         ilike(sql`${blocks.content} ->> 'text'`, pattern)

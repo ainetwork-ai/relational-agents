@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { blocks, pages, transactions as txTable } from "@/lib/db/schema";
 import type { Block, BlockContent, BlockType } from "@/lib/db/schema";
@@ -8,7 +8,7 @@ import { scheduleMirror } from "@/lib/md-mirror";
 import { notifyMentions } from "@/lib/notifications";
 import { publish } from "@/lib/realtime";
 import { isOkfId, decodeId, readNode, writePage, parsedToBlocks, blocksToParsed } from "@/lib/okf-store";
-import type { Operation, SaveResponse, Transaction } from "./types";
+import type { Operation, Transaction } from "./types";
 
 /**
  * Apply save transactions to one page (docs/save-protocol-target.md §4.2).
@@ -16,30 +16,42 @@ import type { Operation, SaveResponse, Transaction } from "./types";
  * Each transaction is one database transaction: its operations land together
  * or not at all, and its id is recorded in the same commit, so a retry — 5s
  * later, or from the next session after the tab died — finds the id and is
- * answered without a second application. That idempotency is what lets the
- * client resend blindly, which is what lets it never lose an edit.
+ * answered without a second application. Deletion is `alive=false`, so a
+ * late `update` to a block someone else removed lands on a row (and stays
+ * invisible) instead of vanishing, and undo can bring the block back by id.
+ *
+ * Afterwards the applied transactions themselves go out over SSE; the other
+ * clients apply the same operations instead of refetching the page.
  */
+export interface ApplyResult {
+  applied: Transaction[];
+  rejected: { id: string; reason: string }[];
+}
+
 export async function applyTransactions(opts: {
   pageId: string;
   userId: string | null;
   workspaceId: string | null;
   clientId: string | null;
   transactions: Transaction[];
-}): Promise<SaveResponse> {
+}): Promise<ApplyResult> {
   const { pageId } = opts;
-  const rejected: { id: string; reason: string }[] = [];
-  const dropped = new Set<string>();
+  const rejected: ApplyResult["rejected"] = [];
   const applied: Transaction[] = [];
 
   if (isOkfId(pageId)) {
     await applyToOkfPage(opts, rejected, applied);
   } else {
     const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
-    if (!page) return { rejected: opts.transactions.map((t) => ({ id: t.id, reason: "page not found" })) };
+    if (!page) return { applied, rejected: opts.transactions.map((t) => ({ id: t.id, reason: "page not found" })) };
 
-    // history: the pre-write state, at most every 5 minutes (same as PUT)
+    // history: the pre-write state, at most every 5 minutes
     await maybeSnapshot(pageId, opts.userId, async () => {
-      const cur = await db.select().from(blocks).where(eq(blocks.pageId, pageId)).orderBy(blocks.position);
+      const cur = await db
+        .select()
+        .from(blocks)
+        .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
+        .orderBy(blocks.position);
       return { title: page.title, blocks: toSnapshotBlocks(cur) };
     });
 
@@ -56,49 +68,36 @@ export async function applyTransactions(opts: {
             if (op.pointer?.table !== "block") throw new Error(`unsupported pointer ${String(op.pointer?.table)}`);
             if (op.command === "set") {
               const a = op.args;
+              const content = normalizeContent(a.type, a.content);
               await tx
                 .insert(blocks)
                 .values({
                   id: op.pointer.id,
                   pageId,
                   type: a.type,
-                  content: normalizeContent(a.type, a.content),
+                  content,
                   parentBlockId: a.parentBlockId ?? null,
                   position: a.position,
+                  alive: true,
                 })
                 .onConflictDoUpdate({
                   target: blocks.id,
-                  set: {
-                    type: a.type,
-                    content: normalizeContent(a.type, a.content),
-                    parentBlockId: a.parentBlockId ?? null,
-                    position: a.position,
-                    updatedAt: new Date(),
-                  },
+                  set: { type: a.type, content, parentBlockId: a.parentBlockId ?? null, position: a.position, alive: true, updatedAt: new Date() },
                   // a block id belongs to one page for life — never let a set
                   // hijack another page's row
                   setWhere: eq(blocks.pageId, pageId),
                 });
             } else if (op.command === "update") {
               const a = op.args;
-              if (a.alive === false) {
-                await tx.delete(blocks).where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)));
-                continue;
-              }
               const set: Partial<typeof blocks.$inferInsert> = { updatedAt: new Date() };
               if (a.type !== undefined) set.type = a.type;
               if (a.content !== undefined) set.content = normalizeContent(a.type ?? "paragraph", a.content);
               if (a.parentBlockId !== undefined) set.parentBlockId = a.parentBlockId;
               if (a.position !== undefined) set.position = a.position;
-              const rows = await tx
-                .update(blocks)
-                .set(set)
-                .where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)))
-                .returning({ id: blocks.id });
-              // deleted elsewhere while this client still had it: a no-op, and
-              // the client is told so it drops the block instead of keeping a
-              // ghost that would come back as "new" (the duplicate-page bug)
-              if (rows.length === 0) dropped.add(op.pointer.id);
+              if (a.alive !== undefined) set.alive = a.alive;
+              // applies to dead rows too: a revive is `alive:true`, and a late
+              // edit to a block deleted elsewhere is simply invisible
+              await tx.update(blocks).set(set).where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)));
             } else {
               throw new Error(`unknown command ${String((op as { command: string }).command)}`);
             }
@@ -124,7 +123,7 @@ export async function applyTransactions(opts: {
       if (opts.userId) {
         for (const t of applied) {
           for (const op of t.operations) {
-            const html = op.command === "set" ? op.args.content?.html : op.args.content?.html;
+            const html = op.args.content?.html;
             if (html) await notifyMentions({ html, actorId: opts.userId, pageId, dedupeUnread: true });
           }
         }
@@ -133,18 +132,96 @@ export async function applyTransactions(opts: {
     }
   }
 
-  if (applied.length) publish({ type: "blocks", pageId, clientId: opts.clientId, at: Date.now() });
-  const out: SaveResponse = {};
-  if (rejected.length) out.rejected = rejected;
-  if (dropped.size) out.dropped = [...dropped];
-  return out;
+  if (applied.length) {
+    publish({ type: "transactions", pageId, clientId: opts.clientId, at: Date.now(), transactions: applied });
+  }
+  return { applied, rejected };
+}
+
+/**
+ * The legacy whole-list write (`PUT /blocks` from scripts, MCP and older
+ * clients): upsert what was sent, delete `deletedIds`. Expressed as ONE
+ * transaction so it takes the same path, is recorded, and fans out the same
+ * way. The v2 rule stays: an id that is not on the page (alive) and was not
+ * declared new is a stale copy of something deleted elsewhere — it is dropped
+ * rather than resurrected (the duplicate-page bug), and reported back.
+ */
+export async function applyBlocksWrite(opts: {
+  pageId: string;
+  userId: string | null;
+  workspaceId: string | null;
+  clientId: string | null;
+  userAction: string;
+  blocks: Array<{ id?: string; type: BlockType; content: unknown; position: number; parentBlockId?: string | null }>;
+  deletedIds: string[];
+  /** ids the caller created; `null` = legacy caller, insert anything unknown */
+  newIds: string[] | null;
+}): Promise<{ droppedIds: string[]; rejected: ApplyResult["rejected"] }> {
+  const { pageId } = opts;
+  const droppedIds: string[] = [];
+  let aliveIds = new Set<string>();
+  if (!isOkfId(pageId) && opts.newIds) {
+    const ids = opts.blocks.map((b) => b.id).filter((x): x is string => typeof x === "string");
+    if (ids.length) {
+      const rows = await db
+        .select({ id: blocks.id })
+        .from(blocks)
+        .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true), inArray(blocks.id, ids)));
+      aliveIds = new Set(rows.map((r) => r.id));
+    }
+  }
+  const newIdSet = opts.newIds ? new Set(opts.newIds) : null;
+  const operations: Operation[] = [];
+  for (const b of opts.blocks) {
+    const id = b.id ?? crypto.randomUUID();
+    if (b.id && newIdSet && !aliveIds.has(b.id) && !newIdSet.has(b.id)) {
+      droppedIds.push(b.id);
+      continue;
+    }
+    operations.push({
+      command: "set",
+      pointer: { table: "block", id },
+      path: [],
+      args: { id, type: b.type, content: normalizeContent(b.type, b.content), parentBlockId: b.parentBlockId ?? null, position: b.position },
+    });
+  }
+  for (const id of opts.deletedIds) {
+    operations.push({ command: "update", pointer: { table: "block", id }, path: [], args: { alive: false } });
+  }
+  if (operations.length === 0) return { droppedIds, rejected: [] };
+  const { rejected } = await applyTransactions({
+    pageId,
+    userId: opts.userId,
+    workspaceId: opts.workspaceId,
+    clientId: opts.clientId,
+    transactions: [
+      {
+        id: crypto.randomUUID(),
+        pageId,
+        timestamp: Date.now(),
+        debug: { userAction: opts.userAction, clientCommitTimeMs: Date.now() },
+        operations,
+      },
+    ],
+  });
+  return { droppedIds, rejected };
+}
+
+/** The page's live blocks in order — the one read every route should use. */
+export async function liveBlocks(pageId: string): Promise<Block[]> {
+  return db
+    .select()
+    .from(blocks)
+    .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
+    .orderBy(blocks.position);
 }
 
 /** File-backed pages: apply the operations to the node's block list in memory
- * and write the page back, recording ids in `transactions` for idempotency. */
+ * and write the page back, recording ids in `transactions` for idempotency.
+ * The file has no tombstones — `alive:false` removes the block from the file. */
 async function applyToOkfPage(
   opts: { pageId: string; userId: string | null; transactions: Transaction[] },
-  rejected: { id: string; reason: string }[],
+  rejected: ApplyResult["rejected"],
   applied: Transaction[]
 ) {
   const { pageId } = opts;
@@ -199,6 +276,7 @@ function applyToList(list: Block[], ops: Operation[], pageId: string): Block[] {
         content: normalizeContent(a.type, a.content),
         parentBlockId: a.parentBlockId ?? null,
         position: a.position,
+        alive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -228,7 +306,7 @@ function applyToList(list: Block[], ops: Operation[], pageId: string): Block[] {
 
 /** Same coercion the blocks route applies to API callers (bare strings, table
  * cells without the wrapper) so a set/update can never store an odd shape. */
-function normalizeContent(type: BlockType, content: unknown): BlockContent {
+export function normalizeContent(type: BlockType, content: unknown): BlockContent {
   if (typeof content === "string") return { text: content };
   if (content && typeof content === "object") {
     const c = content as Record<string, unknown>;

@@ -2,12 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import { subscribeSse } from "@/lib/sse-share";
+import type { Transaction } from "@/lib/transactions/types";
 
 export interface RemotePageEvent {
-  type: "blocks" | "page";
+  type: "blocks" | "transactions" | "page";
   pageId: string;
   clientId: string | null;
   at: number;
+  /** present on "transactions": what the server just applied */
+  transactions?: Transaction[];
 }
 
 /**

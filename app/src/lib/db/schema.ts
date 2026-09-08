@@ -223,6 +223,11 @@ export const blocks = pgTable(
     content: jsonb("content").$type<BlockContent>().default({}).notNull(),
     parentBlockId: uuid("parent_block_id"),
     position: doublePrecision("position").notNull(),
+    /** Deletion is `alive=false`, never a DELETE (docs/save-protocol-target.md
+     * §1.1): undo and a resent transaction can bring the same id back, and a
+     * late `update` to a block someone else removed lands on a row instead of
+     * vanishing. Readers filter on it; a purge of long-dead rows is a batch. */
+    alive: boolean("alive").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

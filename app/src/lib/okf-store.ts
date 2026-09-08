@@ -442,6 +442,7 @@ export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
     content: b.content,
     parentBlockId: null,
     position: b.position ?? i + 1,
+    alive: true,
     createdAt: now,
     updatedAt: now,
   }));

@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
         fullPage: sql<string | null>`${blocks.content}->>'fullPage'`,
       })
       .from(blocks)
-      .where(and(eq(blocks.type, "database"), sql`${blocks.content}->>'databaseId' = ${body.rowForDatabaseId}`));
+      .where(and(eq(blocks.type, "database"), eq(blocks.alive, true), sql`${blocks.content}->>'databaseId' = ${body.rowForDatabaseId}`));
     const host = hosts.find((h) => h.fullPage === "true") ?? hosts[0];
     if (host) parentPageId = host.pageId;
   }
