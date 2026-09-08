@@ -655,6 +655,28 @@ export const pageSnapshots = pgTable("page_snapshots", {
 
 export type PageSnapshot = typeof pageSnapshots.$inferSelect;
 
+/**
+ * Every applied save transaction (docs/save-protocol-target.md §3–4). The row
+ * is what makes a save idempotent: a client that retries the same transaction
+ * (5s later, or from the next session after the tab closed mid-flight) finds
+ * its id here and the server answers "done" without applying it twice.
+ * `page_id` is text, not a uuid FK: file-backed (OKF) pages save through the
+ * same route and their ids are base64url paths.
+ */
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuid("id").primaryKey(),
+    pageId: text("page_id").notNull(),
+    userId: uuid("user_id"),
+    operations: jsonb("operations").notNull(),
+    userAction: text("user_action"),
+    clientTimestamp: timestamp("client_timestamp"),
+    appliedAt: timestamp("applied_at").defaultNow().notNull(),
+  },
+  (t) => [index("transactions_page_applied_idx").on(t.pageId, t.appliedAt)]
+);
+
 export const comments = pgTable(
   "comments",
   {
