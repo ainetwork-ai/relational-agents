@@ -37,7 +37,7 @@ await ctx.addInitScript(() => {
   const mark = (k) => window.__marks.push([k, performance.now()]);
   document.addEventListener("input", () => mark("input"), true);
   const of = window.fetch;
-  window.fetch = function (u) { if (String(u).endsWith("/transactions")) mark("fetch"); return of.apply(this, arguments); };
+  window.fetch = function (u) { if (String(u).endsWith("/api/saveTransactions")) mark("fetch"); return of.apply(this, arguments); };
 });
 
 // ── 페이지 준비: 227 문단 ≈ 65KB ──────────────────────────────────────────
@@ -63,9 +63,9 @@ const idbCount = (page) => page.evaluate(() => new Promise((res) => {
 
 function watch(page) {
   const events = [];
-  page.on("request", (r) => { if (/\/transactions$/.test(r.url()) && r.method() === "POST") events.push({ kind: "req", t: Date.now(), bytes: Buffer.byteLength(r.postData() ?? ""), txs: JSON.parse(r.postData() ?? "{}").transactions?.map((x) => x.id) ?? [] }); });
-  page.on("response", (r) => { if (/\/transactions$/.test(r.url())) events.push({ kind: "res", t: Date.now(), status: r.status() }); });
-  page.on("requestfailed", (r) => { if (/\/transactions$/.test(r.url())) events.push({ kind: "fail", t: Date.now(), txs: JSON.parse(r.postData() ?? "{}").transactions?.map((x) => x.id) ?? [] }); });
+  page.on("request", (r) => { if (/\/api\/saveTransactions$/.test(r.url()) && r.method() === "POST") events.push({ kind: "req", t: Date.now(), bytes: Buffer.byteLength(r.postData() ?? ""), txs: JSON.parse(r.postData() ?? "{}").transactions?.map((x) => x.id) ?? [] }); });
+  page.on("response", (r) => { if (/\/api\/saveTransactions$/.test(r.url())) events.push({ kind: "res", t: Date.now(), status: r.status() }); });
+  page.on("requestfailed", (r) => { if (/\/api\/saveTransactions$/.test(r.url())) events.push({ kind: "fail", t: Date.now(), txs: JSON.parse(r.postData() ?? "{}").transactions?.map((x) => x.id) ?? [] }); });
   return events;
 }
 async function openEditor(page) {
@@ -80,6 +80,7 @@ async function focusLast(page) {
   await page.evaluate(() => { const el = document.activeElement; if (!el) return; const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); });
 }
 
+if (!process.env.ONLY6) {
 // ── 1·2. 크기·지연·배치 ─────────────────────────────────────────────────
 const p1 = await ctx.newPage();
 const ev1 = watch(p1);
@@ -173,8 +174,10 @@ check("3. 배지 사라짐", await p1.locator('[data-testid="offline-badge"]').c
   const before = (await serverText()).length;
   const newBlockId = uuid();
   const body = { requestId: uuid(), transactions: [{ id: uuid(), pageId, timestamp: Date.now(), debug: { userAction: "check.idempotent", clientCommitTimeMs: Date.now() }, operations: [{ command: "set", pointer: { table: "block", id: newBlockId }, path: [], args: { id: newBlockId, type: "paragraph", content: { text: "idem" }, parentBlockId: null, position: 9999 } }] }] };
-  const r1 = await api.post(`${BASE}/api/pages/${pageId}/transactions`, { data: body });
-  const r2 = await api.post(`${BASE}/api/pages/${pageId}/transactions`, { data: body });
+  const r1 = await api.post(`${BASE}/api/saveTransactions`, { data: body });
+  const r2 = await api.post(`${BASE}/api/saveTransactions`, { data: body });
+  const body1 = await r1.text();
+  check("4. 응답 본문은 `{}`", body1 === "{}", body1.slice(0, 60));
   const after = (await serverText()).length;
   check("4. 같은 요청 2회 → 블록 1개", r1.ok() && r2.ok() && after === before + 1, `${before} → ${after}, ${r1.status()}/${r2.status()}`);
 }
@@ -228,6 +231,47 @@ for (let i = 0; i < 30; i++) {
 check("5b. 닫힌 탭의 고아 트랜잭션을 새 탭이 ≤20초 안에 회수·전송 (노션 실측 13.6s)", landed2 !== null && landed2 <= 20_000, landed2 !== null ? `${landed2}ms` : "not landed in 30s");
 for (let i = 0; i < 20 && (await idbCount(p5)) !== 0; i++) await sleep(1000);
 check("5b. 회수 뒤 IndexedDB 0건 (≤20초)", (await idbCount(p5)) === 0, `${await idbCount(p5)} rows`);
+await p5.close();
+
+}
+
+// ── 6. 팬아웃: 다른 탭의 편집이 GET /blocks 없이 트랜잭션으로 도착 ─────────
+{
+  const pa = await ctx.newPage();
+  const pb = await ctx.newPage();
+  await openEditor(pa);
+  await openEditor(pb);
+  await sleep(1500);
+  await pa.bringToFront(); // two pages in one context: only the front one gets key input
+  let getsInB = 0;
+  pb.on("request", (r) => { if (r.method() === "GET" && /\/api\/pages\/[^/]+\/blocks$/.test(r.url())) getsInB++; });
+  await focusLast(pa);
+  await pa.keyboard.type("팬아웃");
+  const t6 = Date.now();
+  await sleep(1500);
+  console.log("  · A active:", await pa.evaluate(() => document.activeElement?.getAttribute("data-testid")), "hasFocus:", await pa.evaluate(() => document.hasFocus()), "save-state:", await pa.getAttribute('[data-testid="editor-root"]', "data-save-state"));
+  console.log("  · server has 팬아웃:", (await serverText()).some((b) => (b.content?.text ?? "").includes("팬아웃")));
+  let seen = null;
+  for (let i = 0; i < 40; i++) {
+    const txt = await pb.evaluate(() => [...document.querySelectorAll('[data-testid^="block-editable-"]')].map((e) => e.innerText).join("\n"));
+    if (txt.includes("팬아웃")) { seen = Date.now() - t6; break; }
+    await sleep(250);
+  }
+  check("6. 다른 탭에 편집이 도착 (SSE 트랜잭션)", seen !== null, seen !== null ? `${seen}ms` : "not seen in 10s");
+  check("6. 도착 과정에서 전체 GET /blocks 없음", getsInB === 0, `${getsInB} GETs`);
+  // soft delete: remove the last block in A → gone from B and from GET, but the row stays (alive=false)
+  const beforeDel = (await serverText()).length;
+  const lastId = await pa.evaluate(() => { const els = [...document.querySelectorAll('[data-testid^="block-editable-"]')]; return els[els.length - 1]?.getAttribute("data-testid")?.slice("block-editable-".length) ?? null; });
+  await pa.keyboard.press("Control+a");
+  await pa.keyboard.press("Backspace");
+  await pa.keyboard.press("Backspace");
+  await sleep(2500);
+  const afterDel = (await serverText()).length;
+  check("6. 블록 삭제 → GET 에서 사라짐", afterDel === beforeDel - 1, `${beforeDel} → ${afterDel}`);
+  const gone = await pb.evaluate((id) => !document.querySelector(`[data-testid="block-editable-${id}"]`), lastId);
+  check("6. 삭제도 다른 탭에 트랜잭션으로 도착", gone && getsInB === 0, `GETs ${getsInB}`);
+  await pa.close(); await pb.close();
+}
 
 // ── 뒷정리 ──────────────────────────────────────────────────────────────
 await api.delete(`${BASE}/api/pages/${pageId}`);
