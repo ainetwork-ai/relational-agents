@@ -15,7 +15,7 @@
 ## 1. 데이터 모델
 
 ```ts
-type ItemId = [clientId: string, seq: number];        // 클라이언트별 단조 증가
+type ItemId = [clientId: string, seq: number];        // seq 는 Lamport 시계: 내가 본 최대 seq + 1
 interface TextItem {
   id: ItemId;
   origin: ItemId | "start";   // 삽입 당시 바로 왼쪽에 있던 item
@@ -31,7 +31,11 @@ interface TextInstance { items: TextItem[] }          // 정렬된 상태로 저
 - 표 블록은 셀마다 instance: `content.table.cellItems[row][col]`. 캐시는 지금의 `cells[row][col]`.
 - 그 외 필드(`type`, `position`, `parentBlockId`, `checked`, `expanded`, 이미지 URL …)는 LWW 그대로.
 
-### 1.1 순서 규칙 (RGA)
+### 1.1 순서 규칙 (RGA, Lamport seq)
+
+`seq` 는 클라이언트별 카운터가 아니라 **Lamport 시계**다: 새 item 은 "그 instance 에서 지금까지 본 가장 큰
+seq + 1" 을 받는다. 그래야 방금 친 글자가 origin 바로 뒤에 놓인다(카운터였다면 오래된 이웃보다 작은 seq 라
+run 의 끝으로 밀린다 — `scripts/text-crdt.check.mts` 의 "삭제된 글자 뒤 삽입" 이 그 경우다).
 
 item 은 origin 이 가리키는 item 의 **바로 오른쪽**에 들어간다. 같은 origin 을 가리키는 item 이 여럿이면
 `seq` 내림차순, 같으면 `clientId` 사전순 — 어떤 순서로 연산이 도착해도 결과가 같다. 정렬은 "origin 을
@@ -158,9 +162,14 @@ SSE 로 온 텍스트 연산을 자기 items 에 병합하고 다시 그린다. 
 - 서버가 instance 를 **처음 필요로 할 때** 만든다: `items` 가 없으면 `html` 을 태그 경계에서 쪼개
   `[{ id: ["migration", 1..n], origin: 이전 item, text, attrs }]` 로 저장한다. `html` 이 없으면 `text` 로 item
   하나. 노션 실측의 `prevItems[0]`(`originId:"start"`, `id:[…,1]`)과 같은 형태다. 한 번에 밀지 않는다.
-- 서버 쪽 쓰기(PUT /blocks, MCP, 복원)의 `set`/`update {content}` 는 **"살아 있는 item 전부 tombstone +
-  새 item 열"** 로 변환한다. 이 변환이 에디터 전환보다 **먼저** 들어가야 캐시만 바꾸는 쓰기가 items 를
-  낡게 만들지 않는다.
+- 서버 쪽 쓰기(PUT /blocks, MCP, 복원)의 `set`/`update {content}` 는 **새 instance**(`textInstance` 교체, html 로
+  items 재구성)가 된다 — 노션 실측과 같다(API 식 교체 뒤 새 `textInstanceId`, `prevItems:[start]`). 이전
+  instance 를 향한 늦은 연산은 instance 불일치로 거절되고 클라이언트가 다시 만든다. 이 변환이 에디터 전환보다
+  **먼저** 들어가야 캐시만 바꾸는 쓰기가 items 를 낡게 만들지 않는다. (①에서 구현: `lib/text-crdt/content.ts`
+  `withTextInstance`, `applyTransactions` 의 `normalizeContent` 가 모든 content 쓰기에 적용.)
+- **정규형.** `render(parse(h))` 는 바이트 동일이 아니라 DOM 동일을 목표로 한다: 저장된 html 에는 `&quot;` 와 `"`
+  가 섞여 있고 `</b><b>` 처럼 같은 태그가 붙은 것도 있어 한 표기로 모은다. dev 7,150 건·prod 4,643 건 전부
+  글자·태그 열 보존 + 멱등을 확인했고, 그중 58/53 건이 표기만 바뀐다.
 - 옛 클라이언트(`update {content}` 를 보내는 이전 빌드 탭)가 남아 있을 수 있으니, 그 형태도 같은 변환으로
   받는다. 배포 뒤 열려 있던 탭은 새 코드가 아니어도 데이터를 깨지 않는다.
 
@@ -190,7 +199,7 @@ SSE 로 온 텍스트 연산을 자기 items 에 병합하고 다시 그린다. 
 
 | 질문 | 노션 | 우리 결정 |
 |---|---|---|
-| 서버 쪽 전체 교체(`update {content}`)가 CRDT 이력을 끊어도 되는가 | `set properties.title` 뒤 새 `textInstanceId`, `prevItems:[start]` — 끊는다 | 같게. 살아 있는 item 전부 tombstone + 새 item 열(§7) |
+| 서버 쪽 전체 교체(`update {content}`)가 CRDT 이력을 끊어도 되는가 | `set properties.title` 뒤 새 `textInstanceId`, `prevItems:[start]` — 끊는다 | 같게. 새 instance 로 시작(§7) |
 | 삭제된 origin 을 가리키는 늦은 삽입 | 200, 그 자리에 놓임(tombstone 보존) | 같게. tombstone 보존 기간은 노션 값을 잴 수 없어 **30 일**은 우리 선택 |
 | 입력 처리 | uncontrolled, DOM 변경을 읽어 연산 생성, IME 조합 갱신마다 연산 | 같게(§3.2). controlled 재작성은 하지 않는다 — 위험이 크게 줄었다 |
 | 렌더 범위 | 키 입력 하나에 블록 1 개만 다시 그림 | §3.6 을 3 단계에 포함해 같게 |

@@ -9,6 +9,7 @@ import { notifyMentions } from "@/lib/notifications";
 import { publish } from "@/lib/realtime";
 import { isOkfId, decodeId, readNode, writePage, parsedToBlocks, blocksToParsed } from "@/lib/okf-store";
 import type { Operation, Transaction } from "./types";
+import { withTextInstance } from "@/lib/text-crdt/content";
 
 /**
  * Apply save transactions to one page (docs/save-protocol-target.md §4.2).
@@ -305,15 +306,19 @@ function applyToList(list: Block[], ops: Operation[], pageId: string): Block[] {
 }
 
 /** Same coercion the blocks route applies to API callers (bare strings, table
- * cells without the wrapper) so a set/update can never store an odd shape. */
+ * cells without the wrapper) so a set/update can never store an odd shape —
+ * and, since stage 3 step ①, the text CRDT instance the content describes:
+ * a wholesale text write starts a new instance rebuilt from its html (what
+ * Notion does on an API-style replace), a client that speaks items keeps them
+ * and the html/text cache is regenerated from them. */
 export function normalizeContent(type: BlockType, content: unknown): BlockContent {
-  if (typeof content === "string") return { text: content };
-  if (content && typeof content === "object") {
-    const c = content as Record<string, unknown>;
-    if (type === "table" && !c.table && Array.isArray(c.cells)) {
-      return { table: { cells: c.cells as string[][], headerRow: c.headerRow !== false } };
-    }
-    return c as BlockContent;
-  }
-  return {};
+  let c: BlockContent;
+  if (typeof content === "string") c = { text: content };
+  else if (content && typeof content === "object") {
+    const o = content as Record<string, unknown>;
+    c = type === "table" && !o.table && Array.isArray(o.cells)
+      ? { table: { cells: o.cells as string[][], headerRow: o.headerRow !== false } }
+      : (o as BlockContent);
+  } else c = {};
+  return withTextInstance(c);
 }
