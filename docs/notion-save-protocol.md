@@ -86,6 +86,21 @@ originId: [clientId, seq] | "start", content, prevItems }`, `deleteText.args.idR
   worker 를 두고 있어 그쪽에서 나간 것으로 보인다. 어느 쪽이 보내는가는 우리 구현에 중요하지 않다.
   **"다음 세션이 이전 세션의 미확인 트랜잭션을 회수해 보낸다"** 가 규칙이다.
 
+## 4b. 텍스트 CRDT 의 네 가지 — 3 단계 설계 결정용 실측 (`…probe9.mjs`, 2026-09-08)
+
+| 질문 | 잰 것 | 결과 |
+|---|---|---|
+| 입력 처리가 controlled 인가 | `beforeinput` 의 `defaultPrevented` | **아니다.** `insertText`·`insertCompositionText` 모두 `prevented:false`. 브라우저가 DOM 을 먼저 바꾸고 노션이 뒤따른다 — 트랜잭션의 `userAction` 이 문자 그대로 `Text.handleMutation` 이다 |
+| IME 조합 중 연산이 나가는가 | ㅎ→하→한 조합 후 확정 | **나간다.** 조합 갱신마다 `insertText:ㅎ`, 이어서 `deleteText` + `insertText:하` … 확정을 기다리지 않는다 |
+| API 식 전체 교체 뒤 CRDT 는 | `set ["properties","title"]` 로 텍스트 교체 → 글자 하나 입력 | 교체는 **200 `{}`**. 다음 `insertText` 는 **새 `textInstanceId`**, `prevItems:[{type:"start"}]`, `origin:"start"` — 이전 조각 이력이 끊기고 instance 가 새로 시작한다 |
+| 삭제된 origin 을 가리키는 늦은 삽입 | A 오프라인에서 마지막 글자 뒤에 `Q` → B 가 그 글자 삭제 → A 복귀 | **200, 양쪽 모두 `…가나Q`.** tombstone 이 남아 있어 그 자리에 놓인다. 보존 기간은 하루 안에 잴 수 없다 |
+| 키 입력 하나가 다시 그리는 블록 수 | 60 블록, MutationObserver 로 DOM 이 바뀐 블록 집계 | **1 개.** 편집한 블록만 바뀐다 |
+| 연속 입력 조각 합치기 | 글자마다 보낸 13 개 조각의 다음 `prevItems` | 클라이언트도 `id:[…,1], length:13` **한 조각**으로 들고 있다 — 합치기는 클라이언트·서버 양쪽 |
+
+부수: 제목(page block 의 `properties.title`)도 같은 텍스트 에디터·같은 연산을 쓴다. 새 블록 `set` 에는
+`crdt_data.title`(`crdt_format_version:1`, start/end sentinel 노드 트리)이 `properties.title`(렌더 결과)과
+나란히 들어간다 — "CRDT 원본 + 렌더 캐시" 두 벌 저장이다.
+
 ## 5. 우리와의 차이 (2026-09-08 HEAD)
 
 | | 노션 | ainmem |
