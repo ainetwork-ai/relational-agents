@@ -8,7 +8,7 @@
 //   3. 오프라인 5타 → IndexedDB Transaction ≥ 5, 배지 `오프라인`, 재시도 5.0±0.7s 같은 id,
 //      복귀 → 0건, 배지 사라짐, 서버에 전부 반영
 //   4. 같은 요청 2회 → 블록 1개 (멱등)
-//   5. 입력 후 10ms 에 탭 닫기 → 새 탭 ≤ 15초 안에 서버 반영
+//   5. 입력 후 10ms 에 탭 닫기 → 새 탭 ≤ 20초 안에 서버 반영 (노션: 닫힌 뒤 13.6s 에 살아 있는 탭이 회수)
 // 만든 페이지는 끝에 지운다. dev DB 전용.
 import fs from "node:fs";
 import { sealData } from "iron-session";
@@ -198,7 +198,7 @@ for (let i = 0; i < 30; i++) {
   if (rows.some((b) => (b.content?.text ?? "").endsWith("Z"))) { landed = Date.now() - closedAt; break; }
   await sleep(1000);
 }
-check("5. 탭 닫기 10ms 뒤 → 새 탭이 ≤15초 안에 서버 반영", landed !== null && landed <= 15_000, landed !== null ? `${landed}ms` : "not landed in 30s");
+check("5. 탭 닫기 10ms 뒤 → 새 탭이 ≤20초 안에 서버 반영 (노션 실측 13.6s)", landed !== null && landed <= 20_000, landed !== null ? `${landed}ms` : "not landed in 30s");
 for (let i = 0; i < 20 && (await idbCount(p3)) !== 0; i++) await sleep(1000);
 check("5. 회수 뒤 IndexedDB 0건 (≤20초)", (await idbCount(p3)) === 0, `${await idbCount(p3)} rows`);
 
@@ -225,7 +225,7 @@ for (let i = 0; i < 30; i++) {
   if (rows.some((b) => (b.content?.text ?? "").endsWith("ZQ"))) { landed2 = Date.now() - closedAt2; break; }
   await sleep(1000);
 }
-check("5b. 닫힌 탭의 고아 트랜잭션을 새 탭이 ≤15초 안에 회수·전송", landed2 !== null && landed2 <= 15_000, landed2 !== null ? `${landed2}ms` : "not landed in 30s");
+check("5b. 닫힌 탭의 고아 트랜잭션을 새 탭이 ≤20초 안에 회수·전송 (노션 실측 13.6s)", landed2 !== null && landed2 <= 20_000, landed2 !== null ? `${landed2}ms` : "not landed in 30s");
 for (let i = 0; i < 20 && (await idbCount(p5)) !== 0; i++) await sleep(1000);
 check("5b. 회수 뒤 IndexedDB 0건 (≤20초)", (await idbCount(p5)) === 0, `${await idbCount(p5)} rows`);
 

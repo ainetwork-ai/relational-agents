@@ -64,6 +64,8 @@ originId: [clientId, seq] | "start", content, prevItems }`, `deleteText.args.idR
   레코드 = `{ id, userId, spaceId, timestamp, debug, operations[], sessionId, index }` — 보내는 트랜잭션 그대로.
 - 스토어 `Session` (keyPath `index`, 인덱스 byOwnerSessionId · bySessionId · byUpdatedAt).
   레코드 = `{ sessionId, ownerSessionId, updatedAt, index }` — 탭(세션)이 살아 있음을 알리는 심장박동.
+  **대기 트랜잭션이 있을 때만 존재한다**(큐가 비면 행도 없다 — 조용한 탭을 25 초 관찰해 0 행). 오프라인으로
+  트랜잭션 하나를 대기시키고 40 초 관찰(`…probe8.mjs`): `updatedAt` 갱신 간격 **2,505 ms × 15 회**, 즉 2.5 초 고정.
 - **모든 트랜잭션은 서버 200 이 오기 전까지 여기 있고, 오면 지운다.** 온라인에서 타이핑 중 재보면
   0건, 오프라인에서 5타 치면 5건, 복귀 후 0건.
 - 실패했을 때만 저장하는 방식이 아니다. 보내기 **전에** 저장하고, **쓰기가 완료된 뒤에** 보낸다.
@@ -75,7 +77,11 @@ originId: [clientId, seq] | "start", content, prevItems }`, `deleteText.args.idR
 - 저장 fetch 에 `keepalive` 를 **쓰지 않는다** (14건 전부 `keepalive:false`, `sendBeacon` 없음).
 - 입력 10ms 뒤 탭을 닫으면 그 트랜잭션은 서버에 못 간다. 대신 IndexedDB 에 남는다.
 - 새 탭이 같은 페이지를 열면 남은 트랜잭션(고아)이 그대로 보이고(`Transaction:1`, `Session:1`),
-  **열고 약 8초 뒤** 큐가 비면서 글자가 나타났다. 이 재전송은 페이지 컨텍스트의 네트워크에 잡히지
+  **열고 약 8초 뒤** 큐가 비면서 글자가 나타났다.
+- 회수 시점을 다시 잼(`…probe7.mjs`, 세 번): 탭을 닫은 시각 기준 **13.7 초**(닫고 바로 새 탭), **13.6 초**(이미 떠
+  있던 다른 탭이 회수), 닫고 30 초 뒤 새 탭을 열었을 때는 **이미 회수되어 있었다**(떠 있던 골든셋 탭이 했다).
+  즉 회수는 "새 탭이 열릴 때"가 아니라 **살아 있는 아무 탭이 주기적으로** 하며, 죽은 뒤 약 13.6 초다.
+  2.5 초 박동으로 보면 5 박동(12.5 초) 놓친 세션을 고아로 보고 그 직후 검사에서 가져가는 값이다. 이 재전송은 페이지 컨텍스트의 네트워크에 잡히지
   않았다 — 노션은 shared worker(`wasm-sqlite-shared-worker`, `opfs-*-cache-worker`)와 service
   worker 를 두고 있어 그쪽에서 나간 것으로 보인다. 어느 쪽이 보내는가는 우리 구현에 중요하지 않다.
   **"다음 세션이 이전 세션의 미확인 트랜잭션을 회수해 보낸다"** 가 규칙이다.

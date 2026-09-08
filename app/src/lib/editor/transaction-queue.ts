@@ -37,12 +37,13 @@ const DB_VERSION = 1;
 const POST_RESPONSE_DELAY_MS = 500;
 /** retry after a failure (measured 5.0s) */
 const RETRY_MS = 5000;
-/** session heartbeat, how stale a heartbeat must be before its transactions
- * are adopted, and how often to look (measured: a new tab adopted a closed
- * tab's orphan in ~8s — these land in the same window) */
-const HEARTBEAT_MS = 3000;
-const ORPHAN_AFTER_MS = 8000;
-const SWEEP_MS = 3000;
+/** Session heartbeat — measured in Notion at a fixed 2.5s, and written ONLY
+ * while transactions are pending (an idle tab leaves no Session row). A dead
+ * session's transactions were adopted by a live tab 13.6–13.7s after its tab
+ * closed; 5 missed beats plus one sweep lands in that window. */
+const HEARTBEAT_MS = 2500;
+const ORPHAN_AFTER_MS = 12500;
+const SWEEP_MS = 2500;
 
 export type FailureKind = "network" | "server" | null;
 
@@ -208,6 +209,9 @@ export class TransactionQueue {
       });
     this.carried.push({ t, persisted });
     this.emit(t.pageId);
+    // the first pending transaction starts the heartbeat at once, so a tab
+    // that dies right after typing is still recognisable as a dead OWNER
+    if (this.carried.length === 1) void this.beat();
     void persisted.then(() => this.schedule(0));
     return persisted;
   }
@@ -274,6 +278,7 @@ export class TransactionQueue {
       this.emit(pageId);
       for (const fn of this.ackListeners.get(pageId) ?? []) fn({ transactions: batch.map((c) => c.t), response: body });
       this.schedule(0);
+      if (this.carried.length === 0) void this.beat(); // drops the Session row
       // the durable mirror: wait for the writes, then remove them
       await Promise.all(batch.map((c) => c.persisted));
       try {
@@ -294,18 +299,25 @@ export class TransactionQueue {
     }
   }
 
+  /** Heartbeat while anything is pending; when nothing is, the Session row is
+   * removed — a tab with an empty queue has nothing another tab could adopt,
+   * and Notion leaves no row either. */
   private async beat() {
     try {
       const db = await this.open();
       const tx = db.transaction("Session", "readwrite");
       const st = tx.objectStore("Session");
       const existing = (await req(st.index("bySessionId").get(this.sessionId))) as StoredSession | undefined;
-      st.put({
-        ...(existing ?? {}),
-        sessionId: this.sessionId,
-        ownerSessionId: this.sessionId,
-        updatedAt: Date.now(),
-      } satisfies StoredSession);
+      if (this.carried.length === 0) {
+        if (existing?.index !== undefined) st.delete(existing.index);
+      } else {
+        st.put({
+          ...(existing ?? {}),
+          sessionId: this.sessionId,
+          ownerSessionId: this.sessionId,
+          updatedAt: Date.now(),
+        } satisfies StoredSession);
+      }
       await done(tx);
     } catch {}
   }
