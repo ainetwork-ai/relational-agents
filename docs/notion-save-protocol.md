@@ -47,7 +47,9 @@ originId: [clientId, seq] | "start", content, prevItems }`, `deleteText.args.idR
   레코드 = `{ sessionId, ownerSessionId, updatedAt, index }` — 탭(세션)이 살아 있음을 알리는 심장박동.
 - **모든 트랜잭션은 서버 200 이 오기 전까지 여기 있고, 오면 지운다.** 온라인에서 타이핑 중 재보면
   0건, 오프라인에서 5타 치면 5건, 복귀 후 0건.
-- 실패했을 때만 저장하는 방식이 아니다. 보내기 **전에** 저장한다.
+- 실패했을 때만 저장하는 방식이 아니다. 보내기 **전에** 저장하고, **쓰기가 완료된 뒤에** 보낸다.
+  글자 하나로 잰 순서(`…probe4.mjs`, `IDBObjectStore.add`·`complete`·`fetch` 를 감싸서):
+  입력 0ms → `Session` add 2.3ms → `Transaction` add 2.6ms → 쓰기 complete 3.1ms → fetch 4.7ms → 응답 321ms.
 
 ## 4. 탭이 닫히면
 

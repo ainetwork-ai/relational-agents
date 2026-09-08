@@ -18,12 +18,12 @@
  * no `keepalive` — a tab that closes mid-flight leaves its transactions for the
  * next session, which adopts and sends them (§5.3).
  *
- * Memory is the working copy and IndexedDB the durable mirror: `enqueue`
- * issues the IndexedDB write and, when the line is idle, calls fetch() in the
- * same synchronous turn — before React re-renders the page. Waiting for the
- * write's completion event would have put the request behind a 400ms render
- * of a 227-block page. The write is already queued in the browser at that
- * point; a renderer that dies in between loses the fetch and the write alike.
+ * Store first, then send — strictly. Measured in Notion for one keystroke:
+ * input 0ms → IndexedDB add 2.6ms → write complete 3.1ms → fetch 4.7ms. So
+ * `enqueue` waits for the write's completion event before the request goes
+ * out. On a page whose re-render is slow that wait includes the render (the
+ * completion event is a task, and React's synchronous flush runs first); the
+ * cure for that is a faster render, not a looser guarantee.
  *
  * One queue per tab (module singleton). Editors subscribe per page.
  */
@@ -192,8 +192,8 @@ export class TransactionQueue {
     };
   }
 
-  /** Take the transaction: mirror it to IndexedDB, and send it now if the line
-   * is idle. Resolves once the IndexedDB write committed. */
+  /** Take the transaction: write it to IndexedDB, and only once that write has
+   * committed let the line send it (now if idle). Resolves at the same point. */
   enqueue(t: Transaction): Promise<void> {
     this.touched.add(t.pageId);
     const persisted = this.open()
@@ -208,7 +208,7 @@ export class TransactionQueue {
       });
     this.carried.push({ t, persisted });
     this.emit(t.pageId);
-    this.schedule(0);
+    void persisted.then(() => this.schedule(0));
     return persisted;
   }
 
@@ -233,7 +233,8 @@ export class TransactionQueue {
     }, delay);
   }
 
-  /** Synchronous up to and including fetch(): nothing here yields to a render. */
+  /** Synchronous up to and including fetch(). Runs only for rows whose
+   * IndexedDB write has completed (see enqueue) or that were read back from it. */
   private flush() {
     if (this.inflightPage || this.carried.length === 0) return;
     // one request, one page: the oldest pending transaction's page goes first
