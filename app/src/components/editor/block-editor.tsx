@@ -35,8 +35,9 @@ import { EmojiSuggestMenu, emojiCandidates, type EmojiCandidate } from "./emoji-
 import { loadEmojiSet } from "@/lib/emoji-data";
 import { BlockRow } from "./block-row";
 import { EmptyPageStarter } from "./empty-page-starter";
-import { useDebounced } from "@/hooks/use-debounced";
 import { usePageSync } from "@/hooks/use-page-sync";
+import { diffBlocks } from "@/lib/editor/block-diff";
+import { getTransactionQueue, migrateLegacyDraft } from "@/lib/editor/transaction-queue";
 import { usePagesStore } from "@/stores/pages";
 
 export interface EBlock {
@@ -318,7 +319,7 @@ export const BlockEditor = forwardRef<
  // SSE events (aindrive's origin-tag pattern)
   const [clientId] = useState(() => newId());
   const [dropTarget, setDropTarget] = useState<{ id: string; before: boolean; side?: "left" | "right" } | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "offline">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "offline" | "error">("idle");
 
   const editables = useRef(new Map<string, HTMLElement>());
   const deletedIds = useRef(new Set<string>());
@@ -346,139 +347,85 @@ export const BlockEditor = forwardRef<
 
  // Ids the SERVER is known to hold (mount snapshot, refreshed on remote sync
  // and successful saves). Anything else in our list was created locally and
- // is declared via `newIds` so the server can tell a fresh insert apart from
+ // becomes a `set` operation, so the server can tell a fresh insert apart from
  // a stale block someone else already deleted.
   const serverIdsRef = useRef<Set<string>>(new Set(initialBlocks.map((b) => b.id)));
 
-  const draftKey = `draft-${pageId}`;
-  const save = useDebounced(async (payload: EBlock[]) => {
-    setSaveState("saving");
-    const seq = seqRef.current;
-    const payloadIds = new Set(payload.map((b) => b.id));
- // delete→undo before the flush: the block is alive again — don't delete it
-    for (const id of [...deletedIds.current]) {
-      if (payloadIds.has(id)) deletedIds.current.delete(id);
-    }
-    const dels = [...deletedIds.current];
-    const newIds = payload.filter((b) => !serverIdsRef.current.has(b.id)).map((b) => b.id);
-    const body = JSON.stringify({
-      blocks: payload.map((b) => ({
-        id: b.id,
-        type: b.type,
-        content: b.content,
-        parentBlockId: b.parentBlockId,
-        position: b.position,
-      })),
-      deletedIds: dels,
-      newIds,
-    });
-    let res: Response | null = null;
-    try {
-      res = await fetch(`/api/pages/${pageId}/blocks`, {
-        method: "PUT",
-        headers: { "content-type": "application/json", "x-client-id": clientId },
-        body,
- // survive page reload/navigation mid-flush (small payloads only —
- // keepalive caps the body at ~64KB)
-        keepalive: body.length < 60_000,
+  const queue = getTransactionQueue();
+
+  /**
+   * One edit → one transaction of block-level operations, stored in IndexedDB
+   * before anything else happens and sent by the tab's queue (see
+   * lib/editor/transaction-queue.ts and docs/save-protocol-target.md §9 stage 1).
+   * This replaced a debounced PUT of EVERY block on every keystroke: a request
+   * that grew with the page until the browser refused it (65 KB of Korean under
+   * a 64 KiB keepalive budget) and a whole page of edits went into a
+   * localStorage draft that expired after 24 hours.
+   */
+  const commit = useCallback(
+    (prev: EBlock[], next: EBlock[], userAction: string) => {
+      const operations = diffBlocks(prev, next);
+      if (operations.length === 0) return;
+      dirtyRef.current = true;
+      for (const op of operations) {
+        if (op.command === "update" && op.args.alive === false) deletedIds.current.add(op.pointer.id);
+        else deletedIds.current.delete(op.pointer.id);
+      }
+      setSaveState("saving");
+      void queue.enqueue({
+        id: newId(),
+        pageId,
+        timestamp: Date.now(),
+        debug: { userAction, clientCommitTimeMs: Date.now() },
+        operations,
       });
-    } catch {
- // network down — keep the edits locally and resync when back online
-    }
-    if (res?.ok) {
-      for (const d of dels) {
-        deletedIds.current.delete(d);
-        serverIdsRef.current.delete(d);
-      }
-      let dropped: string[] = [];
-      try {
-        dropped = ((await res.json())?.droppedIds as string[] | undefined) ?? [];
-      } catch {}
-      const droppedSet = new Set(dropped);
-      for (const b of payload) {
-        if (!droppedSet.has(b.id)) serverIdsRef.current.add(b.id);
-      }
- // some of our blocks were deleted elsewhere while we were stale —
- // reconcile with the authoritative list (runs below once not dirty)
-      if (dropped.length) needResyncRef.current = true;
-      if (seqRef.current === seq) dirtyRef.current = false;
-      setSaveState("saved");
-      try {
-        localStorage.removeItem(draftKey);
-      } catch {}
-      if (needResyncRef.current && !dirtyRef.current) {
-        needResyncRef.current = false;
-        void applyRemoteRef.current();
-      }
-    } else if (res) {
-      setSaveState("idle");
-    } else {
- // offline: persist a local draft so nothing is lost even across a crash
-      setSaveState("offline");
-      try {
-        localStorage.setItem(
-          draftKey,
-          JSON.stringify({ blocks: payload, deletedIds: dels, at: Date.now() })
-        );
-      } catch {}
-    }
-  }, 500);
-
- // resync the moment the browser reports connectivity again (plus a slow
- // safety poll — some proxies never fire the online event)
-  useEffect(() => {
-    const retry = () => {
-      if (dirtyRef.current) save.call(blocksRef.current);
-    };
-    window.addEventListener("online", retry);
-    const iv = setInterval(() => {
-      if (dirtyRef.current && navigator.onLine) retry();
-    }, 5000);
-    return () => {
-      window.removeEventListener("online", retry);
-      clearInterval(iv);
-    };
- // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
- // flush on unmount: expanding a peek to the full page (or any client-side
- // navigation) inside the 500ms save window otherwise let the destination's
- // SSR read the page WITHOUT the edits just made.
-  useEffect(
-    () => () => {
-      if (dirtyRef.current) save.flush(blocksRef.current);
     },
- // save is stable (useMemo on ms); refs carry the latest state
- // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [pageId, queue]
   );
 
- // crash recovery: a local draft newer than this mount means edits never
- // reached the server (tab closed while offline) — restore and resave it
+ // Queue → editor: save state for the badge (and data-save-state for tests),
+ // and after an acknowledgement, the housekeeping the old save did inline.
   useEffect(() => {
- // deferred (async IIFE) so no setState runs synchronously in the effect body
-    void (async () => {
-      try {
-        const raw = localStorage.getItem(draftKey);
-        if (!raw) return;
-        const draft = JSON.parse(raw) as { blocks: EBlock[]; deletedIds: string[]; at: number };
-        if (!Array.isArray(draft.blocks) || Date.now() - draft.at > 24 * 60 * 60 * 1000) {
-          localStorage.removeItem(draftKey);
-          return;
+    queue.start();
+    queue.setShareToken(pageId, shareToken);
+    const offState = queue.subscribe(pageId, (s) => {
+      if (s.pending === 0) {
+        if (dirtyRef.current) {
+          dirtyRef.current = false;
+          if (needResyncRef.current) {
+            needResyncRef.current = false;
+            void applyRemoteRef.current();
+          }
         }
-        for (const d of draft.deletedIds ?? []) deletedIds.current.add(d);
-        dirtyRef.current = true;
- // bump versions so Editable repaints over the server-rendered DOM
-        const restored = draft.blocks.map((b) => ({ ...b, version: (b.version ?? 0) + 1 }));
-        setBlocks(restored);
-        save.call(restored);
-      } catch {}
-    })();
- // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        setSaveState(s.touched ? "saved" : "idle");
+      } else if (s.lastFailure === "network") setSaveState("offline");
+      else if (s.lastFailure === "server") setSaveState("error");
+      else setSaveState("saving");
+    });
+    const offAck = queue.onAck(pageId, ({ transactions, response }) => {
+      for (const t of transactions) {
+        for (const op of t.operations) {
+          if (op.command === "update" && op.args.alive === false) {
+            deletedIds.current.delete(op.pointer.id);
+            serverIdsRef.current.delete(op.pointer.id);
+          } else serverIdsRef.current.add(op.pointer.id);
+        }
+      }
+ // some of our blocks were deleted elsewhere while we were stale —
+ // reconcile with the authoritative list once nothing of ours is pending
+      if (response.dropped?.length) needResyncRef.current = true;
+    });
+ // an old-style draft (the failed-save localStorage copy) is an edit the
+ // server never saw: hand it to the queue instead of throwing it away
+    void migrateLegacyDraft(pageId);
+    return () => {
+      offState();
+      offAck();
+    };
+  }, [pageId, queue, shareToken]);
 
   const mutate = useCallback(
-    (updater: (prev: EBlock[]) => EBlock[], opts?: { coalesce?: boolean }) => {
+    (updater: (prev: EBlock[]) => EBlock[], opts?: { coalesce?: boolean; action?: string }) => {
       dirtyRef.current = true;
       seqRef.current++;
       const now = Date.now();
@@ -498,12 +445,13 @@ export const BlockEditor = forwardRef<
  // ghost the server never received (it only ever saw the payload below).
  // blocksRef is the authoritative list, so back-to-back mutate calls inside one
  // handler still compose.
-      const next = updater(blocksRef.current);
+      const prev = blocksRef.current;
+      const next = updater(prev);
       blocksRef.current = next;
       setBlocks(next);
-      save.call(next);
+      commit(prev, next, opts?.action ?? "mutate");
     },
-    [save]
+    [commit]
   );
 
   const restoreSnapshot = useCallback(
@@ -518,14 +466,12 @@ export const BlockEditor = forwardRef<
           version: Math.max(b.version, cur?.version ?? 0) + 1,
         };
       });
-      for (const b of restored) deletedIds.current.delete(b.id);
-      for (const b of blocksRef.current) {
-        if (!restored.some((r) => r.id === b.id)) deletedIds.current.add(b.id);
-      }
+      const prev = blocksRef.current;
+      blocksRef.current = restored;
       setBlocks(restored);
-      save.call(restored);
+      commit(prev, restored, "history.restore");
     },
-    [save]
+    [commit]
   );
 
   const undo = useCallback(() => {
@@ -2622,14 +2568,15 @@ export const BlockEditor = forwardRef<
             </button>
           </div>
         )}
-        {/* saving is silent — data-save-state still drives tests;
-            only the OFFLINE state surfaces a badge */}
-        {saveState === "offline" && (
+        {/* saving is silent — data-save-state still drives tests; a save
+            that has not landed (queue retrying) surfaces a badge. The queue
+            keeps the edit in IndexedDB either way; the badge only says so. */}
+        {(saveState === "offline" || saveState === "error") && (
           <span
-            data-testid="offline-badge"
+            data-testid={saveState === "offline" ? "offline-badge" : "save-error-badge"}
             className="pointer-events-none fixed right-4 top-3 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
           >
-            Offline — changes kept locally
+            {saveState === "offline" ? "오프라인" : "저장 실패"} — 변경 내용은 이 브라우저에 보관됨
           </span>
         )}
         {roots.map((b) => (
