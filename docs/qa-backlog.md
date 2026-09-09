@@ -112,6 +112,11 @@ ainmem prod DB/컨테이너 로그.
 - **원인(확인)**: (1) 블록 선택 모드의 키 처리에 ⌘C/⌘X 가 없고 caret 을 blur 하므로 브라우저 기본 복사도 비어 있었다. (2) 텍스트 드래그가 다른 블록에 들어가는 즉시 블록 선택으로 바뀌었다(노션은 텍스트 선택 유지). (3) 선택 표시 `bg-blue-100/80 + ring`(노션 `rgba(35,131,226,0.14)` r4, ring 없음). (4) 여백 마퀴는 에디터 밖이라 텍스트 선택이 되고, 이미지 클릭은 선택이 안 됐다.
 - **측정**: 노션 원본에서 실제 드래그로 7개 시나리오 측정 → `docs/notion-selection-copy.md`.
 - **상태**: 해결. 커밋 "Block clipboard…" + "Drag selection and ⌘C like the original…". 검증 `e2e/selection-copy.check.mjs`(A·B·C·H·E·D·F + Backspace 병합/⌘Z) 전부 통과, `save-protocol`·`concurrent-edit` 회귀 통과.
+- **후속 제보(9/9, prod 확인 후)**: (a) "드래그 후 여백을 클릭해도 해제되지 않는다 — 해제 범위를 정의해서 측정", (b) "노션은 여러 블록을 선택하면 블록 사이가 나뉘어 표시된다 — 디자인 규칙을 정확히", (c) 드래그 중 `-bottom-0.5 … bg-blue-500` 표시선이 생긴다.
+  - (a) 노션에서 해제 규칙 행렬 16개를 실측(`docs/notion-selection-copy.md` §5): 텍스트 클릭은 어디든 해제+캐럿, 여백·아래 빈 곳 클릭도 해제(그 줄 블록에 캐럿), Escape 해제; 예외는 블록 **패딩** 클릭 → 그 블록만 선택, ⠿ 거터 클릭 → 유지. 그대로 반영.
+  - (b) halo 기하 실측(§6): 블록 박스 안 2px inset 오버레이(목록 항목은 상하 1px, 텍스트 블록과 맞닿는 쪽 2px), 인접 halo 간격 4px(텍스트)/2px(목록), 선택된 부모의 자식은 halo 없음. 행 배경색 → 오버레이로 교체.
+  - (c) 블록 드래그가 행 밖에서 끝나면 `draggingId`/`dropTarget` 이 남아 표시선이 고정되고 이후 텍스트 드래그에도 반응하던 버그. `dragend`/`drop` 에서 정리하고, 드롭 표시는 우리 블록 드래그 마커(`application/x-ainmem-block`)가 있을 때만.
+  - 검증 `e2e/deselect.check.mjs`(G 기하 + S1–S11 + T1–T3), `selection-copy.check.mjs` 재통과.
 
 ## QA-8 · 노션에서 만든 데이터베이스가 AINMem에 안 보임 — import/sync 요청 (P3)
 
