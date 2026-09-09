@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { users, workspaces } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { getDefaultWorkspaceId, workspaceOfPagePath } from "@/lib/workspace";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { SearchModal } from "@/components/search-modal";
 import { PagePeek } from "@/components/page/page-peek";
@@ -30,7 +31,14 @@ export default async function AppLayout({
   if (!user) redirect("/login");
 
   const locale = await getLocale(user.language);
-  const workspaceId = await getDefaultWorkspaceId(user.id);
+ // The page being viewed decides the workspace (Notion, measured 2026-09-09):
+ // on /p/<id> the sidebar is that page's workspace from the first paint, not
+ // the session's — otherwise a ComCom page opened while the personal
+ // workspace was active got the personal sidebar (QA-3). The session catches
+ // up client-side (FollowPageWorkspace). Path comes via proxy.ts.
+  const pathname = (await headers()).get("x-pathname");
+  const workspaceId =
+    (await workspaceOfPagePath(pathname, user.id)) ?? (await getDefaultWorkspaceId(user.id));
   const [workspace] = workspaceId
     ? await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
     : [];

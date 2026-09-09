@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { teamspaces, workspaceMembers } from "@/lib/db/schema";
+import { pages, teamspaces, workspaceMembers } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 
@@ -31,6 +31,31 @@ export async function ensureGeneralTeamspace(workspaceId: string, createdBy: str
     .values({ workspaceId, name: GENERAL, createdBy })
     .returning({ id: teamspaces.id });
   return created.id;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The workspace of the page at `pathname` (`/p/<uuid>`), when the user is a
+ * member of it — else null. Lets the app layout draw the sidebar for the page
+ * being viewed instead of the session's active workspace (QA-3): on Notion the
+ * opened page decides the workspace. OKF ids are not uuids and have no
+ * workspace of their own, so they fall through to the session default.
+ */
+export async function workspaceOfPagePath(pathname: string | null, userId: string): Promise<string | null> {
+  const m = pathname?.match(/^\/p\/([^/?#]+)/);
+  const pageId = m?.[1];
+  if (!pageId || !UUID.test(pageId)) return null;
+  const [row] = await db
+    .select({ workspaceId: pages.workspaceId })
+    .from(pages)
+    .innerJoin(
+      workspaceMembers,
+      and(eq(workspaceMembers.workspaceId, pages.workspaceId), eq(workspaceMembers.userId, userId))
+    )
+    .where(eq(pages.id, pageId))
+    .limit(1);
+  return row?.workspaceId ?? null;
 }
 
 /** The caller's ACTIVE workspace: the session's active workspace when the user

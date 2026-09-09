@@ -15,6 +15,7 @@ import {
 } from "@/lib/okf-store";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { okfGateFor } from "@/lib/okf-acl";
+import { FollowPageWorkspace } from "@/components/workspace/follow-page-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -114,12 +115,22 @@ export default async function PageRoute({
     (b) => b.type === "database" && (b.content as { fullPage?: boolean }).fullPage === true
   );
 
+ // Opening a page makes its workspace the active one (Notion, measured
+ // 2026-09-09). The layout already drew this page's workspace from the path;
+ // when the session still points elsewhere, let the client bring it along so
+ // /api/pages, teamspaces and search answer for THIS workspace (QA-3).
+  const activeWorkspaceId = await getDefaultWorkspaceId(session.userId);
+  const follow = activeWorkspaceId !== page.workspaceId;
+
   return (
-    <PageView
-      key={page.id}
-      initialPage={page}
-      initialBlocks={blockRows}
-      wide={holdsFullPageDb}
-    />
+    <>
+      {follow && <FollowPageWorkspace workspaceId={page.workspaceId} />}
+      <PageView
+        key={page.id}
+        initialPage={page}
+        initialBlocks={blockRows}
+        wide={holdsFullPageDb}
+      />
+    </>
   );
 }
