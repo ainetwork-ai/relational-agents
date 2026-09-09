@@ -182,6 +182,31 @@ function idAtLive(liveItems: TextItem[], pos: number): ItemId | null {
   return null;
 }
 
+/** The id of the LIVE character at live position `pos` (0-based, tombstones
+ * skipped), or null. Used to remember where the caret sits across a remote
+ * edit: record the char to its left, then find that char again afterwards. */
+export function liveIdAtPos(items: TextItem[], pos: number): ItemId | null {
+  let acc = 0;
+  for (const it of items) {
+    if (it.deleted) continue;
+    if (pos < acc + it.text.length) return [it.id[0], it.id[1] + (pos - acc)];
+    acc += it.text.length;
+  }
+  return null;
+}
+
+/** The live position (tombstones skipped) of the character with id `id`, or -1
+ * if it is absent or now a tombstone. */
+export function livePosOfId(items: TextItem[], id: ItemId): number {
+  let acc = 0;
+  for (const it of items) {
+    if (it.deleted) continue;
+    if (it.id[0] === id[0] && id[1] >= it.id[1] && id[1] < it.id[1] + it.text.length) return acc + (id[1] - it.id[1]);
+    acc += it.text.length;
+  }
+  return -1;
+}
+
 /** 1 + the highest seq seen in the instance, from ANY client — the Lamport
  * clock, so a fresh insert always outranks its older neighbour and lands right
  * after its origin (design §1.1). Scanning only this client's ids would give a

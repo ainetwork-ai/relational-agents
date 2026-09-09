@@ -38,7 +38,9 @@ import { EmptyPageStarter } from "./empty-page-starter";
 import { usePageSync } from "@/hooks/use-page-sync";
 import { diffBlocks } from "@/lib/editor/block-diff";
 import { getTransactionQueue, migrateLegacyDraft } from "@/lib/editor/transaction-queue";
-import type { Transaction } from "@/lib/transactions/types";
+import { isTextOperation, type Transaction } from "@/lib/transactions/types";
+import { applyMoveTextSlice, applyTextOp } from "@/lib/text-crdt/ops";
+import { textInstanceOf } from "@/lib/text-crdt/content";
 import { usePagesStore } from "@/stores/pages";
 
 export interface EBlock {
@@ -362,10 +364,21 @@ export const BlockEditor = forwardRef<
    */
   const commit = useCallback(
     (prev: EBlock[], next: EBlock[], userAction: string) => {
-      const operations = diffBlocks(prev, next);
-      if (operations.length === 0) return;
+      const { ops, patches } = diffBlocks(prev, next, queue.sessionId);
+      if (ops.length === 0 && patches.size === 0) return;
+ // A text edit produced character ops AND a fresh instance for the block(s)
+ // it touched (block-diff). Store that instance so the next diff starts from a
+ // valid replica — content only, no version bump, so the DOM the user is
+ // typing in is not resynced out from under the caret.
+      if (patches.size) {
+        const apply = (list: EBlock[]) =>
+          list.map((b) => (patches.has(b.id) ? { ...b, content: patches.get(b.id)! } : b));
+        blocksRef.current = apply(blocksRef.current);
+        setBlocks((cur) => apply(cur));
+      }
+      if (ops.length === 0) return;
       dirtyRef.current = true;
-      for (const op of operations) {
+      for (const op of ops) {
         if (op.command === "update" && op.args.alive === false) deletedIds.current.add(op.pointer.id);
         else deletedIds.current.delete(op.pointer.id);
       }
@@ -375,7 +388,7 @@ export const BlockEditor = forwardRef<
         pageId,
         timestamp: Date.now(),
         debug: { userAction, clientCommitTimeMs: Date.now() },
-        operations,
+        operations: ops,
       });
     },
     [pageId, queue]
@@ -388,12 +401,14 @@ export const BlockEditor = forwardRef<
     queue.setShareToken(pageId, shareToken);
     const offState = queue.subscribe(pageId, (s) => {
       if (s.pending === 0) {
-        if (dirtyRef.current) {
-          dirtyRef.current = false;
-          if (needResyncRef.current) {
-            needResyncRef.current = false;
-            void applyRemoteRef.current();
-          }
+        dirtyRef.current = false;
+ // reconcile a deferred remote change once our own edits have landed — even
+ // if we were not the one dirtying, a remote op to our focused block was
+ // deferred and set this flag; applyRemote keeps the focused block and merges
+ // the rest, so a paused tab still converges.
+        if (needResyncRef.current) {
+          needResyncRef.current = false;
+          void applyRemoteRef.current();
         }
         setSaveState(s.touched ? "saved" : "idle");
       } else if (s.lastFailure === "network") setSaveState("offline");
@@ -544,6 +559,7 @@ export const BlockEditor = forwardRef<
     }
   }, [blocks]);
 
+
  // Remote changes (other clients): refetch and merge, block-level LWW.
  // The locally-focused block always wins; unsaved local blocks are kept.
   const applyRemote = useCallback(async () => {
@@ -628,6 +644,8 @@ export const BlockEditor = forwardRef<
  // the text out from under the typist — and is reconciled on the next full
  // sync. "blocks" (disk edits, non-transaction writers) and reconnects still
  // refetch.
+  const bump = (b: EBlock, content: BlockContent): EBlock => ({ ...b, content, version: b.version + 1 });
+
   const applyRemoteTransactions = useCallback((txs: Transaction[]) => {
     const active = document.activeElement as HTMLElement | null;
     const tid = active?.dataset?.testid;
@@ -671,16 +689,34 @@ export const BlockEditor = forwardRef<
                     type: a.type ?? b.type,
                     content: a.content ?? b.content,
                     parentBlockId: a.parentBlockId !== undefined ? a.parentBlockId : b.parentBlockId,
-                    position: a.position ?? b.position,
                     version: b.version + 1,
                   }
                 : b
             );
-          } else {
-            // a text operation (stage 3, applied by the server since step ②):
-            // until step ③ teaches this editor to merge items, take the result
-            // from the next full sync rather than guess
-            deferred = true;
+          } else if (isTextOperation(op)) {
+            // a remote character op. If it lands in the block the caret is in,
+            // DEFER it: re-rendering that block (version bump) mid-typing drops
+            // the character the user is composing. The server still merged it
+            // (the ops are correct there), so the next full sync — after the
+            // user pauses — brings the converged text. Other blocks apply live.
+            const cur = next.find((b) => b.id === id);
+            const targetId = op.command === "moveTextSlice" ? op.args.toBlock : id;
+            const tgt = op.command === "moveTextSlice" ? next.find((b) => b.id === targetId) : cur;
+            if (!cur || (op.command === "moveTextSlice" && !tgt) || id === focusedId || targetId === focusedId) {
+              deferred = true;
+              continue;
+            }
+            try {
+              if (op.command === "moveTextSlice") {
+                const r = applyMoveTextSlice(cur.content, tgt!.id === cur.id ? null : tgt!.content, op);
+                next = next.map((b) => (b.id === cur.id ? bump(b, r.source) : b.id === tgt!.id ? bump(b, r.target) : b));
+              } else {
+                const content = applyTextOp(cur.content, op);
+                next = next.map((b) => (b.id === id ? bump(b, content) : b));
+              }
+            } catch {
+              deferred = true;
+            }
           }
         }
       }
@@ -693,6 +729,23 @@ export const BlockEditor = forwardRef<
     if (event.type === "transactions" && event.transactions) applyRemoteTransactions(event.transactions);
     else if (event.type === "blocks") void applyRemote();
   }, shareToken);
+
+ // A remote change to the block you are typing in is deferred to keep your
+ // caret (applyRemoteTransactions); when you move the caret out of the editor
+ // — or to another block — reconcile so the block catches up to the server.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onFocusOut = () => {
+      // reconcile the block we just left (applyRemote keeps whatever is focused
+      // now, so this is safe whether we moved to another block or clicked away)
+      setTimeout(() => {
+        if (needResyncRef.current && !dirtyRef.current) void applyRemoteRef.current();
+      }, 0);
+    };
+    root.addEventListener("focusout", onFocusOut);
+    return () => root.removeEventListener("focusout", onFocusOut);
+  }, []);
 
   useImperativeHandle(apiRef, () => ({
     focusFirst: () => {

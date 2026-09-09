@@ -109,7 +109,8 @@ export async function applyTransactions(opts: {
                 .select({ id: blocks.id, content: blocks.content })
                 .from(blocks)
                 .where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)))
-                .limit(1);
+                .limit(1)
+                .for("update"); // serialise concurrent text edits to this block
               if (!row) throw new Error(`block not found ${op.pointer.id}`);
               if (op.command === "moveTextSlice") {
                 const sameBlock = op.args.toBlock === op.pointer.id;
@@ -119,7 +120,8 @@ export async function applyTransactions(opts: {
                     .select({ id: blocks.id, content: blocks.content })
                     .from(blocks)
                     .where(and(eq(blocks.id, op.args.toBlock), eq(blocks.pageId, pageId)))
-                    .limit(1);
+                    .limit(1)
+                    .for("update");
                   if (!t) throw new Error(`moveTextSlice: target ${op.args.toBlock} is not on this page`);
                   target = t;
                 }

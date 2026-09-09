@@ -66,10 +66,14 @@ export function withTextInstance(content: BlockContent): BlockContent {
     return c;
   }
   if (c.text !== undefined || c.html !== undefined) {
-    const inst = instanceFromContent(c.text, c.html);
-    c.textInstance = inst.instance;
-    c.items = inst.items;
-    c.marks = inst.marks;
+    const built = instanceFromContent(c.text, c.html);
+    // A client that named the instance (a freshly created block) but did not
+    // send items: adopt its id so the client's later text ops match this
+    // block instead of being refused as a stale instance. The items are the
+    // same either way — both sides build them from the same html.
+    c.textInstance = typeof c.textInstance === "string" ? c.textInstance : built.instance;
+    c.items = built.items;
+    c.marks = built.marks;
   }
   return c;
 }
