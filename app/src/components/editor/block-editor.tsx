@@ -908,13 +908,29 @@ export const BlockEditor = forwardRef<
  // A sub-page block links to a real page. Create it (so it appears in the
  // sidebar tree + breadcrumbs), then stamp its id when it lands.
       if (type === "child_page") {
-        mutate((prev) =>
-          prev.map((b) =>
-            b.id === blockId
-              ? { ...b, type: "child_page" as BlockType, content: {}, version: b.version + 1 }
-              : b
-          )
-        );
+        mutate((prev) => {
+          const next = prev.map((b) => ({ ...b }));
+          const cur = next.find((b) => b.id === blockId);
+          if (!cur) return prev;
+          cur.type = "child_page" as BlockType;
+          cur.content = {};
+          cur.version++;
+ // A sub-page renders as an uneditable link chip. If it is the last block
+ // among its siblings there is nothing below to hold the caret and the page
+ // looks frozen (QA-4). Give it a trailing empty paragraph to type into.
+          const hasSiblingAfter = next.some(
+            (b) =>
+              b.id !== cur.id &&
+              (b.parentBlockId ?? null) === (cur.parentBlockId ?? null) &&
+              b.position > cur.position
+          );
+          if (!hasSiblingAfter) {
+            const nb = freshParagraph(cur.parentBlockId ?? null, positionAfter(next, cur));
+            next.push(nb);
+            pendingFocus.current = { id: nb.id, pos: "start" };
+          }
+          return next;
+        });
         void (async () => {
           const child = await usePagesStore.getState().createPage(pageId);
           mutate((prev) =>
@@ -2726,6 +2742,19 @@ export const BlockEditor = forwardRef<
             const sel = window.getSelection();
             sel?.removeAllRanges();
             sel?.addRange(range);
+          } else if (last) {
+ // The tail block is uneditable (a sub-page, image, divider or table) so it
+ // holds no caret. Clicking below it should still let you type — append an
+ // empty paragraph after it and land there (QA-4).
+            mutate((prev) => {
+              const next = prev.map((b) => ({ ...b }));
+              const cur = next.find((b) => b.id === last);
+              if (!cur) return prev;
+              const nb = freshParagraph(cur.parentBlockId ?? null, positionAfter(next, cur));
+              next.push(nb);
+              pendingFocus.current = { id: nb.id, pos: "start" };
+              return next;
+            });
           }
         }}
         onDrop={(e) => {
