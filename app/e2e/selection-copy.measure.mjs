@@ -43,8 +43,8 @@ await page.evaluate(() => {
 const state = () => page.evaluate(() => {
   const sel = window.getSelection();
   const rows = [...document.querySelectorAll('[data-testid="editor-root"] [data-testid^="block-"]')];
-  const selectedRows = rows.filter((r) => r.querySelector(":scope > div.ring-inset, :scope > div[data-selected]") || r.matches("[data-selected]"));
-  const first = selectedRows[0]?.querySelector(":scope > div");
+  const selectedRows = rows.filter((r) => r.querySelector(":scope > div > [data-selected]"));
+  const first = selectedRows[0]?.querySelector(":scope > div > [data-selected]");
   const st = first ? (() => { const s = getComputedStyle(first); return { bg: s.backgroundColor, radius: s.borderRadius, shadow: s.boxShadow, outline: s.outline }; })() : null;
   const blk = (n) => n && (n.nodeType === 3 ? n.parentElement : n).closest?.('[data-testid^="block-"]')?.getAttribute("data-testid")?.slice(6, 14);
   const an = sel.anchorNode;
@@ -80,7 +80,7 @@ await scrollTo(trio[0].top);
 await run("A_text_within_block", async () => { const r = await rect(trio[1].id); await drag(r.x + 30, r.y + r.h / 2, r.x + 120, r.y + r.h / 2 + 1); const s = await state(); await page.screenshot({ path: "e2e/out-sel-A.png" }).catch(() => {}); return { s, clip: await copyRead() }; });
 await run("B_text_across_two_blocks", async () => { const r1 = await rect(trio[0].id), r2 = await rect(trio[1].id); await drag(r1.x + 30, r1.y + r1.h / 2, r2.x + 100, r2.y + r2.h / 2); const s = await state(); await page.screenshot({ path: "e2e/out-sel-B.png" }).catch(() => {}); return { s, clip: await copyRead() }; });
 await run("C_across_three_blocks", async () => { const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.x + 30, r1.y + r1.h / 2, r3.x + 100, r3.y + r3.h / 2); const s = await state(); return { s, clip: await copyRead() }; });
-await run("E_margin_marquee_top_down", async () => { const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.bx - 60, r1.by - 20, r1.bx + r1.bw / 2, r3.by + r3.bh + 10, 14); const s = await state(); await page.screenshot({ path: "e2e/out-sel-E.png" }).catch(() => {}); return { s, clip: await copyRead() }; });
+await run("E_margin_marquee_top_down", async () => { const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.bx - 110, r1.by - 20, r1.bx + r1.bw / 2, r3.by + r3.bh + 10, 14); const s = await state(); await page.screenshot({ path: "e2e/out-sel-E.png" }).catch(() => {}); return { s, clip: await copyRead() }; });
 await run("H_text_drag_past_last_block", async () => { const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.x + 30, r1.y + r1.h / 2, r3.x + 30, r3.by + r3.bh + 30); const s = await state(); return { s, clip: await copyRead() }; });
 if (img) {
   await scrollTo(img.top);

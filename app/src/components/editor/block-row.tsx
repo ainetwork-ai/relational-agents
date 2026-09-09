@@ -16,7 +16,7 @@ import { copyText, resolveAppUrl } from "@/lib/compat";
 import { uploadBlob } from "@/lib/upload";
 import { highlightCode } from "@/lib/editor/highlight";
 import { IconPicker } from "@/components/page/icon-picker";
-import { useEditor, type EBlock } from "./block-editor";
+import { BLOCK_DRAG_MIME, useEditor, type EBlock } from "./block-editor";
 import type { ButtonAction } from "@/lib/db/schema";
 import { TableBlock } from "./table-block";
 import { DatabaseBlock } from "@/components/database/database-block";
@@ -106,13 +106,23 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
         if (handle instanceof HTMLElement) handle.click();
       }}
       onClick={(e) => {
-        if (e.shiftKey) {
+ // Measured on Notion (docs/notion-selection-copy.md §5): with blocks
+ // selected, a click on TEXT — any block's, selected or not, with Shift or ⌘
+ // or neither — clears the selection and leaves a caret there; a click on a
+ // block's own padding (not on its text) selects just that block; a click
+ // in the ⠿ gutter leaves the selection alone.
+        const t = e.target as HTMLElement;
+        if (t.closest("[data-block-type]") !== e.currentTarget) return; // a nested row's click
+        if (t.closest('[data-testid^="block-handle-"], [data-gutter]')) return;
+        const onText = !!t.closest("[contenteditable], input, textarea, button, a, select");
+        if (!onText) {
           e.preventDefault();
           e.stopPropagation();
-          editor.shiftSelect(block.id);
-        } else if (editor.selectedIds.size) {
-          editor.clearSelection();
+          if (e.shiftKey) editor.shiftSelect(block.id);
+          else editor.selectBlock(block.id);
+          return;
         }
+        if (editor.selectedIds.size) editor.clearSelection();
       }}
     >
       {isDrop && editor.dropTarget?.before && (
@@ -124,14 +134,25 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
  // (720 vs 708): the grip highlight reaches 4px past the glyphs, and the
  // gutter is measured from that wider edge. Bleed the row out by 6 and pad
  // it back so the text stays put (2026-08-26, m-halo-text)
- // selected: the original's halo — rgba(35,131,226,0.14), 4px radius, no
- // ring or shadow (measured, docs/notion-selection-copy.md §2)
-        className={`relative flex items-start rounded ${
-          editor.selectedIds.has(block.id) ? "rounded-[4px] bg-[rgba(35,131,226,0.14)]" : ""
-        }`}
-        data-selected={editor.selectedIds.has(block.id) ? "" : undefined}
+        className="relative flex items-start rounded"
         style={{ paddingLeft: depth * 24 }}
       >
+        {/* selected: the original's halo — an overlay inset 2px into the block
+            box (716×36 in a 720×40 text block), rgba(35,131,226,0.14), 4px
+            radius, no ring, pointer-events none. Two selected neighbours
+            therefore show a 4px seam, not one continuous slab (measured,
+            docs/notion-selection-copy.md §2·§6). */}
+        {editor.isHalo(block.id) && (
+          <div
+            data-selected=""
+            aria-hidden="true"
+            className="pointer-events-none absolute z-[1] rounded-[4px] bg-[rgba(35,131,226,0.14)]"
+ // this div sits 6px inside the row box (the row bleeds -mx-1.5 to be the
+ // 720-wide block box); 2px inside THAT box is -4px from here, after the
+ // nesting indent on the left
+            style={{ top: editor.haloInset(block.id).top, bottom: editor.haloInset(block.id).bottom, left: depth * 24 - 4, right: -4 }}
+          />
+        )}
         {/* The + and the drag handle belong to the ONE line the pointer is on.
             `group-hover/block:` was a descendant selector, so every block
             CONTAINING the pointer lit its own gutter: a nested parent showed
@@ -428,8 +449,10 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             e.dataTransfer.setDragImage(el, 8, 8);
             e.dataTransfer.effectAllowed = "move";
           }
+          e.dataTransfer?.setData(BLOCK_DRAG_MIME, block.id);
           editor.onDragStart(block.id);
         }}
+        onDragEnd={() => editor.onDragEnd()}
         onClick={() => setOpen((v) => !v)}
         className="flex h-6 w-[18px] cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
         aria-label="Block actions (drag to reorder)"

@@ -121,6 +121,7 @@ interface EditorApi {
   duplicateBlock: (id: string) => void;
   turnInto: (id: string, type: BlockType) => void;
   onDragStart: (id: string) => void;
+  onDragEnd: () => void;
   onDragOverRow: (e: React.DragEvent, id: string) => void;
   onDropRow: (e: React.DragEvent, id: string) => void;
   dropTarget: { id: string; before: boolean; side?: "left" | "right" } | null;
@@ -133,6 +134,12 @@ interface EditorApi {
   /** select just this block (a click on an image, a divider… — Notion F) */
   selectBlock: (id: string) => void;
   clearSelection: () => void;
+  /** draw this block's halo? selected, and no selected ancestor (the ancestor's
+   * halo covers its subtree — measured, ⌘A on Notion halos only top-level blocks) */
+  isHalo: (id: string) => boolean;
+  /** the halo's vertical inset: 2px on a text block; 1px on a list item, except
+   * on a side that meets a non-list neighbour, where it is 2px (measured) */
+  haloInset: (id: string) => { top: number; bottom: number };
 }
 
 // Anchored on globalThis like DbCtx (db-context.ts): Turbopack's production
@@ -226,6 +233,10 @@ function freshParagraph(parentBlockId: string | null, position: number): EBlock 
     version: 0,
   };
 }
+
+/** DataTransfer type stamped on a block drag from the ⠿ handle, so drop targets
+ * can tell it from a native drag of text or an image. */
+export const BLOCK_DRAG_MIME = "application/x-ainmem-block";
 
 /** Types that keep their type when a block is split by Enter. */
 const CONTINUING: BlockType[] = ["bulleted_list", "numbered_list", "todo"];
@@ -1728,6 +1739,37 @@ export const BlockEditor = forwardRef<
     [rangeIds]
   );
 
+ // reads the STATE, not selectedIdsRef: the ref is refreshed in an effect,
+ // so during the render that follows a selection change it still holds the
+ // previous set and every halo would lag one step behind
+  const isHalo = useCallback(
+    (id: string): boolean => {
+      if (!selectedIds.has(id)) return false;
+      const byId = new Map(blocksRef.current.map((b) => [b.id, b]));
+      let p = byId.get(id)?.parentBlockId ?? null;
+      while (p) {
+        if (selectedIds.has(p)) return false;
+        p = byId.get(p)?.parentBlockId ?? null;
+      }
+      return true;
+    },
+    [selectedIds]
+  );
+  const LIST_TYPES = useMemo(() => new Set<string>(["bulleted_list", "numbered_list", "todo", "toggle"]), []);
+  const haloInset = useCallback(
+    (id: string): { top: number; bottom: number } => {
+      const all = blocksRef.current;
+      const b = all.find((x) => x.id === id);
+      if (!b || !LIST_TYPES.has(b.type)) return { top: 2, bottom: 2 };
+      const sibs = all.filter((x) => (x.parentBlockId ?? null) === (b.parentBlockId ?? null)).sort((x, y) => x.position - y.position);
+      const i = sibs.findIndex((x) => x.id === id);
+      const prev = sibs[i - 1];
+      const next = sibs[i + 1];
+      return { top: prev && LIST_TYPES.has(prev.type) ? 1 : 2, bottom: next && LIST_TYPES.has(next.type) ? 1 : 2 };
+    },
+    [LIST_TYPES]
+  );
+
   const withSubtree = useCallback((ids: Set<string>): Set<string> => {
     const all = new Set(ids);
     let grew = true;
@@ -1812,6 +1854,7 @@ export const BlockEditor = forwardRef<
       const startedOnText =
         startedOnBlock && isTextBlockType(blocksRef.current.find((b) => b.id === anchor)?.type ?? "paragraph");
       let active = false;
+      let lastOver: string | null = anchor; // the row under the pointer, for the click-swallow below
  // Each block is its own editing host, and Chrome confines a drag-selection
  // to the host it STARTED in — so a text drag could never reach the next
  // block. Notion avoids that by wrapping the whole page in one contenteditable
@@ -1833,6 +1876,7 @@ export const BlockEditor = forwardRef<
             ? overEl.getAttribute("data-testid")
             : null;
         const over = overTid?.startsWith("block-") ? overTid.slice("block-".length) : null;
+        if (over) lastOver = over;
         if (!active) {
  // off any block, nothing has been decided yet
           if (!over) return;
@@ -1855,13 +1899,35 @@ export const BlockEditor = forwardRef<
         setSelectedIds(rangeIds(anchor, over));
         ev.preventDefault();
       };
-      const onUp = () => {
+      const onUp = (ev: MouseEvent) => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+ // A plain click on the margin (no marquee happened) clears whatever was
+ // selected and puts the caret in the block on that line — start of it from
+ // the left margin, end of it from the right (Notion S1·S2·T1).
+        if (fromMargin && !active) {
+          clearSelection();
+          window.getSelection()?.removeAllRanges();
+ // the innermost row whose own text line covers that y (a parent row also
+ // spans its children's y, so take the deepest match)
+          let leaf: HTMLElement | null = null;
+          for (const r of root.querySelectorAll<HTMLElement>("[data-block-type]")) {
+            const ce = r.querySelector<HTMLElement>("[contenteditable]");
+            if (!ce || ce.closest("[data-block-type]") !== r) continue;
+            const b = ce.getBoundingClientRect();
+            if (ev.clientY >= b.top && ev.clientY <= b.bottom) leaf = ce;
+          }
+          if (leaf) {
+            const rootRect = root.getBoundingClientRect();
+            setCaret(leaf, ev.clientX < rootRect.left ? "start" : "end");
+          }
+        }
  // the press and the release landed on different rows, so the browser fires
- // a `click` on their common ancestor — a row whose onClick clears the
- // selection we just made. Swallow that one click (root onClickCapture).
-        if (active) dragSelectedAt.current = Date.now();
+ // a `click` on their common ancestor — a PARENT row, whose onClick would
+ // clear a block selection or, landing on its padding, select that parent
+ // around a text selection we just made. Swallow that one click (root
+ // onClickCapture) after any drag that crossed rows.
+        if (active || (lastOver !== null && lastOver !== anchor)) swallowNextClick.current = true;
         if (sharedRoot) {
  // the shared editing root was only for the press; hand focus back to the
  // leaf the selection started in so keys still reach its handlers. The
@@ -1874,14 +1940,22 @@ export const BlockEditor = forwardRef<
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [rangeIds]
+    [rangeIds, clearSelection]
   );
-  const dragSelectedAt = useRef(0);
+ // one-shot: the click the browser synthesizes right after a cross-row drag
+ // (same gesture) is swallowed; any new press arms a fresh gesture, so a
+ // click that never came cannot eat the next real one
+  const swallowNextClick = useRef(false);
   const swallowClickAfterDrag = useCallback((e: React.MouseEvent) => {
-    if (Date.now() - dragSelectedAt.current < 400) {
-      dragSelectedAt.current = 0;
+    if (swallowNextClick.current) {
+      swallowNextClick.current = false;
       e.stopPropagation();
     }
+  }, []);
+  useEffect(() => {
+    const arm = () => { swallowNextClick.current = false; };
+    document.addEventListener("mousedown", arm, true);
+    return () => document.removeEventListener("mousedown", arm, true);
   }, []);
 
  // A press on the page margin (outside the editor column) starts a block
@@ -1962,6 +2036,17 @@ export const BlockEditor = forwardRef<
       const first = rowOf(range.startContainer);
       const last = rowOf(range.endContainer);
       if (!first || !last || first === last) return;
+      if (e.key === "Escape") {
+ // Escape on a text selection that spans blocks: back to a caret at its
+ // start (the block's own Escape would select the block while the text
+ // selection lingered — both at once)
+        e.preventDefault();
+        e.stopPropagation();
+        const startLeaf = first.querySelector<HTMLElement>("[contenteditable]");
+        sel.collapseToStart();
+        if (startLeaf && startLeaf.closest("[data-block-type]") === first) startLeaf.focus({ preventScroll: true });
+        return;
+      }
       const printable = e.key.length === 1;
       const edits = printable || e.key === "Backspace" || e.key === "Delete" || e.key === "Enter";
       if (!edits) return;
@@ -2615,9 +2700,30 @@ export const BlockEditor = forwardRef<
   const onDragStart = useCallback((id: string) => {
     draggingId.current = id;
   }, []);
+ // A block drag that ends anywhere but on a row (dropped in the margin,
+ // cancelled with Escape) used to leave draggingId and the drop line behind:
+ // the blue 3px indicator stayed on the last hovered row, and the next native
+ // drag of anything (selected text, an image) moved it around. Every drag
+ // end clears both.
+  const onDragEnd = useCallback(() => {
+    draggingId.current = null;
+    setDropTarget(null);
+  }, []);
+  useEffect(() => {
+    const end = () => onDragEnd();
+    window.addEventListener("dragend", end, true);
+    window.addEventListener("drop", end, true);
+    return () => {
+      window.removeEventListener("dragend", end, true);
+      window.removeEventListener("drop", end, true);
+    };
+  }, [onDragEnd]);
 
   const onDragOverRow = useCallback((e: React.DragEvent, id: string) => {
     if (!draggingId.current || draggingId.current === id) return;
+ // only OUR block drag draws the drop line — a native drag of selected text
+ // or an image carries no block marker
+    if (!e.dataTransfer?.types?.includes(BLOCK_DRAG_MIME)) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
  // Only a narrow strip at each edge makes columns (Notion is ~a handle's width,
@@ -2818,6 +2924,7 @@ export const BlockEditor = forwardRef<
       duplicateBlock,
       turnInto,
       onDragStart,
+      onDragEnd,
       onDragOverRow,
       onDropRow,
       dropTarget,
@@ -2828,6 +2935,8 @@ export const BlockEditor = forwardRef<
       shiftSelect,
       selectBlock,
       clearSelection,
+      isHalo,
+      haloInset,
     }),
     [
       registerEl,
@@ -2858,6 +2967,7 @@ export const BlockEditor = forwardRef<
       duplicateBlock,
       turnInto,
       onDragStart,
+      onDragEnd,
       onDragOverRow,
       onDropRow,
       dropTarget,
@@ -2868,6 +2978,8 @@ export const BlockEditor = forwardRef<
       shiftSelect,
       selectBlock,
       clearSelection,
+      isHalo,
+      haloInset,
     ]
   );
 
@@ -2932,8 +3044,10 @@ export const BlockEditor = forwardRef<
               window.open(href, "_blank", "noopener,noreferrer");
             return;
           }
- // clicking bare canvas (below the last block) focuses the tail line
+ // clicking bare canvas (below the last block) focuses the tail line — and
+ // drops any block selection first (Notion S11)
           if (e.target !== e.currentTarget) return;
+          clearSelection();
           const order = visualOrder();
           const last = order[order.length - 1];
           const el = last ? editables.current.get(last) : null;

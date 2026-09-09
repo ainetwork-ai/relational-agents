@@ -45,8 +45,8 @@ await page.evaluate(() => {
 const state = () => page.evaluate(() => {
   const sel = window.getSelection();
   const rows = [...document.querySelectorAll('[data-testid="editor-root"] [data-block-type]')];
-  const selected = rows.filter((r) => r.querySelector(":scope > div[data-selected]"));
-  const first = selected[0]?.querySelector(":scope > div[data-selected]");
+  const selected = rows.filter((r) => r.querySelector(":scope > div > [data-selected]"));
+  const first = selected[0]?.querySelector(":scope > div > [data-selected]");
   const st = first ? (() => { const s = getComputedStyle(first); return { bg: s.backgroundColor, radius: s.borderRadius, shadow: s.boxShadow }; })() : null;
   const rowOf = (n) => n ? ((n.nodeType === 3 ? n.parentElement : n)).closest?.("[data-block-type]")?.getAttribute("data-testid")?.slice(6, 14) : null;
   const r = sel.rangeCount ? sel.getRangeAt(0) : null;
@@ -92,7 +92,7 @@ await across("B", trio[1].id);
 await across("C", trio[2].id);
 { const r3 = await rect(trio[2].id); await across("H", trio[2].id, r3.by + r3.bh + 30); }
 // E
-{ await escape(); const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.bx - 60, r1.by - 20, r1.bx + r1.bw / 2, r3.by + r3.bh + 10, 14); const s = await state(); const c = await copyRead();
+{ await escape(); const r1 = await rect(trio[0].id), r3 = await rect(trio[2].id); await drag(r1.bx - 110, r1.by - 20, r1.bx + r1.bw / 2, r3.by + r3.bh + 10, 14); const s = await state(); const c = await copyRead();
   check("E. margin marquee selects blocks (halo), no text selection", s.halos >= 3 && s.collapsed, `halos=${s.halos}`);
   check("E. halo is the original's: rgba(35,131,226,0.14), 4px, no shadow", s.haloStyle?.bg === HALO_BG && s.haloStyle?.radius === "4px" && s.haloStyle?.shadow === "none", JSON.stringify(s.haloStyle));
   check("E. ⌘C on the block selection: markdown + html + tree", (c.data["text/plain"] ?? "").length > 0 && /^<(ol|ul|p|h[1-3])/.test(c.data["text/html"] ?? "") && has(c, OURS), (c.types ?? []).join(",")); }
