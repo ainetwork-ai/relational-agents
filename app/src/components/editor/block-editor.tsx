@@ -2656,6 +2656,34 @@ export const BlockEditor = forwardRef<
     () => blocks.filter((b) => (b.parentBlockId ?? null) === null).sort((a, b) => a.position - b.position),
     [blocks]
   );
+ // The row elements depend only on the block list, so a re-render from anything
+ // else (the save-state badge, a slash menu, selection) does not recreate 227
+ // BlockRow elements — only a block change does. Memoized rows keep a keystroke
+ // to one element rebuilt, not the whole list twice.
+  const childOf = useMemo(() => {
+    const s = new Set<string>();
+    for (const b of blocks) if (b.parentBlockId) s.add(b.parentBlockId);
+    return s;
+  }, [blocks]);
+  const rowCache = useRef(new Map<string, { block: EBlock; hasChildren: boolean; el: React.ReactElement }>());
+  const rows = useMemo(() => {
+    const cache = rowCache.current;
+    const seen = new Set<string>();
+    const out = roots.map((b) => {
+      seen.add(b.id);
+      const hc = childOf.has(b.id);
+      const hit = cache.get(b.id);
+ // Reuse the very element object for a block that did not change, so React
+ // bails out of its subtree and jsx() runs only for the block that did — a
+ // keystroke rebuilds one row's element, not all 227.
+      if (hit && hit.block === b && hit.hasChildren === hc) return hit.el;
+      const el = <BlockRow key={b.id} block={b} depth={0} hasChildren={hc} />;
+      cache.set(b.id, { block: b, hasChildren: hc, el });
+      return el;
+    });
+    for (const id of cache.keys()) if (!seen.has(id)) cache.delete(id);
+    return out;
+  }, [roots, childOf]);
 
   return (
     <EditorCtx.Provider value={api}>
@@ -2769,9 +2797,7 @@ export const BlockEditor = forwardRef<
             {saveState === "offline" ? "오프라인" : "저장 실패"} — 변경 내용은 이 브라우저에 보관됨
           </span>
         )}
-        {roots.map((b) => (
-          <BlockRow key={b.id} block={b} depth={0} hasChildren={blocks.some((x) => x.parentBlockId === b.id)} />
-        ))}
+        {rows}
         {blocks.length === 1 &&
           blocks[0].type === "paragraph" &&
           !(blocks[0].content.text ?? "").trim() && (

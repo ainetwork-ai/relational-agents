@@ -137,6 +137,11 @@ export function diffBlocks(prev: DiffableBlock[], next: DiffableBlock[], clientI
   for (const b of next) {
     nextIds.add(b.id);
     const old = prevById.get(b.id);
+    // Fast path: an untouched block keeps its object reference (mutate rebuilds
+    // only the block it changed), so skip it before any JSON.stringify. Without
+    // this, one keystroke ran a deep content compare on all 227 blocks — the
+    // bulk of the typing cost on a big page.
+    if (old === b) continue;
     if (!old) {
       // a new block: name its instance so the server adopts the same id and
       // this tab's later text ops are not refused as a stale instance
