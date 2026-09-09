@@ -13,6 +13,57 @@
   --foreground: #ededed;
 }
 
+/* Option-chip colours (select / multi-select / status) — measured on
+   app.notion.com in both themes (e2e/fixtures/notion-chips.json §colors /
+   §colorsDark). The chip is a translucent overlay, hence the alpha; the same
+   ten tokens paint the chip, its label, and the property editor's colour
+   swatches (+ the swatch's 1px inset ring). Dots are the same in both themes.
+   `default` paints like gray, but its SWATCH is its own, dimmer square. */
+:root {
+  --chip-default-bg: rgba(28, 19, 1, 0.11);  --chip-default-text: rgb(73, 72, 70);
+  --chip-default-swatch: rgba(42, 28, 0, 0.07); --chip-default-ring: rgba(28, 19, 1, 0.11);
+  --chip-gray-bg: rgba(28, 19, 1, 0.11);     --chip-gray-text: rgb(73, 72, 70);
+  --chip-gray-swatch: rgba(28, 19, 1, 0.11); --chip-gray-ring: rgba(28, 19, 1, 0.11);
+  --chip-brown-bg: rgba(127, 51, 0, 0.157);  --chip-brown-text: rgb(88, 68, 55);
+  --chip-brown-swatch: rgba(127, 51, 0, 0.157); --chip-brown-ring: rgba(127, 51, 0, 0.157);
+  --chip-orange-bg: rgba(196, 88, 0, 0.204); --chip-orange-text: rgb(106, 66, 34);
+  --chip-orange-swatch: rgba(196, 88, 0, 0.204); --chip-orange-ring: rgba(196, 88, 0, 0.204);
+  --chip-yellow-bg: rgba(209, 156, 0, 0.282); --chip-yellow-text: rgb(101, 81, 33);
+  --chip-yellow-swatch: rgba(209, 156, 0, 0.282); --chip-yellow-ring: rgba(209, 156, 0, 0.282);
+  --chip-green-bg: rgba(0, 96, 38, 0.157);   --chip-green-text: rgb(42, 83, 60);
+  --chip-green-swatch: rgba(0, 96, 38, 0.157); --chip-green-ring: rgba(0, 96, 38, 0.157);
+  --chip-blue-bg: rgba(0, 118, 217, 0.204);  --chip-blue-text: rgb(38, 74, 114);
+  --chip-blue-swatch: rgba(0, 118, 217, 0.204); --chip-blue-ring: rgba(0, 118, 217, 0.204);
+  --chip-purple-bg: rgba(92, 0, 163, 0.14);  --chip-purple-text: rgb(85, 59, 105);
+  --chip-purple-swatch: rgba(92, 0, 163, 0.14); --chip-purple-ring: rgba(92, 0, 163, 0.14);
+  --chip-pink-bg: rgba(183, 0, 78, 0.153);   --chip-pink-text: rgb(104, 53, 78);
+  --chip-pink-swatch: rgba(183, 0, 78, 0.153); --chip-pink-ring: rgba(183, 0, 78, 0.153);
+  --chip-red-bg: rgba(206, 24, 0, 0.165);    --chip-red-text: rgb(109, 53, 49);
+  --chip-red-swatch: rgba(206, 24, 0, 0.165); --chip-red-ring: rgba(206, 24, 0, 0.165);
+}
+.dark {
+  --chip-default-bg: rgba(255, 252, 235, 0.306); --chip-default-text: rgb(240, 239, 237);
+  --chip-default-swatch: rgba(255, 255, 243, 0.082); --chip-default-ring: rgba(255, 255, 235, 0.1);
+  --chip-gray-bg: rgba(255, 252, 235, 0.306);    --chip-gray-text: rgb(240, 239, 237);
+  --chip-gray-swatch: rgba(255, 252, 235, 0.306); --chip-gray-ring: rgba(255, 255, 235, 0.1);
+  --chip-brown-bg: rgba(255, 184, 132, 0.365);   --chip-brown-text: rgb(245, 237, 233);
+  --chip-brown-swatch: rgba(255, 184, 132, 0.365); --chip-brown-ring: rgba(255, 177, 129, 0.192);
+  --chip-orange-bg: rgba(255, 143, 71, 0.482);   --chip-orange-text: rgb(251, 235, 222);
+  --chip-orange-swatch: rgba(255, 143, 71, 0.482); --chip-orange-ring: rgba(255, 147, 75, 0.28);
+  --chip-yellow-bg: rgba(255, 188, 53, 0.46);    --chip-yellow-text: rgb(249, 243, 220);
+  --chip-yellow-swatch: rgba(255, 188, 53, 0.46); --chip-yellow-ring: rgba(255, 205, 75, 0.24);
+  --chip-green-bg: rgba(113, 255, 175, 0.337);   --chip-green-text: rgb(232, 241, 236);
+  --chip-green-swatch: rgba(113, 255, 175, 0.337); --chip-green-ring: rgba(108, 255, 172, 0.157);
+  --chip-blue-bg: rgba(81, 166, 255, 0.494);     --chip-blue-text: rgb(229, 242, 252);
+  --chip-blue-swatch: rgba(81, 166, 255, 0.494); --chip-blue-ring: rgba(67, 155, 255, 0.24);
+  --chip-purple-bg: rgba(208, 147, 255, 0.427);  --chip-purple-text: rgb(243, 235, 249);
+  --chip-purple-swatch: rgba(208, 147, 255, 0.427); --chip-purple-ring: rgba(200, 125, 255, 0.2);
+  --chip-pink-bg: rgba(255, 133, 192, 0.427);    --chip-pink-text: rgb(250, 233, 241);
+  --chip-pink-swatch: rgba(255, 133, 192, 0.427); --chip-pink-ring: rgba(255, 103, 177, 0.23);
+  --chip-red-bg: rgba(255, 116, 105, 0.525);     --chip-red-text: rgb(252, 233, 231);
+  --chip-red-swatch: rgba(255, 116, 105, 0.525); --chip-red-ring: rgba(255, 104, 92, 0.24);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

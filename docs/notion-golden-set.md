@@ -59,6 +59,14 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 - 잴 때 조심할 것은 `docs/notion-projects-spec.md` 의 **"재보다 틀렸던 것들"** 에 있다.
   특히: `scrollIntoView()` 는 가로로도 스크롤한다 · 노션 표는 보이는 5칸만 DOM 에 둔다
   (`scrollLeft` 만 바꾸면 안 그려진다) · 호버는 **안 켜진 형제까지** 같이 읽어야 한다.
+- **다크 테마**는 워크스페이스 설정을 바꾸지 않고 잰다(설정을 바꾸면 다른 세션의 탭까지 다크가 된다).
+  `Target.createTarget({newWindow:true})` 로 **내 탭을 새 창에** 만들고, 그 CDP 세션에서
+  `Emulation.setEmulatedMedia({features:[{name:'prefers-color-scheme',value:'dark'}]})` — 노션은
+  시스템 설정을 따르므로 그 탭만 다크가 된다(2026-09-09, `scratchpad/dark-colormenu.mjs`). 조심할 것:
+  (1) 세션이 끊기면 에뮬레이션이 풀린다 — 한 연결에서 끝까지 잰다. (2) 노션이 `localStorage.theme`
+  에 결과를 캐시하므로 끝나면 `light` 로 되돌려 확인한다. (3) 내 창이 **다른 창에 완전히 가리면**
+  `visibilityState: hidden` 이 되어 `Input.dispatchMouseEvent` 가 영영 안 돌아온다 —
+  `Browser.setWindowBounds` 로 상대 창과 겹치지 않는 띠를 남기고, 상대 창을 완전히 덮지도 않는다.
 - 잰 값은 `app/e2e/fixtures/*.json` 에 넣고, 우리 쪽을 같은 방식으로 재서 대조하는
   `app/e2e/*.check.mjs` 를 함께 둔다. "고쳤다"의 근거는 그 스크립트의 exit 0 이다.
 
@@ -71,6 +79,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/status-dropdown.check.mjs` | Status 셀 메뉴의 박스·바·칩·그룹·구분선·푸터·검색 2종 |
 | `node e2e/status-edit-property.check.mjs` | 속성 편집 사이드바(도킹·헤더·그룹·옵션·푸터)와 옵션/그룹 메뉴, Esc 단계 |
 | `node e2e/chip-consistency.check.mjs` | 같은 값의 칩이 셀과 메뉴에서 같은 모양인지 |
+| `node e2e/chip-dark.check.mjs` | 라이트·다크 두 테마에서 칩 10색의 배경·글자·점, 그리고 속성 편집 색 메뉴의 스와치·링이 원본 값과 같은지 |
 | `node e2e/view-columns.check.mjs` | 표의 열 순서·폭 13개 |
 | `node e2e/table-right-edge.check.mjs` | 끝까지 스크롤했을 때 표 뒤 여백 |
 | `node e2e/view-bar.check.mjs` | 뷰 탭 줄과 툴바(알약 탭·28×28 아이콘·분할 버튼) |

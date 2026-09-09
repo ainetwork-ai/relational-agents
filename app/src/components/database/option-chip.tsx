@@ -21,26 +21,43 @@
  * of colour that bleeds over its neighbours.
  */
 
-/** Chip colours as Notion paints them — translucent overlays, hence the alpha. */
-const MEASURED: Record<string, { bg: string; text: string; dot: string }> = {
-  // `default` is what Notion stores for Status's "Not started" — its CHIP paints
-  // exactly like gray (measured on the property editor, 2026-08-10), but the
-  // colour menu lists 기본 and 회색 as two rows with two swatches, so the two
-  // names must survive storage to put the ✓ on the right row.
-  default: { bg: "rgba(28, 19, 1, 0.11)", text: "rgb(73, 72, 70)", dot: "rgb(142, 139, 134)" },
-  gray: { bg: "rgba(28, 19, 1, 0.11)", text: "rgb(73, 72, 70)", dot: "rgb(142, 139, 134)" },
-  brown: { bg: "rgba(127, 51, 0, 0.157)", text: "rgb(88, 68, 55)", dot: "rgb(158, 111, 78)" },
-  orange: { bg: "rgba(196, 88, 0, 0.204)", text: "rgb(106, 66, 34)", dot: "rgb(217, 115, 13)" },
-  yellow: { bg: "rgba(209, 156, 0, 0.282)", text: "rgb(101, 81, 33)", dot: "rgb(216, 163, 47)" },
-  green: { bg: "rgba(0, 96, 38, 0.157)", text: "rgb(42, 83, 60)", dot: "rgb(70, 161, 113)" },
-  blue: { bg: "rgba(0, 118, 217, 0.204)", text: "rgb(38, 74, 114)", dot: "rgb(39, 131, 222)" },
-  purple: { bg: "rgba(92, 0, 163, 0.14)", text: "rgb(85, 59, 105)", dot: "rgb(155, 81, 224)" },
-  pink: { bg: "rgba(183, 0, 78, 0.153)", text: "rgb(104, 53, 78)", dot: "rgb(224, 62, 143)" },
-  red: { bg: "rgba(206, 24, 0, 0.165)", text: "rgb(109, 53, 49)", dot: "rgb(229, 100, 88)" },
+/** The ten colour keys Notion stores on an option. Backgrounds and label colours
+ * differ per theme and live as CSS tokens in `globals.css` (`--chip-<key>-bg` /
+ * `-text`, light on `:root`, dark on `.dark`) so a chip repaints the moment the
+ * theme flips — measured in both themes on app.notion.com
+ * (`e2e/fixtures/notion-chips.json` §colors / §colorsDark, 2026-08-06 / 2026-09-09).
+ * Before that the chip carried the light literals only, and in dark mode drew
+ * near-black text on a near-black overlay. The status dot is the one thing that
+ * did not change between themes, so it stays a literal here.
+ *
+ * `default` is what Notion stores for Status's "Not started" — its CHIP paints
+ * exactly like gray in both themes, but the colour menu lists 기본 and 회색 as
+ * two rows with two swatches, so the two names must survive storage. */
+export const CHIP_COLOR_KEYS = [
+  "default", "gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red",
+] as const;
+export type ChipColorKey = (typeof CHIP_COLOR_KEYS)[number];
+
+const DOT: Record<ChipColorKey, string> = {
+  default: "rgb(142, 139, 134)",
+  gray: "rgb(142, 139, 134)",
+  brown: "rgb(158, 111, 78)",
+  orange: "rgb(217, 115, 13)",
+  yellow: "rgb(216, 163, 47)",
+  green: "rgb(70, 161, 113)",
+  blue: "rgb(39, 131, 222)",
+  purple: "rgb(155, 81, 224)",
+  pink: "rgb(224, 62, 143)",
+  red: "rgb(229, 100, 88)",
 };
 
+export function chipColorKey(color?: string): ChipColorKey {
+  return (CHIP_COLOR_KEYS as readonly string[]).includes(color ?? "") ? (color as ChipColorKey) : "gray";
+}
+
 export function chipColors(color?: string) {
-  return MEASURED[color ?? "gray"] ?? MEASURED.gray;
+  const k = chipColorKey(color);
+  return { bg: `var(--chip-${k}-bg)`, text: `var(--chip-${k}-text)`, dot: DOT[k] };
 }
 
 export function OptionChip({
@@ -61,7 +78,8 @@ export function OptionChip({
     <span
       title={title}
       data-chip={dot ? "status" : "option"}
- // the two shapes, straight from the fixture
+      data-color={chipColorKey(color)}
+      // the two shapes, straight from the fixture
       className={`inline-flex h-5 min-w-0 max-w-full items-center ${
         dot ? "rounded-[10px] pl-[7px] pr-[9px]" : "rounded-[4px] px-[6px]"
       }`}

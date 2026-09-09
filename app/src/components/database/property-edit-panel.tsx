@@ -73,19 +73,21 @@ const GROUP_LABEL: Record<string, string> = {
   Complete: "완료",
 };
 
-/** the colour menu, in the original's order — swatches read off it, and the
- * swatch for 기본 is NOT the default chip's bg (the chip paints like gray) */
-const COLOR_MENU: { key: string; label: string; swatch: string }[] = [
-  { key: "default", label: "기본", swatch: "rgba(42, 28, 0, 0.07)" },
-  { key: "gray", label: "회색", swatch: "rgba(28, 19, 1, 0.11)" },
-  { key: "brown", label: "갈색", swatch: "rgba(127, 51, 0, 0.157)" },
-  { key: "orange", label: "주황색", swatch: "rgba(196, 88, 0, 0.204)" },
-  { key: "yellow", label: "노란색", swatch: "rgba(209, 156, 0, 0.282)" },
-  { key: "green", label: "초록색", swatch: "rgba(0, 96, 38, 0.157)" },
-  { key: "blue", label: "파란색", swatch: "rgba(0, 118, 217, 0.204)" },
-  { key: "purple", label: "보라색", swatch: "rgba(92, 0, 163, 0.14)" },
-  { key: "pink", label: "분홍색", swatch: "rgba(183, 0, 78, 0.153)" },
-  { key: "red", label: "빨간색", swatch: "rgba(206, 24, 0, 0.165)" },
+/** the colour menu, in the original's order. Swatch fill and its 1px inset ring
+ * come from the chip tokens in `globals.css` (light + dark, both measured) —
+ * the swatch for 기본 is NOT the default chip's bg (the chip paints like gray),
+ * and in dark mode the ring is a separate, dimmer colour than the fill. */
+const COLOR_MENU: { key: string; label: string }[] = [
+  { key: "default", label: "기본" },
+  { key: "gray", label: "회색" },
+  { key: "brown", label: "갈색" },
+  { key: "orange", label: "주황색" },
+  { key: "yellow", label: "노란색" },
+  { key: "green", label: "초록색" },
+  { key: "blue", label: "파란색" },
+  { key: "purple", label: "보라색" },
+  { key: "pink", label: "분홍색" },
+  { key: "red", label: "빨간색" },
 ];
 
 // Notion's own artwork, copied path-for-path out of the captured panel/menu
@@ -741,8 +743,12 @@ export function PropertyEditPanel({
                   className={`${menuItemCls}`}
                 >
                   <span
+                    data-swatch={c.key}
                     className="ml-px h-[18px] w-[18px] shrink-0 rounded-[4px]"
-                    style={{ background: c.swatch }}
+                    style={{
+                      background: `var(--chip-${c.key}-swatch)`,
+                      boxShadow: `inset 0 0 0 1px var(--chip-${c.key}-ring)`,
+                    }}
                   />
                   <span className="ml-[9px] flex-1 text-left text-[14px]" style={{ color: TEXT }}>
                     {t(c.label)}

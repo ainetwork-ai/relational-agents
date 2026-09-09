@@ -135,8 +135,9 @@ filter: Status is 그룹 "In progress"
 - 그룹 헤더의 이름이 노션은 **버튼**(눌러서 그룹 값 변경), 우리는 텍스트
 - 사람 아바타 사진 — 우리 시드 사용자는 사진이 없어 이니셜로 뜬다
 - Status 드롭다운의 **빈 셀** 상태 — 이 뷰의 249행이 전부 값을 갖고 있어 열어볼 수가 없었다
-- Status 드롭다운의 **다크 테마**, `속성 편집`이 원본에서 무엇을 여는지, gray/blue/red/yellow/green
-  이외 색의 칩 색값 — 화면에 없어서 못 쟀다
+- ~~Status 드롭다운의 **다크 테마**, gray/blue/red/yellow/green 이외 색의 칩 색값~~ — 2026-09-09 잼.
+  다크 10색(배경·글자·스와치·링)은 `e2e/fixtures/notion-chips.json` §colorsDark, 토큰은
+  `globals.css` `--chip-*`, 대조는 `node e2e/chip-dark.check.mjs`. 점(dot)은 두 테마가 같다.
 - select / multi_select **셀 칩의 원본 수치** — status 칩만 쟀다. 셀 칩도 드롭다운 칩과 같은
   모양으로 통일했지만(아래), 그 통일은 *지시*이지 측정이 아니다. 원본 캡처상 select 칩에는
   점이 없어서 점은 status 에만 붙인다
