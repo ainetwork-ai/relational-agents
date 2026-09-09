@@ -648,6 +648,7 @@ export const BlockEditor = forwardRef<
         if (prevServerIds.has(b.id) && b.id !== focusedId) continue;
         next.push(b); // created locally, save pending (or focused survivor)
       }
+      blocksRef.current = next; // in step now, not one effect later (see above)
       return next;
     });
   }, [pageId]);
@@ -762,7 +763,12 @@ export const BlockEditor = forwardRef<
           }
         }
       }
-      return next === prev ? prev : next;
+      const out = next === prev ? prev : next;
+ // keep blocksRef in step with the state right now, not one effect later:
+ // a keystroke that fires before the [blocks] effect runs would otherwise
+ // diff against a list missing this remote change and drop the edit.
+      blocksRef.current = out;
+      return out;
     });
     if (deferred) needResyncRef.current = true;
   }, []);
@@ -820,15 +826,15 @@ export const BlockEditor = forwardRef<
 
   const childrenOf = useCallback(
     (parentId: string | null) =>
-      blocks
+      blocksRef.current
         .filter((b) => (b.parentBlockId ?? null) === parentId)
         .sort((a, b) => a.position - b.position),
-    [blocks]
+    []
   );
 
   const numberOf = useCallback(
     (b: EBlock) => {
-      const sibs = blocks
+      const sibs = blocksRef.current
         .filter((x) => (x.parentBlockId ?? null) === (b.parentBlockId ?? null))
         .sort((x, y) => x.position - y.position);
       let n = 0;
@@ -839,7 +845,7 @@ export const BlockEditor = forwardRef<
       }
       return Math.max(n, 1);
     },
-    [blocks]
+    []
   );
 
   const positionAfter = useCallback((all: EBlock[], after: EBlock): number => {
@@ -1199,7 +1205,7 @@ export const BlockEditor = forwardRef<
   const handleBackspaceAtStart = useCallback(
     (id: string, el: HTMLElement): boolean => {
       const text = normalize(el);
-      const block = blocks.find((b) => b.id === id);
+      const block = blocksRef.current.find((b) => b.id === id);
       if (!block) return false;
 
  // Styled block → demote to paragraph first.
@@ -1222,7 +1228,7 @@ export const BlockEditor = forwardRef<
  // toggle's title — the original's behaviour (Enter into an open toggle, then
  // Backspace, leaves you typing at the end of the title; 2026-08-26 cases)
       if (!prevSib) {
-        const parent = block.parentBlockId ? blocks.find((b) => b.id === block.parentBlockId) : undefined;
+        const parent = block.parentBlockId ? blocksRef.current.find((b) => b.id === block.parentBlockId) : undefined;
         if (!parent || parent.type !== "toggle") return false;
         const parentLen = (parent.content.text ?? "").length;
         const curHtml = block.content.html ?? escapeHtml(text);
@@ -1274,7 +1280,7 @@ export const BlockEditor = forwardRef<
       pendingFocus.current = { id: prevSib.id, pos: prevLen };
       return true;
     },
-    [blocks, childrenOf, mutate]
+    [childrenOf, mutate]
   );
 
   const moveBlock = useCallback(
@@ -1352,7 +1358,7 @@ export const BlockEditor = forwardRef<
  // markdown shortcuts on a plain paragraph — and, as the original does, on a
  // list item whose whole text is the prefix (an empty bullet turning into a
  // heading, a toggle, a divider…; 2026-08-26 input cases)
-        const block = blocks.find((b) => b.id === id);
+        const block = blocksRef.current.find((b) => b.id === id);
         if (block && SHORTCUT_HOSTS.has(block.type)) {
  // we convert on the third backtick immediately, no space needed
           if (text === "```") {
@@ -1430,7 +1436,7 @@ export const BlockEditor = forwardRef<
         { coalesce: true }
       );
     },
-    [slash, mention, emojiSug, pasteLink, blocks, mutate, positionAfter]
+    [slash, mention, emojiSug, pasteLink, mutate, positionAfter]
   );
 
  // Smart paste: clipboard image → upload + image block; markdown/multi-line
@@ -1439,7 +1445,7 @@ export const BlockEditor = forwardRef<
   const onPaste = useCallback(
     (id: string, e: React.ClipboardEvent, el: HTMLElement) => {
       const cd = e.clipboardData;
-      const block = blocks.find((b) => b.id === id);
+      const block = blocksRef.current.find((b) => b.id === id);
 
  // Code blocks take clipboard content verbatim (never linkify / parse).
       if (block?.type === "code") {
@@ -1634,7 +1640,7 @@ export const BlockEditor = forwardRef<
       }
       document.execCommand("insertText", false, text);
     },
-    [blocks, mutate, positionAfter]
+    [mutate, positionAfter]
   );
 
   /** Block ids in rendered (DFS) order — the visual top-to-bottom sequence. */
@@ -1888,7 +1894,7 @@ export const BlockEditor = forwardRef<
 
   const onKeyDown = useCallback(
     (id: string, e: React.KeyboardEvent, el: HTMLElement) => {
-      const block = blocks.find((b) => b.id === id);
+      const block = blocksRef.current.find((b) => b.id === id);
       if (!block) return;
 
  // While an IME is composing, the keystroke belongs to the IME, not to us:
@@ -2120,7 +2126,7 @@ export const BlockEditor = forwardRef<
         }
       }
     },
-    [blocks, slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock, visualOrder]
+    [slash, mention, emojiSug, applySlashPick, applyMentionPick, applyEmojiPick, moveBlock, splitBlock, handleBackspaceAtStart, indentBlock, outdentBlock, focusNeighbour, selectBlock, visualOrder]
   );
 
   const onCompositionStart = useCallback(() => {
@@ -2290,7 +2296,7 @@ export const BlockEditor = forwardRef<
  // the original: + opens the type menu on an EMPTY line — this one if it is
  // already an empty paragraph, otherwise a new one below — with a filter
  // placeholder, the caret at its start, and no "/" to delete afterwards
-      const here = blocks.find((b) => b.id === id);
+      const here = blocksRef.current.find((b) => b.id === id);
       const reuse = !!here && here.type === "paragraph" && (here.content.text ?? "") === "";
       const nb = reuse ? here : freshParagraph(null, 0);
       if (!reuse) {
@@ -2332,7 +2338,7 @@ export const BlockEditor = forwardRef<
       };
       requestAnimationFrame(() => openMenu(0));
     },
-    [blocks, mutate, positionAfter]
+    [mutate, positionAfter]
   );
 
   const deleteBlock = useCallback(
@@ -2563,7 +2569,10 @@ export const BlockEditor = forwardRef<
 
   const api = useMemo<EditorApi>(
     () => ({
-      blocks,
+      // a getter, not the state value, so `api` keeps its identity across
+      // keystrokes — that is what lets a memoized BlockRow skip re-rendering
+      // (perf §3.6). All the callbacks below are stable (blocksRef-based).
+      get blocks() { return blocksRef.current; },
       registerEl,
       onInput,
       onKeyDown,
@@ -2603,7 +2612,6 @@ export const BlockEditor = forwardRef<
       clearSelection,
     }),
     [
-      blocks,
       registerEl,
       onInput,
       onKeyDown,
@@ -2644,7 +2652,10 @@ export const BlockEditor = forwardRef<
     ]
   );
 
-  const roots = childrenOf(null);
+  const roots = useMemo(
+    () => blocks.filter((b) => (b.parentBlockId ?? null) === null).sort((a, b) => a.position - b.position),
+    [blocks]
+  );
 
   return (
     <EditorCtx.Provider value={api}>
@@ -2759,7 +2770,7 @@ export const BlockEditor = forwardRef<
           </span>
         )}
         {roots.map((b) => (
-          <BlockRow key={b.id} block={b} depth={0} />
+          <BlockRow key={b.id} block={b} depth={0} hasChildren={blocks.some((x) => x.parentBlockId === b.id)} />
         ))}
         {blocks.length === 1 &&
           blocks[0].type === "paragraph" &&

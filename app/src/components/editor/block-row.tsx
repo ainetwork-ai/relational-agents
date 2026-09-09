@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n/provider";
@@ -30,7 +30,7 @@ import { MemorySelect } from "@/components/database/memory-select";
 const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
 
-export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string }) {
+function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string; hasChildren?: boolean }) {
   const editor = useEditor();
  // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
  // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
@@ -167,7 +167,7 @@ export function BlockRow({ block, depth, parentType }: { block: EBlock; depth: n
       {nestedChildren.length > 0 && (
         <div>
           {nestedChildren.map((c) => (
-            <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />
+            <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
           ))}
         </div>
       )}
@@ -237,7 +237,7 @@ function ColumnCell({ block }: { block: EBlock }) {
       className="min-w-0 flex-1 rounded-md"
     >
       {children.map((c) => (
-        <BlockRow key={c.id} block={c} depth={0} />
+        <BlockRow key={c.id} block={c} depth={0} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
       ))}
     </div>
   );
@@ -809,7 +809,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
       {children.length > 0 && (
         <div>
           {children.map((c) => (
-            <BlockRow key={c.id} block={c} depth={0} parentType="callout" />
+            <BlockRow key={c.id} block={c} depth={0} parentType="callout" hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
           ))}
         </div>
       )}
@@ -1074,7 +1074,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
                   {t("빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.")}
                 </button>
               ) : (
-                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} />)
+                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />)
               )}
             </div>
           )}
@@ -1891,3 +1891,15 @@ function AiPromptBody({ block }: { block: EBlock }) {
     </div>
   );
 }
+
+/**
+ * A keystroke changes one block's object; the editor context is now stable
+ * (block-editor perf §3.6), so a memoized row re-renders only when its own
+ * block (or depth/parent) changes. A block that HAS children still re-renders
+ * on any edit — it re-derives its child list — but a leaf (the flat
+ * many-paragraph page) is skipped, so typing touches one row, not the page.
+ */
+export const BlockRow = memo(
+  BlockRowInner,
+  (a, b) => a.block === b.block && a.depth === b.depth && a.parentType === b.parentType && a.hasChildren === b.hasChildren && !b.hasChildren
+);
