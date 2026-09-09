@@ -9,7 +9,7 @@
  * tags on it; scripts/text-crdt.check.mts verifies this over every stored block.
  */
 import { anchorBefore, formatsAt, resolveFormats } from "./marks";
-import type { Anchor, ItemId, Mark, TextItem } from "./types";
+import type { ItemId, Mark, TextItem } from "./types";
 
 const VOID = /^<br\s*\/?>$/i;
 
@@ -27,8 +27,8 @@ export function decodeText(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-function tagName(openTag: string): string {
-  const m = /^<([a-zA-Z][\w-]*)/.exec(openTag);
+function tagName(tag: string): string {
+  const m = /^<\/?([a-zA-Z][\w-]*)/.exec(tag); // opening OR closing tag
   return m ? m[1].toLowerCase() : "";
 }
 
@@ -88,12 +88,14 @@ function markToTag(key: string, value?: string): string {
  */
 export function parseHtml(html: string, clientId: string, seq = 1): { items: TextItem[]; marks: Mark[] } {
   const items: TextItem[] = [];
-  const marks: Mark[] = [];
-  // open tags currently in scope, each with the char position where it opened
+  // marks are collected as code-unit ranges first; anchors are resolved once
+  // every character exists, so a tag that closes before its following
+  // character is parsed still anchors its end to that character (not "end")
+  const ranges: { key: string; value?: string; from: number; to: number }[] = [];
   const open: { tag: string; from: number }[] = [];
   let origin: ItemId | "start" = "start";
   let nextSeq = seq;
-  let pos = 0; // code-unit position across items
+  let pos = 0;
   const push = (text: string, br?: string) => {
     const last = items[items.length - 1];
     if (!br && last && !last.br) last.text += text;
@@ -107,7 +109,7 @@ export function parseHtml(html: string, clientId: string, seq = 1): { items: Tex
       if (tagName(open[i].tag) === name) {
         const o = open.splice(i, 1)[0];
         const { key, value } = tagToMark(o.tag);
-        marks.push({ key, value, start: anchorAt(items, o.from), end: anchorAt(items, pos), ts: 0, by: clientId });
+        ranges.push({ key, value, from: o.from, to: pos });
         return;
       }
     }
@@ -129,19 +131,11 @@ export function parseHtml(html: string, clientId: string, seq = 1): { items: Tex
     for (const ch of decodeText(html.slice(i, j))) push(ch); // per code point → item lengths count characters
     i = j;
   }
-  // any still-open tag runs to the end
-  for (let k = open.length - 1; k >= 0; k--) {
-    const o = open[k];
-    const { key, value } = tagToMark(o.tag);
-    marks.push({ key, value, start: anchorAt(items, o.from), end: "end", ts: 0, by: clientId });
-  }
-  return { items, marks: marks.filter((m) => m.start !== undefined) };
-}
-
-/** Anchor "before the character at code-unit position pos" for a freshly built
- * item list (used only while parsing, where items grow left-to-right). */
-function anchorAt(items: TextItem[], pos: number): Anchor {
-  return anchorBefore(items, pos);
+  for (let k = open.length - 1; k >= 0; k--) { const o = open[k]; const { key, value } = tagToMark(o.tag); ranges.push({ key, value, from: o.from, to: pos }); }
+  const marks: Mark[] = ranges
+    .filter((r) => r.to > r.from)
+    .map((r) => ({ key: r.key, value: r.value, start: anchorBefore(items, r.from), end: anchorBefore(items, r.to), ts: 0, by: clientId }));
+  return { items, marks };
 }
 
 /** Plain text → items (one run, line breaks as `<br>`) — no marks. */
