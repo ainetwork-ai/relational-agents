@@ -111,6 +111,8 @@ ainmem prod DB/컨테이너 로그.
 - **제보**: B Sebastian 9/8 02:05 "노션에 IP 관리용 데이터베이스를 만들었는데 AIN MEM에 안 보인다. import/sync 방법이 있나?" (노션·ainmem 링크 첨부.)
 - **출처 메시지**: `bd3f869c`
 - **성격**: 버그가 아니라 **기능 요청**(노션 DB → ainmem 동기화/가져오기). 현재 노션 캡처는 참고용(`docs/notion-captures.md`)이고 자동 동기화는 없음.
+- **링크 확인(2026-09-09)**: ainmem 쪽 `1c2562d9…`는 ComCom의 "⚖️ Trademark Use Mitigation Tracker" 페이지(8/13 이전 작업 때 생성). 본문은 구분선 + 문단 **"🗃 Global Trademark Portfolio — 노션 인라인 데이터베이스(미이전)"** 한 줄 — 이전 당시 노션 인라인 DB를 옮기지 못해 **자리표시 문구만 남긴 것**. 노션 쪽 `d9bb4408…`는 그 자리에 있어야 할 인라인 데이터베이스 "Global Trademark Portfolio"(속성 11개: Mark, Reg Number, Class, Territory, Reg Date, Vulnerable Since, Sec.8 Deadline, Action, Status, Law Firm, Notes / 뷰: Default·Board(Territory)·Timeline·🇯🇵 Japan 등 / 행 20+). 즉 "노션에 만들었는데 안 보인다"가 아니라, **원래 이전에서 빠진 인라인 DB를 Sebastian이 노션에서 계속 채우고 있는 것**이고, ainmem엔 그 DB가 없다.
+- **처리 방향**: (1) 일회성 가져오기 — 노션 DB를 ainmem 데이터베이스로 만들고(속성 11개 매핑, 뷰 3~4개) 행을 옮긴 뒤 자리표시 문단을 교체. 이후 노션 쪽은 편집 중단. (2) 지속 동기화 — 노션 API 연동은 새 기능(로드맵 판단). 우선 (1)로 막힌 것을 풀고, 팀이 노션과 병행 편집할지 결정.
 - **상태**: 요청. 로드맵 판단 필요.
 
 ---
