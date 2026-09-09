@@ -47,9 +47,20 @@ export type Operation =
   | { command: "insertText"; pointer: { table: "block"; id: string }; path: TextPath; args: { instance: string; items: TextItem[] } }
   /** tombstone `count` characters from each id; unknown ids are skipped */
   | { command: "deleteText"; pointer: { table: "block"; id: string }; path: TextPath; args: { instance: string; ranges: [ItemId, number][] } }
-  /** set the tag stack of `count` characters from each id (the sanitized open
-   * tags, outermost first — `[]` clears); unknown ids are skipped */
-  | { command: "formatText"; pointer: { table: "block"; id: string }; path: TextPath; args: { instance: string; ranges: [ItemId, number][]; tags: string[] } }
+  /**
+   * Add a formatting mark over each range (Notion's addAnnotation; `off:true`
+   * is removeAnnotation). `key` is the format (`b`,`i`,`u`,`s`,`code`, or an
+   * attribute-bearing tag identity), `value` the tag it carries (a link, a
+   * colour). Marks are boundary-anchored, so a concurrent insert inside the
+   * range inherits the format, and `ts`/`by` resolve overlapping marks by
+   * last-writer-wins — the two properties per-character tags could not give.
+   */
+  | {
+      command: "annotate";
+      pointer: { table: "block"; id: string };
+      path: TextPath;
+      args: { instance: string; ranges: [ItemId, number][]; key: string; value?: string; off?: true; ts: number; by: string };
+    }
   /** move the items from `from` to the end of this instance into another
    * instance on the same page, ids kept, the first one re-hung on `toOrigin`;
    * refused when `toOrigin` is unknown or the target is on another page */
@@ -60,9 +71,9 @@ export type Operation =
       args: { instance: string; from: ItemId; toBlock: string; toPath: TextPath; toInstance: string; toOrigin: ItemId | "start" };
     };
 
-export type TextOperation = Extract<Operation, { command: "insertText" | "deleteText" | "formatText" | "moveTextSlice" }>;
+export type TextOperation = Extract<Operation, { command: "insertText" | "deleteText" | "annotate" | "moveTextSlice" }>;
 export const isTextOperation = (op: Operation): op is TextOperation =>
-  op.command === "insertText" || op.command === "deleteText" || op.command === "formatText" || op.command === "moveTextSlice";
+  op.command === "insertText" || op.command === "deleteText" || op.command === "annotate" || op.command === "moveTextSlice";
 
 export interface Transaction {
   id: string;

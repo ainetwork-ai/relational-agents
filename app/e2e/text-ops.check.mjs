@@ -4,7 +4,7 @@
 //
 // 페이지를 만들고 블록 하나에 html 을 심은 뒤 POST /api/saveTransactions 로:
 //   1. 두 클라이언트가 같은 글자 뒤에 동시에 삽입(요청 2개 병렬) → 서버 텍스트가 RGA 규칙대로 하나로 수렴
-//   2. deleteText / formatText → text·html 캐시가 items 와 일치
+//   2. deleteText / annotate → text·html 캐시가 items 와 일치
 //   3. moveTextSlice → 새 블록으로 잘라 옮기기 (Enter 의 서버 쪽), id 유지
 //   4. 검증: 없는 origin → 422 + rejectedIds, 옛 instance → 422, 다른 페이지 블록으로 move → 422
 //   5. 멱등: 같은 트랜잭션 재전송 → 200, 텍스트 불변
@@ -64,26 +64,26 @@ const A = ["m", 1], Bc = ["m", 2];
 // ── 1. 동시 삽입 → 수렴 ─────────────────────────────────────────────────
 {
   const r = await Promise.all([
-    send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 5], origin: Bc, text: "x", tags: [] }] })])], "c1"),
-    send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c2", 3], origin: Bc, text: "y", tags: [] }] })])], "c2"),
+    send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 5], origin: Bc, text: "x"  }] })])], "c1"),
+    send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c2", 3], origin: Bc, text: "y"  }] })])], "c2"),
   ]);
   const b = await block(B1);
   check("1. 두 클라이언트 동시 삽입 → 200/200, 텍스트 ABxy (seq 큰 쪽 앞)", r[0].ok() && r[1].ok() && b.content.text === "ABxy", `${r[0].status()}/${r[1].status()} text=${JSON.stringify(b.content.text)} html=${JSON.stringify(b.content.html)}`);
   // continue x's run: origin = x, seq 6 → merges into one run "xz"
-  await send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 6], origin: ["c1", 5], text: "z", tags: [] }] })])], "c1");
+  await send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 6], origin: ["c1", 5], text: "z"  }] })])], "c1");
   const b2 = await block(B1);
   check("1. 이어 치기 → ABxzy, run 합침", b2.content.text === "ABxzy" && b2.content.items.some((it) => it.id[0] === "c1" && it.text === "xz"), `${b2.content.text} items=${b2.content.items.length}`);
 }
 
-// ── 2. deleteText / formatText → 캐시 ───────────────────────────────────
+// ── 2. deleteText / annotate → 캐시 ───────────────────────────────────
 {
   await send([tx([textOp("deleteText", B1, { instance: inst, ranges: [[A, 1]] })])]);
   let b = await block(B1);
   check("2. A 삭제 → text Bxzy, tombstone 은 items 에 남음", b.content.text === "Bxzy" && b.content.items.some((it) => it.deleted), `${b.content.text}`);
-  await send([tx([textOp("formatText", B1, { instance: inst, ranges: [[Bc, 1], [["c1", 5], 2]], tags: ["<b>"] })])]);
+  await send([tx([textOp("annotate", B1, { instance: inst, ranges: [[Bc, 1], [["c1", 5], 2]], key: "b", ts: 1, by: "c1" })])]);
   b = await block(B1);
   check("2. B·xz 굵게 → html <b>Bxz</b>y", b.content.html === "<b>Bxz</b>y", b.content.html);
-  await send([tx([textOp("formatText", B1, { instance: inst, ranges: [[["c1", 6], 1]], tags: [] })])]);
+  await send([tx([textOp("annotate", B1, { instance: inst, ranges: [[["c1", 6], 1]], key: "b", off: true, ts: 2, by: "c1" })])]);
   b = await block(B1);
   check("2. z 서식 해제 → <b>Bx</b>zy", b.content.html === "<b>Bx</b>zy", b.content.html);
   await send([tx([textOp("deleteText", B1, { instance: inst, ranges: [[["nobody", 99], 3]] })])]);
@@ -103,17 +103,17 @@ const A = ["m", 1], Bc = ["m", 2];
   check("3. z 부터 새 블록으로 → B1 <b>Bx</b>, B2 zy", r.ok() && b1.content.html === "<b>Bx</b>" && b2.content.text === "zy", `${r.status()} b1=${b1.content.html} b2=${JSON.stringify(b2.content.text)}`);
   check("3. 옮긴 item 의 id 유지, 첫 item origin=start", b2.content.items?.[0]?.id?.[0] === "c1" && b2.content.items[0].id[1] === 6 && b2.content.items[0].origin === "start", JSON.stringify(b2.content.items));
   // a late insert naming the moved character resolves in B2 — the id followed it
-  const r2 = await send([tx([textOp("insertText", B2, { instance: newInst, items: [{ id: ["c2", 20], origin: ["c1", 6], text: "!", tags: [] }] })])], "c2");
+  const r2 = await send([tx([textOp("insertText", B2, { instance: newInst, items: [{ id: ["c2", 20], origin: ["c1", 6], text: "!"  }] })])], "c2");
   check("3. 옮겨진 글자를 origin 으로 하는 삽입 → B2 z!y", r2.ok() && (await block(B2)).content.text === "z!y", (await block(B2)).content.text);
 }
 
 // ── 4. 검증 ─────────────────────────────────────────────────────────────
 {
-  const bad = tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c3", 50], origin: ["ghost", 1], text: "?", tags: [] }] })]);
+  const bad = tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c3", 50], origin: ["ghost", 1], text: "?"  }] })]);
   const r = await send([bad], "c3");
   const body = await r.json();
   check("4. 없는 origin → 422 + rejectedIds", r.status() === 422 && Array.isArray(body.rejectedIds) && body.rejectedIds.includes(bad.id), `${r.status()} ${JSON.stringify(body).slice(0, 120)}`);
-  const stale = tx([textOp("insertText", B1, { instance: "stale-instance", items: [{ id: ["c3", 51], origin: "start", text: "?", tags: [] }] })]);
+  const stale = tx([textOp("insertText", B1, { instance: "stale-instance", items: [{ id: ["c3", 51], origin: "start", text: "?"  }] })]);
   const r2 = await send([stale], "c3");
   check("4. 옛 instance → 422", r2.status() === 422 && (await r2.json()).rejectedIds?.includes(stale.id), `${r2.status()}`);
   const cross = tx([textOp("moveTextSlice", B1, { instance: inst, from: Bc, toBlock: OTHER, toPath: ["content", "items"], toInstance: "whatever", toOrigin: "start" })]);
@@ -122,14 +122,14 @@ const A = ["m", 1], Bc = ["m", 2];
   // a wholesale write starts a new instance; the old one is refused afterwards
   await send([tx([{ command: "update", pointer: { table: "block", id: B1 }, path: [], args: { content: { text: "fresh", html: "fresh" } } }])]);
   const fresh = await block(B1);
-  const r4 = await send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 70], origin: "start", text: "?", tags: [] }] })])]);
+  const r4 = await send([tx([textOp("insertText", B1, { instance: inst, items: [{ id: ["c1", 70], origin: "start", text: "?"  }] })])]);
   check("4. 전체 교체 뒤 새 instance, 옛 instance 연산은 422", fresh.content.textInstance !== inst && fresh.content.text === "fresh" && r4.status() === 422, `${fresh.content.textInstance?.slice(0, 6)}≠${inst.slice(0, 6)} ${r4.status()}`);
 }
 
 // ── 5. 멱등 ─────────────────────────────────────────────────────────────
 {
   const cur = await block(B1);
-  const t = tx([textOp("insertText", B1, { instance: cur.content.textInstance, items: [{ id: ["c1", 80], origin: "start", text: ">", tags: [] }] })]);
+  const t = tx([textOp("insertText", B1, { instance: cur.content.textInstance, items: [{ id: ["c1", 80], origin: "start", text: ">"  }] })]);
   const a = await send([t]);
   const b = await send([t]);
   const after = await block(B1);
@@ -141,9 +141,11 @@ const A = ["m", 1], Bc = ["m", 2];
   const t = await block(T1);
   const cellInst = t.content.table.cellItems?.[1]?.[0]?.instance;
   check("6. 표 셀마다 instance", typeof cellInst === "string", JSON.stringify(t.content.table.cellItems?.[1]?.[0]));
-  const r = await send([tx([textOp("insertText", T1, { instance: cellInst, items: [{ id: ["c1", 9], origin: ["m", 1], text: "!", tags: ["<b>"] }] }, ["content", "table", "cellItems", 1, 0])])]);
+  const cpath = ["content", "table", "cellItems", 1, 0];
+  await send([tx([textOp("insertText", T1, { instance: cellInst, items: [{ id: ["c1", 9], origin: ["m", 1], text: "!" }] }, cpath)])]);
+  const r = await send([tx([textOp("annotate", T1, { instance: cellInst, ranges: [[["c1", 9], 1]], key: "b", ts: 1, by: "c1" }, cpath)])]);
   const t2 = await block(T1);
-  check("6. 셀 (1,0) 에 굵은 ! 삽입 → cells c!, html c<b>!</b>", r.ok() && t2.content.table.cells[1][0] === "c!" && t2.content.table.html?.[1]?.[0] === "c<b>!</b>", `${r.status()} ${JSON.stringify(t2.content.table.cells[1])} ${JSON.stringify(t2.content.table.html?.[1])}`);
+  check("6. 셀 (1,0) 에 ! 삽입 후 굵게 → cells c!, html c<b>!</b>", r.ok() && t2.content.table.cells[1][0] === "c!" && t2.content.table.html?.[1]?.[0] === "c<b>!</b>", `${r.status()} ${JSON.stringify(t2.content.table.cells[1])} ${JSON.stringify(t2.content.table.html?.[1])}`);
 }
 
 await api.delete(`${BASE}/api/pages/${pageId}`);
