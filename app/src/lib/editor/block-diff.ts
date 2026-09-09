@@ -13,10 +13,10 @@
  */
 import type { BlockContent } from "@/lib/db/schema";
 import type { BlockRecord, Operation, TextPath } from "@/lib/transactions/types";
-import { newInstanceId, textInstanceOf } from "@/lib/text-crdt/content";
-import { renderHtml, renderText } from "@/lib/text-crdt/html";
+import { instanceFromContent, newInstanceId, textInstanceOf } from "@/lib/text-crdt/content";
+import { escapeText, renderHtml, renderText } from "@/lib/text-crdt/html";
 import { computeTextOps, nextSeqFor } from "@/lib/editor/text-edit";
-import type { Mark, TextItem } from "@/lib/text-crdt/types";
+import type { Mark, TextInstance, TextItem } from "@/lib/text-crdt/types";
 
 export interface DiffableBlock extends BlockRecord {
   version?: number;
@@ -61,6 +61,74 @@ export interface BlockDiff {
   patches: Map<string, BlockContent>;
 }
 
+type TableCell = { instance: string; items: TextItem[]; marks?: Mark[] };
+type Grid = {
+  cells: string[][];
+  html?: string[][];
+  cellItems?: TableCell[][];
+  headerRow?: boolean;
+  headerCol?: boolean;
+  color?: string[][];
+  bg?: string[][];
+  align?: string[][];
+};
+
+/** html a table cell renders (the pair table-block.tsx stores): the cell's own
+ * html when it was formatted, else its escaped plain text. */
+const cellHtmlOf = (t: Grid, r: number, c: number) => t.html?.[r]?.[c] ?? escapeText(t.cells[r][c] ?? "");
+function cellInstance(t: Grid, r: number, c: number): TextInstance {
+  const existing = t.cellItems?.[r]?.[c];
+  if (existing && Array.isArray(existing.items)) return { instance: existing.instance, items: existing.items, marks: existing.marks };
+  const built = instanceFromContent(undefined, cellHtmlOf(t, r, c));
+  return { instance: built.instance, items: built.items, marks: built.marks };
+}
+
+/**
+ * A table edit that only changed cell contents (not the grid shape or its
+ * row/col styling) → character ops on the changed cells' instances. Returns
+ * null when the change is structural (add/remove row/col, header/colour/align),
+ * so the caller writes it wholesale.
+ */
+function diffTableCells(oldContent: BlockContent, newContent: BlockContent, blockId: string, clientId: string): { ops: Operation[]; content: BlockContent } | null {
+  const o = (oldContent as { table?: Grid }).table;
+  const n = (newContent as { table?: Grid }).table;
+  if (!o || !n || !Array.isArray(o.cells) || !Array.isArray(n.cells)) return null;
+  // only once the server has CRDT-tracked this table (a GET brought cellItems)
+  // do cell edits become character ops; a brand-new local table writes
+  // wholesale until its next sync, so its cell instance ids match the server's
+  if (!Array.isArray(o.cellItems)) return null;
+  if (o.cells.length !== n.cells.length) return null;
+  for (let r = 0; r < o.cells.length; r++) if ((o.cells[r]?.length ?? 0) !== (n.cells[r]?.length ?? 0)) return null;
+  // row/col styling or header flags changed → structural, write wholesale
+  if (o.headerRow !== n.headerRow || o.headerCol !== n.headerCol) return null;
+  if (!sameJson(o.color, n.color) || !sameJson(o.bg, n.bg) || !sameJson(o.align, n.align)) return null;
+
+  const ops: Operation[] = [];
+  const cellItems: TableCell[][] = n.cells.map((row, r) => row.map((_, c) => cellInstance(n, r, c)));
+  const cellsOut = n.cells.map((row) => [...row]);
+  const htmlOut = (n.html ?? n.cells.map((row) => row.map(() => ""))).map((row) => [...row]);
+  let changed = false;
+  for (let r = 0; r < n.cells.length; r++) {
+    for (let c = 0; c < n.cells[r].length; c++) {
+      if (cellHtmlOf(o, r, c) === cellHtmlOf(n, r, c) && (o.cells[r]?.[c] ?? "") === (n.cells[r]?.[c] ?? "")) {
+        cellItems[r][c] = cellInstance(o, r, c); // unchanged — keep the old instance
+        continue;
+      }
+      changed = true;
+      const inst = cellInstance(o, r, c);
+      const path: TextPath = ["content", "table", "cellItems", r, c];
+      const { ops: cops, instance } = computeTextOps(inst, cellHtmlOf(n, r, c), blockId, path, clientId, nextSeqFor(inst.items, clientId));
+      ops.push(...cops);
+      cellItems[r][c] = { instance: instance.instance, items: instance.items, marks: instance.marks };
+      cellsOut[r][c] = renderText(instance.items);
+      htmlOut[r][c] = renderHtml(instance.items, instance.marks);
+    }
+  }
+  if (!changed) return null;
+  const table: Grid = { ...n, cells: cellsOut, html: htmlOut, cellItems };
+  return { ops, content: { ...(newContent as object), table } as BlockContent };
+}
+
 export function diffBlocks(prev: DiffableBlock[], next: DiffableBlock[], clientId = "local"): BlockDiff {
   const ops: Operation[] = [];
   const patches = new Map<string, BlockContent>();
@@ -91,6 +159,19 @@ export function diffBlocks(prev: DiffableBlock[], next: DiffableBlock[], clientI
     if (old.type !== b.type) args.type = b.type;
     if ((old.parentBlockId ?? null) !== (b.parentBlockId ?? null)) args.parentBlockId = b.parentBlockId ?? null;
     if (old.position !== b.position) args.position = b.position;
+
+    // a table whose cells changed but whose shape did not → character ops per
+    // changed cell, so two people editing different cells of one table merge
+    // (a wholesale write would clobber). Structural table changes fall through.
+    if (b.type === "table" && args.type === undefined) {
+      const cell = diffTableCells(old.content, b.content, b.id, clientId);
+      if (cell) {
+        ops.push(...cell.ops);
+        patches.set(b.id, cell.content);
+        if (Object.keys(args).length) ops.push({ command: "update", pointer: { table: "block", id: b.id }, path: [], args });
+        continue;
+      }
+    }
 
     // text change → character ops (only when structure is otherwise stable and
     // the block is a text block; a type change rebuilds the text wholesale)

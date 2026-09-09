@@ -11,11 +11,11 @@
  * and browserless, so scripts/text-edit.check.mts can exercise it directly.
  */
 import { parseHtml } from "@/lib/text-crdt/html";
-import { applyTextOp } from "@/lib/text-crdt/ops";
+import { applyToInstance } from "@/lib/text-crdt/ops";
 import { charPosOf, resolveFormats, formatsAt } from "@/lib/text-crdt/marks";
 import { renderText } from "@/lib/text-crdt/html";
 import type { ItemId, Mark, TextInstance, TextItem } from "@/lib/text-crdt/types";
-import type { Operation, TextPath } from "@/lib/transactions/types";
+import type { Operation, TextOperation, TextPath } from "@/lib/transactions/types";
 
 type TextArgs = { instance: string };
 function op(command: "insertText" | "deleteText" | "annotate", blockId: string, path: TextPath, args: object): Operation {
@@ -92,22 +92,19 @@ export function computeTextOps(
     seq += insText.length;
   }
 
-  // apply text ops to a working copy so format diffing sees the new item layout
-  let content: { textInstance: string; items: TextItem[]; marks?: Mark[] } = {
-    textInstance: inst.instance,
-    items: oldItems.map((it) => ({ ...it })),
-    marks: (inst.marks ?? []).map((m) => ({ ...m })),
-  };
-  for (const o of ops) content = applyTextOp(content as never, o as never) as never;
+  // roll the text ops forward on a working instance so format diffing sees the
+  // new item layout — instance-level, so it works for any path (main or cell)
+  let work: TextInstance = { instance: inst.instance, items: oldItems.map((it) => ({ ...it })), marks: (inst.marks ?? []).map((m) => ({ ...m })) };
+  for (const o of ops) work = applyToInstance(work, o as Exclude<TextOperation, { command: "moveTextSlice" }>);
 
   // ── format diff: per surviving/new character, target formats vs current ──
-  const fmtOps = diffFormats(content, target, blockId, path0, inst.instance, clientId, seq);
+  const fmtOps = diffFormats({ items: work.items, marks: work.marks }, target, blockId, path0, inst.instance, clientId, seq);
   for (const o of fmtOps.ops) {
     ops.push(o);
-    content = applyTextOp(content as never, o as never) as never;
+    work = applyToInstance(work, o as Exclude<TextOperation, { command: "moveTextSlice" }>);
   }
 
-  return { ops, instance: { instance: inst.instance, items: content.items, marks: content.marks } };
+  return { ops, instance: { instance: inst.instance, items: work.items, marks: work.marks } };
 }
 
 /**

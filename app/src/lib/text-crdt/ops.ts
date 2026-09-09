@@ -74,9 +74,11 @@ export function writeInstance(content: BlockContent, path: TextPath, inst: TextI
 const cloneItem = (it: TextItem): TextItem => ({ ...it });
 const cloneMark = (m: Mark): Mark => ({ ...m });
 
-/** insertText / deleteText / annotate on one block. */
-export function applyTextOp(content: BlockContent, op: Exclude<TextOperation, { command: "moveTextSlice" }>): BlockContent {
-  const inst = readInstance(content, op.path, op.args.instance);
+/** insertText / deleteText / annotate applied to a raw instance (items+marks),
+ * independent of where in a block's content it lives — the editor uses this to
+ * roll an edit forward against any path (main text or a table cell). Mutates
+ * and returns `inst`. */
+export function applyToInstance(inst: TextInstance, op: Exclude<TextOperation, { command: "moveTextSlice" }>): TextInstance {
   if (op.command === "insertText") {
     if (!Array.isArray(op.args.items)) throw new TextOpError("insertText: items[] required");
     for (const raw of op.args.items) {
@@ -86,7 +88,6 @@ export function applyTextOp(content: BlockContent, op: Exclude<TextOperation, { 
   } else if (op.command === "deleteText") {
     for (const [from, count] of validRanges(op.args.ranges)) tombstone(inst.items, from, count);
   } else {
-    // annotate: add a formatting mark over each range (or an un-format when off)
     if (typeof op.args.key !== "string" || !op.args.key) throw new TextOpError("annotate: key required");
     inst.marks = inst.marks ?? [];
     for (const [from, count] of validRanges(op.args.ranges)) {
@@ -105,6 +106,12 @@ export function applyTextOp(content: BlockContent, op: Exclude<TextOperation, { 
       });
     }
   }
+  return inst;
+}
+
+/** insertText / deleteText / annotate on one block's content at op.path. */
+export function applyTextOp(content: BlockContent, op: Exclude<TextOperation, { command: "moveTextSlice" }>): BlockContent {
+  const inst = applyToInstance(readInstance(content, op.path, op.args.instance), op);
   return writeInstance(content, op.path, inst);
 }
 

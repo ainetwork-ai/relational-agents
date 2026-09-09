@@ -4,8 +4,9 @@
 // computeTextOps(이전 instance, 새 html) 가 낸 연산을 서버 적용기로 두 번(로컬·원격) 적용해도
 // 새 html 과 같은 렌더가 나오는지, 그리고 연산이 최소한인지(한 글자 입력 = insertText 1개)를 잰다.
 import { instanceFromContent } from "@/lib/text-crdt/content";
-import { applyTextOp } from "@/lib/text-crdt/ops";
+
 import { renderHtml, renderText } from "@/lib/text-crdt/html";
+import { applyTextOp } from "@/lib/text-crdt/ops";
 import { computeTextOps, nextSeqFor } from "@/lib/editor/text-edit";
 import type { TextInstance } from "@/lib/text-crdt/types";
 import { sanitizeInline } from "@/lib/rich-text";
@@ -70,6 +71,25 @@ expect("이탤릭 + 굵게 겹침", "abc", "a<b><i>b</i></b>c", "a<b><i>b</i></b
     inst = instance; text = nextText;
   }
   check("순차 5글자 → 서버 'hello'", renderText((server as { items: never[] }).items) === "hello", renderText((server as { items: never[] }).items));
+}
+
+
+// ── 표 셀: block-diff 가 셀 편집을 셀 경로 연산으로 ────────────────────────
+{
+  const { diffBlocks } = await import("@/lib/editor/block-diff");
+  const { withTextInstance } = await import("@/lib/text-crdt/content");
+  const tracked = withTextInstance({ table: { cells: [["a", "b"], ["c", "d"]], headerRow: false } } as never) as { table: { cells: string[][]; cellItems: { instance: string }[][] } };
+  const old = { id: "T", type: "table", parentBlockId: null, position: 1, content: tracked } as never;
+  const nb = JSON.parse(JSON.stringify(tracked)); nb.table.cells[0][0] = "aX";
+  const { ops, patches } = diffBlocks([old], [{ ...(old as object), content: nb }] as never, "c1");
+  check("표: 한 셀 편집 → 셀 경로 insertText 1", ops.length === 1 && (ops[0] as { command: string }).command === "insertText" && (ops[0] as { path: (string|number)[] }).path.join(",") === "content,table,cellItems,0,0", `${ops.length} ${JSON.stringify((ops[0] as { path?: unknown })?.path)}`);
+  let sc = JSON.parse(JSON.stringify(tracked));
+  for (const op of ops) sc = applyTextOp(sc, op as never);
+  check("표: 서버 적용 후 그 셀만 aX", sc.table.cells[0][0] === "aX" && sc.table.cells[0][1] === "b" && sc.table.cells[1][1] === "d", JSON.stringify(sc.table.cells));
+  check("표: 바뀐 셀만 새 instance", (patches.get("T") as { table: { cellItems: { instance: string }[][] } }).table.cellItems[0][1].instance === tracked.table.cellItems[0][1].instance);
+  const struct = JSON.parse(JSON.stringify(tracked)); struct.table.cells.push(["e", "f"]);
+  const r3 = diffBlocks([old], [{ ...(old as object), content: struct }] as never, "c1");
+  check("표: 행 추가(구조) → 통짜 update", r3.ops.every((o) => (o as { command: string }).command === "update"));
 }
 
 console.log(fails ? `\n${fails} FAILED` : "\nall checks passed");
