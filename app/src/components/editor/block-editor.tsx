@@ -2406,9 +2406,12 @@ export const BlockEditor = forwardRef<
     if (!draggingId.current || draggingId.current === id) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
- // near the left/right edge → side-drop creates columns; otherwise reorder.
-    const relX = (e.clientX - rect.left) / rect.width;
-    const side = relX < 0.25 ? "left" : relX > 0.75 ? "right" : undefined;
+ // Only a narrow strip at each edge makes columns (Notion is ~a handle's width,
+ // not a quarter of the block); the wide middle stays a plain reorder so that
+ // an ordinary drop between rows never silently splits the block into columns.
+    const EDGE = Math.min(64, rect.width * 0.15);
+    const fromLeft = e.clientX - rect.left;
+    const side = fromLeft < EDGE ? "left" : fromLeft > rect.width - EDGE ? "right" : undefined;
     const before = e.clientY < rect.top + rect.height / 2;
     setDropTarget({ id, before, side });
   }, []);
