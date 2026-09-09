@@ -86,7 +86,7 @@ expect("이탤릭 + 굵게 겹침", "abc", "a<b><i>b</i></b>c", "a<b><i>b</i></b
   let sc = JSON.parse(JSON.stringify(tracked));
   for (const op of ops) sc = applyTextOp(sc, op as never);
   check("표: 서버 적용 후 그 셀만 aX", sc.table.cells[0][0] === "aX" && sc.table.cells[0][1] === "b" && sc.table.cells[1][1] === "d", JSON.stringify(sc.table.cells));
-  check("표: 바뀐 셀만 새 instance", (patches.get("T") as { table: { cellItems: { instance: string }[][] } }).table.cellItems[0][1].instance === tracked.table.cellItems[0][1].instance);
+  check("표: 바뀐 셀만 새 instance", (patches.get("T") as unknown as { table: { cellItems: { instance: string }[][] } }).table.cellItems[0][1].instance === tracked.table.cellItems[0][1].instance);
   const struct = JSON.parse(JSON.stringify(tracked)); struct.table.cells.push(["e", "f"]);
   const r3 = diffBlocks([old], [{ ...(old as object), content: struct }] as never, "c1");
   check("표: 행 추가(구조) → 통짜 update", r3.ops.every((o) => (o as { command: string }).command === "update"));
