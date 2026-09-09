@@ -25,8 +25,9 @@ import {
   htmlToNotionExportBlocks,
 } from "@/lib/editor/html-paste";
 import { notionClipboardToBlocks } from "@/lib/editor/notion-clipboard";
+import { copyPayload, isTextBlockType, readPayloadTree, serializeBlocks, writePayload } from "@/lib/editor/block-clipboard";
 import { newId } from "@/lib/compat";
-import { sanitizeInline } from "@/lib/rich-text";
+import { htmlToText, sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
 import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
@@ -129,6 +130,8 @@ interface EditorApi {
   /** block whose type menu was opened from the gutter + (shows the filter placeholder) */
   slashBareBlockId: string | null;
   shiftSelect: (id: string) => void;
+  /** select just this block (a click on an image, a divider… — Notion F) */
+  selectBlock: (id: string) => void;
   clearSelection: () => void;
 }
 
@@ -1517,6 +1520,7 @@ export const BlockEditor = forwardRef<
           t.startsWith("text/_notion-blocks-")
         );
         const tree =
+          readPayloadTree(cd) ??
           (notionType ? notionClipboardToBlocks(cd.getData(notionType)) : null) ??
           (htmlClip ? (htmlToNotionBlocks(htmlClip) ?? htmlToNotionExportBlocks(htmlClip)) : null);
         if (tree && tree.length) {
@@ -1784,7 +1788,13 @@ export const BlockEditor = forwardRef<
       if (t.closest("button, input, textarea, [draggable='true']")) return;
  // a row peek nests another editor inside a database block — each editor
  // only converts drags over its OWN blocks (the event bubbles to both)
-      if (t.closest('[data-testid="editor-root"]') !== e.currentTarget) return;
+      const inRoot = t.closest('[data-testid="editor-root"]') === e.currentTarget;
+ // …or the press landed on the page margin around this editor (an ancestor
+ // of the root, handed in by the document listener below): a marquee start,
+ // and no native text selection should begin there (Notion E)
+      const fromMargin = !inRoot && t.contains(e.currentTarget as Node);
+      if (!inRoot && !fromMargin) return;
+      if (fromMargin) e.preventDefault();
       const root = e.currentTarget as HTMLElement;
       const tid = t.closest("[data-block-type]")?.getAttribute("data-testid");
  // no anchor yet is fine: a drag can start in the empty space below the
@@ -1794,7 +1804,26 @@ export const BlockEditor = forwardRef<
         ? tid.slice("block-".length)
         : null;
       const startedOnBlock = anchor !== null;
+ // Measured on Notion (docs/notion-selection-copy.md §1): a drag that starts
+ // in TEXT stays a text selection for as long as it only crosses text blocks
+ // — it becomes a block selection the moment it reaches a block with no text
+ // of its own (an image, a divider, a table). A drag that starts off any block
+ // (the margins) selects blocks from the first one it enters.
+      const startedOnText =
+        startedOnBlock && isTextBlockType(blocksRef.current.find((b) => b.id === anchor)?.type ?? "paragraph");
       let active = false;
+ // Each block is its own editing host, and Chrome confines a drag-selection
+ // to the host it STARTED in — so a text drag could never reach the next
+ // block. Notion avoids that by wrapping the whole page in one contenteditable
+ // (measured: `div.whenContentEditable[contenteditable=true]` above every
+ // block leaf). The editing root is fixed when the press lands, so give this
+ // press the same single root right now and take it back on release.
+      const startLeaf = startedOnText ? (t.closest("[contenteditable]") as HTMLElement | null) : null;
+      const sharedRoot = startedOnText && !!startLeaf;
+      if (sharedRoot) {
+        root.setAttribute("contenteditable", "true");
+        root.style.outline = "none";
+      }
       const onMove = (ev: MouseEvent) => {
         const overEl = document
           .elementFromPoint(ev.clientX, ev.clientY)
@@ -1804,10 +1833,15 @@ export const BlockEditor = forwardRef<
             ? overEl.getAttribute("data-testid")
             : null;
         const over = overTid?.startsWith("block-") ? overTid.slice("block-".length) : null;
- // within the starting block, native text selection stays in charge
-        if (!active && startedOnBlock && (!over || over === anchor)) return;
-        if (!over && !active) return;
         if (!active) {
+ // off any block, nothing has been decided yet
+          if (!over) return;
+ // within the starting block, native text selection stays in charge
+          if (startedOnBlock && over === anchor) return;
+          if (startedOnText) {
+            const overType = blocksRef.current.find((b) => b.id === over)?.type ?? "paragraph";
+            if (isTextBlockType(overType)) return; // still text → the browser keeps selecting (across leaves, see below)
+          }
           active = true;
           (document.activeElement as HTMLElement | null)?.blur?.();
         }
@@ -1824,11 +1858,167 @@ export const BlockEditor = forwardRef<
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+ // the press and the release landed on different rows, so the browser fires
+ // a `click` on their common ancestor — a row whose onClick clears the
+ // selection we just made. Swallow that one click (root onClickCapture).
+        if (active) dragSelectedAt.current = Date.now();
+        if (sharedRoot) {
+ // the shared editing root was only for the press; hand focus back to the
+ // leaf the selection started in so keys still reach its handlers. The
+ // selection itself survives (it is the document's, not the host's).
+          root.removeAttribute("contenteditable");
+          root.style.outline = "";
+          if (!active) startLeaf?.focus({ preventScroll: true });
+        }
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
     [rangeIds]
+  );
+  const dragSelectedAt = useRef(0);
+  const swallowClickAfterDrag = useCallback((e: React.MouseEvent) => {
+    if (Date.now() - dragSelectedAt.current < 400) {
+      dragSelectedAt.current = 0;
+      e.stopPropagation();
+    }
+  }, []);
+
+ // A press on the page margin (outside the editor column) starts a block
+ // marquee, like the original's (docs/notion-selection-copy.md §1 E). Only
+ // the first editor inside the pressed element takes it, so a row peek's
+ // nested editor does not double up with the host page.
+  useEffect(() => {
+    const onDown = (ev: MouseEvent) => {
+      const root = rootRef.current;
+      const t = ev.target as HTMLElement | null;
+      if (!root || !t || ev.button !== 0) return;
+      if (t === root || !t.contains(root)) return;
+      if (!t.closest('main[aria-label="Page content"]')) return;
+      if (t.closest("button, input, textarea, a, [contenteditable], [role='dialog']")) return;
+      if (t.querySelector('[data-testid="editor-root"]') !== root) return;
+      onEditorMouseDown({
+        button: 0,
+        target: t,
+        currentTarget: root,
+        preventDefault: () => ev.preventDefault(),
+      } as unknown as React.MouseEvent);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [onEditorMouseDown]);
+
+ // ⌘C on a TEXT selection that spans blocks: the browser would hand out
+ // styled spans; the original hands out markdown + semantic html with just
+ // the selected part of the first and last block (docs/notion-selection-copy
+ // §3 B·C·H). Inside one block the browser's own copy is left alone.
+  const onRootCopy = useCallback((e: React.ClipboardEvent) => {
+    const root = rootRef.current;
+    const sel = window.getSelection();
+    if (!root || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const rowOf = (n: Node | null): Element | null =>
+      n ? ((n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as Element)) as Element | null)?.closest?.("[data-block-type]") ?? null : null;
+    const a = rowOf(range.startContainer);
+    const b = rowOf(range.endContainer);
+    if (!a || !b || a === b) return;
+    const overrides = new Map<string, string>();
+    const ids: string[] = [];
+    for (const row of root.querySelectorAll<HTMLElement>("[data-block-type]")) {
+      const id = row.getAttribute("data-testid")?.slice("block-".length);
+      const ce = row.querySelector<HTMLElement>("[contenteditable]");
+      if (!id || !ce || ce.closest("[data-block-type]") !== row) continue; // no text of its own
+ // Selection.containsNode (and toString) are clamped to the focused editing
+ // host in Chrome; the Range is the real thing and spans the leaves
+      if (!range.intersectsNode(ce)) continue;
+      const part = document.createRange();
+      part.selectNodeContents(ce);
+      if (range.compareBoundaryPoints(Range.START_TO_START, part) > 0) part.setStart(range.startContainer, range.startOffset);
+      if (range.compareBoundaryPoints(Range.END_TO_END, part) < 0) part.setEnd(range.endContainer, range.endOffset);
+      const holder = document.createElement("div");
+      holder.appendChild(part.cloneContents());
+      overrides.set(id, sanitizeInline(holder.innerHTML));
+      ids.push(id);
+    }
+    if (ids.length < 2) return;
+    e.preventDefault();
+    writePayload(e.clipboardData, serializeBlocks(blocksRef.current, ids, overrides, { onlyListed: true }));
+  }, []);
+
+ // A key on a TEXT selection that spans blocks. The browser would only edit
+ // the focused block's part; the original deletes the selected text end to
+ // end and joins the first and last block (typed text lands at the join).
+ // Blocks wholly inside the selection go, with their children; a last block
+ // that still has children keeps them and just loses its selected text.
+  const onRootKeyDownCapture = useCallback(
+    (e: React.KeyboardEvent) => {
+      const root = rootRef.current;
+      const sel = window.getSelection();
+      if (!root || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return; // shortcuts (⌘C among them) keep their own paths
+      const range = sel.getRangeAt(0);
+      const rowOf = (n: Node | null): HTMLElement | null =>
+        n ? (((n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as Element)) as Element | null)?.closest?.("[data-block-type]") as HTMLElement | null) ?? null : null;
+      const first = rowOf(range.startContainer);
+      const last = rowOf(range.endContainer);
+      if (!first || !last || first === last) return;
+      const printable = e.key.length === 1;
+      const edits = printable || e.key === "Backspace" || e.key === "Delete" || e.key === "Enter";
+      if (!edits) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const idOf = (row: Element) => row.getAttribute("data-testid")?.slice("block-".length) ?? "";
+      const leafOf = (row: Element) => {
+        const ce = row.querySelector<HTMLElement>("[contenteditable]");
+        return ce && ce.closest("[data-block-type]") === row ? ce : null;
+      };
+      const firstLeaf = leafOf(first);
+      const lastLeaf = leafOf(last);
+      if (!firstLeaf || !lastLeaf) return;
+      const html = (r: Range) => { const d = document.createElement("div"); d.appendChild(r.cloneContents()); return d.innerHTML; };
+      const pre = document.createRange(); pre.selectNodeContents(firstLeaf); pre.setEnd(range.startContainer, range.startOffset);
+      const post = document.createRange(); post.selectNodeContents(lastLeaf); post.setStart(range.endContainer, range.endOffset);
+      const prefix = sanitizeInline(html(pre));
+      const suffix = sanitizeInline(html(post));
+      const typed = printable ? e.key.replace(/&/g, "&amp;").replace(/</g, "&lt;") : "";
+      const joined = prefix + typed + suffix;
+      const firstId = idOf(first);
+      const lastId = idOf(last);
+      const between: string[] = [];
+      for (const row of root.querySelectorAll<HTMLElement>("[data-block-type]")) {
+        if (row === first || row === last) continue;
+        if (row.contains(first) || row.contains(last)) continue; // an ancestor row is not "between"
+        if (range.intersectsNode(row)) between.push(idOf(row));
+      }
+      const caretPos = htmlToText(prefix + typed).length;
+      mutate((prev) => {
+        const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
+        const f = next.find((b) => b.id === firstId);
+        if (!f) return prev;
+        f.content.html = joined;
+        f.content.text = htmlToText(joined);
+        f.version++;
+        const gone = new Set(between);
+        const lastBlock = next.find((b) => b.id === lastId);
+        const lastHasKids = next.some((b) => b.parentBlockId === lastId);
+        if (lastBlock) {
+          if (lastHasKids) {
+            lastBlock.content.html = suffix;
+            lastBlock.content.text = htmlToText(suffix);
+            lastBlock.version++;
+ // its text moved into the first block already; keep the block for its kids
+            f.content.html = prefix + typed;
+            f.content.text = htmlToText(prefix + typed);
+          } else gone.add(lastId);
+        }
+ // descendants of removed blocks go with them
+        let grew = true;
+        while (grew) { grew = false; for (const b of next) if (b.parentBlockId && gone.has(b.parentBlockId) && !gone.has(b.id)) { gone.add(b.id); grew = true; } }
+        return next.filter((b) => !gone.has(b.id));
+      });
+      pendingFocus.current = { id: firstId, pos: caretPos };
+    },
+    [mutate]
   );
 
  // In selection mode the caret is blurred, so keys are handled at the window.
@@ -1855,6 +2045,14 @@ export const BlockEditor = forwardRef<
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         bulkDuplicate();
+      } else if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x")) {
+ // ⌘C on a block selection: markdown + semantic html + our block tree
+ // (docs/notion-selection-copy.md §3). The caret is blurred in this mode, so
+ // the browser has nothing to copy on its own — this used to do nothing.
+        e.preventDefault();
+        const ids = order.filter((id) => selectedIdsRef.current.has(id));
+        copyPayload(serializeBlocks(blocksRef.current, ids));
+        if (e.key.toLowerCase() === "x") bulkDelete();
       } else if (e.key === "Escape") {
         e.preventDefault();
         clearSelection();
@@ -2628,6 +2826,7 @@ export const BlockEditor = forwardRef<
       selectedIds,
       slashBareBlockId: slash?.bare ? slash.blockId : null,
       shiftSelect,
+      selectBlock,
       clearSelection,
     }),
     [
@@ -2667,6 +2866,7 @@ export const BlockEditor = forwardRef<
       selectedIds,
       slash,
       shiftSelect,
+      selectBlock,
       clearSelection,
     ]
   );
@@ -2712,6 +2912,9 @@ export const BlockEditor = forwardRef<
         data-save-state={saveState}
         className="relative mt-2 min-h-[40vh] pb-8"
         onMouseDown={onEditorMouseDown}
+        onClickCapture={swallowClickAfterDrag}
+        onKeyDownCapture={onRootKeyDownCapture}
+        onCopy={onRootCopy}
         onDragOver={(e) => {
  // OS file drag → allow dropping (else the browser navigates away)
           if (e.dataTransfer.types.includes("Files")) e.preventDefault();

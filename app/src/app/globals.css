@@ -242,3 +242,9 @@ header {
   color: #e6e6e4;
   background: rgba(255, 255, 255, 0.055);
 }
+
+/* text selection inside the editor: the original's highlight (measured
+   ::selection on Notion 2026-09-09, docs/notion-selection-copy.md §2) */
+[data-testid="editor-root"] ::selection {
+  background: rgba(35, 131, 226, 0.28);
+}

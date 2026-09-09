@@ -124,9 +124,12 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
  // (720 vs 708): the grip highlight reaches 4px past the glyphs, and the
  // gutter is measured from that wider edge. Bleed the row out by 6 and pad
  // it back so the text stays put (2026-08-26, m-halo-text)
+ // selected: the original's halo — rgba(35,131,226,0.14), 4px radius, no
+ // ring or shadow (measured, docs/notion-selection-copy.md §2)
         className={`relative flex items-start rounded ${
-          editor.selectedIds.has(block.id) ? "bg-blue-100/80 ring-1 ring-inset ring-blue-300/70 dark:bg-blue-500/25 dark:ring-blue-500/50" : ""
+          editor.selectedIds.has(block.id) ? "rounded-[4px] bg-[rgba(35,131,226,0.14)]" : ""
         }`}
+        data-selected={editor.selectedIds.has(block.id) ? "" : undefined}
         style={{ paddingLeft: depth * 24 }}
       >
         {/* The + and the drag handle belong to the ONE line the pointer is on.
@@ -1394,6 +1397,12 @@ function ImageBody({ block }: { block: EBlock }) {
           alt={block.content.text ?? ""}
           className={`max-h-[420px] max-w-full rounded-md ${align === "full" ? "w-full" : ""}`}
           draggable={false}
+ // a click on an image selects its block (Notion F); stop here so the row's
+ // own click does not clear it again
+          onClick={(e) => {
+            e.stopPropagation();
+            editor.selectBlock(block.id);
+          }}
         />
 
         {/* Right resize handle */}
