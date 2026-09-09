@@ -30,7 +30,7 @@ import { MemorySelect } from "@/components/database/memory-select";
 const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
 
-function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string; hasChildren?: boolean }) {
+function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string; hasChildren?: boolean; subtree?: EBlock[] }) {
   const editor = useEditor();
  // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
  // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
@@ -366,18 +366,25 @@ function ChildPageBody({ block }: { block: EBlock }) {
   );
 }
 
+/** The 전환 submenu, in the original's order and words (measured 2026-09-09 on
+ * the ⠿ menu of a text block: 텍스트 · 제목1-4 · 페이지 · 글머리 기호 목록 ·
+ * 번호 매기기 목록 · 할 일 목록 · 토글 목록 · 코드 · 인용 · 콜아웃 · 수학 공식 블록 ·
+ * 동기화 블록 · 토글 제목1-4 · 2~5개의 열). Ours lists the types we have. Labels
+ * are t() keys. */
 export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
-  { type: "paragraph", label: "Text" },
-  { type: "heading1", label: "Heading 1" },
-  { type: "heading2", label: "Heading 2" },
-  { type: "heading3", label: "Heading 3" },
-  { type: "bulleted_list", label: "Bulleted list" },
-  { type: "numbered_list", label: "Numbered list" },
-  { type: "todo", label: "To-do" },
-  { type: "toggle", label: "Toggle" },
-  { type: "quote", label: "Quote" },
-  { type: "callout", label: "Callout" },
-  { type: "code", label: "Code" },
+  { type: "paragraph", label: "텍스트" },
+  { type: "heading1", label: "제목1" },
+  { type: "heading2", label: "제목2" },
+  { type: "heading3", label: "제목3" },
+  { type: "child_page", label: "페이지" },
+  { type: "bulleted_list", label: "글머리 기호 목록" },
+  { type: "numbered_list", label: "번호 매기기 목록" },
+  { type: "todo", label: "할 일 목록" },
+  { type: "toggle", label: "토글 목록" },
+  { type: "code", label: "코드" },
+  { type: "quote", label: "인용" },
+  { type: "callout", label: "콜아웃" },
+  { type: "equation", label: "수학 공식 블록" },
 ];
 
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
@@ -386,6 +393,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
   const t = useT();
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
+  const turnRef = useRef<HTMLDivElement>(null);
   /** the 표 section's `정렬` submenu (ours — the original has no alignment) */
   const [alignOpen, setAlignOpen] = useState(false);
   const alignRef = useRef<HTMLDivElement>(null);
@@ -406,8 +414,29 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
     setOpen(false);
     setTurnOpen(false);
     setAlignOpen(false);
- // the submenu is portalled too — both count as inside
-  }, ref, menuRef, alignRef);
+ // the submenus are portalled too — all count as inside
+  }, ref, menuRef, alignRef, turnRef);
+
+ // The 전환 submenu: portalled (the menu scrolls, so an in-flow child was
+ // clipped to nothing — "Turn into does nothing"), placed beside the menu
+ // with its top on the 전환 row, kept inside the window. Measured on the
+ // original: the panel opens on HOVER, sits at menu.right − 4px, 220 wide,
+ // 28px rows, same 10px radius and shadow as the menu.
+  useEffect(() => {
+    if (!turnOpen) return;
+    const panel = turnRef.current;
+    const row = document.querySelector(`[data-testid="block-turninto-${block.id}"]`);
+    const menu = menuRef.current;
+    if (!panel || !(row instanceof HTMLElement) || !menu) return;
+    const rb = row.getBoundingClientRect(), mb = menu.getBoundingClientRect();
+    const margin = 8;
+    panel.style.left = `${mb.right - 4}px`;
+    panel.style.top = `${rb.top}px`;
+    panel.style.visibility = "visible";
+    const pb = panel.getBoundingClientRect();
+    if (pb.right > window.innerWidth - margin) panel.style.left = `${mb.left - pb.width + 4}px`;
+    if (pb.bottom > window.innerHeight - margin) panel.style.top = `${Math.max(margin, window.innerHeight - margin - pb.height)}px`;
+  }, [turnOpen, block.id]);
 
  // place the 정렬 submenu beside its row and keep it in the window
   useEffect(() => {
@@ -453,7 +482,17 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           editor.onDragStart(block.id);
         }}
         onDragEnd={() => editor.onDragEnd()}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+ // Measured on the original: on an EMPTY line the ⠿ click opens the block
+ // type picker straight away (the same panel the + opens, with the filter
+ // placeholder) — there is nothing to act on, so 전환 is the whole menu.
+          const empty = block.type === "paragraph" && (block.content.text ?? "").trim() === "";
+          if (empty) {
+            editor.insertBelow(block.id); // reuses this empty line and opens the picker on it
+            return;
+          }
+          setOpen((v) => !v);
+        }}
         className="flex h-6 w-[18px] cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500 active:cursor-grabbing dark:text-neutral-600 dark:hover:bg-neutral-800"
         aria-label="Block actions (drag to reorder)"
       >
@@ -483,6 +522,11 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             ref={menuRef}
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+ // hovering any other row folds the 전환 panel; the pointer travelling into
+ // the (portalled) panel itself fires nothing here, so it stays open
+            onMouseOver={(e) => {
+              if (turnOpen && !(e.target as HTMLElement).closest("[data-turn-into]")) setTurnOpen(false);
+            }}
           >
           {block.type === "table" && block.content.table && (() => {
             const table = block.content.table;
@@ -599,32 +643,40 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
               setCommentOpen(true);
             }}
           />
-          <div className="relative">
+          <div data-turn-into onMouseEnter={() => setTurnOpen(true)}>
             <MenuBtn
               testid={`block-turninto-${block.id}`}
               icon={<Repeat size={13} />}
-              label="Turn into"
+              label={t("전환")}
               onClick={() => setTurnOpen((v) => !v)}
             />
-            {turnOpen && (
-              <div className="popover-anim absolute left-full top-0 z-50 ml-1 max-h-64 w-40 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                {TURN_INTO.map((t) => (
-                  <button
-                    key={t.type}
-                    data-testid={`block-turninto-${block.id}-${t.type}`}
-                    onClick={() => {
-                      setOpen(false);
-                      setTurnOpen(false);
-                      editor.turnInto(block.id, t.type);
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
+          </div>,
+          document.body
+        )}
+      {open &&
+        turnOpen &&
+        createPortal(
+          <div
+            ref={turnRef}
+            data-testid={`block-turninto-menu-${block.id}`}
+            style={{ visibility: "hidden" }}
+            className="popover-anim fixed z-50 max-h-[80vh] w-[220px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+          >
+            {TURN_INTO.map((o) => (
+              <button
+                key={o.type}
+                data-testid={`block-turninto-${block.id}-${o.type}`}
+                onClick={() => {
+                  setOpen(false);
+                  setTurnOpen(false);
+                  editor.turnInto(block.id, o.type);
+                }}
+                className="block h-7 w-full px-3 text-left text-sm leading-7 text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                {t(o.label)}
+              </button>
+            ))}
           </div>,
           document.body
         )}
@@ -1933,5 +1985,8 @@ function AiPromptBody({ block }: { block: EBlock }) {
  */
 export const BlockRow = memo(
   BlockRowInner,
-  (a, b) => a.block === b.block && a.depth === b.depth && a.parentType === b.parentType && a.hasChildren === b.hasChildren && !b.hasChildren
+ // `subtree` is a memo key only (the editor hands a root the list of its
+ // descendants, same array while none of them changed) — a nested child's
+ // change must re-render the root that draws it
+  (a, b) => a.block === b.block && a.depth === b.depth && a.parentType === b.parentType && a.hasChildren === b.hasChildren && a.subtree === b.subtree && !b.hasChildren
 );

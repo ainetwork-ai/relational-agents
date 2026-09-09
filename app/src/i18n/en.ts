@@ -746,6 +746,7 @@ export const en: Record<string, string> = {
   "번호 매기기 목록": "Numbered list",
   "할 일 목록": "To-do list",
   "토글 목록": "Toggle list",
+  "수학 공식 블록": "Block equation",
   인용: "Quote",
   구분선: "Divider",
   목차: "Table of contents",

@@ -2996,25 +2996,54 @@ export const BlockEditor = forwardRef<
     for (const b of blocks) if (b.parentBlockId) s.add(b.parentBlockId);
     return s;
   }, [blocks]);
-  const rowCache = useRef(new Map<string, { block: EBlock; hasChildren: boolean; el: React.ReactElement }>());
+ // Every root's descendants, in order. A nested block that changes (a child
+ // turned into a heading from its ⠿ menu) leaves its ROOT's object untouched,
+ // and a cache keyed on the root alone kept serving the old element — the
+ // conversion was saved but did not paint until the next selection change.
+  const subtreeOf = useMemo(() => {
+    const byParent = new Map<string, EBlock[]>();
+    for (const b of blocks) {
+      if (!b.parentBlockId) continue;
+      const list = byParent.get(b.parentBlockId);
+      if (list) list.push(b);
+      else byParent.set(b.parentBlockId, [b]);
+    }
+    const out = new Map<string, EBlock[]>();
+    const walk = (id: string, acc: EBlock[]) => {
+      for (const c of byParent.get(id) ?? []) {
+        acc.push(c);
+        walk(c.id, acc);
+      }
+    };
+    for (const b of blocks) {
+      if (b.parentBlockId) continue;
+      const acc: EBlock[] = [];
+      walk(b.id, acc);
+      out.set(b.id, acc);
+    }
+    return out;
+  }, [blocks]);
+  const rowCache = useRef(new Map<string, { block: EBlock; hasChildren: boolean; subtree: EBlock[]; el: React.ReactElement }>());
   const rows = useMemo(() => {
     const cache = rowCache.current;
     const seen = new Set<string>();
+    const sameRefs = (a: EBlock[], b: EBlock[]) => a.length === b.length && a.every((x, i) => x === b[i]);
     const out = roots.map((b) => {
       seen.add(b.id);
       const hc = childOf.has(b.id);
       const hit = cache.get(b.id);
- // Reuse the very element object for a block that did not change, so React
- // bails out of its subtree and jsx() runs only for the block that did — a
+      const fresh = subtreeOf.get(b.id) ?? [];
+ // Reuse the very element object for a block whose subtree did not change,
+ // so React bails out of it and jsx() runs only for the block that did — a
  // keystroke rebuilds one row's element, not all 227.
-      if (hit && hit.block === b && hit.hasChildren === hc) return hit.el;
-      const el = <BlockRow key={b.id} block={b} depth={0} hasChildren={hc} />;
-      cache.set(b.id, { block: b, hasChildren: hc, el });
+      if (hit && hit.block === b && hit.hasChildren === hc && sameRefs(hit.subtree, fresh)) return hit.el;
+      const el = <BlockRow key={b.id} block={b} depth={0} hasChildren={hc} subtree={fresh} />;
+      cache.set(b.id, { block: b, hasChildren: hc, subtree: fresh, el });
       return el;
     });
     for (const id of cache.keys()) if (!seen.has(id)) cache.delete(id);
     return out;
-  }, [roots, childOf]);
+  }, [roots, childOf, subtreeOf]);
 
   return (
     <EditorCtx.Provider value={api}>
