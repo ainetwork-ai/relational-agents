@@ -676,6 +676,11 @@ export const BlockEditor = forwardRef<
                   }
                 : b
             );
+          } else {
+            // a text operation (stage 3, applied by the server since step ②):
+            // until step ③ teaches this editor to merge items, take the result
+            // from the next full sync rather than guess
+            deferred = true;
           }
         }
       }

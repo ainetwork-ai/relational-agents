@@ -49,7 +49,9 @@ export function withTextInstance(content: BlockContent): BlockContent {
       row.map((cell, col) => {
         const existing = table.cellItems?.[r]?.[col];
         if (existing && Array.isArray(existing.items)) return existing;
-        return instanceFromContent(undefined, cell);
+        // a cell edited since formatting arrived carries html; the rest are plain text
+        const cellHtml = (table as { html?: string[][] }).html?.[r]?.[col];
+        return cellHtml !== undefined ? instanceFromContent(undefined, cellHtml) : instanceFromContent(cell, undefined);
       })
     );
     (c as TableContent).table = { ...table, cellItems };

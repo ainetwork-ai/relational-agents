@@ -8,8 +8,10 @@ import { scheduleMirror } from "@/lib/md-mirror";
 import { notifyMentions } from "@/lib/notifications";
 import { publish } from "@/lib/realtime";
 import { isOkfId, decodeId, readNode, writePage, parsedToBlocks, blocksToParsed } from "@/lib/okf-store";
-import type { Operation, Transaction } from "./types";
+import { isTextOperation, type Operation, type Transaction } from "./types";
 import { withTextInstance } from "@/lib/text-crdt/content";
+import { applyMoveTextSlice, applyTextOp } from "@/lib/text-crdt/ops";
+import { renderHtml } from "@/lib/text-crdt/html";
 
 /**
  * Apply save transactions to one page (docs/save-protocol-target.md §4.2).
@@ -99,6 +101,35 @@ export async function applyTransactions(opts: {
               // applies to dead rows too: a revive is `alive:true`, and a late
               // edit to a block deleted elsewhere is simply invisible
               await tx.update(blocks).set(set).where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)));
+            } else if (isTextOperation(op)) {
+              // stage 3 step ②: character-level operations on one block's text
+              // (or two blocks for a slice move), validated against the
+              // instance they name; the html/text cache is regenerated
+              const [row] = await tx
+                .select({ id: blocks.id, content: blocks.content })
+                .from(blocks)
+                .where(and(eq(blocks.id, op.pointer.id), eq(blocks.pageId, pageId)))
+                .limit(1);
+              if (!row) throw new Error(`block not found ${op.pointer.id}`);
+              if (op.command === "moveTextSlice") {
+                const sameBlock = op.args.toBlock === op.pointer.id;
+                let target: { id: string; content: BlockContent } | null = null;
+                if (!sameBlock) {
+                  const [t] = await tx
+                    .select({ id: blocks.id, content: blocks.content })
+                    .from(blocks)
+                    .where(and(eq(blocks.id, op.args.toBlock), eq(blocks.pageId, pageId)))
+                    .limit(1);
+                  if (!t) throw new Error(`moveTextSlice: target ${op.args.toBlock} is not on this page`);
+                  target = t;
+                }
+                const out = applyMoveTextSlice(row.content, target?.content ?? null, op);
+                await tx.update(blocks).set({ content: out.source, updatedAt: new Date() }).where(eq(blocks.id, row.id));
+                if (target) await tx.update(blocks).set({ content: out.target, updatedAt: new Date() }).where(eq(blocks.id, target.id));
+              } else {
+                const content = applyTextOp(row.content, op);
+                await tx.update(blocks).set({ content, updatedAt: new Date() }).where(eq(blocks.id, row.id));
+              }
             } else {
               throw new Error(`unknown command ${String((op as { command: string }).command)}`);
             }
@@ -124,7 +155,13 @@ export async function applyTransactions(opts: {
       if (opts.userId) {
         for (const t of applied) {
           for (const op of t.operations) {
-            const html = op.args.content?.html;
+            // a mention arrives either in a wholesale content write or inside
+            // the tags of inserted items (`<a class="mention" …>`)
+            const html = isTextOperation(op)
+              ? op.command === "insertText"
+                ? renderHtml(op.args.items)
+                : undefined
+              : op.args.content?.html;
             if (html) await notifyMentions({ html, actorId: opts.userId, pageId, dedupeUnread: true });
           }
         }
@@ -300,6 +337,23 @@ function applyToList(list: Block[], ops: Operation[], pageId: string): Block[] {
             }
           : b
       );
+    } else if (isTextOperation(op)) {
+      const src = out.find((b) => b.id === op.pointer.id);
+      if (!src) throw new Error(`block not found ${op.pointer.id}`);
+      if (op.command === "moveTextSlice") {
+        const sameBlock = op.args.toBlock === op.pointer.id;
+        const dst = sameBlock ? null : out.find((b) => b.id === op.args.toBlock);
+        if (!sameBlock && !dst) throw new Error(`moveTextSlice: target ${op.args.toBlock} is not on this page`);
+        const r = applyMoveTextSlice(src.content, dst?.content ?? null, op);
+        out = out.map((b) =>
+          b.id === src.id ? { ...b, content: r.source, updatedAt: new Date() } : dst && b.id === dst.id ? { ...b, content: r.target, updatedAt: new Date() } : b
+        );
+      } else {
+        const content = applyTextOp(src.content, op);
+        out = out.map((b) => (b.id === src.id ? { ...b, content, updatedAt: new Date() } : b));
+      }
+    } else {
+      throw new Error(`unknown command ${String((op as { command: string }).command)}`);
     }
   }
   return out;

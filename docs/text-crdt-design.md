@@ -67,6 +67,16 @@ item 은 origin 이 가리키는 item 의 **바로 오른쪽**에 들어간다. 
 노션의 `splitText` 는 `moveTextSlice` 로 대신한다(우리 블록 생성이 `set` 이라 "잘라서 새 블록으로" 는
 `set` + `moveTextSlice` 두 연산으로 한 트랜잭션이 된다).
 
+②에서 구현하며 확정된 세부(`lib/transactions/types.ts`, `lib/text-crdt/ops.ts`):
+- 모든 텍스트 연산 `args` 에 `instance`(연산을 만든 instance id)가 들어간다. 서버의 instance 와 다르면 트랜잭션
+  거절. **instance 가 아직 없는 블록은 연산이 들고 온 id 를 채택**한다 — 양쪽이 같은 html 에서 같은 items
+  (`["m",1..n]`)를 만들기 때문에 좌표가 일치한다. 게으른 마이그레이션은 이렇게 "첫 연산이 도착할 때" 일어난다.
+- `formatText` 는 attrs 객체가 아니라 **태그 스택** `tags: string[]`(sanitizer 가 내는 여는 태그, 바깥부터)을 범위에
+  덮어쓴다. ①의 item 모델이 서식을 태그 스택으로 들고 있어 그대로 맞췄다. `[]` 는 서식 해제.
+- `moveTextSlice` 에서 옮겨지는 조각 중 origin 이 **잘린 곳 왼쫀에 남은** 글자를 가리키는 item(동시 삽입이 그 자리에
+  걸린 경우)은 바로 앞 조각의 마지막 글자로 다시 건다. 조각 안에서만 결정되므로 모든 복제본이 같다.
+- 캐시 재생성은 `mergeRuns` 뒤 `renderHtml`/`renderText`. 표 셀은 `cells[r][c]`(text)와 `html[r][c]` 둘 다.
+
 UI → 트랜잭션:
 - 글자 입력: `insertText`(item 1 개씩 보낸다 — 노션도 글자마다 연산). 자기 상태에서는 §6 규칙으로 바로 합친다.
 - Enter(중간): `set`(새 블록) · `moveTextSlice`(캐럿 이후 → 새 블록 `"start"`) · `update position`.
