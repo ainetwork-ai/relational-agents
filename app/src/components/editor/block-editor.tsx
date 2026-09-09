@@ -39,6 +39,8 @@ import { usePageSync } from "@/hooks/use-page-sync";
 import { diffBlocks } from "@/lib/editor/block-diff";
 import { getTransactionQueue, migrateLegacyDraft } from "@/lib/editor/transaction-queue";
 import { isTextOperation, type Transaction } from "@/lib/transactions/types";
+import { liveIdAtPos, livePosOfId } from "@/lib/editor/text-edit";
+import type { ItemId } from "@/lib/text-crdt/types";
 import { applyMoveTextSlice, applyTextOp } from "@/lib/text-crdt/ops";
 import { textInstanceOf } from "@/lib/text-crdt/content";
 import { usePagesStore } from "@/stores/pages";
@@ -559,6 +561,23 @@ export const BlockEditor = forwardRef<
     }
   }, [blocks]);
 
+ // After a remote character op re-rendered the focused block, put the caret
+ // back after the same character it was after (design §3.5).
+  useLayoutEffect(() => {
+    const r = restoreCaretRef.current;
+    if (!r) return;
+    restoreCaretRef.current = null;
+    const el = editables.current.get(r.blockId);
+    const inst = textInstanceOf((blocksRef.current.find((b) => b.id === r.blockId) ?? { content: {} as BlockContent }).content);
+    if (!el || !inst) return;
+    let pos = 0;
+    if (r.leftId !== "start") {
+      const lp = livePosOfId(inst.items, r.leftId);
+      pos = lp >= 0 ? lp + 1 : 0; // left char deleted remotely → fall back to start
+    }
+    setCaret(el, pos);
+  }, [blocks]);
+
 
  // Remote changes (other clients): refetch and merge, block-level LWW.
  // The locally-focused block always wins; unsaved local blocks are kept.
@@ -599,7 +618,14 @@ export const BlockEditor = forwardRef<
         if (deletedIds.current.has(row.id)) continue; // deleted locally, save pending
         const old = prevById.get(row.id);
         if (old && row.id === focusedId) {
-          next.push(old);
+          // The block the caret is in. applyRemote only runs when nothing is
+          // dirty (guarded above), so the DOM is not mid-keystroke: rebuild it
+          // from the server if it drifted (a deferred remote op), keeping the
+          // caret after the same character via item coordinates.
+          if (JSON.stringify(old.content) === JSON.stringify(row.content ?? {})) { next.push(old); continue; }
+          const cap = captureCaret(focusedId, prev);
+          if (cap) restoreCaretRef.current = cap;
+          next.push({ ...fromRow(row), version: old.version + 1 });
           continue;
         }
         if (
@@ -645,6 +671,17 @@ export const BlockEditor = forwardRef<
  // sync. "blocks" (disk edits, non-transaction writers) and reconnects still
  // refetch.
   const bump = (b: EBlock, content: BlockContent): EBlock => ({ ...b, content, version: b.version + 1 });
+  const restoreCaretRef = useRef<{ blockId: string; leftId: ItemId | "start" } | null>(null);
+ // the character just left of the caret in the focused block, so it can be
+ // found again after a remote op re-renders that block
+  const captureCaret = (blockId: string, list: EBlock[]): { blockId: string; leftId: ItemId | "start" } | null => {
+    const el = editables.current.get(blockId);
+    if (!el || document.activeElement !== el) return null;
+    const off = caretOffset(el);
+    const inst = textInstanceOf((list.find((b) => b.id === blockId) ?? { content: {} as BlockContent }).content);
+    if (!inst) return null;
+    return { blockId, leftId: off > 0 ? liveIdAtPos(inst.items, off - 1) ?? "start" : "start" };
+  };
 
   const applyRemoteTransactions = useCallback((txs: Transaction[]) => {
     const active = document.activeElement as HTMLElement | null;
@@ -694,19 +731,23 @@ export const BlockEditor = forwardRef<
                 : b
             );
           } else if (isTextOperation(op)) {
-            // a remote character op. If it lands in the block the caret is in,
-            // DEFER it: re-rendering that block (version bump) mid-typing drops
-            // the character the user is composing. The server still merged it
-            // (the ops are correct there), so the next full sync — after the
-            // user pauses — brings the converged text. Other blocks apply live.
+            // a remote character op: merge it into our items and re-render. When
+            // it lands in the block the caret is in, remember the character just
+            // left of the caret and put the caret back after it once React has
+            // re-rendered — so a remote insert to our left does not drag our
+            // cursor along (design §3.5). While an IME is composing, defer: the
+            // browser owns the DOM until the syllable commits, and re-rendering
+            // under it drops the composition.
             const cur = next.find((b) => b.id === id);
             const targetId = op.command === "moveTextSlice" ? op.args.toBlock : id;
             const tgt = op.command === "moveTextSlice" ? next.find((b) => b.id === targetId) : cur;
-            if (!cur || (op.command === "moveTextSlice" && !tgt) || id === focusedId || targetId === focusedId) {
+            const touchesFocus = id === focusedId || targetId === focusedId;
+            if (!cur || (op.command === "moveTextSlice" && !tgt) || (touchesFocus && composingRef.current)) {
               deferred = true;
               continue;
             }
             try {
+              const caretLeft = touchesFocus ? captureCaret(focusedId!, next) : null;
               if (op.command === "moveTextSlice") {
                 const r = applyMoveTextSlice(cur.content, tgt!.id === cur.id ? null : tgt!.content, op);
                 next = next.map((b) => (b.id === cur.id ? bump(b, r.source) : b.id === tgt!.id ? bump(b, r.target) : b));
@@ -714,6 +755,7 @@ export const BlockEditor = forwardRef<
                 const content = applyTextOp(cur.content, op);
                 next = next.map((b) => (b.id === id ? bump(b, content) : b));
               }
+              if (caretLeft) restoreCaretRef.current = caretLeft;
             } catch {
               deferred = true;
             }
@@ -725,9 +767,26 @@ export const BlockEditor = forwardRef<
     if (deferred) needResyncRef.current = true;
   }, []);
 
+  const resyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+ // A remote op we could not apply live (its origin was not in our items yet —
+ // it arrived before the op it depends on, or landed in a block we are
+ // composing in) sets needResync. Service it shortly even while idle, so a tab
+ // that is not itself saving still converges instead of waiting for its next
+ // edit. applyRemote keeps the focused block and reconciles the rest.
+  const scheduleResync = useCallback(() => {
+    if (resyncTimer.current) return;
+    resyncTimer.current = setTimeout(() => {
+      resyncTimer.current = null;
+      if (needResyncRef.current && !dirtyRef.current) void applyRemoteRef.current();
+      else if (needResyncRef.current) scheduleResync();
+    }, 400);
+  }, []);
+
   usePageSync(pageId, queue.sessionId, (event) => {
-    if (event.type === "transactions" && event.transactions) applyRemoteTransactions(event.transactions);
-    else if (event.type === "blocks") void applyRemote();
+    if (event.type === "transactions" && event.transactions) {
+      applyRemoteTransactions(event.transactions);
+      if (needResyncRef.current) scheduleResync();
+    } else if (event.type === "blocks") void applyRemote();
   }, shareToken);
 
  // A remote change to the block you are typing in is deferred to keep your
