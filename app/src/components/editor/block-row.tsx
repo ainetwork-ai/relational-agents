@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
-import { useT } from "@/i18n/provider";
+import { useLocale, useT } from "@/i18n/provider";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useAnchored } from "@/hooks/use-anchored";
 import Link from "next/link";
@@ -391,6 +391,7 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
 function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
   const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
   const turnRef = useRef<HTMLDivElement>(null);
@@ -606,7 +607,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-delete-${block.id}`}
             icon={<Trash2 size={13} />}
-            label="Delete"
+            label={t("삭제")}
             danger
             onClick={() => {
               setOpen(false);
@@ -616,7 +617,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-duplicate-${block.id}`}
             icon={<Copy size={13} />}
-            label="Duplicate"
+            label={t("복제")}
             onClick={() => {
               setOpen(false);
               editor.duplicateBlock(block.id);
@@ -625,7 +626,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-copylink-${block.id}`}
             icon={<Link2 size={13} />}
-            label="Copy link"
+            label={t("블록 링크 복사")}
             onClick={() => {
               setOpen(false);
               void copyText(
@@ -636,7 +637,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-comment-${block.id}`}
             icon={<MessageSquare size={13} />}
-            label="Comment"
+            label={locale === "en" ? "Comment" : t("댓글")}
             onClick={() => {
               setOpen(false);
               setTurnOpen(false);
