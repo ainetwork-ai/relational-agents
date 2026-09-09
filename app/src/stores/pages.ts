@@ -14,7 +14,9 @@ interface PagesState {
   byTeamspace: Map<string, Page[]>;
   archived: Record<string, Page>;
   loaded: boolean;
-  load: () => Promise<void>;
+  /** `workspaceId`: ask for that workspace's pages (member-checked server-side)
+   * instead of the session's — the sidebar passes the viewed page's workspace */
+  load: (workspaceId?: string) => Promise<void>;
   loadArchived: () => Promise<void>;
   createPage: (parentPageId?: string | null, teamspaceId?: string | null) => Promise<Page>;
   /** flag a page whose body just became a full-page database */
@@ -80,8 +82,9 @@ export const usePagesStore = create<PagesState>((set, get) => ({
   archived: {},
   loaded: false,
 
-  load: async () => {
-    const res = await fetch("/api/pages").catch(() => null); // dev-server restarts drop connections
+  load: async (workspaceId?: string) => {
+    const url = workspaceId ? `/api/pages?workspaceId=${encodeURIComponent(workspaceId)}` : "/api/pages";
+    const res = await fetch(url).catch(() => null); // dev-server restarts drop connections
     if (!res?.ok) return;
     const { pages } = await res.json();
     const map: Record<string, Page> = {};

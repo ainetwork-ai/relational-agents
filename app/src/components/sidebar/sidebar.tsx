@@ -94,9 +94,13 @@ export function Sidebar({
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
 
+ // ask for THIS sidebar's workspace (the viewed page's — the layout chose it),
+ // not the session's: otherwise a page opened from another workspace showed
+ // the old tree until the session followed (QA-3). Re-runs when it changes.
+  const workspaceId = workspace?.id;
   useEffect(() => {
-    load();
-  }, [load]);
+    load(workspaceId);
+  }, [load, workspaceId]);
 
   const roots = usePagesStore((s) => s.roots);
   const sidebarSort = useUiStore((s) => s.sidebarSort);

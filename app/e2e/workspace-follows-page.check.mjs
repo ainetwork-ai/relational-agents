@@ -71,7 +71,11 @@ const expectWorkspace = async (label, ws, other, nSwitch) => {
   const sw = await switcherText();
   check(`${label}: switcher shows ${ws.name}`, sw === ws.name, sw);
   check(`${label}: tree lists ${ws.name}'s root page, not the other's`, (await treeHas(ws.page)) && !(await treeHas(other.page)));
-  check(`${label}: session followed — /api/pages answers for ${ws.name}`, (await activeViaApi()) === ws.id);
+  // the chrome is right before the session has followed (that is the point);
+  // give the follower's switch round-trip up to 6s before judging the session
+  let active = null;
+  for (let i = 0; i < 60 && active !== ws.id; i++) { active = await activeViaApi(); if (active !== ws.id) await page.waitForTimeout(100); }
+  check(`${label}: session followed — /api/pages answers for ${ws.name}`, active === ws.id, `got ${active?.slice(0, 8)}`);
   check(`${label}: switch POSTs so far = ${nSwitch} (no loop)`, switches.length === nSwitch, `got ${switches.length}: ${switches.join(",")}`);
 };
 

@@ -31,7 +31,7 @@ export function FollowPageWorkspace({ workspaceId }: { workspaceId: string }) {
       });
       if (!res.ok) return;
       recordWorkspaceVisit(workspaceId);
-      await usePagesStore.getState().load();
+      await usePagesStore.getState().load(workspaceId);
       router.refresh();
     })();
   }, [workspaceId, router]);

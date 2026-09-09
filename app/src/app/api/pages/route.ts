@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
 import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { getDefaultWorkspaceId, workspaceForRequest } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 import { scheduleMirror } from "@/lib/md-mirror";
 import { listPages, okfSyntheticPage } from "@/lib/okf-store";
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
 
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
+ // ?workspaceId= (membership-checked) lets the sidebar ask for the workspace
+ // of the page being viewed before the session has followed it (QA-3)
+  const workspaceId = await workspaceForRequest(req, auth.user.id);
   if (!workspaceId) return NextResponse.json({ pages: [] });
 
   const archived = new URL(req.url).searchParams.get("archived") === "1";

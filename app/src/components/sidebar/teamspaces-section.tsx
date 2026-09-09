@@ -31,7 +31,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
 
  // Re-fetch when the active workspace changes (switch → server refresh → new prop).
   useEffect(() => {
-    void reloadTeamspaces();
+    void reloadTeamspaces(workspaceId ?? undefined);
   }, [workspaceId, reloadTeamspaces]);
 
   // Creation now lives in TeamspaceCreateModal, which follows Notion's two

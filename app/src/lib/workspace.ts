@@ -58,6 +58,26 @@ export async function workspaceOfPagePath(pathname: string | null, userId: strin
   return row?.workspaceId ?? null;
 }
 
+/**
+ * The workspace a sidebar fetch asks for (`?workspaceId=`), when the user is a
+ * member of it — else the session's active workspace. The sidebar is drawn for
+ * the page being viewed (see workspaceOfPagePath); its data fetches must ask
+ * for that same workspace, or the tree shows the session's workspace until
+ * the session catches up (measured: ~2.4s of the wrong tree in dev).
+ */
+export async function workspaceForRequest(req: Request, userId: string): Promise<string | null> {
+  const asked = new URL(req.url).searchParams.get("workspaceId");
+  if (asked && UUID.test(asked)) {
+    const [m] = await db
+      .select({ workspaceId: workspaceMembers.workspaceId })
+      .from(workspaceMembers)
+      .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.workspaceId, asked)))
+      .limit(1);
+    if (m) return asked;
+  }
+  return getDefaultWorkspaceId(userId);
+}
+
 /** The caller's ACTIVE workspace: the session's active workspace when the user
  * is still a member of it, otherwise their first membership. This makes every
  * workspace-scoped route (pages, members, invite, …) follow the switcher. */

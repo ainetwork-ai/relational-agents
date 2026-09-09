@@ -3,16 +3,18 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { teamspaces, teamspaceMembers, pages } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { getDefaultWorkspaceId, workspaceForRequest } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
-/** GET → teamspaces of the caller's active workspace. */
-export async function GET() {
+/** GET [?workspaceId=] → teamspaces of that workspace (member-checked), else
+ * of the caller's active workspace. The sidebar asks for the viewed page's
+ * workspace so the list is right before the session follows (QA-3). */
+export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
 
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
+  const workspaceId = await workspaceForRequest(req, auth.user.id);
   if (!workspaceId) return NextResponse.json({ teamspaces: [] });
 
   const rows = await db

@@ -15,7 +15,7 @@ interface TeamspacesState {
   loaded: boolean;
   load: () => Promise<void>;
   /** re-fetch after a create/rename so the sidebar and breadcrumb agree */
-  reload: () => Promise<void>;
+  reload: (workspaceId?: string) => Promise<void>;
   byId: (id: string) => TeamspaceLite | undefined;
 }
 
@@ -33,8 +33,8 @@ export const useTeamspacesStore = create<TeamspacesState>((set, get) => ({
     if (get().loaded) return;
     await get().reload();
   },
-  reload: async () => {
-    const res = await fetch("/api/teamspaces");
+  reload: async (workspaceId?: string) => {
+    const res = await fetch(workspaceId ? `/api/teamspaces?workspaceId=${encodeURIComponent(workspaceId)}` : "/api/teamspaces");
     if (!res.ok) {
       set({ loaded: true });
       return;
