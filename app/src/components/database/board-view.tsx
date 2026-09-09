@@ -67,22 +67,46 @@ export function BoardView({ view }: { view: DbView }) {
   const rowsIn = (colId: string) =>
     visible.filter((r) => (r.values[groupProp.id] ?? NONE) === (colId === NONE ? NONE : colId) || (colId === NONE && !r.values[groupProp.id]));
 
+ // A card is both a link and a drag handle. A press that never travels is a
+ // CLICK and opens the card (QA-7: the Projects "My" board had no open path at
+ // all — every click was treated as a drop into the same column, so nothing
+ // happened, and it even wrote the unchanged value back). A press that moves
+ // past DRAG_PX is a drag, and a drop onto another column moves the card;
+ // dropping it back where it was writes nothing.
+  const DRAG_PX = 5;
   function onCardPointerDown(e: React.PointerEvent, rowId: string) {
     if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
     draggingRef.current = rowId;
-    setDragging(rowId);
+    const onMove = (ev: PointerEvent) => {
+      if (moved) return;
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_PX) {
+        moved = true;
+        setDragging(rowId);
+      }
+    };
     const onUp = (ev: PointerEvent) => {
+      document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const col = el?.closest("[data-board-col]");
       const rid = draggingRef.current;
       draggingRef.current = null;
       setDragging(null);
-      if (col && rid) {
-        const target = col.getAttribute("data-board-col");
-        db.updateRow(rid, { [groupProp!.id]: target === NONE ? null : target });
+      if (!rid) return;
+      if (!moved) {
+        void db.openRow(rid);
+        return;
       }
+      const col = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-board-col]");
+      if (!col) return;
+      const target = col.getAttribute("data-board-col");
+      const next = target === NONE ? null : target;
+      const row = db.rows.find((r) => r.id === rid);
+      if (row && ((row.values[groupProp!.id] as string | undefined) ?? null) === next) return;
+      db.updateRow(rid, { [groupProp!.id]: next });
     };
+    document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
   }
 
