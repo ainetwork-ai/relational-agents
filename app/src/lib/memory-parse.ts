@@ -73,12 +73,47 @@ export function cleanTitle(name: string): string {
   return name.replace(/\.(md|csv)$/i, "").replace(HASH_RE, "").trim() || "Untitled";
 }
 function stripLinks(s: string): string {
- // Links the app can follow (absolute app routes like /p/{id}, external URLs)
- // survive to become anchors via mdInlineToHtml; workspace-export-internal
- // relative links (raw .md paths) still collapse to their label.
+ // Links the app can follow survive to become anchors via mdInlineToHtml:
+ // absolute app routes (`/p/{id}`), external URLs, `mailto:`/`tel:` and
+ // in-page anchors (`#…`). Only workspace-export-internal relative links (raw
+ // `.md` paths, which resolve to nothing once the file is gone) collapse to
+ // their label — a mailto used to lose its address that way.
   return s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, href) =>
-    /^(\/|https?:\/\/)/.test(href) ? m : label
+    /^(\/|#|https?:\/\/|mailto:|tel:)/i.test(href) ? m : label
   );
+}
+
+/** A paragraph whose text happens to start like a marker (`- x`, `# y`, `---`,
+ * `1. z`, `| a |`) would come back as a bullet, a heading, a rule, a numbered
+ * item or a table. CommonMark's answer is a backslash, so that is what we
+ * write, and `unescapeMarker` takes it off again on the way in.
+ *
+ * Only what the reader ACTUALLY treats as a block marker is escaped: `**bold**`
+ * and `*i*` are inline markdown (the mirror writes those), so the leading `*`
+ * must survive — a bullet needs whitespace after its marker. */
+const BLOCK_MARKER =
+  /^(\s*)(\\|[-*]{3,}$|[-*+](?=\s|$)|\d+\.(?=\s|$)|#{1,6}(?=\s)|>(?=\s)|`{3}|\$\$$|!(?=\[)|\|(?=.*\|\s*$))/;
+export function escapeMarker(line: string): string {
+  return line.replace(BLOCK_MARKER, (_m, sp: string, tok: string) => `${sp}\\${tok}`);
+}
+function unescapeMarker(line: string): string {
+  return line.replace(/^(\s*)\\([-*+>|#\\`$!]|\d)/, "$1$2");
+}
+
+/** Split one table row into cells, honouring `\|` inside a cell. Splitting on
+ * a bare `|` used to cut a cell that contained an escaped pipe in half. */
+function splitRow(line: string): string[] {
+  const t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let cur = "";
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === "\\" && t[i + 1] === "|") { cur += "|"; i += 1; continue; }
+    if (t[i] === "|") { cells.push(cur); cur = ""; continue; }
+    cur += t[i];
+  }
+  cells.push(cur);
+ // a cell's own line breaks travel as <br> — a raw newline would end the row
+  return cells.map((c) => c.trim().replace(/<br\s*\/?>/gi, "\n"));
 }
 
 // ---- OKF YAML frontmatter (a minimal, dependency-free subset) --------------
@@ -156,10 +191,14 @@ export function parseMarkdown(
     title = lines[0].slice(2).trim();
     i = 1;
   }
+ // A code block's and an equation's text is verbatim — running the inline
+ // markdown pass over it turned the backticks in a fenced body into <code>
+ // and rewrote the source the user typed.
+  const VERBATIM = new Set<BlockType>(["code", "equation"]);
   const push = (type: BlockType, content: BlockContent) => {
  // inline markdown (bold/italic/code/strike/links) becomes rich html; the
  // plain text mirror drops the markers (links keep their label via strip)
-    if (typeof content.text === "string" && content.text) {
+    if (!VERBATIM.has(type) && typeof content.text === "string" && content.text) {
       const html = mdInlineToHtml(content.text);
       if (html) {
         content = { ...content, html, text: mdInlinePlain(content.text) };
@@ -178,8 +217,11 @@ export function parseMarkdown(
   let depth = 0;
  // The original folds a run of plain lines with no blank line between them into
  // ONE block with line breaks (measured: `para-A / 4sp para-B / 8sp para-C`
- // arrived as one text block, M2d_indented_paragraphs). Our own writer puts a
- // blank line after every block, so nothing of ours merges by accident.
+ // arrived as one text block, M2d_indented_paragraphs), and a plain line right
+ // under a LIST ITEM folds into that item — `1. num-B / para-A / para-B` came
+ // back as one numbered item whose text has two line breaks (M2c). That is
+ // CommonMark's lazy continuation. Our own writer puts a blank line after every
+ // non-list block, so nothing of ours merges by accident.
   let contLine = false;
   let prevPlain: { depth: number } | null = null;
 
@@ -201,7 +243,24 @@ export function parseMarkdown(
         openList.length = 0;
         depth = 0;
       }
-      if (isList || /^(#{1,3}\s|---$|\*\*\*$|```|\$\$|>\s|\|)/.test(t)) prevPlain = null;
+ // A leaf block (heading, rule, fence, quote, table) ends the paragraph above
+ // it, so nothing can fold into it. A LIST ITEM does not — a plain line under
+ // one continues it (M2c), so `prevPlain` is set after the item is pushed.
+      if (/^(#{1,3}\s|---$|\*\*\*$|```|\$\$|>\s|\|)/.test(t)) prevPlain = null;
+    }
+
+ // With no list open, a line indented four columns or more is an indented CODE
+ // block, not a nested paragraph — that is what the original does with it
+ // (M5 2026-09-10: `AAA⏎⏎    BBB` came back as a paragraph and a code block).
+ // It cannot interrupt a paragraph: `para-A⏎    para-B` with no blank line
+ // between them is one block with a line break (M2d), hence the `!prevPlain`.
+    if (!openList.length && !prevPlain && indentOf(line) >= 4) {
+      const buf: string[] = [];
+      while (i < lines.length && (lines[i].trim() === "" || indentOf(lines[i]) >= 4)) buf.push(dedent(lines[i++], 4));
+      while (buf.length && buf[buf.length - 1].trim() === "") buf.pop();
+      push("code", { text: buf.join("\n"), language: "plain" });
+      prevPlain = null;
+      continue;
     }
 
     if (t === "$$") {
@@ -214,22 +273,33 @@ export function parseMarkdown(
       continue;
     }
     if (t.startsWith("```")) {
-      const lang = t.slice(3).trim() || "plain";
+ // The fence is as long as the writer made it. A body containing ``` used to
+ // close the block early and everything after it was thrown away, so the
+ // writer now opens with one backtick more than the longest run inside and we
+ // only close on a run at least that long.
+      const open = t.match(/^`+/)![0].length;
+      const lang = t.slice(open).trim() || "plain";
+      const closeRe = new RegExp("^`{" + open + ",}\\s*$");
       const buf: string[] = [];
       const own = indentOf(line);
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith("```")) buf.push(dedent(lines[i++], own));
+      while (i < lines.length && !closeRe.test(lines[i].trim())) buf.push(dedent(lines[i++], own));
       i++;
       push("code", { text: buf.join("\n"), language: lang });
       continue;
     }
-    if (t.startsWith("|") && t.endsWith("|")) {
+ // A table row needs a cell between two pipes. A paragraph that is just `|`
+ // (or `|pipe|`-looking text) used to be eaten here and vanish from the file.
+    if (t.startsWith("|") && t.endsWith("|") && t.length > 1 && (t.match(/(?<!\\)\|/g) ?? []).length >= 2) {
       const rows: string[][] = [];
  // the separator row carries per-column alignment (|:---:| / |---:|)
       let colAlign: string[] | null = null;
+      const dashes = (c: string) => /^:?-{2,}:?$/.test(c);
       while (i < lines.length && lines[i].trim().startsWith("|")) {
-        const cells = lines[i].trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripLinks(c.trim()));
-        if (cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) {
+        const cells = splitRow(lines[i]).map((c) => stripLinks(c));
+ // a row of only dashes is the separator; a row of only EMPTY cells is data
+ // (it used to match this test and be dropped)
+        if (cells.some(dashes) && cells.every((c) => dashes(c) || c === "")) {
           colAlign = cells.map((c) =>
             c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "default"
           );
@@ -254,12 +324,13 @@ export function parseMarkdown(
     if (t === "---" || t === "***") { push("divider", {}); i++; continue; }
     if (/^-\s?\[[ x]\]/i.test(t)) {
       push("todo", { text: stripLinks(t.replace(/^-\s?\[[ x]\]\s*/i, "")), checked: /\[x\]/i.test(t) });
+      prevPlain = { depth };
       i++; continue;
     }
  // an EMPTY item (`- `, which trims to `-`) is still a list item — the writer
  // emits exactly that for a bullet the user has not typed into yet
-    if (/^[-*](\s|$)/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s?/, "")) }); i++; continue; }
-    if (/^\d+\.(\s|$)/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s?/, "")) }); i++; continue; }
+    if (/^[-*](\s|$)/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s?/, "")) }); prevPlain = { depth }; i++; continue; }
+    if (/^\d+\.(\s|$)/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s?/, "")) }); prevPlain = { depth }; i++; continue; }
     if (t.startsWith("> ")) {
       // `> 💡 text` is the serialized form of a callout — an emoji right after
       // the marker brings it back as one (plain `> text` stays a quote).
@@ -275,15 +346,22 @@ export function parseMarkdown(
     }
     const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (img) { push("image", { url: img[2], text: "", ...(img[1] ? { caption: img[1] } : {}) }); i++; continue; }
-    contLine = !!prevPlain && prevPlain.depth === depth;
-    push("paragraph", { text: stripLinks(t) });
+ // No blank line since the block above → this is its continuation, whatever
+ // column it sits at. `1. num-B / para-A` puts para-A INSIDE the item even
+ // though the line starts at column 0 (M2c), so the depths do not have to match.
+    contLine = !!prevPlain;
+    push("paragraph", { text: stripLinks(unescapeMarker(t)) });
     prevPlain = { depth };
     i++;
   }
+ // What a plain line can fold into: a paragraph, or a list item (CommonMark's
+ // lazy continuation, measured as M2c). A heading/quote/fence/table already
+ // cleared `prevPlain`, so nothing reaches them here.
+  const FOLDS_INTO = new Set(["paragraph", "bulleted_list", "numbered_list", "todo", "toggle"]);
   const folded: typeof drafts = [];
   for (const d of drafts) {
     const prev = folded[folded.length - 1];
-    if (d.cont && prev && prev.type === "paragraph" && d.type === "paragraph" && prev.depth === d.depth) {
+    if (d.cont && prev && FOLDS_INTO.has(prev.type) && d.type === "paragraph") {
       prev.content = {
         ...prev.content,
         text: `${prev.content.text ?? ""}\n${d.content.text ?? ""}`,
@@ -315,8 +393,12 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
  // A block with no depth behaves as before.
   const numAt = new Map<number, number>();
   let prevDepth = -1;
- // one level is 4 spaces (what the original writes), except under a marker
- // wider than that (`100. `) where 4 would not be enough to read back
+ // One level is 4 spaces (what the original writes) — but ONLY under a list
+ // item. Measured 2026-09-10 (M6): the original exports a paragraph's child
+ // paragraph FLAT (`PA\n\nPB`), and it reads an indented line that follows a
+ // blank line as an indented CODE block (M5). So indenting under a non-list
+ // parent would not preserve the nesting, it would turn the child into code.
+ // A marker wider than four (`100. `) gets its own width so it can be read back.
   const stepAt: number[] = [];
   for (const b of blocks) {
     const depth = Math.max(0, b.depth ?? 0);
@@ -329,14 +411,34 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
     const num = numAt.get(depth) ?? 1;
     stepAt.length = depth;
     stepAt[depth] =
-      b.type === "numbered_list" ? Math.max(4, `${num}. `.length) : 4;
+      b.type === "numbered_list" ? Math.max(4, `${num}. `.length)
+      : listish(b.type) ? 4
+      : 0;
  // a soft line break inside a block would otherwise land at column 0 and close
  // the list context, flattening everything nested after it
     if (prev && !(listish(prev.type) && listish(b.type))) out.push(prev.pad.length >= pad.length ? prev.pad : pad);
     prev = { type: b.type, pad };
- // a soft line break inside a block would otherwise land at column 0 and close
- // the list context, flattening everything nested after it
-    const line = (v: string) => { for (const l of String(v).split("\n")) out.push(pad + l); };
+ // A soft line break inside a list item has to land on the item's CONTENT
+ // column. At the marker column the reader sees the item close, so everything
+ // nested after it flattened; at column 0 it closed the whole list.
+    const contPad =
+      pad +
+      " ".repeat(
+        b.type === "numbered_list" ? `${num}. `.length
+        : b.type === "todo" ? 7
+        : listish(b.type) ? 2
+        : 0
+      );
+ // `line` is for blocks whose text is the user's prose: its continuation lines
+ // are indented and escaped, so a line that starts like a marker comes back as
+ // text. `raw` is for the ones whose bytes are the content (code, equations,
+ // table rows, links) — escaping those would corrupt them.
+    const line = (v: string) => {
+      const parts = String(v).split("\n");
+      out.push(pad + parts[0]);
+      for (const l of parts.slice(1)) out.push(contPad + escapeMarker(l));
+    };
+    const raw = (v: string) => { for (const l of String(v).split("\n")) out.push(pad + l); };
     switch (b.type) {
       case "heading1": line(`# ${text}`); break;
       case "heading2": line(`## ${text}`); break;
@@ -349,31 +451,45 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
       case "callout": line(`> ${b.content.icon || "💡"} ${text}`); break;
  // the original writes a toggle as a plain bullet; its children follow indented
       case "toggle": line(`- ${text}`); break;
-      case "divider": line("---"); break;
+      case "divider": raw("---"); break;
       case "toc": break; // outline is derived, not content
-      case "link_to_page": if (b.content.childPageId) line(`[page](/p/${b.content.childPageId})`); break;
-      case "file": if (b.content.url) line(`[${b.content.text || "file"}](${b.content.url})`); break;
+      case "link_to_page": if (b.content.childPageId) raw(`[page](/p/${b.content.childPageId})`); break;
+      case "file": if (b.content.url) raw(`[${b.content.text || "file"}](${b.content.url})`); break;
       case "template_button": break; // interactive-only, no md form
       case "ai_prompt": break; // transient prompt UI, never persists content
-      case "equation": if (b.content.text) { line("$$"); for (const l of b.content.text.split("\n")) line(l); line("$$"); } break;
-      case "code":
-        line("```" + (b.content.language ?? ""));
-        for (const l of text.split("\n")) line(l);
-        line("```");
+      case "equation": if (b.content.text) { raw("$$"); for (const l of b.content.text.split("\n")) raw(l); raw("$$"); } break;
+      case "code": {
+ // a body containing ``` closed the block early and truncated the rest — open
+ // with one backtick more than the longest run inside it
+        const runs = (text.match(/`+/g) ?? []).map((m) => m.length + 1);
+        const fence = "`".repeat(Math.max(3, ...runs, 3));
+        raw(fence + (b.content.language ?? ""));
+        for (const l of text.split("\n")) raw(l);
+        raw(fence);
         break;
-      case "image": if (b.content.url) line(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
+      }
+      case "image": if (b.content.url) raw(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {
           const w = Math.max(...t.cells.map((r) => r.length));
-          const padCells = (r: string[]) => Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|"));
-          line(`| ${padCells(t.cells[0]).join(" | ")} |`);
-          line(`| ${Array(w).fill("---").join(" | ")} |`);
-          for (let i = 1; i < t.cells.length; i++) line(`| ${padCells(t.cells[i]).join(" | ")} |`);
+ // a raw newline in a cell would end the row and eat the rest of the table
+          const padCells = (r: string[]) =>
+            Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>"));
+          raw(`| ${padCells(t.cells[0]).join(" | ")} |`);
+ // markdown expresses alignment per column, so the first row's decides — the
+ // .md route used to write a bare `---` and every centred column came back
+ // left-aligned
+          const alignRow = (t as { align?: string[][] }).align?.[0] ?? [];
+          const bar = Array.from({ length: w }, (_, i) =>
+            alignRow[i] === "center" ? ":---:" : alignRow[i] === "right" ? "---:" : "---"
+          );
+          raw(`| ${bar.join(" | ")} |`);
+          for (let i = 1; i < t.cells.length; i++) raw(`| ${padCells(t.cells[i]).join(" | ")} |`);
         }
         break;
       }
-      default: line(text);
+      default: line(escapeMarker(text));
     }
   }
   out.push("");

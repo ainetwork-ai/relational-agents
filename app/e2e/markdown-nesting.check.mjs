@@ -48,10 +48,10 @@ async function newPage(title, seed = []) {
     const position = (nth.get(bucket) ?? 0) + 1;
     nth.set(bucket, position);
     const type = sd.type ?? "paragraph";
-    const content =
+    const content = sd.content ?? (
       type === "todo" ? { text: sd.text ?? sd.k, checked: !!sd.checked }
       : type === "toggle" ? { text: sd.text ?? sd.k, expanded: true }
-      : { text: sd.text ?? sd.k };
+      : { text: sd.text ?? sd.k });
     return { id, type, content, parentBlockId, position };
   });
   const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, {
@@ -251,6 +251,216 @@ check("내보낸 마크다운이 원본과 글자 하나까지 같다", body ===
   const hitO = await mirrorFile(/^markdown-nesting-orphan-/, ["LOST"]);
   const hit = hitO?.text ?? null;
   check("미러도 부모 없는 블록을 살린다", !!hit && hit.includes("LOST"), hit ? JSON.stringify(hit.slice(-80)) : "파일 없음");
+}
+
+// ── 9. 리스트가 아닌 부모의 자식 — 원본처럼 평평하게 쓰고, 들여쓰기는 코드로 읽는다 ──
+{
+ // 원본(M6 실측)은 문단의 자식 문단을 `PA⏎⏎PB` 로, 들여쓰기 없이 내보낸다.
+  const flat = await newPage("markdown-nesting flat-parent", [
+    { k: "PA", text: "PA" }, { k: "PB", text: "PB", parent: "PA" },
+  ]);
+  const md4 = await fetch(`${BASE}/api/pages/${flat.pageId}/export`, { headers: H }).then((r) => r.text());
+  const body4 = md4.replace(/^# .*\n\n/, "").replace(/\n$/, "");
+  check("문단의 자식은 들여쓰지 않고 내보낸다", body4 === "PA\n\nPB", JSON.stringify(body4));
+}
+{
+ // 원본(M5 실측)은 빈 줄 뒤 4칸 들여쓴 줄을 **코드 블록**으로 읽는다
+  const { tree } = await pasteInto("AAA\n\n    BBB", "indented-code");
+  check("빈 줄 뒤 들여쓴 줄은 코드 블록", shape(tree) === "paragraph:AAA@0 code:BBB@0", shape(tree));
+}
+
+
+// ── 7. 왕복에서 내용이 상하지 않는가 (2026-09-10 3차, 감사에서 나온 것들) ────
+/** 블록 → 내보낸 마크다운 → 다시 붙여넣기 → 저장된 블록 */
+async function roundTrip(label, seed) {
+  const src = await newPage(`markdown-nesting ${label}`, seed);
+  const md = await fetch(`${BASE}/api/pages/${src.pageId}/export`, { headers: H }).then((r) => r.text());
+  const body = md.replace(/^# .*\n\n/, "");
+  const { pageId } = await pasteInto(body, `${label}-back`);
+ // 저장은 트랜잭션 큐로 따로 나간다 — 같은 답이 두 번 연속 나올 때까지 기다린다
+  let rows = { blocks: [] }, prevSnap = null;
+  for (let k = 0; k < 12; k++) {
+    await tab.waitForTimeout(350);
+    rows = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { headers: H }).then((r) => r.json()).catch(() => ({ blocks: [] }));
+    const snap = JSON.stringify(rows.blocks ?? []);
+    if (snap === prevSnap && (rows.blocks ?? []).length) break;
+    prevSnap = snap;
+  }
+  const byId = new Map((rows.blocks ?? []).map((b) => [b.id, b]));
+  const depthOf = (b) => { let d = 0, q = b.parentBlockId; while (q && byId.has(q) && d < 40) { d++; q = byId.get(q).parentBlockId; } return d; };
+  const kids = new Map();
+  for (const b of rows.blocks ?? []) { const k = b.parentBlockId ?? null; if (!kids.has(k)) kids.set(k, []); kids.get(k).push(b); }
+  for (const l of kids.values()) l.sort((a, b) => a.position - b.position);
+  const out = [];
+  const walk = (parent) => { for (const b of kids.get(parent) ?? []) { out.push({ ...b, depth: depthOf(b) }); walk(b.id); } };
+  walk(null);
+  return { md: body, blocks: out };
+}
+
+{
+ // 원본 M2c: 리스트 항목 바로 밑의 평문 줄은 그 항목 안으로 접힌다(게으른 이어짐)
+  const { tree } = await pasteInto("1. num-B\npara-A\npara-B", "lazy-continuation");
+  check("리스트 항목 밑의 평문 줄은 그 항목으로 접힌다",
+    shape(tree) === "numbered_list:num-B para-A para-B@0", shape(tree));
+}
+{
+ // 항목 안의 줄바꿈이 그 밑의 중첩을 무너뜨리면 안 된다
+  const r = await roundTrip("soft-break-nesting", [
+    { k: "A", type: "bulleted_list", text: "a1\na2" },
+    { k: "B", type: "bulleted_list", text: "b", parent: "A" },
+  ]);
+  check("항목 안 줄바꿈이 그 밑의 중첩을 깨지 않는다",
+    r.blocks.map((b) => `${b.type}@${b.depth}`).join(" ") === "bulleted_list@0 bulleted_list@1",
+    JSON.stringify(r.md) + " → " + r.blocks.map((b) => `${b.type}@${b.depth}:${JSON.stringify(b.content.text)}`).join(" "));
+  check("그 줄바꿈이 왕복에서 살아남는다", (r.blocks[0]?.content?.text ?? "") === "a1\na2",
+    JSON.stringify(r.blocks[0]?.content?.text));
+}
+{
+ // 마커처럼 생긴 문단이 다른 타입으로 돌아오면 안 된다
+  const r = await roundTrip("marker-looking-text", [
+    { k: "A", text: "- not a bullet" }, { k: "B", text: "# not a heading" },
+    { k: "C", text: "---" }, { k: "D", text: "1. not numbered" }, { k: "E", text: "| not a table |" },
+  ]);
+  check("마커처럼 생긴 문단은 문단으로 돌아온다",
+    r.blocks.every((b) => b.type === "paragraph") && r.blocks.length === 5,
+    r.blocks.map((b) => `${b.type}:${JSON.stringify(b.content.text)}`).join(" "));
+  check("그 글자도 그대로", r.blocks.map((b) => b.content.text).join("|") === "- not a bullet|# not a heading|---|1. not numbered|| not a table |",
+    JSON.stringify(r.blocks.map((b) => b.content.text)));
+}
+{
+ // 코드 본문에 ``` 이 있으면 앞에서 끊겨 나머지가 날아갔다
+  const body = "before\n```\ninner fence\n```\nafter";
+  const r = await roundTrip("code-with-fence", [
+    { k: "C", type: "code", content: { text: body, language: "plain" } },
+    { k: "Z", text: "tail" },
+  ]);
+  check("코드 안의 ``` 이 블록을 끊지 않는다", (r.blocks[0]?.content?.text ?? "") === body,
+    JSON.stringify(r.md));
+  check("코드 뒤 블록이 살아 있다", r.blocks.some((b) => b.content.text === "tail"),
+    r.blocks.map((b) => b.type).join(" "));
+}
+{
+ // 표: 셀 안의 파이프와 줄바꿈, 그리고 전부 빈 행
+  const cells = [["h1", "h2"], ["a|b", "line1\nline2"], ["", ""], ["z", "w"]];
+  const r = await roundTrip("table-cells", [
+    { k: "T", type: "table", content: { table: { cells, headerRow: true } } },
+  ]);
+  const got = r.blocks[0]?.content?.table?.cells;
+  check("표 셀의 파이프·줄바꿈·빈 행이 왕복에서 살아남는다",
+    JSON.stringify(got) === JSON.stringify(cells), JSON.stringify(got) + " / " + JSON.stringify(r.md));
+}
+
+{
+ // 표의 열 정렬이 .md 로 나갔다가 돌아온다
+  const cells = [["L", "C", "R"], ["1", "2", "3"]];
+  const align = [["default", "center", "right"], ["default", "center", "right"]];
+  const r = await roundTrip("table-align", [
+    { k: "T", type: "table", content: { table: { cells, headerRow: true, align } } },
+  ]);
+  check("표의 열 정렬이 왕복에서 살아남는다",
+    /\|\s*---\s*\|\s*:---:\s*\|\s*---:\s*\|/.test(r.md) &&
+      JSON.stringify(r.blocks[0]?.content?.table?.align?.[0]) === JSON.stringify(["default", "center", "right"]),
+    JSON.stringify(r.md) + " / " + JSON.stringify(r.blocks[0]?.content?.table?.align));
+}
+{
+ // 미러 파일도 같은 규칙 — `100. ` 항목의 자식은 5칸, 콜아웃 아이콘, 수식, 하위 페이지 링크
+  const { pageId } = await newPage("markdown-nesting mirror-extras", [
+    { k: "N", type: "numbered_list", text: "n", content: { text: "n" } },
+    { k: "K", type: "bulleted_list", text: "kid", parent: "N" },
+    { k: "C", type: "callout", content: { text: "warn", icon: "⚠️" } },
+    { k: "E", type: "equation", content: { text: "a^2 + b^2" } },
+    { k: "M", content: { text: "bold start", html: "<b>bold</b> start" } },
+  ]);
+  await fetch(`${BASE}/api/pages/${pageId}/export`, { headers: H });
+  await fetch(`${BASE}/api/workspace/export`, { headers: H }).catch(() => {});
+  const dir = fs.existsSync(MIRROR_ROOT) ? fs.readdirSync(MIRROR_ROOT).filter((d) => fs.statSync(path.join(MIRROR_ROOT, d)).isDirectory()) : [];
+  let file = null;
+  for (const d of dir) {
+    const hit = fs.readdirSync(path.join(MIRROR_ROOT, d)).find((f) => f.includes("mirror-extras"));
+    if (hit) { file = path.join(MIRROR_ROOT, d, hit); break; }
+  }
+  const md = file ? fs.readFileSync(file, "utf8") : "";
+  check("미러가 콜아웃 아이콘을 그대로 쓴다", md.includes("> ⚠️ warn"), JSON.stringify(md.slice(-220)));
+ // 마커 이스케이프가 인라인 마크다운까지 먹으면 안 된다 — 미러는 `**굵게**` 를 쓴다
+  check("미러의 굵게가 이스케이프되지 않는다", md.includes("**bold** start") && !md.includes("\\**"),
+    JSON.stringify(md.slice(-260)));
+  check("미러가 수식을 $$ 로 감싼다", /\$\$\na\^2 \+ b\^2\n\$\$/.test(md), JSON.stringify(md.slice(-220)));
+}
+
+// ── 8. 붙여넣는 자리 (2026-09-10 3차) ──────────────────────────────────────
+{
+ // 글자가 있는 블록의 **맨 앞**에 붙여넣으면 빈 블록이 남으면 안 된다
+  const { pageId } = await newPage("markdown-nesting paste-at-start", [{ k: "T", text: "TAIL" }]);
+  await tab.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await tab.waitForSelector('[data-testid="editor-root"] [data-block-type]', { timeout: 90_000 });
+  await tab.waitForTimeout(500);
+  await tab.evaluate((text) => {
+    const el = document.querySelector('[data-testid="editor-root"] [contenteditable]');
+    el.focus();
+    const node = el.firstChild ?? el;
+    const r = document.createRange();
+    r.setStart(node, 0); r.collapse(true);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    const dt = new DataTransfer();
+    dt.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, "- X\n- Y");
+  await tab.waitForTimeout(900);
+  const t = await domTree();
+  check("맨 앞에 붙여넣으면 빈 블록이 남지 않는다",
+    shape(t) === "bulleted_list:X@0 bulleted_list:Y@0 paragraph:TAIL@0", shape(t));
+}
+{
+ // 블록 **가운데**에 붙여넣으면 뒤쪽 조각의 서식이 살아 있어야 한다
+  const { pageId } = await newPage("markdown-nesting paste-mid-marks", [
+    { k: "B", content: { text: "boldtail", html: "<b>boldtail</b>" } },
+  ]);
+  await tab.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await tab.waitForSelector('[data-testid="editor-root"] [data-block-type]', { timeout: 90_000 });
+  await tab.waitForTimeout(500);
+  await tab.evaluate((text) => {
+    const el = document.querySelector('[data-testid="editor-root"] [contenteditable]');
+    el.focus();
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const node = walk.nextNode() ?? el;
+    const r = document.createRange();
+    r.setStart(node, 4); r.collapse(true);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    const dt = new DataTransfer();
+    dt.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, "- X\n- Y");
+  await tab.waitForTimeout(900);
+  const htmls = await tab.evaluate(() => {
+    const root = document.querySelector('[data-testid="editor-root"]');
+    return [...root.querySelectorAll("[data-block-type]")].map((row) => {
+      const ce = [...row.querySelectorAll("[contenteditable]")].find((e) => e.closest("[data-block-type]") === row);
+      return { type: row.getAttribute("data-block-type"), html: (ce?.innerHTML ?? "").trim() };
+    });
+  });
+  check("가운데 붙여넣기: 앞 조각의 서식이 남는다", /<b>bold<\/b>/.test(htmls[0]?.html ?? ""), JSON.stringify(htmls));
+  const tail = htmls[htmls.length - 1];
+  check("가운데 붙여넣기: 뒤 조각의 서식도 남는다", /<b>tail<\/b>/.test(tail?.html ?? ""), JSON.stringify(htmls));
+}
+{
+ // 빈 **글머리**에 붙여넣으면 그 글머리가 첫 블록이 된다(빈 줄이 남지 않는다)
+  const { pageId } = await newPage("markdown-nesting paste-empty-bullet", [
+    { k: "B", type: "bulleted_list", text: "" },
+  ]);
+  await tab.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await tab.waitForSelector('[data-testid="editor-root"] [data-block-type]', { timeout: 90_000 });
+  await tab.waitForTimeout(500);
+  await tab.evaluate((text) => {
+    const el = document.querySelector('[data-testid="editor-root"] [contenteditable]');
+    el.focus();
+    const dt = new DataTransfer();
+    dt.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, "# H\n\nbody");
+  await tab.waitForTimeout(900);
+  const t = await domTree();
+  check("빈 글머리에 붙여넣으면 빈 줄이 남지 않는다",
+    shape(t) === "heading1:H@0 paragraph:body@0", shape(t));
 }
 
 if (pageErrors.length) check(`콘솔 에러 ${pageErrors.length}건`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));

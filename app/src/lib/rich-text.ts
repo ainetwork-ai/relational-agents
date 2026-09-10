@@ -30,7 +30,7 @@ const OPTIONS: sanitize.IOptions = {
       return { tagName, attribs };
     },
   },
-  allowedSchemes: ["http", "https", "mailto"],
+  allowedSchemes: ["http", "https", "mailto", "tel"],
   disallowedTagsMode: "discard",
  // Range splits leave empty tag shells (<a></a>) that break caret placement
  // in the new block — drop any inline tag with no text (but keep <br>).

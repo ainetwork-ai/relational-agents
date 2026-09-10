@@ -6,6 +6,7 @@ import { blocks, pages, workspaces } from "@/lib/db/schema";
 import type { Block, Page } from "@/lib/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { inlineHtmlToMd } from "@/lib/rich-text";
+import { escapeMarker } from "@/lib/memory-parse";
 import { columnAlign } from "@/lib/editor/table-data";
 
 /**
@@ -79,20 +80,56 @@ function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: S
       ? inlineHtmlToMd(b.content.html)
       : b.content.text ?? "";
     n = b.type === "numbered_list" ? n + 1 : 0;
+ // How far this block's own children — and its own soft line breaks — sit from
+ // its marker. A `100. ` item needs five, not four: at four the child lands
+ // left of the item's content column and reads back as a sibling.
+    const step =
+      b.type === "numbered_list" ? Math.max(4, `${n}. `.length)
+      : LISTISH.has(b.type) ? 4
+      : 0;
+ // A line break inside the text must land on the content column. At column 0
+ // (what `${indent}${text}` did) it closes the list and flattens everything
+ // nested below; a line that starts like a marker also has to be escaped or it
+ // comes back as a bullet/heading of its own.
+    const write = (first: string, body = "") => {
+      const parts = String(body).split("\n");
+      out.push(indent + first + parts[0]);
+      for (const l of parts.slice(1)) out.push(indent + " ".repeat(step) + escapeMarker(l));
+    };
     switch (b.type) {
-      case "heading1": out.push(`${indent}# ${text}`); break;
-      case "heading2": out.push(`${indent}## ${text}`); break;
-      case "heading3": out.push(`${indent}### ${text}`); break;
-      case "bulleted_list": out.push(`${indent}- ${text}`); break;
-      case "numbered_list": out.push(`${indent}${n}. ${text}`); break;
-      case "todo": out.push(`${indent}- [${b.content.checked ? "x" : " "}]  ${text}`); break;
-      case "quote": out.push(`${indent}> ${text}`); break;
-      case "callout": out.push(`${indent}> 💡 ${text}`); break;
+      case "heading1": write("# ", text); break;
+      case "heading2": write("## ", text); break;
+      case "heading3": write("### ", text); break;
+      case "bulleted_list": write("- ", text); break;
+      case "numbered_list": write(`${n}. `, text); break;
+      case "todo": write(`- [${b.content.checked ? "x" : " "}]  `, text); break;
+      case "quote": write("> ", text); break;
+      case "callout": write(`> ${b.content.icon || "💡"} `, text); break;
       case "divider": out.push(`${indent}---`); break;
-      case "code":
-        out.push(`${indent}\`\`\`${b.content.language ?? ""}`);
+      case "code": {
+ // a body containing ``` closed the block early and everything after it was
+ // lost — open with one backtick more than the longest run inside
+        const fence = "`".repeat(Math.max(3, ...(text.match(/`+/g) ?? []).map((m) => m.length + 1), 3));
+        out.push(`${indent}${fence}${b.content.language ?? ""}`);
         for (const l of text.split("\n")) out.push(`${indent}${l}`);
-        out.push(`${indent}\`\`\``);
+        out.push(`${indent}${fence}`);
+        break;
+      }
+ // `$$ … $$` is how the reader recognises an equation; without the fences it
+ // came back as a paragraph of LaTeX
+      case "equation":
+        if (text) {
+          out.push(`${indent}$$`);
+          for (const l of text.split("\n")) out.push(`${indent}${l}`);
+          out.push(`${indent}$$`);
+        }
+        break;
+ // a link to a subpage is content, not decoration — the mirror dropped it
+      case "link_to_page":
+        if (b.content.childPageId) out.push(`${indent}[page](/p/${b.content.childPageId})`);
+        break;
+      case "file":
+        if (b.content.url) out.push(`${indent}[${b.content.text || "file"}](${b.content.url})`);
         break;
       case "image":
         if (b.content.url) out.push(`${indent}![${text}](${b.content.url})`);
@@ -103,7 +140,7 @@ function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: S
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {
-          const esc = (s: string) => (s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+          const esc = (s: string) => (s ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
           const width = Math.max(...t.cells.map((row) => row.length));
  // a cell with its own html mirrors as markdown (**bold**, `code`, links)
           const pad = (row: string[], ri: number) =>
@@ -127,15 +164,16 @@ function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: S
       }
  // the original writes a toggle as a plain bullet and indents its children;
  // <details> looked right in a viewer but came back flat
-      case "toggle": out.push(`${indent}- ${text}`); break;
-      default: out.push(`${indent}${text}`);
+      case "toggle": write("- ", text); break;
+      default: write("", escapeMarker(text));
     }
-    out.push("");
  // EVERY block can have children, not just a toggle. Without this the mirror
  // silently dropped a paragraph's or a bullet's nested blocks from the file
  // (docs/notion-indent.md §6(3)) — four spaces per level is what the original
  // writes, and it reads back as the same tree.
-    const kids = blocksToMd(all, b.id, indent + "    ", mark);
+ // only a LIST item indents its children — the original exports a paragraph's
+ // child flat, and reads an indented line after a blank one as a code block
+    const kids = blocksToMd(all, b.id, indent + " ".repeat(step), mark, box);
     if (kids.trim()) { out.push(kids); }
   }
   if (top) {

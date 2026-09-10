@@ -99,6 +99,18 @@ const caret = (id, where) =>
     return { placed: document.activeElement === el, offset: off, len };
   }, [id, where]);
 
+/** 캐럿을 놓되 **글자가 DOM 에 올라온 뒤**에 놓는다. 블록이 아직 비어 있는 순간에
+ *  놓으면 `where: "end"` 가 offset 0 이 되어(자식 노드가 없다) 시나리오가 통째로
+ *  엉뚱한 걸 잰다 — Enter 가 맨 앞에서 갈라져 빈 줄이 앞에 남는 식으로. */
+const caretReady = async (id, where, minLen = 1) => {
+  let c = await caret(id, where);
+  for (let k = 0; k < 15 && (!c.placed || (c.len ?? 0) < minLen); k++) {
+    await tab.waitForTimeout(200);
+    c = await caret(id, where);
+  }
+  return c;
+};
+
 const caretNow = () =>
   tab.evaluate(() => {
     const s = getSelection();
@@ -149,10 +161,13 @@ async function blocksOf(p) {
   return r.blocks ?? [];
 }
 
-/** 저장된 진실 — 같은 답이 두 번 연속 나올 때까지 */
+/** 저장된 진실 — 같은 답이 두 번 연속 나올 때까지.
+ *  단, **처음 두 번은 같아도 믿지 않는다**: 저장은 500ms 배치로 나가므로 방금 누른 키의
+ *  트랜잭션이 아직 큐에 있는 동안 "직전 상태"가 두 번 연속 같게 읽힌다(halo_tab 이
+ *  Shift+Tab 전의 들여쓴 트리를 저장 결과로 읽고 실패했다). */
 async function persisted(p) {
   let prev = null, rows = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 20; i++) {
     await tab.waitForTimeout(400);
     const r = await fetch(`${BASE}/api/pages/${p.pageId}/blocks`, { headers: H }).then((x) => x.json()).catch(() => ({}));
     const raw = r.blocks ?? [];
@@ -168,7 +183,7 @@ async function persisted(p) {
       text: String(b.content?.text ?? "").replace(/\s+/g, " ").slice(0, 22),
     }));
     const snap = JSON.stringify(rows);
-    if (snap === prev) return rows;
+    if (snap === prev && i >= 2) return rows;
     prev = snap;
   }
   return rows;
@@ -441,6 +456,17 @@ scenario("halo_tab", async () => {
 // ── 16. 두 블록에 걸친 텍스트 선택 + Tab — 둘 다, 선택도 유지 ──────────────
 scenario("textsel_tab", async () => {
   const p = await build("textsel_tab", [{ k: "P0" }, { k: "P1" }, { k: "P2" }]);
+ // 두 블록의 글자가 DOM 에 올라온 뒤에 범위를 만든다 — 자식 노드가 없는 순간에 만들면
+ // `setEnd(el, 1)` 이 IndexSizeError 로 죽어 시나리오가 통째로 실패한다
+  await tab.waitForFunction(
+    ([a, b]) =>
+      [a, b].every((id) => {
+        const el = document.querySelector(`[data-testid="block-editable-${id}"]`);
+        return el && (el.textContent ?? "").length > 0;
+      }),
+    [p.ids.P1, p.ids.P2],
+    { timeout: 20_000 }
+  );
   await tab.evaluate(([a, b]) => {
     const ea = document.querySelector(`[data-testid="block-editable-${a}"]`);
     const eb = document.querySelector(`[data-testid="block-editable-${b}"]`);
@@ -557,7 +583,13 @@ scenario("backspace_policy", async () => {
  // (c) 코드 블록은 아무 일도 없다 (A_codetext)
   p = await build("bs_code", [{ k: "P", text: "PREV" }, { k: "C", type: "code", text: "QQ" }]);
   await caret(p.ids.C, 0);
-  const beforeCode = shape(await domTree());
+ // 코드 블록의 본문이 그려지기 전에 스냅샷을 찍으면 shape 가 "code"(타입)로 나와
+ // Backspace 전후가 달라 보인다 — 본문이 보일 때까지 기다린다
+  let beforeCode = shape(await domTree());
+  for (let k = 0; k < 10 && !beforeCode.includes("QQ"); k++) {
+    await tab.waitForTimeout(200);
+    beforeCode = shape(await domTree());
+  }
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(400);
   check("코드 맨 앞 Backspace: 아무 일도 없다", shape(await domTree()) === beforeCode, dump(await domTree()));
@@ -689,6 +721,67 @@ scenario("shift_tab_folded_toggle_adopts", async () => {
   const rows = await persisted(p);
   check("저장: 뒤 형제가 토글의 자식", rows.find((r) => r.key === "B")?.parentKey === "TG",
     JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+});
+
+// ── 감사에서 나온 나머지 (2026-09-10 3차) ──────────────────────────────────
+scenario("backspace_deletes_container_keeps_kids", async () => {
+ // 앞 블록이 글자를 담지 않는 컨테이너면 Backspace 는 그것을 지운다. 그 자식까지
+ // 같이 사라지면 안 된다 — 부모가 없는 블록은 아무 데도 그려지지 않아 화면에서
+ // 없어지고 저장에는 남는다.
+  const p = await build("bs_container_kids", [
+    { k: "L", type: "column_list", text: "" },
+    { k: "K1", parent: "L", text: "K1" },
+    { k: "K2", parent: "L", text: "K2" },
+    { k: "Z", text: "ZZ" },
+  ]);
+  await caret(p.ids.Z, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(600);
+  const t = await domTree();
+  check("컨테이너를 지워도 자식이 남는다", shape(t) === "K1@0 K2@0 ZZ@0", dump(t));
+  const rows = await persisted(p);
+  check("저장에도 고아가 없다", rows.every((r) => r.parentKey === null) && rows.length === 3,
+    JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
+});
+
+scenario("undo_after_enter", async () => {
+ // Enter 직후에 친 글자는 Enter 와 같은 되돌리기 묶음에 들어가면 안 된다.
+ // ⌘Z 한 번은 친 글자만 되돌리고, 새 줄은 그대로 있어야 한다.
+  const p = await build("undo_after_enter", [{ k: "A", text: "AA" }]);
+  await caretReady(p.ids.A, "end", 2);
+  await tab.keyboard.press("Enter");
+  await tab.waitForTimeout(350);
+  await tab.keyboard.type("BB");
+  await tab.waitForTimeout(400);
+  check("Enter + 타이핑", shape(await domTree()) === "AA@0 BB@0", dump(await domTree()));
+  await tab.keyboard.press("ControlOrMeta+z");
+  await tab.waitForTimeout(500);
+  const t = await domTree();
+  check("⌘Z 한 번은 친 글자만 되돌린다", t.length === 2 && t[0].text === "AA" && t[1].text === "", dump(t));
+});
+
+scenario("enter_many_positions_stay_distinct", async () => {
+ // 새 줄의 position 은 다음 형제와의 간격 가운데를 쓴다. 그 간격을 계속 반으로 접으면
+ // 배정도 실수가 더 나눌 자리를 잃고(≈53번째) 두 줄이 같은 값이 된다 — 그때부터 순서는
+ // 정렬의 tie 처리에 맡겨진다. 60번 눌러도 값이 전부 달라야 한다.
+  const p = await build("enter_many", [{ k: "A", text: "A" }, { k: "Z", text: "Z" }]);
+  await caretReady(p.ids.A, "end", 1);
+  for (let i = 0; i < 60; i++) {
+    await tab.keyboard.press("Enter");
+    await tab.keyboard.type("x");
+  }
+  await tab.waitForTimeout(900);
+  const t = await domTree();
+  check("Enter 60번: 줄 수가 맞는다", t.length === 62, `${t.length}개`);
+  check("Enter 60번: Z 가 여전히 마지막", t[t.length - 1]?.text === "Z", dump(t).slice(-120));
+ // 60번 치는 동안 저장이 계속 흐르므로 persisted() 가 중간 상태에서 멈출 수 있다 —
+ // 62개가 다 도착할 때까지 조금 더 기다린 뒤에 본다
+  let rows = await persisted(p);
+  for (let k = 0; k < 10 && rows.length < 62; k++) rows = await persisted(p);
+  const tops = rows.filter((r) => r.parentKey === null).map((r) => r.position);
+  check("Enter 60번: 저장에도 62줄", rows.length === 62, `${rows.length}개`);
+  check("Enter 60번: position 이 겹치지 않는다", new Set(tops).size === tops.length,
+    `${tops.length}개 중 ${new Set(tops).size}개만 유일`);
 });
 
 // ── 실행 ───────────────────────────────────────────────────────────────────

@@ -195,6 +195,48 @@ function normalize(el: HTMLElement): string {
   return (root === el ? el.innerText : (root.textContent ?? "")).replace(/ /g, " ").replace(/\n+$/, "");
 }
 
+/**
+ * Split the focused block at the caret, keeping inline marks (bold, italic,
+ * code, links) on BOTH halves. Slicing the plain text instead dropped the
+ * formatting from whichever half the caller rebuilt — pasting in the middle of
+ * a formatted line came back plain from the caret on.
+ *
+ * Non-destructive: both halves are CLONED. An earlier version extracted the
+ * tail out of the live DOM, which emptied the block when the caret sat at
+ * offset 0 and the caller then decided to keep the block as it was.
+ */
+function splitAtCaret(el: HTMLElement): {
+  before: string;
+  after: string;
+  beforeHtml: string;
+  afterHtml: string;
+} {
+  const off = caretOffset(el);
+  const text = normalize(el);
+  const before = text.slice(0, off);
+  const after = text.slice(off);
+  let beforeHtml = "";
+  let afterHtml = "";
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && text !== "") {
+    const at = sel.getRangeAt(0);
+    const htmlOf = (r: Range) => {
+      const tmp = document.createElement("div");
+      tmp.appendChild(r.cloneContents());
+      return sanitizeInline(tmp.innerHTML);
+    };
+    const head = document.createRange();
+    head.selectNodeContents(el);
+    head.setEnd(at.startContainer, at.startOffset);
+    const tail = document.createRange();
+    tail.selectNodeContents(el);
+    tail.setStart(at.startContainer, at.startOffset);
+    beforeHtml = htmlOf(head);
+    afterHtml = htmlOf(tail);
+  }
+  return { before, after, beforeHtml, afterHtml };
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -391,7 +433,11 @@ export const BlockEditor = forwardRef<
   });
  // set by the step that is about to mutate; mutate() attaches it to its frame
   const pendingFrameSide = useRef<{ undo: () => void; redo: () => void } | null>(null);
-  const lastPushRef = useRef(0);
+ // When the last COALESCING mutation (plain typing) happened. A structural op
+ // clears it, so the characters typed right after an Enter open their own undo
+ // frame instead of joining the Enter's — otherwise one ⌘Z threw away both the
+ // new line and everything typed into it.
+  const lastPushRef = useRef<number | null>(null);
  // the imperative handle is created before `undo` exists — go through a ref
   const undoRef = useRef<() => void>(() => {});
   const blocksRef = useRef<EBlock[]>(blocks);
@@ -500,7 +546,8 @@ export const BlockEditor = forwardRef<
       const now = Date.now();
       const h = historyRef.current;
  // plain typing coalesces into one undo frame; structural ops never do
-      if (!(opts?.coalesce && now - lastPushRef.current < 1000)) {
+      const joins = !!opts?.coalesce && lastPushRef.current !== null && now - lastPushRef.current < 1000;
+      if (!joins) {
         h.past.push({
           blocks: blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })),
           side: pendingFrameSide.current ?? undefined,
@@ -509,7 +556,7 @@ export const BlockEditor = forwardRef<
         h.future = [];
       }
       pendingFrameSide.current = null;
-      lastPushRef.current = now;
+      lastPushRef.current = opts?.coalesce ? now : null;
  // Run the updater exactly ONCE, here, instead of inside setBlocks. React may
  // invoke a setState updater more than once (dev StrictMode always does, and a
  // replayed render can too), and ours is not pure: the structural ops mint a
@@ -1007,11 +1054,14 @@ export const BlockEditor = forwardRef<
     let self = idx >= 0 ? sibs[idx] : after;
     let next = sibs[idx + 1];
  // The new line takes the midpoint of the gap to the next sibling. Halving a
- // float gap runs out of room after ~53 Enters: the midpoint comes back equal
- // to the block's own position, the two lines tie, and their order is left to
- // whatever the sort does with a tie. When the gap gets that small, renumber
- // the sibling list to whole numbers — the gap is 1 again and a midpoint exists.
-    if (idx >= 0 && next && (self.position + next.position) / 2 <= self.position) {
+ // float gap runs out of room after ~53 Enters: the midpoint rounds to one END
+ // of the gap — sometimes the block's own position, sometimes the next
+ // sibling's — and the two lines tie, leaving their order to whatever the sort
+ // does with a tie. Both ends have to be checked: only testing the low one let
+ // the 53rd Enter land exactly ON the following block. When the gap gets that
+ // small, renumber the sibling list to whole numbers and the gap is 1 again.
+    const mid = next ? (self.position + next.position) / 2 : 0;
+    if (idx >= 0 && next && (mid <= self.position || mid >= next.position)) {
       renumberSiblings(all, parentId);
       sibs = sibsOf();
       idx = sibs.findIndex((s) => s.id === after.id);
@@ -1316,25 +1366,8 @@ export const BlockEditor = forwardRef<
 
   const splitBlock = useCallback(
     (id: string, el: HTMLElement) => {
-      const off = caretOffset(el);
-      const text = normalize(el);
-      const before = text.slice(0, off);
-      const after = text.slice(off);
-
- // Extract the DOM after the caret so inline formatting survives the
- // split (plain-text slicing would drop b/i/code/a marks).
-      let beforeHtml = "";
-      let afterHtml = "";
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0 && text !== "") {
-        const endRange = document.createRange();
-        endRange.selectNodeContents(el);
-        endRange.setStart(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
-        const tmp = document.createElement("div");
-        tmp.appendChild(endRange.extractContents());
-        afterHtml = sanitizeInline(tmp.innerHTML);
-        beforeHtml = sanitizeInline(el.innerHTML);
-      }
+      const { before, after, beforeHtml, afterHtml } = splitAtCaret(el);
+      const text = before + after;
 
       mutate((prev) => {
         const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
@@ -1544,10 +1577,18 @@ export const BlockEditor = forwardRef<
         return true;
       }
 
- // Previous block is non-text (divider/image) → remove it instead.
+ // Previous block is non-text (divider/image/column layout) → remove it
+ // instead. If it had children — a column_list holds its columns this way —
+ // they must come up with it: nothing renders a block whose parent is gone, so
+ // deleting the container alone made a whole subtree disappear from the page
+ // while it stayed in storage.
       if (!TEXT_TYPES.includes(prevSib.type) && prevSib.type !== "code") {
         deletedIds.current.add(prevSib.id);
-        mutate((prev) => prev.filter((b) => b.id !== prevSib.id));
+        mutate((prev) => {
+          const lifted = prev.map((b) => ({ ...b }));
+          liftChildren(lifted, prevSib.id, prevSib.parentBlockId ?? null, prevSib.id);
+          return lifted.filter((b) => b.id !== prevSib.id);
+        });
         return true;
       }
 
@@ -1820,8 +1861,9 @@ export const BlockEditor = forwardRef<
             const lastAt: EBlock[] = [];
             let anchorTop: EBlock = cur;
             let start = 0;
- // an empty target block becomes the first pasted block (no blank lead)
-            if (normalize(el).trim() === "" && cur.type === "paragraph" && tree[0].depth === 0) {
+ // an empty target block becomes the first pasted block (no blank lead) —
+ // whatever type it was, so an empty bullet or heading is not left above it
+            if (normalize(el).trim() === "" && tree[0].depth === 0) {
               cur.type = tree[0].type;
               cur.content = { ...tree[0].content };
               cur.version++;
@@ -1881,19 +1923,33 @@ export const BlockEditor = forwardRef<
           parsed.length > 1 || (parsed.length === 1 && parsed[0].type !== "paragraph");
         if (multiBlock) {
           e.preventDefault();
-          const off = caretOffset(el);
-          const whole = normalize(el);
-          const before = whole.slice(0, off);
-          const after = whole.slice(off);
+ // split with the inline marks intact — the tail used to come back plain
+          const { before, after, beforeHtml, afterHtml } = splitAtCaret(el);
           mutate((prev) => {
             const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
             const cur = next.find((b) => b.id === id);
             if (!cur) return prev;
             const parentId = cur.parentBlockId ?? null;
-            let anchor: EBlock = cur;
+            const anchor: EBlock = cur;
             let startIdx = 0;
- // An empty target block becomes the first parsed block (no blank lead).
-            if (before.trim() === "" && after.trim() === "" && cur.type === "paragraph") {
+ // Where the caret was tells us what to do with the block being pasted into:
+ //  - empty  → it BECOMES the first pasted block (whatever type it was; an
+ //             empty bullet or heading used to be left behind as a blank line)
+ //  - at the start of text → the paste goes ABOVE it and it keeps its own text
+ //             and its id (comments and links point at that id)
+ //  - in the middle → it keeps the head, a new block takes the tail
+            const empty = before.trim() === "" && after.trim() === "";
+            const atStart = !empty && before.trim() === "";
+ // positions strictly between the previous sibling and this block, for the
+ // "paste above" case; renumberSiblings below turns them back into 1..n
+            const sibsNow = next
+              .filter((b) => (b.parentBlockId ?? null) === parentId)
+              .sort((a, b) => a.position - b.position);
+            const meIdx = sibsNow.findIndex((b) => b.id === cur.id);
+            const prevPos = meIdx > 0 ? sibsNow[meIdx - 1].position : cur.position - 1;
+            const step = (cur.position - prevPos) / (parsed.length + 1);
+            let placedAbove = 0;
+            if (empty) {
               cur.type = parsed[0].type;
  // Keep the block's text CRDT (textInstance/items/marks) and give it HTML:
  // block-diff turns a text change on an existing block into character ops read
@@ -1909,9 +1965,9 @@ export const BlockEditor = forwardRef<
               };
               cur.version++;
               startIdx = 1;
-            } else {
+            } else if (!atStart) {
               cur.content.text = before;
-              cur.content.html = before ? escapeHtml(before) : undefined;
+              cur.content.html = beforeHtml || (before ? escapeHtml(before) : undefined);
               cur.version++;
             }
  // Markdown carries nesting in its indentation and the original keeps it
@@ -1934,7 +1990,9 @@ export const BlockEditor = forwardRef<
                 parentBlockId: parentOfNb,
                 position:
                   d === 0
-                    ? positionAfter(next, anchorTop)
+                    ? atStart
+                      ? prevPos + step * ++placedAbove
+                      : positionAfter(next, anchorTop)
                     : (kids.length ? Math.max(...kids.map((c) => c.position)) : 0) + 1,
                 version: 0,
               };
@@ -1944,10 +2002,11 @@ export const BlockEditor = forwardRef<
               if (d === 0) anchorTop = nb;
               lastNb = nb;
             }
-            if (after.trim() !== "") {
+            if (after.trim() !== "" && !atStart) {
               const nb = freshParagraph(parentId, 0);
               nb.position = positionAfter(next, anchorTop);
               nb.content.text = after;
+              nb.content.html = afterHtml || escapeHtml(after);
               next.push(nb);
               lastNb = nb;
             }
