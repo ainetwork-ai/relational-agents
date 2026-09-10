@@ -65,7 +65,14 @@ export function VideoBody({
         ref={trigger}
         type="button"
         data-testid={`video-empty-${blockId}`}
-        onClick={() => setOpen((v) => !v)}
+       // onMouseDown, not onClick: the editor re-renders the row while the
+       // button is held, and the replaced element never receives the click —
+       // the popover opened maybe one time in three. preventDefault keeps the
+       // caret where it was, the way the other in-editor menus do it.
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
         className="flex h-[49px] w-full items-center gap-2.5 rounded-md bg-neutral-100/80 px-3 text-left transition-colors hover:bg-neutral-200/70 dark:bg-neutral-800/60 dark:hover:bg-neutral-800"
       >
         <Play size={18} className="shrink-0 text-[rgb(125,122,117)]" aria-hidden />
