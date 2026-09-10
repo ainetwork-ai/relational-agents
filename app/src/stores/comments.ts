@@ -43,7 +43,9 @@ interface CommentsState {
   ) => Promise<PageComment | null>;
   reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;
-  remove: (pageId: string, commentId: string) => Promise<void>;
+  /** Delete one comment (the server allows only its author). Returns false when
+   * the server refused, so the caller can say so instead of doing nothing. */
+  remove: (pageId: string, commentId: string) => Promise<boolean>;
 }
 
 export const useCommentsStore = create<CommentsState>((set, get) => ({
@@ -127,14 +129,21 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   remove: async (pageId, commentId) => {
-    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
-    if (!res.ok) return;
-    set((s) => ({
-      byPage: {
-        ...s.byPage,
-        [pageId]: (s.byPage[pageId] ?? []).filter((c) => c.id !== commentId),
-      },
-      countByPage: { ...s.countByPage, [pageId]: Math.max(0, (s.countByPage[pageId] ?? 1) - 1) },
-    }));
+    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return false;
+ // only this row goes: Notion keeps a deleted head's replies and promotes the
+ // next one (measured 2026-09-10), and the clients render a reply whose parent
+ // is gone as its own thread
+    set((s) => {
+      const list = s.byPage[pageId] ?? [];
+      const next = list.filter((c) => c.id !== commentId);
+      return {
+        byPage: { ...s.byPage, [pageId]: next },
+ // recount from the list we now hold rather than decrementing a number that
+ // may have come from the database's bulk count
+        countByPage: { ...s.countByPage, [pageId]: next.length },
+      };
+    });
+    return true;
   },
 }));

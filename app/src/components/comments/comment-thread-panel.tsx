@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, X, Check, CornerDownRight } from "lucide-react";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
+import { CommentActions } from "./comment-thread";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { useT } from "@/i18n/provider";
 import { useImeGuard } from "@/hooks/use-ime-guard";
@@ -30,13 +31,18 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
 
   const comments = list ?? [];
   const isPage = openAnchor === PAGE_ANCHOR;
- // thread roots for the open anchor (page discussion vs a specific block)
+ // thread roots for the open anchor (page discussion vs a specific block).
+ // A reply whose parent is gone counts as a root: deleting a head keeps its
+ // replies (Notion, measured 2026-09-10) and they must not become invisible
+ // while still counting towards the badge.
+  const alive = new Set(comments.map((c) => c.id));
+  const isRoot = (c: PageComment) => c.parentId === null || !alive.has(c.parentId);
   const roots = comments.filter(
-    (c) => c.parentId === null && (isPage ? c.blockId === null : c.blockId === openAnchor)
+    (c) => isRoot(c) && (isPage ? c.blockId === null : c.blockId === openAnchor)
   );
   const repliesOf = (id: string) =>
     comments
-      .filter((c) => c.parentId === id)
+      .filter((c) => c.parentId === id && alive.has(id))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
@@ -107,7 +113,7 @@ function ThreadCard({
         root.resolved ? "opacity-60" : ""
       }`}
     >
-      <CommentBubble comment={root} />
+      <CommentBubble comment={root} pageId={pageId} />
 
       {/* resolve / reopen the whole thread */}
       <div className="mt-1 flex justify-end">
@@ -134,7 +140,7 @@ function ThreadCard({
       {replies.length > 0 && (
         <div className="mt-2 space-y-2 border-l-2 border-neutral-100 pl-2 dark:border-neutral-800">
           {replies.map((r) => (
-            <CommentBubble key={r.id} comment={r} reply />
+            <CommentBubble key={r.id} comment={r} reply pageId={pageId} />
           ))}
         </div>
       )}
@@ -170,13 +176,19 @@ function ThreadCard({
 function CommentBubble({
   comment,
   reply,
+  pageId,
 }: {
   comment: PageComment;
   reply?: boolean;
+  pageId: string;
 }) {
   const t = useT();
   return (
-    <div data-testid={`comment-item-${comment.id}`} className={reply ? "" : ""}>
+    <div data-testid={`comment-item-${comment.id}`} className="group/comment relative">
+      {/* the same author-only ⋯ → 삭제하기 as the in-page rows. This panel is
+          also rendered on public /share links, where there is no signed-in
+          user — CommentActions draws nothing without one. */}
+      <CommentActions comment={comment} pageId={pageId} />
       <div className="flex items-center gap-2 text-xs text-neutral-500">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">
           {comment.author?.displayName ?? t("누군가")}
