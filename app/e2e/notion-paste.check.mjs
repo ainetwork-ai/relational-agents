@@ -25,7 +25,8 @@ import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
-const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
+// dev DB 는 2026-08-27 이전에 다시 시드됐다 — 옛 기본 id 는 401 이 된다(docs/notion-golden-set.md)
+const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj
 const DIR = new URL("../../docs/notion-clip-flow-page/", import.meta.url);
 
 const need = (f) => {

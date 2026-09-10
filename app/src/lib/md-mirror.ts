@@ -67,13 +67,13 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
       case "heading3": out.push(`${indent}### ${text}`); break;
       case "bulleted_list": out.push(`${indent}- ${text}`); break;
       case "numbered_list": out.push(`${indent}${n}. ${text}`); break;
-      case "todo": out.push(`${indent}- [${b.content.checked ? "x" : " "}] ${text}`); break;
+      case "todo": out.push(`${indent}- [${b.content.checked ? "x" : " "}]  ${text}`); break;
       case "quote": out.push(`${indent}> ${text}`); break;
       case "callout": out.push(`${indent}> 💡 ${text}`); break;
       case "divider": out.push(`${indent}---`); break;
       case "code":
         out.push(`${indent}\`\`\`${b.content.language ?? ""}`);
-        out.push(text);
+        for (const l of text.split("\n")) out.push(`${indent}${l}`);
         out.push(`${indent}\`\`\``);
         break;
       case "image":
@@ -107,16 +107,18 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
         }
         break;
       }
-      case "toggle": {
-        out.push(`${indent}<details><summary>${text}</summary>`);
-        out.push("");
-        out.push(blocksToMd(all, b.id, indent));
-        out.push(`${indent}</details>`);
-        break;
-      }
+ // the original writes a toggle as a plain bullet and indents its children;
+ // <details> looked right in a viewer but came back flat
+      case "toggle": out.push(`${indent}- ${text}`); break;
       default: out.push(`${indent}${text}`);
     }
     out.push("");
+ // EVERY block can have children, not just a toggle. Without this the mirror
+ // silently dropped a paragraph's or a bullet's nested blocks from the file
+ // (docs/notion-indent.md §6(3)) — four spaces per level is what the original
+ // writes, and it reads back as the same tree.
+    const kids = blocksToMd(all, b.id, indent + "    ");
+    if (kids.trim()) { out.push(kids); }
   }
   return out.join("\n");
 }

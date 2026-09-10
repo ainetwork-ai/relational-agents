@@ -11,6 +11,42 @@ export interface ParsedBlock {
   type: BlockType;
   content: BlockContent;
   position: number;
+  /** nesting level from the markdown's indentation (0 = top level).
+   * The original nests one level per "indent ≥ the parent marker's width"
+   * — measured 2026-09-10, docs/notion-indent.md §6(2). */
+  depth?: number;
+}
+
+/** columns of leading whitespace; a tab counts as 4 (the original took `\t- x`
+ * as one level under `- y`, whose content starts at column 2) */
+function indentOf(line: string): number {
+  let n = 0;
+  for (const ch of line) {
+    if (ch === " ") n += 1;
+    else if (ch === "\t") n += 4;
+    else break;
+  }
+  return n;
+}
+
+/** where a list item's own content starts: `- ` → 2, `1. ` → 3, `- [ ] ` → 2
+ * (measured: two spaces nest a checkbox, three are needed for `1. `) */
+function markerWidth(t: string): number {
+  const num = t.match(/^\d+\.\s/);
+  return num ? num[0].length : 2;
+}
+
+/** parent id per block from its depth — the one place paste, AI insert and MCP
+ * all read, so a nested markdown lands as the same tree in each. */
+export function parentIdsByDepth(depths: number[], ids: string[]): (string | null)[] {
+  const lastAt: string[] = [];
+  return depths.map((dRaw, i) => {
+    const d = Math.max(0, Math.min(dRaw, lastAt.length));
+    lastAt.length = d;
+    const parent = d === 0 ? null : lastAt[d - 1] ?? null;
+    lastAt[d] = ids[i];
+    return parent;
+  });
 }
 
 const HASH_RE = /\s+[0-9a-f]{32}(?=\.|$|\/)/i;
@@ -90,7 +126,7 @@ export function parseMarkdown(
   const { meta, body } = splitFrontmatter(text);
   const lines = body.split("\n");
   let title = typeof meta.title === "string" ? meta.title : "";
-  const drafts: { type: BlockType; content: BlockContent }[] = [];
+  const drafts: { type: BlockType; content: BlockContent; depth: number }[] = [];
   let i = 0;
  // pasting markdown into a block keeps the first "# " line as a heading block
  // rather than consuming it as a page title (opts.noTitle).
@@ -107,13 +143,35 @@ export function parseMarkdown(
         content = { ...content, html, text: mdInlinePlain(content.text) };
       }
     }
-    drafts.push({ type, content });
+    drafts.push({ type, content, depth });
   };
+
+ // Open list items and the column their content starts at. The original nests
+ // a line under the previous item when its indentation reaches that column
+ // (`  - x` under `- y`, `   1. x` under `1. y`), and a NON-list line that deep
+ // becomes that item's child block (its own markdown export relies on this).
+ // Blank lines do not close the list. Measured 2026-09-10 (M2c/M2d).
+  const openList: number[] = [];
+  let depth = 0;
 
   while (i < lines.length) {
     const line = lines[i];
     const t = line.trim();
     if (t === "") { i++; continue; }
+    {
+      const ind = indentOf(line);
+      const isList = /^([-*]\s|\d+\.\s)/.test(t);
+      while (openList.length && ind < openList[openList.length - 1]) openList.pop();
+      if (isList) {
+        depth = openList.length;
+        openList.push(ind + markerWidth(t));
+      } else if (openList.length && ind >= openList[openList.length - 1]) {
+        depth = openList.length;
+      } else {
+        openList.length = 0;
+        depth = 0;
+      }
+    }
 
     if (t === "$$") {
       const buf: string[] = [];
@@ -185,51 +243,98 @@ export function parseMarkdown(
     push("paragraph", { text: stripLinks(t) });
     i++;
   }
-  const blocks = drafts.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1 }));
+  const blocks = drafts.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1, depth: d.depth }));
   return { title: title || "Untitled", meta, blocks };
 }
 
 // ---- blocks → Markdown (write-back) ---------------------------------------
 export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
   const out: string[] = [`# ${title}`, ""];
-  let num = 0;
+ // Children are written with FOUR spaces per level and the numbering restarts
+ // inside each level — that is exactly what the original writes, and pasting it
+ // back rebuilds the same tree (measured 2026-09-10: M3 out, M2d round-trip).
+ // A block with no depth behaves as before.
+  const numAt = new Map<number, number>();
+  let prevDepth = -1;
   for (const b of blocks) {
+    const depth = Math.max(0, b.depth ?? 0);
+    const pad = "    ".repeat(depth);
     const text = b.content.text ?? "";
-    if (b.type === "numbered_list") num += 1; else num = 0;
+    if (depth < prevDepth) for (const k of [...numAt.keys()]) if (k > depth) numAt.delete(k);
+    if (b.type === "numbered_list") numAt.set(depth, (numAt.get(depth) ?? 0) + 1);
+    else numAt.delete(depth);
+    prevDepth = depth;
+    const num = numAt.get(depth) ?? 1;
+    const line = (v: string) => out.push(pad + v);
     switch (b.type) {
-      case "heading1": out.push(`# ${text}`); break;
-      case "heading2": out.push(`## ${text}`); break;
-      case "heading3": out.push(`### ${text}`); break;
-      case "bulleted_list": out.push(`- ${text}`); break;
-      case "numbered_list": out.push(`${num}. ${text}`); break;
-      case "todo": out.push(`- [${b.content.checked ? "x" : " "}] ${text}`); break;
-      case "quote": out.push(`> ${text}`); break;
-      case "callout": out.push(`> ${b.content.icon || "💡"} ${text}`); break;
-      case "divider": out.push("---"); break;
+      case "heading1": line(`# ${text}`); break;
+      case "heading2": line(`## ${text}`); break;
+      case "heading3": line(`### ${text}`); break;
+      case "bulleted_list": line(`- ${text}`); break;
+      case "numbered_list": line(`${num}. ${text}`); break;
+ // two spaces after the box is what the original writes (`- [ ]  t1`)
+      case "todo": line(`- [${b.content.checked ? "x" : " "}]  ${text}`); break;
+      case "quote": line(`> ${text}`); break;
+      case "callout": line(`> ${b.content.icon || "💡"} ${text}`); break;
+ // the original writes a toggle as a plain bullet; its children follow indented
+      case "toggle": line(`- ${text}`); break;
+      case "divider": line("---"); break;
       case "toc": break; // outline is derived, not content
-      case "link_to_page": if (b.content.childPageId) out.push(`[page](/p/${b.content.childPageId})`); break;
-      case "file": if (b.content.url) out.push(`[${b.content.text || "file"}](${b.content.url})`); break;
+      case "link_to_page": if (b.content.childPageId) line(`[page](/p/${b.content.childPageId})`); break;
+      case "file": if (b.content.url) line(`[${b.content.text || "file"}](${b.content.url})`); break;
       case "template_button": break; // interactive-only, no md form
       case "ai_prompt": break; // transient prompt UI, never persists content
-      case "equation": if (b.content.text) out.push(`$$\n${b.content.text}\n$$`); break;
-      case "code": out.push("```" + (b.content.language ?? ""), text, "```"); break;
-      case "image": if (b.content.url) out.push(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
+      case "equation": if (b.content.text) { line("$$"); for (const l of b.content.text.split("\n")) line(l); line("$$"); } break;
+      case "code":
+        line("```" + (b.content.language ?? ""));
+        for (const l of text.split("\n")) line(l);
+        line("```");
+        break;
+      case "image": if (b.content.url) line(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {
           const w = Math.max(...t.cells.map((r) => r.length));
-          const pad = (r: string[]) => Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|"));
-          out.push(`| ${pad(t.cells[0]).join(" | ")} |`);
-          out.push(`| ${Array(w).fill("---").join(" | ")} |`);
-          for (let i = 1; i < t.cells.length; i++) out.push(`| ${pad(t.cells[i]).join(" | ")} |`);
+          const padCells = (r: string[]) => Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|"));
+          line(`| ${padCells(t.cells[0]).join(" | ")} |`);
+          line(`| ${Array(w).fill("---").join(" | ")} |`);
+          for (let i = 1; i < t.cells.length; i++) line(`| ${padCells(t.cells[i]).join(" | ")} |`);
         }
         break;
       }
-      default: out.push(text);
+      default: line(text);
     }
     out.push("");
   }
   return out.join("\n");
+}
+
+/** Blocks in document order (a parent, then its subtree) with the depth each
+ * one sits at. `position` alone is not an order: it only counts inside one
+ * sibling list, so a flat sort interleaves children with top-level blocks. */
+export function treeOrder<T extends { id: string; parentBlockId?: string | null; position?: number | null }>(
+  rows: T[]
+): { row: T; depth: number }[] {
+  const kids = new Map<string | null, T[]>();
+  for (const r of rows) {
+    const k = r.parentBlockId ?? null;
+    (kids.get(k) ?? kids.set(k, []).get(k)!).push(r);
+  }
+  for (const list of kids.values()) list.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const out: { row: T; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (parent: string | null, depth: number) => {
+    for (const r of kids.get(parent) ?? []) {
+      if (seen.has(r.id)) continue; // a cycle would otherwise hang the export
+      seen.add(r.id);
+      out.push({ row: r, depth });
+      walk(r.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+ // orphans (their parent is gone) still belong in the file
+  for (const r of rows) if (!seen.has(r.id)) out.push({ row: r, depth: 0 });
+  return out;
 }
 
 // ---- CSV -------------------------------------------------------------------

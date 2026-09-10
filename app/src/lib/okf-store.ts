@@ -5,23 +5,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { okfDbMeta } from "@/lib/db/schema";
-import {
-  parseMarkdown,
-  parseCsvDatabase,
-  parseCsv,
-  toCsv,
-  cleanTitle,
-  blocksToMarkdown,
-  serializeFrontmatter,
-  parseDateCell,
-  multiTokens,
-  type ParsedBlock,
-  type Frontmatter,
-  type FsProperty,
-  type FsRow,
-  optionIdFor,
-  optionColorFor,
-} from "@/lib/memory-parse";
+import { parseMarkdown, parseCsvDatabase, parseCsv, toCsv, cleanTitle, blocksToMarkdown, serializeFrontmatter, parseDateCell, multiTokens, type ParsedBlock, type Frontmatter, type FsProperty, type FsRow, optionIdFor, optionColorFor, parentIdsByDepth, treeOrder } from "@/lib/memory-parse";
 import type {
   Block,
   Page,
@@ -429,18 +413,24 @@ export interface IncomingBlock {
   type?: string;
   content?: Record<string, unknown>;
   position?: number;
+  /** the editor sends nesting; the file writes it as indentation */
+  parentBlockId?: string | null;
 }
 
 /** ParsedBlock[] (file blocks) → Block[] (the shape /api/pages/[id]/blocks and
- * the editor use). Synthetic timestamps; parentBlockId is flat (null). */
+ * the editor use). Synthetic timestamps; the file's indentation becomes real
+ * parent ids (it used to be flattened to null, so a nested .md page opened flat
+ * and saving it back erased the nesting). */
 export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
   const now = new Date();
+  const ids = blocks.map((b, i) => b.id ?? `b${i}`);
+  const parents = parentIdsByDepth(blocks.map((b) => b.depth ?? 0), ids);
   return blocks.map((b, i) => ({
-    id: b.id,
+    id: ids[i],
     pageId,
     type: b.type,
     content: b.content,
-    parentBlockId: null,
+    parentBlockId: parents[i],
     position: b.position ?? i + 1,
     alive: true,
     createdAt: now,
@@ -448,13 +438,21 @@ export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
   }));
 }
 
-/** The editor's incoming blocks → ParsedBlock[] for writing back to the file. */
+/** The editor's incoming blocks → ParsedBlock[] for writing back to the file,
+ * in document order with the depth the file should indent them by. */
 export function blocksToParsed(incoming: IncomingBlock[]): ParsedBlock[] {
-  return incoming.map((b, i) => ({
+  const rows = incoming.map((b, i) => ({
     id: b.id ?? `b${i}`,
-    type: (b.type ?? "paragraph") as ParsedBlock["type"],
-    content: (b.content ?? {}) as ParsedBlock["content"],
+    parentBlockId: b.parentBlockId ?? null,
     position: b.position ?? i + 1,
+    b,
+  }));
+  return treeOrder(rows).map(({ row, depth }, i) => ({
+    id: row.id,
+    type: (row.b.type ?? "paragraph") as ParsedBlock["type"],
+    content: (row.b.content ?? {}) as ParsedBlock["content"],
+    position: i + 1,
+    depth,
   }));
 }
 

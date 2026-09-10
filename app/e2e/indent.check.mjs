@@ -506,6 +506,60 @@ scenario("geometry_and_markers", async () => {
   check("토글 손자: 거기서 다시 30px", d(2) === 62, `${d(2)} (기대 62)`);
 });
 
+// ── 19. 맨 앞 Backspace 정책 — 원본과 같은 순서 ────────────────────────────
+scenario("backspace_policy", async () => {
+ // (a) 제목은 스타일을 벗지 않고 **한 번에** 위 블록과 합쳐진다 (A_heading*)
+  let p = await build("bs_heading", [{ k: "P", text: "PREV" }, { k: "H", type: "heading2", text: "XX" }]);
+  await caret(p.ids.H, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(450);
+  check("제목 맨 앞 Backspace: 한 번에 합쳐진다", shape(await domTree()) === "PREVXX@0", dump(await domTree()));
+
+ // (b) 인용·글머리·번호·할 일·토글은 먼저 스타일만 벗는다 (A_quote / A_bulleted_list …)
+  for (const [type, label] of [["quote", "인용"], ["bulleted_list", "글머리"], ["numbered_list", "번호"], ["todo", "할 일"], ["toggle", "토글"]]) {
+    p = await build(`bs_${type}`, [{ k: "P", text: "PREV" }, { k: "B", type, text: "XX" }]);
+    await caret(p.ids.B, 0);
+    await tab.keyboard.press("Backspace");
+    await tab.waitForTimeout(400);
+    const t1 = await domTree();
+    check(`${label} 맨 앞 Backspace: 먼저 스타일만 벗는다`, shape(t1) === "PREV@0 XX@0" && t1[1].type === "paragraph", dump(t1));
+    await caret(p.ids.B, 0);
+    await tab.keyboard.press("Backspace");
+    await tab.waitForTimeout(400);
+    check(`${label}: 그다음 합쳐진다`, shape(await domTree()) === "PREVXX@0", dump(await domTree()));
+  }
+
+ // (c) 코드 블록은 아무 일도 없다 (A_codetext)
+  p = await build("bs_code", [{ k: "P", text: "PREV" }, { k: "C", type: "code", text: "QQ" }]);
+  await caret(p.ids.C, 0);
+  const beforeCode = shape(await domTree());
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(400);
+  check("코드 맨 앞 Backspace: 아무 일도 없다", shape(await domTree()) === beforeCode, dump(await domTree()));
+
+ // (d) 페이지 첫 블록은 텍스트가 **제목으로** 간다 (B_*: 블록이 사라지고 제목이 늘어난다)
+  p = await build("bs_title", [{ k: "A", text: "ZZTOP" }, { k: "B", text: "keep" }]);
+  const titleBefore = await tab.inputValue('[data-testid="page-title"]');
+  await caret(p.ids.A, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(600);
+  const t = await domTree();
+  check("첫 블록 맨 앞 Backspace: 블록이 사라진다", shape(t) === "keep@0", dump(t));
+  check("첫 블록 맨 앞 Backspace: 텍스트가 제목에 붙는다",
+    (await tab.inputValue('[data-testid="page-title"]')) === titleBefore + "ZZTOP",
+    `"${await tab.inputValue('[data-testid="page-title"]')}" (전 "${titleBefore}")`);
+  const rows = await persisted(p);
+  check("제목 병합이 저장된다", rows.length === 1 && rows[0].key === "B", JSON.stringify(rows.map((r) => [r.key, r.text])));
+
+ // (e) ⌘Z 한 번이 제목과 블록을 함께 되돌린다 (원본 M4 실측)
+  await tab.keyboard.press("Control+z");
+  await tab.waitForTimeout(600);
+  check("⌘Z: 블록이 돌아온다", shape(await domTree()) === "ZZTOP@0 keep@0", dump(await domTree()));
+  check("⌘Z: 제목도 함께 돌아온다",
+    (await tab.inputValue('[data-testid="page-title"]')) === titleBefore,
+    `"${await tab.inputValue('[data-testid="page-title"]')}" (기대 "${titleBefore}")`);
+});
+
 // ── 실행 ───────────────────────────────────────────────────────────────────
 const names = Object.keys(scenarios).filter((n) => !ONLY.length || ONLY.includes(n));
 for (const n of names) {

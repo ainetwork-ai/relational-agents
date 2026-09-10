@@ -53,6 +53,13 @@ import {
   moveChildren,
 } from "@/lib/editor/indent";
 
+/** one undo step: the blocks as they were, plus anything outside the editor
+ * that the step changed and has to be put back with it */
+interface Frame {
+  blocks: EBlock[];
+  side?: { undo: () => void; redo: () => void };
+}
+
 export interface EBlock {
   id: string;
   type: BlockType;
@@ -166,6 +173,10 @@ export function useEditor() {
 
 export interface BlockEditorHandle {
   focusFirst: () => void;
+  /** the editor's own undo — the page title needs it after a Backspace merged
+   * the first block into it, because focus is then in the title's <textarea>
+   * and its native undo would swallow the ⌘Z */
+  undo: () => void;
 }
 
 function normalize(el: HTMLElement): string {
@@ -247,6 +258,11 @@ function freshParagraph(parentBlockId: string | null, position: number): EBlock 
  * can tell it from a native drag of text or an image. */
 export const BLOCK_DRAG_MIME = "application/x-ainmem-block";
 
+/** Backspace at offset 0 drops these styles before it touches depth or merges —
+ * measured: quote/bullet/number/todo/toggle/callout become a paragraph in place,
+ * while a HEADING merges straight into the block above (docs/notion-indent.md §6). */
+const STYLE_DROP = new Set<string>([...LIST_TYPES, "quote", "callout"]);
+
 /** Types that keep their type when a block is split by Enter. */
 const CONTINUING: BlockType[] = ["bulleted_list", "numbered_list", "todo"];
 
@@ -255,12 +271,18 @@ export const BlockEditor = forwardRef<
   {
     pageId: string;
     initialBlocks: Block[];
+    /** Backspace at the very start of the FIRST block hands its text to the page
+     * title and removes the block — the original's behaviour (measured: the
+     * block vanished, the title gained the text, the page URL changed with it).
+     * Surfaces that have no title (a row peek, a share view) leave this out and
+     * keep the old no-op. */
+    onMergeIntoTitle?: (text: string) => { undo: () => void; redo: () => void } | void;
     shareToken?: string;
     /** What an empty body offers. A page gets the 시작하기 row; a database row
      *  opened in a peek gets Notion's quieter line there instead. */
     emptyVariant?: "page" | "row";
   }
->(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page" }, apiRef) {
+>(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page", onMergeIntoTitle }, apiRef) {
   const [blocks, setBlocks] = useState<EBlock[]>(() => {
     const mapped = initialBlocks.map(fromRow);
     return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
@@ -358,11 +380,19 @@ export const BlockEditor = forwardRef<
   const applyRemoteRef = useRef<() => Promise<void>>(async () => {});
  // Block-level undo/redo. Native contentEditable undo fights our state model
  // and DESTROYS content (parity review R008) — we own the history instead.
-  const historyRef = useRef<{ past: EBlock[][]; future: EBlock[][] }>({
+ // A frame is a block snapshot plus, when the step also touched something
+ // OUTSIDE the editor (so far only the page title, from a Backspace on the
+ // first block), the pair of thunks that put that back. The original undoes
+ // both with one ⌘Z (measured 2026-09-10, M4), so they travel together.
+  const historyRef = useRef<{ past: Frame[]; future: Frame[] }>({
     past: [],
     future: [],
   });
+ // set by the step that is about to mutate; mutate() attaches it to its frame
+  const pendingFrameSide = useRef<{ undo: () => void; redo: () => void } | null>(null);
   const lastPushRef = useRef(0);
+ // the imperative handle is created before `undo` exists — go through a ref
+  const undoRef = useRef<() => void>(() => {});
   const blocksRef = useRef<EBlock[]>(blocks);
   useEffect(() => {
     blocksRef.current = blocks;
@@ -470,10 +500,14 @@ export const BlockEditor = forwardRef<
       const h = historyRef.current;
  // plain typing coalesces into one undo frame; structural ops never do
       if (!(opts?.coalesce && now - lastPushRef.current < 1000)) {
-        h.past.push(blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })));
+        h.past.push({
+          blocks: blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })),
+          side: pendingFrameSide.current ?? undefined,
+        });
         if (h.past.length > 200) h.past.shift();
         h.future = [];
       }
+      pendingFrameSide.current = null;
       lastPushRef.current = now;
  // Run the updater exactly ONCE, here, instead of inside setBlocks. React may
  // invoke a setState updater more than once (dev StrictMode always does, and a
@@ -514,18 +548,30 @@ export const BlockEditor = forwardRef<
 
   const undo = useCallback(() => {
     const h = historyRef.current;
-    const snap = h.past.pop();
-    if (!snap) return;
-    h.future.push(blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })));
-    restoreSnapshot(snap);
+    const frame = h.past.pop();
+    if (!frame) return;
+    h.future.push({
+      blocks: blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })),
+      side: frame.side,
+    });
+    frame.side?.undo();
+    restoreSnapshot(frame.blocks);
   }, [restoreSnapshot]);
+
+  useEffect(() => {
+    undoRef.current = undo;
+  }, [undo]);
 
   const redo = useCallback(() => {
     const h = historyRef.current;
-    const snap = h.future.pop();
-    if (!snap) return;
-    h.past.push(blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })));
-    restoreSnapshot(snap);
+    const frame = h.future.pop();
+    if (!frame) return;
+    h.past.push({
+      blocks: blocksRef.current.map((b) => ({ ...b, content: { ...b.content } })),
+      side: frame.side,
+    });
+    frame.side?.redo();
+    restoreSnapshot(frame.blocks);
   }, [restoreSnapshot]);
 
  // Window-level so undo still works when the focused block was just removed.
@@ -907,6 +953,7 @@ export const BlockEditor = forwardRef<
       const el = editables.current.get(first.id);
       if (el) setCaret(el, "start");
     },
+    undo: () => undoRef.current(),
   }));
 
   const childrenOf = useCallback(
@@ -1365,29 +1412,19 @@ export const BlockEditor = forwardRef<
       const block = blocksRef.current.find((b) => b.id === id);
       if (!block) return false;
 
- // Backspace at offset 0 peels ONE thing per press, and the original's order
- // depends on the type (measured 2026-09-10, docs/notion-indent.md):
- //   a nested list item  → drops the bullet/number/checkbox, SAME depth (T7c)
- //   anything else nested → climbs one level (T7 paragraph, T7b later child,
- //                          T7d heading — the heading stays a heading)
- //   at the top level     → the existing style-drop / merge below
- // Before this an indented block merged into its previous sibling, and an
- // indented FIRST child did nothing at all: it was stuck at its depth.
-      if (LIST_TYPES.has(block.type)) {
-        mutate((prev) =>
-          prev.map((b) =>
-            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
-          )
-        );
-        pendingFocus.current = { id, pos: "start" };
-        return true;
-      }
-      if (block.parentBlockId) {
-        if (nest([id], "out", { id, el })) return true;
-      }
+ // Backspace at offset 0 — the original peels ONE thing per press, in this
+ // order (measured 2026-09-10 across every basic type, docs/notion-indent.md §6):
+ //   code block            → nothing at all
+ //   quote/list/todo/toggle/callout → drops that style, SAME place (A_quote…)
+ //   paragraph or HEADING, indented → climbs one level, keeping its type (T7d)
+ //   paragraph or HEADING, top level → merges into the block above (A_heading*)
+ //   …and if there is nothing above → merges into the PAGE TITLE (B_*: the
+ //     block vanished and the title gained its text; the page URL changed with it)
+ // A heading is the case we had wrong: we dropped its style first, so it took
+ // two presses to do what the original does in one.
+      if (block.type === "code") return false;
 
- // Styled block → demote to paragraph first.
-      if (block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
+      if (STYLE_DROP.has(block.type)) {
         mutate((prev) =>
           prev.map((b) =>
             b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
@@ -1398,6 +1435,9 @@ export const BlockEditor = forwardRef<
         pendingFocus.current = { id, pos: "start" };
         return true;
       }
+      if (block.parentBlockId) {
+        if (nest([id], "out", { id, el })) return true;
+      }
 
       const sibs = childrenOf(block.parentBlockId ?? null);
       const idx = sibs.findIndex((s) => s.id === id);
@@ -1407,6 +1447,33 @@ export const BlockEditor = forwardRef<
  // Backspace, leaves you typing at the end of the title; 2026-08-26 cases)
       if (!prevSib) {
         const parent = block.parentBlockId ? blocksRef.current.find((b) => b.id === block.parentBlockId) : undefined;
+ // Nothing above it in the page at all → the text goes to the TITLE and the
+ // block goes away (measured on the original, B_* 2026-09-10). Its children are
+ // lifted so they stay visible.
+        if (!parent && onMergeIntoTitle) {
+          const kids = blocksRef.current.filter((b) => (b.parentBlockId ?? null) === id);
+          const onlyBlock = blocksRef.current.filter((b) => b.parentBlockId === null).length === 1;
+          const side = onMergeIntoTitle(text);
+ // one ⌘Z puts the title AND the block back, as the original does
+          if (side) pendingFrameSide.current = side;
+          if (onlyBlock && kids.length === 0) {
+ // keep the page's single line — an editor with no block has nowhere to type
+            mutate((prev) =>
+              prev.map((b) =>
+                b.id === id ? { ...b, content: { ...b.content, text: "", html: undefined }, version: b.version + 1 } : b
+              )
+            );
+            pendingFocus.current = { id, pos: "start" };
+            return true;
+          }
+          deletedIds.current.add(id);
+          mutate((prev) => {
+            const lifted = prev.map((b) => ({ ...b }));
+            liftChildren(lifted, id, null);
+            return lifted.filter((b) => b.id !== id);
+          });
+          return true;
+        }
         if (!parent || parent.type !== "toggle") return false;
         const parentLen = (parent.content.text ?? "").length;
         const curHtml = block.content.html ?? escapeHtml(text);
@@ -1466,7 +1533,7 @@ export const BlockEditor = forwardRef<
       pendingFocus.current = { id: prevSib.id, pos: prevLen };
       return true;
     },
-    [childrenOf, mutate, nest]
+    [childrenOf, mutate, nest, onMergeIntoTitle]
   );
 
   const moveBlock = useCallback(
@@ -1783,27 +1850,44 @@ export const BlockEditor = forwardRef<
               cur.content.html = before ? escapeHtml(before) : undefined;
               cur.version++;
             }
+ // Markdown carries nesting in its indentation and the original keeps it
+ // (docs/notion-indent.md §6(2)); parseMarkdown hands us a depth per block.
+ // A depth-0 block follows the one before it; a deeper block becomes the last
+ // child of the nearest shallower block.
+            const lastAt: EBlock[] = [];
+            let anchorTop: EBlock = anchor;
+            if (startIdx === 1) lastAt[0] = cur;
+            let lastNb: EBlock = anchor;
             for (let k = startIdx; k < parsed.length; k++) {
               const p = parsed[k];
+              const d = Math.max(0, Math.min(p.depth ?? 0, lastAt.length));
+              const parentOfNb = d === 0 ? parentId : lastAt[d - 1].id;
+              const kids = next.filter((b) => (b.parentBlockId ?? null) === parentOfNb);
               const nb: EBlock = {
                 id: newId(),
                 type: p.type,
                 content: { ...p.content },
-                parentBlockId: parentId,
-                position: positionAfter(next, anchor),
+                parentBlockId: parentOfNb,
+                position:
+                  d === 0
+                    ? positionAfter(next, anchorTop)
+                    : (kids.length ? Math.max(...kids.map((c) => c.position)) : 0) + 1,
                 version: 0,
               };
               next.push(nb);
-              anchor = nb;
+              lastAt.length = d;
+              lastAt[d] = nb;
+              if (d === 0) anchorTop = nb;
+              lastNb = nb;
             }
             if (after.trim() !== "") {
               const nb = freshParagraph(parentId, 0);
-              nb.position = positionAfter(next, anchor);
+              nb.position = positionAfter(next, anchorTop);
               nb.content.text = after;
               next.push(nb);
-              anchor = nb;
+              lastNb = nb;
             }
-            pendingFocus.current = { id: anchor.id, pos: "end" };
+            pendingFocus.current = { id: lastNb.id, pos: "end" };
             return next;
           });
           return;
@@ -2981,24 +3065,35 @@ export const BlockEditor = forwardRef<
         const cur = anchorId ? next.find((b) => b.id === anchorId) : undefined;
         const parentId = cur?.parentBlockId ?? null;
         let anchor: EBlock | null = cur ?? null;
+ // same nesting rule as the markdown paste — an AI answer or a template that
+ // uses indentation arrives as a tree, not as a flat run
+        const lastAt: EBlock[] = [];
         for (const pb of parsed) {
+          const d = Math.max(0, Math.min(pb.depth ?? 0, lastAt.length));
+          const parentOfNb = d === 0 ? parentId : lastAt[d - 1].id;
+          const kids = next.filter((b) => (b.parentBlockId ?? null) === parentOfNb);
           const nb: EBlock = {
             id: newId(),
             type: pb.type,
             content: { ...pb.content },
-            parentBlockId: parentId,
-            position: anchor
-              ? positionAfter(next, anchor)
-              : Math.max(
-                  0,
-                  ...next
-                    .filter((b) => (b.parentBlockId ?? null) === null)
-                    .map((b) => b.position)
-                ) + 1,
+            parentBlockId: parentOfNb,
+            position:
+              d > 0
+                ? (kids.length ? Math.max(...kids.map((c) => c.position)) : 0) + 1
+                : anchor
+                  ? positionAfter(next, anchor)
+                  : Math.max(
+                      0,
+                      ...next
+                        .filter((b) => (b.parentBlockId ?? null) === null)
+                        .map((b) => b.position)
+                    ) + 1,
             version: 0,
           };
           next.push(nb);
-          anchor = nb;
+          lastAt.length = d;
+          lastAt[d] = nb;
+          if (d === 0) anchor = nb;
         }
         return next;
       });

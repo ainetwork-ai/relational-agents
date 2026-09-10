@@ -102,6 +102,10 @@ export function PageView({
  // resets this state naturally.
   const [title, setTitle] = useState(initialPage.title);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+ // set when Backspace merged the first block into the title: the very next ⌘Z
+ // belongs to the editor (it puts the block AND the title back), not to the
+ // textarea's native undo. Cleared as soon as the title is touched otherwise.
+  const mergedTitleRef = useRef<string | null>(null);
   const openComments = useCommentUi((s) => s.open);
   const editorRef = useRef<BlockEditorHandle>(null);
   // A page whose body IS a database: its title is the database's name, so the
@@ -489,6 +493,7 @@ export function PageView({
           placeholder={fullPageDb ? t("새 데이터베이스") : t("제목 없음")}
           onChange={(e) => {
             const v = e.target.value.replace(/\n/g, "");
+            mergedTitleRef.current = null;
             setTitle(v);
             saveTitle.call(v);
           }}
@@ -496,6 +501,20 @@ export function PageView({
             if (!isImeComposing(e) && e.key === "Enter") {
               e.preventDefault();
               editorRef.current?.focusFirst();
+              return;
+            }
+ // ⌘Z right after a Backspace merged the first block into this title undoes
+ // BOTH, in one press, as the original does (docs/notion-indent.md §6).
+            if (
+              (e.metaKey || e.ctrlKey) &&
+              !e.shiftKey &&
+              e.key.toLowerCase() === "z" &&
+              mergedTitleRef.current !== null &&
+              e.currentTarget.value === mergedTitleRef.current
+            ) {
+              e.preventDefault();
+              mergedTitleRef.current = null;
+              editorRef.current?.undo();
             }
           }}
           className={`block w-full resize-none overflow-hidden bg-transparent font-bold text-neutral-900 outline-none placeholder:text-neutral-300 dark:text-neutral-100 dark:placeholder:text-neutral-600 ${
@@ -583,6 +602,28 @@ export function PageView({
               ref={editorRef}
               pageId={initialPage.id}
               initialBlocks={initialBlocks}
+ // Backspace at the very start of the first block moves that text into the
+ // title, as the original does (docs/notion-indent.md §6). The caret lands at
+ // the join so the next keystroke continues the sentence.
+              onMergeIntoTitle={(text) => {
+                if (page.isLocked) return;
+                const base = title;
+                const merged = (base + text).replace(/\n/g, "");
+                const put = (v: string) => {
+                  setTitle(v);
+                  saveTitle.call(v);
+                };
+                put(merged);
+                requestAnimationFrame(() => {
+                  const el = titleRef.current;
+                  if (!el) return;
+                  el.focus();
+                  el.setSelectionRange(base.length, base.length);
+                });
+ // ⌘Z takes the title back with the block (the original undoes both in one)
+                mergedTitleRef.current = merged;
+                return { undo: () => put(base), redo: () => put(merged) };
+              }}
             />
           )}
         </RowPropertiesPanel>
