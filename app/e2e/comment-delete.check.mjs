@@ -8,12 +8,18 @@
 //     빨강 삭제 rgb(229,100,88) 아래 취소
 //   · 스레드 머리를 지워도 답글은 남는다 (캐스케이드 아님)
 //
+// A1–A7 은 측정이 아니라 2026-09-10 심사에서 재현한 두 구멍의 회귀 검사다
+// (docs/notion-comment-delete.md §6.1): 페이지를 하나도 공유받지 않은 게스트가
+// 댓글을 읽고 해결까지 할 수 있었고, 워크스페이스에서 빠진 사람이 예전 자기
+// 댓글을 계속 고치고 지울 수 있었다. 고치기 전 코드에서는 일곱 개 모두 실패한다.
+//
 //   [BASE_URL=…] [PAGE_ID=…] node e2e/comment-delete.check.mjs
 //
 // 자기가 만든 댓글만 쓰고 지운다 — 몇 번을 돌려도 dev 데이터가 늘지 않는다.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { Client } from "pg";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const AUTHOR = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj@comcom.ai
@@ -25,6 +31,7 @@ const RED = "rgb(229, 100, 88)";
 
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
+const pgUrl = env.match(/^POSTGRES_URL=(.*)$/m)[1].trim();
 const seal = (userId) => sealData({ userId }, { password: secret, ttl: 0 });
 const authorCookie = await seal(AUTHOR);
 const otherCookie = await seal(OTHER);
@@ -42,6 +49,11 @@ const list = async (cookie = authorCookie) => (await (await api(`/api/pages/${PA
 const del = (id, cookie = authorCookie) => api(`/api/comments/${id}`, { method: "DELETE" }, cookie);
 const made = [];
 const track = (c) => { made.push(c.id); return c; };
+const temps = [];            // 검사용으로 만든 사용자 — 끝나면 지운다
+const stamp = Date.now();
+
+const pg = new Client({ connectionString: pgUrl });
+await pg.connect();
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 940 } });
@@ -69,6 +81,61 @@ try {
     check("S3. 답글은 살아남는다", after.some((c) => c.id === reply.id), `n=${after.length}`);
     await del(reply.id);
   }
+  // ── 접근 권한: 워크스페이스에 있다는 사실만으로는 댓글에 닿지 못한다 ─────
+  //
+  // 두 구멍을 재현해 막은 자리다(2026-09-10 심사).
+  //  1) 게이트가 workspace_members 만 봤다 → 게스트(= 공유받은 페이지만 보는
+  //     사람)도 멤버 행을 갖고 있으므로 워크스페이스의 모든 댓글을 읽고
+  //     해결/재개할 수 있었다.
+  //  2) 편집·삭제 게이트가 접근 검사를 **대체**했다 → 워크스페이스에서 빠진
+  //     사람이 예전 자기 댓글을 계속 고치고 지울 수 있었다.
+  {
+    const { rows: [pg0] } = await pg.query("select workspace_id from pages where id=$1", [PAGE_ID]);
+    const wsId = pg0?.workspace_id;
+    check("A0. 검사 페이지의 워크스페이스를 찾았다", !!wsId, String(wsId));
+
+    const mkUser = async (label) => {
+      const { rows: [u] } = await pg.query(
+        "insert into users (display_name, email) values ($1,$2) returning id",
+        [label, `e2e-${label}-${stamp}@example.invalid`]
+      );
+      temps.push(u.id);
+      return u.id;
+    };
+    const join = (uid, role) =>
+      pg.query("insert into workspace_members (workspace_id, user_id, role) values ($1,$2,$3)", [wsId, uid, role]);
+
+    // (1) 페이지를 하나도 공유받지 않은 게스트
+    const guestId = await mkUser("guest");
+    await join(guestId, "guest");
+    const guest = await seal(guestId);
+    const bait = track(await post("게스트가 보면 안 되는 댓글"));
+
+    const read = await api(`/api/pages/${PAGE_ID}/comments`, {}, guest);
+    check("A1. 게스트는 페이지 댓글을 읽지 못한다", read.status === 404, `status=${read.status}`);
+    const resolve = await api(`/api/comments/${bait.id}`, { method: "PATCH", body: JSON.stringify({ resolved: true }) }, guest);
+    check("A2. 게스트는 남의 스레드를 해결하지 못한다", resolve.status === 404, `status=${resolve.status}`);
+    const gDel = await api(`/api/comments/${bait.id}`, { method: "DELETE" }, guest);
+    check("A3. 게스트의 삭제도 막힌다", gDel.status === 404, `status=${gDel.status}`);
+    const { rows: [still] } = await pg.query("select resolved from comments where id=$1", [bait.id]);
+    check("A4. 그리고 댓글은 손대지 않은 그대로다", !!still && still.resolved === false, JSON.stringify(still));
+
+    // (2) 댓글을 남기고 워크스페이스에서 빠진 사람
+    const exId = await mkUser("exmember");
+    await join(exId, "member");
+    const ex = await seal(exId);
+    const theirs = track(await post("나간 사람이 남긴 댓글", null, ex));
+    await pg.query("delete from workspace_members where workspace_id=$1 and user_id=$2", [wsId, exId]);
+
+    const edit = await api(`/api/comments/${theirs.id}`, { method: "PATCH", body: JSON.stringify({ body: "고쳐버림" }) }, ex);
+    check("A5. 나간 사람은 자기 옛 댓글도 고치지 못한다", edit.status === 404, `status=${edit.status}`);
+    const exDel = await api(`/api/comments/${theirs.id}`, { method: "DELETE" }, ex);
+    check("A6. 지우지도 못한다", exDel.status === 404, `status=${exDel.status}`);
+    const { rows: [kept] } = await pg.query("select body from comments where id=$1", [theirs.id]);
+    check("A7. 본문이 그대로 남아 있다", kept?.body === "나간 사람이 남긴 댓글", JSON.stringify(kept));
+    await pg.query("delete from comments where id=$1", [theirs.id]);
+  }
+
   // ── UI ───────────────────────────────────────────────────────────────────
   const target = track(await post("UI 삭제 검사용 댓글"));
   await page.goto(`${BASE}/p/${PAGE_ID}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
@@ -148,6 +215,12 @@ try {
 } finally {
   for (const id of made) await del(id).catch(() => {});
   for (const id of made) await del(id, otherCookie).catch(() => {});
+  for (const id of temps) {
+    await pg.query("delete from comments where author_id=$1", [id]).catch(() => {});
+    await pg.query("delete from workspace_members where user_id=$1", [id]).catch(() => {});
+    await pg.query("delete from users where id=$1", [id]).catch(() => {});
+  }
+  await pg.end().catch(() => {});
   await browser.close();
 }
 console.log(fails ? `\n${fails} FAILED` : "\nall checks passed");
