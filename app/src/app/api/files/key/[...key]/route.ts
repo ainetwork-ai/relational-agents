@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { statFile, storageBucket, streamFile } from "@/lib/files/storage";
-import { isStreamableMedia } from "@/lib/files/streamable-media";
+import { isStreamableMedia, isTimedMedia } from "@/lib/files/streamable-media";
 import { toWebStream } from "@/lib/files/serve";
+import { parseByteRange, unsatisfiableContentRange } from "@/lib/files/http-range";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,12 @@ export const dynamic = "force-dynamic";
  *
  * The same media gate applies: anything isStreamableMedia refuses is handed
  * back as a download, never rendered as a document in our origin.
+ *
+ * **Honours `Range` with 206** — this is the door a page block video comes
+ * through, and a <video> that cannot seek is barely a video (see
+ * docs/notion-video.md §4).
  */
-export async function GET(_req: Request, { params }: { params: Promise<{ key: string[] }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
 
@@ -40,16 +45,30 @@ export async function GET(_req: Request, { params }: { params: Promise<{ key: st
   const mimeType = MIME[ext] ?? "";
   const inline = isStreamableMedia(mimeType, `x.${ext}`);
 
-  return new NextResponse(toWebStream(await streamFile(bucket, key)), {
-    headers: {
-      "Content-Type": inline ? mimeType : "application/octet-stream",
-      "Content-Disposition": inline ? "inline" : `attachment; filename="${key.split("/").pop()}"`,
-      "X-Content-Type-Options": "nosniff",
-      "Content-Length": String(head.size),
-     // the key IS the content hash, so the bytes behind it can never change
-      "Cache-Control": "private, max-age=31536000, immutable",
-    },
-  });
+  const spec = parseByteRange(req.headers.get("range"), head.size);
+  if (spec === "unsatisfiable")
+    return new NextResponse(null, {
+      status: 416,
+      headers: { "Content-Range": unsatisfiableContentRange(head.size), "Accept-Ranges": "bytes" },
+    });
+
+  const headers: Record<string, string> = {
+    "Content-Type": inline ? mimeType : "application/octet-stream",
+    "Content-Disposition": inline ? "inline" : `attachment; filename="${key.split("/").pop()}"`,
+    "X-Content-Type-Options": "nosniff",
+   // the key IS the content hash, so the bytes behind it can never change
+    "Cache-Control": "private, max-age=31536000, immutable",
+  };
+  if (inline && (isTimedMedia(mimeType, `x.${ext}`) || spec)) headers["Accept-Ranges"] = "bytes";
+
+  if (spec) {
+    headers["Content-Range"] = `bytes ${spec.start}-${spec.end}/${head.size}`;
+    headers["Content-Length"] = String(spec.end - spec.start + 1);
+    return new NextResponse(toWebStream(await streamFile(bucket, key, spec)), { status: 206, headers });
+  }
+
+  headers["Content-Length"] = String(head.size);
+  return new NextResponse(toWebStream(await streamFile(bucket, key)), { headers });
 }
 
 /** Extension → type, for the handful we serve inline. Anything absent here
