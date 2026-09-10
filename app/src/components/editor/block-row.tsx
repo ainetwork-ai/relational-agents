@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { createPortal } from "react-dom";
 import { useLocale, useT } from "@/i18n/provider";
@@ -1523,7 +1523,14 @@ function Editable({
  // the version (split/merge/type conversion/remote). Normal typing never
  // re-renders — the DOM is the source during composition. Rich blocks sync
  // via sanitized innerHTML, plain ones via innerText.
-  useEffect(() => {
+ //
+ // useLayoutEffect, not useEffect: a block that changed depth REMOUNTS (it
+ // moves in the React tree), so this runs as a fresh mount with an empty div.
+ // The editor's caret restore is a layout effect in the parent, and parents run
+ // after children — with a passive effect here the caret was placed in an empty
+ // node and fell to offset 0, which is exactly what Tab and Shift+Tab did to
+ // the caret before this (measured: the original keeps the offset).
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const wantHtml = block.content.html;

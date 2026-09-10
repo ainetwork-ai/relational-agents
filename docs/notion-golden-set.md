@@ -80,6 +80,8 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/status-edit-property.check.mjs` | 속성 편집 사이드바(도킹·헤더·그룹·옵션·푸터)와 옵션/그룹 메뉴, Esc 단계 |
 | `node e2e/chip-consistency.check.mjs` | 같은 값의 칩이 셀과 메뉴에서 같은 모양인지 |
 | `node e2e/chip-dark.check.mjs` | 라이트·다크 두 테마에서 칩 10색의 배경·글자·점, 그리고 속성 편집 색 메뉴의 스와치·링이 원본 값과 같은지 |
+| `node e2e/indent.check.mjs` | 들여쓰기(중첩) 전체 — Tab/Shift+Tab(단일·블록선택·텍스트선택), Enter 가 깊이를 물려받는지와 자식을 데려가는지, 빈 리스트 항목의 Enter, 맨 앞 Backspace 의 단계(리스트 서식 → 깊이 → 병합), 자식 올리기, 거절되는 Tab, 코드 안 Tab=탭 문자, 캐럿 유지, 새로 고침 후 유지 (기대값 `docs/notion-indent.md`) |
+| `node e2e/indent.measure.mjs` | 위와 같은 시나리오를 **재기만** 하는 쪽(우리 앱 현재 동작 기록용) |
 | `node e2e/view-columns.check.mjs` | 표의 열 순서·폭 13개 |
 | `node e2e/table-right-edge.check.mjs` | 끝까지 스크롤했을 때 표 뒤 여백 |
 | `node e2e/view-bar.check.mjs` | 뷰 탭 줄과 툴바(알약 탭·28×28 아이콘·분할 버튼) |

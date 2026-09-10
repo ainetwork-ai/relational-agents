@@ -45,6 +45,13 @@ import type { ItemId } from "@/lib/text-crdt/types";
 import { applyMoveTextSlice, applyTextOp } from "@/lib/text-crdt/ops";
 import { textInstanceOf } from "@/lib/text-crdt/content";
 import { usePagesStore } from "@/stores/pages";
+import {
+  LIST_TYPES,
+  indentBlocks,
+  outdentBlocks,
+  liftChildren,
+  moveChildren,
+} from "@/lib/editor/indent";
 
 export interface EBlock {
   id: string;
@@ -214,8 +221,8 @@ function fromRow(b: Block): EBlock {
 // mismatched (server block-<a>, client block-<b>). Derived from the pageId
 // instead: same page, same id, on both sides. The namespace is arbitrary but
 // must never change.
-// blocks that take no children in the original — Tab never nests under them
-const NO_CHILDREN = new Set<string>(["heading1", "heading2", "heading3", "divider", "code", "image", "file", "video", "bookmark", "embed", "equation", "table", "database"]);
+// blocks that take no children in the original — Tab never nests under them.
+// The set and the tree surgery live in lib/editor/indent.ts (measured rules).
 // where a markdown prefix converts the block (the original converts an EMPTY list item too)
 const SHORTCUT_HOSTS = new Set<string>(["paragraph", "bulleted_list", "numbered_list", "todo", "toggle"]);
 const BOOTSTRAP_NS = "9a3c5e88-0b5d-4b6a-9f3e-2f1c7a4d8e01";
@@ -561,6 +568,9 @@ export const BlockEditor = forwardRef<
     return () => clearTimeout(warm);
   }, []);
 
+ // A cross-block text selection that survived a Tab (see onRootKeyDownCapture)
+  const pendingSelection = useRef<{ startId: string; startOff: number; endId: string; endOff: number } | null>(null);
+
  // Apply pending caret placement after React commits block changes.
  // useLayoutEffect (not useEffect): during fast typing the NEXT keydown can
  // arrive before a passive effect runs, landing keystrokes in the pre-split
@@ -568,11 +578,66 @@ export const BlockEditor = forwardRef<
   useLayoutEffect(() => {
     const pf = pendingFocus.current;
     if (!pf) return;
-    const el = editables.current.get(pf.id);
-    if (el) {
+ // A block that changed depth is a different node in the React tree, so its
+ // editable can arrive a frame late — and the map can still hold the detached
+ // old one. Place the caret only in a CONNECTED node, and retry next frame
+ // otherwise; dropping the request left the caret at offset 0 (Tab, measured).
+    const apply = () => {
+      const el = editables.current.get(pf.id);
+      if (!el || !el.isConnected) return false;
       setCaret(el, pf.pos);
+      if (typeof pf.pos === "number" && caretOffset(el) !== pf.pos) setCaret(el, pf.pos);
+      return true;
+    };
+    if (apply()) {
       pendingFocus.current = null;
+      return;
     }
+    const raf = requestAnimationFrame(() => {
+      if (apply()) pendingFocus.current = null;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [blocks]);
+
+ // …and the same for a text selection that spanned blocks (Tab keeps it).
+  useLayoutEffect(() => {
+    const ps = pendingSelection.current;
+    if (!ps) return;
+    const place = () => {
+      const a = editables.current.get(ps.startId);
+      const b = editables.current.get(ps.endId);
+      if (!a || !b || !a.isConnected || !b.isConnected) return false;
+      const at = (el: HTMLElement, off: number): [Node, number] => {
+        let left = off;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let n = walker.nextNode();
+        while (n) {
+          const len = n.textContent?.length ?? 0;
+          if (left <= len) return [n, left];
+          left -= len;
+          n = walker.nextNode();
+        }
+        return [el, el.childNodes.length];
+      };
+      const sel = window.getSelection();
+      if (!sel) return true;
+      const r = document.createRange();
+      const [sn, so] = at(a, ps.startOff);
+      const [en, eo] = at(b, ps.endOff);
+      r.setStart(sn, so);
+      r.setEnd(en, eo);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      return true;
+    };
+    if (place()) {
+      pendingSelection.current = null;
+      return;
+    }
+    const raf = requestAnimationFrame(() => {
+      if (place()) pendingSelection.current = null;
+    });
+    return () => cancelAnimationFrame(raf);
   }, [blocks]);
 
  // After a remote character op re-rendered the focused block, put the caret
@@ -741,6 +806,10 @@ export const BlockEditor = forwardRef<
                     type: a.type ?? b.type,
                     content: a.content ?? b.content,
                     parentBlockId: a.parentBlockId !== undefined ? a.parentBlockId : b.parentBlockId,
+ // position travels with parentBlockId in an indent/outdent (block-diff sends
+ // both); dropping it here left the other tab with the new parent and the old
+ // order, so the same page rendered differently in two tabs.
+                    position: a.position !== undefined ? (a.position as number) : b.position,
                     version: b.version + 1,
                   }
                 : b
@@ -1140,6 +1209,30 @@ export const BlockEditor = forwardRef<
     [emojiSug, mutate]
   );
 
+ // Tab / Shift+Tab on one block or on a whole selection. The rules (which run
+ // of siblings moves, what the outdented block adopts, how positions are
+ // rewritten) are in lib/editor/indent.ts, measured on the original
+ // 2026-09-10 — docs/notion-indent.md.
+ //
+ // `keepCaret` restores the caret to the same character afterwards: the row
+ // remounts at its new depth, so without this the caret lands at offset 0 of
+ // the new node (measured on our own app before the fix).
+  const nest = useCallback(
+    (ids: string[], dir: "in" | "out", keepCaret?: { id: string; el: HTMLElement }) => {
+      const off = keepCaret ? caretOffset(keepCaret.el) : null;
+      let moved = false;
+      mutate((prev) => {
+        const next = prev.map((b) => ({ ...b }));
+        moved = dir === "in" ? indentBlocks(next, ids) : outdentBlocks(next, ids);
+        if (!moved) return prev; // refused: no previous sibling, or it takes no children
+        if (keepCaret && off !== null) pendingFocus.current = { id: keepCaret.id, pos: off };
+        return next;
+      });
+      return moved;
+    },
+    [mutate]
+  );
+
   const splitBlock = useCallback(
     (id: string, el: HTMLElement) => {
       const off = caretOffset(el);
@@ -1179,8 +1272,18 @@ export const BlockEditor = forwardRef<
           pendingFocus.current = { id: out.id, pos: "start" };
           return rest;
         }
- // Enter on an empty continuing block exits the list instead of adding.
+ // Enter on an empty continuing block. Measured on the original (T5b,
+ // 2026-09-10): an INDENTED empty list item climbs one level and stays a list
+ // item; only at the top level does it become a paragraph. We used to convert
+ // in place at any depth, which made a nested list impossible to leave without
+ // Shift+Tab.
         if (CONTINUING.includes(cur.type) && text === "") {
+          if (cur.parentBlockId) {
+            if (outdentBlocks(next, [cur.id])) {
+              pendingFocus.current = { id: cur.id, pos: "start" };
+              return next;
+            }
+          }
           cur.type = "paragraph";
           cur.version++;
           pendingFocus.current = { id: cur.id, pos: "start" };
@@ -1225,6 +1328,13 @@ export const BlockEditor = forwardRef<
           if (cur.type === "todo") nb.content.checked = false;
         }
         next.push(nb);
+ // The children go with the SECOND half. Measured on the original
+ // (T13/T13b/T13c/T14b, 2026-09-10): pressing Enter at the end of a block that
+ // has children puts the new line directly under it and re-parents the
+ // children to that new line — so the nesting below stays put instead of the
+ // new block appearing under the whole subtree at the wrong level.
+ // A toggle/callout keeps its own children: there the new block went INSIDE it.
+        if (!intoToggle && !intoCallout) moveChildren(next, cur.id, nb.id);
         pendingFocus.current = { id: nb.id, pos: "start" };
         return next;
       });
@@ -1237,6 +1347,27 @@ export const BlockEditor = forwardRef<
       const text = normalize(el);
       const block = blocksRef.current.find((b) => b.id === id);
       if (!block) return false;
+
+ // Backspace at offset 0 peels ONE thing per press, and the original's order
+ // depends on the type (measured 2026-09-10, docs/notion-indent.md):
+ //   a nested list item  → drops the bullet/number/checkbox, SAME depth (T7c)
+ //   anything else nested → climbs one level (T7 paragraph, T7b later child,
+ //                          T7d heading — the heading stays a heading)
+ //   at the top level     → the existing style-drop / merge below
+ // Before this an indented block merged into its previous sibling, and an
+ // indented FIRST child did nothing at all: it was stuck at its depth.
+      if (LIST_TYPES.has(block.type)) {
+        mutate((prev) =>
+          prev.map((b) =>
+            b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
+          )
+        );
+        pendingFocus.current = { id, pos: "start" };
+        return true;
+      }
+      if (block.parentBlockId) {
+        if (nest([id], "out", { id, el })) return true;
+      }
 
  // Styled block → demote to paragraph first.
       if (block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
@@ -1288,7 +1419,15 @@ export const BlockEditor = forwardRef<
       const curHtml = block.content.html ?? escapeHtml(text);
       deletedIds.current.add(id);
       mutate((prev) => {
-        const next = prev
+ // Nothing renders a block whose parent is gone (roots are parentBlockId ===
+ // null), so a merge that deletes a block with children used to make that
+ // whole subtree vanish from the page while still saving it. The original lifts
+ // them to where the deleted block was — NOT into the block that absorbed the
+ // text (T28: A, B⊃K → Backspace at B's start leaves 'AB' and K at the TOP
+ // level right after it).
+        const lifted = prev.map((b) => ({ ...b }));
+        liftChildren(lifted, id, block.parentBlockId ?? null, prevSib.id);
+        const next = lifted
           .filter((b) => b.id !== id)
           .map((b) =>
             b.id === prevSib.id
@@ -1310,7 +1449,7 @@ export const BlockEditor = forwardRef<
       pendingFocus.current = { id: prevSib.id, pos: prevLen };
       return true;
     },
-    [childrenOf, mutate]
+    [childrenOf, mutate, nest]
   );
 
   const moveBlock = useCallback(
@@ -1755,7 +1894,6 @@ export const BlockEditor = forwardRef<
     },
     [selectedIds]
   );
-  const LIST_TYPES = useMemo(() => new Set<string>(["bulleted_list", "numbered_list", "todo", "toggle"]), []);
   const haloInset = useCallback(
     (id: string): { top: number; bottom: number } => {
       const all = blocksRef.current;
@@ -1767,7 +1905,7 @@ export const BlockEditor = forwardRef<
       const next = sibs[i + 1];
       return { top: prev && LIST_TYPES.has(prev.type) ? 1 : 2, bottom: next && LIST_TYPES.has(next.type) ? 1 : 2 };
     },
-    [LIST_TYPES]
+    []
   );
 
   const withSubtree = useCallback((ids: Set<string>): Set<string> => {
@@ -2047,6 +2185,47 @@ export const BlockEditor = forwardRef<
         if (startLeaf && startLeaf.closest("[data-block-type]") === first) startLeaf.focus({ preventScroll: true });
         return;
       }
+      if (e.key === "Tab") {
+ // A text selection that spans blocks: Tab moves EVERY block it touches, not
+ // just the one holding the caret (measured on the original, T16 2026-09-10 —
+ // both spanned blocks went one level in and stayed siblings of each other).
+        e.preventDefault();
+        e.stopPropagation();
+        const ids: string[] = [];
+        for (const row of root.querySelectorAll<HTMLElement>("[data-block-type]")) {
+          if (row === first || row === last || range.intersectsNode(row)) {
+            const id = row.getAttribute("data-testid")?.slice("block-".length);
+            if (id) ids.push(id);
+          }
+        }
+ // and the selection survives it (T16b: the same four characters were still
+ // selected after Tab and after Shift+Tab), so remember its ends by character
+ // offset and re-select once the rows have re-rendered at their new depth
+        const own = (row: Element) => {
+          const ce = row.querySelector<HTMLElement>("[contenteditable]");
+          return ce && ce.closest("[data-block-type]") === row ? ce : null;
+        };
+        const offIn = (leaf: HTMLElement, node: Node, offset: number) => {
+          const r = document.createRange();
+          r.selectNodeContents(leaf);
+          r.setEnd(node, offset);
+          return r.toString().length;
+        };
+        const startLeaf = own(first);
+        const endLeaf = own(last);
+        const idAttr = (row: Element) => row.getAttribute("data-testid")?.slice("block-".length) ?? "";
+        const keep =
+          startLeaf && endLeaf
+            ? {
+                startId: idAttr(first),
+                startOff: offIn(startLeaf, range.startContainer, range.startOffset),
+                endId: idAttr(last),
+                endOff: offIn(endLeaf, range.endContainer, range.endOffset),
+              }
+            : null;
+        if (nest(ids, e.shiftKey ? "out" : "in") && keep) pendingSelection.current = keep;
+        return;
+      }
       const printable = e.key.length === 1;
       const edits = printable || e.key === "Backspace" || e.key === "Delete" || e.key === "Enter";
       if (!edits) return;
@@ -2103,7 +2282,7 @@ export const BlockEditor = forwardRef<
       });
       pendingFocus.current = { id: firstId, pos: caretPos };
     },
-    [mutate]
+    [mutate, nest]
   );
 
  // In selection mode the caret is blurred, so keys are handled at the window.
@@ -2138,6 +2317,15 @@ export const BlockEditor = forwardRef<
         const ids = order.filter((id) => selectedIdsRef.current.has(id));
         copyPayload(serializeBlocks(blocksRef.current, ids));
         if (e.key.toLowerCase() === "x") bulkDelete();
+      } else if (e.key === "Tab") {
+ // A block selection indents/outdents the whole selection and KEEPS it
+ // (measured on the original, T15 2026-09-10: two selected blocks both moved
+ // one level and stayed selected). The caret is blurred in this mode, so the
+ // per-block Tab handler never fires — this used to leak Tab to the browser,
+ // which moved focus out of the editor and did nothing to the blocks.
+        e.preventDefault();
+        const ids = order.filter((id) => selectedIdsRef.current.has(id));
+        nest(ids, e.shiftKey ? "out" : "in");
       } else if (e.key === "Escape") {
         e.preventDefault();
         clearSelection();
@@ -2145,50 +2333,16 @@ export const BlockEditor = forwardRef<
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [selectedIds, visualOrder, rangeIds, bulkDelete, bulkDuplicate, clearSelection]);
+  }, [selectedIds, visualOrder, rangeIds, bulkDelete, bulkDuplicate, clearSelection, nest]);
 
   const indentBlock = useCallback(
-    (id: string, el: HTMLElement) => {
-      const off = caretOffset(el);
-      mutate((prev) => {
-        const next = prev.map((b) => ({ ...b }));
-        const cur = next.find((b) => b.id === id);
-        if (!cur) return prev;
-        const sibs = next
-          .filter((b) => (b.parentBlockId ?? null) === (cur.parentBlockId ?? null))
-          .sort((a, b) => a.position - b.position);
-        const idx = sibs.findIndex((s) => s.id === id);
-        const prevSib = sibs[idx - 1];
-        if (!prevSib) return prev; // first child can't indent
-        if (NO_CHILDREN.has(prevSib.type)) return prev; // the original: a heading (divider, code…) takes no children
-        const kids = next
-          .filter((b) => b.parentBlockId === prevSib.id)
-          .sort((a, b) => a.position - b.position);
-        cur.parentBlockId = prevSib.id;
-        cur.position = (kids[kids.length - 1]?.position ?? 0) + 1;
-        pendingFocus.current = { id, pos: off };
-        return next;
-      });
-    },
-    [mutate]
+    (id: string, el: HTMLElement) => nest([id], "in", { id, el }),
+    [nest]
   );
 
   const outdentBlock = useCallback(
-    (id: string, el: HTMLElement) => {
-      const off = caretOffset(el);
-      mutate((prev) => {
-        const next = prev.map((b) => ({ ...b }));
-        const cur = next.find((b) => b.id === id);
-        if (!cur || !cur.parentBlockId) return prev; // already top-level
-        const parent = next.find((b) => b.id === cur.parentBlockId);
-        if (!parent) return prev;
-        cur.parentBlockId = parent.parentBlockId ?? null;
-        cur.position = positionAfter(next, parent);
-        pendingFocus.current = { id, pos: off };
-        return next;
-      });
-    },
-    [mutate, positionAfter]
+    (id: string, el: HTMLElement) => nest([id], "out", { id, el }),
+    [nest]
   );
 
   const onKeyDown = useCallback(
@@ -2388,6 +2542,15 @@ export const BlockEditor = forwardRef<
         return;
       }
 
+      if (e.key === "Tab" && block.type === "code") {
+ // A code block's Tab is a tab CHARACTER, not a block indent (measured on the
+ // original, T23 2026-09-10: the code read "\tab" and the block stayed at its
+ // depth). We used to indent the block, so code could not be indented at all.
+        e.preventDefault();
+        if (e.shiftKey) return; // Shift+Tab in code: the original does nothing
+        document.execCommand("insertText", false, "\t");
+        return;
+      }
       if (e.key === "Tab") {
         e.preventDefault();
         if (e.shiftKey) outdentBlock(id, el);
