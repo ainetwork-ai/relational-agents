@@ -58,7 +58,7 @@ async function build(name, seed) {
     const bucket = parentBlockId ?? "root";
     const position = (nth.get(bucket) ?? 0) + 1;
     nth.set(bucket, position);
-    return { id, type: s.type ?? "paragraph", content: contentOf(s.type ?? "paragraph", s.text ?? s.k), parentBlockId, position };
+    return { id, type: s.type ?? "paragraph", content: { ...contentOf(s.type ?? "paragraph", s.text ?? s.k), ...(s.content ?? {}) }, parentBlockId, position };
   });
   const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { method: "PUT", headers: H, body: JSON.stringify({ blocks, deletedIds: stale, newIds: blocks.map((b) => b.id) }) });
   if (!put.ok) throw new Error(`seed failed ${put.status}`);
@@ -143,6 +143,12 @@ const domTree = () =>
     });
   });
 
+/** 저장된 원본 블록 그대로 (content 까지 봐야 하는 검사용) */
+async function blocksOf(p) {
+  const r = await fetch(`${BASE}/api/pages/${p.pageId}/blocks`, { headers: H }).then((x) => x.json()).catch(() => ({}));
+  return r.blocks ?? [];
+}
+
 /** 저장된 진실 — 같은 답이 두 번 연속 나올 때까지 */
 async function persisted(p) {
   let prev = null, rows = [];
@@ -170,7 +176,26 @@ async function persisted(p) {
 
 /** 화면 모양을 한 줄로 — "A@0 B@1" (텍스트가 있으면 텍스트, 없으면 타입) */
 const shape = (tree) => tree.map((b) => `${b.text || b.type}@${b.depth}`).join(" ");
-const pshape = (rows) => rows.map((r) => `${r.text || r.type}@${r.depth}`).join(" ");
+/** 저장된 트리를 문서 순서로 — position 은 형제 목록 안에서만 1..n 이라
+ *  API 가 주는 순서(평평한 정렬)로는 부모와 자식이 섞인다 */
+const pshape = (rows) => {
+  const kids = new Map();
+  for (const r of rows) {
+    const k = r.parentKey ?? null;
+    if (!kids.has(k)) kids.set(k, []);
+    kids.get(k).push(r);
+  }
+  for (const list of kids.values()) list.sort((a, b) => a.position - b.position);
+  const out = [];
+  const walk = (parent) => {
+    for (const r of kids.get(parent) ?? []) {
+      out.push(`${r.text || r.type}@${r.depth}`);
+      walk(r.key);
+    }
+  };
+  walk(null);
+  return out.join(" ");
+};
 const dump = (tree) => tree.map((b) => `${b.type}@d${b.depth} pad${b.padLeft} ${JSON.stringify(b.text)}`).join(" | ");
 
 const scenarios = {};
@@ -587,6 +612,83 @@ scenario("backspace_edges", async () => {
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(600);
   check("첫 블록의 자식은 그 자리로 올라온다", shape(await domTree()) === "KK@0 ZZ@0", dump(await domTree()));
+});
+
+// ── 접힌 토글 — 2026-09-10 3차 실측 (scratchpad/nind-M7·M8·M10.jsonl) ──────
+// 원본에서 잰 네 가지:
+//  M7 S2  앞 형제가 접힌 토글일 때 Tab → 토글이 **펴지고** 그 마지막 자식이 된다
+//  M7 S1  접힌 토글 제목 끝 Enter → **형제 토글**이 생기고 숨은 자식은 그대로
+//  M10 D1 접힌 토글 제목 가운데 Enter → 토글 둘로 갈라지고 자식은 **앞쪽**에 남는다
+//  M7 S3  자식을 못 받는 타입(제목)에서 Shift+Tab → 뒤 형제를 **안 데려간다**
+//  M8 S5  접힌 토글에서 Shift+Tab → 뒤 형제를 **데려간다**(접힌 채라 안 보인다)
+scenario("tab_into_folded_toggle", async () => {
+  const p = await build("tab_into_folded_toggle", [
+    { k: "TG", type: "toggle", text: "TG", content: { expanded: false } },
+    { k: "K", parent: "TG", text: "KK" },
+    { k: "X", text: "XX" },
+  ]);
+  await caret(p.ids.X, "end");
+  await tab.keyboard.press("Tab");
+  await tab.waitForTimeout(550);
+  const t = await domTree();
+  check("접힌 토글로 Tab: 토글이 펴지고 마지막 자식이 된다", shape(t) === "TG@0 KK@1 XX@1", dump(t));
+  const c = await caretNow();
+  check("접힌 토글로 Tab: 캐럿이 살아 있다", c && !c.none && c.offset === 2, JSON.stringify(c));
+  const rows = await persisted(p);
+  check("저장도 같은 트리", pshape(rows) === "TG@0 KK@1 XX@1", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  const saved = await blocksOf(p);
+  check("저장된 토글이 펴져 있다", saved.find((b) => b.id === p.ids.TG)?.content?.expanded === true,
+    JSON.stringify(saved.find((b) => b.id === p.ids.TG)?.content));
+});
+
+scenario("enter_on_folded_toggle", async () => {
+  const p = await build("enter_on_folded_toggle", [
+    { k: "TG", type: "toggle", text: "TG", content: { expanded: false } },
+    { k: "K", parent: "TG", text: "KK" },
+  ]);
+  await caret(p.ids.TG, "end");
+  await tab.keyboard.press("Enter");
+  await tab.waitForTimeout(400);
+  await tab.keyboard.type("NN");
+  await tab.waitForTimeout(500);
+  const t = await domTree();
+  check("접힌 토글에서 Enter: 숨은 자식이 새어 나오지 않는다", shape(t) === "TG@0 NN@0", dump(t));
+  check("접힌 토글에서 Enter: 새 줄도 토글", t.find((b) => b.text === "NN")?.type === "toggle", dump(t));
+  const rows = await persisted(p);
+  check("저장: 자식은 토글 안에 그대로", rows.find((r) => r.key === "K")?.parentKey === "TG",
+    JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+});
+
+scenario("shift_tab_heading_no_adopt", async () => {
+  const p = await build("shift_tab_heading_no_adopt", [
+    { k: "A", type: "bulleted_list", text: "AA" },
+    { k: "H", type: "heading2", parent: "A", text: "HH" },
+    { k: "B", parent: "A", text: "BB" },
+  ]);
+  await caret(p.ids.H, "end");
+  await tab.keyboard.press("Shift+Tab");
+  await tab.waitForTimeout(550);
+  const t = await domTree();
+  check("제목은 뒤 형제를 데려가지 않는다", shape(t) === "AA@0 BB@1 HH@0", dump(t));
+  const rows = await persisted(p);
+  check("저장도 같은 트리", pshape(rows) === "AA@0 BB@1 HH@0", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+});
+
+scenario("shift_tab_folded_toggle_adopts", async () => {
+  const p = await build("shift_tab_folded_toggle_adopts", [
+    { k: "A", type: "bulleted_list", text: "AA" },
+    { k: "TG", type: "toggle", parent: "A", text: "TG", content: { expanded: false } },
+    { k: "K", parent: "TG", text: "KK" },
+    { k: "B", parent: "A", text: "BB" },
+  ]);
+  await caret(p.ids.TG, "end");
+  await tab.keyboard.press("Shift+Tab");
+  await tab.waitForTimeout(600);
+  const t = await domTree();
+  check("접힌 토글은 뒤 형제를 데려가고 접힌 채로 있다", shape(t) === "AA@0 TG@0", dump(t));
+  const rows = await persisted(p);
+  check("저장: 뒤 형제가 토글의 자식", rows.find((r) => r.key === "B")?.parentKey === "TG",
+    JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
 // ── 실행 ───────────────────────────────────────────────────────────────────

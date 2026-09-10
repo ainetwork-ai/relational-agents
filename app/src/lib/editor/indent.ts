@@ -33,6 +33,9 @@ export interface TreeBlock {
   type: string;
   parentBlockId: string | null;
   position: number;
+  /** only `expanded` is read here — a folded toggle opens when it receives a
+   * Tab-nested child (measured 2026-09-10, M7 S2) */
+  content?: { expanded?: boolean } & Record<string, unknown>;
 }
 
 /**
@@ -93,6 +96,20 @@ function renumber<T extends TreeBlock>(all: T[], parentId: string | null): void 
   childrenOf(all, parentId).forEach((b, i) => {
     b.position = i + 1;
   });
+}
+
+/** a toggle that is not showing its children right now */
+export function isFolded(b: TreeBlock): boolean {
+  return b.type === "toggle" && b.content?.expanded === false;
+}
+
+/** Tab into a FOLDED toggle opens it, so the block you just indented is still
+ * on screen (measured 2026-09-10, M7 S2: the toggle expanded and the block
+ * became its last child). Refusing instead would swallow the line and strand
+ * the caret. The content object is replaced, not mutated, so the save diff
+ * sees the change. */
+function unfold<T extends TreeBlock>(b: T): void {
+  if (isFolded(b)) b.content = { ...b.content, expanded: true };
 }
 
 /** is `maybeAncestor` an ancestor of `b`? */
@@ -161,6 +178,7 @@ export function indentBlocks<T extends TreeBlock>(all: T[], ids: string[]): bool
       .reverse()
       .find((s) => !run.some((r) => r.id === s.id));
     if (!prev || NO_CHILDREN.has(prev.type)) continue;
+    unfold(prev);
     const oldParent = parentOf(run[0]);
     appendUnder(all, prev.id, run);
     renumber(all, prev.id);
@@ -206,8 +224,13 @@ export function outdentBlocks<T extends TreeBlock>(all: T[], ids: string[]): boo
       b.position = i + 1;
     });
 
-    // 2. the run's last block adopts what stayed behind after it
-    if (later.length) appendUnder(all, run[run.length - 1].id, later);
+    // 2. the run's last block adopts what stayed behind after it — unless it is
+    //    a type that takes no children (a heading, code…). Measured 2026-09-10
+    //    (M7 S3): outdenting a heading out of a bullet leaves the following
+    //    siblings in the old parent and puts the heading after that subtree.
+    //    A FOLDED toggle does adopt them, and stays folded (M8 S5).
+    const adopter = run[run.length - 1];
+    if (later.length && !NO_CHILDREN.has(adopter.type)) appendUnder(all, adopter.id, later);
 
     renumber(all, parentId);
     renumber(all, run[run.length - 1].id);

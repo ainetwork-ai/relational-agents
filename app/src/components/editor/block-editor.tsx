@@ -997,12 +997,28 @@ export const BlockEditor = forwardRef<
   );
 
   const positionAfter = useCallback((all: EBlock[], after: EBlock): number => {
-    const sibs = all
-      .filter((b) => (b.parentBlockId ?? null) === (after.parentBlockId ?? null))
-      .sort((a, b) => a.position - b.position);
-    const idx = sibs.findIndex((s) => s.id === after.id);
-    const next = sibs[idx + 1];
-    return next ? (after.position + next.position) / 2 : after.position + 1;
+    const parentId = after.parentBlockId ?? null;
+    const sibsOf = () =>
+      all
+        .filter((b) => (b.parentBlockId ?? null) === parentId)
+        .sort((a, b) => a.position - b.position);
+    let sibs = sibsOf();
+    let idx = sibs.findIndex((s) => s.id === after.id);
+    let self = idx >= 0 ? sibs[idx] : after;
+    let next = sibs[idx + 1];
+ // The new line takes the midpoint of the gap to the next sibling. Halving a
+ // float gap runs out of room after ~53 Enters: the midpoint comes back equal
+ // to the block's own position, the two lines tie, and their order is left to
+ // whatever the sort does with a tie. When the gap gets that small, renumber
+ // the sibling list to whole numbers — the gap is 1 again and a midpoint exists.
+    if (idx >= 0 && next && (self.position + next.position) / 2 <= self.position) {
+      renumberSiblings(all, parentId);
+      sibs = sibsOf();
+      idx = sibs.findIndex((s) => s.id === after.id);
+      self = sibs[idx];
+      next = sibs[idx + 1];
+    }
+    return next ? (self.position + next.position) / 2 : self.position + 1;
   }, []);
 
   const registerEl = useCallback((id: string, el: HTMLElement | null) => {
@@ -1363,6 +1379,12 @@ export const BlockEditor = forwardRef<
  // first child — the original's behaviour (2026-08-26 input cases). A
  // collapsed toggle, or a split mid-title, keeps the sibling behaviour.
         const intoToggle = cur.type === "toggle" && cur.content.expanded !== false && after === "";
+ // A FOLDED toggle behaves like a list item instead: the new line is a SIBLING
+ // of the same type and the hidden children stay where they are. Measured
+ // 2026-09-10 (M7 S1 at the end of the title, M10 D1 in the middle of it) —
+ // moving the children onto the new block would reveal a subtree the user had
+ // just folded away.
+        const foldedToggle = cur.type === "toggle" && cur.content.expanded === false;
  // A callout is a container in the original: its text IS its first child
  // paragraph. Enter at the end of the callout's own text adopts that model —
  // the text moves into a real first child, and the new line becomes the
@@ -1391,6 +1413,9 @@ export const BlockEditor = forwardRef<
         if (CONTINUING.includes(cur.type)) {
           nb.type = cur.type;
           if (cur.type === "todo") nb.content.checked = false;
+        } else if (foldedToggle) {
+          nb.type = "toggle";
+          nb.content.expanded = true;
         }
         next.push(nb);
  // The children go with the SECOND half. Measured on the original
@@ -1399,7 +1424,7 @@ export const BlockEditor = forwardRef<
  // children to that new line — so the nesting below stays put instead of the
  // new block appearing under the whole subtree at the wrong level.
  // A toggle/callout keeps its own children: there the new block went INSIDE it.
-        if (!intoToggle && !intoCallout) moveChildren(next, cur.id, nb.id);
+        if (!intoToggle && !intoCallout && !foldedToggle) moveChildren(next, cur.id, nb.id);
         pendingFocus.current = { id: nb.id, pos: "start" };
         return next;
       });
