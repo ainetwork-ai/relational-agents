@@ -95,6 +95,7 @@ ssh -R 9333:127.0.0.1:9333 comcom@192.168.1.194
 | `node e2e/row-comment-badge.check.mjs` | 댓글 달린 행의 제목 셀 배지(20 높이·아이콘 16·제목 뒤 5·0이면 없음) |
 | `node e2e/row-comment-popover.check.mjs` | 그 배지가 여는 480px 팝오버 — 배지 가운데 정렬, 아바타 24/이름 15.5/본문 38 |
 | `ROW_PAGE_ID=… node e2e/page-comments-inline.check.mjs` | 페이지 안 `댓글` 섹션 — 안쪽 스크롤 없음, 한 칸 64, 멘션이 칩이 아님, 도킹 패널 없음 |
+| `node e2e/mention.check.mjs` | 댓글의 멘션(@) — 여는·닫는 조건(`@` 바로 뒤 공백만 취소, 질의 안의 공백은 유지), 사람 검색(이름+이메일 부분 일치·대소문자 무시·한글 초성)과 순서(맨 앞 > 단어 앞 > 가운데, 나 먼저 게스트 나중), 모달 330×325/행 322×28/아바타 20@8/섹션 머리 12px·500, `N개 결과 더 보기`, `결과 없음` 330×65, 고르면 `@이름 ` + Backspace 두 번에 통째로, 메뉴가 열렸을 때 Enter 는 보내지 않음 (기대값 `docs/notion-comment-mention.md`) |
 | `ROW_PAGE_ID=… node e2e/comment-collapse.check.mjs` | 댓글이 4개부터 접히는 규칙 — 첫 개·마지막 개만 남고 `답글 (총−2)개 더 보기` |
 | `node e2e/ime-enter.check.mjs` | 한글 조합 중 Enter 가 댓글을 보내지 않는지 (조합 확정 후 1건) |
 | `ROW_PAGE_ID=… node e2e/comment-attachment.check.mjs` | 댓글 클립 — 다중 선택·확장자 제한 없는 선택창, 칩, 파일만으로도 전송, 저장·렌더 |

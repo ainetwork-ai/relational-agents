@@ -60,21 +60,38 @@ export function matchRank(haystack: string, needle: string): number {
   return /[\s._\-@]/.test(h[i - 1]) ? 1 : 2;
 }
 
-/** 한 사람에 대한 최종 등급 — 이름과 이메일 중 더 좋은 쪽. 초성 질의면 초성으로도 본다. */
+/** 이메일로만 걸렸을 때의 가산점. 원본 측정은 이름 대 이메일의 우열을 말해 주지 않아
+ *  **보이는 쪽(이름)** 을 앞에 둔다. 한 등급을 다 먹지는 않게 0.5 로 둔다. */
+const EMAIL_PENALTY = 0.5;
+
+/** 게스트 가산점. 측정(§2)에서 게스트의 접두사 일치는 멤버의 접두사 일치보다 아래,
+ *  멤버의 가운데 일치보다는 위였다 — 딱 한 등급짜리 벌점이다.
+ *    `kim`  → KimSan(멤버·0) · Minhyun Kim(멤버·1) · Bansuk Kim(멤버·1) · KimGloria(게스트·0+1) …
+ *    `hy`   → …프리픽스 멤버들… · 장현욱(게스트·이메일 0+0.5+1) · Minhyun Kim(멤버·가운데 2) */
+const GUEST_PENALTY = 1;
+
+/**
+ * 한 사람의 점수 — **낮을수록 위**. 안 걸리면 -1.
+ *
+ * 이름과 이메일을 모두 보되(§2), 이름 쪽이 같은 자리에서 이기고, 게스트는 한 등급
+ * 밀린다. 초성 질의(`ㅎ`)면 이름의 초성으로도 본다.
+ */
 export function personRank(p: MentionPerson, query: string): number {
   const q = query.trim();
-  if (!q) return 0;
-  const fields = [p.displayName ?? "", p.email ?? ""];
+  const guest = p.role === "guest" ? GUEST_PENALTY : 0;
+  if (!q) return guest;
+
   let best = -1;
-  for (const f of fields) {
-    const r = matchRank(f, q);
-    if (r >= 0 && (best < 0 || r < best)) best = r;
-  }
-  if (isJamoQuery(q)) {
-    const r = matchRank(leadJamo(p.displayName ?? ""), q);
-    if (r >= 0 && (best < 0 || r < best)) best = r;
-  }
-  return best;
+  const consider = (r: number, penalty: number) => {
+    if (r < 0) return;
+    const score = r + penalty;
+    if (best < 0 || score < best) best = score;
+  };
+  consider(matchRank(p.displayName ?? "", q), 0);
+  consider(matchRank(p.email ?? "", q), EMAIL_PENALTY);
+  if (isJamoQuery(q)) consider(matchRank(leadJamo(p.displayName ?? ""), q), 0);
+
+  return best < 0 ? -1 : best + guest;
 }
 
 export interface RankedPeople {
@@ -104,6 +121,8 @@ export function rankPeople(
 
   scored.sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
+   // 같은 점수 안에서: 나 먼저, 그 다음 멤버, 그 다음 원래 순서.
+   // (게스트 벌점은 이미 점수에 들어 있다 — 여기 비교는 동점을 가르는 것뿐이다.)
     const aMe = meId != null && a.p.id === meId ? 0 : 1;
     const bMe = meId != null && b.p.id === meId ? 0 : 1;
     if (aMe !== bMe) return aMe - bMe;
@@ -136,12 +155,22 @@ export interface MentionQuery {
  *    (우리 블록 편집기는 지금 공백만 보이면 닫는데, 그게 원본과 다른 부분이다.)
  */
 export function mentionQueryAt(text: string, caret: number): MentionQuery | null {
-  if (caret < 0 || caret > text.length) return null;
+ // caret 0 은 반드시 null 이다. `lastIndexOf("@", -1)` 은 음수 fromIndex 를 0 으로
+ // 죄어 index 0 을 그대로 맞혀 버려서, 캐럿이 맨 앞 `@` **앞**에 있어도 빈 질의로
+ // 메뉴가 열리고 Enter 가 초안 한가운데에 멘션을 끼워 넣었다.
+  if (caret <= 0 || caret > text.length) return null;
   const at = text.lastIndexOf("@", caret - 1);
   if (at < 0) return null;
   const query = text.slice(at + 1, caret);
   if (/^[\s\u00a0]/.test(query)) return null; // `@ ` — 바로 뒤가 공백이면 취소
   if (query.includes("\n")) return null;
+ // 이메일 주소는 멘션이 아니다. 원본은 `x@` 에서도 메뉴를 열지만(§1 T2), 우리는
+ // 이메일도 검색 대상이라(§2) `ping hyeonjj@comcom.ai` 를 치면 모든 사내 구성원이
+ // 걸리고 Enter 가 주소를 이름으로 바꿔 버렸다 — 보내려던 글이 조용히 망가진다.
+ // **앞이 글자이고 질의에 점이 있을 때만** 닫는다: 그게 이메일의 모양이고, 그 밖의
+ // `x@name` 은 원본대로 연다. 이 레포의 챗 멘션도 같은 이유로 같은 판단을 한다.
+  const before = at > 0 ? text[at - 1] : "";
+  if (/[A-Za-z0-9._+-]/.test(before) && query.includes(".")) return null;
   return { at, query };
 }
 

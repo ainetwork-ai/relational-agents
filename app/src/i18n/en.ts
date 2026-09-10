@@ -774,4 +774,25 @@ export const en: Record<string, string> = {
   임베드: "Embed",
   "대시보드 보기": "Dashboard view",
   열: "Columns",
+ // 수신함 — 첫 줄 문구는 통째로 번역한다. `{actor}`/`{page}` 는 굵은 조각이
+ // 들어갈 자리라 어순이 언어마다 달라도 된다(docs/notion-comment-mention.md §6).
+ // 한국어 문구는 원본에서 잰 그대로: 멘션은 `다음에서 나를 멘션함`, 댓글은
+ // `님이 … 에 댓글을 달았습니다.`
+  "{actor} 다음에서 나를 멘션함 {page}": "{actor} mentioned you in {page}",
+  "{actor}님이 나를 멘션했습니다": "{actor} mentioned you",
+  "{actor}님이 {page}에 댓글을 달았습니다.": "{actor} commented on {page}",
+  "{actor}님이 댓글을 달았습니다.": "{actor} left a comment",
+  "{actor}님이 {page}에 초대했습니다": "{actor} invited you to {page}",
+  "{actor}님이 나를 초대했습니다": "{actor} invited you",
+  "{actor}님의 관계 계약": "{actor}'s relationship agreement",
+  "{actor}님이 {page}에서 알림을 보냈습니다": "{actor} sent you a notification in {page}",
+  "{actor}님이 나에게 알림을 보냈습니다": "{actor} sent you a notification",
+  "⏰ 리마인더 · {page}": "⏰ Reminder · {page}",
+  "⏰ 리마인더": "⏰ Reminder",
+  "읽지 않음": "Unread",
+ // 멘션(@) 메뉴 — docs/notion-comment-mention.md §2. 사람은 5개까지 보이고
+ // 나머지는 이 한 줄로 접힌다(원본 한국어: `15개 결과 더 보기`). 게스트 행에는
+ // `게스트` 배지가 붙는다.
+  "{n}개 결과 더 보기": "Show {n} more results",
+  "게스트": "Guest",
 };

@@ -32,6 +32,8 @@ import { parseMarkdown } from "@/lib/memory-parse";
 import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
 import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";
+import { mentionQueryAt } from "@/lib/mention/search";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import { EmojiSuggestMenu, emojiCandidates, type EmojiCandidate } from "./emoji-suggest";
 import { loadEmojiSet } from "@/lib/emoji-data";
 import { BlockRow } from "./block-row";
@@ -1680,14 +1682,29 @@ export const BlockEditor = forwardRef<
         }
       }
 
- // @-mention live query (closes on removed '@' or a space)
+ // @-mention live query. The rule is `mentionQueryAt` — the same function the
+ // comment composer uses — so both surfaces open and close alike: only a space
+ // IMMEDIATELY after the '@' cancels, every later space is part of the query
+ // (`@hyeon jeong` keeps searching). Closing on any whitespace, which is what
+ // stood here, is the divergence docs/notion-comment-mention.md §1 measured.
       if (mention && mention.blockId === id) {
-        if (text.length < mention.offset || text[mention.offset - 1] !== "@") {
+        const q = mentionQueryAt(text, caretOffset(el));
+        if (!q) {
           setMention(null);
+        } else if (q.at === mention.offset - 1) {
+          if (q.query !== mention.query) setMention({ ...mention, query: q.query, selected: 0 });
         } else {
-          const q = text.slice(mention.offset);
-          if (/\s/.test(q)) setMention(null);
-          else setMention({ ...mention, query: q, selected: 0 });
+ // a newer '@' sits under the caret (typing `@` inside a query, as an email
+ // address does) — the menu belongs to that one now, exactly as it does in
+ // the composer, so hang it there rather than dying on the old run
+          const rect = caretRect() ?? el.getBoundingClientRect();
+          setMention({
+            ...mention,
+            offset: q.at + 1,
+            query: q.query,
+            selected: 0,
+            anchor: { x: rect.left, y: rect.top },
+          });
         }
       }
 
@@ -2677,9 +2694,21 @@ export const BlockEditor = forwardRef<
           return;
         }
         if (e.key === "Enter") {
-          e.preventDefault();
+ // A commit Enter belongs to the IME, not to the menu. The guard at the top
+ // of this handler only reads `isComposing`; some IMEs hand the commit over
+ // with `isComposing` false and keyCode 229 instead, and such an Enter picked
+ // a row here while the comment composer (`ime.composing`) let it settle the
+ // syllable. Same test on both surfaces now — a real Enter is keyCode 13, so
+ // nothing a user presses is lost.
+          if (isImeComposing(e)) return;
+         // Only swallow Enter when there is something to pick. With an empty
+         // list (a query nobody matches) preventDefault used to eat the key,
+         // so the rest of the line could never be committed — the same defect
+         // the comment composer had.
           const item = items[mention.selected] ?? items[0];
-          if (item) applyMentionPick(item);
+          if (!item) return;
+          e.preventDefault();
+          applyMentionPick(item);
           return;
         }
         if (e.key === "Escape") {

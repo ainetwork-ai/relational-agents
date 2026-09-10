@@ -39,9 +39,19 @@ interface CommentsState {
     body: string,
     blockId?: string | null,
    // what the upload returned; the server turns these into file rows
-    attachments?: { url: string; name: string; size?: number; mimeType?: string }[]
+    attachments?: { url: string; name: string; size?: number; mimeType?: string }[],
+   // who the composer actually picked from the @ menu. A plain body carries no
+   // `data-mention-*` markup, so the server cannot find its mentions by reading
+   // the text — it is told. Omitted by callers that have no menu; the shape
+   // stays what it was for them.
+    mentionIds?: string[]
   ) => Promise<PageComment | null>;
-  reply: (pageId: string, parentId: string, body: string) => Promise<PageComment | null>;
+  reply: (
+    pageId: string,
+    parentId: string,
+    body: string,
+    mentionIds?: string[]
+  ) => Promise<PageComment | null>;
   setResolved: (pageId: string, commentId: string, resolved: boolean) => Promise<void>;
   /** Delete one comment (the server allows only its author). Returns false when
    * the server refused, so the caller can say so instead of doing nothing. */
@@ -71,11 +81,11 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     set((s) => ({ countByPage: { ...s.countByPage, ...(counts as Record<string, number>) } }));
   },
 
-  add: async (pageId, body, blockId = null, attachments = []) => {
+  add: async (pageId, body, blockId = null, attachments = [], mentionIds = []) => {
     const res = await fetch(`/api/pages/${pageId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body, blockId, attachments }),
+      body: JSON.stringify({ body, blockId, attachments, mentionIds }),
     });
     if (!res.ok) return null;
     const { comment } = await res.json();
@@ -89,14 +99,14 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     return comment as PageComment;
   },
 
-  reply: async (pageId, parentId, body) => {
+  reply: async (pageId, parentId, body, mentionIds = []) => {
  // A reply inherits its parent's block anchor so the whole thread stays
  // pinned to the same block.
     const parent = (get().byPage[pageId] ?? []).find((c) => c.id === parentId);
     const res = await fetch(`/api/pages/${pageId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body, blockId: parent?.blockId ?? null, parentId }),
+      body: JSON.stringify({ body, blockId: parent?.blockId ?? null, parentId, mentionIds }),
     });
     if (!res.ok) return null;
     const { comment } = await res.json();

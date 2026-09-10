@@ -7,10 +7,12 @@ import { UserAvatar } from "@/components/user-avatar";
 import { useMe } from "@/stores/me";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useT, useIntlLocale } from "@/i18n/provider";
-import { useImeGuard } from "@/hooks/use-ime-guard";
 import { useAnchored } from "@/hooks/use-anchored";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useComposerAttachments, AttachmentsList } from "@/components/chat/composer-attachments";
+import { useWorkspaceMembers } from "@/hooks/use-workspace-members";
+import { MentionInput, type MentionInputHandle } from "./mention-input";
+import type { MentionPerson } from "@/lib/mention/search";
 
 /**
  * One comment, and the row of them — the shape the original uses in BOTH
@@ -37,6 +39,9 @@ export function CommentRow({
 }) {
   const t = useT();
   const locale = useIntlLocale();
+ // only a real member's name is a mention (see CommentBody). The pageId names
+ // the workspace to ask about — this page's, not the session's active one.
+  const members = useWorkspaceMembers(false, pageId);
   return (
     <div
       data-testid={`comment-row-${comment.id}`}
@@ -57,7 +62,7 @@ export function CommentRow({
             20px line, which is what makes one comment 64 tall */}
         {comment.body && (
           <p className="whitespace-pre-wrap py-[2px] text-[14px] font-normal leading-5 text-[#2c2c2b] dark:text-neutral-200">
-            <CommentBody body={comment.body} />
+            <CommentBody body={comment.body} members={members} />
           </p>
         )}
         <CommentAttachments attachments={comment.attachments} />
@@ -281,10 +286,26 @@ export function fmtBytes(n: number): string {
 /**
  * A mention inside a comment. The original does NOT draw a chip: no
  * background, no radius, no padding, no avatar — just the name tinted
- * rgb(125,122,117), with the @ itself dimmer still.
+ * rgb(125,122,117), with the @ itself dimmer still. Those two colours are
+ * measured and already right (e2e/fixtures/notion-row-comments.json).
+ *
+ * What was wrong was WHICH text got them: any `@word` at all, so an email
+ * address or a "@here" read as a mention. The original tints a real mention
+ * token and nothing else, so a run counts only when it spells a workspace
+ * member's display name. While the membership is still unknown (`null` — the
+ * fetch is in flight, or this is a share link with no session) the body is
+ * drawn as plain text: guessing is what we are fixing.
  */
-export function CommentBody({ body }: { body: string }): ReactNode {
-  const parts = body.split(MENTION);
+export function CommentBody({
+  body,
+  members,
+}: {
+  body: string;
+  members?: MentionPerson[] | null;
+}): ReactNode {
+  const re = mentionRe(members);
+  if (!re) return body;
+  const parts = body.split(re);
   return parts.map((part, i) =>
     i % 2 === 1 ? (
       <span key={i} className="text-[rgb(125,122,117)]">
@@ -297,8 +318,21 @@ export function CommentBody({ body }: { body: string }): ReactNode {
   );
 }
 
-/** `@` + a name that may hold single spaces — the shape our composer writes. */
-const MENTION = /@([\p{L}\p{N}_]+(?: [\p{L}\p{N}_]+)?)/gu;
+/**
+ * `@` + the display name of an actual member — longest name first, so
+ * "@Kim San" wins over a member also called "Kim", and never mid-word, so
+ * "@Kim" does not light up inside "@Kimchi".
+ */
+function mentionRe(members?: MentionPerson[] | null): RegExp | null {
+  if (!members?.length) return null;
+  const names = members
+    .map((m) => m.displayName)
+    .filter((n): n is string => !!n)
+    .sort((a, b) => b.length - a.length)
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!names.length) return null;
+  return new RegExp(`@(${names.join("|")})(?![\\p{L}\\p{N}_])`, "gu");
+}
 
 /**
  * The line that adds one. The original keeps three 24×24 buttons (radius 6) on
@@ -316,10 +350,14 @@ export function CommentComposer({
   const t = useT();
   const me = useMe();
   const add = useCommentsStore((s) => s.add);
+ // the composer is the surface that is always here (a thread with no comments
+ // yet still has one), so it is what tells the members fetch which page we are
+ // on — the @ menu it opens is handed only a caret and a query
+  useWorkspaceMembers(false, pageId);
   const [draft, setDraft] = useState("");
-  const ime = useImeGuard();
  // the clip: same upload path the chat composer uses (/api/upload → chips)
   const attach = useComposerAttachments();
+  const mention = useRef<MentionInputHandle>(null);
 
   async function submit() {
     const body = draft.trim();
@@ -331,9 +369,13 @@ export function CommentComposer({
       size: a.size,
       mimeType: a.mimeType,
     }));
+ // only the people still spelled in the text: a mention the writer deleted
+ // again must not send them a notification
+    const mentionIds = mention.current?.mentionIds(body) ?? [];
     setDraft("");
     attach.clear();
-    await add(pageId, body, blockId, files);
+    mention.current?.clear();
+    await add(pageId, body, blockId, files, mentionIds);
   }
 
   return (
@@ -345,20 +387,17 @@ export function CommentComposer({
       />
       <div className="flex items-center">
       <UserAvatar user={me ?? { displayName: "" }} size={24} />
-      <input
-        data-testid="comment-composer-input"
+      {/* MentionInput keeps the Enter rules (a menu-open Enter picks, an IME
+          Enter settles a syllable, everything else sends) and adds the @ menu
+          — the field itself is still the direct flex child the geometry
+          checks measure. */}
+      <MentionInput
+        ref={mention}
+        inputTestId="comment-composer-input"
         value={draft}
         autoFocus={autoFocus}
-        onChange={(e) => setDraft(e.target.value)}
-        {...ime.imeProps}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return;
-         // Enter that is settling a Korean syllable is not a send — without
-         // this the same keypress posted the text and then its last letter
-          if (ime.composing(e)) return;
-          e.preventDefault();
-          void submit();
-        }}
+        onChange={setDraft}
+        onSubmit={() => void submit()}
         placeholder={t("댓글 추가")}
        // 2.5px of its own padding, so the BOX starts at 29.5 and the text at
        // 32 — level with a comment's text column
@@ -379,7 +418,13 @@ export function CommentComposer({
           onChange={attach.handleFileInputChange}
           className="hidden"
         />
-        <ComposerButton label={t("멘션하려는 사용자, 페이지, 날짜를 입력하세요.")}>
+        {/* measured: the original's @ button really types an `@` into the
+            line, and the menu opens off that character like any other */}
+        <ComposerButton
+          label={t("멘션하려는 사용자, 페이지, 날짜를 입력하세요.")}
+          testid="comment-composer-mention"
+          onClick={() => mention.current?.insertAt()}
+        >
           <AtSign size={16} />
         </ComposerButton>
         <ComposerButton

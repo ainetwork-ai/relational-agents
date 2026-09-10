@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { comments, files, pages, users } from "@/lib/db/schema";
-import { asc, eq, inArray } from "drizzle-orm";
+import { comments, files, pages, users, workspaceMembers } from "@/lib/db/schema";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { storageRefFromClientUrl } from "@/lib/files/serve";
 import { isOkfId } from "@/lib/okf-store";
-import { notifyMentions, notifyPageComment } from "@/lib/notifications";
+import { notifyMentionIds, notifyPageComment } from "@/lib/notifications";
 import {
   validateShareToken,
   hasPermission,
@@ -19,7 +19,11 @@ import { okfGateFor } from "@/lib/okf-acl";
 export const dynamic = "force-dynamic";
 
 const MAX_ATTACHMENTS = 8;
+/** Notion refuses well before this; the point is a ceiling, not a style rule. */
+const MAX_BODY = 20_000;
 const MAX_ATTACHMENT_NAME = 200;
+const MAX_MENTIONS = 20;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface IncomingAttachment {
   url: string;
@@ -52,6 +56,83 @@ function parseAttachments(raw: unknown): IncomingAttachment[] | null {
       ...(typeof size === "number" && size >= 0 ? { size } : {}),
       ...(typeof mimeType === "string" ? { mimeType: mimeType.slice(0, 200) } : {}),
     });
+  }
+  return out;
+}
+
+/**
+ * `mentionIds` — who this comment @-mentions. The body is PLAIN TEXT, so the
+ * ids cannot be recovered from it (there is no chip markup to scan); the
+ * composer sends what it resolved and the server re-checks every one of them.
+ *
+ * Same contract as parseAttachments: a malformed SHAPE is a 400 (not an array,
+ * or more than MAX_MENTIONS), while junk INSIDE a well-formed array is dropped
+ * — a stale or half-typed id is not worth failing a comment over. Duplicates
+ * collapse here so the count that matters is the deduped one.
+ */
+function parseMentionIds(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_MENTIONS) return null;
+  const out = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const id = item.trim().toLowerCase();
+    if (UUID_RE.test(id)) out.add(id);
+  }
+  return [...out];
+}
+
+/**
+ * Which of those ids may actually be told about this comment.
+ *
+ * NEVER the client's word: a notification names the page and quotes the comment
+ * body, so notifying someone who cannot open the page leaks both. Two things
+ * must hold — the target is in THIS page's workspace, and the page's own gate
+ * (getPagePermission ≥ view, what loadAccessiblePage uses) lets them read it.
+ * Workspace membership alone is not access: a guest holds a members row too,
+ * and a restricted page is private from its own workspace.
+ *
+ * OKF (file-backed) pages have no `pages` row and no workspace, so
+ * getPagePermission has nothing to read — their gate is the path ACL
+ * (okfGateFor), the same one resolveAccess uses above.
+ *
+ * Failures are dropped SILENTLY. A list that went stale between typing and
+ * sending is normal; it must not fail the comment the person wrote.
+ */
+async function verifyMentionTargets(
+  pageId: string,
+  workspaceId: string | null,
+  ids: string[]
+): Promise<string[]> {
+  if (!ids.length) return [];
+
+  if (isOkfId(pageId)) {
+    const known = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, ids));
+    const out: string[] = [];
+    for (const { id } of known) {
+      const gate = await okfGateFor(id);
+      if (gate.canReadId(pageId)) out.push(id);
+    }
+    return out;
+  }
+
+  if (!workspaceId) return [];
+  const members = await db
+    .select({ userId: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        inArray(workspaceMembers.userId, ids)
+      )
+    );
+  const out: string[] = [];
+  for (const { userId } of members) {
+    const perm = await getPagePermission(pageId, userId);
+    if (perm && hasPermission(perm, "view")) out.push(userId);
   }
   return out;
 }
@@ -155,7 +236,7 @@ export async function GET(
   return NextResponse.json({ comments: result });
 }
 
-/** POST { body, blockId?, attachments? } → create a comment (blockId null = page thread). */
+/** POST { body, blockId?, attachments?, mentionIds? } → create a comment (blockId null = page thread). */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ pageId: string }> }
@@ -191,12 +272,20 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const raw = await req.json().catch(() => ({}));
-  const body = typeof raw?.body === "string" ? raw.body.trim() : "";
+ // a comment is copied verbatim into one notification row per mentioned user,
+ // so an unbounded body is a fan-out amplifier as well as a big row
+  const rawBody = typeof raw?.body === "string" ? raw.body : "";
+  if (rawBody.length > MAX_BODY)
+    return NextResponse.json({ error: "Comment too long" }, { status: 400 });
+  const body = rawBody.trim();
   const blockId = typeof raw?.blockId === "string" ? raw.blockId : null;
   const parentId = typeof raw?.parentId === "string" ? raw.parentId : null;
   const attachments = parseAttachments(raw?.attachments);
   if (attachments === null)
     return NextResponse.json({ error: "Bad attachments" }, { status: 400 });
+  const mentionIds = parseMentionIds(raw?.mentionIds);
+  if (mentionIds === null)
+    return NextResponse.json({ error: "Bad mentions" }, { status: 400 });
  // a comment may be nothing but files — the clip alone is a valid comment
   if (!body && !attachments.length)
     return NextResponse.json({ error: "Empty body" }, { status: 400 });
@@ -231,23 +320,36 @@ export async function POST(
         .returning()
     : [];
 
-  if (!isOkfId(pageId))
-  await notifyMentions({
-    html: body,
-    actorId: access.user.id,
+ // @-mentions. This used to hand the plain-text body to notifyMentions as
+ // `html`, which finds chips — plain text has none, so a comment mention has
+ // never notified anyone. The ids now arrive explicitly and are re-checked
+ // against the page gate here; scanning the body was also forgeable, since a
+ // body is whatever the client typed.
+  const mentioned = await verifyMentionTargets(
     pageId,
-    commentId: comment.id,
-    body,
-  });
+    page?.workspaceId ?? null,
+    mentionIds
+  );
+  if (mentioned.length)
+    await notifyMentionIds({
+      userIds: mentioned,
+      actorId: access.user.id,
+      pageId,
+      commentId: comment.id,
+      body,
+    });
+ // One comment, one inbox row per person: whoever just got the mention above
+ // is excluded from the participants ping for the same comment.
   if (!isOkfId(pageId))
-  await notifyPageComment({
-    actorId: access.user.id,
-    pageCreatorId: page?.createdBy ?? null,
-    pageId,
-    commentId: comment.id,
-    body,
-    priorCommenterIds: priorAuthors.map((r) => r.authorId),
-  });
+    await notifyPageComment({
+      actorId: access.user.id,
+      pageCreatorId: page?.createdBy ?? null,
+      pageId,
+      commentId: comment.id,
+      body,
+      priorCommenterIds: priorAuthors.map((r) => r.authorId),
+      excludeUserIds: mentioned,
+    });
 
   return NextResponse.json(
     {

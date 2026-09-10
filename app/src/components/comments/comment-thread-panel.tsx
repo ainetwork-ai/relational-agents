@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageSquare, X, Check, CornerDownRight } from "lucide-react";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
-import { CommentActions } from "./comment-thread";
+import { CommentActions, CommentBody } from "./comment-thread";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { useT } from "@/i18n/provider";
-import { useImeGuard } from "@/hooks/use-ime-guard";
+import { useWorkspaceMembers } from "@/hooks/use-workspace-members";
+import { MentionInput, type MentionInputHandle } from "./mention-input";
 
 /** R016–R018 — comments. A thread opens in a side panel anchored
  * to its block (or the page-level discussion), shows the root + threaded
@@ -97,13 +98,15 @@ function ThreadCard({
   const setResolved = useCommentsStore((s) => s.setResolved);
   const reply = useCommentsStore((s) => s.reply);
   const [draft, setDraft] = useState("");
-  const ime = useImeGuard();
+  const mention = useRef<MentionInputHandle>(null);
 
   async function submitReply() {
     const body = draft.trim();
     if (!body) return;
+    const mentionIds = mention.current?.mentionIds(body) ?? [];
     setDraft("");
-    await reply(pageId, root.id, body);
+    mention.current?.clear();
+    await reply(pageId, root.id, body, mentionIds);
   }
 
   return (
@@ -148,16 +151,14 @@ function ThreadCard({
       {/* reply composer */}
       <div className="mt-2 flex items-center gap-1">
         <CornerDownRight size={13} className="shrink-0 text-neutral-300" />
-        <input
-          data-testid={`comment-reply-input-${root.id}`}
+        {/* the same @ menu as the page composer — all three comment surfaces
+            behave alike */}
+        <MentionInput
+          ref={mention}
+          inputTestId={`comment-reply-input-${root.id}`}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          {...ime.imeProps}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" || ime.composing(e)) return;
-            e.preventDefault();
-            void submitReply();
-          }}
+          onChange={setDraft}
+          onSubmit={() => void submitReply()}
           placeholder={t("답글…")}
           className="min-w-0 flex-1 rounded border border-neutral-300 bg-transparent px-2 py-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"
         />
@@ -183,6 +184,7 @@ function CommentBubble({
   pageId: string;
 }) {
   const t = useT();
+  const members = useWorkspaceMembers();
   return (
     <div data-testid={`comment-item-${comment.id}`} className="group/comment relative">
       {/* the same author-only ⋯ → 삭제하기 as the in-page rows. This panel is
@@ -200,7 +202,7 @@ function CommentBubble({
         )}
       </div>
       <p className="mt-0.5 whitespace-pre-wrap text-sm text-neutral-800 dark:text-neutral-200">
-        {comment.body}
+        <CommentBody body={comment.body} members={members} />
       </p>
     </div>
   );
@@ -211,27 +213,25 @@ function NewComment({ pageId, anchor }: { pageId: string; anchor: string }) {
   const t = useT();
   const add = useCommentsStore((s) => s.add);
   const [draft, setDraft] = useState("");
-  const ime = useImeGuard();
+  const mention = useRef<MentionInputHandle>(null);
 
   async function submit() {
     const body = draft.trim();
     if (!body) return;
+    const mentionIds = mention.current?.mentionIds(body) ?? [];
     setDraft("");
-    await add(pageId, body, anchor === PAGE_ANCHOR ? null : anchor);
+    mention.current?.clear();
+    await add(pageId, body, anchor === PAGE_ANCHOR ? null : anchor, [], mentionIds);
   }
 
   return (
     <div className="flex items-center gap-2 border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
-      <input
-        data-testid="comment-input"
+      <MentionInput
+        ref={mention}
+        inputTestId="comment-input"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        {...ime.imeProps}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter" || ime.composing(e)) return;
-          e.preventDefault();
-          void submit();
-        }}
+        onChange={setDraft}
+        onSubmit={() => void submit()}
         placeholder={t("댓글 추가…")}
         className="flex-1 rounded-md border border-neutral-300 bg-transparent px-3 py-1.5 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"
       />
