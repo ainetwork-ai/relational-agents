@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { comments, files, pages, users, workspaceMembers } from "@/lib/db/schema";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { comments, files, pages, users } from "@/lib/db/schema";
+import { asc, eq, inArray } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
 import { storageRefFromClientUrl } from "@/lib/files/serve";
 import { isOkfId } from "@/lib/okf-store";
@@ -12,7 +12,9 @@ import {
   hasPermission,
   forbiddenResponse,
   requirePagePermission,
+  getPagePermission,
 } from "@/lib/auth/share-token";
+import { okfGateFor } from "@/lib/okf-acl";
 
 export const dynamic = "force-dynamic";
 
@@ -75,21 +77,21 @@ async function attachmentsByComment(commentIds: string[]) {
   return map;
 }
 
+/**
+ * The page whose comments this user may read.
+ *
+ * "Is in the workspace" is not access: a guest holds a workspaceMembers row
+ * too but is scoped to the pages explicitly shared with them, and a restricted
+ * page is private from the other members of its own workspace. Both used to
+ * pass here, which handed comment bodies to people who cannot open the page.
+ * getPagePermission is the gate the page itself uses.
+ */
 async function loadAccessiblePage(pageId: string, userId: string) {
   if (isOkfId(pageId)) return null; // file-backed page: no SQL comment thread
   const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
   if (!page) return null;
-  const [membership] = await db
-    .select()
-    .from(workspaceMembers)
-    .where(
-      and(
-        eq(workspaceMembers.workspaceId, page.workspaceId),
-        eq(workspaceMembers.userId, userId)
-      )
-    )
-    .limit(1);
-  return membership ? page : null;
+  const perm = await getPagePermission(pageId, userId);
+  return perm && hasPermission(perm, "view") ? page : null;
 }
 
 /**
@@ -97,9 +99,12 @@ async function loadAccessiblePage(pageId: string, userId: string) {
  */
 async function resolveAccess(req: NextRequest, pageId: string) {
   const auth = await requireAuth();
- // file-backed (OKF) pages have no per-page ACL — any authenticated member
+ // file-backed (OKF) pages have no pages row; their gate is the path ACL
+ // (lib/okf-acl.ts), which is what keeps participant-only docs private
   if (isOkfId(pageId)) {
     if ("error" in auth) return { authed: false as const };
+    const gate = await okfGateFor(auth.user.id);
+    if (!gate.canReadId(pageId)) return { authed: false as const };
     return { authed: true as const, user: auth.user, page: null, share: null };
   }
   if (!("error" in auth)) {
