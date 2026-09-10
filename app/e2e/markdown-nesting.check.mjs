@@ -104,6 +104,30 @@ async function pasteInto(md, label) {
   return { tree: await domTree(), pageId };
 }
 
+/** 미러를 한 번 돌리고 파일을 찾는다. 미러는 워크스페이스 단위로 통째로 다시 쓰이므로
+ *  (다른 검사가 페이지를 만들거나 보관하면 그 사이에 파일이 사라질 수 있다) 몇 번 시도한다. */
+async function mirrorFile(re, want) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await fetch(`${BASE}/api/workspace/export`, { headers: H }).then((r) => r.arrayBuffer()).catch(() => null);
+    const stack = [MIRROR_ROOT];
+    let hit = null;
+    while (stack.length) {
+      const dir = stack.pop();
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        const p2 = path.join(dir, e.name);
+        if (e.isDirectory()) { if (!e.name.includes(".tmp-")) stack.push(p2); }
+        else if (e.isFile() && re.test(e.name)) hit = { path: p2, text: fs.readFileSync(p2, "utf8") };
+      }
+    }
+    if (hit && want.every((w) => hit.text.includes(w))) return hit;
+    if (attempt === 4) return hit;
+    await tab.waitForTimeout(800);
+  }
+  return null;
+}
+
 // ── 1. 들어갈 때: 칸 수 규칙 ───────────────────────────────────────────────
 {
   const { tree } = await pasteInto("- a\n  - b\n    - c", "bullet-2sp");
@@ -171,27 +195,68 @@ check("한 단은 4칸", body.join("\n") === [
 
 // ── 4. md-mirror 파일에 자식이 실리나 ──────────────────────────────────────
 {
- // 미러는 500ms 디바운스 뒤 워크스페이스를 통째로 다시 쓴다. 기다리는 대신
- // /api/workspace/export 를 한 번 부른다 — 그 라우트가 mirrorWorkspace 를 직접 await 한다.
-  await fetch(`${BASE}/api/workspace/export`, { headers: H }).then((r) => r.arrayBuffer()).catch(() => null);
   const wanted = ["- b1", "    - b2", "        - b3", "        pchild", "- [ ]  t1", "    - [ ]  t2", "- T", "    tkid"];
-  const hits = [];
-  const stack = [MIRROR_ROOT];
-  while (stack.length) {
-    const dir = stack.pop();
-    let entries = [];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      const p2 = path.join(dir, e.name);
-      if (e.isDirectory()) { if (!e.name.includes(".tmp-")) stack.push(p2); }
- // 미러 파일 이름은 제목을 슬러그로 바꾼 것 + id 6자리
-      else if (e.isFile() && /^markdown-nesting-export-/.test(e.name)) hits.push(p2);
-    }
-  }
-  const txt = hits.length ? fs.readFileSync(hits[0], "utf8") : null;
-  const missing = txt ? wanted.filter((w) => !txt.includes(w)) : wanted;
-  check("미러 파일에 중첩이 4칸으로 실린다", !!txt && missing.length === 0,
-    txt ? `${hits[0]}${missing.length ? " — 없는 줄 " + JSON.stringify(missing) : ""}` : `${MIRROR_ROOT} 에서 파일을 못 찾음`);
+  const hit = await mirrorFile(/^markdown-nesting-export-/, wanted);
+  const missing = hit ? wanted.filter((w) => !hit.text.includes(w)) : wanted;
+  check("미러 파일에 중첩이 4칸으로 실린다", !!hit && missing.length === 0,
+    hit ? `${hit.path}${missing.length ? " — 없는 줄 " + JSON.stringify(missing) : ""}` : `${MIRROR_ROOT} 에서 파일을 못 찾음`);
+}
+
+// ── 5. 붙여넣기가 첫 줄을 잃지 않는다 (텍스트 CRDT 가 html 로 문자 연산을 만든다) ──
+{
+  const { tree } = await pasteInto("A\n\nB", "first-line");
+  check("빈 블록에 붙여넣어도 첫 줄이 남는다", shape(tree) === "paragraph:A@0 paragraph:B@0", shape(tree));
+}
+{
+  const { tree } = await pasteInto("**bold** text\n\nsecond", "inline-marks");
+  check("인라인 서식이 있는 첫 줄도 남는다", shape(tree) === "paragraph:bold text@0 paragraph:second@0", shape(tree));
+}
+
+// ── 6. 이어지는 줄은 한 블록 (원본 M2d_indented_paragraphs) ────────────────
+{
+  const { tree } = await pasteInto("- x\n\npara-A\n    para-B\n        para-C", "continuation");
+  const last = tree[tree.length - 1];
+  check("빈 줄 없이 이어진 줄은 한 블록으로 접힌다",
+    tree.length === 2 && last.type === "paragraph" && last.text.replace(/\s+/g, " ") === "para-A para-B para-C",
+    shape(tree));
+}
+
+// ── 7. 코드 펜스·구분선·빈 항목 ────────────────────────────────────────────
+{
+  const { tree, pageId } = await pasteInto("- a\n    ```js\n    const x = 1;\n    ```", "nested-code");
+  check("리스트 밑 코드 펜스가 자식으로 들어오고 본문은 들여쓰기가 벗겨진다",
+    shape(tree) === "bulleted_list:a@0 code:const x = 1;@1", shape(tree));
+  const md2 = await fetch(`${BASE}/api/pages/${pageId}/export`, { headers: H }).then((r) => r.text());
+  check("그 코드가 다시 4칸으로 나간다", md2.includes("    ```js") && md2.includes("    const x = 1;"), JSON.stringify(md2.slice(-80)));
+}
+{
+  const { tree } = await pasteInto("---\n- a\n  - b\n---\n- c", "leading-hr");
+  check("`---` 로 시작해도 내용이 사라지지 않는다",
+    shape(tree) === "divider:@0 bulleted_list:a@0 bulleted_list:b@1 divider:@0 bulleted_list:c@0", shape(tree));
+}
+{
+  const { tree } = await pasteInto("- \n\n    - b", "empty-item");
+  check("빈 글머리도 글머리로 남고 자식이 붙는다", shape(tree) === "bulleted_list:@0 bulleted_list:b@1", shape(tree));
+}
+
+// ── 8. 부모가 사라진 블록도 파일에 남는다 (리뷰에서 확인된 미러 누락) ──────
+{
+  const ghost = uuid();
+  const orphan = await newPage("markdown-nesting orphan", [{ k: "A", text: "A" }, { k: "B", text: "B", parent: "A" }]);
+  const lone = uuid();
+  const cur = await fetch(`${BASE}/api/pages/${orphan.pageId}/blocks`, { headers: H }).then((r) => r.json());
+  await fetch(`${BASE}/api/pages/${orphan.pageId}/blocks`, {
+    method: "PUT", headers: H,
+    body: JSON.stringify({
+      blocks: [...(cur.blocks ?? []), { id: lone, type: "paragraph", content: { text: "LOST" }, parentBlockId: ghost, position: 9 }],
+      deletedIds: [], newIds: [lone],
+    }),
+  });
+  const md3 = await fetch(`${BASE}/api/pages/${orphan.pageId}/export`, { headers: H }).then((r) => r.text());
+  check(".md 내보내기가 부모 없는 블록을 살린다", md3.includes("LOST"), JSON.stringify(md3.slice(-60)));
+  const hitO = await mirrorFile(/^markdown-nesting-orphan-/, ["LOST"]);
+  const hit = hitO?.text ?? null;
+  check("미러도 부모 없는 블록을 살린다", !!hit && hit.includes("LOST"), hit ? JSON.stringify(hit.slice(-80)) : "파일 없음");
 }
 
 if (pageErrors.length) check(`콘솔 에러 ${pageErrors.length}건`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));

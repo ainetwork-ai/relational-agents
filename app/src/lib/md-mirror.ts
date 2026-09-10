@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/lib/db";
 import { blocks, pages, workspaces } from "@/lib/db/schema";
@@ -49,10 +49,17 @@ function fm(page: Page): string {
   return lines.join("\n");
 }
 
-function blocksToMd(all: Block[], parentId: string | null, indent = ""): string {
+function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: Set<string>): string {
+ // Roots are parentBlockId === null, but a block whose parent row is gone (a
+ // delete that did not cascade) or whose chain loops is reachable from nowhere.
+ // The .md route keeps those (memory-parse treeOrder); the mirror used to drop
+ // them silently, so live content was missing from the file it calls canonical.
+  const mark = seen ?? new Set<string>();
+  const top = parentId === null && !seen;
   const rows = all
-    .filter((b) => (b.parentBlockId ?? null) === parentId)
+    .filter((b) => (b.parentBlockId ?? null) === parentId && !mark.has(b.id))
     .sort((a, b) => a.position - b.position);
+  for (const r of rows) mark.add(r.id);
 
   const out: string[] = [];
   let n = 0;
@@ -117,8 +124,16 @@ function blocksToMd(all: Block[], parentId: string | null, indent = ""): string 
  // silently dropped a paragraph's or a bullet's nested blocks from the file
  // (docs/notion-indent.md §6(3)) — four spaces per level is what the original
  // writes, and it reads back as the same tree.
-    const kids = blocksToMd(all, b.id, indent + "    ");
+    const kids = blocksToMd(all, b.id, indent + "    ", mark);
     if (kids.trim()) { out.push(kids); }
+  }
+  if (top) {
+ // whatever the walk never reached — from its own root, at the left margin
+    for (const b of [...all].sort((a, c) => a.position - c.position)) {
+      if (mark.has(b.id)) continue;
+      const orphan = blocksToMd(all.map((x) => (x.id === b.id ? { ...x, parentBlockId: null } : x)), null, indent, mark);
+      if (orphan.trim()) out.push(orphan);
+    }
   }
   return out.join("\n");
 }
@@ -148,7 +163,29 @@ async function writeTree(
   }
 }
 
-export async function mirrorWorkspace(workspaceId: string): Promise<void> {
+/** One mirror run per workspace at a time. Two overlapping runs each did
+ * `rm -rf <ws>` then `rename(<ws>.tmp-… → <ws>)`, which left `.tmp-` directories
+ * behind and made anything reading the mirror (the export zip) hit ENOENT
+ * mid-walk. */
+const RUNS_KEY = Symbol.for("app.mdmirror.runs");
+function runs(): Map<string, Promise<void>> {
+  const g = globalThis as unknown as Record<symbol, Map<string, Promise<void>>>;
+  if (!g[RUNS_KEY]) g[RUNS_KEY] = new Map();
+  return g[RUNS_KEY];
+}
+
+export function mirrorWorkspace(workspaceId: string): Promise<void> {
+  const inflight = runs();
+  const prev = inflight.get(workspaceId) ?? Promise.resolve();
+  const next = prev.catch(() => {}).then(() => mirrorWorkspaceOnce(workspaceId));
+  inflight.set(workspaceId, next);
+  void next.finally(() => {
+    if (inflight.get(workspaceId) === next) inflight.delete(workspaceId);
+  });
+  return next;
+}
+
+async function mirrorWorkspaceOnce(workspaceId: string): Promise<void> {
   const [ws] = await db
     .select()
     .from(workspaces)
@@ -175,6 +212,13 @@ export async function mirrorWorkspace(workspaceId: string): Promise<void> {
   }
 
   const wsDir = path.join(MIRROR_ROOT, slug(ws.name, ws.id));
+ // sweep leftovers from runs that died between rm and rename
+  try {
+    const base = path.basename(wsDir);
+    for (const name of await readdir(MIRROR_ROOT)) {
+      if (name.startsWith(`${base}.tmp-`)) await rm(path.join(MIRROR_ROOT, name), { recursive: true, force: true });
+    }
+  } catch { /* first run: the root may not exist yet */ }
   const tmpDir = `${wsDir}.tmp-${Date.now()}`;
   await mkdir(tmpDir, { recursive: true });
   await writeTree(tmpDir, pageList, blocksByPage, null);

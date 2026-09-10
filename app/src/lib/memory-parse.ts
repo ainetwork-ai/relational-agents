@@ -29,6 +29,25 @@ function indentOf(line: string): number {
   return n;
 }
 
+/** plain text → html, for folding a continuation line into the block above */
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** drop up to `cols` columns of leading whitespace — a nested code fence is
+ * written indented, and without this its own body grew 4 spaces per round trip */
+function dedent(line: string, cols: number): string {
+  let n = 0;
+  let i = 0;
+  while (i < line.length && n < cols) {
+    if (line[i] === " ") n += 1;
+    else if (line[i] === "\t") n += 4;
+    else break;
+    i += 1;
+  }
+  return line.slice(i);
+}
+
 /** where a list item's own content starts: `- ` → 2, `1. ` → 3, `- [ ] ` → 2
  * (measured: two spaces nest a checkbox, three are needed for `1. `) */
 function markerWidth(t: string): number {
@@ -123,10 +142,13 @@ export function parseMarkdown(
   idPrefix = "b",
   opts: { noTitle?: boolean } = {}
 ): { title: string; meta: Frontmatter; blocks: ParsedBlock[] } {
-  const { meta, body } = splitFrontmatter(text);
+ // Pasting is not a file read: a clipboard that starts with `---` is a divider
+ // or a table, not frontmatter. Parsing it swallowed everything up to the next
+ // `---` (opts.noTitle marks the paste/insert callers).
+  const { meta, body } = opts.noTitle ? { meta: {} as Frontmatter, body: text.replace(/\r/g, "") } : splitFrontmatter(text);
   const lines = body.split("\n");
   let title = typeof meta.title === "string" ? meta.title : "";
-  const drafts: { type: BlockType; content: BlockContent; depth: number }[] = [];
+  const drafts: { type: BlockType; content: BlockContent; depth: number; cont?: boolean }[] = [];
   let i = 0;
  // pasting markdown into a block keeps the first "# " line as a heading block
  // rather than consuming it as a page title (opts.noTitle).
@@ -143,7 +165,8 @@ export function parseMarkdown(
         content = { ...content, html, text: mdInlinePlain(content.text) };
       }
     }
-    drafts.push({ type, content, depth });
+    drafts.push({ type, content, depth, cont: contLine });
+    contLine = false;
   };
 
  // Open list items and the column their content starts at. The original nests
@@ -153,14 +176,21 @@ export function parseMarkdown(
  // Blank lines do not close the list. Measured 2026-09-10 (M2c/M2d).
   const openList: number[] = [];
   let depth = 0;
+ // The original folds a run of plain lines with no blank line between them into
+ // ONE block with line breaks (measured: `para-A / 4sp para-B / 8sp para-C`
+ // arrived as one text block, M2d_indented_paragraphs). Our own writer puts a
+ // blank line after every block, so nothing of ours merges by accident.
+  let contLine = false;
+  let prevPlain: { depth: number } | null = null;
 
   while (i < lines.length) {
     const line = lines[i];
     const t = line.trim();
-    if (t === "") { i++; continue; }
+    if (t === "") { prevPlain = null; i++; continue; }
     {
       const ind = indentOf(line);
-      const isList = /^([-*]\s|\d+\.\s)/.test(t);
+ // `- ` 뒤에 내용이 없는 빈 항목도 리스트다 — writer 가 빈 글머리를 그렇게 쓴다
+      const isList = /^([-*](\s|$)|\d+\.(\s|$))/.test(t);
       while (openList.length && ind < openList[openList.length - 1]) openList.pop();
       if (isList) {
         depth = openList.length;
@@ -171,12 +201,14 @@ export function parseMarkdown(
         openList.length = 0;
         depth = 0;
       }
+      if (isList || /^(#{1,3}\s|---$|\*\*\*$|```|\$\$|>\s|\|)/.test(t)) prevPlain = null;
     }
 
     if (t === "$$") {
       const buf: string[] = [];
+      const own = indentOf(line);
       i++;
-      while (i < lines.length && lines[i].trim() !== "$$") buf.push(lines[i++]);
+      while (i < lines.length && lines[i].trim() !== "$$") buf.push(dedent(lines[i++], own));
       i++;
       push("equation", { text: buf.join("\n") });
       continue;
@@ -184,8 +216,9 @@ export function parseMarkdown(
     if (t.startsWith("```")) {
       const lang = t.slice(3).trim() || "plain";
       const buf: string[] = [];
+      const own = indentOf(line);
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith("```")) buf.push(lines[i++]);
+      while (i < lines.length && !lines[i].trim().startsWith("```")) buf.push(dedent(lines[i++], own));
       i++;
       push("code", { text: buf.join("\n"), language: lang });
       continue;
@@ -219,12 +252,14 @@ export function parseMarkdown(
       i++; continue;
     }
     if (t === "---" || t === "***") { push("divider", {}); i++; continue; }
-    if (/^-\s\[[ x]\]/i.test(t)) {
-      push("todo", { text: stripLinks(t.replace(/^-\s\[[ x]\]\s*/i, "")), checked: /\[x\]/i.test(t) });
+    if (/^-\s?\[[ x]\]/i.test(t)) {
+      push("todo", { text: stripLinks(t.replace(/^-\s?\[[ x]\]\s*/i, "")), checked: /\[x\]/i.test(t) });
       i++; continue;
     }
-    if (/^[-*]\s/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s/, "")) }); i++; continue; }
-    if (/^\d+\.\s/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s/, "")) }); i++; continue; }
+ // an EMPTY item (`- `, which trims to `-`) is still a list item — the writer
+ // emits exactly that for a bullet the user has not typed into yet
+    if (/^[-*](\s|$)/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s?/, "")) }); i++; continue; }
+    if (/^\d+\.(\s|$)/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s?/, "")) }); i++; continue; }
     if (t.startsWith("> ")) {
       // `> 💡 text` is the serialized form of a callout — an emoji right after
       // the marker brings it back as one (plain `> text` stays a quote).
@@ -240,10 +275,27 @@ export function parseMarkdown(
     }
     const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (img) { push("image", { url: img[2], text: "", ...(img[1] ? { caption: img[1] } : {}) }); i++; continue; }
+    contLine = !!prevPlain && prevPlain.depth === depth;
     push("paragraph", { text: stripLinks(t) });
+    prevPlain = { depth };
     i++;
   }
-  const blocks = drafts.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1, depth: d.depth }));
+  const folded: typeof drafts = [];
+  for (const d of drafts) {
+    const prev = folded[folded.length - 1];
+    if (d.cont && prev && prev.type === "paragraph" && d.type === "paragraph" && prev.depth === d.depth) {
+      prev.content = {
+        ...prev.content,
+        text: `${prev.content.text ?? ""}\n${d.content.text ?? ""}`,
+        ...(prev.content.html || d.content.html
+          ? { html: `${prev.content.html ?? escapeHtmlText(prev.content.text ?? "")}<br>${d.content.html ?? escapeHtmlText(d.content.text ?? "")}` }
+          : {}),
+      };
+      continue;
+    }
+    folded.push(d);
+  }
+  const blocks = folded.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1, depth: d.depth }));
   return { title: title || "Untitled", meta, blocks };
 }
 
@@ -256,16 +308,24 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
  // A block with no depth behaves as before.
   const numAt = new Map<number, number>();
   let prevDepth = -1;
+ // one level is 4 spaces (what the original writes), except under a marker
+ // wider than that (`100. `) where 4 would not be enough to read back
+  const stepAt: number[] = [];
   for (const b of blocks) {
     const depth = Math.max(0, b.depth ?? 0);
-    const pad = "    ".repeat(depth);
+    const pad = stepAt.slice(0, depth).reduce((a, n) => a + " ".repeat(n), "");
     const text = b.content.text ?? "";
     if (depth < prevDepth) for (const k of [...numAt.keys()]) if (k > depth) numAt.delete(k);
     if (b.type === "numbered_list") numAt.set(depth, (numAt.get(depth) ?? 0) + 1);
     else numAt.delete(depth);
     prevDepth = depth;
     const num = numAt.get(depth) ?? 1;
-    const line = (v: string) => out.push(pad + v);
+    stepAt.length = depth;
+    stepAt[depth] =
+      b.type === "numbered_list" ? Math.max(4, `${num}. `.length) : 4;
+ // a soft line break inside a block would otherwise land at column 0 and close
+ // the list context, flattening everything nested after it
+    const line = (v: string) => { for (const l of String(v).split("\n")) out.push(pad + l); };
     switch (b.type) {
       case "heading1": line(`# ${text}`); break;
       case "heading2": line(`## ${text}`); break;
@@ -332,8 +392,15 @@ export function treeOrder<T extends { id: string; parentBlockId?: string | null;
     }
   };
   walk(null, 0);
- // orphans (their parent is gone) still belong in the file
-  for (const r of rows) if (!seen.has(r.id)) out.push({ row: r, depth: 0 });
+ // A block whose parent is gone (or in a cycle) still belongs in the file. Walk
+ // each such subtree from its own root so its children keep their shape instead
+ // of being appended one by one at depth 0.
+  for (const r of [...rows].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push({ row: r, depth: 0 });
+    walk(r.id, 1);
+  }
   return out;
 }
 

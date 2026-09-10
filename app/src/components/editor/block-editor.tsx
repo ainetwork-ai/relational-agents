@@ -48,6 +48,7 @@ import { usePagesStore } from "@/stores/pages";
 import {
   LIST_TYPES,
   indentBlocks,
+  renumberSiblings,
   outdentBlocks,
   liftChildren,
   moveChildren,
@@ -1435,7 +1436,17 @@ export const BlockEditor = forwardRef<
         pendingFocus.current = { id, pos: "start" };
         return true;
       }
-      if (block.parentBlockId) {
+ // A toggle's FIRST child folds back into the toggle's title instead of
+ // climbing out (2026-08-26 `toggle/enter_backspace`), so that case has to be
+ // decided before the outdent below.
+      const firstChildOfToggle = (() => {
+        if (!block.parentBlockId) return false;
+        const par = blocksRef.current.find((b) => b.id === block.parentBlockId);
+        if (!par || par.type !== "toggle") return false;
+        const sibsHere = childrenOf(block.parentBlockId);
+        return sibsHere[0]?.id === id;
+      })();
+      if (block.parentBlockId && !firstChildOfToggle) {
         if (nest([id], "out", { id, el })) return true;
       }
 
@@ -1450,17 +1461,20 @@ export const BlockEditor = forwardRef<
  // Nothing above it in the page at all → the text goes to the TITLE and the
  // block goes away (measured on the original, B_* 2026-09-10). Its children are
  // lifted so they stay visible.
-        if (!parent && onMergeIntoTitle) {
+        if (!parent && onMergeIntoTitle && text !== "") {
           const kids = blocksRef.current.filter((b) => (b.parentBlockId ?? null) === id);
           const onlyBlock = blocksRef.current.filter((b) => b.parentBlockId === null).length === 1;
           const side = onMergeIntoTitle(text);
  // one ⌘Z puts the title AND the block back, as the original does
           if (side) pendingFrameSide.current = side;
           if (onlyBlock && kids.length === 0) {
- // keep the page's single line — an editor with no block has nowhere to type
+ // keep the page's single line — an editor with no block has nowhere to type.
+ // It becomes a plain empty paragraph: leaving it a heading kept an empty H1.
             mutate((prev) =>
               prev.map((b) =>
-                b.id === id ? { ...b, content: { ...b.content, text: "", html: undefined }, version: b.version + 1 } : b
+                b.id === id
+                  ? { ...b, type: "paragraph" as BlockType, content: { text: "" }, version: b.version + 1 }
+                  : b
               )
             );
             pendingFocus.current = { id, pos: "start" };
@@ -1469,9 +1483,23 @@ export const BlockEditor = forwardRef<
           deletedIds.current.add(id);
           mutate((prev) => {
             const lifted = prev.map((b) => ({ ...b }));
-            liftChildren(lifted, id, null);
+ // right where the block was (it is still in the array here, so "after it"
+ // puts them first); without the anchor they went to the END of the page
+            liftChildren(lifted, id, null, id);
             return lifted.filter((b) => b.id !== id);
           });
+          return true;
+        }
+ // A surface with no title (row peek, share view) cannot merge upward at all.
+ // Keep the old escape there — a heading as the first block still becomes a
+ // paragraph — instead of leaving Backspace dead.
+        if (!parent && !onMergeIntoTitle && block.type !== "paragraph" && TEXT_TYPES.includes(block.type)) {
+          mutate((prev) =>
+            prev.map((b) =>
+              b.id === id ? { ...b, type: "paragraph" as BlockType, version: b.version + 1 } : b
+            )
+          );
+          pendingFocus.current = { id, pos: "start" };
           return true;
         }
         if (!parent || parent.type !== "toggle") return false;
@@ -1842,7 +1870,18 @@ export const BlockEditor = forwardRef<
  // An empty target block becomes the first parsed block (no blank lead).
             if (before.trim() === "" && after.trim() === "" && cur.type === "paragraph") {
               cur.type = parsed[0].type;
-              cur.content = { ...parsed[0].content };
+ // Keep the block's text CRDT (textInstance/items/marks) and give it HTML:
+ // block-diff turns a text change on an existing block into character ops read
+ // from `content.html` (block-diff.ts:190), so setting only `text` made the
+ // diff compute "everything deleted" and the pasted first line vanished. Only
+ // visible when the type did not change (a heading/bullet takes the wholesale
+ // write path instead) — pasting `A\n\nB` into an empty paragraph lost the A.
+              const firstContent = parsed[0].content as BlockContent & { html?: string };
+              cur.content = {
+                ...cur.content,
+                ...firstContent,
+                html: firstContent.html ?? escapeHtml(firstContent.text ?? ""),
+              };
               cur.version++;
               startIdx = 1;
             } else {
@@ -1887,6 +1926,9 @@ export const BlockEditor = forwardRef<
               next.push(nb);
               lastNb = nb;
             }
+ // every depth-0 line took the midpoint to the next sibling, so a long paste
+ // halved the gap each time and collapsed around the 54th line — whole numbers
+            renumberSiblings(next, parentId);
             pendingFocus.current = { id: lastNb.id, pos: "end" };
             return next;
           });

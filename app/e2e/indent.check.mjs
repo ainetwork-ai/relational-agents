@@ -560,6 +560,35 @@ scenario("backspace_policy", async () => {
     `"${await tab.inputValue('[data-testid="page-title"]')}" (기대 "${titleBefore}")`);
 });
 
+// ── 20. 맨 앞 Backspace의 남은 경우들 ─────────────────────────────────────
+scenario("backspace_edges", async () => {
+ // 토글의 첫 자식은 내어쓰기가 아니라 토글 제목으로 접힌다 (2026-08-26 toggle/enter_backspace)
+  let p = await build("bs_toggle_kid", [
+    { k: "T", type: "toggle", text: "TT" },
+    { k: "K", parent: "T", text: "KK" },
+  ]);
+  await caret(p.ids.K, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(450);
+  check("토글 첫 자식의 Backspace: 제목으로 접힌다", shape(await domTree()) === "TTKK@0", dump(await domTree()));
+
+ // 빈 첫 블록은 제목으로 옮길 것이 없다 — 아무 일도 없어야 한다
+  p = await build("bs_empty_first", [{ k: "A", text: "" }, { k: "B", text: "keep" }]);
+  const titleBefore = await tab.inputValue('[data-testid="page-title"]');
+  await caret(p.ids.A, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(450);
+  check("빈 첫 블록: 제목이 그대로", (await tab.inputValue('[data-testid="page-title"]')) === titleBefore,
+    `"${await tab.inputValue('[data-testid="page-title"]')}"`);
+
+ // 첫 블록에 자식이 있으면 자식은 그 자리(맨 앞)로 올라온다
+  p = await build("bs_first_kids", [{ k: "A", text: "AA" }, { k: "K", parent: "A", text: "KK" }, { k: "Z", text: "ZZ" }]);
+  await caret(p.ids.A, 0);
+  await tab.keyboard.press("Backspace");
+  await tab.waitForTimeout(600);
+  check("첫 블록의 자식은 그 자리로 올라온다", shape(await domTree()) === "KK@0 ZZ@0", dump(await domTree()));
+});
+
 // ── 실행 ───────────────────────────────────────────────────────────────────
 const names = Object.keys(scenarios).filter((n) => !ONLY.length || ONLY.includes(n));
 for (const n of names) {

@@ -299,7 +299,17 @@ async function applyToOkfPage(
       decodeId(pageId),
       node.title,
       node.meta,
-      blocksToParsed(ordered.map((b) => ({ id: b.id, type: b.type, content: b.content as Record<string, unknown>, position: b.position })))
+      blocksToParsed(
+        ordered.map((b) => ({
+          id: b.id,
+          type: b.type,
+          content: b.content as Record<string, unknown>,
+          position: b.position,
+ // the file stores nesting as indentation — dropping this here wrote the page
+ // back flat right after parsedToBlocks had read its nesting
+          parentBlockId: b.parentBlockId ?? null,
+        }))
+      )
     );
   }
 }

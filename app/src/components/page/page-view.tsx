@@ -497,6 +497,12 @@ export function PageView({
             setTitle(v);
             saveTitle.call(v);
           }}
+          onBlur={() => {
+ // the ⌘Z-belongs-to-the-editor window closes as soon as the caret leaves the
+ // title; otherwise a later ⌘Z would undo whatever the body did last and put
+ // this title back on top of it
+            mergedTitleRef.current = null;
+          }}
           onKeyDown={(e) => {
             if (!isImeComposing(e) && e.key === "Enter") {
               e.preventDefault();

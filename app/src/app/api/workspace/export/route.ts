@@ -41,7 +41,13 @@ async function collectFiles(
     if (entry.isDirectory()) {
       results.push(...(await collectFiles(full, rel)));
     } else {
-      results.push({ path: rel, data: await readFile(full) });
+ // the mirror swaps its whole directory on every run, so a file listed a
+ // moment ago can be gone by the time we read it — that 500'd the download
+      try {
+        results.push({ path: rel, data: await readFile(full) });
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
     }
   }
   return results;
@@ -66,7 +72,14 @@ async function collectOkfDocs(
     if (entry.isDirectory()) {
       results.push(...(await collectOkfDocs(full, rel)));
     } else if (/\.(md|csv)$/i.test(entry.name)) {
-      results.push({ path: rel, data: await readFile(full) });
+ // the mirror replaces its whole directory on every run; a file listed a
+ // moment ago can be gone by the time we read it, and that used to 500 the
+ // download instead of just skipping the file
+      try {
+        results.push({ path: rel, data: await readFile(full) });
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
     }
   }
   return results;

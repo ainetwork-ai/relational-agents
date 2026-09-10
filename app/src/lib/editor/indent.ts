@@ -85,6 +85,10 @@ export function childrenOf<T extends TreeBlock>(all: T[], parentId: string | nul
 }
 
 /** 1..n whole numbers for one sibling list — kills position ties and float drift */
+export function renumberSiblings<T extends TreeBlock>(all: T[], parentId: string | null): void {
+  renumber(all, parentId);
+}
+
 function renumber<T extends TreeBlock>(all: T[], parentId: string | null): void {
   childrenOf(all, parentId).forEach((b, i) => {
     b.position = i + 1;
