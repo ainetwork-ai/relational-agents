@@ -123,6 +123,8 @@ interface EditorApi {
   focusNeighbour: (id: string, dir: -1 | 1) => boolean;
   insertBelow: (id: string) => void;
   indentBlock: (id: string, el: HTMLElement) => void;
+  /** how many same-kind list ancestors — picks the marker glyph/label */
+  listLevel: (b: EBlock) => number;
   outdentBlock: (id: string, el: HTMLElement) => void;
   deleteBlock: (id: string) => void;
   duplicateBlock: (id: string) => void;
@@ -914,6 +916,21 @@ export const BlockEditor = forwardRef<
         .sort((a, b) => a.position - b.position),
     []
   );
+
+ // 같은 종류의 리스트 조상이 몇 개인가 — 마커 주기(•/◦/▪, 1./a./i.)가 이걸로 정해진다.
+ // 문단 밑에 들어간 글머리는 여전히 `•` 였다(T21) — 그래서 깊이가 아니라 리스트 조상이다.
+  const listLevel = useCallback((b: EBlock) => {
+    const byId = new Map(blocksRef.current.map((x) => [x.id, x]));
+    let n = 0;
+    let p = b.parentBlockId;
+    while (p) {
+      const par = byId.get(p);
+      if (!par || par.type !== b.type) break;
+      n += 1;
+      p = par.parentBlockId;
+    }
+    return n;
+  }, []);
 
   const numberOf = useCallback(
     (b: EBlock) => {
@@ -3083,6 +3100,7 @@ export const BlockEditor = forwardRef<
       insertBelow,
       indentBlock,
       outdentBlock,
+      listLevel,
       deleteBlock,
       duplicateBlock,
       turnInto,
@@ -3126,6 +3144,7 @@ export const BlockEditor = forwardRef<
       insertBelow,
       indentBlock,
       outdentBlock,
+      listLevel,
       deleteBlock,
       duplicateBlock,
       turnInto,

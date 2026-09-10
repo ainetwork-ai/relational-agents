@@ -2,6 +2,8 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isImeComposing } from "@/hooks/use-ime-guard";
+import { indentStep } from "@/lib/editor/indent";
+import { bulletGlyph, numberLabel } from "@/lib/editor/list-markers";
 import { createPortal } from "react-dom";
 import { useLocale, useT } from "@/i18n/provider";
 import { useDismiss } from "@/hooks/use-dismiss";
@@ -30,7 +32,7 @@ import { MemorySelect } from "@/components/database/memory-select";
 const LIST_RUN = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, heading2: 31.6, heading3: 25, quote: 8 };
 
-function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: number; parentType?: string; hasChildren?: boolean; subtree?: EBlock[] }) {
+function BlockRowInner({ block, depth, indentPx = 0, parentType }: { block: EBlock; depth: number; indentPx?: number; parentType?: string; hasChildren?: boolean; subtree?: EBlock[] }) {
   const editor = useEditor();
  // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
  // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
@@ -135,7 +137,7 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
  // gutter is measured from that wider edge. Bleed the row out by 6 and pad
  // it back so the text stays put (2026-08-26, m-halo-text)
         className="relative flex items-start rounded"
-        style={{ paddingLeft: depth * 24 }}
+        style={{ paddingLeft: indentPx }}
       >
         {/* selected: the original's halo — an overlay inset 2px into the block
             box (716×36 in a 720×40 text block), rgba(35,131,226,0.14), 4px
@@ -150,7 +152,7 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
  // this div sits 6px inside the row box (the row bleeds -mx-1.5 to be the
  // 720-wide block box); 2px inside THAT box is -4px from here, after the
  // nesting indent on the left
-            style={{ top: editor.haloInset(block.id).top, bottom: editor.haloInset(block.id).bottom, left: depth * 24 - 4, right: -4 }}
+            style={{ top: editor.haloInset(block.id).top, bottom: editor.haloInset(block.id).bottom, left: indentPx - 4, right: -4 }}
           />
         )}
         {/* The + and the drag handle belong to the ONE line the pointer is on.
@@ -168,7 +170,7 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
         {!(block.type === "database" && (block.content as { fullPage?: boolean }).fullPage === true) && (
         <div
           className="absolute flex items-center gap-0 opacity-0 transition-opacity duration-100 [[data-block-type]:hover:not(:has([data-block-type]:hover))>*>&]:opacity-100"
-          style={{ left: depth * 24 - 58, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
+          style={{ left: indentPx - 58, top: handleTop }} /* + at -52, grip at -28: the original's gutter */
         >
           <button
             tabIndex={-1}
@@ -191,7 +193,7 @@ function BlockRowInner({ block, depth, parentType }: { block: EBlock; depth: num
       {nestedChildren.length > 0 && (
         <div>
           {nestedChildren.map((c) => (
-            <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
+            <BlockRow key={c.id} block={c} depth={depth + 1} indentPx={indentPx + indentStep(block.type)} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
           ))}
         </div>
       )}
@@ -885,10 +887,12 @@ function CalloutBlock({ block }: { block: EBlock }) {
         className="m-1.5 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
       )}
+      {/* 원본(2026-09-10 실측): 콜아웃의 자식 텍스트는 콜아웃 자기 텍스트와 같은 x
+          (366/417 → 자식 411/417). 우리 자식은 6px 왼쪽에서 시작했다. */}
       {children.length > 0 && (
-        <div>
+        <div className="pl-1.5">
           {children.map((c) => (
-            <BlockRow key={c.id} block={c} depth={0} parentType="callout" hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
+            <BlockRow key={c.id} block={c} depth={0} indentPx={0} parentType="callout" hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />
           ))}
         </div>
       )}
@@ -1141,19 +1145,22 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
               className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
             />
           </div>
+          {/* 원본(2026-09-10 실측): 토글의 자식은 토글 텍스트와 같은 x — 박스에서 32px.
+              자식 자신의 들여쓰기는 이 래퍼를 기준(0)으로 다시 시작한다. 전에는 이미
+              패딩이 들어간 박스 안에서 (depth+1)*24 를 또 얹어 깊이마다 어긋났다. */}
           {expanded && (
-            <div className="ml-3 border-l border-transparent">
+            <div className="ml-8">
               {children.length === 0 ? (
                 <button
                   data-testid="toggle-add-inside"
                   onClick={() => editor.addInsideToggle(block.id)}
  // 원본(2026-08-26 실측): 빈 토글의 안내 행은 40px — 문단 한 줄과 같은 키
-                  className="ml-6 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  className="ml-1 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
                   {t("빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.")}
                 </button>
               ) : (
-                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />)
+                children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} indentPx={0} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />)
               )}
             </div>
           )}
@@ -1165,7 +1172,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
       return (
         <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
           <span className="mt-0.5 w-6 shrink-0 select-none text-center text-base leading-6 text-neutral-800 dark:text-neutral-200">
-            •
+            {bulletGlyph(editor.listLevel(block))}
           </span>
           <Editable
             block={block}
@@ -1178,7 +1185,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
       return (
         <div className={`flex w-full items-start gap-0.5 ${listTop} ${listBottom}`}>
           <span className="mt-0.5 w-6 shrink-0 select-none text-right text-base leading-6 text-neutral-800 dark:text-neutral-200">
-            {editor.numberOf(block)}.
+            {numberLabel(editor.numberOf(block), editor.listLevel(block))}.
           </span>
           <Editable
             block={block}
@@ -1996,5 +2003,5 @@ export const BlockRow = memo(
  // `subtree` is a memo key only (the editor hands a root the list of its
  // descendants, same array while none of them changed) — a nested child's
  // change must re-render the root that draws it
-  (a, b) => a.block === b.block && a.depth === b.depth && a.parentType === b.parentType && a.hasChildren === b.hasChildren && a.subtree === b.subtree && !b.hasChildren
+  (a, b) => a.block === b.block && a.depth === b.depth && a.indentPx === b.indentPx && a.parentType === b.parentType && a.hasChildren === b.hasChildren && a.subtree === b.subtree && !b.hasChildren
 );

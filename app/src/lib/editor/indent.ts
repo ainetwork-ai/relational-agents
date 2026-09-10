@@ -68,6 +68,15 @@ export const LIST_TYPES: ReadonlySet<string> = new Set([
   "toggle",
 ]);
 
+/**
+ * How far one nesting level moves a child to the right, by the PARENT's type
+ * (measured 2026-09-10, docs/notion-indent.md §3): a text-ish parent steps 30px,
+ * a parent with a marker column (bullet, number, checkbox, toggle arrow) steps
+ * 32px so the child lines up under the parent's text. We drew a flat 24px.
+ */
+export const indentStep = (parentType?: string): number =>
+  parentType && LIST_TYPES.has(parentType) ? 32 : 30;
+
 const parentOf = (b: TreeBlock) => b.parentBlockId ?? null;
 
 /** children of `parentId`, in document order */

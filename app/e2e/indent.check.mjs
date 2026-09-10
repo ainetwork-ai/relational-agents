@@ -453,6 +453,59 @@ scenario("survives_reload", async () => {
   check("새로 고침 뒤에도 같은 트리", shape(t) === beforeShape && shape(t) === "A@0 B@1 C@1", `${shape(t)} / 저장 전 ${beforeShape}`);
 });
 
+// ── 18. 기하와 마커 — 깊이마다 얼마나 들어가고 마커가 어떻게 바뀌나 ──────────
+scenario("geometry_and_markers", async () => {
+  const chain = (type, n, prefix) =>
+    Array.from({ length: n }, (_, i) => ({ k: `${prefix}${i}`, type, parent: i ? `${prefix}${i - 1}` : undefined }));
+  const boxes = () =>
+    tab.evaluate(() => {
+      const root = document.querySelector('[data-testid="editor-root"]');
+      const own = (row, sel) => [...row.querySelectorAll(sel)].find((e) => e.closest("[data-block-type]") === row) ?? null;
+      return [...root.querySelectorAll("[data-block-type]")].map((row) => {
+        let d = 0;
+        for (let q = row.parentElement; q && q !== root; q = q.parentElement) if (q.matches("[data-block-type]")) d++;
+        const ce = own(row, "[contenteditable]");
+        const box = row.firstElementChild;
+        const marker = ce?.previousElementSibling?.tagName === "SPAN" ? (ce.previousElementSibling.textContent ?? "").trim() : null;
+        return {
+          type: row.getAttribute("data-block-type"), d,
+          padL: box ? parseFloat(getComputedStyle(box).paddingLeft) : null,
+          absL: box ? +(box.getBoundingClientRect().left + parseFloat(getComputedStyle(box).paddingLeft)).toFixed(1) : null,
+          marker,
+        };
+      });
+    });
+
+ // 문단 사슬 — 한 단 30px (원본 366→396→426…)
+  await build("geo_paragraph", chain("paragraph", 4, "P"));
+  let r = await boxes();
+  check("문단 아래 문단: 한 단 30px", r.map((x) => x.padL).join(",") === "0,30,60,90", JSON.stringify(r.map((x) => x.padL)));
+
+ // 글머리 사슬 — 한 단 32px, 마커 • ◦ ▪ •
+  await build("geo_bullet", chain("bulleted_list", 4, "B"));
+  r = await boxes();
+  check("글머리 아래 글머리: 한 단 32px", r.map((x) => x.padL).join(",") === "0,32,64,96", JSON.stringify(r.map((x) => x.padL)));
+  check("글머리 마커가 깊이마다 바뀐다 (•◦▪•)", r.map((x) => x.marker).join("") === "•◦▪•", JSON.stringify(r.map((x) => x.marker)));
+
+ // 번호 사슬 — 마커 1. a. i. 1.
+  await build("geo_number", chain("numbered_list", 4, "N"));
+  r = await boxes();
+  check("번호 마커가 깊이마다 바뀐다 (1. a. i. 1.)", r.map((x) => x.marker).join(" ") === "1. a. i. 1.", JSON.stringify(r.map((x) => x.marker)));
+
+ // 문단 밑의 글머리는 여전히 • (주기는 같은 종류 리스트 조상 수로 센다 — T21)
+  await build("geo_bullet_under_paragraph", [{ k: "P" }, { k: "B", type: "bulleted_list", parent: "P" }]);
+  r = await boxes();
+  check("문단 밑 글머리 마커는 •", r[1].marker === "•", JSON.stringify(r.map((x) => [x.type, x.marker, x.padL])));
+  check("문단 밑 글머리도 한 단 30px", r[1].padL === 30, JSON.stringify(r.map((x) => x.padL)));
+
+ // 토글 자식은 토글 텍스트와 같은 x = 박스에서 32px, 그 아래는 다시 30px
+  await build("geo_toggle", [{ k: "T", type: "toggle" }, { k: "C1", parent: "T" }, { k: "C2", parent: "C1" }]);
+  r = await boxes();
+  const d = (i) => +(r[i].absL - r[0].absL).toFixed(1);
+  check("토글 자식: 박스에서 32px", d(1) === 32, `${d(1)} (기대 32)`);
+  check("토글 손자: 거기서 다시 30px", d(2) === 62, `${d(2)} (기대 62)`);
+});
+
 // ── 실행 ───────────────────────────────────────────────────────────────────
 const names = Object.keys(scenarios).filter((n) => !ONLY.length || ONLY.includes(n));
 for (const n of names) {
