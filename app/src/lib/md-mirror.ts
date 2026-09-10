@@ -49,7 +49,13 @@ function fm(page: Page): string {
   return lines.join("\n");
 }
 
-function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: Set<string>): string {
+ // Blank lines exactly where the original puts them: none between two list
+ // items, one around anything else, indented to the deeper of the two blocks it
+ // separates (scratchpad/nind-M3-clipboard.json).
+const LISTISH = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
+type PrevBlock = { type: string; pad: string } | null;
+
+function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: Set<string>, prevBox?: { prev: PrevBlock }): string {
  // Roots are parentBlockId === null, but a block whose parent row is gone (a
  // delete that did not cascade) or whose chain loops is reachable from nowhere.
  // The .md route keeps those (memory-parse treeOrder); the mirror used to drop
@@ -62,8 +68,13 @@ function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: S
   for (const r of rows) mark.add(r.id);
 
   const out: string[] = [];
+  const box = prevBox ?? { prev: null as PrevBlock };
   let n = 0;
   for (const b of rows) {
+    if (box.prev && !(LISTISH.has(box.prev.type) && LISTISH.has(b.type))) {
+      out.push(box.prev.pad.length >= indent.length ? box.prev.pad : indent);
+    }
+    box.prev = { type: b.type, pad: indent };
     const text = b.content.html
       ? inlineHtmlToMd(b.content.html)
       : b.content.text ?? "";
@@ -131,7 +142,7 @@ function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: S
  // whatever the walk never reached — from its own root, at the left margin
     for (const b of [...all].sort((a, c) => a.position - c.position)) {
       if (mark.has(b.id)) continue;
-      const orphan = blocksToMd(all.map((x) => (x.id === b.id ? { ...x, parentBlockId: null } : x)), null, indent, mark);
+      const orphan = blocksToMd(all.map((x) => (x.id === b.id ? { ...x, parentBlockId: null } : x)), null, indent, mark, box);
       if (orphan.trim()) out.push(orphan);
     }
   }
@@ -149,7 +160,7 @@ async function writeTree(
     .sort((a, b) => a.position - b.position);
 
   for (const page of children) {
-    const md = fm(page) + blocksToMd(blocksByPage.get(page.id) ?? [], null);
+    const md = `${fm(page)}${blocksToMd(blocksByPage.get(page.id) ?? [], null)}\n`;
     const hasKids = pageList.some((p) => p.parentPageId === page.id);
     const name = slug(page.title, page.id);
     if (hasKids) {

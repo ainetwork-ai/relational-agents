@@ -302,6 +302,13 @@ export function parseMarkdown(
 // ---- blocks → Markdown (write-back) ---------------------------------------
 export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
   const out: string[] = [`# ${title}`, ""];
+ // Where the blank lines go, byte for byte as the original writes them
+ // (scratchpad/nind-M3-clipboard.json): NONE between two list items, and one
+ // around a block that is not a list item, indented to the deeper of the two it
+ // separates. The blank line matters for reading too — without it a child
+ // paragraph would be read as a continuation of the item above it.
+  const listish = (t: string) => t === "bulleted_list" || t === "numbered_list" || t === "todo" || t === "toggle";
+  let prev: { type: string; pad: string } | null = null;
  // Children are written with FOUR spaces per level and the numbering restarts
  // inside each level — that is exactly what the original writes, and pasting it
  // back rebuilds the same tree (measured 2026-09-10: M3 out, M2d round-trip).
@@ -323,6 +330,10 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
     stepAt.length = depth;
     stepAt[depth] =
       b.type === "numbered_list" ? Math.max(4, `${num}. `.length) : 4;
+ // a soft line break inside a block would otherwise land at column 0 and close
+ // the list context, flattening everything nested after it
+    if (prev && !(listish(prev.type) && listish(b.type))) out.push(prev.pad.length >= pad.length ? prev.pad : pad);
+    prev = { type: b.type, pad };
  // a soft line break inside a block would otherwise land at column 0 and close
  // the list context, flattening everything nested after it
     const line = (v: string) => { for (const l of String(v).split("\n")) out.push(pad + l); };
@@ -364,8 +375,8 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
       }
       default: line(text);
     }
-    out.push("");
   }
+  out.push("");
   return out.join("\n");
 }
 

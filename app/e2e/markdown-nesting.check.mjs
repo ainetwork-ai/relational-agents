@@ -176,17 +176,11 @@ const nested = await newPage("markdown-nesting export", [
   { k: "tkid", parent: "T" },
 ]);
 const md = await fetch(`${BASE}/api/pages/${nested.pageId}/export`, { headers: H }).then((r) => r.text());
-const body = md.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("# markdown-nesting"));
-check("한 단은 4칸", body.join("\n") === [
-  "- b1",
-  "    - b2",
-  "        - b3",
-  "        pchild",
-  "- [ ]  t1",
-  "    - [ ]  t2",
-  "- T",
-  "    tkid",
-].join("\n"), JSON.stringify(body));
+ // 원본이 같은 구조를 복사할 때 내놓는 마크다운 그대로 — 빈 줄 자리까지 (M3 실측)
+const NOTION_MD = "- b1\n    - b2\n        - b3\n        \n        pchild\n        \n- [ ]  t1\n    - [ ]  t2\n- T\n    \n    tkid";
+const body = md.replace(/^# .*\n\n/, "").replace(/\n$/, "");
+check("내보낸 마크다운이 원본과 글자 하나까지 같다", body === NOTION_MD, JSON.stringify(body));
+
 {
  // 왕복: 우리가 쓴 마크다운을 우리가 다시 읽으면 같은 트리
   const { tree } = await pasteInto(md.replace(/^# .*\n/, ""), "roundtrip-ours");

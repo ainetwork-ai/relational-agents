@@ -628,7 +628,13 @@ export function PageView({
                 });
  // ⌘Z takes the title back with the block (the original undoes both in one)
                 mergedTitleRef.current = merged;
-                return { undo: () => put(base), redo: () => put(merged) };
+ // Only put the old title back if the title is still the one this merge made.
+ // The frame's thunks live in the editor's history, so a ⌘Z long after the
+ // user rewrote the title would otherwise overwrite what they typed.
+                return {
+                  undo: () => { if (titleRef.current?.value === merged) put(base); },
+                  redo: () => { if (titleRef.current?.value === base) put(merged); },
+                };
               }}
             />
           )}
