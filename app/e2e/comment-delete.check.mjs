@@ -218,7 +218,11 @@ try {
   for (const id of temps) {
     await pg.query("delete from comments where author_id=$1", [id]).catch(() => {});
     await pg.query("delete from workspace_members where user_id=$1", [id]).catch(() => {});
-    await pg.query("delete from users where id=$1", [id]).catch(() => {});
+ // 댓글을 달면 알림이 남는다. notifications.actor_id 는 cascade 가 아니라서
+ // 이걸 먼저 지우지 않으면 users 삭제가 FK 로 막히고, .catch 가 그걸 삼킨다
+    await pg.query("delete from notifications where actor_id=$1 or user_id=$1", [id]).catch(() => {});
+    const drop = await pg.query("delete from users where id=$1", [id]).catch((e) => e);
+    if (drop instanceof Error) console.log(`  · 검사용 사용자 ${id} 를 못 지웠습니다: ${drop.message}`);
   }
   await pg.end().catch(() => {});
   await browser.close();
