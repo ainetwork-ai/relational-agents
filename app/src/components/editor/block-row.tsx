@@ -21,6 +21,7 @@ import { IconPicker } from "@/components/page/icon-picker";
 import { BLOCK_DRAG_MIME, useEditor, type EBlock } from "./block-editor";
 import type { ButtonAction } from "@/lib/db/schema";
 import { TableBlock } from "./table-block";
+import { VideoBody } from "./video-body";
 import { DatabaseBlock } from "@/components/database/database-block";
 import { usePagesStore } from "@/stores/pages";
 import { useCommentsStore } from "@/stores/comments";
@@ -1045,8 +1046,18 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
     case "image":
       return <ImageBody block={block} />;
 
-    case "bookmark":
     case "video":
+     // 동영상만 따로 — 원본은 여기서 `업로드 / 링크` 팝오버를 연다(docs/notion-video.md).
+     // bookmark·embed 는 URL 뿐이라 예전 경로 그대로 둔다.
+      return (
+        <VideoBody
+          blockId={block.id}
+          url={typeof block.content.url === "string" ? block.content.url : ""}
+          onUrl={(u) => editor.setImageUrl(block.id, u)}
+        />
+      );
+
+    case "bookmark":
     case "embed":
       return <EmbedBody block={block} kind={block.type} />;
 
