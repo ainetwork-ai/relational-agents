@@ -752,6 +752,11 @@ export const en: Record<string, string> = {
   "댓글 작업": "Comment actions",
   "추가 작업": "More actions",
   "댓글을 삭제하지 못했습니다": "Couldn't delete the comment",
+ // "Open comments" is the original's own aria-label on the row badge
+ // (e2e/fixtures/notion-row-comments.json badge.ariaLabel)
+  "댓글 열기": "Open comments",
+  "댓글 보내기": "Send comment",
+  "멘션하려는 사용자, 페이지, 날짜를 입력하세요.": "Mention a person, page, or date",
   "수학 공식 블록": "Block equation",
   인용: "Quote",
   구분선: "Divider",
