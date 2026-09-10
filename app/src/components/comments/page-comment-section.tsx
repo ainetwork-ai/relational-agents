@@ -43,7 +43,7 @@ export function PageCommentSection({
  // inline.emptyState).
   return (
     <div data-testid="page-comment-section" className="pb-3 pr-1 pt-2">
-      <CommentList comments={comments} />
+      <CommentList comments={comments} pageId={pageId} />
       <CommentComposer pageId={pageId} autoFocus={autoFocus} />
     </div>
   );

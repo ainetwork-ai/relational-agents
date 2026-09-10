@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { AtSign, ArrowUp, Paperclip } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { AtSign, ArrowUp, MoreHorizontal, Paperclip } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { useMe } from "@/stores/me";
 import { useCommentsStore, type PageComment } from "@/stores/comments";
 import { useT, useIntlLocale } from "@/i18n/provider";
 import { useImeGuard } from "@/hooks/use-ime-guard";
+import { useAnchored } from "@/hooks/use-anchored";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { useComposerAttachments, AttachmentsList } from "@/components/chat/composer-attachments";
 
 /**
@@ -25,16 +28,19 @@ export function CommentRow({
  // 8 instead of 16 underneath, for the row that sits right above the
  // "답글 N개 더 보기" line (the original keeps 8 on each side of it)
   tightBottom,
+  pageId,
 }: {
   comment: PageComment;
   tightBottom?: boolean;
+ // needed only to delete; the surfaces that pass it get the ⋯ affordance
+  pageId?: string;
 }) {
   const t = useT();
   const locale = useIntlLocale();
   return (
     <div
       data-testid={`comment-row-${comment.id}`}
-      className={`flex ${tightBottom ? "pb-2" : "pb-4"}`}
+      className={`group/comment relative flex ${tightBottom ? "pb-2" : "pb-4"}`}
     >
       <UserAvatar user={comment.author ?? { displayName: t("누군가") }} size={24} />
       <div className="ml-2 min-w-0 flex-1">
@@ -56,7 +62,135 @@ export function CommentRow({
         )}
         <CommentAttachments attachments={comment.attachments} />
       </div>
+      {/* LAST child, absolutely positioned, and free of <span> and borders on
+          purpose: three golden checks read this row's avatar as its first
+          child, the author and date as its first two spans, and its pitch and
+          insets to the pixel — an inline control would move all of them
+          (docs/notion-comment-delete.md §4). */}
+      {pageId && <CommentActions comment={comment} pageId={pageId} />}
     </div>
+  );
+}
+
+/**
+ * The 댓글 작업 toolbar that appears on a comment when the pointer is over it,
+ * and what its ⋯ opens. Measured on Notion 2026-09-10
+ * (docs/notion-comment-delete.md):
+ *
+ *   toolbar   right-aligned, 28 tall, 24×24 buttons
+ *   ⋯ menu    180 wide, radius 10, 28px rows, ink rgb(44,44,43) — NOT red
+ *   items     your own comment adds 편집하기 and 삭제하기; someone else's gets
+ *             neither, so the whole toolbar is drawn only for the author
+ *   confirm   324×145 modal, radius 12, "이 댓글을 삭제하시겠습니까?",
+ *             삭제 in white on rgb(229,100,88) with 취소 under it
+ *
+ * Only 삭제하기 is implemented — 리액션 추가 · 해결 · 편집하기 · 링크 복사 ·
+ * 읽지 않음으로 표시 are measured but not built.
+ */
+export function CommentActions({ comment, pageId }: { comment: PageComment; pageId: string }) {
+  const t = useT();
+  const me = useMe();
+  const remove = useCommentsStore((s) => s.remove);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useAnchored(menuOpen, btn, menu, { gap: 4, align: "end" });
+  useDismiss(menuOpen, () => setMenuOpen(false), btn, menu);
+
+ // authorship is the gate, exactly as in the original — and it is also what
+ // keeps the control off the public share surfaces, where there is no `me`
+  if (!me || me.id !== comment.authorId) return null;
+
+  return (
+    <>
+      <div
+        aria-label={t("댓글 작업")}
+        data-testid={`comment-actions-${comment.id}`}
+        className="pointer-events-none absolute right-0 top-0 flex h-7 items-center opacity-0 transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
+      >
+        <button
+          ref={btn}
+          type="button"
+          aria-label={t("추가 작업")}
+          title={t("추가 작업")}
+          data-testid={`comment-more-${comment.id}`}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-white text-[rgb(142,139,134)] hover:bg-[rgba(33,27,23,0.051)] dark:bg-neutral-900 dark:hover:bg-white/10"
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+
+      {menuOpen &&
+        createPortal(
+          <div
+            ref={menu}
+            data-testid={`comment-menu-${comment.id}`}
+            style={{ visibility: "hidden", width: 180 }}
+            className="popover-anim fixed z-[80] rounded-[10px] bg-white py-1 shadow-xl dark:bg-neutral-800"
+          >
+            <button
+              type="button"
+              data-testid={`comment-delete-${comment.id}`}
+              onClick={() => {
+                setMenuOpen(false);
+                setConfirming(true);
+              }}
+              className="flex h-7 w-full items-center px-3 text-left text-[14px] leading-7 text-[#2c2c2b] hover:bg-[rgba(33,27,23,0.051)] dark:text-neutral-200 dark:hover:bg-white/10"
+            >
+              {t("삭제하기")}
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {confirming &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30"
+            onMouseDown={() => setConfirming(false)}
+          >
+            <div
+              data-testid={`comment-delete-confirm-${comment.id}`}
+              style={{ width: 324 }}
+              className="popover-anim rounded-[12px] bg-white p-4 shadow-xl dark:bg-neutral-800"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <p className="px-1 pb-3 pt-1 text-[14px] leading-5 text-[#2c2c2b] dark:text-neutral-200">
+                {t("이 댓글을 삭제하시겠습니까?")}
+              </p>
+              {failed && (
+                <p className="px-1 pb-2 text-[12px] leading-4 text-[rgb(229,100,88)]">
+                  {t("댓글을 삭제하지 못했습니다")}
+                </p>
+              )}
+              <button
+                type="button"
+                data-testid={`comment-delete-yes-${comment.id}`}
+                onClick={async () => {
+                  const ok = await remove(pageId, comment.id);
+                  if (ok) setConfirming(false);
+                  else setFailed(true);
+                }}
+                className="mb-1 flex h-8 w-full items-center justify-center rounded-[6px] bg-[rgb(229,100,88)] text-[14px] font-medium text-[rgb(253,246,246)] hover:brightness-95"
+              >
+                {t("삭제")}
+              </button>
+              <button
+                type="button"
+                data-testid={`comment-delete-no-${comment.id}`}
+                onClick={() => setConfirming(false)}
+                className="flex h-8 w-full items-center justify-center rounded-[6px] text-[14px] text-[#2c2c2b] hover:bg-[rgba(33,27,23,0.051)] dark:text-neutral-200 dark:hover:bg-white/10"
+              >
+                {t("취소")}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 
@@ -306,7 +440,7 @@ function ComposerButton({
  */
 export const COLLAPSE_ABOVE = 3;
 
-export function CommentList({ comments }: { comments: PageComment[] }) {
+export function CommentList({ comments, pageId }: { comments: PageComment[]; pageId?: string }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
 
@@ -314,7 +448,7 @@ export function CommentList({ comments }: { comments: PageComment[] }) {
     return (
       <>
         {comments.map((c) => (
-          <CommentRow key={c.id} comment={c} />
+          <CommentRow key={c.id} comment={c} pageId={pageId} />
         ))}
       </>
     );
@@ -322,7 +456,7 @@ export function CommentList({ comments }: { comments: PageComment[] }) {
   const hidden = comments.length - 2;
   return (
     <>
-      <CommentRow comment={comments[0]} tightBottom />
+      <CommentRow comment={comments[0]} tightBottom pageId={pageId} />
       <button
         type="button"
         data-testid="comment-show-more"
@@ -331,7 +465,7 @@ export function CommentList({ comments }: { comments: PageComment[] }) {
       >
         {t("답글 {n}개 더 보기", { n: hidden })}
       </button>
-      <CommentRow comment={comments[comments.length - 1]} />
+      <CommentRow comment={comments[comments.length - 1]} pageId={pageId} />
     </>
   );
 }

@@ -67,7 +67,7 @@ export function RowCommentPopover({
           <p className="pb-3 text-[14px] text-neutral-400">{t("아직 댓글이 없습니다.")}</p>
         )}
         {comments.map((c) => (
-          <CommentRow key={c.id} comment={c} />
+          <CommentRow key={c.id} comment={c} pageId={pageId} />
         ))}
       </div>
       <div className="px-[14px] pb-3">

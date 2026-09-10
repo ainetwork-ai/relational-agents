@@ -1,0 +1,154 @@
+// 댓글 삭제 — 원본(노션) 측정치와 대조. docs/notion-comment-delete.md
+//
+// 2026-09-10 에 현정 테스트 팀스페이스에서 직접 댓글을 달아 재었다:
+//   · 댓글에 마우스를 올리면 오른쪽에 `댓글 작업` 툴바가 뜨고, ⋯(추가 작업) 이 열린다
+//   · 메뉴는 180 폭 / 28 행 / radius 10, 글자색 rgb(44,44,43) — 빨강이 아니다
+//   · 내 댓글에만 편집하기·삭제하기 가 있다. 남의 댓글은 읽지 않음으로 표시·링크 복사 뿐
+//   · 삭제하기 → 324×145 / radius 12 확인창 "이 댓글을 삭제하시겠습니까?",
+//     빨강 삭제 rgb(229,100,88) 아래 취소
+//   · 스레드 머리를 지워도 답글은 남는다 (캐스케이드 아님)
+//
+//   [BASE_URL=…] [PAGE_ID=…] node e2e/comment-delete.check.mjs
+//
+// 자기가 만든 댓글만 쓰고 지운다 — 몇 번을 돌려도 dev 데이터가 늘지 않는다.
+import fs from "node:fs";
+import { sealData } from "iron-session";
+import { chromium } from "@playwright/test";
+
+const BASE = process.env.BASE_URL ?? "http://localhost:3110";
+const AUTHOR = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj@comcom.ai
+const OTHER = process.env.OTHER_USER_ID ?? "30790fd0-9bdb-4c6c-abb8-3903fff5fd6d"; // amy@comcom.ai, same workspace
+const PAGE_ID = process.env.PAGE_ID ?? "46802c30-928f-4df6-a032-c53e478e7f73"; // a row page that already has comments
+const MENU_W = 180, ROW_H = 28, MENU_RADIUS = "10px";
+const DIALOG_W = 324, DIALOG_RADIUS = "12px";
+const RED = "rgb(229, 100, 88)";
+
+const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
+const seal = (userId) => sealData({ userId }, { password: secret, ttl: 0 });
+const authorCookie = await seal(AUTHOR);
+const otherCookie = await seal(OTHER);
+
+let fails = 0;
+const check = (name, ok, detail = "") => { console.log(`${ok ? "✓" : "✗"} ${name}${detail ? `  (${detail})` : ""}`); if (!ok) fails++; };
+const api = async (path, init, cookie = authorCookie) =>
+  fetch(`${BASE}${path}`, { ...init, headers: { "content-type": "application/json", cookie: `rm-session=${cookie}`, ...(init?.headers ?? {}) } });
+const post = async (body, parentId = null, cookie = authorCookie) => {
+  const r = await api(`/api/pages/${PAGE_ID}/comments`, { method: "POST", body: JSON.stringify({ body, blockId: null, parentId }) }, cookie);
+  if (!r.ok) throw new Error(`POST comment failed: ${r.status}`);
+  return (await r.json()).comment;
+};
+const list = async (cookie = authorCookie) => (await (await api(`/api/pages/${PAGE_ID}/comments`, {}, cookie)).json()).comments;
+const del = (id, cookie = authorCookie) => api(`/api/comments/${id}`, { method: "DELETE" }, cookie);
+const made = [];
+const track = (c) => { made.push(c.id); return c; };
+
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+await ctx.addCookies([{ name: "rm-session", value: authorCookie, domain: new URL(BASE).hostname, path: "/" }]);
+const page = await ctx.newPage();
+const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
+
+try {
+  // ── server: only the author may delete ───────────────────────────────────
+  {
+    const mine = track(await post("삭제 권한 검사용"));
+    const asOther = await del(mine.id, otherCookie);
+    check("S1. 남이 내 댓글을 지우려 하면 403", asOther.status === 403, `status=${asOther.status}`);
+    check("S1. 그리고 댓글은 그대로 남는다", (await list()).some((c) => c.id === mine.id));
+    const asMe = await del(mine.id);
+    check("S2. 작성자가 지우면 200", asMe.ok, `status=${asMe.status}`);
+    check("S2. 목록에서 사라진다", !(await list()).some((c) => c.id === mine.id));
+  }
+  // ── server: 머리를 지워도 답글은 남는다 (노션과 같게) ────────────────────
+  {
+    const root = track(await post("루트 — 답글 보존 검사"));
+    const reply = track(await post("답글 — 남아 있어야 함", root.id));
+    check("S3. 머리 삭제는 200", (await del(root.id)).ok);
+    const after = await list();
+    check("S3. 답글은 살아남는다", after.some((c) => c.id === reply.id), `n=${after.length}`);
+    await del(reply.id);
+  }
+  // ── UI ───────────────────────────────────────────────────────────────────
+  const target = track(await post("UI 삭제 검사용 댓글"));
+  await page.goto(`${BASE}/p/${PAGE_ID}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+  await page.waitForSelector("[data-testid='page-comment-section']", { timeout: 120_000 });
+  const row = page.locator(`[data-testid="comment-row-${target.id}"]`);
+  await row.waitFor({ timeout: 30_000 });
+
+  // 기하가 그대로여야 한다 — 세 골든 검사가 이 행을 픽셀로 잰다
+  const geo = await row.evaluate((el) => {
+    const spans = el.querySelectorAll("span");
+    const first = el.firstElementChild;
+    return {
+      firstTag: first?.tagName,
+      firstIsActions: first?.getAttribute("aria-label") === "댓글 작업",
+      spanCount: spans.length,
+      span0: (spans[0]?.textContent || "").slice(0, 20),
+      span1: (spans[1]?.textContent || "").slice(0, 20),
+      pTag: !!el.querySelector("p"),
+      actionsIsLast: el.lastElementChild?.getAttribute("aria-label"),
+      actionsAbsolute: el.lastElementChild ? getComputedStyle(el.lastElementChild).position : null,
+      h: Math.round(el.getBoundingClientRect().height),
+    };
+  });
+  check("G1. 아바타가 여전히 첫 자식 (액션이 아니다)", ["IMG", "DIV", "SPAN"].includes(geo.firstTag) && !geo.firstIsActions, JSON.stringify({ firstTag: geo.firstTag, isActions: geo.firstIsActions }));
+  check("G2. 이름·날짜가 여전히 첫 두 span", geo.span0.length > 0 && /\d/.test(geo.span1), `span0="${geo.span0}" span1="${geo.span1}"`);
+  check("G3. 본문 <p> 그대로", geo.pTag);
+  check("G4. 액션은 마지막 자식이고 absolute — 흐름을 밀지 않는다", geo.actionsIsLast !== null && geo.actionsAbsolute === "absolute", JSON.stringify({ last: geo.actionsIsLast, pos: geo.actionsAbsolute }));
+
+  // 호버 → ⋯
+  const more = page.locator(`[data-testid="comment-more-${target.id}"]`);
+  check("U1. 호버 전에는 액션이 보이지 않는다", (await row.locator("[aria-label]").first().evaluate((el) => getComputedStyle(el.closest("[aria-label]")).opacity).catch(() => "1")) === "0" || (await more.evaluate((el) => getComputedStyle(el.parentElement).opacity)) === "0");
+  await row.hover();
+  await page.waitForTimeout(300);
+  check("U2. 호버하면 ⋯ 가 나타난다", (await more.evaluate((el) => getComputedStyle(el.parentElement).opacity)) === "1");
+
+  await more.click();
+  const menu = page.locator(`[data-testid="comment-menu-${target.id}"]`);
+  await menu.waitFor({ timeout: 5000 });
+  const m = await menu.evaluate((el) => { const r = { width: el.offsetWidth }; const s = getComputedStyle(el); const b = el.querySelector("button"); const br = { height: b.offsetHeight }; const bs = getComputedStyle(b); return { w: Math.round(r.width), radius: s.borderRadius, itemH: Math.round(br.height), itemText: (b.textContent || "").trim(), itemColor: bs.color }; });
+  check("U3. 메뉴 폭 180 · radius 10 · 행 28", m.w === MENU_W && m.radius === MENU_RADIUS && m.itemH === ROW_H, JSON.stringify(m));
+  check("U4. 항목은 삭제하기", m.itemText === "삭제하기", m.itemText);
+  check("U5. 삭제 항목은 빨강이 아니다 (원본과 같게)", m.itemColor !== RED, m.itemColor);
+
+  await page.locator(`[data-testid="comment-delete-${target.id}"]`).click();
+  const dlg = page.locator(`[data-testid="comment-delete-confirm-${target.id}"]`);
+  await dlg.waitFor({ timeout: 5000 });
+  const d = await dlg.evaluate((el) => { const r = { width: el.offsetWidth }; const s = getComputedStyle(el); const yes = el.querySelector("[data-testid^='comment-delete-yes']"); const no = el.querySelector("[data-testid^='comment-delete-no']"); const ys = getComputedStyle(yes); return { w: Math.round(r.width), radius: s.borderRadius, title: (el.querySelector("p")?.textContent || "").trim(), yesText: (yes.textContent || "").trim(), yesBg: ys.backgroundColor, yesColor: ys.color, noText: (no.textContent || "").trim(), noBelow: no.getBoundingClientRect().top > yes.getBoundingClientRect().top }; });
+  check("U6. 확인창 폭 324 · radius 12", d.w === DIALOG_W && d.radius === DIALOG_RADIUS, JSON.stringify({ w: d.w, radius: d.radius }));
+  check("U7. 문구가 원본과 같다", d.title === "이 댓글을 삭제하시겠습니까?", d.title);
+  check("U8. 삭제 버튼은 빨강 채움, 취소가 그 아래", d.yesText === "삭제" && d.yesBg === RED && d.noText === "취소" && d.noBelow, JSON.stringify(d));
+
+  await page.locator(`[data-testid="comment-delete-no-${target.id}"]`).click();
+  await page.waitForTimeout(400);
+  check("U9. 취소하면 댓글이 남는다", (await row.count()) === 1 && (await dlg.count()) === 0);
+
+  await row.hover();
+  await more.click();
+  await page.locator(`[data-testid="comment-delete-${target.id}"]`).click();
+  await page.locator(`[data-testid="comment-delete-yes-${target.id}"]`).click();
+  await page.waitForTimeout(1200);
+  check("U10. 삭제하면 화면에서 사라진다", (await row.count()) === 0);
+  check("U10. 서버에서도 사라진다", !(await list()).some((c) => c.id === target.id));
+
+  // ── 남의 댓글에는 액션이 없다 ────────────────────────────────────────────
+  {
+    const theirs = track(await post("남의 댓글 — 액션 없어야 함", null, otherCookie));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector(`[data-testid="comment-row-${theirs.id}"]`, { timeout: 30_000 });
+    await page.locator(`[data-testid="comment-row-${theirs.id}"]`).hover();
+    await page.waitForTimeout(300);
+    check("U11. 남이 쓴 댓글에는 ⋯ 가 아예 없다", (await page.locator(`[data-testid="comment-more-${theirs.id}"]`).count()) === 0);
+    await del(theirs.id, otherCookie);
+  }
+  check("Z. 페이지 오류 없음", errors.length === 0, errors.join(" | "));
+} catch (e) {
+  check("실행", false, String(e).slice(0, 200));
+} finally {
+  for (const id of made) await del(id).catch(() => {});
+  for (const id of made) await del(id, otherCookie).catch(() => {});
+  await browser.close();
+}
+console.log(fails ? `\n${fails} FAILED` : "\nall checks passed");
+process.exit(fails ? 1 : 0);
