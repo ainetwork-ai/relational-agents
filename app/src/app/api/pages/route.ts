@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
+import { loadDatabaseForUser } from "@/lib/db-access";
+import { getPagePermission, hasPermission } from "@/lib/auth/share-token";
 import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
 import { getDefaultWorkspaceId, workspaceForRequest } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
@@ -10,6 +12,8 @@ import { listPages, okfSyntheticPage } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
 
 export const dynamic = "force-dynamic";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** GET /api/pages?archived=1 → { pages: Page[] } (flat list; tree is client-side).
  * OKF file-backed pages (the folder tree = the content backend) are merged in
@@ -180,25 +184,59 @@ export async function POST(req: NextRequest) {
   let { parentPageId = null } = body ?? {};
   const { title = "", icon = null, teamspaceId = null } = body ?? {};
 
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: "No workspace" }, { status: 400 });
-  }
+  // A page belongs to the workspace of whatever it hangs off — NOT to the
+  // session's active workspace. Taking the active one put a row made in
+  // ComCom > Projects into the creator's personal workspace whenever that was
+  // the one selected, so after 휴지통으로 이동 the page sat in the other
+  // workspace's trash and could not be restored from where it was deleted.
+  // The active workspace is only the answer for a page with no parent.
+  let workspaceId = await getDefaultWorkspaceId(auth.user.id);
 
- // A database row's body page belongs UNDER the page hosting the database —
- // that's what the breadcrumb walks. The client minting it (ensureRowPage)
- // only knows the database id, and a linked view can host the same database
- // on several pages, so resolve here: prefer the full-page host.
   if (typeof body?.rowForDatabaseId === "string") {
+   // A database row's body page belongs UNDER the page hosting the database —
+   // that's what the breadcrumb walks. The client minting it (ensureRowPage)
+   // only knows the database id, and a linked view can host the same database
+   // on several pages, so resolve here: prefer the full-page host.
+    const database = UUID_RE.test(body.rowForDatabaseId)
+      ? await loadDatabaseForUser(body.rowForDatabaseId, auth.user.id)
+      : null;
+    if (!database) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    workspaceId = database.workspaceId;
     const hosts = await db
       .select({
         pageId: blocks.pageId,
         fullPage: sql<string | null>`${blocks.content}->>'fullPage'`,
       })
       .from(blocks)
-      .where(and(eq(blocks.type, "database"), eq(blocks.alive, true), sql`${blocks.content}->>'databaseId' = ${body.rowForDatabaseId}`));
+      .innerJoin(pages, eq(pages.id, blocks.pageId))
+      .where(
+        and(
+          eq(blocks.type, "database"),
+          eq(blocks.alive, true),
+          sql`${blocks.content}->>'databaseId' = ${body.rowForDatabaseId}`,
+         // a host in another workspace would drag the row page across again
+          eq(pages.workspaceId, database.workspaceId)
+        )
+      );
     const host = hosts.find((h) => h.fullPage === "true") ?? hosts[0];
     if (host) parentPageId = host.pageId;
+  } else if (typeof parentPageId === "string" && UUID_RE.test(parentPageId)) {
+   // A sub-page: its parent decides the workspace, and adding under a page is
+   // an edit of that page. Unchecked, any signed-in user could hang a child
+   // off any page id at all, including one in a workspace they are not in.
+    const [parent] = await db
+      .select({ workspaceId: pages.workspaceId })
+      .from(pages)
+      .where(eq(pages.id, parentPageId))
+      .limit(1);
+    const perm = parent ? await getPagePermission(parentPageId, auth.user.id) : null;
+    if (!parent || !perm || !hasPermission(perm, "edit"))
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    workspaceId = parent.workspaceId;
+  }
+
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
   const [{ maxPos }] = await db
