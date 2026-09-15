@@ -28,6 +28,13 @@ export function useDismiss(
     const onDown = (e: MouseEvent) => {
       const target = e.target as Node;
       if (inside.some((r) => r.current?.contains(target))) return;
+      // A layer opened FROM INSIDE this popover (a ⋯ menu, a confirm dialog) is
+      // portalled to <body> too, so it is not inside any ref we were given — and
+      // a mousedown on it read as "outside": the popover closed, unmounting the
+      // component that owned the menu, and the click never arrived. That is how
+      // 삭제하기 in the table's comment card did nothing. Such layers carry
+      // data-dismiss-layer; a press on one is not a press outside us.
+      if (target instanceof Element && target.closest("[data-dismiss-layer]")) return;
       onDismiss();
     };
     const onKey = (e: KeyboardEvent) => {

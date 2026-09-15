@@ -132,6 +132,9 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
         createPortal(
           <div
             ref={menu}
+            // opened from inside the row comment card: a press here must not
+            // close that card (useDismiss) — see use-dismiss.ts
+            data-dismiss-layer=""
             data-testid={`comment-menu-${comment.id}`}
             style={{ visibility: "hidden", width: 180 }}
             className="popover-anim fixed z-[80] rounded-[10px] bg-white py-1 shadow-xl dark:bg-neutral-800"
@@ -154,6 +157,7 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
       {confirming &&
         createPortal(
           <div
+            data-dismiss-layer=""
             className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30"
             onMouseDown={() => setConfirming(false)}
           >
