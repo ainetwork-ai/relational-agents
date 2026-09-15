@@ -65,6 +65,10 @@ export async function PATCH(
   const setKeys: Record<string, unknown> = {};
   const delKeys: string[] = [];
   for (const [k, v] of Object.entries(patch)) {
+    // `__archived` means "this entry's page is in the trash". Only the page
+    // route may write it (it checks "full"); taking it from a row patch would
+    // let anyone who can reach the row hide a live entry from every view.
+    if (k === "__archived") continue;
     if (v === null) delKeys.push(k);
     else setKeys[k] = v;
   }

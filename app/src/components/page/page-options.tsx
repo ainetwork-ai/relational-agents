@@ -11,20 +11,38 @@ import {
   CornerUpRight,
   Download,
   History,
+  Trash2,
 } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
+import { useToastStore } from "@/stores/toast";
 import { PageIcon } from "@/components/page-icon";
 import { PageHistoryModal } from "./page-history-modal";
 import { useT } from "@/i18n/provider";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The  page "..." menu: Full width, Lock, Duplicate, Move to, Export. */
-export function PageOptionsMenu({ page }: { page: Page }) {
+/** The  page "..." menu: Full width, Lock, Duplicate, Move to, 휴지통으로 이동, Export.
+ *
+ * 원본 실측은 docs/notion-page-delete.md — 카드 256 / radius 10, 삭제 항목은
+ * `옮기기` 바로 다음이고 그 뒤에 구분선이 온다. 라벨은 `삭제`가 아니라
+ * **휴지통으로 이동**이며 **빨강이 아니다**(14px/400/rgb(44,44,43), 다른 항목과
+ * 같은 잉크). 사이드바 행 메뉴의 빨간 `danger` 관례는 여기로 가져오지 않는다. */
+export function PageOptionsMenu({
+  page,
+  onDeleted,
+}: {
+  page: Page;
+  /** 이 페이지를 담고 있던 화면을 닫거나 떠나는 일 — 전체 페이지는 router.push("/"),
+   *  가운데 피크와 행 사이드 피크는 각자의 onClose. 지운 페이지 위에 그대로 남아
+   *  있지 않도록 각 화면이 자기 방식을 건네준다(메뉴는 피크를 알지 못한다). */
+  onDeleted?: () => void;
+}) {
   const t = useT();
   const router = useRouter();
   const updatePage = usePagesStore((s) => s.updatePage);
+  const archivePage = usePagesStore((s) => s.archivePage);
+  const restorePage = usePagesStore((s) => s.restorePage);
   const allPages = usePagesStore((s) => s.pages);
   const [open, setOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -84,7 +102,7 @@ export function PageOptionsMenu({ page }: { page: Page }) {
         <MoreHorizontal size={16} />
       </button>
       {open && (
-        <div className="popover-anim absolute right-0 top-8 z-50 w-56 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="popover-anim absolute right-0 top-8 z-50 w-[256px] rounded-[10px] border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           <button
             data-testid="page-opt-fullwidth"
             onClick={() => void updatePage(page.id, { fullWidth: !page.fullWidth })}
@@ -167,6 +185,30 @@ export function PageOptionsMenu({ page }: { page: Page }) {
                 ))}
               </div>
             </div>
+          )}
+          {/* 휴지통으로 이동 — 원본에서 `옮기기` 바로 다음, 그 뒤가 구분선(아래 것).
+              OKF(비 UUID) 페이지는 소프트 삭제가 아무 일도 하지 않으므로 복제·옮기기와
+              같은 조건으로 숨긴다 — 눌러도 조용한 항목보다 없는 편이 낫다. */}
+          {isPostgres && (
+            <button
+              data-testid="page-opt-delete"
+              onClick={async () => {
+                setOpen(false);
+                const toast = useToastStore.getState();
+                // the server asks for "full": a page shared to you at a lower
+                // level is refused, and then nothing was deleted — say so and
+                // stay on the page instead of closing it over a success toast
+                if (!(await archivePage(page.id))) {
+                  toast.show(t("휴지통으로 이동하지 못했습니다"));
+                  return;
+                }
+                toast.show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
+                onDeleted?.();
+              }}
+              className={item}
+            >
+              <Trash2 size={14} /> {t("휴지통으로 이동")}
+            </button>
           )}
           <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
           <a

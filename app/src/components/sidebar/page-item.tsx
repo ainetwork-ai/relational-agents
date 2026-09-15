@@ -273,10 +273,12 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
               danger
               onClick={async () => {
                 setMenuOpen(false);
-                await archivePage(page.id);
-                useToastStore
-                  .getState()
-                  .show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
+                const toast = useToastStore.getState();
+                if (!(await archivePage(page.id))) {
+                  toast.show(t("휴지통으로 이동하지 못했습니다"));
+                  return;
+                }
+                toast.show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
                 if (isActive) router.push("/");
               }}
             />

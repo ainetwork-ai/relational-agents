@@ -731,6 +731,7 @@ export const en: Record<string, string> = {
   "휴지통에서 페이지 검색": "Search pages in Trash",
   "휴지통으로 이동": "Move to Trash",
   "휴지통으로 이동했습니다": "Moved to Trash",
+  "휴지통으로 이동하지 못했습니다": "Couldn't move to Trash",
   "휴지통이 비어 있습니다": "Trash is empty",
   "📷 사진": "📷 Photo",
   // editor: block hints, type-menu labels/sections/footer

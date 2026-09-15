@@ -22,7 +22,7 @@ interface PagesState {
   /** flag a page whose body just became a full-page database */
   markAsDatabase: (pageId: string) => void;
   updatePage: (id: string, patch: Partial<Page>) => Promise<void>;
-  archivePage: (id: string) => Promise<void>;
+  archivePage: (id: string) => Promise<boolean>;
   restorePage: (id: string) => Promise<void>;
   deleteForever: (id: string) => Promise<void>;
 }
@@ -180,7 +180,12 @@ export const usePagesStore = create<PagesState>((set, get) => ({
       }
       return { pages: next, ...derive(next), archived };
     });
-    await fetch(`/api/pages/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/pages/${id}`, { method: "DELETE" }).catch(() => null);
+    if (res?.ok) return true;
+    // refused (403 below "full", or offline): the optimistic removal was a lie —
+    // put the tree back from the server so the page reappears where it was
+    await Promise.all([get().load(), get().loadArchived()]);
+    return false;
   },
 
   restorePage: async (id) => {

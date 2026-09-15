@@ -354,7 +354,12 @@ export function PageView({
         </button>
         <CopyLinkButton pageId={initialPage.id} />
         <SharePopover pageId={initialPage.id} />
-        <PageOptionsMenu page={page} />
+        <PageOptionsMenu
+          page={page}
+ // 휴지통으로 이동한 뒤 지운 페이지 위에 남지 않는다: 피크면 피크를 닫고,
+ // 전체 페이지면 사이드바 행 메뉴와 같이 홈으로 나간다
+          onDeleted={peek ? peek.onClose : () => router.push("/")}
+        />
         {peek && (
           <button
             data-testid="peek-close"

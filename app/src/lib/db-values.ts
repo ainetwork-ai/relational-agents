@@ -298,7 +298,10 @@ export function applyView(
 ): DbRow[] {
  // template rows (values.__template) are blueprints, never real data — they
  // never show in any view or count toward calcs.
-  let out = rows.filter((r) => !r.values.__template);
+  // …and an entry whose page is in the trash (values.__archived, set by
+  // DELETE /api/pages/<id>) leaves every view the same way until it is
+  // restored — docs/notion-page-delete.md §5.
+  let out = rows.filter((r) => !r.values.__template && !r.values.__archived);
  // inactive rules don't restrict: incomplete (no value yet) or orphaned
  // (their property was deleted — a ghost rule must never blank the view).
   const isLive = (f: ViewFilter) =>

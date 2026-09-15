@@ -64,7 +64,9 @@ export async function POST(
     .insert(dbRows)
     .values({
       databaseId,
-      values: body?.values ?? {},
+      // `__archived` is the trash mark only the page route may set (see the row
+      // PATCH): a new row never arrives already trashed
+      values: (({ __archived: _trash, ...rest }) => rest)((body?.values ?? {}) as Record<string, unknown>),
       position: (maxPos ?? 0) + 1,
       parentRowId: typeof body?.parentRowId === "string" ? body.parentRowId : null,
       createdBy: auth.user.id,

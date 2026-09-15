@@ -205,7 +205,8 @@ export function RowPeek({
 
  // 이전 / 다음 페이지 — step through the rows the way the view lists them.
  // Template rows are definitions, not entries, so they are not stops.
-  const stops = db.rows.filter((r) => !r.values.__template);
+  // A trashed entry (values.__archived) is gone from every view, so it is not a stop either.
+  const stops = db.rows.filter((r) => !r.values.__template && !r.values.__archived);
   const at = stops.findIndex((r) => r.id === rowId);
   const prev = at > 0 ? stops[at - 1] : null;
   const next = at >= 0 && at < stops.length - 1 ? stops[at + 1] : null;
@@ -314,7 +315,9 @@ export function RowPeek({
                 />
               </PeekButton>
             )}
-            {page && <PageOptionsMenu page={page} />}
+            {/* 휴지통으로 이동하면 이 피크는 닫힌다 — 지운 행의 페이지를 계속
+                띄워두지 않는다(닫기 버튼과 같은 onClose) */}
+            {page && <PageOptionsMenu page={page} onDeleted={onClose} />}
           </div>
         </div>
 
