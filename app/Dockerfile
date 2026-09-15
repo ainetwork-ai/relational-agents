@@ -44,6 +44,10 @@ COPY --from=builder /app/public ./public
 # own prerender cache and every ISR write fails with EACCES, silently falling
 # back to re-rendering each request. Same trap as public/uploads had.
 RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next
+# tus stages partial uploads in <cwd>/.uploads-tus (lib/files/tus-server-config.ts).
+# /app is root-owned, so without this every resumable upload (video, comment
+# attachments) died with EACCES on mkdir and the client saw a bare 500.
+RUN mkdir -p .uploads-tus && chown nextjs:nodejs .uploads-tus
 # OKF_ROOT is the content database and is written at runtime — it lives on a
 # mounted volume, never in the image.
 RUN mkdir -p /data/okf /data/md-mirror && chown -R nextjs:nodejs /data
