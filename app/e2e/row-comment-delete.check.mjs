@@ -115,6 +115,51 @@ try {
   await page.waitForTimeout(500);
   check("6. 카드 바깥을 누르면 카드는 닫힌다", (await popover().count()) === 0);
 
+  // 댓글이 하나뿐인 행에서 그 하나를 지우면: 배지가 사라지고, 배지에 매달린 카드도 닫힌다.
+  // (고치기 전에는 카드가 기준을 잃고 화면 왼쪽 위로 튀어 "아직 댓글이 없습니다"를 띄웠다)
+  {
+    // 화면에 보이는, 댓글이 하나도 없는 행을 골라 거기에 내 댓글을 딱 하나 단다
+    const rowIds = await page.$$eval("[data-dbrow]", (els) =>
+      els.filter((e) => !e.querySelector("[data-testid='comment-count-badge']"))
+        .map((e) => e.getAttribute("data-testid").replace("db-row-", "")));
+    let sole = null;
+    for (const rid of rowIds) {
+      const pid = (await pg.query("select values->>'__page' p from db_rows where id::text=$1", [rid])).rows[0]?.p;
+      if (!pid) continue;
+      const n = (await pg.query("select count(*)::int n from comments where page_id::text=$1", [pid])).rows[0].n;
+      if (n === 0) { sole = { rid, pid }; break; }
+    }
+    check("7. 댓글 없는 행을 찾았다", !!sole);
+    if (sole) {
+      const r = await fetch(`${BASE}/api/pages/${sole.pid}/comments`, {
+        method: "POST",
+        headers: { cookie: `rm-session=${cookie}`, "content-type": "application/json" },
+        body: JSON.stringify({ body: `${MARK} sole` }),
+      });
+      const sid = (await pg.query("select id from comments where body=$1", [`${MARK} sole`])).rows[0]?.id;
+      check("7. 그 행에 댓글 하나를 달았다", r.ok && !!sid, `status=${r.status}`);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      const soleBadge = page.locator(`[data-testid='db-row-${sole.rid}'] [data-testid='comment-count-badge']`).first();
+      await soleBadge.waitFor({ timeout: 120_000 });
+      await page.waitForTimeout(1200);
+      await soleBadge.click();
+      await popover().waitFor({ timeout: 10_000 });
+      const srow = popover().locator(`[data-testid='comment-row-${sid}']`);
+      await srow.waitFor({ timeout: 10_000 });
+      await srow.hover();
+      await page.waitForTimeout(300);
+      await page.locator(`[data-testid='comment-more-${sid}']`).click().catch(() => {});
+      await page.locator(`[data-testid='comment-delete-${sid}']`).click().catch(() => {});
+      await page.waitForTimeout(400);
+      await page.locator(`[data-testid='comment-delete-yes-${sid}']`).click().catch(() => {});
+      await page.waitForTimeout(1500);
+      check("7. 마지막 댓글이 서버에서 지워졌다",
+        (await pg.query("select 1 from comments where id=$1", [sid])).rowCount === 0);
+      check("7. 배지가 사라진다", (await soleBadge.count()) === 0);
+      check("7. 카드도 닫힌다 (왼쪽 위로 튀지 않는다)", (await popover().count()) === 0);
+    }
+  }
+
   check("Z. 페이지 오류 없음", errors.length === 0, errors.slice(0, 2).join(" | "));
 } catch (e) {
   check("실행", false, String(e).slice(0, 300));

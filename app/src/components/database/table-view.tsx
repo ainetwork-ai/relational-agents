@@ -1083,6 +1083,10 @@ function RowLine({
   const rowPageId = typeof row.values["__page"] === "string" ? row.values["__page"] : null;
   const commentCount = useCommentsStore((s) => (rowPageId ? s.countByPage[rowPageId] ?? 0 : 0));
   const [commentsOpen, setCommentsOpen] = useState(false);
+ // Deleting the last comment takes the badge away, and the card is anchored to
+ // the badge — left open it lost its anchor and jumped to the top-left corner
+ // showing "아직 댓글이 없습니다". No badge, no card: close it in the same render.
+  if (commentsOpen && commentCount === 0) setCommentsOpen(false);
   const badgeRef = useRef<HTMLSpanElement>(null);
   return (
     <div
@@ -1220,7 +1224,7 @@ function RowLine({
               open={commentsOpen}
               onOpen={() => setCommentsOpen((v) => !v)}
             />
-            {commentsOpen && rowPageId && (
+            {commentsOpen && rowPageId && commentCount > 0 && (
               <RowCommentPopover
                 pageId={rowPageId}
                 anchorRef={badgeRef}
