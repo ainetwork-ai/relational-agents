@@ -25,16 +25,27 @@
 cd /mnt/newdata/git/notion
 E=.env.prod
 
-# 배포 — 이미지를 커밋 SHA로 태깅해 라이브 버전을 특정 가능하게 만든다
-TAG=$(git rev-parse --short HEAD)
-docker compose --env-file $E -f docker-compose.prod.yml build app
-docker tag memory-live-app:latest memory-live-app:$TAG
+# 배포 — 이미지를 커밋 SHA로 태깅해 라이브 버전을 특정 가능하게 만든다.
+# APP_TAG 를 build 에도 넘긴다: compose 의 image 는 memory-live-app:${APP_TAG:-latest}
+# 라서, .env.prod 에 APP_TAG 가 들어 있으면 build 는 :latest 를 만들지 않고
+# 그 태그를 덮어쓴다 — 되돌릴 지점 하나가 조용히 사라진다.
+TAG=$(git rev-parse --short HEAD)   # 미커밋 변경을 담았다면 접미사를 붙인다 (예: $TAG-ui)
+APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml build app
 APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml up -d app
+sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" $E   # 파일이 라이브와 어긋나면 다음 사람의
+                                          # 인자 없는 up 이 프로덕션을 롤백시킨다
 
 # 롤백 — 이전 태그로 되돌린다 (소스만이 아니라 node_modules까지 그 시점 그대로)
 APP_TAG=<이전-SHA> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
 docker images memory-live-app   # 되돌릴 수 있는 후보 목록
+
+# 동시에 배포하지 않는다. 두 세션이 같은 순간에 `up -d app` 을 치면 한쪽이
+# 컨테이너를 지운 뒤 다른 쪽이 같은 이름으로 만들려다 실패해 — 이름 충돌로
+# 끝나고 프로덕션에는 아무 컨테이너도 남지 않는다(502). 복구는 이렇다:
+#   docker ps -a --filter name=memory-live-app   # <해시>_memory-live-app-1 이 보인다
+#   docker rm -f <그 컨테이너>
+#   APP_TAG=<태그> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
 # 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
 # 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
@@ -251,3 +262,19 @@ Dockerfile이 ARG 7개를 선언하는데 compose가 2개만 넘기고 있었다
    양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
    `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
    (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.
+9. **배포를 `flock`으로 직렬화하기 — 데모 후로 미룸(2026-07-26 합의).** §2의 두
+   함정은 둘 다 사람이 규율로 막을 수 없는 종류다. 동시 `up -d`는 그날 실제로
+   프로덕션을 40초 내렸고, `.env.prod`의 `APP_TAG`는 배포와 별개 단계라 계속
+   어긋난다(그날 세 번 손으로 맞췄고 세 번 다 다음 배포에 밀렸다). 스크립트
+   하나가 둘 다 없앤다:
+
+   ```bash
+   exec 9>/tmp/memory-live-deploy.lock
+   flock -w 900 9 || exit 1                          # 동시 배포 차단
+   APP_TAG=$TAG compose build app && APP_TAG=$TAG compose up -d app
+   sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.prod    # 핀을 배포의 일부로
+   ```
+
+   지금 만들지 않은 이유: 모든 세션이 이 스크립트를 써야 잠금이 의미가 있는데,
+   데모 준비 중에는 다들 `docker compose`를 직접 친다. 반쪽 잠금은 "보호받고
+   있다"는 착각만 준다. 데모가 끝나고 배포자가 한 명일 때 넣는다.

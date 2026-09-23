@@ -114,6 +114,7 @@ function datesFor(key, lang) {
       photos: c.photos.map((p) => ({
         url: `/date/web/${p.file}`,
         time: p.time,
+        spot: p.spot, // optional same-place grouping (several shots, one moment)
         caption: p.caption[lang] ?? p.caption.en,
       })),
     }))

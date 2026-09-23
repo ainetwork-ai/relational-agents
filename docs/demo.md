@@ -16,13 +16,13 @@ Two title cards before the product appears. No UI yet — this is the thesis, an
 
 **Card 1 — 😈 the problem** (7s). Show `docs/img/agent.png`: one agent per human, one shared memory store holding "Egg tart with Hannah". **Ava** asks *"Chanho, do you like egg tarts?"* — the agent answers *"Yes — Chanho used to love egg tarts, especially with Hannah."* The red leak arrow lands, screen shake 0.2s, BGM drops.
 
-![One agent per human — Ava's question leaks Hannah's memory](../../docs/img/agent.png)
+![One agent per human — Ava's question leaks Hannah's memory](img/agent.png)
 
 Caption: **"Nobody hacked anything. It was being helpful."**
 
 **Card 2 — 🛡️ the fix** (8s). Show `docs/img/relational_agent.png`: the agents sit **on the relationships** — **Chanho–Hannah** holds the egg tart memory, **Chanho–Ava** holds none. "No leak" snaps in green, BGM returns.
 
-![One agent per relationship — the Chanho–Ava agent has no egg tart memory, no leak](../../docs/img/relational_agent.png)
+![One agent per relationship — the Chanho–Ava agent has no egg tart memory, no leak](img/relational_agent.png)
 
 Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
 

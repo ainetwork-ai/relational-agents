@@ -1,0 +1,25 @@
+# Dev Postgres for the notion clone.
+# `name:` is REQUIRED — the default (directory name "notion") collides with an
+# unrelated compose project already running on this host. Do not remove it.
+name: notion-clone
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: notion_clone
+      POSTGRES_USER: notion_clone
+      POSTGRES_PASSWORD: notion_clone_dev
+    ports:
+      - "5434:5432"   # 5432/5433 are taken by other projects on this host
+    volumes:
+      - notion_clone_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notion_clone -d notion_clone"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  notion_clone_pgdata:
