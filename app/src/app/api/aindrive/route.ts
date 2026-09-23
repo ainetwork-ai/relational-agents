@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { aindriveLinks } from "@/lib/db/schema";
-import { aindriveConfigured, linkFromConfig, offeredDrives } from "@/lib/aindrive";
+import { aindriveConfigured, aindrivePublicBase, linkFromConfig, offeredDrives } from "@/lib/aindrive";
 import { userLink } from "@/lib/aindrive-user";
 
 export const dynamic = "force-dynamic";
@@ -11,19 +11,20 @@ export const dynamic = "force-dynamic";
 /**
  * The caller's Home aindrive link.
  *
- * GET    → { configured, link, drives }  drives = what may be linked here
+ * GET    → { configured, base, link, drives }  drives = what may be linked here,
+ *          base = aindrive's web origin (its file links start with it)
  * PUT    { driveId, root? }              link (or re-link) a folder
  * DELETE                                 unlink
  */
 export async function GET() {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  if (!aindriveConfigured()) return NextResponse.json({ configured: false, link: null, drives: [] });
+  if (!aindriveConfigured()) return NextResponse.json({ configured: false, base: null, link: null, drives: [] });
   const link = await userLink(auth.user.id);
  // the picker is only needed before linking; an offline server must not
  // hide a folder that is already linked
   const drives = await offeredDrives().catch(() => []);
-  return NextResponse.json({ configured: true, link, drives });
+  return NextResponse.json({ configured: true, base: aindrivePublicBase(), link, drives });
 }
 
 export async function PUT(req: NextRequest) {

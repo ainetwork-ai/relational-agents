@@ -38,11 +38,24 @@ export const ALLOWED_EXTENSIONS = new Set([
   'hwp', 'hwpx',
   // Archives
   'zip', 'tar', 'gz', 'rar', '7z', 'bz2',
+  // Everything else Google Drive previews (support.google.com/drive/answer/37603),
+  // so what it can show, an attachment here can too (components/previews).
+  // Still no script types a browser would run (js/mjs stay out).
+  'jpe', 'jfif', 'apng', 'ico', 'dib',
+  'psd', 'ai', 'eps', 'ps', 'xps', 'oxps', 'dxf',
+  'mkv', 'ogv', 'avi', 'wmv', 'flv', '3gp', 'mpg', 'mpeg',
+  'opus', 'oga', 'flac', 'weba',
+  'docm', 'dotx', 'xlsm', 'xlsb', 'pptm', 'ppsx', 'pps', 'pot', 'dot',
+  'key', 'numbers', 'pages', 'wpd',
+  'ttf', 'otf', 'woff', 'woff2',
+  'tsv', 'srt', 'vtt', 'css', 'c', 'cpp', 'h', 'hpp', 'java', 'py',
+  'tgz', 'xz',
 ]);
 
 // text/* 는 md/xml/yaml/log/plain/html 등을 커버 — 확장자 게이트가 먼저 실행형(js 등 미허용
 // 확장자)을 막으므로 안전. video/audio/image prefix 는 그 계열 mime 전반 허용.
-export const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audio/', 'text/'];
+// font/* too: a font is data, not code (ttf/otf/woff previews as a specimen)
+export const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audio/', 'text/', 'font/'];
 
 export const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -76,6 +89,32 @@ export const ALLOWED_MIME_TYPES = new Set([
   'application/x-rar-compressed',
   'application/x-7z-compressed',
   'application/x-bzip2',
+  'application/x-xz',
+  // the Google-Drive-previewable rest (above) — what browsers label them with
+  'application/postscript',
+  'application/illustrator',
+  'application/vnd.ms-xpsdocument',
+  'application/oxps',
+  'application/dxf',
+  'application/vnd.ms-word.document.macroenabled.12',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+  'application/vnd.ms-excel.sheet.macroenabled.12',
+  'application/vnd.ms-excel.sheet.binary.macroenabled.12',
+  'application/vnd.ms-powerpoint.presentation.macroenabled.12',
+  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  'application/vnd.apple.keynote',
+  'application/vnd.apple.numbers',
+  'application/vnd.apple.pages',
+  'application/x-iwork-keynote-sffkey',
+  'application/x-iwork-numbers-sffnumbers',
+  'application/x-iwork-pages-sffpages',
+  'application/vnd.wordperfect',
+  'application/x-font-ttf',
+  'application/x-font-otf',
+  'application/font-woff',
+  'application/x-matroska',
+  'application/vnd.rn-realmedia',
+  'application/x-shockwave-flash',
 ]);
 
 /** 확장자 추출(node path 비의존) — 점 없거나 끝점이면 빈 문자열. */

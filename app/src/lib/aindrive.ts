@@ -20,6 +20,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
  *   AINDRIVE_DRIVE_ID  the linked drive, when a caller does not name one
  *   AINDRIVE_ROOT      folder inside that drive the link is confined to ('' = whole drive)
  *   AINDRIVE_ALLOWED_DRIVES  comma-separated drive ids agents may also be linked to
+ *   AINDRIVE_PUBLIC_URL  aindrive's web origin as users reach it (default AINDRIVE_SERVER)
  *
  * The token is one owner's, shared by the whole deployment, so which drives it
  * can reach is not the question — which of them this deployment offers is. A
@@ -154,6 +155,25 @@ export async function readFile(link: AindriveLink, rel: string): Promise<string>
     content?: unknown;
   };
   return typeof r.content === "string" ? r.content : "";
+}
+
+/** A file's raw bytes (read_file, base64). Refuses files over `maxBytes`
+ *  after the read — aindrive has no size-only call through its skills. */
+export async function readFileBytes(link: AindriveLink, rel: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
+  const path = drivePath(link, rel);
+  if (!path) throw new AindriveError("path required");
+  const r = (await callTool("read_file", { drive_id: link.driveId, path, encoding: "base64" })) as {
+    content?: unknown;
+  };
+  const b64 = typeof r.content === "string" ? r.content : "";
+  if (Math.floor((b64.length * 3) / 4) > maxBytes) throw new AindriveError("aindrive read_file: [too_large] file too large to open here");
+  return Buffer.from(b64, "base64");
+}
+
+/** The public aindrive web origin, for links people can open themselves. */
+export function aindrivePublicBase(): string | null {
+  const b = (process.env.AINDRIVE_PUBLIC_URL || process.env.AINDRIVE_SERVER || "").trim().replace(/\/+$/, "");
+  return b || null;
 }
 
 export async function writeFile(link: AindriveLink, rel: string, content: string): Promise<void> {
