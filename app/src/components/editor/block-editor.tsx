@@ -27,6 +27,8 @@ import {
 import { notionClipboardToBlocks } from "@/lib/editor/notion-clipboard";
 import { copyPayload, isTextBlockType, readPayloadTree, serializeBlocks, writePayload } from "@/lib/editor/block-clipboard";
 import { newId } from "@/lib/compat";
+import { aindriveInfoNow, loadAindriveInfo } from "@/lib/aindrive-client";
+import { aindriveFileName, parseAindriveUrl } from "@/lib/aindrive-url";
 import { htmlToText, sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
 import { SelectionToolbar } from "./selection-toolbar";
@@ -364,6 +366,10 @@ export const BlockEditor = forwardRef<
   const [mention, setMention] = useState<MentionState | null>(null);
   const [emojiSug, setEmojiSug] = useState<MentionState | null>(null);
  // URL paste → "keep link / bookmark" chooser
+  // known before the first paste, so an aindrive link can be recognised on the spot
+  useEffect(() => {
+    void loadAindriveInfo();
+  }, []);
   const [pasteLink, setPasteLink] = useState<{
     blockId: string;
     url: string;
@@ -2041,6 +2047,28 @@ export const BlockEditor = forwardRef<
  // URL becomes a link and offers "keep / bookmark".
       e.preventDefault();
       const urlish = /^https?:\/\/\S+$/i.test(text.trim());
+      // An aindrive file link previews, the way a Google Drive link does: the
+      // file goes in as a block right below instead of as link text.
+      const aindriveRef = urlish ? parseAindriveUrl(text.trim(), aindriveInfoNow()?.base) : null;
+      if (aindriveRef) {
+        const url = text.trim();
+        mutate((prev) => {
+          const next = prev.map((b) => ({ ...b, content: { ...b.content } }));
+          const cur = next.find((b) => b.id === id);
+          if (!cur) return prev;
+          const nb: EBlock = {
+            id: newId(),
+            type: "file",
+            content: { url, text: aindriveFileName(aindriveRef) },
+            parentBlockId: cur.parentBlockId ?? null,
+            position: positionAfter(next, cur),
+            version: 0,
+          };
+          next.push(nb);
+          return next;
+        });
+        return;
+      }
       if (urlish) {
         const url = text.trim();
         document.execCommand(

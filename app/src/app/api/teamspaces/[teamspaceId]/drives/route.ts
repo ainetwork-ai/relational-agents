@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * The aindrive folder a teamspace is linked to (at most one).
- * GET  → { drives: [{ id, name, driveId, root }] }
+ * GET  → { drives: [{ id, name, driveId, root, lastBackupAt, lastBackupError }] }
  * POST { name?, driveId, root? } → link one (anyone who can see the teamspace,
  *      as with adding a page there) and start the first OKF backup into it
  */
@@ -22,7 +22,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ teamspaceI
   if (!(await visibleTeamspace(auth.user.id, teamspaceId)))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   const drives = await db
-    .select({ id: teamspaceDrives.id, name: teamspaceDrives.name, driveId: teamspaceDrives.driveId, root: teamspaceDrives.root })
+    .select({
+      id: teamspaceDrives.id,
+      name: teamspaceDrives.name,
+      driveId: teamspaceDrives.driveId,
+      root: teamspaceDrives.root,
+      lastBackupAt: teamspaceDrives.lastBackupAt,
+      lastBackupError: teamspaceDrives.lastBackupError,
+    })
     .from(teamspaceDrives)
     .where(eq(teamspaceDrives.teamspaceId, teamspaceId))
     .orderBy(asc(teamspaceDrives.createdAt));

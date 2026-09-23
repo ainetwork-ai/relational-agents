@@ -72,13 +72,31 @@ async function databaseCsv(databaseId: string): Promise<{ title: string; csv: st
   return { title: database.title, csv: `${lines.join("\n")}\n` };
 }
 
+export interface TeamspaceOkf {
+  /** backup-folder-relative path → contents */
+  files: Map<string, string>;
+  /** page id → the file that holds its content */
+  pageFiles: Map<string, string>;
+  /** pages of the teamspace left out of the backup, and why */
+  excluded: { page: Page; reason: "restricted" }[];
+  /** every exported page, for status views */
+  pages: Page[];
+  /** page id → its last edit (the page row or any of its blocks) */
+  lastEdited: Map<string, Date>;
+}
+
 /** Every file of the teamspace's backup, path → contents (relative to the
  *  backup folder). Restricted pages — participant-only records such as a
  *  relationship doc — are never exported, and neither is anything under them. */
 export async function teamspaceOkfFiles(teamspaceId: string): Promise<Map<string, string>> {
+  return (await teamspaceOkf(teamspaceId)).files;
+}
+
+export async function teamspaceOkf(teamspaceId: string): Promise<TeamspaceOkf> {
   const [ts] = await db.select().from(teamspaces).where(eq(teamspaces.id, teamspaceId));
   const files = new Map<string, string>();
-  if (!ts) return files;
+  const pageFiles = new Map<string, string>();
+  if (!ts) return { files, pageFiles, excluded: [], pages: [], lastEdited: new Map() };
 
   const all = await db
     .select()
@@ -103,6 +121,13 @@ export async function teamspaceOkfFiles(teamspaceId: string): Promise<Map<string
     : [];
   const byPage = new Map<string, Block[]>();
   for (const b of blockRows) byPage.set(b.pageId, [...(byPage.get(b.pageId) ?? []), b]);
+  // a block edit bumps the block, not its page — the page's last edit is the later of both
+  const lastEdited = new Map<string, Date>();
+  for (const p of list) {
+    let t = new Date(p.updatedAt).getTime();
+    for (const b of byPage.get(p.id) ?? []) t = Math.max(t, new Date(b.updatedAt).getTime());
+    lastEdited.set(p.id, new Date(t));
+  }
 
   const csvs = new Map<string, { title: string; csv: string } | null>();
   async function dbCsv(id: string) {
@@ -125,10 +150,12 @@ export async function teamspaceOkfFiles(teamspaceId: string): Promise<Map<string
       const name = slug(page.title, page.id);
       if (!kids.length && !dbIds.length) {
         files.set(`${dir}${name}.md`, md);
+        pageFiles.set(page.id, `${dir}${name}.md`);
         continue;
       }
       const sub = `${dir}${name}/`;
       files.set(`${sub}_page.md`, md);
+      pageFiles.set(page.id, `${sub}_page.md`);
       for (const id of dbIds) {
         const d = await dbCsv(id);
         if (d) files.set(`${sub}${slug(d.title, id)}.csv`, d.csv);
@@ -137,7 +164,26 @@ export async function teamspaceOkfFiles(teamspaceId: string): Promise<Map<string
     }
   }
   await walk("", list.filter(isRoot));
-  return files;
+
+  // restricted teamspace pages are named in the status view (so their absence
+  // from the backup is explained), never their content
+  const restrictedRoots = await db
+    .select()
+    .from(pages)
+    .where(
+      and(
+        eq(pages.teamspaceId, teamspaceId),
+        eq(pages.isArchived, false),
+        eq(pages.restricted, true)
+      )
+    );
+  return {
+    files,
+    pageFiles,
+    excluded: restrictedRoots.map((page) => ({ page, reason: "restricted" as const })),
+    pages: list,
+    lastEdited,
+  };
 }
 
 // ── writing to the drive ────────────────────────────────────────────────────

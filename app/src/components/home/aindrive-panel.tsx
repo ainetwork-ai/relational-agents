@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, RefreshCw, Trash2, Unlink } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, Lock, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { useT } from "@/i18n/provider";
 
 /**
@@ -12,9 +13,33 @@ import { useT } from "@/i18n/provider";
  * (api/aindrive → lib/aindrive → aindrive's MCP).
  */
 
-interface Link {
+interface DriveLink {
   driveId: string;
   root: string;
+}
+
+export type SyncState = "synced" | "pending" | "failed" | "excluded";
+export const SYNC_DOT: Record<SyncState, string> = {
+  synced: "bg-emerald-500",
+  pending: "bg-amber-400",
+  failed: "bg-red-500",
+  excluded: "bg-neutral-300 dark:bg-neutral-600",
+};
+export const SYNC_LABEL: Record<SyncState, string> = {
+  synced: "동기화됨",
+  pending: "동기화 대기",
+  failed: "동기화 실패",
+  excluded: "동기화 제외",
+};
+
+/** The part of a folder this app writes (a teamspace's OKF backup): shown as
+ *  its own group, each file tied to the page it comes from, never edited here —
+ *  the next backup would overwrite the edit. */
+export interface Managed {
+  /** folder path, relative to the linked folder */
+  prefix: string;
+  /** file path → the page it is generated from */
+  files: Map<string, { pageId: string; title: string; status: SyncState }>;
 }
 export interface Drive {
   id: string;
@@ -160,11 +185,13 @@ export function Browser({
   title,
   onUnlink,
   unlinkLabel,
+  managed,
 }: {
   api: string;
   title: string;
   onUnlink?: () => void;
   unlinkLabel?: string;
+  managed?: Managed;
 }) {
   const t = useT();
   const [entries, setEntries] = useState<Entry[] | null>(null);
@@ -205,6 +232,11 @@ export function Browser({
   const dirty = open ? open.content !== open.saved : false;
   const leaveOk = () => !dirty || window.confirm(t("저장하지 않은 변경 사항이 사라집니다. 계속할까요?"));
 
+  const isManaged = (path: string) =>
+    !!managed && (path === managed.prefix || path.startsWith(`${managed.prefix}/`));
+  const openManaged = open && isManaged(open.path) ? managed!.files.get(open.path) : undefined;
+  const openReadOnly = !!open && (open.binary || isManaged(open.path));
+
   async function openFile(path: string) {
     if (!leaveOk()) return;
     setFileError(null);
@@ -218,7 +250,7 @@ export function Browser({
   }
 
   async function save() {
-    if (!open || open.binary) return;
+    if (!open || open.binary || isManaged(open.path)) return;
     setBusy(true);
     setFileError(null);
     const res = await fetch(`${api}/file`, {
@@ -297,8 +329,42 @@ export function Browser({
           {entries && !treeError && entries.length === 0 && (
             <li className="px-3 py-2 text-xs text-neutral-400">{t("빈 폴더입니다")}</li>
           )}
-          {visible.map((e) => {
-            const depth = e.path.split("/").length - 1;
+          {(managed
+            ? [
+                { key: "managed", rows: visible.filter((e) => isManaged(e.path) && e.path !== managed.prefix) },
+                { key: "own", rows: visible.filter((e) => !isManaged(e.path)) },
+              ]
+            : [{ key: "all", rows: visible }]
+          ).flatMap((group) => [
+            group.key !== "all" && (
+              <li
+                key={`group-${group.key}`}
+                data-testid={`aindrive-group-${group.key}`}
+                className={`px-3 pb-1 ${group.key === "own" ? "mt-2 border-t border-neutral-100 pt-3 dark:border-neutral-800" : "pt-2"}`}
+              >
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                  {group.key === "managed" ? (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {t("팀스페이스에서 동기화됨")}
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full border border-neutral-300 dark:border-neutral-600" /> {t("aindrive 원본 · 연동 안 됨")}
+                    </>
+                  )}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug text-neutral-400">
+                  {group.key === "managed"
+                    ? t("페이지에서 자동으로 동기화되는 파일입니다. 수정은 페이지에서 하세요.")
+                    : t("ainmem과 동기화되지 않는 드라이브의 파일입니다. 여기서 고치면 드라이브에만 반영됩니다.")}
+                </p>
+                {group.rows.length === 0 && <p className="py-1 text-xs text-neutral-400">{t("없음")}</p>}
+              </li>
+            ),
+            ...group.rows.map((e) => {
+            // the managed folder itself is the group header, so its contents start at the left
+            const depth = e.path.split("/").length - 1 - (group.key === "managed" ? 1 : 0);
+            const page = managed?.files.get(e.path);
             const name = e.path.slice(e.path.lastIndexOf("/") + 1);
             const shut = collapsed.has(e.path);
             return (
@@ -328,7 +394,15 @@ export function Browser({
                     <File size={14} className="ml-[18px] shrink-0 text-neutral-400" />
                   )}
                   <span className="truncate text-neutral-700 dark:text-neutral-200">{name}</span>
+                  {group.key === "managed" && !e.isDir && (
+                    <span
+                      data-testid={`aindrive-sync-${e.path}`}
+                      title={page ? `${page.title || t("제목 없음")} · ${t(SYNC_LABEL[page.status])}` : t("자동 생성")}
+                      className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${page ? SYNC_DOT[page.status] : "bg-neutral-300 dark:bg-neutral-600"}`}
+                    />
+                  )}
                 </button>
+                {group.key !== "managed" && (
                 <button
                   data-testid={`aindrive-delete-${e.path}`}
                   onClick={() => void remove(e)}
@@ -337,9 +411,11 @@ export function Browser({
                 >
                   <Trash2 size={13} />
                 </button>
+                )}
               </li>
             );
-          })}
+          }),
+          ])}
         </ul>
 
         <div className="flex min-w-0 flex-col p-3">
@@ -379,24 +455,57 @@ export function Browser({
                 <span data-testid="aindrive-open-path" className="truncate font-mono text-xs text-neutral-500">
                   {open.path}
                 </span>
-                {open.binary ? (
+                {isManaged(open.path) ? (
+                  <span className="flex items-center gap-1 text-xs text-neutral-400">
+                    <Lock size={11} /> {t("읽기 전용")}
+                  </span>
+                ) : open.binary ? (
                   <span className="text-xs text-neutral-400">{t("텍스트 파일이 아니라 읽기 전용입니다")}</span>
                 ) : (
                   dirty && <span className="text-xs text-amber-600">{t("저장 안 됨")}</span>
                 )}
-                <button
-                  data-testid="aindrive-save"
-                  onClick={() => void save()}
-                  disabled={busy || !dirty || open.binary}
-                  className={`ml-auto ${primaryCls}`}
-                >
-                  {busy ? t("저장 중…") : t("저장")}
-                </button>
+                {!openReadOnly && (
+                  <button
+                    data-testid="aindrive-save"
+                    onClick={() => void save()}
+                    disabled={busy || !dirty}
+                    className={`ml-auto ${primaryCls}`}
+                  >
+                    {busy ? t("저장 중…") : t("저장")}
+                  </button>
+                )}
               </div>
+              {isManaged(open.path) && (
+                <div
+                  data-testid="aindrive-managed-note"
+                  className="mb-2 flex flex-wrap items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                >
+                  {openManaged ? (
+                    <>
+                      <span className={`h-1.5 w-1.5 rounded-full ${SYNC_DOT[openManaged.status]}`} />
+                      <span>
+                        {t("페이지 {title}에서 자동으로 동기화되는 파일입니다 ({status}).", {
+                          title: `‘${openManaged.title || t("제목 없음")}’`,
+                          status: t(SYNC_LABEL[openManaged.status]),
+                        })}
+                      </span>
+                      <Link
+                        data-testid="aindrive-managed-open-page"
+                        href={`/p/${openManaged.pageId}`}
+                        className="ml-auto font-medium underline underline-offset-2"
+                      >
+                        {t("페이지에서 수정")}
+                      </Link>
+                    </>
+                  ) : (
+                    <span>{t("동기화가 자동으로 만드는 파일입니다.")}</span>
+                  )}
+                </div>
+              )}
               <textarea
                 data-testid="aindrive-editor"
                 value={open.content}
-                readOnly={open.binary}
+                readOnly={openReadOnly}
                 onChange={(e) => setOpen({ ...open, content: e.target.value })}
                 spellCheck={false}
                 className="min-h-[18rem] w-full flex-1 resize-y rounded-md border border-neutral-200 p-2.5 font-mono text-xs leading-relaxed dark:border-neutral-700 dark:bg-neutral-800"
@@ -417,7 +526,7 @@ export function Browser({
 
 export function AindrivePanel() {
   const t = useT();
-  const [state, setState] = useState<{ configured: boolean; link: Link | null; drives: Drive[] } | null>(null);
+  const [state, setState] = useState<{ configured: boolean; link: DriveLink | null; drives: Drive[] } | null>(null);
   const [linking, setLinking] = useState(false);
 
   const [version, setVersion] = useState(0);

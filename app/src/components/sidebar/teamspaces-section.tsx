@@ -10,7 +10,7 @@ import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { SectionMenu, sortRows } from "./section-menu";
 import { TeamspaceCreateModal } from "./teamspace-create-modal";
 import { useTeamspacesStore } from "@/stores/teamspaces";
-import { TeamspaceAddRow, TeamspaceDriveRow } from "./teamspace-drive";
+import { TeamspaceAddRow, TeamspaceDriveBadge, TeamspaceDriveRow } from "./teamspace-drive";
 import { useT } from "@/i18n/provider";
 
 /** Sidebar "Teamspaces" section: create a teamspace, list them, expand each to
@@ -110,6 +110,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                 <Users size={13} className="shrink-0 text-neutral-400" />
                 <span className="truncate">{ts.name}</span>
               </button>
+              <TeamspaceDriveBadge teamspaceId={ts.id} />
               <button
                 data-testid={`teamspace-add-page-${ts.id}`}
                 onClick={() => void addPage(ts.id)}
@@ -121,10 +122,11 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
             </div>
             {isOpen && (
               <>
+                {/* the connection first: it is about every page below it */}
+                <TeamspaceDriveRow teamspaceId={ts.id} />
                 {sortRows(tsPages, sidebarSort).map((p) => (
                   <PageItem key={p.id} page={p} depth={1} />
                 ))}
-                <TeamspaceDriveRow teamspaceId={ts.id} />
                 {/* Notion closes a teamspace's list with a 새로 추가 row rather
                     than an empty-state sentence: the way to add a page should sit
                     where the pages are, not only behind a hover target. It

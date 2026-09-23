@@ -21,3 +21,7 @@ ignoredBuiltDependencies:
 # a subpath 2.x stopped exporting. Pin the copy AgentKit resolves to 1.x.
 overrides:
   "@coinbase/agentkit>@scure/bip39": ^1.5.4
+  # pptx-preview pins echarts ^5 (XSS advisory, fixed in 6.1.0). The preview's
+  # chart patch (src/components/previews/pptx.tsx) must also hit the SAME
+  # echarts instance pptx-preview draws with, so both resolve to the app's 6.x.
+  "pptx-preview>echarts": ^6.1.0

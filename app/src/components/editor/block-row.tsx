@@ -16,6 +16,9 @@ import { CODE_LANGUAGES } from "@/lib/editor/block-defs";
 import { sanitizeInline } from "@/lib/rich-text";
 import { copyText, resolveAppUrl } from "@/lib/compat";
 import { uploadBlob } from "@/lib/upload";
+import { FileAttachment, FileAttachPicker } from "./file-attachment";
+import { useAindriveInfo } from "@/lib/aindrive-client";
+import { parseAindriveUrl } from "@/lib/aindrive-url";
 import { highlightCode } from "@/lib/editor/highlight";
 import { IconPicker } from "@/components/page/icon-picker";
 import { BLOCK_DRAG_MIME, useEditor, type EBlock } from "./block-editor";
@@ -273,40 +276,17 @@ function ColumnCell({ block }: { block: EBlock }) {
 /** File attachment block: upload any file, then a download chip. */
 function FileBlockBody({ block }: { block: EBlock }) {
   const editor = useEditor();
-  if (block.content.url) {
-    return (
-      <a
-        data-testid={`file-block-${block.id}`}
-        href={block.content.url}
-        download={block.content.text || true}
-        className="my-0.5 flex w-full items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-      >
-        📎 <span className="truncate underline underline-offset-2">{block.content.text || "file"}</span>
-      </a>
-    );
-  }
+  // an uploaded file or an aindrive link — both preview the same way
+  if (block.content.url)
+    return <FileAttachment blockId={block.id} url={block.content.url} name={block.content.text ?? ""} />;
   return (
-    <label
-      data-testid={`file-drop-${block.id}`}
-      className="my-0.5 flex w-full cursor-pointer items-center gap-2 rounded-md border border-dashed border-neutral-200 px-2 py-2 text-sm text-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-    >
-      {/* a paste can carry a file's NAME without a fetchable url (Notion
-          attachments live behind their auth) — keep the name visible */}
-      📎 {block.content.text ? `${block.content.text} — upload again…` : "Upload a file…"}
-      <input
-        data-testid={`file-input-${block.id}`}
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (!f) return;
-          void (async () => {
-            const up = await uploadBlob(f, "file");
-            if (up) editor.setFileData(block.id, { url: up.url, name: up.name ?? f.name });
-          })();
-        }}
-      />
-    </label>
+    <FileAttachPicker
+      blockId={block.id}
+      // a paste can carry a file's NAME without a fetchable url (Notion
+      // attachments live behind their auth) — keep the name visible
+      pendingName={block.content.text || undefined}
+      onFile={(f) => editor.setFileData(block.id, f)}
+    />
   );
 }
 
@@ -1278,6 +1258,11 @@ function EmbedBody({ block, kind }: { block: EBlock; kind: "bookmark" | "video" 
   const editor = useEditor();
   const [draft, setDraft] = useState("");
   const url = typeof block.content.url === "string" ? block.content.url : "";
+  const aindrive = useAindriveInfo();
+
+  // an aindrive file link shows the file, whichever block it landed in
+  if (url && parseAindriveUrl(url, aindrive?.base))
+    return <FileAttachment blockId={block.id} url={url} name={block.content.text && block.content.text !== url ? block.content.text : ""} />;
 
   if (!url) {
     const placeholder =

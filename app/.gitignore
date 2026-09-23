@@ -42,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .uploads-tus/
+
+# Build artifact: preview renderer workers/wasm/CMaps (scripts/copy-preview-assets.mjs)
+/public/preview-assets
