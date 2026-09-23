@@ -18,7 +18,7 @@ export interface DmEvent {
   roomId?: string;
   clientId: string | null;
   at: number;
-  /** dm-typing and dm-call-ring carry the acting user */
+  /** dm-typing carries the acting user */
   user?: DmUser;
 }
 

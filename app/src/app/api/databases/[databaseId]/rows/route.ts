@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { dbRows } from "@/lib/db/schema";
 import { eq, max } from "drizzle-orm";
+import { publish } from "@/lib/realtime";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import {
   isOkfId,
@@ -63,7 +64,9 @@ export async function POST(
     .insert(dbRows)
     .values({
       databaseId,
-      values: body?.values ?? {},
+      // `__archived` is the trash mark only the page route may set (see the row
+      // PATCH): a new row never arrives already trashed
+      values: (({ __archived: _trash, ...rest }) => rest)((body?.values ?? {}) as Record<string, unknown>),
       position: (maxPos ?? 0) + 1,
       parentRowId: typeof body?.parentRowId === "string" ? body.parentRowId : null,
       createdBy: auth.user.id,
@@ -71,5 +74,6 @@ export async function POST(
     })
     .returning();
 
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ row }, { status: 201 });
 }

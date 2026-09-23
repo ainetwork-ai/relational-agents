@@ -3,22 +3,22 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import type { DbView, DbRow } from "@/lib/db/schema";
-import { applyView, optionClass, personLabel } from "@/lib/db-values";
+import { applyView, statusGroupOf, visibleColumns } from "@/lib/db-values";
 import { useDb } from "./database-block";
-import { initial } from "@/lib/glyph";
+import { useT } from "@/i18n/provider";
+import { PropertyValue } from "./property-value";
+import { UserAvatar } from "@/components/user-avatar";
+import { OptionChip } from "./option-chip";
 
 const NONE = "none";
 
 // Status option groups: columns are ordered by band and labelled with it.
 const GROUP_ORDER: Record<string, number> = { todo: 0, in_progress: 1, complete: 2 };
-const GROUP_LABEL: Record<string, string> = {
-  todo: "To-do",
-  in_progress: "In progress",
-  complete: "Complete",
-};
-
+// legacy group names come back in English from statusGroupOf — display only
+const GROUP_KO: Record<string, string> = { "To-do": "할 일", "In progress": "진행 중", Complete: "완료" };
 export function BoardView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const [dragging, setDragging] = useState<string | null>(null);
   const draggingRef = useRef<string | null>(null);
 
@@ -26,6 +26,8 @@ export function BoardView({ view }: { view: DbView }) {
   const titleProp = db.properties.find((p) => p.type === "title");
   const personProp = db.properties.find((p) => p.type === "person");
   const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+ // properties shown on a card, in this view's order (title is the card's own)
+  const cardProps = visibleColumns(db.properties, view.config).filter((p) => p.type !== "title");
  // card cover: the first url/files property's value (like gallery)
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
@@ -43,7 +45,7 @@ export function BoardView({ view }: { view: DbView }) {
     return (
       <div>
         <div className="py-2 text-sm text-neutral-400">
-          Pick a select or status property to group the board.
+          {t("보드를 그룹화할 선택 또는 상태 속성을 고르세요.")}
         </div>
       </div>
     );
@@ -59,33 +61,57 @@ export function BoardView({ view }: { view: DbView }) {
       : groupProp.config.options ?? [];
   const columns = [
     ...ordered.map((o) => ({ id: o.id, name: o.name, color: o.color, group: o.group })),
-    { id: NONE, name: `No ${groupProp.name}`, color: "gray", group: undefined as string | undefined },
+    { id: NONE, name: t("{name} 없음", { name: groupProp.name }), color: "gray", group: undefined as string | undefined },
   ];
 
   const rowsIn = (colId: string) =>
     visible.filter((r) => (r.values[groupProp.id] ?? NONE) === (colId === NONE ? NONE : colId) || (colId === NONE && !r.values[groupProp.id]));
 
+ // A card is both a link and a drag handle. A press that never travels is a
+ // CLICK and opens the card (QA-7: the Projects "My" board had no open path at
+ // all — every click was treated as a drop into the same column, so nothing
+ // happened, and it even wrote the unchanged value back). A press that moves
+ // past DRAG_PX is a drag, and a drop onto another column moves the card;
+ // dropping it back where it was writes nothing.
+  const DRAG_PX = 5;
   function onCardPointerDown(e: React.PointerEvent, rowId: string) {
     if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
     draggingRef.current = rowId;
-    setDragging(rowId);
+    const onMove = (ev: PointerEvent) => {
+      if (moved) return;
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_PX) {
+        moved = true;
+        setDragging(rowId);
+      }
+    };
     const onUp = (ev: PointerEvent) => {
+      document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const col = el?.closest("[data-board-col]");
       const rid = draggingRef.current;
       draggingRef.current = null;
       setDragging(null);
-      if (col && rid) {
-        const target = col.getAttribute("data-board-col");
-        db.updateRow(rid, { [groupProp!.id]: target === NONE ? null : target });
+      if (!rid) return;
+      if (!moved) {
+        void db.openRow(rid);
+        return;
       }
+      const col = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-board-col]");
+      if (!col) return;
+      const target = col.getAttribute("data-board-col");
+      const next = target === NONE ? null : target;
+      const row = db.rows.find((r) => r.id === rid);
+      if (row && ((row.values[groupProp!.id] as string | undefined) ?? null) === next) return;
+      db.updateRow(rid, { [groupProp!.id]: next });
     };
+    document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
   }
 
   const cardTitle = (r: DbRow) =>
-    (titleProp && (r.values[titleProp.id] as string)) || "Untitled";
+    (titleProp && (r.values[titleProp.id] as string)) || t("제목 없음");
 
   return (
     <div>
@@ -100,22 +126,26 @@ export function BoardView({ view }: { view: DbView }) {
             className="flex w-60 shrink-0 flex-col rounded-md bg-neutral-50 p-2 dark:bg-neutral-800/40"
           >
             <div className="mb-2 flex items-center gap-1.5 px-1">
-              <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${optionClass(col.color)}`}>
+              <OptionChip color={col.color} title={col.name} dot={groupProp.type === "status"}>
                 {col.name}
-              </span>
+              </OptionChip>
               <span className="text-xs text-neutral-400">{cards.length}</span>
-              {groupProp.type === "status" && col.id !== NONE && (
+              {groupProp.type === "status" && col.id !== NONE && statusGroupOf(groupProp, col.id) && (
                 <span
                   data-testid={`db-board-group-${col.id}`}
                   className="ml-auto text-[10px] uppercase tracking-wide text-neutral-300 dark:text-neutral-600"
                 >
-                  {GROUP_LABEL[col.group ?? "in_progress"]}
+                  {t(GROUP_KO[statusGroupOf(groupProp, col.id)!] ?? statusGroupOf(groupProp, col.id)!)}
                 </span>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
               {cards.map((r) => {
-                const assignee = personProp ? personLabel(db.members, r.values[personProp.id]) : "";
+ // the assignee's own row, so the card shows their photo. A person cell
+ // holds an id, or a list of them once it carries several people.
+                const cell = personProp ? r.values[personProp.id] : null;
+                const assigneeId = Array.isArray(cell) ? cell[0] : cell;
+                const assignee = db.members.find((m) => m.id === assigneeId) ?? null;
                 return (
                   <div
                     key={r.id}
@@ -139,13 +169,22 @@ export function BoardView({ view }: { view: DbView }) {
                     <div className="text-sm text-neutral-800 dark:text-neutral-100">
                       {cardTitle(r)}
                     </div>
-                    {assignee && (
-                      <div className="mt-1.5 flex items-center gap-1">
-                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-semibold text-white">
-                          {initial(assignee)}
-                        </span>
-                        <span className="text-xs text-neutral-500">{assignee}</span>
+                    {/* the view's own card properties, in its own order — the
+                        original's `My` shows Team, Evaluation and TL under the
+                        title (docs/notion-projects-spec.md) */}
+                    {cardProps.length > 0 ? (
+                      <div className="mt-1.5 flex flex-col gap-1">
+                        {cardProps.map((prop) => (
+                          <PropertyValue key={prop.id} prop={prop} row={r} />
+                        ))}
                       </div>
+                    ) : (
+                      assignee && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <UserAvatar user={assignee} size={16} />
+                          <span className="text-xs text-neutral-500">{assignee.displayName}</span>
+                        </div>
+                      )
                     )}
                     </div>
                   </div>
@@ -158,7 +197,7 @@ export function BoardView({ view }: { view: DbView }) {
                 }
                 className="flex items-center gap-1 rounded px-1 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
-                <Plus size={12} /> New
+                <Plus size={12} /> {t("새 {name}", { name: db.itemName })}
               </button>
             </div>
           </div>

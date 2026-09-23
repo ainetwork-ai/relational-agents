@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Plus, X, ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
 import type { DashWidget, DbProperty, DbRow, DbView } from "@/lib/db/schema";
-import { applyView, groupRowsBy, optionClass } from "@/lib/db-values";
+import { applyView, groupRowsBy, optionClass, isGroupable } from "@/lib/db-values";
+import type { PublicUser } from "@/lib/auth/public-user";
+import type { T } from "@/i18n/translate";
+import { useT } from "@/i18n/provider";
 import { useDb } from "./database-block";
 import { BoardView } from "./board-view";
 import { UrlValue } from "./url-value";
@@ -19,12 +22,12 @@ import { UrlValue } from "./url-value";
 const MAX_WIDGETS = 12;
 
 const KINDS: { kind: DashWidget["kind"]; label: string }[] = [
-  { kind: "counter", label: "Counter" },
-  { kind: "bar", label: "Bar chart" },
-  { kind: "donut", label: "Donut chart" },
-  { kind: "table", label: "Table" },
-  { kind: "board", label: "Board" },
-  { kind: "list", label: "List" },
+  { kind: "counter", label: "카운터" },
+  { kind: "bar", label: "막대 차트" },
+  { kind: "donut", label: "도넛 차트" },
+  { kind: "table", label: "표" },
+  { kind: "board", label: "보드" },
+  { kind: "list", label: "리스트" },
 ];
 
 // SVG needs literal colors; these mirror the option-chip palette
@@ -38,8 +41,13 @@ function newId() {
 }
 
 /** Group rows and aggregate a value per group (count, or sum of a number). */
-function seriesFor(rows: DbRow[], prop: DbProperty | undefined, w: DashWidget) {
-  const groups = groupRowsBy(rows, prop) ?? [];
+function seriesFor(
+  rows: DbRow[],
+  prop: DbProperty | undefined,
+  w: DashWidget,
+  members: PublicUser[] = []
+) {
+  const groups = groupRowsBy(rows, prop, members) ?? [];
   const colorOf = (key: string) => prop?.config.options?.find((o) => o.id === key)?.color ?? "gray";
   return groups
     .map((g) => ({
@@ -54,19 +62,20 @@ function seriesFor(rows: DbRow[], prop: DbProperty | undefined, w: DashWidget) {
     .filter((s) => s.value > 0);
 }
 
-function aggLabel(w: DashWidget, props: DbProperty[]) {
+function aggLabel(t: T, w: DashWidget, props: DbProperty[]) {
   if (w.aggregate === "sum") {
     const p = props.find((x) => x.id === w.aggregatePropertyId);
-    return p ? `Sum of ${p.name}` : "Sum";
+    return p ? t("{name} 합계", { name: p.name }) : t("합계");
   }
-  return "Count";
+  return t("개수");
 }
 
 export function DashboardView({ view }: { view: DbView }) {
   const db = useDb();
+  const t = useT();
   const rows = applyView(db.rows, db.properties, view.config, db.me, db.related);
   const titleProp = db.properties.find((p) => p.type === "title");
-  const groupable = db.properties.filter((p) => p.type === "select" || p.type === "status");
+  const groupable = db.properties.filter(isGroupable);
   const numberProps = db.properties.filter((p) => p.type === "number");
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -106,7 +115,7 @@ export function DashboardView({ view }: { view: DbView }) {
     save([...widgets, w]);
   };
 
-  const rowTitle = (r: DbRow) => (titleProp && (r.values[titleProp.id] as string)) || "Untitled";
+  const rowTitle = (r: DbRow) => (titleProp && (r.values[titleProp.id] as string)) || t("제목 없음");
 
  // ---- per-kind bodies -------------------------------------------------------
 
@@ -120,16 +129,16 @@ export function DashboardView({ view }: { view: DbView }) {
         <div data-testid={`db-dashw-value-${w.id}`} className="text-2xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
           {Number.isInteger(value) ? value : value.toFixed(1)}
         </div>
-        <div className="mt-0.5 text-[11px] font-medium text-neutral-400">{aggLabel(w, db.properties)}</div>
+        <div className="mt-0.5 text-[11px] font-medium text-neutral-400">{aggLabel(t, w, db.properties)}</div>
       </div>
     );
   };
 
   const renderBar = (w: DashWidget) => {
     const prop = db.properties.find((p) => p.id === w.groupByPropertyId) ?? groupable[0];
-    const series = seriesFor(rows, prop, w);
+    const series = seriesFor(rows, prop, w, db.members);
     const max = Math.max(1, ...series.map((s) => s.value));
-    if (!prop) return <p className="text-xs text-neutral-400">Pick a select/status property.</p>;
+    if (!prop) return <p className="text-xs text-neutral-400">{t("선택 또는 상태 속성을 고르세요.")}</p>;
     return (
       <div className="flex flex-col gap-1.5 py-1">
         {series.map((s) => (
@@ -141,14 +150,14 @@ export function DashboardView({ view }: { view: DbView }) {
             <span className="w-9 shrink-0 text-right text-xs tabular-nums text-neutral-500">{s.value}</span>
           </div>
         ))}
-        {series.length === 0 && <p className="text-xs text-neutral-400">No values yet</p>}
+        {series.length === 0 && <p className="text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>}
       </div>
     );
   };
 
   const renderDonut = (w: DashWidget) => {
     const prop = db.properties.find((p) => p.id === w.groupByPropertyId) ?? groupable[0];
-    const series = seriesFor(rows, prop, w);
+    const series = seriesFor(rows, prop, w, db.members);
     const total = series.reduce((a, s) => a + s.value, 0);
     const R = 34, C = 2 * Math.PI * R, GAP = series.length > 1 ? 2 : 0;
     let acc = 0;
@@ -182,7 +191,7 @@ export function DashboardView({ view }: { view: DbView }) {
               <span className="ml-auto pl-2 tabular-nums text-neutral-400">{s.value}</span>
             </div>
           ))}
-          {series.length === 0 && <p className="text-xs text-neutral-400">No values yet</p>}
+          {series.length === 0 && <p className="text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>}
         </div>
       </div>
     );
@@ -197,7 +206,7 @@ export function DashboardView({ view }: { view: DbView }) {
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-neutral-400">
-              <th className="py-1 pr-2 font-medium">{titleProp?.name ?? "Name"}</th>
+              <th className="py-1 pr-2 font-medium">{titleProp?.name ?? t("이름")}</th>
               {cols.map((c) => (
                 <th key={c.id} className="py-1 pr-2 font-medium">{c.name}</th>
               ))}
@@ -233,7 +242,7 @@ export function DashboardView({ view }: { view: DbView }) {
             ))}
           </tbody>
         </table>
-        {list.length === 0 && <p className="py-2 text-xs text-neutral-400">No items</p>}
+        {list.length === 0 && <p className="py-2 text-xs text-neutral-400">{t("항목이 없습니다")}</p>}
       </div>
     );
   };
@@ -250,7 +259,7 @@ export function DashboardView({ view }: { view: DbView }) {
           {rowTitle(r)}
         </button>
       ))}
-      {rows.length === 0 && <p className="text-xs text-neutral-400">No items</p>}
+      {rows.length === 0 && <p className="text-xs text-neutral-400">{t("항목이 없습니다")}</p>}
     </div>
   );
 
@@ -272,16 +281,16 @@ export function DashboardView({ view }: { view: DbView }) {
   const widgetTitle = (w: DashWidget) => {
     if (w.title) return w.title;
     const g = db.properties.find((p) => p.id === w.groupByPropertyId);
-    if (w.kind === "counter") return aggLabel(w, db.properties);
-    if (w.kind === "bar" || w.kind === "donut") return g ? `${aggLabel(w, db.properties)} by ${g.name}` : KINDS.find((k) => k.kind === w.kind)!.label;
-    return KINDS.find((k) => k.kind === w.kind)!.label;
+    if (w.kind === "counter") return aggLabel(t, w, db.properties);
+    if (w.kind === "bar" || w.kind === "donut") return g ? t("{prop}별 {agg}", { prop: g.name, agg: aggLabel(t, w, db.properties) }) : t(KINDS.find((k) => k.kind === w.kind)!.label);
+    return t(KINDS.find((k) => k.kind === w.kind)!.label);
   };
 
   return (
     <div data-testid="db-dashboard-view" className="flex flex-col gap-2 py-1">
       <div className="flex items-center gap-2">
         <span className="text-[11px] text-neutral-400">
-          {widgets.length}/{MAX_WIDGETS} widgets
+          {t("위젯 {n}/{max}개", { n: widgets.length, max: MAX_WIDGETS })}
         </span>
         <div className="ml-auto flex items-center gap-1">
           {editing && (
@@ -292,7 +301,7 @@ export function DashboardView({ view }: { view: DbView }) {
                 disabled={widgets.length >= MAX_WIDGETS}
                 className="flex items-center gap-1 rounded border border-neutral-200 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
               >
-                <Plus size={12} /> Add widget
+                <Plus size={12} /> {t("위젯 추가")}
               </button>
               {addOpen && (
                 <div className="popover-anim absolute right-0 top-8 z-40 w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
@@ -306,7 +315,7 @@ export function DashboardView({ view }: { view: DbView }) {
                       }}
                       className="block w-full px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                     >
-                      {k.label}
+                      {t(k.label)}
                     </button>
                   ))}
                 </div>
@@ -323,7 +332,7 @@ export function DashboardView({ view }: { view: DbView }) {
             }`}
           >
             {editing ? <Check size={12} /> : <Pencil size={12} />}
-            {editing ? "Done" : "Edit widgets"}
+            {editing ? t("완료") : t("위젯 편집")}
           </button>
         </div>
       </div>
@@ -340,9 +349,9 @@ export function DashboardView({ view }: { view: DbView }) {
               <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{widgetTitle(w)}</span>
               {editing && (
                 <span className="ml-auto flex shrink-0 items-center gap-0.5">
-                  <button data-testid={`db-dashw-left-${w.id}`} onClick={() => move(w.id, -1)} aria-label="Move left" className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"><ChevronLeft size={12} /></button>
-                  <button data-testid={`db-dashw-right-${w.id}`} onClick={() => move(w.id, 1)} aria-label="Move right" className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"><ChevronRight size={12} /></button>
-                  <button data-testid={`db-dashw-remove-${w.id}`} onClick={() => save(widgets.filter((x) => x.id !== w.id))} aria-label="Remove widget" className="rounded p-0.5 text-neutral-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"><X size={12} /></button>
+                  <button data-testid={`db-dashw-left-${w.id}`} onClick={() => move(w.id, -1)} aria-label={t("왼쪽으로 이동")} className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"><ChevronLeft size={12} /></button>
+                  <button data-testid={`db-dashw-right-${w.id}`} onClick={() => move(w.id, 1)} aria-label={t("오른쪽으로 이동")} className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"><ChevronRight size={12} /></button>
+                  <button data-testid={`db-dashw-remove-${w.id}`} onClick={() => save(widgets.filter((x) => x.id !== w.id))} aria-label={t("위젯 삭제")} className="rounded p-0.5 text-neutral-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"><X size={12} /></button>
                 </span>
               )}
             </div>
@@ -356,7 +365,7 @@ export function DashboardView({ view }: { view: DbView }) {
                   className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
                 >
                   {KINDS.map((k) => (
-                    <option key={k.kind} value={k.kind}>{k.label}</option>
+                    <option key={k.kind} value={k.kind}>{t(k.label)}</option>
                   ))}
                 </select>
                 {(w.kind === "bar" || w.kind === "donut" || w.kind === "board") && (
@@ -385,9 +394,9 @@ export function DashboardView({ view }: { view: DbView }) {
                     }
                     className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
                   >
-                    <option value="count">Count</option>
+                    <option value="count">{t("개수")}</option>
                     {numberProps.map((p) => (
-                      <option key={p.id} value={p.id}>Sum of {p.name}</option>
+                      <option key={p.id} value={p.id}>{t("{name} 합계", { name: p.name })}</option>
                     ))}
                   </select>
                 )}
@@ -399,7 +408,7 @@ export function DashboardView({ view }: { view: DbView }) {
                     className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
                   >
                     {[5, 10, 25, 50, 100].map((n) => (
-                      <option key={n} value={n}>{n} items</option>
+                      <option key={n} value={n}>{t("{n}개 항목", { n })}</option>
                     ))}
                   </select>
                 )}
@@ -410,7 +419,7 @@ export function DashboardView({ view }: { view: DbView }) {
                   className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
                 >
                   {[1, 2, 3, 4].map((n) => (
-                    <option key={n} value={n}>{n}/4 width</option>
+                    <option key={n} value={n}>{t("너비 {n}/4", { n })}</option>
                   ))}
                 </select>
               </div>

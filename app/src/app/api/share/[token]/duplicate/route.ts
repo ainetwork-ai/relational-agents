@@ -61,7 +61,7 @@ export async function POST(
   const srcBlocks = await db
     .select()
     .from(blocks)
-    .where(eq(blocks.pageId, src.id))
+    .where(and(eq(blocks.pageId, src.id), eq(blocks.alive, true)))
     .orderBy(blocks.position);
  // remap ids so parentBlockId chains stay intact in the copy
   const idMap = new Map<string, string>();

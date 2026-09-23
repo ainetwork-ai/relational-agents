@@ -1,0 +1,207 @@
+{
+  "_source": "app.notion.com 새 페이지(3c7adf31…), 2026-08-25 실측. scratchpad/m-blocks-2.mjs, m-handle-2/4.mjs",
+  "_model": "블록 사이 gap 은 0. 여백은 전부 블록 자신의 padding: pre = wrapper 상단→leaf 상단, post = leaf 하단→wrapper 하단. leaf 는 contenteditable 박스(텍스트류는 내부 2/2 패딩 포함). 리스트류 런: 첫 항목 상단 6, 마지막 항목 하단 6, 그 사이 1 (단독 항목 = 40). 2026-08-26 케이스 실측.",
+  "gap": 0,
+  "box": {
+    "paragraph": {
+      "h": 40,
+      "pre": 6,
+      "leaf": 28,
+      "post": 6
+    },
+    "heading1": {
+      "h": 79,
+      "pre": 30,
+      "leaf": 43,
+      "post": 6
+    },
+    "heading2": {
+      "h": 67.2,
+      "pre": 26,
+      "leaf": 35.2,
+      "post": 6
+    },
+    "heading3": {
+      "h": 58,
+      "pre": 22,
+      "leaf": 30,
+      "post": 6
+    },
+    "list_first": {
+      "h": 35,
+      "pre": 6,
+      "leaf": 28,
+      "post": 1
+    },
+    "list_next": {
+      "h": 30,
+      "pre": 1,
+      "leaf": 28,
+      "post": 1
+    },
+    "toggle_first": {
+      "pre": 6,
+      "leaf": 28
+    },
+    "toggle_next": {
+      "pre": 1,
+      "leaf": 28
+    },
+    "quote": {
+      "h": 40,
+      "pre": 8,
+      "leaf": 24,
+      "post": 8
+    },
+    "divider": {
+      "h": 13,
+      "note": "6 + 1px 선 + 6, 선은 좌우 8 안쪽"
+    },
+    "code": {
+      "h": 108.4,
+      "note": "8 + [24 + (12 + 20.4 + 12) + 24] + 8, 한 줄"
+    },
+    "callout": {
+      "h": 82,
+      "note": "8 + [1+12 + (6 + 28 + 6) + 12+1] + 8, 한 줄"
+    },
+    "list_last": {
+      "h": 35,
+      "pre": 1,
+      "leaf": 28,
+      "post": 6
+    },
+    "list_single": {
+      "h": 40,
+      "pre": 6,
+      "leaf": 28,
+      "post": 6
+    },
+    "toggle_last": {
+      "pre": 1,
+      "leaf": 28
+    },
+    "toggle_single": {
+      "pre": 6,
+      "leaf": 28
+    }
+  },
+  "type": {
+    "heading1": {
+      "fontSize": "30px",
+      "lineHeight": "39px",
+      "fontWeight": "600"
+    },
+    "heading2": {
+      "fontSize": "24px",
+      "lineHeight": "31.2px",
+      "fontWeight": "600"
+    },
+    "heading3": {
+      "fontSize": "20px",
+      "lineHeight": "26px",
+      "fontWeight": "600"
+    },
+    "_paragraph_note": "원본 본문은 16px/24px — 우리는 15px/24px (세로 기하 무관, 별도 결정)"
+  },
+  "gutter": {
+    "grip": {
+      "dx": -28,
+      "w": 18,
+      "h": 24
+    },
+    "plus": {
+      "dx": -52,
+      "w": 24,
+      "h": 24
+    },
+    "dy": {
+      "paragraph": 8,
+      "heading1": 39.5,
+      "heading2": 31.6,
+      "heading3": 25,
+      "list_first": 8,
+      "list_next": 3,
+      "toggle_first": 8,
+      "toggle_next": 3,
+      "quote": 8,
+      "divider": 2,
+      "code": 2,
+      "callout": 2,
+      "list_last": 3,
+      "list_single": 8,
+      "toggle_last": 3,
+      "toggle_single": 8
+    }
+  },
+  "halo": {
+    "bg": "rgba(35, 131, 226, 0.14)",
+    "radius": "4px",
+    "left": 2,
+    "right": 2,
+    "inset": {
+      "default": [
+        2,
+        2
+      ],
+      "list_first": [
+        2,
+        1
+      ],
+      "list_next": [
+        1,
+        1
+      ],
+      "toggle_first": [
+        2,
+        1
+      ],
+      "toggle_next": [
+        1,
+        1
+      ],
+      "list_last": [
+        1,
+        2
+      ],
+      "list_single": [
+        2,
+        2
+      ],
+      "toggle_last": [
+        1,
+        2
+      ],
+      "toggle_single": [
+        2,
+        2
+      ]
+    }
+  },
+  "special": {
+    "divider": {
+      "lineH": 1,
+      "lineInsetX": 8,
+      "lineTopFromWrap": 6,
+      "lineColor": "rgba(28, 19, 1, 0.11)"
+    },
+    "code": {
+      "containerInsetX": 8,
+      "containerRadius": "10px",
+      "containerBg": "rgba(66, 35, 3, 0.03)",
+      "textLeftFromWrap": 30,
+      "fontSize": "13.6px",
+      "lineHeight": "20.4px"
+    },
+    "callout": {
+      "containerInsetX": 8,
+      "containerRadius": "10px",
+      "containerBg": "rgb(249, 248, 247)",
+      "iconSize": 24,
+      "iconLeftFromWrap": 21,
+      "textLeftFromWrap": 51,
+      "textFontSize": "16px",
+      "textLineHeight": "24px"
+    }
+  }
+}

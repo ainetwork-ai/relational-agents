@@ -56,7 +56,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     [agent] = await db
       .insert(users)
       .values({
-        ainAddress: `a2a:${a2aUrl}`.slice(0, 120), // external bot — no wallet, unique identifier
         displayName: String(card.name).slice(0, 80),
         isAgent: true,
         a2aUrl,

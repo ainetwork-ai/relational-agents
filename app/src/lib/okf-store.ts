@@ -5,23 +5,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { okfDbMeta } from "@/lib/db/schema";
-import {
-  parseMarkdown,
-  parseCsvDatabase,
-  parseCsv,
-  toCsv,
-  cleanTitle,
-  blocksToMarkdown,
-  serializeFrontmatter,
-  parseDateCell,
-  multiTokens,
-  type ParsedBlock,
-  type Frontmatter,
-  type FsProperty,
-  type FsRow,
-  optionIdFor,
-  optionColorFor,
-} from "@/lib/memory-parse";
+import { parseMarkdown, parseCsvDatabase, parseCsv, toCsv, cleanTitle, blocksToMarkdown, serializeFrontmatter, parseDateCell, multiTokens, type ParsedBlock, type Frontmatter, type FsProperty, type FsRow, optionIdFor, optionColorFor, parentIdsByDepth, treeOrder } from "@/lib/memory-parse";
 import type {
   Block,
   Page,
@@ -47,7 +31,7 @@ export function okfRoot(): string {
   const root = process.env.OKF_ROOT || path.join(process.cwd(), "okf-fs");
   // Fail-safe pairing: a server on a *_test database must NEVER share the real
   // content folder — test runs kept writing skeleton relationship docs into
-  // memory-data/content. Whatever root the runner picked, divert to a sibling
+  // the live content tree. Whatever root the runner picked, divert to a sibling
   // "<root>-test" so a test DB always implies a test content folder.
   const db = process.env.POSTGRES_URL ?? "";
   if (/_test(\?|$)/.test(db.split("/").pop() ?? "")) {
@@ -449,33 +433,46 @@ export interface IncomingBlock {
   type?: string;
   content?: Record<string, unknown>;
   position?: number;
+  /** the editor sends nesting; the file writes it as indentation */
   parentBlockId?: string | null;
 }
 
 /** ParsedBlock[] (file blocks) → Block[] (the shape /api/pages/[id]/blocks and
- * the editor use). Synthetic timestamps; parentBlockId is flat (null). */
+ * the editor use). Synthetic timestamps; the file's indentation becomes real
+ * parent ids (it used to be flattened to null, so a nested .md page opened flat
+ * and saving it back erased the nesting). */
 export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
   const now = new Date();
+  const ids = blocks.map((b, i) => b.id ?? `b${i}`);
+  const parents = parentIdsByDepth(blocks.map((b) => b.depth ?? 0), ids);
   return blocks.map((b, i) => ({
-    id: b.id,
+    id: ids[i],
     pageId,
     type: b.type,
     content: b.content,
-    parentBlockId: b.parentBlockId ?? null,
+    parentBlockId: parents[i],
     position: b.position ?? i + 1,
+    alive: true,
     createdAt: now,
     updatedAt: now,
   }));
 }
 
-/** The editor's incoming blocks → ParsedBlock[] for writing back to the file. */
+/** The editor's incoming blocks → ParsedBlock[] for writing back to the file,
+ * in document order with the depth the file should indent them by. */
 export function blocksToParsed(incoming: IncomingBlock[]): ParsedBlock[] {
-  return incoming.map((b, i) => ({
+  const rows = incoming.map((b, i) => ({
     id: b.id ?? `b${i}`,
-    type: (b.type ?? "paragraph") as ParsedBlock["type"],
-    content: (b.content ?? {}) as ParsedBlock["content"],
+    parentBlockId: b.parentBlockId ?? null,
     position: b.position ?? i + 1,
-    ...(b.parentBlockId ? { parentBlockId: b.parentBlockId } : {}),
+    b,
+  }));
+  return treeOrder(rows).map(({ row, depth }, i) => ({
+    id: row.id,
+    type: (row.b.type ?? "paragraph") as ParsedBlock["type"],
+    content: (row.b.content ?? {}) as ParsedBlock["content"],
+    position: i + 1,
+    depth,
   }));
 }
 
@@ -551,11 +548,15 @@ export async function okfDatabaseSnapshot(
   const node = readNode(relPath);
   if (!node || node.kind !== "database") return null;
   const now = new Date();
+ // a file-backed database keeps its description (and whether it shows) in the
+ // schema overlay — the CSV itself has nowhere to put either
+  const meta = await readDbMeta(relPath);
   const database = {
     id: databaseId,
     workspaceId: "",
     title: node.title,
-    description: (await readDbMeta(relPath)).description ?? "",
+    description: meta.description ?? "",
+    descriptionVisible: meta.descriptionVisible ?? null,
     createdBy: null,
     createdAt: now,
     updatedAt: now,
@@ -753,6 +754,8 @@ export interface DbMeta {
   views?: DbMetaView[];
   /** editable text under the DB title */
   description?: string;
+  /** 설명 표시 / 설명 숨기기; absent = never toggled (shows if there is text) */
+  descriptionVisible?: boolean;
 }
 
 export async function readDbMeta(rel: string): Promise<DbMeta> {

@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { users, workspaceMembers } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { getDefaultWorkspaceId, workspaceForRequest, workspaceOfPagePath } from "@/lib/workspace";
 import { toPublicUser } from "@/lib/auth/public-user";
 import {
   requireWorkspaceRole,
@@ -16,12 +16,26 @@ export const dynamic = "force-dynamic";
 
 const ASSIGNABLE: WorkspaceRole[] = ["guest", "member", "admin"];
 
-/** GET → members of the caller's workspace with their roles. */
-export async function GET() {
+/**
+ * GET → members of the caller's workspace with their roles.
+ *
+ * `?pageId=` names the page the caller is looking at, and that page decides the
+ * workspace — the same rule the sidebar follows (QA-3, workspaceOfPagePath).
+ * The mention menu needs this: a comment on a page in another workspace must
+ * offer THAT workspace's people, not the ones from the session's active one.
+ * A page the caller is not a member of resolves to null and falls through, so
+ * this never widens who you can see. `?workspaceId=` still works for the
+ * sidebar's own fetches.
+ */
+export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
 
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
+  const pageId = new URL(req.url).searchParams.get("pageId");
+  const workspaceId =
+    (pageId ? await workspaceOfPagePath(`/p/${pageId}`, auth.user.id) : null) ??
+    (await workspaceForRequest(req, auth.user.id)) ??
+    (await getDefaultWorkspaceId(auth.user.id));
   if (!workspaceId) return NextResponse.json({ members: [] });
 
   const rows = await db

@@ -93,8 +93,7 @@ export async function POST(
           label: body.cursor.label,
           color: body.cursor.color,
           blockId: typeof body.cursor.blockId === "string" ? body.cursor.blockId : undefined,
-          x: typeof body.cursor.x === "number" ? body.cursor.x : undefined,
-          y: typeof body.cursor.y === "number" ? body.cursor.y : undefined,
+          offset: typeof body.cursor.offset === "number" ? body.cursor.offset : undefined,
         }
       : undefined;
 

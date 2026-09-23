@@ -37,12 +37,15 @@ async function contractParties(roomId: string) {
     .from(chatRoomMembers)
     .where(eq(chatRoomMembers.roomId, roomId));
   const ids = members.map((m) => m.userId);
-  return ids.length
+  const rows = ids.length
     ? await db
         .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })
         .from(users)
         .where(and(inArray(users.id, ids), eq(users.isAgent, false)))
     : [];
+ // Google-login members have no wallet — an empty address simply fails the
+ // HEX_ADDR check downstream, same as any non-signable party.
+  return rows.map((r) => ({ ...r, address: r.address ?? "" }));
 }
 
 /** userId → nullifier hash for everyone in the room who proved personhood. */
@@ -136,7 +139,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     mySigned: signed.has(auth.user.id),
     myPersonhoodVerified: personhood.has(auth.user.id),
     personhoodRequired,
-    canSign: typedData !== null && HEX_ADDR.test(auth.user.ainAddress),
+    canSign: typedData !== null && HEX_ADDR.test(auth.user.ainAddress ?? ""),
     typedData,
   });
 }
@@ -152,7 +155,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   const access = await requireRoomAccess(roomId, auth.user.id);
   if ("error" in access) return access.error;
 
-  const address = auth.user.ainAddress;
+  const address = auth.user.ainAddress ?? "";
   if (!HEX_ADDR.test(address))
     return NextResponse.json(
       { error: "A wallet account is required to sign the contract" },

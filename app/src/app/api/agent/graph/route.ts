@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { agentRoomStates, blocks, chatRoomMembers, chatRooms, pages } from "@/lib/db/schema";
@@ -131,7 +131,7 @@ export async function GET() {
     const blockRows = await db
       .select({ pageId: blocks.pageId, type: blocks.type, content: blocks.content })
       .from(blocks)
-      .where(inArray(blocks.pageId, ids));
+      .where(and(inArray(blocks.pageId, ids), eq(blocks.alive, true)));
     for (const b of blockRows) {
       const c = b.content as { childPageId?: string; text?: string };
       if (b.type === "link_to_page" && c?.childPageId && pageIds.has(c.childPageId)) {

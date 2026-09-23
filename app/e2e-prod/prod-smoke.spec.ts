@@ -1,212 +1,91 @@
-import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
+import { test, expect, type BrowserContext } from "@playwright/test";
+import { sealData } from "iron-session";
 
 /**
- * Read-only smoke check against the deployed site, scene by scene.
+ * 배포 검증 — 실제로 떠 있는 사이트를 브라우저로 본다.
  *
- * The demo script (assets/script.txt) is the spec: sign in, one workspace per
- * relationship, an agent born on mutual consent, a photo that becomes a memory,
- * and that memory staying with the relationship it belongs to. e2e/DEMO-0*.spec
- * already drives those scenes end to end — but against a dev server and a
- * scratch database, and by signing consent and dissolving relationships. None
- * of that may touch production.
+ * **읽기만 한다.** 글을 쓰거나 올리거나 지우지 않는다. 라이브 데이터다.
  *
- * So this asserts the observable STATE each scene depends on: if the deployed
- * build can show the demo, these pass. Nothing here writes.
+ * 이전 판은 `POST /api/auth/demo-login` 으로 로그인했는데 그 엔드포인트는
+ * 2026-08-03(`ecfcc6b`, 지갑·데모 제거)에 사라졌다. 그 뒤로 11개 전부 같은 줄에서
+ * 죽고 있었고 — 3주 넘게 **배포 검증이 사실상 없었다**. 여기서 다시 세운다.
+ *
+ * 로그인은 세션 쿠키를 직접 서명해 넣는다. dev 검사들이 쓰는 방법 그대로다.
+ * 테스트 전용 로그인 경로를 되살리는 것보다 낫다 — 공격면을 늘리지 않는다.
+ *
+ *   PROD_URL=https://ainmem.ainetwork.ai \
+ *   PROD_SESSION_SECRET=… PROD_USER_ID=… \
+ *   npx playwright test -c playwright.prod.config.ts
+ *
+ * 비밀값은 레포에 없다. 안 주면 로그인이 필요한 것들은 skip 되고, 익명으로 볼 수
+ * 있는 것만 돈다 — 비밀값 없이도 "사이트가 살아 있나"는 답한다.
  */
 
-/**
- * Collects the failures that mean something, and only those.
- *
- * Next prefetches route payloads (`?_rsc=`) and cancels them on navigation; the
- * DM event stream is a long-lived SSE aborted at teardown; and the agent
- * endpoint answers 404 by design — `loadAgent` reads res.ok to decide whether a
- * room has an agent, so "no agent" IS a 404. None is a defect.
- */
-const ABORTED = /net::ERR_ABORTED/;
-const AGENT_PROBE = /\/api\/dm\/rooms\/[^/]+\/agent$/;
+const SECRET = process.env.PROD_SESSION_SECRET;
+const USER_ID = process.env.PROD_USER_ID;
+const signedIn = Boolean(SECRET && USER_ID);
 
-function watch(page: Page) {
-  const problems: string[] = [];
-  page.on("console", (m: ConsoleMessage) => {
-    // The browser logs a line for every non-2xx; the response handler judges
-    // those with the URL in hand. Keep only real script errors.
-    if (m.type() === "error" && !/Failed to load resource/.test(m.text()))
-      problems.push(`console: ${m.text().slice(0, 200)}`);
-  });
-  page.on("pageerror", (e) => problems.push(`pageerror: ${String(e).slice(0, 200)}`));
-  page.on("requestfailed", (r) => {
-    if (ABORTED.test(r.failure()?.errorText ?? "")) return;
-    problems.push(`requestfailed: ${r.method()} ${r.url().slice(0, 120)} — ${r.failure()?.errorText}`);
-  });
-  page.on("response", (r) => {
-    if (r.status() < 400) return;
-    if (r.status() === 404 && AGENT_PROBE.test(new URL(r.url()).pathname)) return;
-    problems.push(`http ${r.status()}: ${r.url().slice(0, 120)}`);
-  });
-  return problems;
+async function signIn(context: BrowserContext, baseURL: string) {
+  const cookie = await sealData({ userId: USER_ID }, { password: SECRET!, ttl: 0 });
+  await context.addCookies([
+    { name: "rm-session", value: cookie, domain: new URL(baseURL).hostname, path: "/", secure: true },
+  ]);
 }
 
-/** OKF page ids are the content path; the route takes it base64url-encoded. */
-function pageUrl(okfPath: string) {
-  return `/p/${Buffer.from(okfPath, "utf8").toString("base64url")}`;
-}
-
-const HANNAH_TIMELINE = "Relationship doc — Hannah Brooks-f08201/Timeline.md";
-const AVA_TIMELINE = "Relationship doc — Ava Thorne-36b9ad/Timeline.md";
-
-async function demoLogin(page: Page) {
-  await page.goto("/login");
-  await page.getByTestId("demo-login-button").click();
-  await page.waitForURL(/\/home/, { timeout: 45_000 });
-}
-
-/**
- * Opens a relationship document and waits for its blocks to actually arrive.
- *
- * `editor-root` turns visible while still holding placeholder glyphs, so a text
- * read here can catch "💘 💕 💕 •". For the absence check that is worse than a
- * flake: "Ava's record has no egg tart" would pass on an empty page, which is
- * the one result this suite must never report for the wrong reason.
- */
-async function openDoc(page: Page, okfPath: string) {
-  await page.goto(pageUrl(okfPath));
-  await expect(page.getByTestId("page-title")).toBeVisible();
-  const editor = page.getByTestId("editor-root");
-  await expect(editor).toBeVisible();
-  await expect
-    .poll(async () => (await editor.innerText()).replace(/[\s•💘💕]/g, "").length, {
-      message: `document never loaded its content: ${okfPath}`,
-      timeout: 20_000,
-    })
-    .toBeGreaterThan(200);
-  return editor;
-}
-
-test.describe("production — the demo, scene by scene (read-only)", () => {
-  // ── "He signs in with his wallet." ───────────────────────────────────────
-  test("scene: sign-in lands on the account the demo world hangs off", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
-
-    // /home renders for an empty account too, so assert the identity.
-    const me = await page.request.get("/api/auth/me").then((r) => r.json());
-    expect(me.user?.displayName).toBe("Chanho");
-
-    await expect(page.getByTestId("home-cover")).toBeVisible();
-    expect(problems, problems.join("\n")).toEqual([]);
+test.describe("배포된 사이트 — 누구나 보는 것", () => {
+  test("헬스체크가 200 이다 (스키마가 이 빌드에 맞는다는 뜻)", async ({ request }) => {
+    const res = await request.get("/api/health");
+    expect(res.status(), "503 이면 라이브 DB 가 이 빌드보다 뒤처졌다").toBe(200);
   });
 
-  // ── "He has two exclusive workspaces — one for Hannah, one for Ava." ─────
-  test("scene: one workspace per relationship", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
+  test("로그인하지 않으면 로그인 화면이 나온다", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByTestId("google-login-button")).toBeVisible();
+  });
 
-    const { workspaces } = await page.request.get("/api/workspaces").then((r) => r.json());
-    const names: string[] = workspaces.map((w: { name: string }) => w.name);
-    expect(names, `workspaces: ${names.join(", ")}`).toEqual(
-      expect.arrayContaining([expect.stringContaining("Hannah"), expect.stringContaining("Ava")])
+  test("로그인 없이 남의 파일을 가져갈 수 없다", async ({ request }) => {
+   // 오브젝트 스토리지 이관 뒤 바이트가 나가는 유일한 문이라, 여기가 뚫리면
+   // 워크스페이스의 첨부와 이미지가 전부 공개된다
+    const res = await request.get(
+      "/api/files/key/files/" + "a".repeat(64) + ".png",
+      { failOnStatusCode: false }
     );
+    expect([401, 403, 404]).toContain(res.status());
+  });
+});
 
-    await expect(page.getByTestId("home-workspaces")).toBeVisible();
-    expect(problems, problems.join("\n")).toEqual([]);
+test.describe("로그인한 사람이 보는 것", () => {
+  test.skip(!signedIn, "PROD_SESSION_SECRET / PROD_USER_ID 가 없다");
+
+  test.beforeEach(async ({ context, baseURL }) => {
+    await signIn(context, baseURL!);
   });
 
-  // ── "This is Chanho's home — ten different women, each with her own agent" ─
-  test("scene: the home dashboard lists the relationships", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
-
-    await expect(page.getByTestId("home-dashboard")).toBeVisible();
-    const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
-    expect(rooms?.length, "no relationships to show").toBeGreaterThan(0);
-    expect(problems, problems.join("\n")).toEqual([]);
+  test("홈이 그려지고 사이드바에 내용이 있다", async ({ page }) => {
+    await page.goto("/home");
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+   // 트리가 비어 있으면 DB 는 붙었는데 내용이 안 오는 상태다 — 200 만으로는 안 잡힌다
+    await expect(page.locator("[data-testid^='page-tree-item-']").first()).toBeVisible();
   });
 
-  // ── "Chanho drops a photo in — the agent organized it into the document." ─
-  test("scene: the photo became a memory, and the image still loads", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
-
-    await openDoc(page, HANNAH_TIMELINE);
-
-    // Uploads live on a mounted volume — a redeploy that loses the mount
-    // leaves the page rendering fine with every image broken.
-    const imgs = page.getByTestId("editor-root").locator("img");
-    const n = await imgs.count();
-    for (let i = 0; i < n; i++) {
-      const src = await imgs.nth(i).getAttribute("src");
-      if (!src) continue;
-      const res = await page.request.get(src);
-      expect(res.status(), `image not served: ${src}`).toBe(200);
-    }
-    expect(problems, problems.join("\n")).toEqual([]);
+  test("페이지를 열면 본문이 그려진다", async ({ page }) => {
+    const pageId = process.env.PROD_PAGE_ID;
+    test.skip(!pageId, "PROD_PAGE_ID 가 없다");
+    await page.goto(`/p/${pageId}`);
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+    await expect(page.locator("h1, [contenteditable]").first()).toBeVisible();
   });
 
-  // ── "The Chanho-and-Hannah agent holds the egg tarts. Ava's holds none." ──
-  test("scene: the egg tart lives with Hannah, and never with Ava", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
-
-    const hannah = await openDoc(page, HANNAH_TIMELINE);
-    await expect(hannah, "Hannah's record lost the egg tart memory").toContainText(/egg tarts?/i);
-
-    // openDoc has already proven this page carries real content, so an absent
-    // egg tart here means isolation held — not that nothing rendered.
-    const ava = await openDoc(page, AVA_TIMELINE);
-    await expect(
-      ava,
-      "the egg tart leaked into Ava's record — isolation broken"
-    ).not.toContainText(/egg tarts?/i);
-    expect(problems, problems.join("\n")).toEqual([]);
-  });
-
-  // ── "And right then — a video call." ─────────────────────────────────────
-  test("scene: a room and its call surface open", async ({ page }) => {
-    const problems = watch(page);
-    await demoLogin(page);
-
-    const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
-    const room = rooms[0];
-    await page.goto(`/dm/${room.id}`);
-    await expect(page.getByTestId("dm-room-title")).toBeVisible();
-    await expect(page.getByTestId("dm-messages")).toBeVisible();
-
-    // Placing a call needs two browsers and media permissions; what is checked
-    // here is that the deployed build serves the surface without blowing up.
-    await page.goto(`/call/${room.id}`);
-    await expect(page.locator("body")).toBeVisible();
-    expect(problems, problems.join("\n")).toEqual([]);
-  });
-
-  // ── "The relational agent is born when both sign." ───────────────────────
-  // Not a build check: the deployment can be perfectly healthy and still have
-  // no agent in any relationship. It matters because the public link is what a
-  // visitor clicks — an agentless room shows none of what the product is for.
-  // Failing here means "seed the live site", not "the code is broken".
-  test("scene: the demo relationships have their agent", async ({ page }) => {
-    await demoLogin(page);
-
-    // One relationship per workspace, and /api/dm/rooms only returns the active
-    // one's — so walk them. Switching moves session.activeWorkspaceId and
-    // nothing else, which is the same kind of write as signing in.
-    const { workspaces } = await page.request.get("/api/workspaces").then((r) => r.json());
-    const checked: string[] = [];
-    const withAgent: string[] = [];
-
-    for (const ws of workspaces) {
-      await page.request.post("/api/workspaces/switch", { data: { workspaceId: ws.id } });
-      const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
-      for (const r of rooms ?? []) {
-        checked.push(r.name);
-        const res = await page.request.get(`/api/dm/rooms/${r.id}/agent`);
-        if (res.ok()) withAgent.push(r.name);
-      }
-    }
-
-    expect(
-      withAgent.length,
-      `no relationship has an agent — a visitor would see none of the product. ` +
-        `checked ${checked.length} room(s) across ${workspaces.length} workspace(s): ${checked.join(", ")}`
-    ).toBeGreaterThan(0);
+  test("오브젝트 스토리지의 이미지가 실제로 그려진다", async ({ page }) => {
+   // 이관(2026-08-28)으로 이미지가 디스크에서 MinIO 로 옮겨갔다. 참조만 바뀌고
+   // 바이트가 안 왔으면 화면은 멀쩡히 뜨면서 그림만 깨진다 — 헬스체크는 200 이다.
+    const pageId = process.env.PROD_IMAGE_PAGE_ID;
+    test.skip(!pageId, "PROD_IMAGE_PAGE_ID 가 없다");
+    await page.goto(`/p/${pageId}`);
+    const img = page.locator("img[src^='/api/files/key/']").first();
+    await expect(img).toBeVisible();
+    await expect
+      .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth), { timeout: 20_000 })
+      .toBeGreaterThan(0);
   });
 });

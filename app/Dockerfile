@@ -27,11 +27,6 @@ COPY . .
 # build args rather than runtime env — changing one requires a rebuild.
 ARG NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS
 ARG NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID
-ARG NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS
-ARG NEXT_PUBLIC_WORLD_ID_APP_ID
-ARG NEXT_PUBLIC_WORLD_ID_ACTION
-ARG NEXT_PUBLIC_SUI_PACKAGE_ID
-ARG NEXT_PUBLIC_CALL_WEB_SPEECH
 ENV NEXT_STANDALONE=1 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 # Invoke the binary directly: `pnpm exec` re-runs the dependency status check
 # first, which trips over the same unanswered allowBuilds entries.
@@ -49,6 +44,10 @@ COPY --from=builder /app/public ./public
 # own prerender cache and every ISR write fails with EACCES, silently falling
 # back to re-rendering each request. Same trap as public/uploads had.
 RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next
+# tus stages partial uploads in <cwd>/.uploads-tus (lib/files/tus-server-config.ts).
+# /app is root-owned, so without this every resumable upload (video, comment
+# attachments) died with EACCES on mkdir and the client saw a bare 500.
+RUN mkdir -p .uploads-tus && chown nextjs:nodejs .uploads-tus
 # OKF_ROOT is the content database and is written at runtime — it lives on a
 # mounted volume, never in the image.
 RUN mkdir -p /data/okf /data/md-mirror && chown -R nextjs:nodejs /data

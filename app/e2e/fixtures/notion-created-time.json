@@ -1,0 +1,19 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects' table view, Created time column, 2026-08-06. Read-only: wheel-scrolled the table sideways until the column painted, then read the text-bearing element's computed styles (not the cell box — that reports the container's inherited 16px/24px).",
+  "format": {
+    "examples": ["2026년 8월 4일 오후 3:56", "2026년 7월 29일 오후 7:01", "2026년 6월 26일 오전 10:57", "2026년 7월 8일 오전 9:41"],
+    "pattern": "^\\d{4}년 \\d{1,2}월 \\d{1,2}일 (오전|오후) \\d{1,2}:\\d{2}$",
+    "_reads": "ko-KR, long month, 12-hour with 오전/오후, no seconds, no leading zero on the hour. The property carries no date_format of its own (its config is {}), so this is Notion's default for created_time under a Korean UI.",
+    "locale": "ko-KR"
+  },
+  "text": {
+    "fontSize": 14,
+    "lineHeight": 21,
+    "fontWeight": 400,
+    "color": "rgb(44, 44, 43)",
+    "insetLeft": 8,
+    "insetTop": 10
+  },
+  "cell": { "height": 37 },
+  "_dataGap": "The original's rows were created over months (May–August 2026 in the rows on screen). Our seed inserted all 251 rows at once, so db_rows.created_at spans three minutes on 2026-08-06 and the whole column reads as one date. The per-row created_time is NOT in the saved source data (rows-normalized.json carries only cells+id; rows.json is truncated), so closing that gap needs a fresh read-only fetch from the original."
+}

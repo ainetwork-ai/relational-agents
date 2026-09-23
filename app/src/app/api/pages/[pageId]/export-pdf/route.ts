@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
-import type { ParsedBlock } from "@/lib/memory-parse";
+import { asc, eq, and } from "drizzle-orm";
+import { parentIdsByDepth, type ParsedBlock } from "@/lib/memory-parse";
 import { blocksToHtml, type ExportBlock } from "@/lib/export-html";
 import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 
@@ -38,7 +38,12 @@ export async function GET(
     const node = readNode(decodeId(pageId));
     if (!node) return NextResponse.json({ error: "Not found" }, { status: 404 });
     title = node.title;
-    parsed = node.kind === "page" || node.kind === "row" ? node.blocks : [];
+     // a file page's blocks carry their nesting as `depth`; blocksToHtml groups by
+ // parentBlockId, so translate or the PDF comes out flat while the same page's
+ // .md and the editor are nested
+    const fileBlocks = node.kind === "page" || node.kind === "row" ? node.blocks : [];
+    const fileParents = parentIdsByDepth(fileBlocks.map((b) => b.depth ?? 0), fileBlocks.map((b) => b.id));
+    parsed = fileBlocks.map((b, i) => ({ ...b, parentBlockId: fileParents[i] })) as ExportBlock[];
   } else {
     const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -46,7 +51,7 @@ export async function GET(
     const rows = await db
       .select()
       .from(blocks)
-      .where(eq(blocks.pageId, pageId))
+      .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
       .orderBy(asc(blocks.position));
     parsed = rows.map((b, i) => ({
       id: b.id,

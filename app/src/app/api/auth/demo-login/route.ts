@@ -30,7 +30,7 @@ async function loginUser(ainAddress: string, displayName: string, homeCoverUrl?:
   await ensureWorkspace(user.id, user.displayName);
   const session = await getSession();
   session.userId = user.id;
-  session.ainAddress = user.ainAddress;
+  session.ainAddress = user.ainAddress ?? undefined;
   session.challenge = undefined;
  // switching accounts invalidates the previous account's active workspace
   session.activeWorkspaceId = undefined;

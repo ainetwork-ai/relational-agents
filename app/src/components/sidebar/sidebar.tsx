@@ -8,7 +8,6 @@ import {
   Star,
   StarOff,
   FileText,
-  LogOut,
   PanelLeftClose,
   PanelLeft,
   Search as SearchIcon,
@@ -16,8 +15,6 @@ import {
   MessageCircle,
   SquarePen,
 } from "lucide-react";
-import { ProfileSettings } from "@/components/profile-settings";
-import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { usePagesStore } from "@/stores/pages";
 import { useUiStore } from "@/stores/ui";
 import { useAiChatsStore, unreadChatCount } from "@/stores/ai-chats";
@@ -28,11 +25,14 @@ import { PageItem } from "./page-item";
 import { TrashModal } from "./trash-modal";
 import { WorkspaceSwitcher, type ActiveWorkspace } from "./workspace-switcher";
 import { TeamspacesSection } from "./teamspaces-section";
+import { SectionMenu, sortRows } from "./section-menu";
 import { ImportButton } from "@/components/import/import-button";
 import { NotificationsInbox, InboxPanel } from "@/components/notifications/inbox";
 import { PageIcon } from "@/components/page-icon";
+import { pageLabel, pageFallbackIcon, type PageRow } from "@/lib/page-label";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { initial } from "@/lib/glyph";
+import { useT } from "@/i18n/provider";
 
 export function Sidebar({
   workspace,
@@ -44,6 +44,7 @@ export function Sidebar({
   displayName: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const loaded = usePagesStore((s) => s.loaded);
   const load = usePagesStore((s) => s.load);
   const createPage = usePagesStore((s) => s.createPage);
@@ -93,15 +94,20 @@ export function Sidebar({
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
 
+ // ask for THIS sidebar's workspace (the viewed page's — the layout chose it),
+ // not the session's: otherwise a page opened from another workspace showed
+ // the old tree until the session followed (QA-3). Re-runs when it changes.
+  const workspaceId = workspace?.id;
   useEffect(() => {
-    load();
-  }, [load]);
+    load(workspaceId);
+  }, [load, workspaceId]);
 
   const roots = usePagesStore((s) => s.roots);
+  const sidebarSort = useUiStore((s) => s.sidebarSort);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
- // draggable width, remembered
-  const [sbWidth, setSbWidth] = useState(240);
+ // draggable width, remembered — 270 is the original's (e2e/sidebar-width.check.mjs)
+  const [sbWidth, setSbWidth] = useState(270);
   useEffect(() => {
  // deferred so no setState runs synchronously in the effect body
     void Promise.resolve().then(() => {
@@ -162,7 +168,7 @@ export function Sidebar({
           }}
           onMouseEnter={() => setPeek(true)}
           className="fixed left-2 top-2 z-40 rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
-          aria-label="Open sidebar"
+          aria-label={t("사이드바 열기")}
         >
           <PanelLeft size={18} />
         </button>
@@ -174,20 +180,20 @@ export function Sidebar({
           >
             {favorites.length > 0 && (
               <div className="mb-2">
-                <p className="px-2 py-1 text-xs font-medium text-neutral-400">Favorites</p>
+                <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("즐겨찾기")}</p>
                 {favorites.map((p) => (
                   <a
                     key={p.id}
                     href={`/p/${p.id}`}
                     className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
                   >
-                    <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                    <span className="truncate">{p.title || "Untitled"}</span>
+                    <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                    <span className="truncate">{t(pageLabel(p as PageRow))}</span>
                   </a>
                 ))}
               </div>
             )}
-            <p className="px-2 py-1 text-xs font-medium text-neutral-400">Private</p>
+            <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("개인 페이지")}</p>
             {roots.map((p) => (
               <PageItem key={p.id} page={p} depth={0} />
             ))}
@@ -218,7 +224,7 @@ export function Sidebar({
         <button
           data-testid="mobile-nav-close"
           onClick={() => setMobileNavOpen(false)}
-          aria-label="Close menu"
+          aria-label={t("메뉴 닫기")}
           className="absolute right-2 top-2 z-10 rounded-md p-1 text-neutral-400 hover:bg-neutral-200/60 md:hidden"
         >
           <PanelLeftClose size={16} />
@@ -227,7 +233,7 @@ export function Sidebar({
           below; this line carries just the switcher and the collapse control) */}
       <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         {workspace ? (
-          <WorkspaceSwitcher workspace={workspace} />
+          <WorkspaceSwitcher workspace={workspace} displayName={displayName} />
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center rounded bg-neutral-300 text-[10px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
@@ -242,7 +248,7 @@ export function Sidebar({
           data-testid="sidebar-collapse"
           onClick={() => setCollapsed(true)}
           className="ml-auto rounded p-1 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 group-hover/sidebar:opacity-100 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-          aria-label="Close sidebar"
+          aria-label={t("사이드바 닫기")}
         >
           <PanelLeftClose size={16} />
         </button>
@@ -255,14 +261,14 @@ export function Sidebar({
       <div className="mb-1 flex items-center justify-between gap-0.5 px-1.5 pb-1">
         <div
           role="tablist"
-          aria-label="Sidebar sections"
+          aria-label={t("사이드바 섹션")}
           className="flex min-w-0 items-center gap-0.5"
         >
           <a
             data-testid="sidebar-home"
             href="/home"
-            aria-label="Home"
-            data-tip="Home"
+            aria-label={t("홈")}
+            data-tip={t("홈")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <HomeIcon size={16} />
@@ -271,7 +277,7 @@ export function Sidebar({
             role="tab"
             data-testid="sidebar-tab-pages"
             aria-selected={activeTab === "pages"}
-            aria-label="Pages"
+            aria-label={t("페이지")}
             onClick={() => {
               setShowInbox(false);
               setTab("pages");
@@ -283,13 +289,13 @@ export function Sidebar({
             }`}
           >
             <FileText size={16} className="shrink-0" />
-            {activeTab === "pages" && showTabLabels && "Pages"}
+            {activeTab === "pages" && showTabLabels && t("페이지")}
           </button>
           <button
             role="tab"
             data-testid="sidebar-tab-chats"
             aria-selected={activeTab === "chats"}
-            aria-label="Chats"
+            aria-label={t("채팅")}
             onClick={() => {
               setShowInbox(false);
               setTab("chats");
@@ -301,11 +307,11 @@ export function Sidebar({
             }`}
           >
             <MessageCircle size={16} className="shrink-0" />
-            {activeTab === "chats" && showTabLabels && "Chats"}
+            {activeTab === "chats" && showTabLabels && t("채팅")}
             {dmUnread > 0 && (
               <span
                 data-testid="sidebar-chats-unread"
-                aria-label={`${dmUnread} unread messages`}
+                aria-label={t("읽지 않은 메시지 {n}개", { n: dmUnread })}
                 className={`flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-[3px] text-[9px] font-semibold text-white ${
                   activeTab === "chats" && showTabLabels ? "" : "absolute -top-0.5 -right-0.5"
                 }`}
@@ -316,7 +322,7 @@ export function Sidebar({
             {aiChatsUnread > 0 && (
               <span
                 data-testid="chats-tab-unread-badge"
-                aria-label={`${aiChatsUnread} unread chats`}
+                aria-label={t("읽지 않은 채팅 {n}개", { n: aiChatsUnread })}
                 className={`flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-[3px] text-[9px] font-semibold text-white ${
                   activeTab === "chats" && showTabLabels ? "" : "absolute -bottom-0.5 -right-0.5"
                 }`}
@@ -335,8 +341,8 @@ export function Sidebar({
           <button
             data-testid="sidebar-search"
             onClick={() => setSearchOpen(true)}
-            aria-label="Search"
-            data-tip="Search (Ctrl+K)"
+            aria-label={t("검색")}
+            data-tip={t("검색 (Ctrl+K)")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <SearchIcon size={16} />
@@ -344,8 +350,8 @@ export function Sidebar({
           <button
             data-testid="sidebar-compose"
             onClick={() => void newPage()}
-            aria-label="New page"
-            data-tip="New page"
+            aria-label={t("새 페이지")}
+            data-tip={t("새 페이지")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <SquarePen size={16} />
@@ -358,7 +364,7 @@ export function Sidebar({
       ) : activeTab === "chats" ? (
         <ChatsPanel />
       ) : (
-      <nav aria-label="Pages" className="flex-1 overflow-y-auto px-2 pb-4">
+      <nav aria-label={t("페이지")} className="flex-1 overflow-y-auto px-2 pb-4">
         <TeamspacesSection workspaceId={workspace?.id ?? null} />
         {shared.length > 0 && (
           <section className="mb-4" data-testid="shared-section">
@@ -367,7 +373,7 @@ export function Sidebar({
               onClick={toggleShared}
               className="block px-2 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
-              Shared
+              {t("공유됨")}
             </button>
             {!sharedCollapsed && shared.map((p) => (
               <a
@@ -376,8 +382,8 @@ export function Sidebar({
                 href={`/p/${p.id}`}
                 className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
               >
-                <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                <span className="truncate">{p.title || "Untitled"}</span>
+                <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                <span className="truncate">{t(pageLabel(p as PageRow))}</span>
               </a>
             ))}
           </section>
@@ -389,7 +395,7 @@ export function Sidebar({
               onClick={toggleFavs}
               className="block px-2 py-1 text-left text-xs font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
-              Favorites
+              {t("즐겨찾기")}
             </button>
             {!favsCollapsed && favorites.map((p) => (
               <div
@@ -402,14 +408,14 @@ export function Sidebar({
                   className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-sm text-neutral-600 dark:text-neutral-400"
                 >
                   <Star size={13} className="shrink-0 text-neutral-400" />
-                  <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback="📄" /></span>
-                  <span className="truncate">{p.title || "Untitled"}</span>
+                  <span className="shrink-0 text-[15px] leading-none"><PageIcon icon={p.icon} fallback={pageFallbackIcon(p as PageRow)} /></span>
+                  <span className="truncate">{t(pageLabel(p as PageRow))}</span>
                 </a>
                 <button
                   data-testid={`favorite-remove-${p.id}`}
                   onClick={() => updatePage(p.id, { isFavorite: false })}
                   className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-300/60 hover:text-neutral-600 group-hover/fav:flex dark:hover:bg-neutral-700"
-                  aria-label="Remove from Favorites"
+                  aria-label={t("즐겨찾기에서 제거")}
                 >
                   <StarOff size={12} />
                 </button>
@@ -417,21 +423,28 @@ export function Sidebar({
             ))}
           </section>
         )}
-        <h3 className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400" data-testid="private-section-label">
-          Private
-        </h3>
-
         <section>
-          <div className="flex items-center justify-between px-2 py-1">
-            <h3 className="text-xs font-medium text-neutral-400">Private</h3>
-            <button
-              data-testid="sidebar-new-page"
-              onClick={newPage}
-              className="rounded p-0.5 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-700"
-              aria-label="New page"
+          {/* The + reveals on hover, as Notion's section headers do: a sidebar
+              full of always-visible buttons reads as clutter, and the row is
+              the affordance. focus-visible keeps it reachable by keyboard. */}
+          <div className="group/section flex items-center justify-between px-2 py-1">
+            <h3
+              className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+              data-testid="private-section-label"
             >
-              <Plus size={14} />
-            </button>
+              {t("개인 페이지")}
+            </h3>
+            <div className="flex items-center gap-0.5">
+              <SectionMenu testId="private-section-menu" label={t("개인 페이지")} />
+              <button
+                data-testid="sidebar-new-page"
+                onClick={newPage}
+                className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
+                aria-label={t("페이지 추가")}
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
           {!loaded ? (
@@ -444,9 +457,9 @@ export function Sidebar({
               ))}
             </div>
           ) : roots.length === 0 ? (
-            <p className="px-2 py-1 text-xs text-neutral-400">No pages yet</p>
+            <p className="px-2 py-1 text-xs text-neutral-400">{t("페이지가 없습니다")}</p>
           ) : (
-            roots.map((p) => <PageItem key={p.id} page={p} depth={0} />)
+            sortRows(roots, sidebarSort).map((p) => <PageItem key={p.id} page={p} depth={0} />)
           )}
         </section>
       </nav>
@@ -459,7 +472,7 @@ export function Sidebar({
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <Trash2 size={15} />
-          Trash
+          {t("휴지통")}
         </button>
         <button
           data-testid="add-page-button"
@@ -467,26 +480,10 @@ export function Sidebar({
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <FileText size={15} />
-          New page
+          {t("새 페이지")}
         </button>
         <ImportButton />
 
-        <div className="mt-1 flex items-center justify-between rounded-md px-2 py-1.5">
-          <ProfileSettings initialName={displayName} />
-          <DarkModeToggle />
-          <button
-            data-testid="logout-button"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              router.push("/login");
-              router.refresh();
-            }}
-            className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-700"
-            aria-label="Log out"
-          >
-            <LogOut size={13} />
-          </button>
-        </div>
       </div>
 
       <TrashModal />

@@ -3,10 +3,17 @@ import { cookies } from "next/headers";
 
 export interface SessionData {
   userId?: string;
-  ainAddress?: string;
-  challenge?: string;
   /** the workspace the user is currently viewing (workspace switcher) */
   activeWorkspaceId?: string;
+  /** CSRF state for an in-flight Google sign-in; cleared by the callback */
+  oauthState?: string;
+  /** same-origin path to land on after the in-flight sign-in (an invite page
+   * must survive the login round-trip); single-use, cleared by the callback */
+  returnTo?: string;
+  /** wallet identity for the AIN/MetaMask logins (the relational-chain line) */
+  ainAddress?: string;
+  /** the AIN sign-in nonce for an in-flight wallet login */
+  challenge?: string;
 }
 
 const sessionOptions: SessionOptions = {

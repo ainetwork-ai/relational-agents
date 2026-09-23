@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/i18n/provider";
 
 /** Password gate for a protected share link — unlocks via an httpOnly cookie. */
 export function SharePasswordForm({ token }: { token: string }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   async function submit() {
     setBusy(true);
@@ -36,7 +38,7 @@ export function SharePasswordForm({ token }: { token: string }) {
       >
         <p className="text-3xl">🔒</p>
         <h1 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-          This page is password protected
+          {t("이 페이지는 비밀번호로 보호되어 있습니다")}
         </h1>
         <input
           autoFocus
@@ -44,12 +46,12 @@ export function SharePasswordForm({ token }: { token: string }) {
           data-testid="share-pw-input"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
-          placeholder="Enter password"
+          placeholder={t("비밀번호 입력")}
           className="rounded-md border border-neutral-200 px-3 py-1.5 text-sm outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         />
         {error && (
           <p data-testid="share-pw-error" className="text-xs text-red-500">
-            Wrong password — try again.
+            {t("비밀번호가 틀렸습니다. 다시 시도하세요.")}
           </p>
         )}
         <button
@@ -58,7 +60,7 @@ export function SharePasswordForm({ token }: { token: string }) {
           disabled={busy}
           className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
         >
-          {busy ? "Checking…" : "Continue"}
+          {busy ? t("확인 중…") : t("계속")}
         </button>
       </form>
     </main>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
+import { isServableAssetUrl } from "@/lib/files/serve";
 import { db } from "@/lib/db";
 import { chatMessages, chatRoomBots, chatRoomMembers } from "@/lib/db/schema";
 import {
@@ -23,7 +24,8 @@ interface Attachment {
   name: string;
 }
 
-/** Only same-origin /uploads/* paths from the upload API are allowed (blocks external/scheme injection). */
+/** Only what the upload API hands the browser — a legacy /uploads/* file name or
+ *  the key-addressed /api/files/key/… path — never an external or scheme url. */
 function parseAttachments(raw: unknown): Attachment[] | null {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) return null;
@@ -31,7 +33,7 @@ function parseAttachments(raw: unknown): Attachment[] | null {
   for (const item of raw) {
     const url = (item as { url?: unknown })?.url;
     const name = (item as { name?: unknown })?.name;
-    if (typeof url !== "string" || !/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return null;
+    if (typeof url !== "string" || !isServableAssetUrl(url)) return null;
     out.push({
       url,
       name: typeof name === "string" ? name.slice(0, MAX_ATTACHMENT_NAME) : "file",

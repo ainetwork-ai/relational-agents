@@ -92,7 +92,7 @@ export async function POST(
       .where(
         and(
           eq(workspaceMembers.workspaceId, page.workspaceId),
-          eq(users.ainAddress, email)
+          eq(users.email, email)
         )
       )
       .limit(1);

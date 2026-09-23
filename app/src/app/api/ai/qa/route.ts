@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const rows = await db
       .select({ text: sql<string>`${blocks.content} ->> 'text'` })
       .from(blocks)
-      .where(eq(blocks.pageId, h.id))
+      .where(and(eq(blocks.pageId, h.id), eq(blocks.alive, true)))
       .orderBy(blocks.position)
       .limit(60);
     sources.push({

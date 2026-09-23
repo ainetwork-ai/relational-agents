@@ -1,3 +1,4 @@
+import { isServableAssetUrl } from "@/lib/files/serve";
 import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -22,7 +23,7 @@ import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs
 export interface RespondResult {
   action: "reply" | "silent";
   text?: string;
-  /** Images the agent attaches to its reply — /uploads/* only, taken from the doc. */
+  /** Images the agent attaches to its reply — our own served paths only, taken from the doc. */
   attachments?: { url: string; name: string }[];
   messageId?: string;
 }
@@ -35,7 +36,7 @@ function sanitizeAttachments(raw: unknown): { url: string; name: string }[] {
       (a): a is { url: string; name?: string } =>
         !!a && typeof a === "object" && typeof (a as { url?: unknown }).url === "string"
     )
-    .filter((a) => a.url.startsWith("/uploads/") && !a.url.includes(".."))
+    .filter((a) => isServableAssetUrl(a.url))
     .slice(0, 4)
     .map((a) => ({ url: a.url, name: typeof a.name === "string" ? a.name : "image" }));
 }
@@ -46,7 +47,9 @@ interface DocPhoto {
   context: string;
 }
 
-const IMG_LINE = /!\[([^\]]*)\]\((\/uploads\/[A-Za-z0-9._-]+)\)/g;
+// a photo is at the pre-migration disk path or the key-addressed serving path
+const IMG_LINE =
+  /!\[([^\]]*)\]\(((?:\/uploads\/[A-Za-z0-9._-]+|\/api\/files\/key\/files\/[0-9a-f]{64}\.[a-z0-9]{1,8}))\)/g;
 
 /** Photos the record holds, each carried with its caption and the line above
  *  it — that text is what an answer about the photo will echo. */
@@ -191,12 +194,12 @@ async function llmDecision(
           `("she loves sunsets — you two watched one at …"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
           `When you cite the document, mention its link (/p/${rootPageId ?? ""}).\n` +
-          `When you recommend ${profile.voice.suggestion}, ground it in this ${profile.voice.subject}'s memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's /uploads/... path in "attachments".\n` +
+          `When you recommend ${profile.voice.suggestion}, ground it in this ${profile.voice.subject}'s memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's image url (exactly as written there) in "attachments".\n` +
           // The whole promise of a per-relationship agent: what it was never
           // told, it cannot say. It is only ever handed this relationship's
           // sections, so this restates a boundary the code already enforces.
           `Never reveal, hint at, or draw on anything not written in this ${profile.voice.subject}'s document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
-          `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"/uploads/...","name":"..."}]} or {"action":"silent"}`,
+          `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"<image url from the document>","name":"..."}]} or {"action":"silent"}`,
       },
       {
         role: "user",

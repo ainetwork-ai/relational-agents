@@ -1,0 +1,65 @@
+{
+  "_source": "app.notion.com ComCom > Projects — Status 셀 메뉴 → 속성 편집 사이드바, 옵션 클릭 메뉴, 그룹화 서브메뉴 (2026-08-10). 원본 덤프: scratchpad/status-edit-capture/{panel,option-submenu,group-submenu}-nodes.json + 스크린샷.",
+  "_why": "그 전까지 속성 편집은 노션과 무관한 임시 헤더 메뉴로 떨어졌고, status 옵션을 관리(추가/이름/색/그룹/기본/삭제)할 길이 없었다. 원본은 팝오버가 아니라 뷰 툴바 오른쪽 밑에 도킹되는 사이드바다.",
+  "panel": {
+    "dock": { "leftFromBarRight": -291, "topFromBarBottom": 0, "_": "원본 수치는 -387이지만 노션의 툴바 노드는 페이지 오른쪽 여백 96px을 포함한다(사이드바가 inset -96/padding 96으로 번짐). 눈에 보이는 규칙은 '메뉴 칼럼(290) 오른쪽 끝 = 툴바 컨트롤 오른쪽 끝'이고, 우리 db-view-bar는 새로 만들기에서 끝나므로 -291(290+보더1)이 같은 규칙이다." },
+    "bg": "rgb(255, 255, 255)",
+    "borderLeft": "rgba(42, 28, 0, 0.07)",
+    "header": {
+      "h": 50,
+      "back": { "x": 11, "iconSize": 16 },
+      "title": { "x": 43, "fs": "14px", "fw": "600", "text": "속성 편집" },
+      "close": { "x": 255, "size": 20, "bg": "rgba(42, 28, 0, 0.07)", "radius": "100%" }
+    },
+    "nameRow": {
+      "iconBtn": { "x": 13, "y": 54, "size": 28, "border": "rgba(42, 28, 0, 0.07)", "radius": "6px" },
+      "box": { "x": 49, "y": 54, "w": 215, "h": 28, "bg": "rgba(66, 35, 3, 0.03)", "ring": "rgba(28, 19, 1, 0.11)", "radius": "6px" },
+      "inputFs": "14px"
+    },
+    "typeRow": { "x": 9, "y": 98, "w": 259, "h": 28, "value": "상태", "valueColor": "rgb(161, 158, 153)" },
+    "groupLabel": { "x": 21, "ys": [140, 207, 273], "fs": "12px", "fw": "500", "color": "rgb(125, 122, 117)", "texts": ["할 일", "진행 중", "완료"] },
+    "plusBtn": { "x": 236, "size": 20 },
+    "optionRow": { "x": 9, "w": 259, "h": 28, "ys": [166, 232, 298, 326, 354, 382], "hoverBg": "rgba(33, 27, 23, 0.051)" },
+    "chip": { "x": 43, "h": 20 },
+    "defaultTag": { "right": 238, "fs": "12px", "fw": "500", "color": "rgb(161, 158, 153)", "text": "기본", "onOption": "Not started", "_": "x는 글리프 폭에 따라 변해서(헤드리스엔 한글 폰트가 없다) 오른쪽 끝(238 = chevron 244 − 6)을 잰다. 원본 x=217, w=21." },
+    "chevron": { "x": 244, "size": 16 },
+    "footer": {
+      "divider": { "x": 17, "w": 258, "yFromBottom": -132, "color": "rgba(42, 28, 0, 0.07)" },
+      "rows": { "x": 9, "w": 274, "h": 28, "ysFromBottom": [-123, -94, -65, -36] },
+      "switch": { "x": 245, "w": 30, "h": 18 },
+      "texts": ["콘텐츠 줄바꿈하기", "다음과 같이 표시:", "속성 복제", "속성 삭제"]
+    },
+    "order": ["속성 편집", "유형", "상태", "할 일", "Not started", "기본", "진행 중", "In progress", "완료", "Deprecated", "Needs review", "Hold", "Done", "콘텐츠 줄바꿈하기", "다음과 같이 표시:", "선택", "속성 복제", "속성 삭제"]
+  },
+  "optionMenu": {
+    "box": { "w": 220, "h": 477, "radius": "10px", "bg": "rgb(255, 255, 255)", "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px" },
+    "anchor": { "dxFromClick": -1, "flipsUpToRowTop": true },
+    "nameBox": { "x": 12, "y": 12, "w": 196, "h": 28, "bg": "rgba(66, 35, 3, 0.03)", "ring": "rgba(28, 19, 1, 0.11)" },
+    "item": { "x": 4, "w": 212, "h": 28, "ys": [52, 81, 110], "iconX": 12, "iconSize": 20, "textX": 40, "textFs": "14px" },
+    "divider": { "x": 12, "y": 147, "w": 196, "color": "rgba(42, 28, 0, 0.07)" },
+    "colorLabel": { "x": 12, "y": 160, "fs": "12px", "fw": "500", "text": "색" },
+    "colorRow": { "x": 4, "w": 212, "h": 28, "firstY": 184, "step": 29, "count": 10 },
+    "swatch": { "x": 13, "size": 18, "radius": "4px" },
+    "swatchColors": {
+      "기본": "rgba(42, 28, 0, 0.07)",
+      "회색": "rgba(28, 19, 1, 0.11)",
+      "갈색": "rgba(127, 51, 0, 0.157)",
+      "주황색": "rgba(196, 88, 0, 0.204)",
+      "노란색": "rgba(209, 156, 0, 0.282)",
+      "초록색": "rgba(0, 96, 38, 0.157)",
+      "파란색": "rgba(0, 118, 217, 0.204)",
+      "보라색": "rgba(92, 0, 163, 0.14)",
+      "분홍색": "rgba(183, 0, 78, 0.153)",
+      "빨간색": "rgba(206, 24, 0, 0.165)"
+    },
+    "check": { "x": 192, "size": 16, "onColorForInProgress": "파란색" },
+    "order": ["삭제", "기본으로 설정", "그룹화", "진행 중", "색", "기본", "회색", "갈색", "주황색", "노란색", "초록색", "파란색", "보라색", "분홍색", "빨간색"]
+  },
+  "groupMenu": {
+    "box": { "w": 250, "h": 94, "radius": "10px", "bg": "rgb(255, 255, 255)" },
+    "anchor": { "topIsRowBottom": true, "rightIsRowRight": true },
+    "row": { "x": 4, "w": 242, "h": 28, "ys": [4, 33, 62], "textX": 12 },
+    "check": { "x": 222, "size": 16, "on": "진행 중" },
+    "order": ["할 일", "진행 중", "완료"]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_source": "app.notion.com ComCom > Projects, header row, magnified 3x crops + computed styles, 2026-08-06 (read-only; the scroll was put back).",
+  "metrics": {
+    "size": 16,
+    "fill": "rgb(142, 139, 134)",
+    "insetLeftInCell": 9,
+    "gapToLabel": 7,
+    "_uniform": "all 23 columns"
+  },
+  "whatEachTypeShows": {
+    "title": "Aa",
+    "text": "three left-aligned lines, decreasing length",
+    "person": "two filled person busts",
+    "date": "calendar",
+    "created_time": "clock (filled circle)",
+    "number": "#",
+    "select": "circle with a filled chevron-down",
+    "multi_select": "bulleted list",
+    "status": "dashed circle"
+  },
+  "_ours": "lucide icons picked to match those drawings at the same 16px and colour — Notion's are filled where lucide's are stroked, so the weight differs slightly. Copying Notion's own paths would be exact; that is a product decision, not a component one.",
+  "_unmeasured": "checkbox, url, email, phone, files, formula, relation and rollup are not in the Projects table, so their icons are our best match rather than measured."
+}

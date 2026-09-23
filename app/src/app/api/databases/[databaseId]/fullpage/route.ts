@@ -28,6 +28,10 @@ export async function POST(
       parentPageId: null,
       position: Date.now(),
       createdBy: auth.user.id,
+      // A database needs the width — the default 708px column is for prose.
+      // The page route widens any page holding a full-page database anyway, so
+      // this is what the page options menu reports rather than what enforces it.
+      fullWidth: true,
     })
     .returning();
 

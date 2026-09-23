@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isImeComposing } from "@/hooks/use-ime-guard";
 import type { Block, Page } from "@/lib/db/schema";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { CommentThreadPanel } from "@/components/comments/comment-thread-panel";
 import { MessageSquare } from "lucide-react";
+import { focusPageComposer } from "@/components/comments/comment-thread";
 import { useCommentUi, PAGE_ANCHOR } from "@/stores/comment-ui";
 import { PageIcon } from "@/components/page-icon";
+import { useT } from "@/i18n/provider";
 
 type Permission = "view" | "comment" | "edit" | "full";
 
@@ -36,9 +39,10 @@ export function SharedPageEditor({
 }) {
   const canEdit = permission === "edit" || permission === "full";
   const canComment = permission === "comment" || canEdit;
+  const openComments = useCommentUi((s) => s.open);
   const editorRef = useRef<BlockEditorHandle>(null);
   const [title, setTitle] = useState(page.title);
-  const openComments = useCommentUi((s) => s.open);
+  const t = useT();
 
  // Inject the share token into fetch for API calls from the editor.
  // We monkey-patch window.fetch to add x-share-token for same-origin
@@ -71,12 +75,12 @@ export function SharedPageEditor({
       <div className="min-h-full pb-32">
         <div className="sticky top-0 z-30 flex items-center justify-end gap-2 bg-white/80 px-3 py-1.5 backdrop-blur dark:bg-[#191919]/80">
           <span className="mr-auto text-xs text-neutral-400">
-            Shared with edit access
+            {t("편집 권한으로 공유됨")}
           </span>
           <button
             
-            onClick={() => openComments(PAGE_ANCHOR)}
-            aria-label="Comments"
+            onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
+            aria-label={t("댓글")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <MessageSquare size={16} />
@@ -99,7 +103,7 @@ export function SharedPageEditor({
             
             rows={1}
             value={title}
-            placeholder="Untitled"
+            placeholder={t("제목 없음")}
             onChange={(e) => {
               const v = e.target.value.replace(/\n/g, "");
               setTitle(v);
@@ -111,7 +115,7 @@ export function SharedPageEditor({
               });
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (!isImeComposing(e) && e.key === "Enter") {
                 e.preventDefault();
                 editorRef.current?.focusFirst();
               }
@@ -137,12 +141,12 @@ export function SharedPageEditor({
       <div className="min-h-full pb-32">
         <div className="sticky top-0 z-30 flex items-center justify-end gap-2 bg-white/80 px-3 py-1.5 backdrop-blur dark:bg-[#191919]/80">
           <span className="mr-auto text-xs text-neutral-400">
-            Shared with comment access
+            {t("댓글 권한으로 공유됨")}
           </span>
           <button
             
-            onClick={() => openComments(PAGE_ANCHOR)}
-            aria-label="Comments"
+            onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
+            aria-label={t("댓글")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <MessageSquare size={16} />
@@ -161,7 +165,7 @@ export function SharedPageEditor({
             )}
           </div>
           <h1 className="mt-2 text-4xl font-bold text-neutral-900 dark:text-neutral-100">
-            {page.title || "Untitled"}
+            {page.title || t("제목 없음")}
           </h1>
           <div className="mt-4">
             <ReadOnlyBlocks blocks={blocks} />

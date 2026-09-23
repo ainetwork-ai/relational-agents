@@ -22,16 +22,7 @@ md-mirror/
 # user uploads are runtime data, not source
 app/public/uploads/
 app/public/avatars/
-dashboard/public/avatars/
-dashboard/public/date/
-dashboard/public/source/
-videocall/public/gf.png
-videocall/public/gfs/
-dashboard/.uploads-cache.json
 .claude/scheduled_tasks.lock
-memory-data/content/Relationship doc*/
-memory-data/content/Relationships.csv
-memory-data/content/demo.md
 
 # production runtime state — the live OKF content tree and DB dumps.
 # Lives in the project so deploys are discoverable, but is data, not source.
@@ -39,8 +30,18 @@ memory-data/content/demo.md
 
 # local backups (not source)
 /backup/
-memory-data/content-test/
 
 # Demo videos live on YouTube, not in git
 assets/*.mp4
 *.mp4
+
+# 노션 대조용 DOM 캡처 — 로컬 참고 자료이고 소스가 아니다.
+# 파일 하나가 최대 1.4MB 라 리포를 무겁게 만든다. 무엇이 어떤 화면인지는
+# docs/notion-captures.md 에 정리돼 있다.
+docs/*.html
+docs/plus_page_personalpage_html
+# 노션 클립보드 캡처(사내 데이터) — e2e/notion-paste.check.mjs 의 입력.
+# 다시 뜨는 법은 그 스크립트 헤더와 docs/notion-captures.md 에.
+docs/notion-clip-flow-page/
+# 원본(노션) CDP 측정 스크립트 — 로컬 도구, 소스 아님 (docs/notion-golden-set.md §4)
+/scratchpad/

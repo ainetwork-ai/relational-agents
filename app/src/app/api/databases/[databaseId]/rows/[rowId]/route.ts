@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { dbRows } from "@/lib/db/schema";
+import { dbRows, dbProperties, pages } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { publish } from "@/lib/realtime";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import {
   isOkfId,
@@ -64,6 +65,10 @@ export async function PATCH(
   const setKeys: Record<string, unknown> = {};
   const delKeys: string[] = [];
   for (const [k, v] of Object.entries(patch)) {
+    // `__archived` means "this entry's page is in the trash". Only the page
+    // route may write it (it checks "full"); taking it from a row patch would
+    // let anyone who can reach the row hide a live entry from every view.
+    if (k === "__archived") continue;
     if (v === null) delKeys.push(k);
     else setKeys[k] = v;
   }
@@ -84,11 +89,35 @@ export async function PATCH(
     .returning();
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+ // The row's body page mirrors the row's title property. The page is minted
+ // the first time the row is OPENED (often before a title exists), and the
+ // full-page view / breadcrumbs read pages.title — without this mirror a row
+ // titled after opening stays "Untitled" forever when expanded to a full page.
+  const bodyPageId = (row.values as Record<string, unknown>)?.["__page"];
+  if (typeof bodyPageId === "string") {
+    const [titleProp] = await db
+      .select({ id: dbProperties.id })
+      .from(dbProperties)
+      .where(and(eq(dbProperties.databaseId, databaseId), eq(dbProperties.type, "title")))
+      .limit(1);
+    if (titleProp && titleProp.id in patch) {
+      const t = String(patch[titleProp.id] ?? "").trim();
+      await db
+        .update(pages)
+        .set({ title: t || "Untitled", updatedAt: new Date() })
+        .where(eq(pages.id, bodyPageId));
+    }
+  }
+
+ // every surface that shows this row — other windows' tables, boards, peeks,
+ // the row's own full page — refetches on this. Our own window ignores its
+ // echo by client id.
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ row });
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ databaseId: string; rowId: string }> }
 ) {
   const auth = await requireAuth();
@@ -111,5 +140,6 @@ export async function DELETE(
   await db
     .delete(dbRows)
     .where(and(eq(dbRows.id, rowId), eq(dbRows.databaseId, databaseId)));
+  publish({ type: "blocks", pageId: databaseId, clientId: req.headers.get("x-client-id"), at: Date.now() });
   return NextResponse.json({ ok: true });
 }

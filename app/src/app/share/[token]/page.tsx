@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { blocks, pages, pageShares } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ReadOnlyBlocks } from "@/components/read-only-blocks";
 import { SharedPageEditor } from "@/components/share/shared-page-editor";
 import type { Page } from "@/lib/db/schema";
@@ -49,7 +49,7 @@ export default async function SharedPage({
   const blockRows = await db
     .select()
     .from(blocks)
-    .where(eq(blocks.pageId, page.id))
+    .where(and(eq(blocks.pageId, page.id), eq(blocks.alive, true)))
     .orderBy(blocks.position);
 
   const permission = (share.permission ?? "view") as Permission;

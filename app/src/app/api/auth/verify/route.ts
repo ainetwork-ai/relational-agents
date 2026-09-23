@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     await ensureWorkspace(user.id, user.displayName);
 
     session.userId = user.id;
-    session.ainAddress = user.ainAddress;
+    session.ainAddress = user.ainAddress ?? undefined;
     session.challenge = undefined;
     await session.save();
 

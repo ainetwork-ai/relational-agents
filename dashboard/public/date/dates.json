@@ -1,0 +1,408 @@
+{
+ "courses": [
+  {
+   "id": "sunrise-pool-0524",
+   "girlfriend": "Hannah Brooks",
+   "date": "2026-05-24",
+   "timeRange": "07:29",
+   "title": {
+    "en": "Sunrise swim — rooftop infinity pool",
+    "pt": "Banho ao nascer do sol — piscina infinita no rooftop"
+   },
+   "photos": [
+    {
+     "file": "IMG_2660.jpg",
+     "time": "07:29",
+     "caption": {
+      "en": "She was right about the alarm — the sun coming up straight over the water",
+      "pt": "Ela tinha razão sobre o alarme — o sol nascendo bem em cima da água"
+     },
+     "spot": "pool"
+    },
+    {
+     "file": "IMG_2661.jpg",
+     "time": "07:29",
+     "caption": {
+      "en": "Infinity pool all to ourselves before breakfast",
+      "pt": "Piscina infinita só nossa antes do café da manhã"
+     },
+     "spot": "pool"
+    }
+   ]
+  },
+  {
+   "id": "lisbon-night-0711",
+   "girlfriend": "Hannah Brooks",
+   "date": "2026-07-11",
+   "timeRange": "17:46 – 22:02",
+   "title": {
+    "en": "Lisbon evening — dinner & bridge sunset",
+    "pt": "Noite em Lisboa — jantar e pôr do sol na ponte"
+   },
+   "photos": [
+    {
+     "file": "IMG_2150.jpg",
+     "time": "17:46",
+     "caption": {
+      "en": "Early dinner — grilled fish and that little salad she stole half of",
+      "pt": "Jantar cedo — peixe grelhado e a saladinha que ela roubou metade"
+     }
+    },
+    {
+     "file": "IMG_2386.jpg",
+     "time": "20:43",
+     "caption": {
+      "en": "Sunset over the Ponte 25 de Abril",
+      "pt": "Pôr do sol na Ponte 25 de Abril"
+     },
+     "spot": "bridge"
+    },
+    {
+     "file": "IMG_2522.jpg",
+     "time": "21:31",
+     "caption": {
+      "en": "Same bridge, lights on — she made us wait for it",
+      "pt": "A mesma ponte iluminada — ela fez a gente esperar"
+     },
+     "spot": "bridge"
+    },
+    {
+     "file": "IMG_2550.jpg",
+     "time": "22:02",
+     "caption": {
+      "en": "Azulejo walls on the way back",
+      "pt": "Paredes de azulejo no caminho de volta"
+     }
+    }
+   ]
+  },
+  {
+   "id": "belem-natas-0712",
+   "girlfriend": "Hannah Brooks",
+   "date": "2026-07-12",
+   "timeRange": "00:12 – 00:31",
+   "title": {
+    "en": "Past-midnight nata run near Belém",
+    "pt": "Corrida ao pastel de nata perto de Belém, madrugada adentro"
+   },
+   "photos": [
+    {
+     "file": "IMG_2569.jpg",
+     "time": "00:31",
+     "caption": {
+      "en": "Midnight pastel de nata. No regrets",
+      "pt": "Pastel de nata à meia-noite. Zero arrependimento"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lisbon-downtown-0803",
+   "girlfriend": "Claire Hudson",
+   "date": "2026-08-03",
+   "timeRange": "13:59 – 20:06",
+   "title": {
+    "en": "Lisbon downtown — flowers, museum, port tasting & tram",
+    "pt": "Centro de Lisboa — flores, museu, prova de vinho do Porto e bonde"
+   },
+   "photos": [
+    {
+     "file": "IMG_2871.jpg",
+     "time": "13:59",
+     "caption": {
+      "en": "Flower stalls — she picked the loud orange ones",
+      "pt": "Banca de flores — ela escolheu as laranjas berrantes"
+     }
+    },
+    {
+     "file": "IMG_3109.jpg",
+     "time": "16:17",
+     "caption": {
+      "en": "Old illuminated manuscript at the museum",
+      "pt": "Manuscrito iluminado no museu"
+     }
+    },
+    {
+     "file": "IMG_3302.jpg",
+     "time": "17:03",
+     "caption": {
+      "en": "Rua Augusta Arch",
+      "pt": "Arco da Rua Augusta"
+     }
+    },
+    {
+     "file": "IMG_3406.jpg",
+     "time": "18:01",
+     "caption": {
+      "en": "Port tasting — she went full sommelier mode",
+      "pt": "Prova de vinho do Porto — ela virou sommelier"
+     }
+    },
+    {
+     "file": "IMG_3412.jpg",
+     "time": "18:14",
+     "caption": {
+      "en": "The lineup we did not finish",
+      "pt": "A fileira que a gente não terminou"
+     }
+    },
+    {
+     "file": "IMG_3428.jpg",
+     "time": "18:39",
+     "caption": {
+      "en": "That archway view with the palm tree",
+      "pt": "Aquela vista do arco com a palmeira"
+     }
+    },
+    {
+     "file": "IMG_3574.jpg",
+     "time": "20:06",
+     "caption": {
+      "en": "Waiting for the 28 at Martim Moniz",
+      "pt": "Esperando o 28 em Martim Moniz"
+     }
+    }
+   ]
+  },
+  {
+   "id": "belem-sunset-0804",
+   "girlfriend": "Maya Sterling",
+   "date": "2026-08-04",
+   "timeRange": "13:37 – 20:50",
+   "rows": [
+    3,
+    2
+   ],
+   "title": {
+    "en": "Belém day — natas at the source, castle at golden hour",
+    "pt": "Dia em Belém — natas na fonte, castelo na golden hour"
+   },
+   "photos": [
+    {
+     "file": "IMG_3730.jpg",
+     "time": "13:37",
+     "caption": {
+      "en": "Warm-up natas to go",
+      "pt": "Natas de aquecimento pra viagem"
+     }
+    },
+    {
+     "file": "IMG_3995.jpg",
+     "time": "16:50",
+     "caption": {
+      "en": "The real ones, at the famous place — worth the queue",
+      "pt": "As verdadeiras, no lugar famoso — valeu a fila"
+     }
+    },
+    {
+     "file": "IMG_3999.jpg",
+     "time": "16:50",
+     "caption": {
+      "en": "She ordered three 'for the table'",
+      "pt": "Ela pediu três 'pra mesa'"
+     }
+    },
+    {
+     "file": "IMG_4389.jpg",
+     "time": "20:27",
+     "caption": {
+      "en": "Castle window, golden hour starting",
+      "pt": "Janela do castelo, começando a golden hour"
+     }
+    },
+    {
+     "file": "IMG_4463.jpg",
+     "time": "20:50",
+     "caption": {
+      "en": "Sunset over the river from the walls",
+      "pt": "Pôr do sol sobre o rio, lá das muralhas"
+     }
+    }
+   ]
+  },
+  {
+   "id": "sintra-trip-0805",
+   "girlfriend": "Zoe Harrison",
+   "date": "2026-08-05",
+   "timeRange": "12:24 – 16:35",
+   "title": {
+    "en": "Sintra day trip — Pena Palace & the Initiation Well",
+    "pt": "Bate-volta a Sintra — Palácio da Pena e o Poço Iniciático"
+   },
+   "photos": [
+    {
+     "file": "IMG_4539.jpg",
+     "time": "12:24",
+     "caption": {
+      "en": "Platform, two coffees, almost missed it",
+      "pt": "Plataforma, dois cafés, quase perdemos"
+     }
+    },
+    {
+     "file": "IMG_4579.jpg",
+     "time": "13:19",
+     "caption": {
+      "en": "First look at Pena up on the rocks",
+      "pt": "Primeira vista da Pena lá no alto"
+     }
+    },
+    {
+     "file": "IMG_4766.jpg",
+     "time": "14:27",
+     "caption": {
+      "en": "The red clock tower — her favorite",
+      "pt": "A torre vermelha do relógio — a favorita dela"
+     }
+    },
+    {
+     "file": "IMG_4830.jpg",
+     "time": "15:51",
+     "caption": {
+      "en": "Wandering into Quinta da Regaleira",
+      "pt": "Perdidos na Quinta da Regaleira"
+     }
+    },
+    {
+     "file": "IMG_4864.jpg",
+     "time": "16:17",
+     "caption": {
+      "en": "The Initiation Well, looking down",
+      "pt": "O Poço Iniciático, olhando pra baixo"
+     }
+    },
+    {
+     "file": "IMG_4879.jpg",
+     "time": "16:20",
+     "caption": {
+      "en": "…and looking up from inside",
+      "pt": "…e olhando pra cima lá de dentro"
+     }
+    },
+    {
+     "file": "IMG_4902.jpg",
+     "time": "16:35",
+     "caption": {
+      "en": "One last tower before the train back",
+      "pt": "Uma última torre antes do trem de volta"
+     }
+    }
+   ]
+  },
+  {
+   "id": "seaside-lunch-0806",
+   "girlfriend": "Mia Collins",
+   "date": "2026-08-06",
+   "timeRange": "13:31 – 15:11",
+   "title": {
+    "en": "Long seaside lunch — sangria, seafood rice, espresso",
+    "pt": "Almoço demorado à beira-mar — sangria, arroz de marisco, café"
+   },
+   "photos": [
+    {
+     "file": "IMG_5142.jpg",
+     "time": "13:31",
+     "caption": {
+      "en": "Sangria first, decisions later",
+      "pt": "Sangria primeiro, decisões depois"
+     }
+    },
+    {
+     "file": "IMG_5148.jpg",
+     "time": "13:51",
+     "caption": {
+      "en": "Seafood rice for two (she ate most of the prawns)",
+      "pt": "Arroz de marisco pra dois (ela comeu quase todos os camarões)"
+     }
+    },
+    {
+     "file": "IMG_5158.jpg",
+     "time": "13:52",
+     "caption": {
+      "en": "The steak she claimed she'd only taste",
+      "pt": "O bife que ela jurou que só ia provar"
+     }
+    },
+    {
+     "file": "IMG_5192.jpg",
+     "time": "15:11",
+     "caption": {
+      "en": "Espresso to survive the afternoon",
+      "pt": "Café pra sobreviver à tarde"
+     }
+    }
+   ]
+  },
+  {
+   "id": "waterfront-dinner-0806",
+   "girlfriend": "Claire Hudson",
+   "date": "2026-08-06",
+   "timeRange": "18:43 – 20:59",
+   "title": {
+    "en": "Waterfront petiscos & a dusk walk",
+    "pt": "Petiscos na beira d'água e caminhada ao entardecer"
+   },
+   "photos": [
+    {
+     "file": "IMG_5208.jpg",
+     "time": "18:43",
+     "caption": {
+      "en": "Table with a sailboat view",
+      "pt": "Mesa com vista pro veleiro"
+     }
+    },
+    {
+     "file": "IMG_5213.jpg",
+     "time": "18:44",
+     "caption": {
+      "en": "Bread, olives, three dips — dinner of champions",
+      "pt": "Pão, azeitonas, três pastinhas — jantar de campeões"
+     }
+    },
+    {
+     "file": "IMG_5263.jpg",
+     "time": "20:59",
+     "caption": {
+      "en": "The curvy footbridge at dusk on the walk back",
+      "pt": "A passarela curvada no entardecer, voltando a pé"
+     }
+    }
+   ]
+  },
+  {
+   "id": "italian-lunch-0807",
+   "girlfriend": "Maya Sterling",
+   "date": "2026-08-07",
+   "timeRange": "12:29 – 12:47",
+   "title": {
+    "en": "Quick Italian lunch today",
+    "pt": "Almoço italiano rápido de hoje"
+   },
+   "photos": [
+    {
+     "file": "IMG_5484.jpg",
+     "time": "12:29",
+     "caption": {
+      "en": "Bruschetta disappeared in ninety seconds",
+      "pt": "A bruschetta sumiu em noventa segundos"
+     }
+    },
+    {
+     "file": "IMG_5502.jpg",
+     "time": "12:47",
+     "caption": {
+      "en": "Prosciutto pizza, her order",
+      "pt": "Pizza de presunto cru, pedido dela"
+     }
+    },
+    {
+     "file": "IMG_5505.jpg",
+     "time": "12:47",
+     "caption": {
+      "en": "Truffle tagliatelle, mine — we swapped halfway",
+      "pt": "Tagliatelle de trufa, meu — trocamos na metade"
+     }
+    }
+   ]
+  }
+ ]
+}

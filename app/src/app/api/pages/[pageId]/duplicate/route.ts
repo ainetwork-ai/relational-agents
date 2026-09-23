@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, and } from "drizzle-orm";
 import { isOkfId } from "@/lib/okf-store";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export async function POST(
     const rows = await db
       .select()
       .from(blocks)
-      .where(eq(blocks.pageId, srcPageId))
+      .where(and(eq(blocks.pageId, srcPageId), eq(blocks.alive, true)))
       .orderBy(asc(blocks.position));
     const idMap = new Map<string, string>(rows.map((b) => [b.id, randomUUID()]));
     if (rows.length) {

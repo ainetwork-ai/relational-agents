@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Relational Memory" };
+export const metadata = { title: "AINMem" };
 
 export default async function LoginPage() {
   const session = await getSession();

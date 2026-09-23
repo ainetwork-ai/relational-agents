@@ -6,10 +6,12 @@ import { RotateCcw, Search, Trash2 } from "lucide-react";
 import { usePagesStore } from "@/stores/pages";
 import { useUiStore } from "@/stores/ui";
 import { PageIcon } from "@/components/page-icon";
+import { useT } from "@/i18n/provider";
 
 /**  puts Trash in a floating panel anchored next to the sidebar
  * (with its own search box), not a centered modal. */
 export function TrashModal() {
+  const t = useT();
   const open = useUiStore((s) => s.trashOpen);
   const setOpen = useUiStore((s) => s.setTrashOpen);
   const archived = usePagesStore((s) => s.archived);
@@ -22,6 +24,9 @@ export function TrashModal() {
   const [left, setLeft] = useState(248);
   const ref = useRef<HTMLDivElement>(null);
 
+ // dismiss:manual — the whole modal IS the portal and `ref` is on it, so a
+ // click inside is inside the ref; it also has to let the sidebar Trash button
+ // through, which useDismiss has no way to express.
   useEffect(() => {
     if (!open) return;
     loadArchived();
@@ -39,10 +44,10 @@ export function TrashModal() {
       if (e.key === "Escape") setOpen(false);
     };
     const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
+      const el = e.target as HTMLElement;
  // the sidebar Trash button manages its own open state
-      if (t.closest?.('[data-testid="trash-button"]')) return;
-      if (!ref.current?.contains(t)) setOpen(false);
+      if (el.closest?.('[data-testid="trash-button"]')) return;
+      if (!ref.current?.contains(el)) setOpen(false);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
@@ -72,7 +77,7 @@ export function TrashModal() {
           data-testid="trash-search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search pages in Trash"
+          placeholder={t("휴지통에서 페이지 검색")}
           className="w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-200"
         />
       </div>
@@ -80,7 +85,7 @@ export function TrashModal() {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {items.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-neutral-400">
-            {q ? "No results" : "Trash is empty"}
+            {q ? t("결과 없음") : t("휴지통이 비어 있습니다")}
           </p>
         ) : (
           items.map((p) => (
@@ -89,13 +94,13 @@ export function TrashModal() {
               className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-700/50"
             >
               <span><PageIcon icon={p.icon} fallback="📄" /></span>
-              <span className="min-w-0 flex-1 truncate">{p.title || "Untitled"}</span>
+              <span className="min-w-0 flex-1 truncate">{p.title || t("제목 없음")}</span>
               <button
                 data-testid={`trash-restore-${p.id}`}
                 onClick={() => restorePage(p.id)}
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 opacity-0 transition-all hover:bg-neutral-200 group-hover:opacity-100 dark:hover:bg-neutral-600"
               >
-                <RotateCcw size={12} /> Restore
+                <RotateCcw size={12} /> {t("복원")}
               </button>
               <button
                 data-testid={`trash-delete-${p.id}`}
@@ -114,14 +119,14 @@ export function TrashModal() {
                     : "text-red-500 opacity-0 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/30"
                 }`}
               >
-                <Trash2 size={12} /> {armed === p.id ? "Delete forever?" : "Delete"}
+                <Trash2 size={12} /> {armed === p.id ? t("영구 삭제할까요?") : t("삭제")}
               </button>
             </div>
           ))
         )}
       </div>
       <div className="border-t border-neutral-100 px-3 py-1.5 text-[11px] text-neutral-400 dark:border-neutral-700">
-        Pages in Trash for over 30 days will be automatically deleted
+        {t("휴지통에 30일 이상 있는 페이지는 자동으로 삭제됩니다")}
       </div>
     </div>,
     document.body

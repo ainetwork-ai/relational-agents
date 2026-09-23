@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { workspaces, workspaceMembers, pages, blocks, type BlockType } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { firstGlyphs } from "@/lib/glyph";
+import { ensureGeneralTeamspace } from "@/lib/workspace";
 
 // The first page every new account lands on. It has one job: explain what
 // makes this workspace different from a notes app — the agent is born from a
@@ -130,6 +131,7 @@ export async function ensureWorkspace(userId: string, displayName: string) {
     .values({ workspaceId: workspace.id, userId, role: "owner" })
     .onConflictDoNothing();
 
+  await ensureGeneralTeamspace(workspace.id, userId);
   await seedGettingStarted(workspace.id, userId);
   return workspace.id;
 }

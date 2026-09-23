@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { blocks, pages } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
-import { blocksToMarkdown, type ParsedBlock } from "@/lib/memory-parse";
+import { asc, eq, and } from "drizzle-orm";
+import { blocksToMarkdown, treeOrder, type ParsedBlock } from "@/lib/memory-parse";
 import { isOkfId, decodeId, readNode } from "@/lib/okf-store";
 
 export const dynamic = "force-dynamic";
@@ -32,13 +32,16 @@ export async function GET(
     const rows = await db
       .select()
       .from(blocks)
-      .where(eq(blocks.pageId, pageId))
+      .where(and(eq(blocks.pageId, pageId), eq(blocks.alive, true)))
       .orderBy(asc(blocks.position));
-    parsed = rows.map((b, i) => ({
+ // `position` counts inside one sibling list only, so ordering by it alone put
+ // children between top-level blocks and dropped the nesting. Walk the tree.
+    parsed = treeOrder(rows).map(({ row: b, depth }, i) => ({
       id: b.id,
       type: b.type as ParsedBlock["type"],
       content: b.content as ParsedBlock["content"],
-      position: b.position ?? i + 1,
+      position: i + 1,
+      depth,
     }));
   }
 

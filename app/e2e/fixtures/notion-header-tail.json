@@ -1,0 +1,11 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects' table view, header row scrolled to its right end, 2026-08-06. Read-only: scrolled, hovered the ⋯ to read its tooltip, then put the scroll back.",
+  "_reads": "The + and the ⋯ are NOT part of the last property's column. The column grid ends with the table's own right edge, and the two controls sit beyond it with no cell borders of their own — which is what makes them read as a separate segment rather than as part of the last column.",
+  "lastColumn": { "rightEdgeX": 1561, "_note": "x=1361 w=200; the tail starts exactly at its right edge, no gap" },
+  "controls": [
+    { "what": "+", "x": 1561, "w": 28, "h": 28, "radius": "6px", "iconSize": 16, "color": "rgb(125, 122, 117)", "does": "add a property" },
+    { "what": "⋯", "x": 1589, "w": 28, "h": 28, "radius": "6px", "iconSize": 16, "color": "rgb(125, 122, 117)", "does": "속성 표시 또는 숨기기 (tooltip, read by hovering it)" }
+  ],
+  "headerRow": { "height": 36, "_note": "the 28px controls are centred in it — 4px above and below" },
+  "ours_before": "one 36px-wide + button with a 14px icon, inside the header row's own flex with no separating edge, and no ⋯ at all — so it looked like the last property's column continued into it"
+}

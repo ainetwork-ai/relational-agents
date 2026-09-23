@@ -44,16 +44,24 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
   },
 
   markRead: async (id) => {
- // optimistic
+ // Optimistic: DECREMENT, never recount the loaded window. The list is the
+ // newest 100 rows, so counting `items` would silently drop every unread row
+ // past that window — the same bug the server side of the count had.
     set((s) => {
-      const items = s.items.map((n) => (n.id === id ? { ...n, read: true } : n));
-      return { items, unreadCount: items.filter((n) => !n.read).length };
+      const wasUnread = s.items.some((n) => n.id === id && !n.read);
+      return {
+        items: s.items.map((n) => (n.id === id ? { ...n, read: true } : n)),
+        unreadCount: Math.max(0, s.unreadCount - (wasUnread ? 1 : 0)),
+      };
     });
-    await fetch("/api/notifications/read", {
+ // the endpoint answers with the caller's real remaining unread count
+    const res = await fetch("/api/notifications/read", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
-    });
+    }).catch(() => null);
+    const data = await res?.json().catch(() => null);
+    if (typeof data?.unreadCount === "number") set({ unreadCount: data.unreadCount });
   },
 
   markAll: async () => {
@@ -61,10 +69,12 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
       items: s.items.map((n) => ({ ...n, read: true })),
       unreadCount: 0,
     }));
-    await fetch("/api/notifications/read", {
+    const res = await fetch("/api/notifications/read", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
-    });
+    }).catch(() => null);
+    const data = await res?.json().catch(() => null);
+    if (typeof data?.unreadCount === "number") set({ unreadCount: data.unreadCount });
   },
 }));

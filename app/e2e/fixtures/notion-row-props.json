@@ -1,0 +1,97 @@
+{
+  "note": "2026-08-27 원본(Projects 행 '조달청 나라장터 과제 탐색') 실측, 창 1200x900. 사이드 피크와 전체 페이지 둘 다 같은 속성 블록: 제목 → 세부 정보 보기 토글 → 고정 속성 밴드(TL·Assignee·End date·Evaluation) → 댓글 → 본문. 잰 스크립트: scratchpad/m-rowprops-{1,2,3,4}.mjs, 결과 scratchpad/rowprops-*.json. 토글은 피크·풀페이지 모두 항상 보인다(2026-08-27 재측정: 열자마자·호버 전·마우스를 치운 뒤 전부 y158.4, 28px; 밴드는 제목 아래 54 = 4+28+12+10). 처음에 '피크는 호버 때만'으로 읽은 것은 피크가 채 그려지기 전의 스냅샷이었다. 값 셀 높이 30(사람 31), 라벨 24, 항목 min 80/max 200, gap 8. Evaluation 값을 누르면 값 셀 좌상단 -1/-1 에 300px 메뉴, 항목 28px(292 폭).",
+  "tolerance": 2,
+  "peek": {
+    "width": 600,
+    "titleFontSize": 32,
+    "titleLineHeight": 38.4,
+    "insetL": 76,
+    "toggleHoverOnly": false
+  },
+  "full": {
+    "titleFontSize": 40,
+    "titleLineHeight": 48,
+    "contentWidth": 720,
+    "toggleHoverOnly": false
+  },
+  "toggle": {
+    "height": 28,
+    "fontSize": 14,
+    "color": "rgb(142, 139, 134)",
+    "paddingX": 8,
+    "radius": 6,
+    "gapBelowTitle": 4,
+    "gapToBand": 22
+  },
+  "band": {
+    "height": 55,
+    "gap": 8,
+    "itemMinWidth": 80,
+    "itemMaxWidth": 200,
+    "labelHeight": 24,
+    "valueHeight": 30,
+    "valuePadX": 6,
+    "valuePadY": 5,
+    "valueRadius": 4,
+    "labelFontSize": 13,
+    "labelWeight": 500,
+    "labelColor": "rgb(125, 122, 117)",
+    "labelPadX": 6,
+    "labelRadius": 6,
+    "iconSize": 14,
+    "iconScale": 1.2,
+    "emptyColor": "rgb(161, 158, 153)",
+    "emptyFontSize": 14,
+    "emptyLineHeight": 20,
+    "arrow": {
+      "size": 32,
+      "offsetY": 11.5,
+      "overhang": 4
+    },
+    "iconRenderedSize": 16.8
+  },
+  "comments": {
+    "gapAboveRow": 24,
+    "rowHeight": 24,
+    "fontSize": 13,
+    "weight": 500,
+    "color": "rgb(125, 122, 117)",
+    "textInsetX": 8,
+    "dividerBelowSection": true,
+    "contentPadTop": 8
+  },
+  "menu": {
+    "width": 300,
+    "offsetX": -1,
+    "offsetY": -1,
+    "radius": 6,
+    "itemHeight": 28,
+    "itemWidth": 292
+  },
+  "sidebar": {
+    "note": "풀페이지에서 세부 정보 보기를 누르면 창 오른쪽에 385px(notion-update-sidebar, 왼쪽 1px) 패널; 헤더 '속성' 13px/500 회색이 패널 왼쪽에서 28px, y=47(탑바 44 + 3). 본문 layout 은 930→545 로 줄고 칼럼은 그 안에서 다시 가운데(제목 353).",
+    "width": 385,
+    "headerInsetX": 28,
+    "headerTop": 47,
+    "layoutShrinksBy": 385
+  },
+  "peekDetails": {
+    "note": "2026-08-27 피크에서 세부 정보 보기(창 1000/1100/1200/1300/1400/1500/1800): 패널 280 + 구분선 1이 피크 안 오른쪽에 생기고 피크가 그만큼 왼쪽으로 넓어져 본문 칼럼은 그대로(564→844). 예외: 창 1200 은 기억된 폭이 564든 600이든 800(=창-400, 본문 520). 1100 은 844(상한 없음) → 창-400 이 800 이상일 때만 상한으로 해석. 헤더 '속성' 은 패널 왼쪽에서 28, y 47.",
+    "panelWidth": 280,
+    "divider": 1,
+    "capMargin": 400,
+    "capMin": 800,
+    "headerInsetX": 28,
+    "headerTop": 47
+  },
+  "panelClose": {
+    "note": "2026-08-27 패널 닫기: 24×24 버튼, 20px 이중 셰브론(arrowChevronDoubleForward) rgb(142,139,134), y=10(탑바 안). 피크: 패널(또는 상단바)을 호버할 때만 나타나며 상단바 오른쪽 그룹의 맨 앞, radius 6. 풀페이지: 항상 보임, 패널 왼쪽 +9, radius 9999. 클릭하면 패널이 닫히고 토글이 '세부 정보 보기'로 돌아온다.",
+    "size": 24,
+    "iconSize": 20,
+    "color": "rgb(142, 139, 134)",
+    "top": 10,
+    "peekRadius": 6,
+    "fullRadius": 9999,
+    "fullInsetX": 9
+  }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useIntlLocale, useT } from "@/i18n/provider";
 
 interface Snapshot {
   id: string;
@@ -20,6 +21,8 @@ export function PageHistoryModal({
   pageId: string;
   onClose: () => void;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -52,12 +55,12 @@ export function PageHistoryModal({
       >
         <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5 dark:border-neutral-700">
           <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-            Page history
+            {t("페이지 기록")}
           </h2>
           <button
             data-testid="page-history-close"
             onClick={onClose}
-            aria-label="Close history"
+            aria-label={t("닫기")}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
             <X size={15} />
@@ -65,10 +68,10 @@ export function PageHistoryModal({
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {snapshots === null ? (
-            <p className="py-6 text-center text-xs text-neutral-400">Loading…</p>
+            <p className="py-6 text-center text-xs text-neutral-400">{t("불러오는 중…")}</p>
           ) : snapshots.length === 0 ? (
             <p className="py-6 text-center text-xs text-neutral-400">
-              No versions yet — versions are saved automatically as you edit.
+              {t("저장된 버전이 아직 없습니다 — 편집하면 자동으로 저장됩니다.")}
             </p>
           ) : (
             snapshots.map((s) => (
@@ -79,11 +82,10 @@ export function PageHistoryModal({
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm text-neutral-800 dark:text-neutral-200">
-                    {s.title || "Untitled"}
+                    {s.title || t("제목 없음")}
                   </p>
                   <p className="text-xs text-neutral-400">
-                    {new Date(s.createdAt).toLocaleString("en-US")} · {s.blockCount} block
-                    {s.blockCount === 1 ? "" : "s"}
+                    {new Date(s.createdAt).toLocaleString(intl)} · {t("블록 {n}개", { n: s.blockCount })}
                   </p>
                 </div>
                 <button
@@ -92,7 +94,7 @@ export function PageHistoryModal({
                   onClick={() => void restore(s.id)}
                   className="shrink-0 rounded border border-neutral-200 px-2 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700"
                 >
-                  {busy === s.id ? "Restoring…" : "Restore"}
+                  {busy === s.id ? t("복원 중…") : t("복원")}
                 </button>
               </div>
             ))

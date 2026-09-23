@@ -1,0 +1,17 @@
+{
+  "_source": "app.notion.com stylesheet rules read over CDP (read-only), 2026-08-07. These are Notion's own CSS values, not screen readings.",
+  "layout": {
+    "contentWidth": "minmax(auto, 720px)",
+    "marginWidth": "minmax(96px, 1fr)",
+    "note": "regular pages: 720px grid column, blocks inset their text 6px each side → 708px text measure"
+  },
+  "layoutCenterPeek": {
+    "contentWidth": "1fr",
+    "marginWidth": "126px",
+    "note": "center peek: margins FIXED at 126px, content uncapped → 723px in the 975px panel"
+  },
+  "layoutCenterPeekWithLayoutPanel": {
+    "contentWidth": "1fr",
+    "marginWidth": "76px"
+  }
+}

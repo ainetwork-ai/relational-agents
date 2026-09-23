@@ -1,4 +1,5 @@
 import type { BlockType, BlockContent, PropertyType, SelectOption } from "@/lib/db/schema";
+import { firstGlyphs, isEmojiGlyph } from "@/lib/glyph";
 
 // ===========================================================================
 // OKF (Open Knowledge Format): the md/csv files ARE the content DB. These are
@@ -10,8 +11,61 @@ export interface ParsedBlock {
   type: BlockType;
   content: BlockContent;
   position: number;
-  /** column layouts nest (column_list → column → child) — flat blocks omit it */
-  parentBlockId?: string | null;
+  /** nesting level from the markdown's indentation (0 = top level).
+   * The original nests one level per "indent ≥ the parent marker's width"
+   * — measured 2026-09-10, docs/notion-indent.md §6(2). */
+  depth?: number;
+}
+
+/** columns of leading whitespace; a tab counts as 4 (the original took `\t- x`
+ * as one level under `- y`, whose content starts at column 2) */
+function indentOf(line: string): number {
+  let n = 0;
+  for (const ch of line) {
+    if (ch === " ") n += 1;
+    else if (ch === "\t") n += 4;
+    else break;
+  }
+  return n;
+}
+
+/** plain text → html, for folding a continuation line into the block above */
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** drop up to `cols` columns of leading whitespace — a nested code fence is
+ * written indented, and without this its own body grew 4 spaces per round trip */
+function dedent(line: string, cols: number): string {
+  let n = 0;
+  let i = 0;
+  while (i < line.length && n < cols) {
+    if (line[i] === " ") n += 1;
+    else if (line[i] === "\t") n += 4;
+    else break;
+    i += 1;
+  }
+  return line.slice(i);
+}
+
+/** where a list item's own content starts: `- ` → 2, `1. ` → 3, `- [ ] ` → 2
+ * (measured: two spaces nest a checkbox, three are needed for `1. `) */
+function markerWidth(t: string): number {
+  const num = t.match(/^\d+\.\s/);
+  return num ? num[0].length : 2;
+}
+
+/** parent id per block from its depth — the one place paste, AI insert and MCP
+ * all read, so a nested markdown lands as the same tree in each. */
+export function parentIdsByDepth(depths: number[], ids: string[]): (string | null)[] {
+  const lastAt: string[] = [];
+  return depths.map((dRaw, i) => {
+    const d = Math.max(0, Math.min(dRaw, lastAt.length));
+    lastAt.length = d;
+    const parent = d === 0 ? null : lastAt[d - 1] ?? null;
+    lastAt[d] = ids[i];
+    return parent;
+  });
 }
 
 const HASH_RE = /\s+[0-9a-f]{32}(?=\.|$|\/)/i;
@@ -19,12 +73,47 @@ export function cleanTitle(name: string): string {
   return name.replace(/\.(md|csv)$/i, "").replace(HASH_RE, "").trim() || "Untitled";
 }
 function stripLinks(s: string): string {
- // Links the app can follow (absolute app routes like /p/{id}, external URLs)
- // survive to become anchors via mdInlineToHtml; workspace-export-internal
- // relative links (raw .md paths) still collapse to their label.
+ // Links the app can follow survive to become anchors via mdInlineToHtml:
+ // absolute app routes (`/p/{id}`), external URLs, `mailto:`/`tel:` and
+ // in-page anchors (`#…`). Only workspace-export-internal relative links (raw
+ // `.md` paths, which resolve to nothing once the file is gone) collapse to
+ // their label — a mailto used to lose its address that way.
   return s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, href) =>
-    /^(\/|https?:\/\/)/.test(href) ? m : label
+    /^(\/|#|https?:\/\/|mailto:|tel:)/i.test(href) ? m : label
   );
+}
+
+/** A paragraph whose text happens to start like a marker (`- x`, `# y`, `---`,
+ * `1. z`, `| a |`) would come back as a bullet, a heading, a rule, a numbered
+ * item or a table. CommonMark's answer is a backslash, so that is what we
+ * write, and `unescapeMarker` takes it off again on the way in.
+ *
+ * Only what the reader ACTUALLY treats as a block marker is escaped: `**bold**`
+ * and `*i*` are inline markdown (the mirror writes those), so the leading `*`
+ * must survive — a bullet needs whitespace after its marker. */
+const BLOCK_MARKER =
+  /^(\s*)(\\|[-*]{3,}$|[-*+](?=\s|$)|\d+\.(?=\s|$)|#{1,6}(?=\s)|>(?=\s)|`{3}|\$\$$|!(?=\[)|\|(?=.*\|\s*$))/;
+export function escapeMarker(line: string): string {
+  return line.replace(BLOCK_MARKER, (_m, sp: string, tok: string) => `${sp}\\${tok}`);
+}
+function unescapeMarker(line: string): string {
+  return line.replace(/^(\s*)\\([-*+>|#\\`$!]|\d)/, "$1$2");
+}
+
+/** Split one table row into cells, honouring `\|` inside a cell. Splitting on
+ * a bare `|` used to cut a cell that contained an escaped pipe in half. */
+function splitRow(line: string): string[] {
+  const t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let cur = "";
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === "\\" && t[i + 1] === "|") { cur += "|"; i += 1; continue; }
+    if (t[i] === "|") { cells.push(cur); cur = ""; continue; }
+    cur += t[i];
+  }
+  cells.push(cur);
+ // a cell's own line breaks travel as <br> — a raw newline would end the row
+  return cells.map((c) => c.trim().replace(/<br\s*\/?>/gi, "\n"));
 }
 
 // ---- OKF YAML frontmatter (a minimal, dependency-free subset) --------------
@@ -74,7 +163,7 @@ export function mdInlineToHtml(text: string): string | undefined {
 }
 
 /** Strip inline markers for the plain-text mirror. */
-function mdInlinePlain(text: string): string {
+export function mdInlinePlain(text: string): string {
   return text
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
@@ -88,15 +177,13 @@ export function parseMarkdown(
   idPrefix = "b",
   opts: { noTitle?: boolean } = {}
 ): { title: string; meta: Frontmatter; blocks: ParsedBlock[] } {
-  const { meta, body } = splitFrontmatter(text);
+ // Pasting is not a file read: a clipboard that starts with `---` is a divider
+ // or a table, not frontmatter. Parsing it swallowed everything up to the next
+ // `---` (opts.noTitle marks the paste/insert callers).
+  const { meta, body } = opts.noTitle ? { meta: {} as Frontmatter, body: text.replace(/\r/g, "") } : splitFrontmatter(text);
   const lines = body.split("\n");
   let title = typeof meta.title === "string" ? meta.title : "";
-  const drafts: {
-    type: BlockType;
-    content: BlockContent;
-    /** several ![](…) on ONE line = photos of one moment, laid out side by side */
-    imageRow?: { caption: string; url: string }[];
-  }[] = [];
+  const drafts: { type: BlockType; content: BlockContent; depth: number; cont?: boolean }[] = [];
   let i = 0;
  // pasting markdown into a block keeps the first "# " line as a heading block
  // rather than consuming it as a page title (opts.noTitle).
@@ -104,48 +191,127 @@ export function parseMarkdown(
     title = lines[0].slice(2).trim();
     i = 1;
   }
+ // A code block's and an equation's text is verbatim — running the inline
+ // markdown pass over it turned the backticks in a fenced body into <code>
+ // and rewrote the source the user typed.
+  const VERBATIM = new Set<BlockType>(["code", "equation"]);
   const push = (type: BlockType, content: BlockContent) => {
  // inline markdown (bold/italic/code/strike/links) becomes rich html; the
  // plain text mirror drops the markers (links keep their label via strip)
-    if (typeof content.text === "string" && content.text) {
+    if (!VERBATIM.has(type) && typeof content.text === "string" && content.text) {
       const html = mdInlineToHtml(content.text);
       if (html) {
         content = { ...content, html, text: mdInlinePlain(content.text) };
       }
     }
-    drafts.push({ type, content });
+    drafts.push({ type, content, depth, cont: contLine });
+    contLine = false;
   };
+
+ // Open list items and the column their content starts at. The original nests
+ // a line under the previous item when its indentation reaches that column
+ // (`  - x` under `- y`, `   1. x` under `1. y`), and a NON-list line that deep
+ // becomes that item's child block (its own markdown export relies on this).
+ // Blank lines do not close the list. Measured 2026-09-10 (M2c/M2d).
+  const openList: number[] = [];
+  let depth = 0;
+ // The original folds a run of plain lines with no blank line between them into
+ // ONE block with line breaks (measured: `para-A / 4sp para-B / 8sp para-C`
+ // arrived as one text block, M2d_indented_paragraphs), and a plain line right
+ // under a LIST ITEM folds into that item — `1. num-B / para-A / para-B` came
+ // back as one numbered item whose text has two line breaks (M2c). That is
+ // CommonMark's lazy continuation. Our own writer puts a blank line after every
+ // non-list block, so nothing of ours merges by accident.
+  let contLine = false;
+  let prevPlain: { depth: number } | null = null;
 
   while (i < lines.length) {
     const line = lines[i];
     const t = line.trim();
-    if (t === "") { i++; continue; }
+    if (t === "") { prevPlain = null; i++; continue; }
+    {
+      const ind = indentOf(line);
+ // `- ` 뒤에 내용이 없는 빈 항목도 리스트다 — writer 가 빈 글머리를 그렇게 쓴다
+      const isList = /^([-*](\s|$)|\d+\.(\s|$))/.test(t);
+      while (openList.length && ind < openList[openList.length - 1]) openList.pop();
+      if (isList) {
+        depth = openList.length;
+        openList.push(ind + markerWidth(t));
+      } else if (openList.length && ind >= openList[openList.length - 1]) {
+        depth = openList.length;
+      } else {
+        openList.length = 0;
+        depth = 0;
+      }
+ // A leaf block (heading, rule, fence, quote, table) ends the paragraph above
+ // it, so nothing can fold into it. A LIST ITEM does not — a plain line under
+ // one continues it (M2c), so `prevPlain` is set after the item is pushed.
+      if (/^(#{1,3}\s|---$|\*\*\*$|```|\$\$|>\s|\|)/.test(t)) prevPlain = null;
+    }
+
+ // With no list open, a line indented four columns or more is an indented CODE
+ // block, not a nested paragraph — that is what the original does with it
+ // (M5 2026-09-10: `AAA⏎⏎    BBB` came back as a paragraph and a code block).
+ // It cannot interrupt a paragraph: `para-A⏎    para-B` with no blank line
+ // between them is one block with a line break (M2d), hence the `!prevPlain`.
+    if (!openList.length && !prevPlain && indentOf(line) >= 4) {
+      const buf: string[] = [];
+      while (i < lines.length && (lines[i].trim() === "" || indentOf(lines[i]) >= 4)) buf.push(dedent(lines[i++], 4));
+      while (buf.length && buf[buf.length - 1].trim() === "") buf.pop();
+      push("code", { text: buf.join("\n"), language: "plain" });
+      prevPlain = null;
+      continue;
+    }
 
     if (t === "$$") {
       const buf: string[] = [];
+      const own = indentOf(line);
       i++;
-      while (i < lines.length && lines[i].trim() !== "$$") buf.push(lines[i++]);
+      while (i < lines.length && lines[i].trim() !== "$$") buf.push(dedent(lines[i++], own));
       i++;
       push("equation", { text: buf.join("\n") });
       continue;
     }
     if (t.startsWith("```")) {
-      const lang = t.slice(3).trim() || "plain";
+ // The fence is as long as the writer made it. A body containing ``` used to
+ // close the block early and everything after it was thrown away, so the
+ // writer now opens with one backtick more than the longest run inside and we
+ // only close on a run at least that long.
+      const open = t.match(/^`+/)![0].length;
+      const lang = t.slice(open).trim() || "plain";
+      const closeRe = new RegExp("^`{" + open + ",}\\s*$");
       const buf: string[] = [];
+      const own = indentOf(line);
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith("```")) buf.push(lines[i++]);
+      while (i < lines.length && !closeRe.test(lines[i].trim())) buf.push(dedent(lines[i++], own));
       i++;
       push("code", { text: buf.join("\n"), language: lang });
       continue;
     }
-    if (t.startsWith("|") && t.endsWith("|")) {
+ // A table row needs a cell between two pipes. A paragraph that is just `|`
+ // (or `|pipe|`-looking text) used to be eaten here and vanish from the file.
+    if (t.startsWith("|") && t.endsWith("|") && t.length > 1 && (t.match(/(?<!\\)\|/g) ?? []).length >= 2) {
       const rows: string[][] = [];
+ // the separator row carries per-column alignment (|:---:| / |---:|)
+      let colAlign: string[] | null = null;
+      const dashes = (c: string) => /^:?-{2,}:?$/.test(c);
       while (i < lines.length && lines[i].trim().startsWith("|")) {
-        const cells = lines[i].trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripLinks(c.trim()));
-        if (!cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) rows.push(cells);
+        const cells = splitRow(lines[i]).map((c) => stripLinks(c));
+ // a row of only dashes is the separator; a row of only EMPTY cells is data
+ // (it used to match this test and be dropped)
+        if (cells.some(dashes) && cells.every((c) => dashes(c) || c === "")) {
+          colAlign = cells.map((c) =>
+            c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "default"
+          );
+        } else rows.push(cells);
         i++;
       }
-      if (rows.length) push("table", { table: { cells: rows, headerRow: true } });
+      if (rows.length) {
+        const align = colAlign?.some((a) => a !== "default")
+          ? rows.map((row) => row.map((_, c) => colAlign![c] ?? "default"))
+          : undefined;
+        push("table", { table: { cells: rows, headerRow: true, ...(align ? { align } : {}) } });
+      }
       continue;
     }
     if (/^#{1,6}\s/.test(t)) {
@@ -156,120 +322,253 @@ export function parseMarkdown(
       i++; continue;
     }
     if (t === "---" || t === "***") { push("divider", {}); i++; continue; }
-    if (/^-\s\[[ x]\]/i.test(t)) {
-      push("todo", { text: stripLinks(t.replace(/^-\s\[[ x]\]\s*/i, "")), checked: /\[x\]/i.test(t) });
+    if (/^-\s?\[[ x]\]/i.test(t)) {
+      push("todo", { text: stripLinks(t.replace(/^-\s?\[[ x]\]\s*/i, "")), checked: /\[x\]/i.test(t) });
+      prevPlain = { depth };
       i++; continue;
     }
-    if (/^[-*]\s/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s/, "")) }); i++; continue; }
-    if (/^\d+\.\s/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s/, "")) }); i++; continue; }
+ // an EMPTY item (`- `, which trims to `-`) is still a list item — the writer
+ // emits exactly that for a bullet the user has not typed into yet
+    if (/^[-*](\s|$)/.test(t)) { push("bulleted_list", { text: stripLinks(t.replace(/^[-*]\s?/, "")) }); prevPlain = { depth }; i++; continue; }
+    if (/^\d+\.(\s|$)/.test(t)) { push("numbered_list", { text: stripLinks(t.replace(/^\d+\.\s?/, "")) }); prevPlain = { depth }; i++; continue; }
     if (t.startsWith("> ")) {
       // `> 💡 text` is the serialized form of a callout — an emoji right after
-      // the marker brings it back as one (plain `> text` stays a quote)
-      const co = t.slice(2).match(/^(\p{Extended_Pictographic}[️‍]*)\s+([\s\S]*)$/u);
-      if (co) push("callout", { icon: co[1], text: stripLinks(co[2]) });
-      else push("quote", { text: stripLinks(t.slice(2)) });
+      // the marker brings it back as one (plain `> text` stays a quote).
+      // Matched a grapheme at a time: a pictographic-plus-ZWJ pattern used to
+      // drop 🧑‍💻, 👋🏽 and 🇰🇷 callouts back to quotes on every round trip.
+      const rest = t.slice(2);
+      const icon = firstGlyphs(rest, 1);
+      const after = rest.slice(icon.length);
+      if (isEmojiGlyph(icon) && /^\s/.test(after)) {
+        push("callout", { icon, text: stripLinks(after.replace(/^\s+/, "")) });
+      } else push("quote", { text: stripLinks(rest) });
       i++; continue;
     }
     // a line of nothing but 2+ images is an image ROW — same-place shots that
-    // render side by side (column_list) instead of stacking
+    // render side by side. It expands to the editor's column layout via depth
+    // (column_list → column → image), which parentIdsByDepth turns into a tree.
     const rowImgs = [...t.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)];
     if (rowImgs.length >= 2 && !t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, "").trim()) {
-      drafts.push({
-        type: "column_list",
-        content: {},
-        imageRow: rowImgs.map((m) => ({ caption: m[1], url: m[2] })),
-      });
+      const rowDepth = depth;
+      push("column_list", {});
+      for (const m of rowImgs) {
+        depth = rowDepth + 1;
+        push("column", {});
+        depth = rowDepth + 2;
+        push("image", { url: m[2], text: "", ...(m[1] ? { caption: m[1] } : {}) });
+      }
+      depth = rowDepth;
       i++; continue;
     }
     const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (img) { push("image", { url: img[2], text: "", ...(img[1] ? { caption: img[1] } : {}) }); i++; continue; }
-    push("paragraph", { text: stripLinks(t) });
+ // No blank line since the block above → this is its continuation, whatever
+ // column it sits at. `1. num-B / para-A` puts para-A INSIDE the item even
+ // though the line starts at column 0 (M2c), so the depths do not have to match.
+    contLine = !!prevPlain;
+    push("paragraph", { text: stripLinks(unescapeMarker(t)) });
+    prevPlain = { depth };
     i++;
   }
-  const blocks: ParsedBlock[] = [];
-  drafts.forEach((d, idx) => {
-    const id = `${idPrefix}${idx}`;
-    blocks.push({ id, type: d.type, content: d.content, position: idx + 1 });
-    // image rows expand to the editor's column layout: list → column → image
-    d.imageRow?.forEach((img, j) => {
-      const colId = `${id}c${j}`;
-      blocks.push({ id: colId, type: "column", content: {}, position: j + 1, parentBlockId: id });
-      blocks.push({
-        id: `${colId}i`,
-        type: "image",
-        content: { text: "", url: img.url, ...(img.caption ? { caption: img.caption } : {}) },
-        position: 1,
-        parentBlockId: colId,
-      });
-    });
-  });
+ // What a plain line can fold into: a paragraph, or a list item (CommonMark's
+ // lazy continuation, measured as M2c). A heading/quote/fence/table already
+ // cleared `prevPlain`, so nothing reaches them here.
+  const FOLDS_INTO = new Set(["paragraph", "bulleted_list", "numbered_list", "todo", "toggle"]);
+  const folded: typeof drafts = [];
+  for (const d of drafts) {
+    const prev = folded[folded.length - 1];
+    if (d.cont && prev && FOLDS_INTO.has(prev.type) && d.type === "paragraph") {
+      prev.content = {
+        ...prev.content,
+        text: `${prev.content.text ?? ""}\n${d.content.text ?? ""}`,
+        ...(prev.content.html || d.content.html
+          ? { html: `${prev.content.html ?? escapeHtmlText(prev.content.text ?? "")}<br>${d.content.html ?? escapeHtmlText(d.content.text ?? "")}` }
+          : {}),
+      };
+      continue;
+    }
+    folded.push(d);
+  }
+  const blocks = folded.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1, depth: d.depth }));
   return { title: title || "Untitled", meta, blocks };
 }
 
 // ---- blocks → Markdown (write-back) ---------------------------------------
-const mdImage = (b: ParsedBlock) =>
-  `![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`;
-
 export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
   const out: string[] = [`# ${title}`, ""];
-  const childrenOf = (id: string) =>
-    blocks
-      .filter((c) => c.parentBlockId === id)
-      .sort((a, c) => (a.position ?? 0) - (c.position ?? 0));
-  let num = 0;
-  for (const b of blocks) {
-    // nested blocks are serialized by their column_list parent below
-    if (b.parentBlockId) continue;
-    // a column layout of images = one md line of images (side-by-side photos
-    // of one moment); anything else in columns unwraps to plain lines
-    if (b.type === "column_list") {
-      const kids = childrenOf(b.id).flatMap((col) =>
-        col.type === "column" ? childrenOf(col.id) : [col]
-      );
-      const imgs = kids.filter((k) => k.type === "image" && k.content.url);
-      if (imgs.length) out.push(imgs.map(mdImage).join(" "), "");
-      const rest = kids.filter((k) => !(k.type === "image" && k.content.url));
-      if (rest.length)
-        out.push(blocksToMarkdown("", rest).split("\n").slice(2).join("\n"));
-      continue;
+ // Where the blank lines go, byte for byte as the original writes them
+ // (scratchpad/nind-M3-clipboard.json): NONE between two list items, and one
+ // around a block that is not a list item, indented to the deeper of the two it
+ // separates. The blank line matters for reading too — without it a child
+ // paragraph would be read as a continuation of the item above it.
+  const listish = (t: string) => t === "bulleted_list" || t === "numbered_list" || t === "todo" || t === "toggle";
+  let prev: { type: string; pad: string } | null = null;
+ // Children are written with FOUR spaces per level and the numbering restarts
+ // inside each level — that is exactly what the original writes, and pasting it
+ // back rebuilds the same tree (measured 2026-09-10: M3 out, M2d round-trip).
+ // A block with no depth behaves as before.
+  const numAt = new Map<number, number>();
+  let prevDepth = -1;
+ // One level is 4 spaces (what the original writes) — but ONLY under a list
+ // item. Measured 2026-09-10 (M6): the original exports a paragraph's child
+ // paragraph FLAT (`PA\n\nPB`), and it reads an indented line that follows a
+ // blank line as an indented CODE block (M5). So indenting under a non-list
+ // parent would not preserve the nesting, it would turn the child into code.
+ // A marker wider than four (`100. `) gets its own width so it can be read back.
+  const stepAt: number[] = [];
+ // An image-only column layout collapses back to ONE md line of ![](…) tokens —
+ // the round-trip form of side-by-side photos (one moment, several shots).
+ // A mixed column layout just unwraps: wrappers vanish, children flow flat.
+  const rowImage = (k: ParsedBlock) =>
+    `![${String(k.content.caption ?? "").replace(/[\[\]]/g, "")}](${k.content.url})`;
+  const seq: ParsedBlock[] = [];
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const b = blocks[bi];
+    if (b.type === "column") continue;
+    if (b.type !== "column_list") { seq.push(b); continue; }
+    const d0 = Math.max(0, b.depth ?? 0);
+    let j = bi + 1;
+    const sub: ParsedBlock[] = [];
+    while (j < blocks.length && Math.max(0, blocks[j].depth ?? 0) > d0) sub.push(blocks[j++]);
+    const imgs = sub.filter((k) => k.type === "image" && k.content.url);
+    if (imgs.length && sub.every((k) => k.type === "column" || (k.type === "image" && k.content.url))) {
+      seq.push({ ...b, type: "image", content: { rowMd: imgs.map(rowImage).join(" ") } });
+      bi = j - 1;
     }
-    if (b.type === "column") continue; // stray column without a list — skip
+  }
+  for (const b of seq) {
+    const depth = Math.max(0, b.depth ?? 0);
+    const pad = stepAt.slice(0, depth).reduce((a, n) => a + " ".repeat(n), "");
     const text = b.content.text ?? "";
-    if (b.type === "numbered_list") num += 1; else num = 0;
+    if (depth < prevDepth) for (const k of [...numAt.keys()]) if (k > depth) numAt.delete(k);
+    if (b.type === "numbered_list") numAt.set(depth, (numAt.get(depth) ?? 0) + 1);
+    else numAt.delete(depth);
+    prevDepth = depth;
+    const num = numAt.get(depth) ?? 1;
+    stepAt.length = depth;
+    stepAt[depth] =
+      b.type === "numbered_list" ? Math.max(4, `${num}. `.length)
+      : listish(b.type) ? 4
+      : 0;
+ // a soft line break inside a block would otherwise land at column 0 and close
+ // the list context, flattening everything nested after it
+    if (prev && !(listish(prev.type) && listish(b.type))) out.push(prev.pad.length >= pad.length ? prev.pad : pad);
+    prev = { type: b.type, pad };
+ // A soft line break inside a list item has to land on the item's CONTENT
+ // column. At the marker column the reader sees the item close, so everything
+ // nested after it flattened; at column 0 it closed the whole list.
+    const contPad =
+      pad +
+      " ".repeat(
+        b.type === "numbered_list" ? `${num}. `.length
+        : b.type === "todo" ? 7
+        : listish(b.type) ? 2
+        : 0
+      );
+ // `line` is for blocks whose text is the user's prose: its continuation lines
+ // are indented and escaped, so a line that starts like a marker comes back as
+ // text. `raw` is for the ones whose bytes are the content (code, equations,
+ // table rows, links) — escaping those would corrupt them.
+    const line = (v: string) => {
+      const parts = String(v).split("\n");
+      out.push(pad + parts[0]);
+      for (const l of parts.slice(1)) out.push(contPad + escapeMarker(l));
+    };
+    const raw = (v: string) => { for (const l of String(v).split("\n")) out.push(pad + l); };
     switch (b.type) {
-      case "heading1": out.push(`# ${text}`); break;
-      case "heading2": out.push(`## ${text}`); break;
-      case "heading3": out.push(`### ${text}`); break;
-      case "bulleted_list": out.push(`- ${text}`); break;
-      case "numbered_list": out.push(`${num}. ${text}`); break;
-      case "todo": out.push(`- [${b.content.checked ? "x" : " "}] ${text}`); break;
-      case "quote": out.push(`> ${text}`); break;
-      case "callout": out.push(`> ${b.content.icon || "💡"} ${text}`); break;
-      case "divider": out.push("---"); break;
+      case "heading1": line(`# ${text}`); break;
+      case "heading2": line(`## ${text}`); break;
+      case "heading3": line(`### ${text}`); break;
+      case "bulleted_list": line(`- ${text}`); break;
+      case "numbered_list": line(`${num}. ${text}`); break;
+ // two spaces after the box is what the original writes (`- [ ]  t1`)
+      case "todo": line(`- [${b.content.checked ? "x" : " "}]  ${text}`); break;
+      case "quote": line(`> ${text}`); break;
+      case "callout": line(`> ${b.content.icon || "💡"} ${text}`); break;
+ // the original writes a toggle as a plain bullet; its children follow indented
+      case "toggle": line(`- ${text}`); break;
+      case "divider": raw("---"); break;
       case "toc": break; // outline is derived, not content
-      case "link_to_page": if (b.content.childPageId) out.push(`[page](/p/${b.content.childPageId})`); break;
-      case "file": if (b.content.url) out.push(`[${b.content.text || "file"}](${b.content.url})`); break;
+      case "link_to_page": if (b.content.childPageId) raw(`[page](/p/${b.content.childPageId})`); break;
+      case "file": if (b.content.url) raw(`[${b.content.text || "file"}](${b.content.url})`); break;
       case "template_button": break; // interactive-only, no md form
       case "ai_prompt": break; // transient prompt UI, never persists content
-      case "equation": if (b.content.text) out.push(`$$\n${b.content.text}\n$$`); break;
-      case "code": out.push("```" + (b.content.language ?? ""), text, "```"); break;
-      case "image": if (b.content.url) out.push(mdImage(b)); break;
+      case "equation": if (b.content.text) { raw("$$"); for (const l of b.content.text.split("\n")) raw(l); raw("$$"); } break;
+      case "code": {
+ // a body containing ``` closed the block early and truncated the rest — open
+ // with one backtick more than the longest run inside it
+        const runs = (text.match(/`+/g) ?? []).map((m) => m.length + 1);
+        const fence = "`".repeat(Math.max(3, ...runs, 3));
+        raw(fence + (b.content.language ?? ""));
+        for (const l of text.split("\n")) raw(l);
+        raw(fence);
+        break;
+      }
+      case "image":
+ // rowMd carries a collapsed image ROW (several side-by-side photos on one line)
+        if (typeof b.content.rowMd === "string") raw(b.content.rowMd);
+        else if (b.content.url) raw(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`);
+        break;
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {
           const w = Math.max(...t.cells.map((r) => r.length));
-          const pad = (r: string[]) => Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|"));
-          out.push(`| ${pad(t.cells[0]).join(" | ")} |`);
-          out.push(`| ${Array(w).fill("---").join(" | ")} |`);
-          for (let i = 1; i < t.cells.length; i++) out.push(`| ${pad(t.cells[i]).join(" | ")} |`);
+ // a raw newline in a cell would end the row and eat the rest of the table
+          const padCells = (r: string[]) =>
+            Array.from({ length: w }, (_, i) => (r[i] ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>"));
+          raw(`| ${padCells(t.cells[0]).join(" | ")} |`);
+ // markdown expresses alignment per column, so the first row's decides — the
+ // .md route used to write a bare `---` and every centred column came back
+ // left-aligned
+          const alignRow = (t as { align?: string[][] }).align?.[0] ?? [];
+          const bar = Array.from({ length: w }, (_, i) =>
+            alignRow[i] === "center" ? ":---:" : alignRow[i] === "right" ? "---:" : "---"
+          );
+          raw(`| ${bar.join(" | ")} |`);
+          for (let i = 1; i < t.cells.length; i++) raw(`| ${padCells(t.cells[i]).join(" | ")} |`);
         }
         break;
       }
-      default: out.push(text);
+      default: line(escapeMarker(text));
     }
-    out.push("");
   }
+  out.push("");
   return out.join("\n");
+}
+
+/** Blocks in document order (a parent, then its subtree) with the depth each
+ * one sits at. `position` alone is not an order: it only counts inside one
+ * sibling list, so a flat sort interleaves children with top-level blocks. */
+export function treeOrder<T extends { id: string; parentBlockId?: string | null; position?: number | null }>(
+  rows: T[]
+): { row: T; depth: number }[] {
+  const kids = new Map<string | null, T[]>();
+  for (const r of rows) {
+    const k = r.parentBlockId ?? null;
+    (kids.get(k) ?? kids.set(k, []).get(k)!).push(r);
+  }
+  for (const list of kids.values()) list.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const out: { row: T; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (parent: string | null, depth: number) => {
+    for (const r of kids.get(parent) ?? []) {
+      if (seen.has(r.id)) continue; // a cycle would otherwise hang the export
+      seen.add(r.id);
+      out.push({ row: r, depth });
+      walk(r.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+ // A block whose parent is gone (or in a cycle) still belongs in the file. Walk
+ // each such subtree from its own root so its children keep their shape instead
+ // of being appended one by one at depth 0.
+  for (const r of [...rows].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push({ row: r, depth: 0 });
+    walk(r.id, 1);
+  }
+  return out;
 }
 
 // ---- CSV -------------------------------------------------------------------

@@ -1,0 +1,21 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects', window 1200×870, 2026-08-06. The row above the table: view tabs on the left, toolbar on the right. Read-only.",
+  "row": { "h": 40, "startsAtTableLeft": true },
+  "activeTab": { "h": 32, "radius": "20px", "bg": "rgba(33, 27, 23, 0.05)", "padLeft": 12, "iconSize": 20, "labelX": 38, "labelFs": "14px", "labelFw": "500", "labelColor": "rgb(44, 44, 43)" },
+  "inactiveTab": { "bg": "rgba(0, 0, 0, 0)", "iconSize": 19, "labelFs": "14px", "labelFw": "500", "labelColor": "rgb(125, 122, 117)" },
+  "overflow": { "text": "N개 더 보기", "h": 32, "radius": "20px", "fs": "14px", "fw": "400", "color": "rgb(125, 122, 117)", "caret": false },
+  "toolbar": {
+    "buttons": ["필터", "정렬", "자동화", "AI 자동 채우기", "검색", "설정"],
+    "size": 28, "radius": "6px", "iconSize": 16, "pitch": 28,
+    "activeIsBlueIcon": "rgb(39, 131, 222)",
+    "_note": "no count badge on any of them — a blue icon is the whole signal"
+  },
+  "primary": { "label": "새로 만들기", "h": 28, "w": 80, "radius": "6px 0px 0px 6px", "bg": "rgb(39, 131, 222)", "caret": { "w": 24, "h": 28, "radius": "0px 6px 6px 0px", "label": "추가 옵션 더 보기" } },
+  "behaviour": {
+    "필터/정렬": "toggles a chip row under the tabs: `↑ End date ⌄` · `Status: In progress,Needs… ⌄` · `+ 필터`, and the button takes a pressed box",
+    "자동화": "opens a 483×642 panel listing the view's automations",
+    "AI 자동 채우기": "opens a 483×642 panel offering AI fill",
+    "활성 탭 클릭": "opens that view's menu"
+  },
+  "unmeasured": ["검색 and 설정 panels (the click produced no panel I could capture)", "the tab menu's items", "hover states"]
+}

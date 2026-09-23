@@ -1,0 +1,14 @@
+{
+  "_source": "app.notion.com ComCom > Projects, the toolbar's blue primary and its caret menu, 2026-08-06. Read-only: the caret was clicked to open its menu (allowed — it opens a menu), measured, then Escape. The MAIN half was never clicked: that would have added a row to the real database.",
+  "button": {
+    "main": { "w": 80, "h": 28, "radius": "6px 0px 0px 6px", "bg": "rgb(39, 131, 222)", "label": "새로 만들기", "font": "14px/21px w500", "color": "rgb(243, 249, 253)" },
+    "caret": { "w": 24, "h": 28, "radius": "0px 6px 6px 0px", "bg": "rgb(39, 131, 222)", "icon": "chevron-down" },
+    "_split": "one rounded 6px pill, split by a hairline; the caret carries the right half's radius"
+  },
+  "caretMenu": {
+    "items": ["템플릿", "<database name>", "<each template, e.g. 신규 프로젝트>", "기본", "비어 있음", "새 템플릿"],
+    "_reads": "a 템플릿 heading, the database's own templates listed under its name, then a 기본 section whose only entry is 비어 있음, then 새 템플릿 at the bottom",
+    "_notMeasured": "the panel's own box/paddings — the screenshot attempt caught the app root instead, so ours uses our standard popover metrics. Worth re-measuring if it matters."
+  },
+  "mainDoes": "adds one row to the database (and the original opens what you just made)"
+}

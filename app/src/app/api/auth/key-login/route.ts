@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     const session = await getSession();
     session.userId = user.id;
-    session.ainAddress = user.ainAddress;
+    session.ainAddress = user.ainAddress ?? undefined;
     session.challenge = undefined;
     await session.save();
 

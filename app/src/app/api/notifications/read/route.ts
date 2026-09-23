@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
 
   const raw = await req.json().catch(() => ({}));
   const id = typeof raw?.id === "string" ? raw.id : null;
+ // the column is uuid: anything else reaches Postgres as 22P02 and comes back
+ // a 500. A malformed id is the caller's mistake, so say so.
+  if (id !== null && !UUID_RE.test(id))
+    return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
   const scope = id
     ? and(eq(notifications.userId, auth.user.id), eq(notifications.id, id))
@@ -28,3 +32,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, unreadCount: value });
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { notifications, pages, users } from "@/lib/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { toPublicUser } from "@/lib/auth/public-user";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,14 @@ export async function GET() {
     actor: r.actor ? toPublicUser(r.actor) : null,
     pageTitle: r.pageTitle ?? null,
   }));
-  const unreadCount = result.filter((r) => !r.read).length;
+
+ // Counted in the DB, not over `rows`: the list is capped at 100, so counting
+ // the fetched window under-reports the badge for anyone with more unread than
+ // that. /api/notifications/read already answers with a real count() — same query.
+  const [{ value: unreadCount }] = await db
+    .select({ value: count() })
+    .from(notifications)
+    .where(and(eq(notifications.userId, auth.user.id), eq(notifications.read, false)));
 
   return NextResponse.json({ notifications: result, unreadCount });
 }

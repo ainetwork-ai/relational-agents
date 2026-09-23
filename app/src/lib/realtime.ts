@@ -1,5 +1,6 @@
 import "server-only";
 import type { PublicUser } from "@/lib/auth/public-user";
+import type { Transaction } from "@/lib/transactions/types";
 
 /**
  * In-process pub/sub for page-level realtime events, fanned out over SSE.
@@ -13,27 +14,36 @@ import type { PublicUser } from "@/lib/auth/public-user";
 export interface CursorInfo {
   label: string;
   color: string;
+  /** the block the caret is in, and the caret's character offset inside it —
+   * a DOCUMENT position. Each viewer resolves it against its own DOM, so the
+   * caret scrolls with the text; viewport x/y from the sender's window meant
+   * nothing on a different scroll position or window size. */
   blockId?: string;
-  x?: number;
-  y?: number;
+  offset?: number;
 }
 
 export interface PageEvent {
   type:
+    /** "something changed, refetch" — disk edits and other writers that do not
+     * speak in transactions */
     | "blocks"
+    /** the applied save transactions themselves; receivers apply the same
+     * operations locally instead of refetching (target §4.4) */
+    | "transactions"
     | "page"
     | "cursor"
     | "presence"
-    | "dm-message"
-    | "dm-room"
-    | "dm-typing"
     // video-call signaling (notification-only like the rest — receivers GET /api/calls/{roomId})
     | "dm-call-ring"
     | "dm-call-cancel"
     | "dm-call-accept"
     | "dm-call-decline"
     | "dm-call-signal"
-    | "dm-call-end";
+    | "dm-call-end"
+    | "dm-message"
+    | "dm-room"
+    | "dm-typing";
+  transactions?: Transaction[];
   /** channel key — page id, database id, or DM inbox key (`dm-inbox:<userId>`) */
   pageId: string;
   /** originating editor instance — clients ignore their own echo */

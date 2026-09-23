@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { pages, workspaceMembers } from "@/lib/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { pages, workspaceMembers, dbRows, databases, dbProperties } from "@/lib/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { publish } from "@/lib/realtime";
 import { scheduleMirror } from "@/lib/md-mirror";
 import {
@@ -84,6 +84,80 @@ async function collectSubtreeIds(rootId: string): Promise<string[]> {
     ids.push(...frontier);
   }
   return ids;
+}
+
+/** A database ENTRY is a page: the row's reserved `__page` value points at its
+ * body. Trashing the page therefore has to speak for the row too, or the table
+ * keeps a row whose page is in the trash (docs/notion-page-delete.md §5). */
+const ROW_ARCHIVED = "__archived";
+
+/** The rows whose body page is one of `pageIds` (usually 0 or 1 of them). */
+async function rowsForPages(pageIds: string[], workspaceId: string) {
+  if (!pageIds.length) return [] as { id: string; databaseId: string }[];
+  // only rows of databases in THIS page's workspace: `__page` is plain row data,
+  // so a row anywhere could name this page id, and trashing my page must not
+  // mark (or, on ?permanent=1, delete) a row in a database I cannot reach
+  return db
+    .select({ id: dbRows.id, databaseId: dbRows.databaseId })
+    .from(dbRows)
+    .innerJoin(databases, eq(databases.id, dbRows.databaseId))
+    .where(
+      and(
+        inArray(sql`${dbRows.values}->>'__page'`, pageIds),
+        eq(databases.workspaceId, workspaceId)
+      )
+    );
+}
+
+/**
+ * Archive/restore the ROW side of a row page.
+ *
+ * The archive is SOFT, so the row record is kept and only marked
+ * (`values.__archived`) — dropping it would be a one-way door: nothing in the
+ * trash could rebuild a row's property values, and a restore would hand back a
+ * page whose row is gone. Marking keeps the whole record, so restore is just
+ * `values - '__archived'` (below) and the entry comes back with its values,
+ * position and id intact.
+ *
+ * `__archived` follows the reserved-key convention this table already uses
+ * (`__page`, `__template`, `__icon`): `applyView()` in lib/db-values.ts is the
+ * single gate every view (table/board/gallery/timeline/list/chart/calendar)
+ * and every calc goes through, and it already hides `__template` rows there.
+ * Hiding a trashed entry is the same one-line filter next to that one
+ * (`!r.values.__archived`) — that file is the other half of this fix and is
+ * still open: until it lands the entry stays visible in the table, marked.
+ *
+ * A PERMANENT delete has no way back by definition, so there the row record
+ * goes with the page (see DELETE) — leaving it would point the table at a page
+ * id that no longer exists.
+ */
+async function setRowsArchived(rowIds: string[], archived: boolean) {
+  if (!rowIds.length) return;
+  await db
+    .update(dbRows)
+    .set({
+ // the record really did change, so `updatedAt` moves with it; `updatedBy`
+ // is left alone — "last edited by" belongs to whoever edited the content.
+      values: archived
+        ? sql`${dbRows.values} || ${JSON.stringify({ [ROW_ARCHIVED]: new Date().toISOString() })}::jsonb`
+        : sql`${dbRows.values} - ${ROW_ARCHIVED}`,
+      updatedAt: new Date(),
+    })
+    .where(inArray(dbRows.id, rowIds));
+}
+
+/** Tell every open table/board/peek of the affected databases to refetch. The
+ * row route publishes the same event for its own writes — a page trashed from
+ * the ⋯ menu has to wake the same listeners (`usePageSync(databaseId)` →
+ * refreshSnapshot), or other tabs keep showing the entry. */
+function publishRowTables(
+  rows: { databaseId: string }[],
+  clientId: string | null,
+  at: number
+) {
+  for (const databaseId of new Set(rows.map((r) => r.databaseId))) {
+    publish({ type: "blocks", pageId: databaseId, clientId, at });
+  }
 }
 
 export async function GET(
@@ -190,12 +264,31 @@ export async function PATCH(
   update.updatedAt = new Date();
 
  // Archiving / restoring cascades to the whole subtree.
+  const archivedRows: { id: string; databaseId: string }[] = [];
+  // a non-boolean is cast by Postgres for the page but not for the row mark,
+  // which would split the page and its entry apart — refuse it
+  if ("isArchived" in update && typeof update.isArchived !== "boolean")
+    return NextResponse.json({ error: "isArchived must be a boolean" }, { status: 400 });
   if ("isArchived" in update) {
+ // Trashing and restoring are delete-grade, not edit-grade: this is the same
+ // door DELETE opens (the trash modal restores through here), so it takes the
+ // same "full" level. A guest shared into one page at "edit" must not be able
+ // to fold the whole subtree away through PATCH either.
+    if (userId) {
+      const full = await requirePagePermission(pageId, userId, "full");
+      if (full !== true) return full;
+    }
     const ids = await collectSubtreeIds(pageId);
     await db
       .update(pages)
       .set({ isArchived: update.isArchived as boolean, updatedAt: new Date() })
       .where(inArray(pages.id, ids));
+ // the row side of every entry page in that subtree moves with it
+    archivedRows.push(...(await rowsForPages(ids, page.workspaceId)));
+    await setRowsArchived(
+      archivedRows.map((r) => r.id),
+      update.isArchived === true
+    );
   }
 
   const [updated] = await db
@@ -204,12 +297,37 @@ export async function PATCH(
     .where(eq(pages.id, pageId))
     .returning();
 
-  publish({
-    type: "page",
-    pageId,
-    clientId: req.headers.get("x-client-id"),
-    at: Date.now(),
-  });
+ // Reverse mirror: this page may be a database row's body (values.__page
+ // points here). The table cell reads the row's title property, so a title
+ // edited on the full page must flow back or the two drift apart.
+  if (typeof update.title === "string") {
+    const [row] = await db
+      .select({ id: dbRows.id, databaseId: dbRows.databaseId })
+      .from(dbRows)
+      .where(sql`${dbRows.values}->>'__page' = ${pageId}`)
+      .limit(1);
+    if (row) {
+      const [titleProp] = await db
+        .select({ id: dbProperties.id })
+        .from(dbProperties)
+        .where(and(eq(dbProperties.databaseId, row.databaseId), eq(dbProperties.type, "title")))
+        .limit(1);
+      if (titleProp) {
+        await db
+          .update(dbRows)
+          .set({
+            values: sql`${dbRows.values} || ${JSON.stringify({ [titleProp.id]: update.title })}::jsonb`,
+            updatedAt: new Date(),
+          })
+          .where(eq(dbRows.id, row.id));
+      }
+    }
+  }
+
+  const clientId = req.headers.get("x-client-id");
+  const at = Date.now();
+  publish({ type: "page", pageId, clientId, at });
+  publishRowTables(archivedRows, clientId, at);
   scheduleMirror(page.workspaceId);
   return NextResponse.json({ page: updated });
 }
@@ -243,19 +361,52 @@ export async function DELETE(
   const page = await loadOwnedPage(pageId, auth.user.id);
   if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+ // Deleting is at least as consequential as editing, and it takes the whole
+ // SUBTREE with it — so it asks for "full", not the "edit" PATCH asks for.
+ // Plain workspace members are unaffected (getPagePermission gives them "full"
+ // implicitly); what this stops is the case a page grant creates: someone
+ // shared into one page at "view"/"comment"/"edit" — a guest above all, whose
+ // whole world is the pages shared with them — trashing that page and every
+ // descendant of it.
+  const allowed = await requirePagePermission(pageId, auth.user.id, "full");
+  if (allowed !== true) return allowed;
+
   const permanent = new URL(req.url).searchParams.get("permanent") === "1";
   const ids = await collectSubtreeIds(pageId);
+ // entry pages in the doomed subtree: their rows have to move with them
+  const rows = await rowsForPages(ids, page.workspaceId);
+  const clientId = req.headers.get("x-client-id");
+  const at = Date.now();
 
   if (permanent) {
     await db.delete(pages).where(inArray(pages.id, ids));
+ // "영구 삭제" has no restore to protect, and a row left behind would point
+ // its `__page` at an id that no longer exists — take the record too.
+    if (rows.length)
+      await db.delete(dbRows).where(
+        inArray(
+          dbRows.id,
+          rows.map((r) => r.id)
+        )
+      );
+    publish({ type: "page", pageId, clientId, at });
+    publishRowTables(rows, clientId, at);
     scheduleMirror(page.workspaceId);
-    return NextResponse.json({ ok: true, deleted: ids.length });
+    return NextResponse.json({ ok: true, deleted: ids.length, rowsDeleted: rows.length });
   }
 
   await db
     .update(pages)
     .set({ isArchived: true, updatedAt: new Date() })
     .where(inArray(pages.id, ids));
+ // soft: the row record is kept and marked, so restoring the page from the
+ // trash brings the entry back whole (see setRowsArchived)
+  await setRowsArchived(
+    rows.map((r) => r.id),
+    true
+  );
+  publish({ type: "page", pageId, clientId, at });
+  publishRowTables(rows, clientId, at);
   scheduleMirror(page.workspaceId);
-  return NextResponse.json({ ok: true, archived: ids.length });
+  return NextResponse.json({ ok: true, archived: ids.length, rowsArchived: rows.length });
 }

@@ -1,16 +1,25 @@
-# Production stack for memory.ainetwork.ai.
+# ainmem production stack — its own service, its own data.
+#
+# Named `ainmem_prod` after the host convention (`ainteams_prod_*`,
+# `ainmem_dev_postgres`): one look at `docker ps` says which service and which
+# environment a container belongs to. The earlier `memory-live` naming came from
+# the memory.ainetwork.ai deployment this project was carried over from — it
+# shared nothing with that stack but the name, which is exactly why it had to go.
 #
 # Deliberately a separate file and a separate compose project from
 # docker-compose.yml: `docker compose up` during development must never touch
 # what is live. Run it explicitly:
 #
-#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 #
-name: memory-live
+name: ainmem_prod
 
 services:
   app:
-    image: memory-live-app:${APP_TAG:-latest}
+    # Tagged by commit SHA so the live version is identifiable and a rollback is
+    # `APP_TAG=<older-sha> up -d app` (docs/deployment.md §3.1).
+    image: ainmem_prod:app-${APP_TAG:-latest}
+    container_name: ainmem_prod_app
     build:
       context: ./app
       # Every NEXT_PUBLIC_* the Dockerfile declares must be listed here. These
@@ -21,11 +30,6 @@ services:
       args:
         NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS: ${NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS}
         NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID: ${NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID}
-        NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS: ${NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS:-}
-        NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
-        NEXT_PUBLIC_WORLD_ID_ACTION: ${NEXT_PUBLIC_WORLD_ID_ACTION:-}
-        NEXT_PUBLIC_SUI_PACKAGE_ID: ${NEXT_PUBLIC_SUI_PACKAGE_ID:-}
-        NEXT_PUBLIC_CALL_WEB_SPEECH: ${NEXT_PUBLIC_CALL_WEB_SPEECH:-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -36,44 +40,119 @@ services:
       - .env.prod
     environment:
       # Inside the compose network the DB is a service name, not a host port.
-      POSTGRES_URL: postgresql://memory_live:${POSTGRES_PASSWORD}@postgres:5432/memory_live
+      # Role and database names come from .env.prod so this service's data
+      # identity is stated in one place.
+      POSTGRES_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB required}
       OKF_ROOT: /data/okf
       MD_MIRROR_ROOT: /data/md-mirror
-      # The default AI_URL is localhost:8100, which inside a container means the
-      # container itself — the agent's LLM calls died with ECONNREFUSED. vLLM
-      # runs on the host, reachable through the gateway alias below.
-      AI_URL: http://host.docker.internal:8100/v1
+    # AI_URL / AI_MODEL / AI_API_KEY are runtime vars and come from .env.prod —
+    # they are NOT pinned here. The old hard-coded host.docker.internal:8100
+    # only fit a host with vLLM running; on any other host it silently pointed
+    # at nothing. Whatever endpoint .env.prod names, changing it needs a
+    # restart, not a rebuild. host.docker.internal stays reachable below so a
+    # host-local endpoint remains an option.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      # /api/health is 200 only when this build's schema is present, so an
+      # unhealthy app means "schema drift", not just "process died". No curl in
+      # the node:alpine runner — fetch is built in.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     volumes:
       # The OKF tree IS the content database and the app writes to it, so it is
       # a bind mount — inspectable from the host, and recoverable into git.
       - ./deploy/okf-content:/data/okf
       # Uploads/avatars are written at runtime under public/, so they get the
       # same treatment as the OKF tree: mounted, never baked into the image.
-      - ./deploy/uploads:/app/public/uploads
+      # deploy/uploads 는 없어졌다 — 파일 바이트는 MinIO 에 있고, 앱은
+      # /api/files/… 프록시로만 내보낸다 (docs/object-storage.md, 2026-08-28).
       - ./deploy/avatars:/app/public/avatars
-      - memory_live_mdmirror:/data/md-mirror
+      - mdmirror:/data/md-mirror
     ports:
-      # Loopback only; nginx terminates TLS and proxies here.
-      - "127.0.0.1:3120:3000"
+      # Loopback only; nginx terminates TLS and proxies here. The host-side
+      # number follows this host's block convention — ainteams owns 30xx,
+      # ainmem owns 31xx — so `ss -tlnp` says which service a port belongs to
+      # without looking anything up. Override with APP_HOST_PORT in .env.prod.
+      - "127.0.0.1:${APP_HOST_PORT:-3100}:3000"
+
+  # Manual-only schema push. Boot must never migrate on its own (docs/deployment.md
+  # §3.6): that hands the deploy the right to drop columns with nobody reading the
+  # diff. The `migrate` profile keeps it out of `up -d`:
+  #
+  #   docker compose --env-file .env.prod -f docker-compose.prod.yml \
+  #     --profile migrate run --rm migrator
+  #
+  # It runs the builder stage because that layer still has devDependencies
+  # (drizzle-kit) and the schema source; the runtime image has neither. The
+  # layers are shared with the app build, so this costs nothing extra.
+  migrator:
+    profiles: ["migrate"]
+    image: ainmem_prod:migrator-${APP_TAG:-latest}
+    container_name: ainmem_prod_migrator
+    build:
+      context: ./app
+      target: builder
+      args:
+        NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS: ${NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS}
+        NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID: ${NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB required}
+    command: ["node_modules/.bin/drizzle-kit", "push"]
+
+  # This service's own database — not shared with ainmem dev (ainmem_dev_postgres,
+  # host 5434) and not with any other stack on this host.
+  # 파일 바이트가 사는 곳. **포트를 열지 않는다** — 바이트는 앱의 프록시 라우트
+  # (/api/files/…)로만 나가고, presigned URL 도 쓰지 않는다. 접근 제어를 우리가 쥔다.
+  # docs/object-storage.md.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: ainmem_prod_minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY required}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY required}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   postgres:
     image: postgres:16-alpine
+    container_name: ainmem_prod_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: memory_live
-      POSTGRES_USER: memory_live
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
     volumes:
-      - memory_live_pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     # No published port: dev tooling cannot reach this database by accident.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U memory_live -d memory_live"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
+# Compose prefixes these with the project name: ainmem_prod_pgdata,
+# ainmem_prod_mdmirror.
 volumes:
-  memory_live_pgdata:
-  memory_live_mdmirror:
+  pgdata:
+  mdmirror:
+  miniodata:
