@@ -39,8 +39,8 @@ test.describe("DEMO-05 It remembers — upload → memory", () => {
       expect(url).toMatch(/^\/uploads\/[\w.-]+\.jpg$/);
 
       // send it into the agent chat with a caption unique to this run. The token
-      // must be unique so waitForOkfDoc keys on the AGENT'S write — not on the
-      // seeded demo.md (which itself contains "Pastel de Nata" under the OKF root).
+      // must be unique so waitForOkfDoc keys on THIS run's write rather than on
+      // any "Pastel de Nata" a previous run already left in the content root.
       const token = `NATAS_${Date.now()}`;
       const caption = `we had nice egg tart (Pastel de Nata) in Lisbon today ${token} 🥧`;
       const res = await chanho.ctx.post(`/api/dm/rooms/${room.id}/messages`, {

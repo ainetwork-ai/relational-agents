@@ -26,9 +26,11 @@ test.describe("DEMO-01 Pre-roll assets", () => {
   }
 
   test("the script wires the concept diagrams and the tagline", () => {
-    const demo = fs.readFileSync(path.join(REPO, "memory-data/content/demo.md"), "utf8");
-    expect(demo).toContain("docs/img/agent.png");
-    expect(demo).toContain("docs/img/relational_agent.png");
+ // the script is a working document, not workspace content — it lives in
+ // docs/ so it never shows up as a page in the OKF content root
+    const demo = fs.readFileSync(path.join(REPO, "docs/demo.md"), "utf8");
+    expect(demo).toContain("](img/agent.png)");
+    expect(demo).toContain("](img/relational_agent.png)");
     // the thesis and the closing tagline the whole demo builds toward
     expect(demo).toMatch(/You see me, therefore I am\./);
   });

@@ -140,10 +140,10 @@ try {
 
   // ---- end ----
   await pageA.getByTestId("call-end").click();
-  await pageA.waitForURL(`**/p/**`, { timeout: 15000 });
-  check("end: caller navigates to the record page", true);
-  await pageB.waitForURL((u) => !u.pathname.startsWith("/call/"), { timeout: 15000 });
-  check("end: propagates — callee auto-leaves /call", true);
+  await pageA.waitForURL(`**/dm/${ROOM}`, { timeout: 15000 });
+  check("end: caller returns to the dm room", true);
+  await pageB.waitForURL(`**/dm/${ROOM}`, { timeout: 15000 });
+  check("end: propagates — callee auto-leaves /call to the dm room", true);
   const st = await ctxA.request.get(`${BASE}/api/calls/${ROOM}`);
   check("end: call state cleared", (await st.json()).call === null);
 
