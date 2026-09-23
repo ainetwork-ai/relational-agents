@@ -6,6 +6,7 @@ import type { DashWidget, DbProperty, DbRow, DbView } from "@/lib/db/schema";
 import { applyView, groupRowsBy, optionClass } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { BoardView } from "./board-view";
+import { UrlValue } from "./url-value";
 
 // ===========================================================================
 // Dashboard view — per .com/help/dashboards: a widget canvas over one
@@ -216,7 +217,15 @@ export function DashboardView({ view }: { view: DbView }) {
                   const opt = c.config.options?.find((o) => o.id === v);
                   return (
                     <td key={c.id} className="max-w-[160px] truncate py-1.5 pr-2 text-neutral-500">
-                      {opt ? <span className={`rounded px-1.5 py-0.5 text-[11px] ${optionClass(opt.color)}`}>{opt.name}</span> : String(v ?? "")}
+                      {opt ? (
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] ${optionClass(opt.color)}`}>{opt.name}</span>
+                      ) : c.type === "url" && typeof v === "string" && v ? (
+                       // a widget is still the database: a link shows what it
+                       // points at here too, not the id it is stored under
+                        <UrlValue value={v} testid={`${r.id}-${c.id}`} />
+                      ) : (
+                        String(v ?? "")
+                      )}
                     </td>
                   );
                 })}

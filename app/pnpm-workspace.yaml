@@ -16,3 +16,8 @@ allowBuilds:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# AgentKit ships prebundled code that imports @scure/bip39/wordlists/english,
+# a subpath 2.x stopped exporting. Pin the copy AgentKit resolves to 1.x.
+overrides:
+  "@coinbase/agentkit>@scure/bip39": ^1.5.4

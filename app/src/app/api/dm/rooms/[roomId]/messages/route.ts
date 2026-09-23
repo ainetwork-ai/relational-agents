@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { chatMessages, chatRoomMembers } from "@/lib/db/schema";
+import { chatMessages, chatRoomBots, chatRoomMembers } from "@/lib/db/schema";
 import {
   publishToRoomMembers,
   requireRoomAccess,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/chat-room-access";
 import { maybeAutoRun } from "@/lib/agent/triggers";
 import { dispatchToRoomBots } from "@/lib/agent/dispatch";
+import { buyEggTarts, isBuyEggTartsCommand } from "@/lib/agent/spend";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
  // a quiet marker there instead.
   if (autoRun && autoRun.edits > 0) {
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
+  }
+
+ // "@agent buy egg tarts" is the one sentence that spends money, so it is
+ // matched exactly rather than interpreted: the model may talk about egg tarts
+ // all it likes, but only this exact line moves the agent's wallet. Handled
+ // before the bots see it, so the agent acts instead of replying about it.
+  if (isBuyEggTartsCommand(text)) {
+    const [bot] = await db
+      .select({ agentUserId: chatRoomBots.agentUserId })
+      .from(chatRoomBots)
+      .where(eq(chatRoomBots.roomId, roomId))
+      .limit(1);
+    if (bot) {
+      void buyEggTarts(bot.agentUserId, roomId, req.nextUrl.origin).catch((err) =>
+        console.error("chat-triggered spend failed:", err)
+      );
+      return NextResponse.json({ message, autoRun }, { status: 201 });
+    }
   }
 
  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response

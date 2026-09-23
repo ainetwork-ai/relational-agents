@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { profileForRoom } from "@/lib/agent/profiles";
 import { agentRoomStates, chatMessages, chatRoomMembers, users } from "@/lib/db/schema";
 import { ensureOkfDocTree, appendOkfLines, okfDocMeta } from "@/lib/agent/okf-docs";
+import { setOkfAcl } from "@/lib/okf-acl";
 
 /**
  * Demo fixture: back-fill a room with the story evidence the finale needs —
@@ -72,6 +73,16 @@ export async function seedSunsetStory(
     rootPath: state?.rootOkfPath,
     sectionPaths: state?.sectionOkfPaths,
   });
+ // the tree may not have existed before this fixture ran; an unregistered OKF
+ // path is workspace-readable, so the seeded record is locked to its members
+ // the same way the write pipeline locks a real one
+  const allMemberIds = (
+    await db
+      .select({ userId: chatRoomMembers.userId })
+      .from(chatRoomMembers)
+      .where(eq(chatRoomMembers.roomId, roomId))
+  ).map((m) => m.userId);
+  await setOkfAcl(tree.rootPath, roomId, [...new Set([actorUserId, ...allMemberIds])]);
   appendOkfLines(
     tree.sectionPaths["people"],
     "People notes",

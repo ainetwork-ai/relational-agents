@@ -14,6 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { aiChat, type AiContentPart } from "@/lib/ai";
 import { setOkfAcl } from "@/lib/okf-acl";
+import { fileSealedMemoryOnSui } from "@/lib/sui/live";
 import { getCall } from "@/lib/call-store";
 import {
   appendOkfLines,
@@ -408,6 +409,7 @@ async function runOnce(roomId: string): Promise<RunResult> {
   }));
 
  // apply to files — append at the section .md's end (never overwrite wholesale; keeps prior curation).
+  const appended: string[] = [];
   for (const edit of edits) {
     const rel = tree.sectionPaths[edit.section];
     if (!rel) continue;
@@ -452,6 +454,21 @@ async function runOnce(roomId: string): Promise<RunResult> {
     }
     const title = profile.sections.find((s) => s.key === edit.section)?.title ?? edit.section;
     appendOkfLines(rel, title, lines, okfDocMeta(roomId, profile, edit.section));
+    appended.push(`## ${title}\n${lines.map((l) => l.text).join("\n")}`);
+  }
+
+ // The same words, kept a second way: sealed to the relationship's Sui object
+ // and stored as ciphertext on Walrus, with only the blob id going on chain.
+ // One memory per run, not per line, and entirely fire-and-forget — the file
+ // above is the record; this is the copy no operator can read.
+  if (appended.length) {
+    const bytes = new TextEncoder().encode(appended.join("\n\n"));
+    void fileSealedMemoryOnSui({ roomId, bytes, kind: "note" })
+      .then((receipt) => {
+        if (receipt)
+          console.log(`sui: memory ${receipt.blobId} → ${receipt.objectId} (${receipt.digest})`);
+      })
+      .catch((err) => console.error("sui sealed memory failed:", err));
   }
 
  // the checkpoint advances only after file writes finish. Files can't join

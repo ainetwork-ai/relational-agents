@@ -206,6 +206,18 @@ export function DmView({
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [organizing, setOrganizing] = useState(false);
   const [spending, setSpending] = useState(false);
+ // Paying takes a block, and a silent 20 seconds reads as a broken button.
+  const [spendSince, setSpendSince] = useState<number | null>(null);
+  const [spendElapsed, setSpendElapsed] = useState(0);
+
+  useEffect(() => {
+    if (spendSince === null) return;
+    const id = setInterval(
+      () => setSpendElapsed(Math.round((Date.now() - spendSince) / 1000)),
+      1000
+    );
+    return () => clearInterval(id);
+  }, [spendSince]);
  // relationship agent: whether it's invited + invite in flight
   const [hasAgent, setHasAgent] = useState<boolean | null>(null);
   const [inviting, setInviting] = useState(false);
@@ -707,6 +719,9 @@ export function DmView({
   async function buyTarts() {
     if (spending || !agentMember) return;
     setSpending(true);
+    setSpendSince(Date.now());
+    setSpendElapsed(0);
+    show("The agent is paying Tarts&Co — this waits for a block, about 20 seconds");
     try {
       const res = await fetch(`/api/agent/${agentMember.id}/spend`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -720,6 +735,7 @@ export function DmView({
       show(`Purchase failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSpending(false);
+      setSpendSince(null);
     }
   }
 
@@ -898,6 +914,22 @@ export function DmView({
               <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
             </button>
           )}
+          {spending && (
+            <span
+              data-testid="dm-agent-spend-status"
+              className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              <span className="h-1.5 w-1.5 animate-ping rounded-full bg-amber-500" />
+              <span className="hidden sm:inline">
+                {spendElapsed < 6
+                  ? "Agent is paying…"
+                  : spendElapsed < 20
+                    ? "Waiting for the block…"
+                    : "Asking Tarts&Co…"}
+              </span>
+              <span className="tabular-nums">{spendElapsed}s</span>
+            </span>
+          )}
           {agentMember && (
             <button
               data-testid="dm-agent-settings"
@@ -1048,16 +1080,9 @@ export function DmView({
               !newDay && prev?.authorId === m.authorId &&
               new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
             const after = messages[i + 1];
-           // One clock per burst, on the message that ends it. A stamp beside
-           // every bubble sat at whatever x that bubble happened to end at, so
-           // a screen of chat had the time zigzagging across it.
-            const endsRun =
-              !after ||
-              after.authorId !== m.authorId ||
-              new Date(after.createdAt).toDateString() !== new Date(m.createdAt).toDateString() ||
-              new Date(after.createdAt).getTime() - new Date(m.createdAt).getTime() >= 5 * 60_000;
-           // Same for the quiet notice: every private message keeps the lock,
-           // but only the last of a private stretch spells out what it means.
+           // Every private message keeps its lock, but only the last of a
+           // private stretch spells out what the lock means — the sentence
+           // repeated under ten bubbles in a row read as boilerplate.
             const lastQuiet = Boolean(m.privateToUserId) && !after?.privateToUserId;
             // "📞 " prefix = a call record the calls route inserted — rendered
             // as a KakaoTalk-style event bubble instead of a text bubble
@@ -1079,7 +1104,7 @@ export function DmView({
                 )}
                 <div
                   data-testid={mine ? "dm-msg-mine" : "dm-msg-other"}
-                  className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+                  className={`group/msg flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   {!mine && (
                     // top-aligned so the face sits beside the sender name,
@@ -1179,15 +1204,26 @@ export function DmView({
                         <p
                           data-testid="dm-msg-private"
                           className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
+                          title="Quiet · only you and the agent — not in your shared record"
                         >
                           <Lock size={10} />
-                          Quiet · only you and the agent — not in your shared record
+                          {lastQuiet && "Quiet · only you and the agent — not in your shared record"}
                         </p>
                       )}
                     </div>
                     )}
                   </div>
-                  <span className={`shrink-0 pb-0.5 text-[10px] text-neutral-400 ${mine ? "order-first" : ""}`}>
+                  {/* On hover, not always. A stamp beside every bubble sits at
+                      whatever x that bubble happens to end at, and with the two
+                      of them trading short and long messages the column zigzags
+                      down the whole screen. The day separators carry the sense
+                      of time; the exact minute is there when you look for it. */}
+                  <span
+                    data-testid="dm-msg-time"
+                    className={`shrink-0 pb-0.5 text-[10px] text-neutral-400 opacity-0 transition-opacity group-hover/msg:opacity-100 ${
+                      mine ? "order-first" : ""
+                    }`}
+                  >
                     {timeLabel(m.createdAt)}
                   </span>
                 </div>

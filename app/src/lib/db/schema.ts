@@ -47,6 +47,12 @@ export const users = pgTable("users", {
   agentCategory: text("agent_category"),
   agentTags: jsonb("agent_tags").$type<string[]>().default([]),
   encryptedPrivateKey: text("encrypted_private_key"),
+ // Sui identity, generated lazily the first time this person's relationship
+ // needs to touch the chain. The Move module checks `members` by Sui address,
+ // so a member signs their own add_memory even though the sponsor pays gas.
+ // Stored the same way encryptedPrivateKey is (demo: at rest as issued).
+  suiAddress: text("sui_address"),
+  encryptedSuiKey: text("encrypted_sui_key"),
  // per-room relationship-agent config (owner-edited) — AgentConfig type, only meaningful for isAgent users
   agentConfig: jsonb("agent_config").$type<Record<string, unknown>>(),
   ownerId: uuid("owner_id"),
@@ -611,6 +617,14 @@ export const chatRooms = pgTable("chat_rooms", {
   dissolvedAt: timestamp("dissolved_at"),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+ // The relationship as a shared object on Sui, created at consent. Null when
+ // the chain was unreachable or unconfigured — the room works either way.
+  suiObjectId: text("sui_object_id"),
+  suiCreateTx: text("sui_create_tx"),
+ // The two user ids written into the object's `members` at birth. The Move
+ // module checks the sender against that set, so a later memory has to be
+ // signed by one of exactly these two — not by whoever is in the room now.
+  suiMemberIds: jsonb("sui_member_ids").$type<string[]>(),
 });
 
 // The relational agent contract — the signature record behind "an agent is

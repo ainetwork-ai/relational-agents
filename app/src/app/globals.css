@@ -156,7 +156,10 @@ body {
 }
 [contenteditable]:focus,
 [contenteditable]:focus-visible,
-textarea[data-testid="page-title"]:focus-visible {
+textarea[data-testid="page-title"]:focus-visible,
+/* the message composer is text you are editing too — it carries its own
+   focus border, so the ring on top of it read as a second, brighter box */
+textarea[data-testid="dm-composer-input"]:focus-visible {
   outline: none;
 }
 

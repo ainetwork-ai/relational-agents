@@ -4,10 +4,12 @@ import { Bot } from "lucide-react";
 import type { DmUser } from "@/stores/dm-rooms";
 import { initial } from "@/lib/glyph";
 
-/** DM avatar: image when avatarUrl exists, else the name's first letter
- * (members-modal convention). Agents keep the same person-style initial —
- * their names vary ("relationshipagent" → R) — and a small robot chip on
- * the corner is what marks them as an agent. */
+/** DM avatar: the person's face when one exists, else the name's first letter
+ * (members-modal convention). `avatarUrl` is already resolved server-side
+ * (lib/avatar.ts) — a seeded person's portrait arrives here as a real path,
+ * so this never has to guess one. Agents keep the person-style initial —
+ * their names vary ("relationshipagent" → R) — and a small robot chip on the
+ * corner is what marks them as an agent. */
 export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.max(10, size * 0.45) };
   if (user.isAgent) {

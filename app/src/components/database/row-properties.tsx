@@ -138,7 +138,7 @@ export function RowPropertiesPanel({ pageId }: { pageId: string }) {
                 {p.name}
               </span>
               <div className="min-w-0 flex-1">
-                <PropertyCell prop={p} row={row} />
+                <PropertyCell prop={p} row={row} variant="page" />
               </div>
             </div>
           ))}

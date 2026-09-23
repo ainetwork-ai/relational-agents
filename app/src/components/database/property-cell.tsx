@@ -13,6 +13,8 @@ import {
 import { useDb } from "./database-block";
 import { copyText } from "@/lib/compat";
 import { initial } from "@/lib/glyph";
+import { classifyLink, absoluteHref } from "@/lib/app-link";
+import { UrlValue } from "./url-value";
 
 /** Format a row timestamp (Date or ISO string over JSON) for display. */
 function fmtTimestamp(v: unknown): string {
@@ -21,7 +23,16 @@ function fmtTimestamp(v: unknown): string {
   return isNaN(d.getTime()) ? "" : d.toLocaleString("en-US");
 }
 
-export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
+export function PropertyCell({
+  prop,
+  row,
+  variant = "cell",
+}: {
+  prop: DbProperty;
+  row: DbRow;
+ // "page" is the row page, where there is room to show a link as a card
+  variant?: "cell" | "page";
+}) {
   const db = useDb();
   const value = row.values[prop.id];
   const testid = `db-cell-${row.id}-${prop.id}`;
@@ -36,7 +47,9 @@ export function PropertyCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
       return <TextCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
 
     case "url":
-      return <UrlCell testid={testid} value={(value as string) ?? ""} onCommit={set} />;
+      return (
+        <UrlCell testid={testid} value={(value as string) ?? ""} onCommit={set} variant={variant} />
+      );
 
     case "created_time":
       return (
@@ -708,10 +721,12 @@ function UrlCell({
   testid,
   value,
   onCommit,
+  variant = "cell",
 }: {
   testid: string;
   value: string;
   onCommit: (v: string) => void;
+  variant?: "cell" | "page";
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -742,19 +757,18 @@ function UrlCell({
       />
     );
   }
-  const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const link = classifyLink(value);
+ // what lands on the clipboard has to survive a paste elsewhere, so an
+ // app-relative path is copied with its origin — the raw "/p/<id>" is not a link
+  const href = link.kind === "text" ? value : absoluteHref(link.href);
   return (
-    <div data-testid={testid} className="group/urlcell flex items-center gap-1 px-2 py-1">
-      <a
-        data-testid={`db-url-link-${testid}`}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="truncate text-sm text-blue-600 underline hover:text-blue-700 dark:text-blue-400"
-      >
-        {value}
-      </a>
+    <div
+      data-testid={testid}
+      className={`group/urlcell flex items-center gap-1 px-2 ${variant === "page" ? "py-1.5" : "py-1"}`}
+    >
+      <div className="min-w-0 flex-1">
+        <UrlValue value={value} variant={variant} testid={testid} />
+      </div>
       {/* hover actions: open in new tab + copy */}
       <button
         data-testid={`db-url-copy-${testid}`}

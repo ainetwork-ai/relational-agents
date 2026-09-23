@@ -10,6 +10,8 @@ export interface ParsedBlock {
   type: BlockType;
   content: BlockContent;
   position: number;
+  /** column layouts nest (column_list → column → child) — flat blocks omit it */
+  parentBlockId?: string | null;
 }
 
 const HASH_RE = /\s+[0-9a-f]{32}(?=\.|$|\/)/i;
@@ -89,7 +91,12 @@ export function parseMarkdown(
   const { meta, body } = splitFrontmatter(text);
   const lines = body.split("\n");
   let title = typeof meta.title === "string" ? meta.title : "";
-  const drafts: { type: BlockType; content: BlockContent }[] = [];
+  const drafts: {
+    type: BlockType;
+    content: BlockContent;
+    /** several ![](…) on ONE line = photos of one moment, laid out side by side */
+    imageRow?: { caption: string; url: string }[];
+  }[] = [];
   let i = 0;
  // pasting markdown into a block keeps the first "# " line as a heading block
  // rather than consuming it as a page title (opts.noTitle).
@@ -163,20 +170,70 @@ export function parseMarkdown(
       else push("quote", { text: stripLinks(t.slice(2)) });
       i++; continue;
     }
+    // a line of nothing but 2+ images is an image ROW — same-place shots that
+    // render side by side (column_list) instead of stacking
+    const rowImgs = [...t.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)];
+    if (rowImgs.length >= 2 && !t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, "").trim()) {
+      drafts.push({
+        type: "column_list",
+        content: {},
+        imageRow: rowImgs.map((m) => ({ caption: m[1], url: m[2] })),
+      });
+      i++; continue;
+    }
     const img = t.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (img) { push("image", { url: img[2], text: "", ...(img[1] ? { caption: img[1] } : {}) }); i++; continue; }
     push("paragraph", { text: stripLinks(t) });
     i++;
   }
-  const blocks = drafts.map((d, idx) => ({ id: `${idPrefix}${idx}`, type: d.type, content: d.content, position: idx + 1 }));
+  const blocks: ParsedBlock[] = [];
+  drafts.forEach((d, idx) => {
+    const id = `${idPrefix}${idx}`;
+    blocks.push({ id, type: d.type, content: d.content, position: idx + 1 });
+    // image rows expand to the editor's column layout: list → column → image
+    d.imageRow?.forEach((img, j) => {
+      const colId = `${id}c${j}`;
+      blocks.push({ id: colId, type: "column", content: {}, position: j + 1, parentBlockId: id });
+      blocks.push({
+        id: `${colId}i`,
+        type: "image",
+        content: { text: "", url: img.url, ...(img.caption ? { caption: img.caption } : {}) },
+        position: 1,
+        parentBlockId: colId,
+      });
+    });
+  });
   return { title: title || "Untitled", meta, blocks };
 }
 
 // ---- blocks → Markdown (write-back) ---------------------------------------
+const mdImage = (b: ParsedBlock) =>
+  `![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`;
+
 export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
   const out: string[] = [`# ${title}`, ""];
+  const childrenOf = (id: string) =>
+    blocks
+      .filter((c) => c.parentBlockId === id)
+      .sort((a, c) => (a.position ?? 0) - (c.position ?? 0));
   let num = 0;
   for (const b of blocks) {
+    // nested blocks are serialized by their column_list parent below
+    if (b.parentBlockId) continue;
+    // a column layout of images = one md line of images (side-by-side photos
+    // of one moment); anything else in columns unwraps to plain lines
+    if (b.type === "column_list") {
+      const kids = childrenOf(b.id).flatMap((col) =>
+        col.type === "column" ? childrenOf(col.id) : [col]
+      );
+      const imgs = kids.filter((k) => k.type === "image" && k.content.url);
+      if (imgs.length) out.push(imgs.map(mdImage).join(" "), "");
+      const rest = kids.filter((k) => !(k.type === "image" && k.content.url));
+      if (rest.length)
+        out.push(blocksToMarkdown("", rest).split("\n").slice(2).join("\n"));
+      continue;
+    }
+    if (b.type === "column") continue; // stray column without a list — skip
     const text = b.content.text ?? "";
     if (b.type === "numbered_list") num += 1; else num = 0;
     switch (b.type) {
@@ -196,7 +253,7 @@ export function blocksToMarkdown(title: string, blocks: ParsedBlock[]): string {
       case "ai_prompt": break; // transient prompt UI, never persists content
       case "equation": if (b.content.text) out.push(`$$\n${b.content.text}\n$$`); break;
       case "code": out.push("```" + (b.content.language ?? ""), text, "```"); break;
-      case "image": if (b.content.url) out.push(`![${String(b.content.caption ?? "").replace(/[\[\]]/g, "")}](${b.content.url})`); break;
+      case "image": if (b.content.url) out.push(mdImage(b)); break;
       case "table": {
         const t = b.content.table;
         if (t?.cells?.length) {

@@ -78,14 +78,18 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
- // After switching/creating, reload the (workspace-scoped) page tree and
- // navigate straight to the new workspace's first page (/p/<id>) so the URL
- // is that workspace's own page, not a shared home. Empty workspace → /home.
-  async function refreshWorkspace() {
-    await usePagesStore.getState().load();
-    const roots = usePagesStore.getState().roots;
-    router.push(roots.length ? `/p/${roots[0].id}` : "/home");
+  /**
+   * Leave for the new workspace immediately.
+   *
+   * This used to load the page tree first so it could open that workspace's
+   * first page — which meant the URL only changed after a round trip, and on a
+   * slow connection the click looked like it had done nothing. The address bar
+   * moves first now; the tree arrives behind it.
+   */
+  function goToWorkspace() {
+    router.push("/home");
     router.refresh();
+    void usePagesStore.getState().load();
   }
 
   async function switchTo(id: string) {
@@ -112,7 +116,7 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
       });
     }
     setOpen(false);
-    await refreshWorkspace();
+    goToWorkspace();
   }
 
   async function createWorkspace() {
@@ -138,13 +142,9 @@ export function WorkspaceSwitcher({ workspace }: { workspace: ActiveWorkspace })
         description: d.workspace.description ?? null,
       });
     }
- // A new workspace owns nothing yet, but the OKF tree is shared, so
- // refreshWorkspace's "open the first page" heuristic drops you into a
- // document from the space you just left — and a new workspace that instantly
- // looks like the old one reads as "it wasn't created". Land on its own home.
-    await usePagesStore.getState().load();
-    router.push("/home");
-    router.refresh();
+ // A new workspace owns nothing yet, so its own home is the only honest
+ // destination — and it is the fast one.
+    goToWorkspace();
   }
 
   return (

@@ -42,8 +42,28 @@ import type {
 // No SQL — reads/writes the files directly.
 // ===========================================================================
 
+let warnedTestRoot = false;
 export function okfRoot(): string {
-  return process.env.OKF_ROOT || path.join(process.cwd(), "okf-fs");
+  const root = process.env.OKF_ROOT || path.join(process.cwd(), "okf-fs");
+  // Fail-safe pairing: a server on a *_test database must NEVER share the real
+  // content folder — test runs kept writing skeleton relationship docs into
+  // memory-data/content. Whatever root the runner picked, divert to a sibling
+  // "<root>-test" so a test DB always implies a test content folder.
+  const db = process.env.POSTGRES_URL ?? "";
+  if (/_test(\?|$)/.test(db.split("/").pop() ?? "")) {
+    const testRoot = `${root.replace(/\/+$/, "")}-test`;
+    if (!warnedTestRoot) {
+      warnedTestRoot = true;
+      console.warn(`okf: test database detected — content root diverted to ${testRoot}`);
+    }
+    try {
+      fs.mkdirSync(testRoot, { recursive: true });
+    } catch {
+      // read-only fs — reads will still resolve against the (empty) path
+    }
+    return testRoot;
+  }
+  return root;
 }
 
 // Opaque, single-segment page id = base64url of the posix relative path. Lets
@@ -429,6 +449,7 @@ export interface IncomingBlock {
   type?: string;
   content?: Record<string, unknown>;
   position?: number;
+  parentBlockId?: string | null;
 }
 
 /** ParsedBlock[] (file blocks) → Block[] (the shape /api/pages/[id]/blocks and
@@ -440,7 +461,7 @@ export function parsedToBlocks(blocks: ParsedBlock[], pageId: string): Block[] {
     pageId,
     type: b.type,
     content: b.content,
-    parentBlockId: null,
+    parentBlockId: b.parentBlockId ?? null,
     position: b.position ?? i + 1,
     createdAt: now,
     updatedAt: now,
@@ -454,6 +475,7 @@ export function blocksToParsed(incoming: IncomingBlock[]): ParsedBlock[] {
     type: (b.type ?? "paragraph") as ParsedBlock["type"],
     content: (b.content ?? {}) as ParsedBlock["content"],
     position: b.position ?? i + 1,
+    ...(b.parentBlockId ? { parentBlockId: b.parentBlockId } : {}),
   }));
 }
 

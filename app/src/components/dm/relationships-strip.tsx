@@ -84,10 +84,10 @@ function Face({ person }: { person: Person }) {
   const [imgOk, setImgOk] = useState(true);
   return (
     <span className="relative flex h-11 w-11 items-center justify-center">
-      {imgOk ? (
+      {person.avatarUrl && imgOk ? (
  // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={person.avatarUrl || `/avatars/${person.key}.png`}
+          src={person.avatarUrl}
           alt={person.name}
           onError={() => setImgOk(false)}
           className="h-11 w-11 rounded-full object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
@@ -124,16 +124,21 @@ export function RelationshipsStrip() {
           .catch(() => null);
         // the workspace's member roster — a relation belongs in THIS
         // workspace only when the partner is one of its members
-        const memberByKey = new Map<string, string>(
+        const roster: { id: string; displayName: string; avatarUrl: string | null }[] =
           await fetch("/api/workspace/members")
             .then((r) => (r.ok ? r.json() : { members: [] }))
-            .then((d) =>
-              (d.members ?? []).map((m: { id: string; displayName: string }) => [
-                nameKey(m.displayName ?? ""),
-                m.id,
-              ])
-            )
-            .catch(() => [])
+            .then((d) => d.members ?? [])
+            .catch(() => []);
+        const memberByKey = new Map<string, string>(
+          roster.map((m) => [nameKey(m.displayName ?? ""), m.id])
+        );
+       // faces for the people who come from a record or a doc rather than a
+       // room: the roster already carries the server-resolved portrait, so
+       // they get the same face without anyone guessing a filename
+        const avatarByKey = new Map<string, string>(
+          roster
+            .filter((m) => m.avatarUrl)
+            .map((m) => [nameKey(m.displayName ?? ""), m.avatarUrl as string])
         );
         const memberNames = new Set(memberByKey.keys());
 
@@ -229,6 +234,7 @@ export function RelationshipsStrip() {
             pageId: k.id,
             roomId: roomByName.get(key) ?? null,
             partnerUserId: memberByKey.get(nameKey(name)) ?? null,
+            avatarUrl: avatarByKey.get(nameKey(name)) ?? null,
           });
         }
         for (const d of okfDocs) {
@@ -245,6 +251,7 @@ export function RelationshipsStrip() {
             pageId: d.id, // doc fallback when no chat can be opened
             roomId: prev?.roomId ?? roomByName.get(key) ?? null,
             partnerUserId: memberByKey.get(nameKey(name)) ?? null,
+            avatarUrl: prev?.avatarUrl ?? avatarByKey.get(nameKey(name)) ?? null,
           });
         }
         if (kids.length === 0 && okfDocs.length === 0 && roomRelations.length === 0) return;
@@ -260,7 +267,7 @@ export function RelationshipsStrip() {
             // only fill in for seeded records without a room
             pageId: r.docPageId ?? prev?.pageId ?? null,
             roomId: r.roomId,
-            avatarUrl: r.avatarUrl,
+            avatarUrl: r.avatarUrl ?? prev?.avatarUrl ?? avatarByKey.get(nameKey(r.name)) ?? null,
           });
         }
         const list = [...byPartner.values()];

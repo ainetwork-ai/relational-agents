@@ -147,7 +147,7 @@ export function PageView({
         <PageOptionsMenu page={page} />
         </div>
       </div>
-      <LiveCursors others={others} />
+      <LiveCursors others={others} selfUserId={self.user?.id} />
       {page.coverUrl && (
         <CoverControls
           coverUrl={page.coverUrl}
