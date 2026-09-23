@@ -122,7 +122,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       message: JSON.stringify(typedData),
       signature,
     })
-    .onConflictDoNothing();
+ // re-signing replaces the previous row — mirrors consent's upsert so a
+ // second signature from the same member never gets silently dropped
+    .onConflictDoUpdate({
+      target: [relationDissolves.roomId, relationDissolves.userId],
+      set: {
+        address: me.address.toLowerCase(),
+        message: JSON.stringify(typedData),
+        signature,
+      },
+    });
 
   const signedRows = await db
     .select({ userId: relationDissolves.userId })

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { personhoodProofs } from "@/lib/db/schema";
+import { chatRooms, personhoodProofs, relationContracts } from "@/lib/db/schema";
+import { relayBindPersonhood } from "@/lib/relation-registry";
 import { requireRoomAccess } from "@/lib/chat-room-access";
 import { relationIdFromRoom } from "@/lib/relation-contract";
 import {
@@ -95,5 +96,44 @@ export async function POST(req: NextRequest) {
       set: { nullifierHash, verificationLevel, verifiedAt: new Date() },
     });
 
-  return NextResponse.json({ verified: true, verificationLevel, action: WORLD_ID_ACTION });
+ // A relationship can be born before anyone verifies. When the last party
+ // proves themselves afterwards, the chain should learn it too — otherwise the
+ // couple is verified in our database and still refused by every seller.
+  const bind = await bindIfRelationshipComplete(roomId);
+
+  return NextResponse.json({
+    verified: true,
+    verificationLevel,
+    action: WORLD_ID_ACTION,
+    ...(bind ? { boundOnChain: bind } : {}),
+  });
+}
+
+/** Every party proved, and the agent already exists → attest it on chain. */
+async function bindIfRelationshipComplete(roomId: string): Promise<string | null> {
+  try {
+    const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId)).limit(1);
+    if (!room?.consentAt) return null;
+
+    const signers = await db
+      .select({ userId: relationContracts.userId, address: relationContracts.address })
+      .from(relationContracts)
+      .where(eq(relationContracts.roomId, roomId));
+    if (signers.length < 2) return null;
+
+    const proofs = await db
+      .select({ userId: personhoodProofs.userId, nullifierHash: personhoodProofs.nullifierHash })
+      .from(personhoodProofs)
+      .where(eq(personhoodProofs.roomId, roomId));
+    const byUser = new Map(proofs.map((p) => [p.userId, p.nullifierHash]));
+    if (!signers.every((s) => byUser.has(s.userId))) return null;
+
+    const nullifiersByAddress = Object.fromEntries(
+      signers.map((s) => [s.address.toLowerCase(), byUser.get(s.userId)!])
+    );
+    return await relayBindPersonhood({ roomId, nullifiersByAddress });
+  } catch (err) {
+    console.error("late personhood binding failed:", err);
+    return null;
+  }
 }

@@ -84,7 +84,14 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
     [roomId, refresh]
   );
 
-  if (!status || status.consentAt) return null;
+ // The banner used to vanish the moment the agent was born, taking the verify
+ // button with it — so a couple who signed first and verified later had no way
+ // back. It stays while anyone is still unproven, and the copy below switches
+ // from "sign" to "you can still prove it".
+  const born = Boolean(status?.consentAt);
+  const everyoneProven =
+    !status?.personhoodRequired || (status?.parties ?? []).every((p) => p.personhoodVerified);
+  if (!status || (born && everyoneProven)) return null;
 
   async function sign() {
     if (!status?.typedData) return;
@@ -124,13 +131,20 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
       className="mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40"
     >
       <div className="flex items-center gap-2 font-medium text-amber-900 dark:text-amber-200">
-        <span aria-hidden>🤝</span>
-        The relational agent is born when both of you sign.
+        <span aria-hidden>{born ? "🌍" : "🤝"}</span>
+        {born
+          ? "Your agent is born. It can spend once both of you are verified."
+          : "The relational agent is born when both of you sign."}
       </div>
       <div className="mt-1 text-amber-800/80 dark:text-amber-300/80">
-        {status.parties.filter((p) => p.signed).length}/{status.required} signed
-        {waiting.length > 0 && (
+        {born ? null : <>{status.parties.filter((p) => p.signed).length}/{status.required} signed</>}
+        {!born && waiting.length > 0 && (
           <> · waiting for {waiting.map((p) => p.displayName).join(", ")}</>
+        )}
+        {born && (
+          <>
+            {status.parties.filter((p) => p.personhoodVerified).length}/{status.required} verified
+          </>
         )}
       </div>
 
@@ -153,10 +167,12 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
         </div>
       )}
 
-      {needsPersonhood ? (
+      {needsPersonhood && (
         <>
           <div className="mt-2 text-amber-800/80 dark:text-amber-300/80">
-            First, prove you&apos;re a unique human — the agent carries one proof per person.
+            {born
+              ? "Tarts&Co refuses agents without a human on each side. Verify now and the chain records it — the same refusal turns into two egg tarts."
+              : "Optional — prove you're a unique human. An agent with a proof on each side can buy where a bot is refused; without it the agent is born just the same."}
           </div>
           {WORLD_ID_APP_ID && rpContext ? (
             <WorldIdButton
@@ -178,8 +194,9 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
             </button>
           )}
         </>
-      ) : (
-        !status.mySigned && (
+      )}
+
+      {!status.mySigned && (
           <button
             data-testid="consent-sign-button"
             onClick={sign}
@@ -192,7 +209,6 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
                 ? "Sign the contract"
                 : "Sign in with a wallet to sign"}
           </button>
-        )
       )}
       {error && <div className="mt-1.5 text-red-600 dark:text-red-400">{error}</div>}
     </div>

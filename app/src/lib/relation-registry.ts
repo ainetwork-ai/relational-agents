@@ -85,6 +85,33 @@ const ABI = [
 
 export const RELATION_REGISTRY_ABI = ABI;
 
+/** The second door: personhood recorded after the agent was already born. */
+const ATTEST_ABI = [
+  {
+    type: "function",
+    name: "bindPersonhood",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "relationId", type: "bytes32" },
+      { name: "parties", type: "address[]" },
+      { name: "nullifiers", type: "uint256[]" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isHumanBacked",
+    stateMutability: "view",
+    inputs: [{ name: "relationId", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+function attestationsAddress(): Hex | null {
+  const a = process.env.PERSONHOOD_ATTESTATIONS_ADDRESS;
+  return a && /^0x[0-9a-fA-F]{40}$/.test(a) && !/^0x0+$/.test(a) ? (a as Hex) : null;
+}
+
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
 function relayerKey(): Hex | null {
@@ -166,13 +193,60 @@ export async function relayRelationOnChain(input: RelayInput): Promise<RelayResu
 /** Asks the chain whether a relationship has a proven human on each side.
  * This is the question a seller asks before it trusts an agent's money. */
 export async function readIsHumanBacked(roomId: string): Promise<boolean> {
-  const address = humanBackedRegistryAddress();
-  if (!address) return false;
   const relationId = relationIdFromRoom(roomId) as Hex;
   const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
+
+ // Bound at birth, or attested afterwards — the seller does not care which
+ // door the proof came through, only that the chain holds it.
+  const registry = humanBackedRegistryAddress();
+  if (registry) {
+    const atBirth = (await pub.readContract({
+      address: registry, abi: ABI, functionName: "isHumanBacked", args: [relationId],
+    }).catch(() => false)) as boolean;
+    if (atBirth) return true;
+  }
+  const attest = attestationsAddress();
+  if (!attest) return false;
   return (await pub.readContract({
-    address, abi: ABI, functionName: "isHumanBacked", args: [relationId],
-  })) as boolean;
+    address: attest, abi: ATTEST_ABI, functionName: "isHumanBacked", args: [relationId],
+  }).catch(() => false)) as boolean;
+}
+
+/** Records personhood for a relationship that was already born without it.
+ * Best-effort like every other relay: returns the tx hash or null. */
+export async function relayBindPersonhood(input: {
+  roomId: string;
+  nullifiersByAddress: Record<string, string>;
+}): Promise<string | null> {
+  const address = attestationsAddress();
+  const key = relayerKey();
+  if (!address || !key) return null;
+
+  const parties = Object.keys(input.nullifiersByAddress).map((a) => a.toLowerCase()).sort() as Hex[];
+  if (parties.length < 2) return null;
+  const nullifiers = parties.map((p) => BigInt(input.nullifiersByAddress[p]));
+  const relationId = relationIdFromRoom(input.roomId) as Hex;
+
+  try {
+    const pub = createPublicClient({ chain: sepolia, transport: http(RPC) });
+    const already = (await pub.readContract({
+      address, abi: ATTEST_ABI, functionName: "isHumanBacked", args: [relationId],
+    })) as boolean;
+    if (already) return "";
+
+    const wallet = createWalletClient({
+      account: privateKeyToAccount(key), chain: sepolia, transport: http(RPC),
+    });
+    const txHash = await wallet.writeContract({
+      address, abi: ATTEST_ABI, functionName: "bindPersonhood",
+      args: [relationId, parties, nullifiers],
+    });
+    const receipt = await pub.waitForTransactionReceipt({ hash: txHash, timeout: 180_000 });
+    return receipt.status === "success" ? txHash : null;
+  } catch (err) {
+    console.error("personhood attestation failed:", err);
+    return null;
+  }
 }
 
 /** Relays a completed RelationDissolve set to dissolveRelationalAgent().

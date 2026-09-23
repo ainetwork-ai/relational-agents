@@ -1,0 +1,11 @@
+{
+ "network": "sepolia",
+ "chainId": 11155111,
+ "address": "0xdbd92dfcf3a6cea868872c59df48aa3e77137f94",
+ "deployTx": "0xd9d5cff210f9c28bad1d56dd59b7e76757eafa342e4155b205ce4f31d103eb58",
+ "attestor": "0x466e00d1Dd650987Cc173E620Fa933aDEaABCB86",
+ "gasUsed": 498599,
+ "compiler": "solc 0.8.28, optimizer runs=200",
+ "note": "Late-bound proof of personhood: bindPersonhood(relationId, parties, nullifiers) for relationships already registered without it. Read alongside RelationalAgentRegistry.isHumanBacked.",
+ "deployedAt": "2026-07-26"
+}

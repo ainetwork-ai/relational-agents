@@ -10,19 +10,27 @@ import {
   relationContracts,
   users,
 } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { publishToRoomMembers, requireRoomAccess } from "@/lib/chat-room-access";
-import { buildRelationConsentTypedData, humanBackedRegistryAddress } from "@/lib/relation-contract";
+import {
+  buildRelationConsentTypedData,
+  humanBackedRegistryAddress,
+  type RelationConsentTypedData,
+} from "@/lib/relation-contract";
 import { provisionRoomAgent } from "@/lib/agent/provision";
 import { notifyConsent } from "@/lib/notifications";
 import { relayRelationOnChain } from "@/lib/relation-registry";
 import { mintAgentSubname } from "@/lib/ens";
+import { createRelationshipOnSui } from "@/lib/sui/live";
 
 export const dynamic = "force-dynamic";
 
 const HEX_ADDR = /^0x[0-9a-f]{40}$/i;
 
-/** Human members + wallet addresses — the contract's parties. */
+/** Human members + wallet addresses — the contract's parties. The agent
+ * itself joins the room at birth, but it is the contract's SUBJECT, not a
+ * party — it can neither sign nor prove personhood, so counting it turns
+ * every post-birth banner into an unsatisfiable "0/3 verified". */
 async function contractParties(roomId: string) {
   const members = await db
     .select({ userId: chatRoomMembers.userId })
@@ -33,7 +41,7 @@ async function contractParties(roomId: string) {
     ? await db
         .select({ id: users.id, address: users.ainAddress, displayName: users.displayName })
         .from(users)
-        .where(inArray(users.id, ids))
+        .where(and(inArray(users.id, ids), eq(users.isAgent, false)))
     : [];
 }
 
@@ -44,6 +52,41 @@ async function personhoodByUser(roomId: string): Promise<Map<string, string>> {
     .from(personhoodProofs)
     .where(eq(personhoodProofs.roomId, roomId));
   return new Map(rows.map((r) => [r.userId, r.nullifierHash]));
+}
+
+/** Drop stored signatures that no longer verify against the current typed
+ * data. A signature is bound to the exact party set it was made over — if a
+ * member's wallet address changed (or membership shifted) after they signed,
+ * the stored signature would revert on-chain with "signature invalid". Prune
+ * it so the UI asks that member to sign again. Returns the pruned userIds. */
+async function pruneStaleSignatures(
+  roomId: string,
+  typedData: RelationConsentTypedData
+): Promise<string[]> {
+  const rows = await db
+    .select({
+      userId: relationContracts.userId,
+      address: relationContracts.address,
+      signature: relationContracts.signature,
+    })
+    .from(relationContracts)
+    .where(eq(relationContracts.roomId, roomId));
+  const stale: string[] = [];
+  for (const row of rows) {
+    const ok = await verifyTypedData({
+      ...typedData,
+      address: row.address as `0x${string}`,
+      signature: row.signature as `0x${string}`,
+    }).catch(() => false);
+    if (!ok) stale.push(row.userId);
+  }
+  if (stale.length)
+    await db
+      .delete(relationContracts)
+      .where(
+        and(eq(relationContracts.roomId, roomId), inArray(relationContracts.userId, stale))
+      );
+  return stale;
 }
 
 function typedDataFor(roomId: string, parties: { address: string }[]) {
@@ -61,17 +104,28 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   if ("error" in access) return access.error;
 
   const parties = await contractParties(roomId);
+  const typedData = typedDataFor(roomId, parties);
+  if (!access.room.consentAt && typedData) await pruneStaleSignatures(roomId, typedData);
   const signedRows = await db
     .select({ userId: relationContracts.userId })
     .from(relationContracts)
     .where(eq(relationContracts.roomId, roomId));
   const signed = new Set(signedRows.map((r) => r.userId));
-  const typedData = typedDataFor(roomId, parties);
   const personhood = await personhoodByUser(roomId);
   const personhoodRequired = humanBackedRegistryAddress() !== null;
 
+ // Rooms with a wallet-less member (demo accounts) can never satisfy the
+ // signature contract — POST /api/dm/rooms stamps those consented at creation,
+ // but rooms seeded before that rule sit unconsented forever, showing a sign
+ // button nobody can press. Self-heal them to the same instant consent here.
+  let consentAt = access.room.consentAt;
+  if (!consentAt && parties.length >= 2 && !typedData) {
+    consentAt = new Date();
+    await db.update(chatRooms).set({ consentAt }).where(eq(chatRooms.id, roomId));
+  }
+
   return NextResponse.json({
-    consentAt: access.room.consentAt,
+    consentAt,
     required: parties.length,
     parties: parties.map((p) => ({
       userId: p.id,
@@ -125,15 +179,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
   }).catch(() => false);
   if (!valid) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
 
- // A signature proves an account agreed. Personhood proves a PERSON did — and
- // the human-backed agent is only meaningful if that holds for every side, so
- // the proof has to come before the signature counts.
-  const personhood = await personhoodByUser(roomId);
-  if (humanBackedRegistryAddress() && !personhood.has(auth.user.id))
-    return NextResponse.json(
-      { error: "Verify you're a unique human first" },
-      { status: 403 }
-    );
+ // Personhood is what lets the agent spend where bots are refused, but it is
+ // not what makes the relationship real — two people agreeing is. Signing
+ // without a proof is allowed; the agent is then registered with no personhood
+ // bound, and the seller is the one that says no, later.
 
   await db
     .insert(relationContracts)
@@ -144,7 +193,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       message: JSON.stringify(typedData),
       signature,
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [relationContracts.roomId, relationContracts.userId],
+ // re-signing replaces the previous row — the old signature may be bound to
+ // an outdated party set and would revert on-chain
+      set: {
+        address: address.toLowerCase(),
+        message: JSON.stringify(typedData),
+        signature,
+      },
+    });
+
+ // Clean out signatures made over an older party set (e.g. a member's wallet
+ // changed since they signed) — counting one toward completeness would mint a
+ // consent whose on-chain relay can only revert.
+  await pruneStaleSignatures(roomId, typedData);
 
   const signedRows = await db
     .select({ userId: relationContracts.userId })
@@ -199,6 +262,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           text: `Hi ${parties.map((p) => p.displayName).join(" & ")} 💞 I'm your relationship agent, born from both your signatures. I'll remember only what the two of you share here — nothing leaves this relationship. Nice to meet you both!`,
         });
       }
+ // The same birth, recorded on Sui: the relationship becomes a shared object
+ // that neither member owns alone, and every later memory hangs off it.
+ // Fire-and-forget — a slow fullnode must never hold up a consent that has
+ // already completed.
+      void createRelationshipOnSui(roomId, memberIds)
+        .then(async (sui) => {
+          if (!sui) return;
+          await db.insert(chatMessages).values({
+            roomId,
+            authorId: agentUserId,
+            text: `🌊 And on Sui I am an object, not a row — ${sui.objectId}. It holds the two of you as its members, so from here the chain decides who may write to us and who may read us.`,
+          });
+          await publishToRoomMembers(roomId, { type: "dm-message", clientId: null }, memberIds);
+        })
+        .catch((err) => console.error("sui relationship create failed:", err));
  // Relay both signatures on-chain: mint the agent in the ERC-8004 registry.
       const contracts = await db
         .select({ address: relationContracts.address, signature: relationContracts.signature })
@@ -230,15 +308,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
           .update(users)
           .set({ agentCardJson: { ...card, onchain } })
           .where(eq(users.id, agentUserId));
-        if (onchain.txHash) {
-          await db.insert(chatMessages).values({
-            roomId,
-            authorId: agentUserId,
-            text: onchain.humanBacked
-              ? `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia), with a proof-of-personhood bound for each of you. Anyone can now ask the chain: are two real people behind this agent? tx: ${onchain.txHash}`
-              : `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia). tx: ${onchain.txHash}`,
-          });
-        }
+ // empty txHash = the relation was already registered on-chain (idempotent
+ // path) — still announce it, just without a tx to link
+        const suffix = onchain.txHash
+          ? ` tx: ${onchain.txHash}`
+          : " (already registered in an earlier transaction)";
+        await db.insert(chatMessages).values({
+          roomId,
+          authorId: agentUserId,
+          text: onchain.humanBacked
+            ? `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia), with a proof-of-personhood bound for each of you. Anyone can now ask the chain: are two real people behind this agent?${suffix}`
+            : `📜 Registered on-chain — agent #${onchain.agentId} in the ERC-8004 registry (Sepolia).${suffix}`,
+        });
  // ENS identity: mint the agent's subname + ENSIP-25/26 records (ens/PLAN.md).
  // Best-effort like the registry relay — a chain hiccup never blocks a birth.
         const registryAddress =
