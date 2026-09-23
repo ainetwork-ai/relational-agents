@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Clock, Star, FileText, LayoutGrid } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
@@ -9,6 +9,7 @@ import { PageIcon } from "@/components/page-icon";
 import { listRecentWorkspaces, recordWorkspaceVisit } from "@/lib/recent-workspaces";
 import { initial } from "@/lib/glyph";
 import { useT } from "@/i18n/provider";
+import { AindrivePanel } from "@/components/home/aindrive-panel";
 import type { T } from "@/i18n/translate";
 
 interface WorkspaceCard {
@@ -222,12 +223,20 @@ function Section({
 
 const DEFAULT_COVER = "/covers/home-cover.png";
 
+// The greeting follows the viewer's clock, which the server does not have: it
+// renders in its own time zone, so a greeting computed there disagrees with the
+// browser's and React throws away the tree on hydration. The hour is read only
+// on the client (null on the server and during hydration).
+const noSubscribe = () => () => {};
+const clientHour = () => new Date().getHours();
+const serverHour = () => null;
+
 /** Home: greeting + workspace picker (visited / all, workspace-unit — pages
  *  only appear via Favorites, which are deliberate pins). */
 export default function HomePage() {
   const pages = usePagesStore((s) => s.pages);
   const load = usePagesStore((s) => s.load);
-  const [now] = useState(() => new Date());
+  const hour = useSyncExternalStore(noSubscribe, clientHour, serverHour);
   const [me, setMe] = useState<{ name: string | null; homeCoverUrl: string | null } | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const t = useT();
@@ -280,9 +289,10 @@ export default function HomePage() {
   const all = useMemo(() => Object.values(pages).filter((p) => !p.isArchived), [pages]);
   const favorites = all.filter((p) => p.isFavorite).slice(0, 8);
 
-  const hour = now.getHours();
   const greeting =
-    hour < 6
+    hour === null
+      ? null
+      : hour < 6
       ? t("좋은 밤이에요")
       : hour < 12
         ? t("좋은 아침이에요")
@@ -340,15 +350,17 @@ export default function HomePage() {
       </div>
       <div className="mx-auto max-w-4xl px-8 pt-10">
       <div className="mb-10">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+        {/* min-h holds the line while the client-only greeting fills in */}
+        <h1 className="min-h-8 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           {greeting}
-          {me?.name ? `, ${me.name}!` : ""}
+          {greeting && me?.name ? `, ${me.name}!` : ""}
         </h1>
         <p className="mt-1 text-2xl font-bold text-neutral-300 dark:text-neutral-600">
           {t("워크스페이스를 골라 볼까요?")}
         </p>
       </div>
       <WorkspaceSections />
+      <AindrivePanel />
       <Section icon={<Star size={12} />} title={t("즐겨찾기")} items={favorites} prefix="home-fav" />
       </div>
     </div>

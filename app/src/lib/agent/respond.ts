@@ -19,6 +19,14 @@ import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
+import {
+  aindriveConfigured,
+  linkFromConfig,
+  listTree,
+  readFile as readDriveFile,
+  writeFile as writeDriveFile,
+  type AindriveLink,
+} from "@/lib/aindrive";
 
 export interface RespondResult {
   action: "reply" | "silent";
@@ -26,6 +34,48 @@ export interface RespondResult {
   /** Images the agent attaches to its reply — our own served paths only, taken from the doc. */
   attachments?: { url: string; name: string }[];
   messageId?: string;
+  /** Linked-drive files the model asked to open before answering. */
+  readPaths?: string[];
+  /** Linked-drive files the model wants written alongside its reply. */
+  writes?: { path: string; content: string }[];
+}
+
+/** The aindrive folder linked to this agent, as the model sees it. */
+interface DriveContext {
+  link: AindriveLink;
+  files: string[];
+  /** path → contents of the files opened for this answer */
+  opened: Record<string, string>;
+}
+
+/** The agent's aindrive link; a link this deployment no longer offers counts as none. */
+function safeLink(raw: unknown): AindriveLink | null {
+  try {
+    return linkFromConfig(raw);
+  } catch (e) {
+    console.error("aindrive link refused:", (e as Error).message);
+    return null;
+  }
+}
+
+const DRIVE_READ_MAX = 3;
+// the local model's whole context is 8k tokens, record and history included
+const DRIVE_FILE_CHARS = 4_000;
+const DRIVE_WRITE_MAX = 3;
+
+function stringList(raw: unknown, max: number): string[] {
+  return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string" && !!p.trim()).slice(0, max) : [];
+}
+
+function writeList(raw: unknown): { path: string; content: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (w): w is { path: string; content: string } =>
+        !!w && typeof w === "object" && typeof w.path === "string" && typeof w.content === "string"
+    )
+    .slice(0, DRIVE_WRITE_MAX)
+    .map(({ path, content }) => ({ path, content }));
 }
 
 /** Only locally-uploaded images may ride along on an agent reply. */
@@ -168,7 +218,8 @@ async function llmDecision(
   sections: Record<string, string>,
   titles: Record<string, string>,
   recent: ChatMessage[],
-  rootPageId: string | null
+  rootPageId: string | null,
+  drive: DriveContext | null
 ): Promise<RespondResult> {
   const persona = profile.persona.name;
   const custom = typeof config.systemPrompt === "string" ? `\nExtra instructions: ${config.systemPrompt}` : "";
@@ -181,6 +232,17 @@ async function llmDecision(
     .reverse()
     .map((m) => `(${m.authorId.slice(0, 8)}) ${m.text}`)
     .join("\n");
+  const opened = drive ? Object.entries(drive.opened) : [];
+  const driveRules = drive
+    ? `\nYou also have a linked file folder (aindrive). Its files:\n${drive.files.map((f) => `- ${f}`).join("\n") || "(empty)"}\n` +
+      (opened.length
+        ? `The files you opened are under "## Opened files". Do not ask to open more.\n`
+        : `If answering needs a file's contents, output {"action":"read_files","paths":["<path from the list>"]} (at most ${DRIVE_READ_MAX}) and you will be shown them.\n`) +
+      `Only when a member asks you to create or change a file, add "writes":[{"path":"<path relative to the folder>","content":"<the full new file contents>"}] to your reply and say in the text what you wrote. Never write unasked.`
+    : "";
+  const openedText = opened.length
+    ? `\n\n## Opened files\n${opened.map(([p, c]) => `### ${p}\n${c}`).join("\n\n")}`
+    : "";
 
   const raw = await aiChat(
     [
@@ -199,20 +261,32 @@ async function llmDecision(
           // told, it cannot say. It is only ever handed this relationship's
           // sections, so this restates a boundary the code already enforces.
           `Never reveal, hint at, or draw on anything not written in this ${profile.voice.subject}'s document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
-          `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"<image url from the document>","name":"..."}]} or {"action":"silent"}`,
+          `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"<image url from the document>","name":"..."}]} or {"action":"silent"}` +
+          driveRules,
       },
       {
         role: "user",
-        content: `## Shared document\n${docs}\n\n## Recent conversation\n${history}\n\n## New message (mentioned: ${mentioned})\n${message.text}`,
+        content: `## Shared document\n${docs}${openedText}\n\n## Recent conversation\n${history}\n\n## New message (mentioned: ${mentioned})\n${message.text}`,
       },
     ],
-    { maxTokens: 600, temperature: 0.4 }
+    // a reply that carries a file needs room for it, or the JSON is cut mid-string
+    { maxTokens: drive ? 1_500 : 600, temperature: 0.4 }
   );
   try {
     const fenced = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-    const parsed = JSON.parse((fenced ? fenced[1] : raw).trim()) as RespondResult;
-    if (parsed.action === "reply" && typeof parsed.text === "string" && parsed.text.trim())
-      return withPhoto(parsed.text.trim(), sanitizeAttachments(parsed.attachments), sections);
+    const parsed = JSON.parse((fenced ? fenced[1] : raw).trim()) as Omit<RespondResult, "action"> & {
+      action: string;
+      paths?: unknown;
+    };
+    if (drive && !opened.length && parsed.action === "read_files") {
+      const readPaths = stringList(parsed.paths, DRIVE_READ_MAX);
+      if (readPaths.length) return { action: "silent", readPaths };
+    }
+    if (parsed.action === "reply" && typeof parsed.text === "string" && parsed.text.trim()) {
+      const reply = withPhoto(parsed.text.trim(), sanitizeAttachments(parsed.attachments), sections);
+      const writes = drive ? writeList(parsed.writes) : [];
+      return writes.length ? { ...reply, writes } : reply;
+    }
     return { action: "silent" };
   } catch {
  // parse failure → on mention, reply with the raw text (model broke JSON); else stay silent
@@ -297,9 +371,30 @@ export async function respondToMessage(
           sections,
           titles,
           recent,
-          docPageIdOf(state)
+          docPageIdOf(state),
+          drive
         );
+   // A linked aindrive folder is consulted only when the agent is addressed —
+   // listing someone's drive on every passing message is traffic nobody asked for.
+      const link = safeLink(config.aindrive);
+      const drive: DriveContext | null =
+        mentioned && link && aindriveConfigured()
+          ? await listTree(link, 100)
+              .then((files) => ({ link, files, opened: {} }))
+              .catch((e) => {
+                console.error("aindrive list failed:", e);
+                return null;
+              })
+          : null;
       decision = await ask("");
+      if (drive && decision.readPaths?.length) {
+        for (const p of decision.readPaths) {
+          drive.opened[p] = await readDriveFile(drive.link, p)
+            .then((c) => (c.length > DRIVE_FILE_CHARS ? `${c.slice(0, DRIVE_FILE_CHARS)}\n…(truncated)` : c))
+            .catch((e) => `(could not read: ${(e as Error).message})`);
+        }
+        decision = await ask("");
+      }
    // Being asked and saying nothing is not an outcome this can ship with: the
    // model sometimes answers a direct question with {"action":"silent"}, which
    // reads on screen as a broken agent. Ask once more, spelling out the rule.
@@ -308,6 +403,19 @@ export async function respondToMessage(
     }
     if (mentioned && !isAnswer(decision))
       decision = { action: "reply", text: "I couldn't put that together just now — ask me once more?" };
+    const link = safeLink(config.aindrive);
+    if (decision.writes?.length && link) {
+      const failed: string[] = [];
+      for (const w of decision.writes) {
+        await writeDriveFile(link, w.path, w.content).catch((e) => {
+          console.error("aindrive write failed:", e);
+          failed.push(w.path);
+        });
+      }
+   // the reply said it wrote the file; if it did not, the reply must not stand alone
+      if (failed.length && decision.text)
+        decision.text += `\n\n(Could not write ${failed.join(", ")} to the linked folder.)`;
+    }
   } finally {
     stopTyping?.();
   }

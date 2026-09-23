@@ -25,6 +25,18 @@ import {
 import { parseMarkdown, blocksToMarkdown, type Frontmatter } from "@/lib/memory-parse";
 import { okfGateFor, type OkfGate } from "@/lib/okf-acl";
 import { getSession } from "@/lib/auth/session";
+import {
+  aindriveConfigured,
+  defaultLink,
+  deletePath,
+  drivePath,
+  linkFromConfig,
+  listFiles,
+  listTree,
+  readFile,
+  writeFile,
+  type AindriveLink,
+} from "@/lib/aindrive";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { db } from "@/lib/db";
 import {
@@ -84,6 +96,25 @@ async function resolveIdentity(req: Request): Promise<Identity | null> {
   const session = await getSession().catch(() => null);
   if (session?.userId) return { userId: session.userId, label: "session" };
   return null;
+}
+
+/** The aindrive folder this caller may use. An agent gets only its own link
+ * (`agentConfig.aindrive`): every room member holds that agent's token, so
+ * falling back to the shared default would hand the deployment's drive to any
+ * room that never linked one. A signed-in person gets the default link; the
+ * public service token gets none. */
+async function linkForCaller(): Promise<AindriveLink> {
+  const userId = requireUser();
+  if (!aindriveConfigured()) throw new Error("aindrive is not configured on this server.");
+  if (who().label === "agent") {
+    const [row] = await db.select({ agentConfig: users.agentConfig }).from(users).where(eq(users.id, userId));
+    const own = linkFromConfig(row?.agentConfig?.aindrive);
+    if (!own) throw new Error("This agent has no aindrive folder linked (agent settings → aindrive folder).");
+    return own;
+  }
+  const link = defaultLink();
+  if (!link) throw new Error("No aindrive folder is linked (set AINDRIVE_DRIVE_ID).");
+  return link;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -779,6 +810,71 @@ const handler = createMcpHandler(
       async ({ task_id }) => {
         const t = tasks.get(task_id);
         return t ? json(t) : err(`Task not found: ${task_id}`);
+      }
+    );
+
+ // ── aindrive (linked drive files, via aindrive's own MCP) ─────────────
+    server.tool(
+      "aindrive-list",
+      "List files in the linked aindrive folder. `path` is relative to the linked folder ('' = its root); `recursive` returns every file path under it.",
+      {
+        path: z.string().optional().describe("folder relative to the linked root (default '')"),
+        recursive: z.boolean().optional(),
+      },
+      async ({ path, recursive }) => {
+        try {
+          const link = await linkForCaller();
+          if (recursive) return json({ drive: link, files: await listTree({ ...link, root: drivePath(link, path ?? "") }) });
+          return json({ drive: link, entries: await listFiles(link, path ?? "") });
+        } catch (e) {
+          return err((e as Error).message);
+        }
+      }
+    );
+
+    server.tool(
+      "aindrive-read",
+      "Read a UTF-8 text file from the linked aindrive folder (path relative to the linked root).",
+      { path: z.string().describe("file path relative to the linked root") },
+      async ({ path }) => {
+        try {
+          return ok(await readFile(await linkForCaller(), path));
+        } catch (e) {
+          return err((e as Error).message);
+        }
+      }
+    );
+
+    server.tool(
+      "aindrive-delete",
+      "Delete a file, or a folder with everything in it, from the linked aindrive folder (path relative to the linked root; the linked folder itself cannot be deleted).",
+      { path: z.string().describe("file or folder path relative to the linked root") },
+      async ({ path }) => {
+        try {
+          const link = await linkForCaller();
+          await deletePath(link, path);
+          return json({ ok: true, driveId: link.driveId, path: drivePath(link, path) });
+        } catch (e) {
+          return err((e as Error).message);
+        }
+      }
+    );
+
+    server.tool(
+      "aindrive-write",
+      "Create or overwrite a UTF-8 text file in the linked aindrive folder (path relative to the linked root). Intermediate folders are created.",
+      {
+        path: z.string().describe("file path relative to the linked root"),
+        content: z.string(),
+      },
+      async ({ path, content }) => {
+        try {
+          const link = await linkForCaller();
+          await writeFile(link, path, content);
+          return json({ ok: true, driveId: link.driveId, path: drivePath(link, path), bytes: Buffer.byteLength(content) });
+        } catch (e) {
+          return err((e as Error).message);
+        }
       }
     );
   },

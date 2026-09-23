@@ -10,6 +10,7 @@ import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { SectionMenu, sortRows } from "./section-menu";
 import { TeamspaceCreateModal } from "./teamspace-create-modal";
 import { useTeamspacesStore } from "@/stores/teamspaces";
+import { TeamspaceAddRow, TeamspaceDriveRow } from "./teamspace-drive";
 import { useT } from "@/i18n/provider";
 
 /** Sidebar "Teamspaces" section: create a teamspace, list them, expand each to
@@ -123,18 +124,12 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                 {sortRows(tsPages, sidebarSort).map((p) => (
                   <PageItem key={p.id} page={p} depth={1} />
                 ))}
+                <TeamspaceDriveRow teamspaceId={ts.id} />
                 {/* Notion closes a teamspace's list with a 새로 추가 row rather
                     than an empty-state sentence: the way to add a page should sit
-                    where the pages are, not only behind a hover target. */}
-                <button
-                  data-testid={`teamspace-add-row-${ts.id}`}
-                  onClick={() => void addPage(ts.id)}
-                  className="flex w-full items-center gap-1.5 rounded-md py-1 pr-1 text-sm text-neutral-400 transition-colors hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-neutral-800"
-                  style={{ paddingLeft: "36px" }}
-                >
-                  <Plus size={14} className="shrink-0" />
-                  {t("새로 추가")}
-                </button>
+                    where the pages are, not only behind a hover target. It
+                    offers a page, or linking the teamspace to aindrive. */}
+                <TeamspaceAddRow teamspaceId={ts.id} onAddPage={() => void addPage(ts.id)} />
               </>
             )}
           </div>

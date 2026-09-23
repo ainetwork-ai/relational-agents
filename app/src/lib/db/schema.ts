@@ -923,6 +923,41 @@ export const chatRoomBots = pgTable(
   (t) => [uniqueIndex("chat_room_bots_pk").on(t.roomId, t.agentUserId)]
 );
 
+// The aindrive folder a person linked from Home (lib/aindrive). One per user:
+// Home is the person's own place, not a workspace's, so the link is theirs.
+export const aindriveLinks = pgTable("aindrive_links", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  driveId: text("drive_id").notNull(),
+  root: text("root").default("").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// The aindrive folder a teamspace is linked to (sidebar → 새로 추가 → aindrive).
+// One per teamspace: the teamspace's OKF content is backed up into it
+// (lib/aindrive-backup), and whatever else the folder holds is browsable from
+// the sidebar. A pointer, not a page — the files stay on someone's machine.
+export const teamspaceDrives = pgTable(
+  "teamspace_drives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamspaceId: uuid("teamspace_id")
+      .references(() => teamspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    driveId: text("drive_id").notNull(),
+    root: text("root").default("").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // last backup attempt: when it finished, how many files, and why it failed
+    lastBackupAt: timestamp("last_backup_at"),
+    lastBackupFiles: integer("last_backup_files"),
+    lastBackupError: text("last_backup_error"),
+  },
+  (t) => [uniqueIndex("teamspace_drives_teamspace_uq").on(t.teamspaceId)]
+);
+
 // Per-member Bearer tokens for importing our agent into external platforms
 //. A third party who only knows the URL has no token and is
 // refused. Speaker identity = token owner.
@@ -957,6 +992,7 @@ export interface AgentConfig {
 
 export type ChatRoomBot = typeof chatRoomBots.$inferSelect;
 
+export type TeamspaceDrive = typeof teamspaceDrives.$inferSelect;
 export type ChatRoom = typeof chatRooms.$inferSelect;
 export type ChatRoomMember = typeof chatRoomMembers.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;

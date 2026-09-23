@@ -25,7 +25,7 @@ import { columnAlign } from "@/lib/editor/table-data";
 const MIRROR_ROOT =
   process.env.MD_MIRROR_ROOT ?? path.join(process.cwd(), "..", "md-mirror");
 
-function slug(title: string, id: string): string {
+export function slug(title: string, id: string): string {
   const s = (title || "untitled")
     .replace(/[^\p{L}\p{N} _-]/gu, "")
     .trim()
@@ -34,7 +34,7 @@ function slug(title: string, id: string): string {
   return `${s || "untitled"}-${id.slice(0, 6)}`;
 }
 
-function fm(page: Page): string {
+export function fm(page: Page): string {
   const lines = [
     "---",
     `id: ${page.id}`,
@@ -56,7 +56,7 @@ function fm(page: Page): string {
 const LISTISH = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 type PrevBlock = { type: string; pad: string } | null;
 
-function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: Set<string>, prevBox?: { prev: PrevBlock }): string {
+export function blocksToMd(all: Block[], parentId: string | null, indent = "", seen?: Set<string>, prevBox?: { prev: PrevBlock }): string {
  // Roots are parentBlockId === null, but a block whose parent row is gone (a
  // delete that did not cascade) or whose chain loops is reachable from nowhere.
  // The .md route keeps those (memory-parse treeOrder); the mirror used to drop
@@ -288,8 +288,14 @@ function timers(): Map<string, ReturnType<typeof setTimeout>> {
   return g[TIMER_KEY];
 }
 
-/** Debounced (500ms) full re-export of one workspace's mirror. */
+/** Debounced (500ms) full re-export of one workspace's mirror. Also the
+ *  moment to refresh the workspace's aindrive backups (lib/aindrive-backup,
+ *  debounced on its own clock) — every page mutation already comes through here.
+ *  Imported lazily: that module builds on this one. */
 export function scheduleMirror(workspaceId: string): void {
+  void import("@/lib/aindrive-backup")
+    .then((m) => m.scheduleDriveBackups(workspaceId))
+    .catch((err) => console.error("[aindrive-backup] schedule failed:", err));
   const map = timers();
   const existing = map.get(workspaceId);
   if (existing) clearTimeout(existing);
