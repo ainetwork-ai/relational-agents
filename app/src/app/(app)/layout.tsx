@@ -10,6 +10,7 @@ import { SearchModal } from "@/components/search-modal";
 import { PagePeek } from "@/components/page/page-peek";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
+import { IncomingCallHost } from "@/components/call/incoming-call-host";
 import { LocaleProvider } from "@/i18n/provider";
 import { getLocale } from "@/i18n/server";
 
@@ -70,6 +71,8 @@ export default async function AppLayout({
       <SearchModal />
       {/* center peek — a page opened over the current one (sidebar + on a page) */}
       <PagePeek />
+      {/* rings anywhere in the app when a call comes in for one of my rooms */}
+      <IncomingCallHost />
     </div>
     </LocaleProvider>
   );

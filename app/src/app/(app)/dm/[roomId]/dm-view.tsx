@@ -4,7 +4,7 @@ import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -25,6 +25,10 @@ const EXPLORER_BY_CHAIN: Record<string, string> = {
 const EXPLORER_BASE =
   EXPLORER_BY_CHAIN[process.env.NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID ?? "11155111"] ??
   "https://sepolia.etherscan.io";
+
+// The agent-buys-tarts demo only makes sense where a human-backed registry is
+// deployed for the seller to check — otherwise the button would always fail.
+const HUMAN_BACKED_ON = Boolean(process.env.NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS);
 
 interface GuardResult {
   verdict: "allow" | "decline";
@@ -739,6 +743,20 @@ export function DmView({
             >
               <Bot size={14} />{" "}
               <span className="hidden sm:inline">{inviting ? t("초대하는 중…") : t("에이전트 초대")}</span>
+            </button>
+          )}
+          {/* Only where the claim can actually be tested: an agent to spend, and
+              a registry that records who stands behind it. */}
+          {agentMember && HUMAN_BACKED_ON && (
+            <button
+              data-testid="dm-agent-spend"
+              onClick={() => void buyTarts()}
+              disabled={spending}
+              aria-label="Ask the agent to buy egg tarts"
+              data-tip={spending ? "Paying Tarts&Co…" : "Agent buys egg tarts (Tarts&Co checks two humans)"}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 dark:hover:bg-amber-950/40 dark:hover:text-amber-400"
+            >
+              <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
             </button>
           )}
           {spending && (
