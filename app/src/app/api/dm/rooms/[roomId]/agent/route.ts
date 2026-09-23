@@ -8,6 +8,7 @@ import { setOkfAcl } from "@/lib/okf-acl";
 import { eq } from "drizzle-orm";
 import { requireRoomAccess, roomMemberIds, publishToRoomMembers } from "@/lib/chat-room-access";
 import { provisionRoomAgent } from "@/lib/agent/provision";
+import { linkFromConfig } from "@/lib/aindrive";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
  * { persona, behavior, systemPrompt }
  *                              overrides on top of that profile. null clears one,
  *                              handing the setting back to the profile.
+ * { aindrive: { driveId, root? } | null }
+ *                              the aindrive folder this agent may read and write
+ *                              (lib/aindrive). null unlinks it.
  */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
@@ -96,7 +100,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: s
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
-  const touchesConfig = ["profile", "persona", "behavior", "systemPrompt"].some((k) => k in body);
+  const touchesConfig = ["profile", "persona", "behavior", "systemPrompt", "aindrive"].some((k) => k in body);
   if (!name && !touchesConfig)
     return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
 
@@ -148,6 +152,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: s
       const t = typeof body.systemPrompt === "string" ? body.systemPrompt.trim() : "";
       if (t) next.systemPrompt = t.slice(0, 2_000);
       else delete next.systemPrompt;
+    }
+    const sameLink =
+      JSON.stringify(body.aindrive ?? null) === JSON.stringify(next.aindrive ?? null);
+    if ("aindrive" in body && !sameLink) {
+      let link;
+      try {
+        link = linkFromConfig(body.aindrive);
+      } catch (e) {
+        return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+      }
+      if (link) next.aindrive = link;
+      else if (body.aindrive == null) delete next.aindrive;
+      else return NextResponse.json({ error: "aindrive needs a driveId" }, { status: 400 });
     }
 
     await db

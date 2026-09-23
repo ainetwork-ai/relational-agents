@@ -267,6 +267,13 @@ export function Sidebar({
           <a
             data-testid="sidebar-home"
             href="/home"
+            // Home is where pages start from, so leaving a chat for it puts the
+            // sidebar back on the page tree — a remembered Chats tab would keep
+            // showing the DM list over a Home that has nothing to do with it.
+            onClick={() => {
+              setShowInbox(false);
+              setTab("pages");
+            }}
             aria-label={t("홈")}
             data-tip={t("홈")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"

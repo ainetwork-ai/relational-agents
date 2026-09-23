@@ -33,6 +33,8 @@ interface AgentConfigShape {
   systemPrompt?: string;
   persona?: { name?: string; tone?: string };
   behavior?: { proactive?: boolean; whisperOnQuestion?: boolean };
+  /** the aindrive folder this agent reads and writes (lib/aindrive) */
+  aindrive?: { driveId?: string; root?: string };
 }
 
 const TONES = ["warm", "concise", "playful", "formal"];
@@ -121,6 +123,10 @@ export function AgentSettings({
         persona: Object.keys(personaOverride).length ? personaOverride : null,
         behavior: Object.keys(behaviorOverride).length ? behaviorOverride : null,
         systemPrompt: config.systemPrompt ?? "",
+        // a blank drive id unlinks — the folder alone means nothing without it
+        aindrive: config.aindrive?.driveId?.trim()
+          ? { driveId: config.aindrive.driveId.trim(), root: config.aindrive.root?.trim() ?? "" }
+          : null,
       }),
     });
     setSaving(false);
@@ -289,6 +295,29 @@ export function AgentSettings({
           placeholder={t("예: 우리가 약속한 것은 항상 할 일 항목에 적어 줘.")}
           className="mb-4 w-full resize-y rounded-md border border-neutral-200 px-2.5 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
         />
+
+        <label className="mb-1 block text-xs font-medium text-neutral-500">{t("aindrive 폴더")}</label>
+        <p className="mb-2 text-xs text-neutral-500">
+          {t("연결하면 에이전트가 멘션될 때 이 폴더의 파일을 읽고, 부탁받으면 파일을 씁니다. 드라이브 ID를 비우면 연결이 해제됩니다.")}
+        </p>
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <input
+            data-testid="agent-aindrive-drive"
+            aria-label={t("드라이브 ID")}
+            value={config.aindrive?.driveId ?? ""}
+            onChange={(e) => setConfig((c) => ({ ...c, aindrive: { ...c.aindrive, driveId: e.target.value } }))}
+            placeholder={t("드라이브 ID")}
+            className="w-full rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+          />
+          <input
+            data-testid="agent-aindrive-root"
+            aria-label={t("폴더 (비우면 드라이브 전체)")}
+            value={config.aindrive?.root ?? ""}
+            onChange={(e) => setConfig((c) => ({ ...c, aindrive: { ...c.aindrive, root: e.target.value } }))}
+            placeholder={t("폴더 (비우면 드라이브 전체)")}
+            className="w-full rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+          />
+        </div>
 
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
