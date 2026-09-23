@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Bot, Check, FileText, ImageIcon, Lock, X } from "lucide-react";
+import { ArrowLeft, Bot, Check, FileText, ImageIcon, KeyRound, Lock, X } from "lucide-react";
 import { BlobInspector } from "./blob-inspector";
+import { WalletDecrypt } from "./wallet-decrypt";
+import { isRelationshipMember, myRelationshipOnSui, NotAMember, sessionUserId } from "./access";
 import {
   fetchAgent,
   formatMs,
@@ -19,6 +21,7 @@ import {
   REPRO_COMMAND,
   PACKAGE_ID,
   SEALED_AGENT_ID,
+  WALLET_AGENT_ID,
   LIFECYCLE_AGENT_ID,
   SECOND_AGENT_ID,
   NOTE_BLOB_ID,
@@ -252,10 +255,21 @@ function AgentCard({
   );
 }
 
+/** Reading the session makes this per-request; nothing here may be cached. */
+export const dynamic = "force-dynamic";
+
 export default async function SuiDemoPage() {
-  const [sealed, lifecycle] = await Promise.all([
+  if (!(await isRelationshipMember()))
+    return <NotAMember signedIn={Boolean(await sessionUserId())} />;
+
+  const mine = await myRelationshipOnSui();
+  const [sealed, lifecycle, walletAgent, mineLive] = await Promise.all([
     fetchAgent(SEALED_AGENT_ID),
     fetchAgent(LIFECYCLE_AGENT_ID),
+ // the object a real browser wallet is a member of — what the unlock below asks about
+    fetchAgent(WALLET_AGENT_ID),
+ // the reader's own relationship, when the app has already written it to Sui
+    mine ? fetchAgent(mine.objectId) : Promise.resolve(null),
   ]);
 
   return (
@@ -289,6 +303,39 @@ export default async function SuiDemoPage() {
           </p>
         </header>
 
+        {mine && mineLive && (
+          <Section
+            icon={<Lock size={12} />}
+            eyebrow="Your relationship"
+            title="This one is yours"
+            lede={`${mine.roomName} was written to Sui the moment both of you signed. Everything below is the demo we built first; this is the same machinery, running on your own record.`}
+          >
+            <AgentCard
+              live={mineLive}
+              room={mine.roomName}
+              note="Created by the app itself when your consent completed — not by a script."
+              people={["You", "Them"]}
+            />
+            {mine.createTx && (
+              <p className="mt-3 text-xs text-neutral-400">
+                Birth transaction:{" "}
+                <ExtLink href={suiscanTx(mine.createTx)}>
+                  <span className="break-all font-mono text-[11.5px]">{mine.createTx}</span>
+                </ExtLink>
+              </p>
+            )}
+          </Section>
+        )}
+
+        <Section
+          icon={<KeyRound size={12} />}
+          eyebrow="Live"
+          title="Ask the key servers yourself"
+          lede="The refusal above is a recording. This one is not. Connect a Sui wallet, sign a session key with it, and this page will fetch the ciphertext and ask Seal's two testnet key servers to open it for your address. Unless your wallet is one of the two members listed above, they will say no — and you will read their words, not ours."
+        >
+          <WalletDecrypt members={walletAgent?.agent?.members ?? []} />
+        </Section>
+
         <Section
           icon={<FileText size={12} />}
           eyebrow="The memory"
@@ -313,9 +360,12 @@ export default async function SuiDemoPage() {
                 <h4 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
                   The egg tart
                 </h4>
-                <p className="mt-2 text-[15px] leading-relaxed text-neutral-700 dark:text-neutral-300">
+                <p className="mt-2 select-none text-[15px] leading-relaxed text-neutral-400 blur-[5px] dark:text-neutral-500">
                   We walked past the bakery twice before going in. She said the crust was
                   better than the one in Lisbon; he disagreed, loudly, and then ate two.
+                </p>
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2.5 py-1.5 text-xs font-medium text-neutral-600 dark:bg-neutral-700/60 dark:text-neutral-300">
+                  <Lock size={12} /> Sealed — connect a member wallet below to open it
                 </p>
                 <p className="mt-4 text-xs text-neutral-400">
                   219 bytes of note and a 17 KB photo. Both were encrypted with Seal — a
@@ -341,7 +391,7 @@ export default async function SuiDemoPage() {
           icon={<Bot size={12} />}
           eyebrow="Recorded receipts"
           title="Who can open it, and who cannot"
-          lede={`Three attempts from the scripted run. The third is the one the demo is about: Chanho asks the ${ROOM_OTHER} agent about egg tarts, and it has no way to reach Hannah's memory. These need private keys we will not ship to a browser, so they are recorded, not live — the command that reproduces them is below.`}
+          lede={`Three attempts from the scripted run. The third is the one the demo is about: Chanho asks the ${ROOM_OTHER} agent about egg tarts, and it has no way to reach Hannah's memory. The member's success needs a private key we will not ship to a browser, so these stay recorded — but the refusal you can now reproduce live, with your own wallet, further down this page.`}
         >
           <div className="grid gap-3 sm:grid-cols-3">
             {SEAL_OUTCOMES.map((o) => (
@@ -436,6 +486,7 @@ export default async function SuiDemoPage() {
           </div>
         </Section>
 
+
         <Section
           icon={<FileText size={12} />}
           eyebrow="Recorded receipts"
@@ -515,10 +566,12 @@ export default async function SuiDemoPage() {
           </h3>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
             Real on testnet: the object model, membership enforced by a failed transaction,
-            Walrus storage, Seal encryption and all three refusals. Not wired yet: the in-app
+            Walrus storage, Seal encryption and all three refusals — and the refusal is
+            reproducible from your own browser wallet on this page. Not wired yet: the in-app
             memory pipeline still writes through our own store rather than this package, and
-            members here are ed25519 keypairs rather than the wallets people sign in with. We
-            would rather show a smaller thing that is true.
+            the two members of this relationship are ed25519 keypairs from the scripted run
+            rather than wallets someone signed up with, so a visiting wallet can only ever be
+            refused here. We would rather show a smaller thing that is true.
           </p>
           <p className="mt-6">
             <Link

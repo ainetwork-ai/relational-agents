@@ -53,6 +53,34 @@ export const PHOTO_BLOB_ID = "8vhW7Qwa3VeXjh-vJ7YipqP-cQfiFYiSl_4ro-3hGpQ";
 
 export const WALRUS_AGGREGATOR = "https://aggregator.walrus-testnet.walrus.space";
 
+/**
+ * The Seal identity the note was encrypted under — the relationship's object id
+ * bytes plus a per-memory suffix (`01` note, `02` photo), exactly as
+ * sui/scripts/walrus-seal.mjs builds it. `seal_approve`'s is_prefix check is
+ * what makes the object id prefix load-bearing: ask for this identity while
+ * presenting a different agent and the key servers refuse.
+ *
+ * Verbatim from sui/walrus-seal.json → seal_encrypt_and_store_note.identity.
+ */
+export const NOTE_IDENTITY_HEX = `${SEALED_AGENT_ID.slice(2)}01`;
+
+/**
+ * Seal's testnet key servers, 2 of 2 — both must independently dry-run
+ * `seal_approve` and agree before either releases its share.
+ */
+export const SEAL_KEY_SERVERS = [
+  {
+    objectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
+    weight: 1,
+  },
+  {
+    objectId: "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+    weight: 1,
+  },
+];
+
+export const SEAL_THRESHOLD = 2;
+
 export function walrusBlobUrl(blobId: string): string {
   return `${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`;
 }
@@ -165,10 +193,13 @@ export const REPRO_COMMAND =
  * the others are there because a hackathon demo that dies on one provider's
  * rate limit is not a demo.
  */
-const RPC_ENDPOINTS = [
-  "https://fullnode.testnet.sui.io:443",
+// The official fullnode's JSON-RPC now answers 404 — it survives here only as
+// a fallback in case it comes back. The list is tried in order.
+export const RPC_ENDPOINTS = [
   "https://rpc-testnet.suiscan.xyz",
+  "https://sui-testnet-endpoint.blockvision.org",
   "https://sui-testnet-rpc.publicnode.com",
+  "https://fullnode.testnet.sui.io:443",
 ];
 
 export interface AgentMemory {
@@ -288,3 +319,17 @@ export function shortId(id: string, head = 6, tail = 4): string {
   if (id.length <= head + tail + 2) return id;
   return `${id.slice(0, head + 2)}…${id.slice(-tail)}`;
 }
+
+/**
+ * The relationship whose member is YOUR wallet.
+ *
+ * The scripted objects above have members we generated, so a visitor
+ * connecting a wallet is always an outsider — a true refusal, but only half
+ * the story. This object was created with a real browser wallet as one of its
+ * two members, and the same egg-tart note was sealed to it. Connect that
+ * wallet and the memory opens; connect any other and the key servers say no.
+ */
+export const WALLET_AGENT_ID =
+  "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c";
+export const WALLET_NOTE_BLOB_ID = "vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w";
+export const WALLET_NOTE_IDENTITY_HEX = `${WALLET_AGENT_ID.slice(2)}01`;

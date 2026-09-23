@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   NOTE_BLOB_ID,
   PHOTO_BLOB_ID,
+  WALLET_NOTE_BLOB_ID,
   PLAINTEXT_MARKER,
   walrusBlobUrl,
 } from "@/lib/sui/demo";
@@ -9,7 +10,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /** Only the two blobs the /sui demo talks about — this is not an open proxy. */
-const ALLOWED = new Set([NOTE_BLOB_ID, PHOTO_BLOB_ID]);
+const ALLOWED = new Set([NOTE_BLOB_ID, PHOTO_BLOB_ID, WALLET_NOTE_BLOB_ID]);
 
 const HEAD_BYTES = 48;
 
@@ -24,15 +25,21 @@ function toAscii(bytes: Uint8Array): string {
 }
 
 /**
- * GET /api/sui/blob?id=<blobId>
+ * GET /api/sui/blob?id=<blobId>[&raw=1]
  *
  * Fetches the ciphertext from the Walrus testnet aggregator server-side (the
  * aggregator sends no CORS headers a browser will accept) and returns the head
  * of it plus the one check the demo turns on: the plaintext marker is not in
  * there. We serve this blob and we cannot read it either.
+ *
+ * With `raw=1` the whole ciphertext comes back as bytes instead, which is what
+ * the in-browser Seal attempt feeds to `SealClient.decrypt`. Handing the bytes
+ * over changes nothing: without a key server's share they stay unreadable.
  */
 export async function GET(req: Request) {
-  const id = new URL(req.url).searchParams.get("id") ?? NOTE_BLOB_ID;
+  const params = new URL(req.url).searchParams;
+  const id = params.get("id") ?? NOTE_BLOB_ID;
+  const raw = params.get("raw") === "1";
   if (!ALLOWED.has(id)) {
     return NextResponse.json({ error: "unknown blob" }, { status: 400 });
   }
@@ -56,6 +63,17 @@ export async function GET(req: Request) {
   }
 
   const all = new Uint8Array(buf);
+
+  if (raw) {
+    return new NextResponse(buf, {
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(all.byteLength),
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const head = all.slice(0, HEAD_BYTES);
   const text = new TextDecoder("utf-8", { fatal: false }).decode(all);
 

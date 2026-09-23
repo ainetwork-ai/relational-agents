@@ -1,0 +1,110 @@
+{
+  "network": "testnet",
+  "packageId": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4",
+  "steps": [
+    {
+      "step": "seal_encrypt_and_store_note",
+      "identity": "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c01",
+      "blobId": "vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w",
+      "plaintextBytes": 219,
+      "ciphertextBytes": 569,
+      "walrusRoundTripIdentical": true,
+      "walrusUrl": "https://aggregator.walrus-testnet.walrus.space/v1/blobs/vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w",
+      "plaintextHead": "23205468652065676720746172740a0a57652077616c6b656420706173742074",
+      "ciphertextHead": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8"
+    },
+    {
+      "step": "seal_encrypt_and_store_photo",
+      "identity": "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c02",
+      "blobId": "M5tk77e5bH7ge_wUxBESApAayzyGW6E49X3I8sraT34",
+      "plaintextBytes": 17054,
+      "ciphertextBytes": 17405,
+      "walrusRoundTripIdentical": true,
+      "walrusUrl": "https://aggregator.walrus-testnet.walrus.space/v1/blobs/M5tk77e5bH7ge_wUxBESApAayzyGW6E49X3I8sraT34",
+      "plaintextHead": "ffd8ffe000104a46494600010100000100010000ffdb00430006040405040406",
+      "ciphertextHead": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8"
+    },
+    {
+      "step": "add_memory_note",
+      "digest": "CoeaGYFeMEbM9YQmFHjJabTRwtrokd5rQnC1npszbJH5",
+      "blobId": "vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w",
+      "kind": "note"
+    },
+    {
+      "step": "add_memory_photo",
+      "digest": "9Czk1b8kCDrWrAycveAEvjmM5VVNWx7Gc98aj3H7PaPv",
+      "blobId": "M5tk77e5bH7ge_wUxBESApAayzyGW6E49X3I8sraT34",
+      "kind": "photo"
+    },
+    {
+      "step": "member_decrypt_note",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "status": "ok",
+      "bytes": 219,
+      "matchesOriginal": true,
+      "preview": "# The egg tart\n\nWe walked past the bakery twice before going in. She said the crust\nwas better than the one in Lisbon; he disagreed, loudly, and then ate\ntwo.\n\n"
+    },
+    {
+      "step": "member_decrypt_photo",
+      "sender": "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69",
+      "status": "ok",
+      "bytes": 17054,
+      "matchesOriginal": true,
+      "preview": "ffd8ffe000104a4649460001"
+    },
+    {
+      "step": "outsider_decrypt_note",
+      "sender": "0x01e00816dd8dd96c9d1eb8480e2ebbfbb534019d70d6e6b2efc8e081298d5dc8",
+      "status": "refused",
+      "errorClass": "NoAccessError",
+      "isNoAccess": true,
+      "error": "User does not have access to one or more of the requested keys"
+    },
+    {
+      "step": "raw_blob_is_ciphertext",
+      "blobId": "vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w",
+      "firstBytesHex": "00fd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4217081e46fed12eaa31fa766ba6fcf",
+      "firstBytesAscii": "\"..u.0T.a5....xl.\\\\y.S..v../..[....!p..o......f.o.\"",
+      "plaintextFirstBytesAscii": "\"# The egg tart\\n\\nWe walked past the bakery twice \"",
+      "containsPlaintextMarker": false
+    }
+  ],
+  "agentId": "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c",
+  "finalObject": {
+    "objectId": "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c",
+    "version": 954108645,
+    "digest": "GbwoAKmRdxegAxwtVVzbrD8b8xcvi1MpE9ibSfWwxkms",
+    "objType": "0xfd759330549d6135cf85ca03786ca25c79d053b0167695d32f8df95bbcf5d8e4::relational_agent::RelationalAgent",
+    "owner": {
+      "Shared": {
+        "initial_shared_version": 954107632
+      }
+    },
+    "prevTx": "9Czk1b8kCDrWrAycveAEvjmM5VVNWx7Gc98aj3H7PaPv",
+    "storageRebate": 2933600,
+    "content": {
+      "created_at_ms": "1785065658158",
+      "dissolved_at_ms": "0",
+      "id": "0x7081e46fed12eaa31fa766ba6fcf447f443fce42ebe50ef6927f4cd9a0a7b00c",
+      "members": {
+        "contents": [
+          "0x9c0f41c787d2ca4421bff5f75d08e535d2f4772c2135a741f0a354892e7bac4f",
+          "0xe3a7f4fd23b8d109638dc1106d29e16c6e6501f3a6fb77183a779b0b3c59dd69"
+        ]
+      },
+      "memories": [
+        {
+          "blob_id": "vL52Rc1q6cHynrAHuoxxZVJnDrS9ctwwupK-ykLjl1w",
+          "created_at_ms": "1785065720703",
+          "kind": "note"
+        },
+        {
+          "blob_id": "M5tk77e5bH7ge_wUxBESApAayzyGW6E49X3I8sraT34",
+          "created_at_ms": "1785065723082",
+          "kind": "photo"
+        }
+      ],
+      "status": 0
+    }
+  }
+}
