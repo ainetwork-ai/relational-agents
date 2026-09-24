@@ -14,7 +14,8 @@ import {
   type Page,
 } from "@/lib/db/schema";
 import { blocksToMd, fm, slug } from "@/lib/md-mirror";
-import { deletePath, linkFromConfig, readFile, writeFile, type AindriveLink } from "@/lib/aindrive";
+import { deletePath, parseLink, readFile, writeFile, type AindriveLink } from "@/lib/aindrive";
+import { runAsOrService } from "@/lib/aindrive-account";
 
 /**
  * A teamspace's content, backed up in OKF form to the aindrive folder the
@@ -262,7 +263,7 @@ export async function backupTeamspace(teamspaceId: string): Promise<BackupResult
 
   let target: AindriveLink | null;
   try {
-    target = linkFromConfig({ driveId: link.driveId, root: link.root });
+    target = parseLink({ driveId: link.driveId, root: link.root });
   } catch (e) {
     return record({ files: 0, written: 0, error: (e as Error).message });
   }
@@ -347,10 +348,29 @@ function runs(): Map<string, Promise<BackupResult>> {
   return (g[RUNS_KEY] ??= new Map());
 }
 
+/** Back one teamspace up, as the account of whoever linked it. */
+async function backupAsLinker(teamspaceId: string): Promise<BackupResult> {
+  const [link] = await db
+    .select({ createdBy: teamspaceDrives.createdBy })
+    .from(teamspaceDrives)
+    .where(eq(teamspaceDrives.teamspaceId, teamspaceId));
+  try {
+    return await runAsOrService(link?.createdBy, () => backupTeamspace(teamspaceId));
+  } catch (e) {
+    // the linker disconnected their aindrive — say so on the teamspace
+    const r = { files: 0, written: 0, error: (e as Error).message };
+    await db
+      .update(teamspaceDrives)
+      .set({ lastBackupAt: new Date(), lastBackupFiles: 0, lastBackupError: r.error })
+      .where(eq(teamspaceDrives.teamspaceId, teamspaceId));
+    return r;
+  }
+}
+
 export function runBackup(teamspaceId: string): Promise<BackupResult> {
   const inflight = runs();
   const prev = inflight.get(teamspaceId) ?? Promise.resolve({ files: 0, written: 0 });
-  const next = prev.catch(() => null).then(() => backupTeamspace(teamspaceId));
+  const next = prev.catch(() => null).then(() => backupAsLinker(teamspaceId));
   inflight.set(teamspaceId, next);
   void next.finally(() => {
     if (inflight.get(teamspaceId) === next) inflight.delete(teamspaceId);

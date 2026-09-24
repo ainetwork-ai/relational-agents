@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
-import { AindriveError, cleanPath, linkAllowed, readFileBytes } from "@/lib/aindrive";
+import { AindriveError, cleanPath, hasServiceToken, linkAllowed, readFileBytes } from "@/lib/aindrive";
+import { getAccount, runAs } from "@/lib/aindrive-account";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,9 @@ const ACTIVE = new Set(["html", "htm", "svg", "xml", "xhtml"]);
  * GET ?drive=<id>&path=<file>[&download=1] → the file's bytes, read over
  * aindrive's MCP. What an aindrive link in a page previews through.
  *
- * Signed-in people only, and only inside the folders this deployment offers
- * (the same scope any of them could link from Home) — the aindrive token is
- * shared, so the link a page holds must not reach past that.
+ * Read as the viewer's own aindrive account, like a Google Drive link: a file
+ * shows for people whose aindrive can open it. Without a connected account the
+ * deployment's service token may serve it, inside the offered folders only.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
@@ -40,12 +41,14 @@ export async function GET(req: NextRequest) {
   }
   if (!driveId || !path) return NextResponse.json({ error: "drive and path required" }, { status: 400 });
   const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-  if (!linkAllowed({ driveId, root: dir }))
-    return NextResponse.json({ error: "This file is outside the aindrive folders offered here" }, { status: 403 });
+  const own = !!(await getAccount(auth.user.id));
+  if (!own && !(hasServiceToken() && linkAllowed({ driveId, root: dir })))
+    return NextResponse.json({ error: "Connect your aindrive to view this file", needsAccount: true }, { status: 401 });
 
   let bytes: Buffer;
   try {
-    bytes = await readFileBytes({ driveId, root: "" }, path);
+    const read = () => readFileBytes({ driveId, root: "" }, path);
+    bytes = own ? await runAs(auth.user.id, read) : await read();
   } catch (e) {
     const msg = (e as Error).message;
     const status = !(e instanceof AindriveError)

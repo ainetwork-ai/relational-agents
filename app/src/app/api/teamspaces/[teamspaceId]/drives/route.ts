@@ -3,7 +3,8 @@ import { asc, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { teamspaceDrives } from "@/lib/db/schema";
-import { aindriveConfigured, linkFromConfig } from "@/lib/aindrive";
+import { aindriveConfigured, hasDrive, parseLink } from "@/lib/aindrive";
+import { runAs } from "@/lib/aindrive-account";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
 import { runBackup } from "@/lib/aindrive-backup";
 
@@ -47,11 +48,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ teamspaceI
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   let link;
   try {
-    link = linkFromConfig(body);
+    link = parseLink(body);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
   if (!link) return NextResponse.json({ error: "driveId required" }, { status: 400 });
+  // linking shares the folder through the linker's own aindrive account
+  const target = link;
+  const mine = await runAs(auth.user.id, () => hasDrive(target.driveId)).catch((e: Error) => e);
+  if (mine instanceof Error) return NextResponse.json({ error: mine.message }, { status: 401 });
+  if (!mine) return NextResponse.json({ error: "That drive is not in your aindrive account" }, { status: 403 });
   const [already] = await db
     .select({ id: teamspaceDrives.id })
     .from(teamspaceDrives)

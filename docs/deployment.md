@@ -370,6 +370,46 @@ DB에서 지운 것: `relation_contracts`·`relation_dissolves` 테이블(두 DB
 남는다. 이 규칙이 붙기 전에 만들어진 워크스페이스 2개는 한 번의 INSERT로 채웠다 —
 코드는 소급 적용되지 않는다.
 
+### 3.11 aindrive 연동 — 사람마다 자기 aindrive 계정으로 (2026-09-24)
+
+aindrive(https://aindrive.ainetwork.ai) 연동은 **사람마다 자기 aindrive 계정**으로
+돈다. 연결은 aindrive의 장치 승인(`aindrive login`과 같은 방식)을 쓴다. 앱에서 "연결"을
+누르면 aindrive 승인 창이 열리고, 브라우저에 이미 aindrive 로그인이 돼 있으면 승인만
+누르면 된다. 받은 aindrive 세션(30일)은 사람별로 AES-GCM 암호화해 `aindrive_accounts`에
+둔다. 키는 `SESSION_SECRET`에서 만든다. 이 값을 바꾸면 모두 다시 연결해야 한다. 이후
+모든 aindrive 호출은 MCP(`<AINDRIVE_SERVER>/mcp`)로 나가며, 그 사람 본인 계정으로
+실행된다.
+
+**이 기능을 라이브에 올리기 전에 할 것**
+
+1. 스키마. 새 테이블 세 개가 필요하다: `aindrive_accounts`, `aindrive_links`,
+   `teamspace_drives`. §3.6대로 손으로 민다.
+   ```bash
+   # migrator 서비스가 있는 compose 라면
+   docker compose --env-file .env.prod -f docker-compose.prod.yml --profile migrate run --rm migrator
+   # 이 리포의 docker-compose.prod.yml 에는 migrator 서비스가 없다(2026-09-24 기준).
+   # 호스트 사본에도 없으면, 운영 DB를 가리키는 POSTGRES_URL 로 app/ 에서:
+   #   pnpm db:check   # 무엇이 모자란지 먼저 확인 (exit 1 = 모자람)
+   #   pnpm db:push    # 표시된 diff 를 읽고 나서
+   ```
+   이 테이블들은 추가만 하고 기존 컬럼은 건드리지 않는다. 그래도 push 가 보여주는
+   diff 는 읽고 넘어간다.
+2. env (`.env.prod`):
+   ```bash
+   AINDRIVE_SERVER=https://aindrive.ainetwork.ai
+   # AINDRIVE_CLIENT_NAME=ainmem   # aindrive 승인 창에 보일 이름 (기본 ainmem)
+   # AINDRIVE_TOKEN 은 넣지 않는다 — 서버 공용 토큰이 있으면 개인 계정이 없는 작업이
+   #   그 계정으로 돈다. 사람마다 연결하는 것이 기본이다.
+   ```
+   `NEXT_PUBLIC_*` 가 아니라 런타임 값이다. 컨테이너를 다시 띄우면(`up -d app`) 반영된다.
+3. 배포 후 `/api/health` 200 을 확인한다. 스키마가 모자라면 503 이다. 그다음 앱에서
+   사이드바의 팀스페이스 → "aindrive에 동기화하기"로 연결 창이 뜨는지 본다.
+
+aindrive 쪽: 승인 창이 앱 이름을 보여주는 변경(ainetwork-ai/aindrive#99)과 삭제 도구
+`delete_path`(#97)가 aindrive 운영에 배포돼 있어야 문구와 동기화 삭제가 제대로 된다.
+배포 전이라도 연결과 동기화는 된다(창 문구가 CLI 용으로 나오고, 지운 페이지 파일이
+백업에 남는다).
+
 ## 4. 함정 — 여기서 시간을 썼다
 
 ### 4.1 프로덕션 빌드는 원래 깨져 있었다 (해소됨)

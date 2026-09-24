@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { teamspaceDrives, teamspaceMembers, teamspaces, workspaceMembers, type TeamspaceDrive } from "@/lib/db/schema";
-import { linkFromConfig, type AindriveLink } from "@/lib/aindrive";
+import { parseLink, type AindriveLink } from "@/lib/aindrive";
 
 /** The teamspace, if this person can see it: a member of its workspace, and for
  *  a private teamspace a member of the teamspace too — the same people the
@@ -25,8 +25,9 @@ export async function visibleTeamspace(userId: string, teamspaceId: string) {
   return ts;
 }
 
-/** A teamspace drive this person can open, with its usable link. `link` is
- *  null when the deployment no longer offers that folder. */
+/** A teamspace drive this person can open, with its link. Its calls run as the
+ *  account of whoever linked it (runAsOrService with drive.createdBy): linking
+ *  shares that folder with everyone who can see the teamspace. */
 export async function teamspaceDrive(
   userId: string,
   id: string
@@ -38,7 +39,7 @@ export async function teamspaceDrive(
   if (!ts) return null;
   let link: AindriveLink | null = null;
   try {
-    link = linkFromConfig({ driveId: drive.driveId, root: drive.root });
+    link = parseLink({ driveId: drive.driveId, root: drive.root });
   } catch {
     link = null;
   }

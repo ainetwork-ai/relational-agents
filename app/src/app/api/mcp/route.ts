@@ -25,12 +25,13 @@ import {
 import { parseMarkdown, blocksToMarkdown, type Frontmatter } from "@/lib/memory-parse";
 import { okfGateFor, type OkfGate } from "@/lib/okf-acl";
 import { getSession } from "@/lib/auth/session";
+import { runAs, runAsOrService } from "@/lib/aindrive-account";
+import { userLink } from "@/lib/aindrive-user";
 import {
   aindriveConfigured,
-  defaultLink,
   deletePath,
   drivePath,
-  linkFromConfig,
+  parseLink,
   listFiles,
   listTree,
   readFile,
@@ -98,23 +99,24 @@ async function resolveIdentity(req: Request): Promise<Identity | null> {
   return null;
 }
 
-/** The aindrive folder this caller may use. An agent gets only its own link
- * (`agentConfig.aindrive`): every room member holds that agent's token, so
- * falling back to the shared default would hand the deployment's drive to any
- * room that never linked one. A signed-in person gets the default link; the
- * public service token gets none. */
-async function linkForCaller(): Promise<AindriveLink> {
+/** The aindrive folder this caller may use, and the account its calls run as.
+ * An agent gets only its own link (`agentConfig.aindrive`), run as whoever
+ * linked it; a signed-in person gets the folder they linked from Home, run as
+ * their own aindrive account; the public service token gets none. */
+async function linkForCaller(): Promise<{ link: AindriveLink; as: <T>(fn: () => Promise<T>) => Promise<T> }> {
   const userId = requireUser();
   if (!aindriveConfigured()) throw new Error("aindrive is not configured on this server.");
   if (who().label === "agent") {
     const [row] = await db.select({ agentConfig: users.agentConfig }).from(users).where(eq(users.id, userId));
-    const own = linkFromConfig(row?.agentConfig?.aindrive);
+    const raw = row?.agentConfig?.aindrive as { linkedBy?: unknown } | undefined;
+    const own = parseLink(raw);
     if (!own) throw new Error("This agent has no aindrive folder linked (agent settings → aindrive folder).");
-    return own;
+    const by = typeof raw?.linkedBy === "string" ? raw.linkedBy : null;
+    return { link: own, as: (fn) => runAsOrService(by, fn) };
   }
-  const link = defaultLink();
-  if (!link) throw new Error("No aindrive folder is linked (set AINDRIVE_DRIVE_ID).");
-  return link;
+  const link = await userLink(userId);
+  if (!link) throw new Error("No aindrive folder is linked (Home → aindrive).");
+  return { link, as: (fn) => runAs(userId, fn) };
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -823,9 +825,10 @@ const handler = createMcpHandler(
       },
       async ({ path, recursive }) => {
         try {
-          const link = await linkForCaller();
-          if (recursive) return json({ drive: link, files: await listTree({ ...link, root: drivePath(link, path ?? "") }) });
-          return json({ drive: link, entries: await listFiles(link, path ?? "") });
+          const { link, as } = await linkForCaller();
+          if (recursive)
+            return json({ drive: link, files: await as(() => listTree({ ...link, root: drivePath(link, path ?? "") })) });
+          return json({ drive: link, entries: await as(() => listFiles(link, path ?? "")) });
         } catch (e) {
           return err((e as Error).message);
         }
@@ -838,7 +841,8 @@ const handler = createMcpHandler(
       { path: z.string().describe("file path relative to the linked root") },
       async ({ path }) => {
         try {
-          return ok(await readFile(await linkForCaller(), path));
+          const { link, as } = await linkForCaller();
+          return ok(await as(() => readFile(link, path)));
         } catch (e) {
           return err((e as Error).message);
         }
@@ -851,8 +855,8 @@ const handler = createMcpHandler(
       { path: z.string().describe("file or folder path relative to the linked root") },
       async ({ path }) => {
         try {
-          const link = await linkForCaller();
-          await deletePath(link, path);
+          const { link, as } = await linkForCaller();
+          await as(() => deletePath(link, path));
           return json({ ok: true, driveId: link.driveId, path: drivePath(link, path) });
         } catch (e) {
           return err((e as Error).message);
@@ -869,8 +873,8 @@ const handler = createMcpHandler(
       },
       async ({ path, content }) => {
         try {
-          const link = await linkForCaller();
-          await writeFile(link, path, content);
+          const { link, as } = await linkForCaller();
+          await as(() => writeFile(link, path, content));
           return json({ ok: true, driveId: link.driveId, path: drivePath(link, path), bytes: Buffer.byteLength(content) });
         } catch (e) {
           return err((e as Error).message);

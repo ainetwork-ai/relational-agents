@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
@@ -19,7 +20,9 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
  *   AINDRIVE_TOKEN     aindrive session JWT (`aindrive login` → credentials.json)
  *   AINDRIVE_DRIVE_ID  the linked drive, when a caller does not name one
  *   AINDRIVE_ROOT      folder inside that drive the link is confined to ('' = whole drive)
- *   AINDRIVE_ALLOWED_DRIVES  comma-separated drive ids agents may also be linked to
+ *   AINDRIVE_ALLOWED_DRIVES  comma-separated drive ids agents may also be linked to;
+ *                      "*" = every drive the token's account has (the whole
+ *                      logged-in aindrive account is offered)
  *   AINDRIVE_PUBLIC_URL  aindrive's web origin as users reach it (default AINDRIVE_SERVER)
  *
  * The token is one owner's, shared by the whole deployment, so which drives it
@@ -42,15 +45,43 @@ export interface AindriveEntry {
 
 export class AindriveError extends Error {}
 
-/** Server + token from env, or null when aindrive is not configured here. */
+/** The aindrive server this deployment talks to (AINDRIVE_SERVER), or null. */
+export function aindriveServer(): string | null {
+  return process.env.AINDRIVE_SERVER?.trim().replace(/\/+$/, "") || null;
+}
+
+// Whose aindrive account a call runs as. Set by runAsAindriveUser (a person's
+// own connected account — lib/aindrive-account); absent, calls fall back to the
+// deployment's AINDRIVE_TOKEN, when one is set.
+const identity = new AsyncLocalStorage<{ token: string }>();
+
+/** Runs `fn` with every aindrive call made as the account behind `token`. */
+export function runAsAindriveUser<T>(token: string, fn: () => Promise<T>): Promise<T> {
+  return identity.run({ token }, fn);
+}
+
+/** True inside runAsAindriveUser: calls reach only that person's own drives. */
+export function actingAsUser(): boolean {
+  return !!identity.getStore();
+}
+
+/** Server + the token this call runs with, or null when there is none. */
 function config(): { server: string; token: string } | null {
-  const server = process.env.AINDRIVE_SERVER?.trim().replace(/\/+$/, "");
-  const token = process.env.AINDRIVE_TOKEN?.trim();
+  const server = aindriveServer();
+  const token = identity.getStore()?.token ?? process.env.AINDRIVE_TOKEN?.trim();
   return server && token ? { server, token } : null;
 }
 
+/** aindrive is set up here (a server to talk to). Whether a given person can
+ *  reach it depends on their connected account — see lib/aindrive-account. */
 export function aindriveConfigured(): boolean {
-  return config() !== null;
+  return aindriveServer() !== null;
+}
+
+/** A deployment-wide token is set (legacy / service use: agents, backups of
+ *  links made before per-person accounts). */
+export function hasServiceToken(): boolean {
+  return !!process.env.AINDRIVE_TOKEN?.trim();
 }
 
 /** The env-level default link, or null when no drive is linked. */
@@ -62,14 +93,30 @@ export function defaultLink(): AindriveLink | null {
 
 /** Whether this deployment lets an agent be linked to `link` (see header). */
 export function linkAllowed(link: AindriveLink): boolean {
+  // a person's own account already limits them to their own drives
+  if (actingAsUser()) return true;
   const allowed = (process.env.AINDRIVE_ALLOWED_DRIVES ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (allowed.includes(link.driveId)) return true;
+  if (allowed.includes("*") || allowed.includes(link.driveId)) return true;
   const base = defaultLink();
   if (!base || base.driveId !== link.driveId) return false;
   return !base.root || link.root === base.root || link.root.startsWith(`${base.root}/`);
+}
+
+/** A stored link's shape, without the deployment allowlist — for links whose
+ *  calls run as the person who made them (their own account bounds them). */
+export function parseLink(raw: unknown): AindriveLink | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { driveId, root } = raw as { driveId?: unknown; root?: unknown };
+  if (typeof driveId !== "string" || !driveId.trim()) return null;
+  return { driveId: driveId.trim(), root: cleanPath(typeof root === "string" ? root : "") };
+}
+
+/** Whether the current account (see runAsAindriveUser) has this drive. */
+export async function hasDrive(driveId: string): Promise<boolean> {
+  return (await listDrives()).some((d) => d.id === driveId);
 }
 
 /** An agent's own link (`agentConfig.aindrive`), or null when it has none.
@@ -98,13 +145,15 @@ export function drivePath(link: AindriveLink, rel: string): string {
 
 // ── MCP transport ───────────────────────────────────────────────────────────
 
-// aindrive's /mcp is stateless, so one connected client serves every request
-// until it fails; a failure drops it and the next call reconnects.
-let client: Promise<Client> | null = null;
+// aindrive's /mcp is stateless, so one connected client per token serves every
+// request until it fails; a failure drops it and the next call reconnects.
+const CLIENTS_KEY = Symbol.for("app.aindrive.clients");
+function clients(): Map<string, Promise<Client>> {
+  const g = globalThis as unknown as Record<symbol, Map<string, Promise<Client>>>;
+  return (g[CLIENTS_KEY] ??= new Map());
+}
 
-async function connect(): Promise<Client> {
-  const cfg = config();
-  if (!cfg) throw new AindriveError("aindrive is not configured (AINDRIVE_SERVER / AINDRIVE_TOKEN)");
+async function connect(cfg: { server: string; token: string }): Promise<Client> {
   const c = new Client({ name: "relational-agents", version: "0.1.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${cfg.server}/mcp`), {
     requestInit: { headers: { Authorization: `Bearer ${cfg.token}` } },
@@ -118,13 +167,25 @@ async function connect(): Promise<Client> {
 const CALL_TIMEOUT_MS = 15_000;
 
 /** Calls one aindrive MCP tool; a tool error becomes an AindriveError. */
-async function callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-  client ??= connect();
+async function callTool(name: string, args: Record<string, unknown>, timeout = CALL_TIMEOUT_MS): Promise<unknown> {
+  const cfg = config();
+  if (!cfg)
+    throw new AindriveError(
+      aindriveServer()
+        ? "aindrive account not connected — connect aindrive first"
+        : "aindrive is not configured (AINDRIVE_SERVER)"
+    );
+  const key = `${cfg.server} ${cfg.token}`;
+  let client = clients().get(key);
+  if (!client) {
+    client = connect(cfg);
+    clients().set(key, client);
+  }
   let res;
   try {
-    res = await (await client).callTool({ name, arguments: args }, undefined, { timeout: CALL_TIMEOUT_MS });
+    res = await (await client).callTool({ name, arguments: args }, undefined, { timeout });
   } catch (e) {
-    client = null;
+    clients().delete(key);
     throw e instanceof AindriveError ? e : new AindriveError(`aindrive ${name}: ${(e as Error).message}`);
   }
   const text = Array.isArray(res.content)
@@ -193,11 +254,29 @@ export async function deletePath(link: AindriveLink, rel: string): Promise<void>
 /** The drives this deployment offers for linking, with names — the default
  *  drive (at its root folder) and the allowlist, intersected with what the
  *  token can actually reach. */
-export async function offeredDrives(): Promise<{ id: string; name: string; root: string }[]> {
+export async function offeredDrives(): Promise<{ id: string; name: string; root: string; online: boolean }[]> {
   const base = defaultLink();
-  return (await listDrives())
+  const drives = (await listDrives())
     .map((d) => ({ ...d, root: base?.driveId === d.id ? base.root : "" }))
     .filter((d) => linkAllowed({ driveId: d.id, root: d.root }));
+  // A drive's files are only reachable while its CLI is connected — say which
+  // ones are, so nobody links a folder that cannot be read.
+  const online = await Promise.all(drives.map((d) => driveOnline(d.id)));
+  // the ones that can be picked first; otherwise the account's own order
+  return drives
+    .map((d, i) => ({ ...d, online: online[i] }))
+    .sort((a, b) => Number(b.online) - Number(a.online));
+}
+
+/** Whether a drive's aindrive CLI is connected: a root listing answers, an
+ *  offline drive fails at once ("agent offline"). */
+export async function driveOnline(driveId: string): Promise<boolean> {
+  try {
+    await callTool("list_files", { drive_id: driveId, path: "" }, 5_000);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export interface AindriveTreeEntry {

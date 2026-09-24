@@ -923,6 +923,24 @@ export const chatRoomBots = pgTable(
   (t) => [uniqueIndex("chat_room_bots_pk").on(t.roomId, t.agentUserId)]
 );
 
+// A person's own aindrive account, connected from the browser session they are
+// already signed in with on aindrive (lib/aindrive-account: aindrive approves a
+// pairing link, we receive that account's session). Every aindrive call made
+// for this person uses it, so they reach their own drives and nothing else.
+export const aindriveAccounts = pgTable("aindrive_accounts", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  server: text("server").notNull(),
+  // AES-256-GCM, keyed from SESSION_SECRET — never stored in the clear
+  tokenEnc: text("token_enc").notNull(),
+  email: text("email"),
+  name: text("name"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // The aindrive folder a person linked from Home (lib/aindrive). One per user:
 // Home is the person's own place, not a workspace's, so the link is theirs.
 export const aindriveLinks = pgTable("aindrive_links", {
