@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, Lock, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { useT } from "@/i18n/provider";
+import { FilePreview, previewKindFor } from "@/components/previews";
+import { aindriveRawUrl } from "@/lib/aindrive-url";
 import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
 
 /**
@@ -256,12 +258,16 @@ export function Browser({
   onUnlink,
   unlinkLabel,
   managed,
+  rawUrl,
 }: {
   api: string;
   title: string;
   onUnlink?: () => void;
   unlinkLabel?: string;
   managed?: Managed;
+  /** where a file's raw bytes are served — given, anything that is not text
+   *  (photos, pdf, office files, video…) opens as a preview instead */
+  rawUrl?: (path: string) => string;
 }) {
   const t = useT();
   const [entries, setEntries] = useState<Entry[] | null>(null);
@@ -271,6 +277,8 @@ export function Browser({
   const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [newPath, setNewPath] = useState<string | null>(null);
+  // a non-text file shown through FilePreview (rawUrl), instead of the editor
+  const [previewing, setPreviewing] = useState<string | null>(null);
 
   // bumping `version` re-reads the tree (refresh, a newly saved file)
   const [version, setVersion] = useState(0);
@@ -310,6 +318,15 @@ export function Browser({
   async function openFile(path: string) {
     if (!leaveOk()) return;
     setFileError(null);
+    // not text: show it, don't load it into the editor as mangled characters
+    const kind = previewKindFor(path);
+    if (rawUrl && kind !== "text" && kind !== "markdown") {
+      setNewPath(null);
+      setOpen(null);
+      setPreviewing(path);
+      return;
+    }
+    setPreviewing(null);
     setNewPath(null);
     setBusy(true);
     const res = await fetch(`${api}/file?path=${encodeURIComponent(path)}`);
@@ -452,7 +469,7 @@ export function Browser({
                   }}
                   style={{ paddingLeft: 12 + depth * 16 }}
                   className={`flex w-full items-center gap-1.5 py-1 pr-3 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 ${
-                    open?.path === e.path ? "bg-neutral-100 dark:bg-neutral-800" : ""
+                    open?.path === e.path || previewing === e.path ? "bg-neutral-100 dark:bg-neutral-800" : ""
                   }`}
                 >
                   {e.isDir ? (
@@ -519,7 +536,15 @@ export function Browser({
             </div>
           )}
           {fileError && <p className="mb-2 text-sm text-red-600">{fileError}</p>}
-          {open ? (
+          {previewing && rawUrl && !open ? (
+            <div data-testid="aindrive-preview" className="flex min-h-[18rem] flex-1 flex-col">
+              <FilePreview
+                key={previewing}
+                src={{ name: previewing.slice(previewing.lastIndexOf("/") + 1), url: rawUrl(previewing) }}
+                compact
+              />
+            </div>
+          ) : open ? (
             <>
               <div className="mb-2 flex items-center gap-2">
                 <span data-testid="aindrive-open-path" className="truncate font-mono text-xs text-neutral-500">
@@ -649,6 +674,9 @@ export function AindrivePanel() {
           key={`${state.link.driveId}/${state.link.root}`}
           api="/api/aindrive"
           title={`${driveName}${state.link.root ? ` / ${state.link.root}` : ""}`}
+          rawUrl={(path) =>
+            aindriveRawUrl({ driveId: state.link!.driveId, path: state.link!.root ? `${state.link!.root}/${path}` : path })
+          }
           onUnlink={() => void unlink()}
         />
       ) : linking ? (

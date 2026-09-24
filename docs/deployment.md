@@ -382,8 +382,16 @@ aindrive(https://aindrive.ainetwork.ai) 연동은 **사람마다 자기 aindrive
 
 **이 기능을 라이브에 올리기 전에 할 것**
 
-1. 스키마. 새 테이블 세 개가 필요하다: `aindrive_accounts`, `aindrive_links`,
-   `teamspace_drives`. §3.6대로 손으로 민다.
+1. 스키마. 새 테이블 세 개(`aindrive_accounts`, `aindrive_links`, `teamspace_drives`)와
+   새 컬럼 `users.aindrive_sub`(unique, "aindrive로 로그인"의 계정 키)가 필요하다.
+   §3.6대로 손으로 민다.
+   **주의:** 행이 있는 `users`에 unique 컬럼을 더하면 drizzle-kit 이 "users 테이블을
+   truncate 할까요?"라고 묻는다. **절대 truncate 하지 않는다(No).** 새 컬럼은 전부
+   NULL 이라 unique 에 걸리지 않는다. 비대화형이라 이 질문 때문에 멈추면 SQL로 직접 넣는다.
+   ```sql
+   ALTER TABLE users ADD COLUMN IF NOT EXISTS aindrive_sub text;
+   ALTER TABLE users ADD CONSTRAINT users_aindrive_sub_unique UNIQUE (aindrive_sub);
+   ```
    ```bash
    # migrator 서비스가 있는 compose 라면
    docker compose --env-file .env.prod -f docker-compose.prod.yml --profile migrate run --rm migrator
@@ -402,7 +410,11 @@ aindrive(https://aindrive.ainetwork.ai) 연동은 **사람마다 자기 aindrive
    #   그 계정으로 돈다. 사람마다 연결하는 것이 기본이다.
    ```
    `NEXT_PUBLIC_*` 가 아니라 런타임 값이다. 컨테이너를 다시 띄우면(`up -d app`) 반영된다.
-3. 배포 후 `/api/health` 200 을 확인한다. 스키마가 모자라면 503 이다. 그다음 앱에서
+3. 로그인 화면의 "aindrive로 로그인"은 같은 승인 방식으로 로그인까지 한다. 계정은
+   aindrive id(`users.aindrive_sub`)로만 찾는다. 같은 이메일의 기존 계정을 넘겨받지
+   않는 것은 aindrive가 이메일 인증을 보장하지 않기 때문이다. 기존 사용자는 앱 안에서
+   aindrive를 한 번 연결하면, 이후 두 로그인 방식이 같은 계정으로 들어온다.
+4. 배포 후 `/api/health` 200 을 확인한다. 스키마가 모자라면 503 이다. 그다음 앱에서
    사이드바의 팀스페이스 → "aindrive에 동기화하기"로 연결 창이 뜨는지 본다.
 
 aindrive 쪽: 승인 창이 앱 이름을 보여주는 변경(ainetwork-ai/aindrive#99)과 삭제 도구

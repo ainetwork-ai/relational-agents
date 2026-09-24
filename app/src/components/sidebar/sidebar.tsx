@@ -24,6 +24,7 @@ import { ChatsPanel } from "./chats-panel";
 import { PageItem } from "./page-item";
 import { TrashModal } from "./trash-modal";
 import { WorkspaceSwitcher, type ActiveWorkspace } from "./workspace-switcher";
+import { AindriveSection } from "./aindrive-section";
 import { TeamspacesSection } from "./teamspaces-section";
 import { SectionMenu, sortRows } from "./section-menu";
 import { ImportButton } from "@/components/import/import-button";
@@ -373,6 +374,7 @@ export function Sidebar({
       ) : (
       <nav aria-label={t("페이지")} className="flex-1 overflow-y-auto px-2 pb-4">
         <TeamspacesSection workspaceId={workspace?.id ?? null} />
+        <AindriveSection />
         {shared.length > 0 && (
           <section className="mb-4" data-testid="shared-section">
             <button

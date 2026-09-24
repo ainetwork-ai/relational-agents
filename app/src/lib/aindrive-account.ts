@@ -2,7 +2,7 @@ import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { aindriveAccounts } from "@/lib/db/schema";
+import { aindriveAccounts, users } from "@/lib/db/schema";
 import { AindriveError, aindriveServer, hasServiceToken, runAsAindriveUser } from "@/lib/aindrive";
 
 /**
@@ -109,7 +109,8 @@ export async function runAsOrService<T>(userId: string | null | undefined, fn: (
 // ── pairing (device approval) ───────────────────────────────────────────────
 
 interface Pending {
-  userId: string;
+  /** who is connecting; null = a sign-in ("aindrive로 로그인") with no one yet */
+  userId: string | null;
   server: string;
   linkId: string;
   deviceSecret: string;
@@ -135,8 +136,9 @@ async function post(server: string, path: string, body: unknown) {
   return { status: res.status, data };
 }
 
-/** Starts a pairing: returns the aindrive page the person approves on. */
-export async function startPairing(userId: string): Promise<{ pairingId: string; approveUrl: string; expiresAt: number }> {
+/** Starts a pairing: returns the aindrive page the person approves on.
+ *  `userId` null = signing in with aindrive (no account here yet). */
+export async function startPairing(userId: string | null): Promise<{ pairingId: string; approveUrl: string; expiresAt: number }> {
   const server = aindriveServer();
   if (!server) throw new AindriveError("aindrive is not configured (AINDRIVE_SERVER)");
   // names this app on aindrive's approval page (older aindrive ignores it and
@@ -148,7 +150,7 @@ export async function startPairing(userId: string): Promise<{ pairingId: string;
   if (status >= 400 || !linkId || !deviceSecret) throw new AindriveError(`aindrive pairing could not start (${status})`);
   const ttl = typeof data.expiresInSec === "number" ? data.expiresInSec * 1000 : 10 * 60 * 1000;
   const now = Date.now();
-  for (const [id, p] of pending()) if (p.expiresAt < now || p.userId === userId) pending().delete(id);
+  for (const [id, p] of pending()) if (p.expiresAt < now || (userId && p.userId === userId)) pending().delete(id);
   const pairingId = randomUUID();
   const expiresAt = now + ttl;
   pending().set(pairingId, { userId, server, linkId, deviceSecret, expiresAt });
@@ -158,8 +160,42 @@ export async function startPairing(userId: string): Promise<{ pairingId: string;
 
 export type PairingState = "pending" | "connected" | "expired";
 
-/** Checks a pairing once. On approval the account is stored for the person. */
-export async function pollPairing(userId: string, pairingId: string): Promise<{ state: PairingState; account?: AindriveAccount }> {
+/** The aindrive user behind an approved pairing. */
+export interface AindriveIdentity {
+  /** "<server>|<aindrive user id>" — users.aindrive_sub */
+  sub: string;
+  email: string | null;
+  name: string | null;
+}
+
+/** Stores `token` as the person's aindrive account, and records the aindrive
+ *  identity on them (unless another account here already holds it), so a later
+ *  "aindrive로 로그인" lands on this same account. */
+export async function saveAccount(userId: string, server: string, token: string, who: AindriveIdentity): Promise<AindriveAccount> {
+  const row = {
+    server,
+    tokenEnc: seal(token),
+    email: who.email,
+    name: who.name,
+    expiresAt: expiryOf(token),
+    updatedAt: new Date(),
+  };
+  await db
+    .insert(aindriveAccounts)
+    .values({ userId, ...row })
+    .onConflictDoUpdate({ target: aindriveAccounts.userId, set: row });
+  const [holder] = await db.select({ id: users.id }).from(users).where(eq(users.aindriveSub, who.sub));
+  if (!holder) await db.update(users).set({ aindriveSub: who.sub }).where(eq(users.id, userId));
+  return { server, email: row.email, name: row.name, expiresAt: row.expiresAt };
+}
+
+/** Checks a pairing once. Approved: for a connect (userId given) the account
+ *  is stored for that person; for a sign-in (userId null) the token and the
+ *  aindrive identity are handed back for the caller to sign someone in with. */
+export async function pollPairing(
+  userId: string | null,
+  pairingId: string
+): Promise<{ state: PairingState; account?: AindriveAccount; token?: string; identity?: AindriveIdentity; server?: string }> {
   const p = pending().get(pairingId);
   if (!p || p.userId !== userId || p.expiresAt < Date.now()) {
     pending().delete(pairingId);
@@ -169,19 +205,14 @@ export async function pollPairing(userId: string, pairingId: string): Promise<{ 
   if (status === 202) return { state: "pending" };
   pending().delete(pairingId);
   const token = typeof data.token === "string" ? data.token : "";
-  if (status >= 400 || !token) return { state: "expired" };
-  const user = (data.user ?? {}) as { email?: unknown; name?: unknown };
-  const row = {
-    server: p.server,
-    tokenEnc: seal(token),
+  const user = (data.user ?? {}) as { id?: unknown; email?: unknown; name?: unknown };
+  if (status >= 400 || !token || typeof user.id !== "string" || !user.id) return { state: "expired" };
+  const identity: AindriveIdentity = {
+    sub: `${p.server}|${user.id}`,
     email: typeof user.email === "string" ? user.email : null,
     name: typeof user.name === "string" ? user.name : null,
-    expiresAt: expiryOf(token),
-    updatedAt: new Date(),
   };
-  await db
-    .insert(aindriveAccounts)
-    .values({ userId, ...row })
-    .onConflictDoUpdate({ target: aindriveAccounts.userId, set: row });
-  return { state: "connected", account: { server: row.server, email: row.email, name: row.name, expiresAt: row.expiresAt } };
+  if (userId === null) return { state: "connected", token, identity, server: p.server };
+  const account = await saveAccount(userId, p.server, token, identity);
+  return { state: "connected", account };
 }
