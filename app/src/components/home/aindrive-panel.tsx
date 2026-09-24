@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, Lock, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { useT } from "@/i18n/provider";
+import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
 
 /**
  * Home's aindrive section: link a folder from one of the drives this server
@@ -45,6 +46,8 @@ export interface Drive {
   id: string;
   name: string;
   root: string;
+  /** its aindrive CLI is connected — only then can its files be read */
+  online?: boolean;
 }
 interface Entry {
   path: string;
@@ -75,16 +78,25 @@ export function LinkForm({
   submit: send,
   onCancel,
   withName = false,
+  accountBadge,
+  onRefresh,
 }: {
   drives: Drive[];
   submit: (body: { driveId: string; root: string; name?: string }) => Promise<string | null>;
   onCancel: () => void;
   withName?: boolean;
+  /** which aindrive account these drives are (AindriveAccountBadge) */
+  accountBadge?: React.ReactNode;
+  /** re-read the drives (and whether they are online) */
+  onRefresh?: () => Promise<void>;
 }) {
   const t = useT();
   const [name, setName] = useState("");
-  const [driveId, setDriveId] = useState(drives[0]?.id ?? "");
-  const [root, setRoot] = useState(drives[0]?.root ?? "");
+  // start on a drive that can actually be read
+  const first = drives.find((d) => d.online !== false) ?? null;
+  const [driveId, setDriveId] = useState(first?.id ?? "");
+  const [root, setRoot] = useState(first?.root ?? "");
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,39 +130,97 @@ export function LinkForm({
           />
         </div>
       )}
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="aindrive-drive">
-            {t("드라이브")}
-          </label>
-          {drives.length ? (
-            <select
-              id="aindrive-drive"
-              data-testid="aindrive-drive-select"
-              value={driveId}
-              onChange={(e) => {
-                setDriveId(e.target.value);
-                setRoot(drives.find((d) => d.id === e.target.value)?.root ?? "");
+      <div className="mb-3">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-xs font-medium text-neutral-500">{t("드라이브")}</span>
+          {accountBadge}
+          {onRefresh && (
+            <button
+              type="button"
+              data-testid="aindrive-drives-refresh"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                await onRefresh();
+                setRefreshing(false);
               }}
-              className={inputCls}
+              className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 disabled:opacity-50 dark:hover:bg-neutral-800"
             >
-              {drives.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.id})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id="aindrive-drive"
-              data-testid="aindrive-drive-input"
-              value={driveId}
-              onChange={(e) => setDriveId(e.target.value)}
-              placeholder={t("드라이브 ID")}
-              className={inputCls}
-            />
+              <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} /> {t("상태 새로고침")}
+            </button>
           )}
         </div>
+        {drives.length ? (
+          <ul
+            role="radiogroup"
+            aria-label={t("드라이브")}
+            data-testid="aindrive-drive-list"
+            className="max-h-56 divide-y divide-neutral-100 overflow-y-auto rounded-md border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700"
+          >
+            {drives.map((d) => {
+              const offline = d.online === false;
+              const on = d.id === driveId;
+              return (
+                <li key={d.id}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    aria-disabled={offline}
+                    data-testid={`aindrive-drive-option-${d.id}`}
+                    data-online={offline ? "false" : "true"}
+                    onClick={() => {
+                      if (offline) return;
+                      setDriveId(d.id);
+                      setRoot(d.root);
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                      offline
+                        ? "cursor-not-allowed text-neutral-400"
+                        : on
+                          ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+                          : "text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800/60"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${
+                        on ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-300 dark:border-neutral-600"
+                      }`}
+                    >
+                      {on && <span className="h-1.5 w-1.5 rounded-full bg-neutral-900 dark:bg-neutral-100" />}
+                    </span>
+                    <HardDrive size={14} className="shrink-0 text-neutral-400" />
+                    <span className="min-w-0 flex-1 truncate">{d.name}</span>
+                    <span
+                      className={`flex shrink-0 items-center gap-1 text-[11px] ${
+                        offline ? "text-neutral-400" : "text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${offline ? "bg-neutral-300 dark:bg-neutral-600" : "bg-emerald-500"}`} />
+                      {offline ? t("꺼져 있음") : t("연결됨")}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <input
+            id="aindrive-drive"
+            data-testid="aindrive-drive-input"
+            value={driveId}
+            onChange={(e) => setDriveId(e.target.value)}
+            placeholder={t("드라이브 ID")}
+            className={inputCls}
+          />
+        )}
+        {drives.some((d) => d.online === false) && (
+          <p className="mt-1.5 text-[11px] leading-snug text-neutral-400">
+            {t("꺼져 있는 드라이브는 그 폴더가 있는 컴퓨터에서 aindrive를 실행하면 고를 수 있습니다.")}
+          </p>
+        )}
+      </div>
+      <div className="mb-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="aindrive-root">
             {t("폴더 (비우면 드라이브 전체)")}
@@ -526,7 +596,13 @@ export function Browser({
 
 export function AindrivePanel() {
   const t = useT();
-  const [state, setState] = useState<{ configured: boolean; link: DriveLink | null; drives: Drive[] } | null>(null);
+  const [state, setState] = useState<{
+    configured: boolean;
+    connected?: boolean;
+    base?: string | null;
+    link: DriveLink | null;
+    drives: Drive[];
+  } | null>(null);
   const [linking, setLinking] = useState(false);
 
   const [version, setVersion] = useState(0);
@@ -559,8 +635,15 @@ export function AindrivePanel() {
       <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
         <HardDrive size={12} /> aindrive
       </h2>
+      {state.configured && (state.connected || state.link) && (
+        <div className="mb-2">
+          <AindriveAccountBadge />
+        </div>
+      )}
       {!state.configured ? (
         <p className="text-sm text-neutral-400">{t("이 서버에는 aindrive가 설정되어 있지 않습니다.")}</p>
+      ) : !state.connected ? (
+        <AindriveConnect onConnected={load} />
       ) : state.link ? (
         <Browser
           key={`${state.link.driveId}/${state.link.root}`}
@@ -570,7 +653,9 @@ export function AindrivePanel() {
         />
       ) : linking ? (
         <LinkForm
+          key={state.drives.map((d) => `${d.id}:${d.online}`).join(",")}
           drives={state.drives}
+          onRefresh={async () => load()}
           onCancel={() => setLinking(false)}
           submit={async (body) => {
             const res = await fetch("/api/aindrive", {

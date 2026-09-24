@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight, FileText, HardDrive, Plus, RefreshCw } from "lucide-react";
 import { LinkForm, errorOf, type Drive } from "@/components/home/aindrive-panel";
 import { useT } from "@/i18n/provider";
+import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
+import { loadAindriveInfo } from "@/lib/aindrive-client";
 
 /**
  * A teamspace's aindrive sync, as the sidebar shows it.
@@ -111,22 +114,36 @@ function useDismiss(open: boolean, close: () => void) {
 function useLinkDialog(teamspaceId: string) {
   const t = useT();
   const router = useRouter();
-  const [drives, setDrives] = useState<Drive[] | null>(null);
+  // null = closed; otherwise the person's aindrive as last loaded
+  const [state, setState] = useState<{ connected: boolean; drives: Drive[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const close = () => setState(null);
+
+  // this person's own drives (their connected aindrive account), each with
+  // whether its CLI is connected right now
+  async function load(): Promise<boolean> {
+    const d = await loadAindriveInfo(true);
+    if (!d.configured) {
+      setError(t("이 서버에는 aindrive가 설정되어 있지 않습니다."));
+      return false;
+    }
+    setState({ connected: d.connected, drives: d.drives });
+    return true;
+  }
 
   async function open() {
     setError(null);
-    const res = await fetch("/api/aindrive");
-    const d = res.ok ? ((await res.json()) as { configured: boolean; drives: Drive[] }) : null;
-    if (!d?.configured) return setError(t("이 서버에는 aindrive가 설정되어 있지 않습니다."));
-    setDrives(d.drives);
+    await load();
   }
 
-  const dialog = drives && (
+  const drives = state?.drives ?? [];
+  // portalled out of the sidebar: inside it the overlay is clipped to the
+  // sidebar's box and swallows the clicks meant for the dialog
+  const dialog = state && createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) setDrives(null);
+        if (e.target === e.currentTarget) close();
       }}
     >
       <div
@@ -144,10 +161,19 @@ function useLinkDialog(teamspaceId: string) {
           <li>{t("그다음부터는 페이지를 편집할 때마다 자동으로 동기화됩니다.")}</li>
           <li>{t("폴더에 원래 있던 파일은 그대로 두고, 사이드바의 aindrive에서 함께 볼 수 있습니다.")}</li>
         </ol>
+        {!state.connected ? (
+          <AindriveConnect onConnected={() => void load()} />
+        ) : (
         <LinkForm
+          // re-mount on refresh so the default pick follows what is online now
+          key={drives.map((d) => `${d.id}:${d.online}`).join(",")}
           drives={drives}
+          accountBadge={<AindriveAccountBadge />}
+          onRefresh={async () => {
+            await load();
+          }}
           withName
-          onCancel={() => setDrives(null)}
+          onCancel={close}
           submit={async (body) => {
             const res = await fetch(`/api/teamspaces/${teamspaceId}/drives`, {
               method: "POST",
@@ -156,14 +182,16 @@ function useLinkDialog(teamspaceId: string) {
             });
             if (!res.ok) return errorOf(res, t("연결할 수 없습니다"));
             const { drive: created } = (await res.json()) as { drive: TsDrive };
-            setDrives(null);
+            close();
             window.dispatchEvent(new Event(CHANGED));
             router.push(`/aindrive/${created.id}`);
             return null;
           }}
         />
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 
   return { open, dialog, error };

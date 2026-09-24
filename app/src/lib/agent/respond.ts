@@ -19,9 +19,10 @@ import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
+import { runAsOrService } from "@/lib/aindrive-account";
 import {
   aindriveConfigured,
-  linkFromConfig,
+  parseLink,
   listTree,
   readFile as readDriveFile,
   writeFile as writeDriveFile,
@@ -48,10 +49,16 @@ interface DriveContext {
   opened: Record<string, string>;
 }
 
-/** The agent's aindrive link; a link this deployment no longer offers counts as none. */
+/** Who the agent's folder was linked by — its drive calls run as their account. */
+function linkerOf(raw: unknown): string | null {
+  const by = raw && typeof raw === "object" ? (raw as { linkedBy?: unknown }).linkedBy : null;
+  return typeof by === "string" ? by : null;
+}
+
+/** The agent's aindrive link, or null when it has none (or a malformed one). */
 function safeLink(raw: unknown): AindriveLink | null {
   try {
-    return linkFromConfig(raw);
+    return parseLink(raw);
   } catch (e) {
     console.error("aindrive link refused:", (e as Error).message);
     return null;
@@ -379,7 +386,7 @@ export async function respondToMessage(
       const link = safeLink(config.aindrive);
       const drive: DriveContext | null =
         mentioned && link && aindriveConfigured()
-          ? await listTree(link, 100)
+          ? await runAsOrService(linkerOf(config.aindrive), () => listTree(link, 100))
               .then((files) => ({ link, files, opened: {} }))
               .catch((e) => {
                 console.error("aindrive list failed:", e);
@@ -389,7 +396,7 @@ export async function respondToMessage(
       decision = await ask("");
       if (drive && decision.readPaths?.length) {
         for (const p of decision.readPaths) {
-          drive.opened[p] = await readDriveFile(drive.link, p)
+          drive.opened[p] = await runAsOrService(linkerOf(config.aindrive), () => readDriveFile(drive.link, p))
             .then((c) => (c.length > DRIVE_FILE_CHARS ? `${c.slice(0, DRIVE_FILE_CHARS)}\n…(truncated)` : c))
             .catch((e) => `(could not read: ${(e as Error).message})`);
         }
@@ -407,7 +414,7 @@ export async function respondToMessage(
     if (decision.writes?.length && link) {
       const failed: string[] = [];
       for (const w of decision.writes) {
-        await writeDriveFile(link, w.path, w.content).catch((e) => {
+        await runAsOrService(linkerOf(config.aindrive), () => writeDriveFile(link, w.path, w.content)).catch((e) => {
           console.error("aindrive write failed:", e);
           failed.push(w.path);
         });

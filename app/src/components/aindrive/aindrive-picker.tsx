@@ -5,6 +5,7 @@ import { ChevronRight, File, Folder, HardDrive, X } from "lucide-react";
 import { loadAindriveInfo, type AindriveInfo } from "@/lib/aindrive-client";
 import { aindriveFileUrl } from "@/lib/aindrive-url";
 import { useT } from "@/i18n/provider";
+import { AindriveAccountBadge, AindriveConnect } from "./aindrive-connect";
 
 interface Entry {
   name: string;
@@ -43,9 +44,10 @@ export function AindrivePicker({
     void loadAindriveInfo().then((i) => {
       if (!alive) return;
       setInfo(i);
-      if (i.drives[0]) {
-        setDriveId(i.drives[0].id);
-        setDir(i.drives[0].root);
+      const first = i.drives.find((d) => d.online !== false) ?? i.drives[0];
+      if (first) {
+        setDriveId(first.id);
+        setDir(first.root);
       }
     });
     return () => {
@@ -126,11 +128,31 @@ export function AindrivePicker({
             <X size={16} />
           </button>
         </div>
-        <p className="px-4 pt-2 text-[11px] text-neutral-400">
+        {info?.connected && (
+          <div className="px-4 pt-2">
+            <AindriveAccountBadge />
+          </div>
+        )}
+        <p className="px-4 pt-1 text-[11px] text-neutral-400">
           {t("파일을 복사하지 않고 링크로 넣습니다. 드라이브의 파일이 바뀌면 미리보기도 바뀝니다.")}
         </p>
 
-        {info && !info.configured ? (
+        {info && info.configured && !info.connected ? (
+          <div className="p-4">
+            <AindriveConnect
+              onConnected={() =>
+                void loadAindriveInfo(true).then((i) => {
+                  setInfo(i);
+                  const first = i.drives.find((d) => d.online !== false) ?? i.drives[0];
+                  if (first) {
+                    setDriveId(first.id);
+                    setDir(first.root);
+                  }
+                })
+              }
+            />
+          </div>
+        ) : info && !info.configured ? (
           <p className="p-4 text-sm text-neutral-500">{t("이 서버에는 aindrive가 설정되어 있지 않습니다.")}</p>
         ) : info && info.drives.length === 0 ? (
           <p className="p-4 text-sm text-neutral-500">{t("가져올 수 있는 aindrive 폴더가 없습니다.")}</p>

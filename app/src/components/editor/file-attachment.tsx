@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Download, ExternalLink, HardDrive, Paperclip, Upload } from "lucide-react";
 import { FilePreview } from "@/components/previews";
 import { AindrivePicker } from "@/components/aindrive/aindrive-picker";
+import { AindriveConnect } from "@/components/aindrive/aindrive-connect";
 import { uploadResumable } from "@/lib/upload";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { aindriveFileName, aindriveRawUrl, parseAindriveUrl } from "@/lib/aindrive-url";
@@ -75,7 +76,13 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
           </a>
         </div>
       </div>
-      <FilePreview src={{ name: fileName, url: bytesUrl }} compact header={false} className="rounded-none border-0" />
+      {ref && info && !info.connected ? (
+        // like a Google Drive link: the file opens for people whose own
+        // aindrive can open it
+        <AindriveConnect compact />
+      ) : (
+        <FilePreview src={{ name: fileName, url: bytesUrl }} compact header={false} className="rounded-none border-0" />
+      )}
     </div>
   );
 }

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
-import { aindriveConfigured, aindrivePublicBase, cleanPath, linkAllowed, listFiles } from "@/lib/aindrive";
+import { aindriveConfigured, aindrivePublicBase, aindriveServer, cleanPath, listFiles } from "@/lib/aindrive";
+import { runAs } from "@/lib/aindrive-account";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET ?drive=<id>&path=<folder> → { base, entries } — one folder of an offered
- * drive, for "aindrive에서 가져오기". Same scope as /api/aindrive/raw.
+ * GET ?drive=<id>&path=<folder> → { base, entries } — one folder of the
+ * caller's own drive (their connected aindrive account), for "aindrive에서 가져오기".
  */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
@@ -20,13 +21,12 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
-  if (!driveId || !linkAllowed({ driveId, root: path }))
-    return NextResponse.json({ error: "This folder is outside the aindrive folders offered here" }, { status: 403 });
+  if (!driveId) return NextResponse.json({ error: "drive required" }, { status: 400 });
   try {
-    const entries = (await listFiles({ driveId, root: "" }, path))
+    const entries = (await runAs(auth.user.id, () => listFiles({ driveId, root: "" }, path)))
       .map(({ name, isDir, size }) => ({ name, isDir, size }))
       .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
-    return NextResponse.json({ base: aindrivePublicBase(), entries });
+    return NextResponse.json({ base: aindrivePublicBase() ?? aindriveServer(), entries });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }

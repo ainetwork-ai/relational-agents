@@ -8,7 +8,8 @@ import { setOkfAcl } from "@/lib/okf-acl";
 import { eq } from "drizzle-orm";
 import { requireRoomAccess, roomMemberIds, publishToRoomMembers } from "@/lib/chat-room-access";
 import { provisionRoomAgent } from "@/lib/agent/provision";
-import { linkFromConfig } from "@/lib/aindrive";
+import { hasDrive, parseLink } from "@/lib/aindrive";
+import { runAs } from "@/lib/aindrive-account";
 
 export const dynamic = "force-dynamic";
 
@@ -153,17 +154,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ roomId: s
       if (t) next.systemPrompt = t.slice(0, 2_000);
       else delete next.systemPrompt;
     }
+    // re-sending the stored link unchanged is not a new link to check
+    const stored = next.aindrive as { driveId?: string; root?: string } | undefined;
+    const sent = body.aindrive as { driveId?: string; root?: string } | null | undefined;
     const sameLink =
-      JSON.stringify(body.aindrive ?? null) === JSON.stringify(next.aindrive ?? null);
+      (sent ?? null) === null
+        ? !stored
+        : !!stored && stored.driveId === sent?.driveId && (stored.root ?? "") === (sent?.root ?? "");
     if ("aindrive" in body && !sameLink) {
       let link;
       try {
-        link = linkFromConfig(body.aindrive);
+        link = parseLink(body.aindrive);
       } catch (e) {
         return NextResponse.json({ error: (e as Error).message }, { status: 400 });
       }
-      if (link) next.aindrive = link;
-      else if (body.aindrive == null) delete next.aindrive;
+      if (link) {
+        // the agent reaches this folder through the linker's own aindrive account
+        const target = link;
+        const mine = await runAs(auth.user.id, () => hasDrive(target.driveId)).catch((e: Error) => e);
+        if (mine instanceof Error) return NextResponse.json({ error: mine.message }, { status: 401 });
+        if (!mine) return NextResponse.json({ error: "That drive is not in your aindrive account" }, { status: 403 });
+        next.aindrive = { ...link, linkedBy: auth.user.id };
+      } else if (body.aindrive == null) delete next.aindrive;
       else return NextResponse.json({ error: "aindrive needs a driveId" }, { status: 400 });
     }
 
