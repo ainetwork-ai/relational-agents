@@ -38,6 +38,10 @@ export const users = pgTable("users", {
  // Google accounts have none and wallet accounts may lack googleSub/email;
  // the two login families coexist on this one table.
   ainAddress: text("ain_address").unique(),
+  // aindrive identity ("<aindrive server>|<aindrive user id>") — set by
+  // "aindrive로 로그인" and by connecting aindrive in-app, so either path lands
+  // on the same account. Keyed on the aindrive id, never adopted by email.
+  aindriveSub: text("aindrive_sub").unique(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
  // /home dashboard cover the user picked (uploaded or built-in); null = default

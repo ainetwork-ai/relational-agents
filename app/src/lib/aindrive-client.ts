@@ -70,12 +70,27 @@ export function useAindriveInfo(): AindriveInfo | null {
  * are signed in with there: opens aindrive's approval page in a popup, waits
  * for the approval, closes the popup. Resolves true once connected.
  */
-export async function connectAindrive(onStatus?: (s: "opening" | "waiting") => void): Promise<boolean> {
+export function connectAindrive(onStatus?: (s: "opening" | "waiting") => void): Promise<boolean> {
+  return pairWithAindrive("/api/aindrive/account/connect", "/api/aindrive/account/poll", onStatus, true);
+}
+
+/** "aindrive로 로그인": the same approval, signing this browser in to the
+ *  account behind the aindrive identity (made on first sign-in). */
+export function signInWithAindrive(onStatus?: (s: "opening" | "waiting") => void): Promise<boolean> {
+  return pairWithAindrive("/api/auth/aindrive/start", "/api/auth/aindrive/poll", onStatus, false);
+}
+
+async function pairWithAindrive(
+  startUrl: string,
+  pollUrl: string,
+  onStatus: ((s: "opening" | "waiting") => void) | undefined,
+  reloadInfo: boolean
+): Promise<boolean> {
   onStatus?.("opening");
   // open the window inside the click, before any await — browsers block
   // popups opened later
   const popup = window.open("about:blank", "aindrive-connect", "width=520,height=680");
-  const res = await fetch("/api/aindrive/account/connect", { method: "POST" });
+  const res = await fetch(startUrl, { method: "POST" });
   if (!res.ok) {
     popup?.close();
     return false;
@@ -90,7 +105,7 @@ export async function connectAindrive(onStatus?: (s: "opening" | "waiting") => v
   onStatus?.("waiting");
   while (Date.now() < expiresAt) {
     await new Promise((r) => setTimeout(r, 2000));
-    const p = await fetch("/api/aindrive/account/poll", {
+    const p = await fetch(pollUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ pairingId }),
@@ -99,7 +114,7 @@ export async function connectAindrive(onStatus?: (s: "opening" | "waiting") => v
       .catch(() => ({ state: "pending" }));
     if (p.state === "connected") {
       popup?.close();
-      await loadAindriveInfo(true);
+      if (reloadInfo) await loadAindriveInfo(true);
       return true;
     }
     if (p.state === "expired") break;
@@ -107,7 +122,7 @@ export async function connectAindrive(onStatus?: (s: "opening" | "waiting") => v
     if (popup?.closed) {
       // one last look: approving closes nothing on aindrive's side, so a
       // closed window right after approval is still a success
-      const last = await fetch("/api/aindrive/account/poll", {
+      const last = await fetch(pollUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ pairingId }),
@@ -115,7 +130,7 @@ export async function connectAindrive(onStatus?: (s: "opening" | "waiting") => v
         .then((r) => r.json())
         .catch(() => ({}));
       if (last.state === "connected") {
-        await loadAindriveInfo(true);
+        if (reloadInfo) await loadAindriveInfo(true);
         return true;
       }
       break;

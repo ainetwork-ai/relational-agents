@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useT } from "@/i18n/provider";
 
 import { getInjectedProvider } from "@/lib/wallet/provider";
+import { signInWithAindrive } from "@/lib/aindrive-client";
 
 // Two login families share this screen. Google is the everyday door (a link,
 // not a fetch — /api/auth/google/start redirects to the consent screen, so it
@@ -40,7 +41,23 @@ export function LoginForm() {
   const [privateKey, setPrivateKey] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"demo" | "key" | "metamask" | null>(null);
+  const [busy, setBusy] = useState<"demo" | "key" | "metamask" | "aindrive" | null>(null);
+  const [aindriveWaiting, setAindriveWaiting] = useState(false);
+
+  // aindrive's approval page in a popup — signed in there already, one click —
+  // and this browser is signed in here with that aindrive account connected
+  async function loginWithAindrive() {
+    setBusy("aindrive");
+    setError(null);
+    const ok = await signInWithAindrive((s) => setAindriveWaiting(s === "waiting"));
+    setAindriveWaiting(false);
+    if (ok) {
+      window.location.href = "/";
+      return;
+    }
+    setBusy(null);
+    setError(t("aindrive 로그인이 완료되지 않았습니다. 다시 시도해 주세요."));
+  }
   const googleError = useSearchParams().get("error");
   const googleMessage = googleError
     ? t(GOOGLE_MESSAGES[googleError] ?? GOOGLE_MESSAGES.signin_failed)
@@ -179,6 +196,28 @@ export function LoginForm() {
           </svg>
           {t("Google로 로그인")}
         </a>
+
+        <button
+          data-testid="aindrive-login-button"
+          onClick={() => void loginWithAindrive()}
+          disabled={busy !== null}
+          className="mt-2.5 flex w-full items-center justify-center gap-2.5 rounded-md border border-neutral-200 px-4 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="12" x2="2" y2="12" />
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+            <line x1="6" y1="16" x2="6.01" y2="16" />
+            <line x1="10" y1="16" x2="10.01" y2="16" />
+          </svg>
+          {busy === "aindrive"
+            ? aindriveWaiting
+              ? t("aindrive 창에서 승인해 주세요…")
+              : t("여는 중…")
+            : t("aindrive로 로그인")}
+        </button>
+        <p className="mt-1.5 text-center text-[11px] text-neutral-400">
+          {t("로그인하면 aindrive의 모든 드라이브를 바로 쓸 수 있습니다.")}
+        </p>
 
         <div className="my-6 flex items-center gap-3 text-xs text-neutral-400">
           <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
