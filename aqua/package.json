@@ -1,0 +1,23 @@
+{
+  "name": "@relational-agents/aqua-journal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Swap Journal x 1inch Aqua: ship a strategy, swap through SwapVM on a Base fork, and journal every fill into the Notion-style workspace (ETHGlobal Tokyo 2026, Continuity).",
+  "scripts": {
+    "fork": "anvil --fork-url ${BASE_RPC:-https://mainnet.base.org} --chain-id 8453 --port 8546 --silent",
+    "ship": "tsx src/ship.js",
+    "swap": "tsx src/swap.js",
+    "demo": "tsx src/demo.js",
+    "watch": "tsx src/journal-watcher.js"
+  },
+  "dependencies": {
+    "@1inch/aqua-sdk": "^0.3.4",
+    "@1inch/sdk-core": "^0.1.6",
+    "@1inch/swap-vm-sdk": "^0.4.4",
+    "viem": "^2.55.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
