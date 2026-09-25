@@ -34,7 +34,7 @@ test("router.execute: WETH → USDC on the fork moves the balances it says it mo
   // and the balance assertion below would pass just as well for a receipt that echoed the quote.
   // 2 WETH is sized to move the fill measurably (~2bps) while staying inside the 0.5% bound asserted below.
   const perturber = privateKeyToAccount(ANVIL_KEY_8);
-  await giveEth(swap.pub, perturber.address, "100");
+  await giveEth(swap.pub, perturber.address, "5");
   await wrapEth(chain, perturber, parseEther("2"));
   await swap.execute(await swap.quote(wethToUsdc(perturber.address, parseEther("2"))), perturber);
 
