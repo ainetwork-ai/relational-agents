@@ -1,9 +1,14 @@
 // Relation Treasury — the Tokyo Trip demo, played end to end over HTTP.
 //
 // Six accounts in the seeded "Tokyo Trip" room talk to the agent; approvals go
-// through the real step-up (connect → IdP authorize → callback) against the
-// local mock of the World ID for Agents IdP (WORLD_IDP=mock), and one payment
-// moves real Sepolia ETH. Each scene prints PASS/FAIL; exit 1 on any FAIL.
+// through the real step-up (connect's confirmation page → its form → IdP
+// authorize → callback) against the local mock of the World ID for Agents IdP
+// (WORLD_IDP=mock), and one payment
+// moves real Sepolia ETH. The approval that completes a quorum lands on
+// ?treasury=executing without waiting for the chain; the payment, the relayer's
+// gas refund and the agent's chat line are then polled for (≤180s), and the
+// treasury must have moved by exactly the payment. Each scene prints PASS/FAIL;
+// exit 1 on any FAIL.
 //
 //   cd app && npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts   # once (--reset for a clean room)
 //   node e2e/treasury.check.mjs            [BASE_URL=http://localhost:36625]
@@ -27,6 +32,10 @@ const BASE = process.env.BASE_URL ?? "http://localhost:36625";
 const APP_DIR = fileURLToPath(new URL("..", import.meta.url));
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 const REPLY_TIMEOUT_MS = 90_000;
+/** quorum → payment confirmed → gas refund confirmed, a few Sepolia blocks */
+const EXECUTION_TIMEOUT_MS = 180_000;
+/** the callback only records the approval; the chain is not on its path */
+const CALLBACK_BUDGET_MS = 8_000;
 
 const RULE_MID = "Shared expenses from $50 to $200: 2 verified members approve.";
 const RULE_PERSONAL = "Sending treasury money to a member's personal wallet: not allowed.";
@@ -112,7 +121,20 @@ function assert(cond, msg) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Polls `probe` until it returns something truthy; throws `what` after `timeoutMs`. */
+async function until(probe, timeoutMs, what, everyMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const got = await probe();
+    if (got) return got;
+    if (Date.now() >= deadline) throw new Error(`${what} (after ${timeoutMs / 1000}s)`);
+    await sleep(everyMs);
+  }
+}
+
 let roomId = null;
+/** how long the last approval's callback hop took */
+let lastCallbackMs = null;
 let agentId = null;
 
 async function status(who = alex) {
@@ -154,13 +176,37 @@ async function messageCount(who = alex) {
 }
 
 /**
- * The approval step-up, hop by hop: connect → IdP authorize (the mock picks
- * `human` or cancels) → callback. Returns the ?treasury= code the member lands on.
+ * The approval step-up, hop by hop: connect (GET: the confirmation page that
+ * shows what is being approved; POST: its form) → IdP authorize (the mock
+ * picks `human` or cancels) → callback. Returns the ?treasury= code the member
+ * lands on — from connect itself when the approval could not count anyway.
  */
 async function approve(who, actionId, idp) {
   const back = `/dm/${roomId}`;
-  const c = await who.fetch(`/api/auth/world/connect?action=${encodeURIComponent(actionId)}&returnTo=${encodeURIComponent(back)}`);
-  assert(c.status >= 300 && c.status < 400, `connect: expected a redirect, got ${c.status}`);
+  const page = await who.fetch(`/api/auth/world/connect?action=${encodeURIComponent(actionId)}&returnTo=${encodeURIComponent(back)}`);
+  if (page.status >= 300 && page.status < 400) {
+    const refused = new URL(page.headers.get("location"), BASE);
+    assert(refused.pathname === back, `connect refused to ${refused}`);
+    return refused.searchParams.get("treasury");
+  }
+  assert(page.status === 200, `connect: expected the confirmation page, got ${page.status}`);
+  const html = await page.text();
+  assert(!page.headers.has("location") && who.cookies.get("world_action") === undefined, "the confirmation page started the IdP flow");
+  const form = Object.fromEntries(
+    [...html.matchAll(/<input type="hidden" name="([a-zA-Z]+)" value="([^"]*)">/g)].map((m) => [
+      m[1],
+      m[2].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"),
+    ])
+  );
+  assert(form.action === actionId && form.token && form.exp, `confirmation form: ${JSON.stringify(Object.keys(form))}`);
+  if (ctx.expectOnCard) for (const s of ctx.expectOnCard) assert(html.includes(s), `confirmation page does not show ${s}`);
+
+  const c = await who.fetch("/api/auth/world/connect", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(form).toString(),
+  });
+  assert(c.status === 303, `connect POST: expected a 303 redirect, got ${c.status}`);
   const toIdp = new URL(c.headers.get("location"), BASE);
   if (toIdp.pathname === back) return toIdp.searchParams.get("treasury");
   assert(toIdp.pathname.endsWith("/authorize"), `connect went to ${toIdp}`);
@@ -174,7 +220,9 @@ async function approve(who, actionId, idp) {
   const toCallback = new URL(a.headers.get("location"), BASE);
   assert(toCallback.pathname === "/api/auth/world/callback", `authorize went to ${toCallback}`);
 
+  const t0 = Date.now();
   const cb = await who.fetch(toCallback.pathname + toCallback.search);
+  lastCallbackMs = Date.now() - t0;
   assert(cb.status >= 300 && cb.status < 400, `callback: expected a redirect, got ${cb.status}`);
   const landed = new URL(cb.headers.get("location"), BASE);
   assert(landed.pathname === back, `callback landed on ${landed.pathname}`);
@@ -184,6 +232,13 @@ async function approve(who, actionId, idp) {
 
 function freshActions(before, st) {
   return st.actions.filter((a) => !before.has(a.id));
+}
+
+/** The Treasury Activity page's blocks, each as its JSON text. */
+async function activityTexts(who = alex) {
+  const act = await who.json(`/api/pages/${ctx.activityId}/blocks`);
+  assert(act.status === 200, `activity page ${act.status}`);
+  return (act.body.blocks ?? []).map((b) => JSON.stringify(b));
 }
 
 async function rpc(method, params) {
@@ -252,6 +307,8 @@ await scene("setup: seeded room, six accounts, treasury on", async () => {
   }
   assert(st.balanceUsd !== null && st.balanceUsd >= 900, `treasury balance ${st.balanceUsd} (need ≥ $900)`);
   assert(st.rules.includes(RULE_MID) && st.rules.includes(RULE_PERSONAL), "the demo rules are not all parsed");
+  assert(st.adoptedAt, "the rules are not adopted — run the seed (--reset)");
+  assert(!st.proposal, `the doc differs from the adopted rules: ${JSON.stringify(st.proposal)} — run the seed with --reset`);
   ctx.address = st.address;
   ctx.activityId = pageId(pagePath(st.rulesPageId).replace(/Treasury Rules\.md$/, "Treasury Activity.md"));
   return `room ${roomId}, wallet ${st.address}, $${st.balanceUsd}, seat mode ${st.seatMode}`;
@@ -259,28 +316,39 @@ await scene("setup: seeded room, six accounts, treasury on", async () => {
 
 await scene("a. seats — Alex and Bea claim; Alex's 2nd account per the seat mode", async () => {
   const st0 = await status();
-  for (const who of [alex, bea]) {
-    const r = await who.json(`/api/dm/rooms/${roomId}/treasury/seat`, {
+  const claim = (who) =>
+    who.json(`/api/dm/rooms/${roomId}/treasury/seat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
     });
-    assert(r.status === 200 && r.body.ok === true, `${who.name} seat: ${r.status} ${JSON.stringify(r.body)}`);
-  }
-  const r2 = await alex2.json(`/api/dm/rooms/${roomId}/treasury/seat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{}",
-  });
   let note;
   if (st0.seatMode === "dev-simulator") {
+    for (const who of [alex, bea]) {
+      const r = await claim(who);
+      assert(r.status === 200 && r.body.ok === true, `${who.name} seat: ${r.status} ${JSON.stringify(r.body)}`);
+    }
     // the simulator's nullifier is per account: one human, one seat needs real
     // IDKit nullifiers — same-human is caught at approval time instead (scene d)
+    const r2 = await claim(alex2);
     assert(r2.status === 200 && r2.body.ok === true, `2nd account seat (simulator): ${r2.status}`);
     note = "2nd account got a seat too (dev simulator: per-account nullifier — same-human is asserted at approval, scene d)";
   } else {
-    assert(r2.status === 409 && r2.body.reason === "same-human", `2nd account seat (IDKit): ${r2.status}`);
-    note = "2nd account refused: same-human";
+    // a real IDKit mode: no proof can be made headless, so a claim without one
+    // must be refused, and Alex and Bea are seated directly (as scene d seats
+    // the 2nd account). One human, one seat is then the verifier's nullifier —
+    // not exercised here; same-human is still asserted at approval (scene d).
+    for (const who of [alex, bea, alex2]) {
+      const r = await claim(who);
+      assert(r.status === 400 && r.body.reason === "proof-rejected", `${who.name} seat without a proof (${st0.seatMode}): ${r.status} ${JSON.stringify(r.body)}`);
+    }
+    assert(sql, `seat mode ${st0.seatMode} needs POSTGRES_URL to seat Alex and Bea`);
+    for (const who of [alex, bea])
+      await sql.query(
+        "insert into treasury_seats (room_id, user_id, nullifier_hash, verification_level) values ($1, $2, $3, 'dev-simulator') on conflict do nothing",
+        [roomId, who.id, `e2e:${who.id}`]
+      );
+    note = `${st0.seatMode}: claims without a proof refused (400); Alex and Bea seated directly`;
   }
   const st = await status();
   const seated = st.members.filter((m) => m.seated).map((m) => m.displayName);
@@ -302,22 +370,44 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   const a = fresh[0];
   assert(a.status === "pending" && a.amountUsd === 180 && a.requiredApprovals === 2, `action ${JSON.stringify(a)}`);
   assert(a.ruleText === RULE_MID, `action rule ${a.ruleText}`);
+  // approvers see where the money lands: the adopted payee's name and address
+  assert(a.recipient?.label === HOTEL && /^0x[0-9a-fA-F]{40}$/.test(a.recipient?.address ?? ""), `recipient ${JSON.stringify(a.recipient)}`);
   ctx.action180 = a.id;
+  ctx.payee180 = a.recipient.address;
+  // the ledger line is written before the agent answers
+  const queued = `⏳ Requested by Alex: $180 · ${a.memo} — needs 2 verified humans (“${RULE_MID}”)`;
+  const texts = await activityTexts();
+  assert(texts.some((t) => t.includes(JSON.stringify(queued).slice(1, -1))), `no queued line in Treasury Activity: ${queued}`);
   return `action ${a.id}`;
 });
 
 await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → paid on Sepolia", async () => {
   assert(ctx.action180, "no $180 action");
   const count0 = await messageCount();
+  // the page before the IdP says what is being approved: amount, payee, address, rule
+  ctx.expectOnCard = ["$180.00", HOTEL, ctx.payee180, RULE_MID];
   const first = await approve(chris, ctx.action180, { human: 3 });
+  ctx.expectOnCard = null;
   assert(first === "approved", `Chris: ?treasury=${first}`);
   let a = (await status()).actions.find((x) => x.id === ctx.action180);
   assert(a.status === "pending" && a.approvals.length === 1, `after Chris: ${a.status}, ${a.approvals.length} approvals`);
 
   const second = await approve(alex, ctx.action180, { human: 1 });
-  assert(second === "executed", `Alex: ?treasury=${second}`);
-  const st = await status();
-  a = st.actions.find((x) => x.id === ctx.action180);
+  assert(second === "executing", `Alex: ?treasury=${second}`);
+  const callbackMs = lastCallbackMs;
+  assert(callbackMs < CALLBACK_BUDGET_MS, `the quorum callback took ${callbackMs}ms — execution is on the request path`);
+
+  // the redirect came back before the chain did: watch the panel's status settle
+  const t0 = Date.now();
+  a = await until(
+    async () => {
+      const x = (await status()).actions.find((y) => y.id === ctx.action180);
+      return x.status === "pending" ? null : x;
+    },
+    EXECUTION_TIMEOUT_MS,
+    "the $180 action never left pending"
+  );
+  const execS = ((Date.now() - t0) / 1000).toFixed(1);
   assert(a.status === "executed", `action is ${a.status} (${a.error})`);
   assert(/^0x[0-9a-f]{64}$/i.test(a.txHash ?? ""), `tx hash ${a.txHash}`);
   ctx.tx180 = a.txHash;
@@ -329,23 +419,54 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   // $180 at the demo scale ($1 = 0.000005 SepETH) = 0.0009 ETH
   assert(BigInt(tx.value) === 900_000_000_000_000n, `tx value ${BigInt(tx.value)} wei`);
 
-  const drop = ctx.balanceBefore180 - st.balanceUsd;
-  assert(drop >= 180 && drop < 200, `balance dropped $${drop.toFixed(2)} (expected $180 + gas)`);
-
+  // announcements follow the settle by a moment
+  const payout = await until(
+    async () =>
+      (await agentLinesSince(alex, count0)).find((l) => l.startsWith(`✅ Paid $180 to ${HOTEL}`) && l.includes(a.txHash)),
+    15_000,
+    "no payout notice in chat"
+  );
+  assert(payout.includes("gas sponsored by the relayer"), `payout notice does not mention the gas sponsor: ${payout}`);
   const lines = await agentLinesSince(alex, count0);
   assert(lines.some((l) => /Chris approved with World ID — 1 of 2/.test(l)), `no 1-of-2 notice: ${lines.join(" | ")}`);
-  assert(lines.some((l) => l.startsWith(`✅ Paid $180 to ${HOTEL}`) && l.includes(a.txHash)), `no payout notice: ${lines.join(" | ")}`);
 
-  const act = await alex.json(`/api/pages/${ctx.activityId}/blocks`);
-  assert(act.status === 200, `activity page ${act.status}`);
-  const texts = (act.body.blocks ?? []).map((b) => JSON.stringify(b));
-  assert(texts.some((t) => t.includes("Paid $180") && t.includes(a.txHash)), "no activity line with the tx in Treasury Activity");
+  const paidLine = await until(
+    async () => (await activityTexts()).find((t) => t.includes("Paid $180") && t.includes(a.txHash)),
+    15_000,
+    "no activity line with the tx in Treasury Activity"
+  );
+  const refundTx = paidLine.match(/refund tx (0x[0-9a-fA-F]{64})/)?.[1];
+  assert(refundTx, `activity line carries no gas refund tx: ${paidLine}`);
+  ctx.refund180 = refundTx;
+
+  // the refund is exactly what the payment burned, from the relayer to the treasury
+  const refundReceipt = await rpc("eth_getTransactionReceipt", [refundTx]);
+  assert(refundReceipt && refundReceipt.status === "0x1", `refund receipt ${JSON.stringify(refundReceipt)}`);
+  const refund = await rpc("eth_getTransactionByHash", [refundTx]);
+  assert(refund.to.toLowerCase() === ctx.address.toLowerCase(), `refund went to ${refund.to}, treasury is ${ctx.address}`);
+  const burned = BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice);
+  assert(BigInt(refund.value) === burned, `refund ${BigInt(refund.value)} wei, payment burned ${burned} wei`);
+
+  // the refund is confirmed before the action is marked executed; the poll
+  // only rides out an RPC node a block behind
+  let balanceAfter = null;
+  await until(
+    async () => {
+      balanceAfter = (await status()).balanceUsd;
+      return balanceAfter !== null && Math.abs(ctx.balanceBefore180 - balanceAfter - 180) <= 0.01;
+    },
+    60_000,
+    "the balance never settled",
+    3_000
+  ).catch((err) => {
+    throw new Error(`balance $${ctx.balanceBefore180} → $${balanceAfter}, expected a drop of exactly $180 ± $0.01 (gas refunded): ${err.message}`);
+  });
 
   if (sql) {
     assert((await worldSubOf(alex.id)) === "mock-human-1", "Alex is not bound to Human 1");
     assert((await worldSubOf(chris.id)) === "mock-human-3", "Chris is not bound to Human 3");
   }
-  return `tx ${a.txHash}, balance $${ctx.balanceBefore180} → $${st.balanceUsd}`;
+  return `callback ${callbackMs}ms, executed ${execS}s later · tx ${a.txHash} · gas refund ${refundTx} · balance $${ctx.balanceBefore180} → $${balanceAfter}`;
 });
 
 await scene("d. $150 — Alex 1/2; his 2nd account as the same human is voided; Dana cancels", async () => {
@@ -445,5 +566,7 @@ await scene("g. stale proof — a verification older than the request does not c
 
 await sql?.end();
 const failed = results.filter((r) => !r).length;
-console.log(`\n${results.length - failed}/${results.length} scenes passed${ctx.tx180 ? ` · tx ${ctx.tx180}` : ""}`);
+console.log(
+  `\n${results.length - failed}/${results.length} scenes passed${ctx.tx180 ? ` · tx ${ctx.tx180}` : ""}${ctx.refund180 ? ` · gas refund ${ctx.refund180}` : ""}`
+);
 process.exit(failed ? 1 : 0);

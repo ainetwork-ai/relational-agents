@@ -3,6 +3,14 @@
 Kept from hour 0 so the debrief reports measured times, not memory.
 Format: `JST time — surface — what happened`.
 
+> **Note on the times (added after the fact).** The entries stamped 23:50 and
+> 00:05 below — and the plan's "v3.1 (… 2026-09-26 00:10)" heading — are later
+> than the commit that first contains them (`9fa10ce`, 23:44:23 JST), so they
+> are not wall-clock measurements; read them as approximate. The implementation
+> commits `aa9fc39..a4c81bb` all carry 00:10:57 JST: one working session was
+> split into those units and committed together. Entries from 01:32 on are
+> written when the event happens.
+
 - 2026-09-25 22:40 — IdP — sandbox OIDC discovery answered first try
   (`/.well-known/openid-configuration`: authorize/token/jwks/device endpoints,
   client_secret_basic|post|private_key_jwt). Friction: docs page for "World ID
@@ -31,3 +39,11 @@ Format: `JST time — surface — what happened`.
   once on `${action}:${nullifier}`. Same binding idea as ours; the event's
   World ID for Agents resources point at the sandbox IdP, so approvals stay on
   the IdP and we bind to the action via state/nonce + auth_time.
+- 2026-09-26 01:32 — both — security review folded in, e2e 8/8 again (mock
+  IdP + real Sepolia). Agents: the IdP screen can't show what is approved, so
+  the app now shows a confirmation page (amount, payee + address, rule) and
+  starts the step-up only from its form; an id_token without `auth_time` now
+  counts as a stale proof (no `iat` fallback); token endpoint auth method is
+  pinned by config (discovery lists three). IDKit: seats accept only World ID
+  3.0 proofs — `allow_legacy_proofs` means 3.0 and 4.0 nullifiers differ for
+  one human, so accepting both could seat one human twice.

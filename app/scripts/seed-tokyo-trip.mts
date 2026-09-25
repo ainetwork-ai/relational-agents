@@ -2,10 +2,12 @@
  * The Relation Treasury demo: five friends pooling money for ETHGlobal Tokyo,
  * and a room agent that holds the pot under rules they wrote themselves.
  *
- *   npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts [--reset] [--no-fund] [--app URL]
+ *   npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts [--reset] [--no-fund] [--no-preseat] [--app URL]
  *     --reset    delete the "Tokyo Trip" room(s) Alex made (treasury rows, chat,
  *                agent, relation doc) and build it again; accounts are kept
  *     --no-fund  skip the Sepolia top-up of the treasury
+ *     --no-preseat  seat nobody: with the Portal app configured, every seat on
+ *                camera should be a real IDKit proof, not a seeded one
  *     --app      base URL printed in the links (default http://localhost:36625)
  *
  * Makes, idempotently:
@@ -18,11 +20,20 @@
  *     the rules;
  *   - the relation doc's treasury sections (Purpose, Treasury Rules, Payees,
  *     Treasury Activity) — what lib/agent/treasury/memory.ts reads;
+ *   - the founding adoption of those Rules and Payees (the chat above is where
+ *     they were agreed) — what the agent enforces until the relation adopts
+ *     an edit with the strictest quorum;
  *   - seats for Chris, Dana and Eli (Alex and Bea claim theirs live);
  *   - the agent's Sepolia wallet, topped up to $1,000 at the demo scale.
  *
+ * Every run also unbinds the demo accounts' World IDs (users.world_sub): a
+ * rehearsal against the mock IdP binds them to "mock-human-N", and a binding
+ * kept into the recording voids that member's first real approval as "bound
+ * to a different World ID".
+ *
  * A second run without --reset adds only what is missing: doc pages already on
- * disk are left alone (the demo edits the rules and appends activity).
+ * disk are left alone (the demo appends activity), and an existing adoption is
+ * kept.
  */
 
 // env first — @/lib/db opens its pool at import time, wallet.ts reads its RPC
@@ -52,6 +63,7 @@ const arg = (name: string, fallback?: string) => {
 };
 const RESET = process.argv.includes("--reset");
 const FUND = !process.argv.includes("--no-fund");
+const PRESEAT = !process.argv.includes("--no-preseat");
 const APP = (arg("app", "http://localhost:36625") as string).replace(/\/+$/, "");
 const WORKSPACE = "ETHGlobal Tokyo Team";
 const ROOM = "Tokyo Trip";
@@ -92,6 +104,10 @@ for (const p of PEOPLE) {
   }
 }
 const humanIds = PEOPLE.map((p) => ids[p.key]);
+await db
+  .update(S.users)
+  .set({ worldSub: null, worldVerifiedAt: null })
+  .where(inArray(S.users.id, humanIds));
 
 // ── reset ───────────────────────────────────────────────────────────────────
 
@@ -369,19 +385,29 @@ await db
     set: { rootOkfPath: tree.rootPath, sectionOkfPaths: sectionPaths, updatedAt: new Date() },
   });
 
+// ── the founding adoption ───────────────────────────────────────────────────
+// The rules above are the ones the five agreed in the chat; the agent enforces
+// the adopted text, not the doc, so an edit is only a proposal until the
+// strictest quorum adopts it. Recorded once — a rerun keeps what was adopted.
+
+const { adoptFoundingRules } = await import("../src/lib/agent/treasury/approvals");
+const adoptedNow = await adoptFoundingRules({ roomId, agentUserId, requestedBy: ids.alex });
+
 // ── seats ───────────────────────────────────────────────────────────────────
 
-await db
-  .insert(S.treasurySeats)
-  .values(
-    PRESEATED.map((k) => ({
-      roomId,
-      userId: ids[k],
-      nullifierHash: keccak256(stringToBytes(`seed:${ids[k]}:treasury-seat:${roomId}`)),
-      verificationLevel: "dev-simulator",
-    }))
-  )
-  .onConflictDoNothing();
+// labelled "dev-simulator": the panel shows these as "dev seat", never as World ID
+if (PRESEAT)
+  await db
+    .insert(S.treasurySeats)
+    .values(
+      PRESEATED.map((k) => ({
+        roomId,
+        userId: ids[k],
+        nullifierHash: keccak256(stringToBytes(`seed:${ids[k]}:treasury-seat:${roomId}`)),
+        verificationLevel: "dev-simulator",
+      }))
+    )
+    .onConflictDoNothing();
 
 // ── the treasury wallet ─────────────────────────────────────────────────────
 
@@ -414,6 +440,14 @@ if (rt.policy.unparsed.length) {
   failed = true;
   console.warn(`WARNING: ${rt.policy.unparsed.length} rule line(s) did not parse — the policy is fail-closed:\n  ${rt.policy.unparsed.join("\n  ")}`);
 }
+if (!rt.adoptedAt) {
+  failed = true;
+  console.warn("WARNING: the rules are not adopted — the agent will move no money");
+} else if (rt.proposal) {
+  console.warn(
+    `NOTE: the doc differs from the adopted rules (${rt.proposal.added.length} added, ${rt.proposal.removed.length} removed, ${rt.proposal.joined.length} new member(s)) — the agent follows the adopted version; --reset starts over`
+  );
+}
 
 const seated = await db
   .select({ userId: S.treasurySeats.userId })
@@ -429,7 +463,7 @@ console.log(`
   wallet     ${address}   balance ${balance}
   funding    ${funding}
   doc        ${APP}/p/${okfDocPageId(tree.rootPath)}   (${tree.rootPath})
-  rules      ${APP}/p/${rt.rulesPageId}   ${rt.policy.rules.length} rules, ${rt.policy.unparsed.length} unparsed
+  rules      ${APP}/p/${rt.rulesPageId}   ${rt.policy.rules.length} rules, ${rt.policy.unparsed.length} unparsed · adopted ${rt.adoptedAt ?? "never"}${adoptedNow ? " (now)" : ""}
   payees     ${rt.payees.map((p) => `${p.name} → ${p.address}`).join(", ") || "none"}
   seats      ${seated.map((s) => nameOf(s.userId)).join(", ") || "none"}
   logins     POST ${APP}/api/auth/demo-login { "as": "<slug>" }

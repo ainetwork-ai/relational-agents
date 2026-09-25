@@ -2,7 +2,7 @@
 //   cd app && npx tsx --tsconfig scripts/tsconfig.json scripts/treasury-selftest.mts
 import assert from "node:assert/strict";
 import { describeRule, evaluateCommand, parsePayees, parseTreasuryPolicy } from "@/lib/agent/treasury/policy";
-import { matchTreasuryCommand } from "@/lib/agent/treasury/match";
+import { matchTreasuryCommand, mentionsMoney } from "@/lib/agent/treasury/match";
 import type { EvaluateInput, TreasuryPolicy } from "@/lib/agent/treasury/types";
 
 let passed = 0;
@@ -99,6 +99,32 @@ check("a condition the grammar can't express is reported, not dropped", () => {
     "Shared expenses under 50: the agent may pay on its own.",
   ])
     assert.deepEqual(parseTreasuryPolicy(line).unparsed, [line], line);
+});
+
+check("a destination the grammar can't read is reported, never dropped (it would widen the rule)", () => {
+  for (const line of [
+    // dropping "to a member's wallet" would leave "payments under $20: auto" — every expense
+    "Payments to a member's wallet under $20: the agent may pay on its own.",
+    "Transfers from the treasury to our joint account: the agent may pay on its own.",
+    "Sending money to the hotel: 2 verified members approve.",
+    "Sending money to members: not allowed.",
+  ])
+    assert.deepEqual(parseTreasuryPolicy(line).unparsed, [line], line);
+  // a member's wallet, said without "personal", is still a member's wallet
+  const p = parseTreasuryPolicy(
+    [
+      "Sending treasury money to a member's wallet: not allowed.",
+      "Withdrawals to their own wallet: 4 verified members approve.",
+      "Personal wallet withdrawals: not allowed.",
+    ].join("\n")
+  );
+  assert.deepEqual(p.unparsed, []);
+  for (const r of p.rules) assert.deepEqual([r.kind, r.personal], ["withdrawal", true], r.text);
+  // …so the $180 hotel deposit is not caught by it
+  const hotel = ev(parseTreasuryPolicy([...DEMO_RULES.slice(0, 5), "Sending treasury money to a member's wallet: not allowed."].join("\n")), {
+    amountUsd: 180,
+  });
+  assert.equal(hotel.outcome, "approval");
 });
 
 check("payees", () => {
@@ -216,8 +242,8 @@ const AGENT = "Tokyo Trip agent";
 const m = (text: string) => matchTreasuryCommand(text, AGENT);
 const money = (text: string) => {
   const c = m(text);
-  assert.ok(c && c.kind !== "status", `expected a money command: ${text}`);
-  return c as Exclude<typeof c, { kind: "status" } | null>;
+  assert.ok(c && c.kind !== "status" && c.kind !== "adopt", `expected a money command: ${text}`);
+  return c as Exclude<typeof c, { kind: "status" } | { kind: "adopt" } | null>;
 };
 
 check("@Tokyo Trip agent pay the hotel deposit, $180", () => {
@@ -304,8 +330,43 @@ check("negatives — nothing that isn't an imperative with one clear amount", ()
     "the work-life balance on this trip is great",
     "@Bea pay $30 for snacks",
     "",
+    // two payments, even when both are $30 — only overlapping matches are one figure
+    "@agent pay $30 for the taxi and $30 for snacks",
+    "@agent pay the hotel $180 and the ramen place $180",
+    // the figure said is not the total, or not US dollars
+    "@agent buy 5 museum tickets at $12 each",
+    "@agent pay the hotel $180 per night for 3 nights",
+    "@agent pay the hotel 2x $90",
+    "@agent pay HK$500 for the hotel",
+    "@agent pay the hotel $1 800",
+    "@agent pay 180 dollars and 50 cents for the hotel",
+    // scheduled
+    "@agent pay $180 for the hotel on Friday",
+    "@agent pay $40 for the taxi after checkout",
+    "@agent pay $40 for the taxi once we land",
   ])
     assert.equal(m(text), null, text);
+});
+
+check("amount shapes: a trailing comma is punctuation, a short group is not a number", () => {
+  const c = money("@agent pay the hotel $180, thanks");
+  assert.deepEqual([c.amountUsd, c.memo], [180, "hotel"]);
+  assert.equal(money("@agent pay the hotel deposit, $1,800, thanks").amountUsd, 1800);
+  assert.equal(money("@agent pay $180 dollars for the hotel").amountUsd, 180);
+  assert.equal(money("@agent pay $40 for the taxi at once").amountUsd, 40);
+  for (const text of ["@agent pay the hotel $1,20", "@agent pay $180.505 for the hotel", "@agent pay the hotel $1,2000"])
+    assert.equal(m(text), null, text);
+});
+
+check("adopt, and money sentences the matcher can't read", () => {
+  for (const text of ["@agent adopt the new rules", "@agent adopt the rules", "@Tokyo Trip agent please adopt the edited rules.", "@agent adopt the new members"])
+    assert.deepEqual(m(text), { kind: "adopt", raw: text }, text);
+  assert.equal(m("@agent don't adopt the rules"), null);
+  // not read, but about money: answered with "nothing was moved", never by the model
+  for (const text of ["@agent can we pay the hotel $180", "@agent I paid $180 for dinner yesterday", "@agent pay the hotel $1.2k"])
+    assert.ok(m(text) === null && mentionsMoney(text, AGENT), text);
+  for (const text of ["@agent what should we do with $300?", "@agent what's our balance?", "@agent pay the hotel deposit"])
+    assert.ok(!mentionsMoney(text, AGENT), text);
 });
 
 console.log(`treasury selftest: ${passed} checks passed`);
