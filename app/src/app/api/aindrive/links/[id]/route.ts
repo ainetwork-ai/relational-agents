@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { teamspaceDrives } from "@/lib/db/schema";
+import { teamspaceDrives, users } from "@/lib/db/schema";
 import { teamspaceDrive } from "@/lib/aindrive-teamspace";
 import { backupFolder } from "@/lib/aindrive-backup";
 
@@ -21,8 +21,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if ("error" in auth) return auth.error;
   const found = await teamspaceDrive(auth.user.id, (await ctx.params).id);
   if (!found) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const [by] = found.drive.createdBy
+    ? await db.select({ name: users.displayName }).from(users).where(eq(users.id, found.drive.createdBy))
+    : [];
   return NextResponse.json({
     drive: found.drive,
+    linkedBy: by?.name ?? null,
     teamspaceName: found.teamspaceName,
     backupFolder: backupFolder({ id: found.drive.teamspaceId, name: found.teamspaceName }),
     available: !!found.link,

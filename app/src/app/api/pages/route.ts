@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, users, workspaceMembers } from "@/lib/db/schema";
+import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, teamspaceMembers, teamspaces, users, workspaceMembers } from "@/lib/db/schema";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import { getPagePermission, hasPermission } from "@/lib/auth/share-token";
 import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
@@ -99,6 +99,26 @@ export async function GET(req: NextRequest) {
       const granted = new Set(grants.map((g) => g.pageId));
       visible = rows.filter((r) => !r.restricted || granted.has(r.id));
     }
+    // a private teamspace's pages only to its members (owner/admin excepted, as
+    // getPagePermission does)
+    if (role !== "owner" && role !== "admin") {
+      const privateTs = await db
+        .select({ id: teamspaces.id })
+        .from(teamspaces)
+        .where(and(eq(teamspaces.workspaceId, workspaceId), eq(teamspaces.visibility, "private")));
+      if (privateTs.length) {
+        const mine = new Set(
+          (
+            await db
+              .select({ id: teamspaceMembers.teamspaceId })
+              .from(teamspaceMembers)
+              .where(and(eq(teamspaceMembers.userId, auth.user.id), inArray(teamspaceMembers.teamspaceId, privateTs.map((t) => t.id))))
+          ).map((m) => m.id)
+        );
+        const hidden = new Set(privateTs.map((t) => t.id).filter((id) => !mine.has(id)));
+        visible = visible.filter((r) => !r.teamspaceId || !hidden.has(r.teamspaceId));
+      }
+    }
   }
 
   if (archived) return NextResponse.json({ pages: visible });
@@ -113,7 +133,7 @@ export async function GET(req: NextRequest) {
     const gate = await okfGateFor(auth.user.id);
     // Relationship docs live as files (workspace-agnostic), but each doc's
     // ROOM has a home workspace — surface a doc only in that workspace, so
-    // e.g. Hannah's space doesn't list every other partner's doc. Docs whose
+    // e.g. grandma's space doesn't list every other member's doc. Docs whose
     // room we can't place keep the old everywhere-behavior.
     const docHomes = await db
       .select({ path: agentRoomStates.rootOkfPath, wsId: chatRooms.workspaceId })
@@ -143,9 +163,9 @@ export async function GET(req: NextRequest) {
       // membership rule — a relationship doc belongs where its partner is a
       // member. Docs that don't parse as "… — <partner>" stay visible.
       const base = rel.split("/")[0];
-      const m = base.match(/^(?:relationship doc|관계 문서)\s*—\s*(.+?)(?:-[0-9a-f]{6})?$/iu);
+      const m = base.match(/^(?:relationship doc|관계 문서|family doc|가족 문서)\s*—\s*(.+?)(?:-[0-9a-f]{6})?$/iu);
       if (!m) return true;
-      const sides = m[1].split(/(?:❤️|❤|♥|💛|🧡|🩷|💘|💝)+/u).map((x) => x.trim()).filter(Boolean);
+      const sides = m[1].split(/(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|\s·\s)+/u).map((x) => x.trim()).filter(Boolean);
       const partner = sides[sides.length - 1];
       if (!partner) return true;
       const norm = (t: string) => t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();

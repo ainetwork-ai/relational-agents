@@ -243,6 +243,13 @@ export async function writeFile(link: AindriveLink, rel: string, content: string
   await callTool("write_file", { drive_id: link.driveId, path, content, encoding: "utf8" });
 }
 
+/** Writes raw bytes (a photo, a recording, a video) — sent base64 over MCP. */
+export async function writeFileBytes(link: AindriveLink, rel: string, bytes: Buffer): Promise<void> {
+  const path = drivePath(link, rel);
+  if (!path || path === link.root) throw new AindriveError("a file path inside the linked folder is required");
+  await callTool("write_file", { drive_id: link.driveId, path, content: bytes.toString("base64"), encoding: "base64" }, 120_000);
+}
+
 /** Deletes a file, or a folder with everything in it (aindrive's delete_path).
  *  The linked folder itself is never a target — only what is inside it. */
 export async function deletePath(link: AindriveLink, rel: string): Promise<void> {
@@ -309,7 +316,17 @@ export async function walkTree(link: AindriveLink, limit = 1000, maxDirs = 100):
 
 /** Every file under the link (breadth-first, capped) as link-relative paths.
  *  Folders are capped too — a tree of empty folders is otherwise unbounded. */
-export async function listTree(link: AindriveLink, limit = 200, maxDirs = 30): Promise<string[]> {
+/** Folders a person's own files never live in: aindrive's bookkeeping and a
+ *  teamspace's OKF backup. Skipping them keeps a listing's folder budget for
+ *  the person's files. */
+export const notUserFolder = (rel: string) => /(^|\/)(\.aindrive|ainmem-[^/]*)$/.test(rel);
+
+export async function listTree(
+  link: AindriveLink,
+  limit = 200,
+  maxDirs = 30,
+  skipDir?: (rel: string) => boolean
+): Promise<string[]> {
   const out: string[] = [];
   const queue = [""];
   let dirs = 0;
@@ -317,8 +334,9 @@ export async function listTree(link: AindriveLink, limit = 200, maxDirs = 30): P
     const dir = queue.shift()!;
     for (const e of await listFiles(link, dir)) {
       const rel = dir ? `${dir}/${e.name}` : e.name;
-      if (e.isDir) queue.push(rel);
-      else if (out.length < limit) out.push(rel);
+      if (e.isDir) {
+        if (!skipDir?.(rel)) queue.push(rel);
+      } else if (out.length < limit) out.push(rel);
     }
   }
   return out;

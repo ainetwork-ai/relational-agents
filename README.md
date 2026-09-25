@@ -22,8 +22,8 @@ one-off questions.
 record: appending what was said to a document, answering questions from it with links back
 to the original messages, and — when a draft contradicts the record — saying so before the
 message goes out. Two built-in profiles shape what it keeps and how it speaks
-([`agent/profiles`](app/src/lib/agent/profiles/)): `romantic` (Timeline, People, Open topics)
-and `business` (Decisions, Action items).
+([`agent/profiles`](app/src/lib/agent/profiles/)): `family` (Family timeline, Health & care,
+Plans & chores, Family notes) and `business` (Decisions, Action items).
 
 ## The memory is a folder
 

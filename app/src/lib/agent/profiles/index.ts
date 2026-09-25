@@ -2,18 +2,19 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatRoomBots, users, type AgentConfig } from "@/lib/db/schema";
-import { ROMANTIC } from "./romantic";
+import { FAMILY } from "./family";
 import { BUSINESS } from "./business";
 import type { ProfileSection, RelationshipProfile } from "./types";
 
 export type { ProfileSection, RelationshipProfile } from "./types";
 
 /** Built-in profiles, in the order the settings form offers them. */
-export const PROFILES: RelationshipProfile[] = [ROMANTIC, BUSINESS];
+export const PROFILES: RelationshipProfile[] = [FAMILY, BUSINESS];
 
 /** The profile a room gets when it has never chosen one — and the fallback
- *  when it names one that no longer exists. A room never goes profile-less. */
-export const DEFAULT_PROFILE = ROMANTIC;
+ *  when it names one that no longer exists (a room made under the retired
+ *  couple profile, "romantic", reads as family). A room never goes profile-less. */
+export const DEFAULT_PROFILE = FAMILY;
 
 export function profileByKey(key: string | undefined | null): RelationshipProfile {
   return PROFILES.find((p) => p.key === key) ?? DEFAULT_PROFILE;

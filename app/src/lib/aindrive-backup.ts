@@ -250,7 +250,10 @@ export function stalePaths(previous: string[], current: Iterable<string>): strin
 
 /** Back one teamspace up now. Records the outcome on its teamspace_drives row. */
 export async function backupTeamspace(teamspaceId: string): Promise<BackupResult> {
-  const [link] = await db.select().from(teamspaceDrives).where(eq(teamspaceDrives.teamspaceId, teamspaceId));
+  const [link] = await db
+    .select()
+    .from(teamspaceDrives)
+    .where(and(eq(teamspaceDrives.teamspaceId, teamspaceId), eq(teamspaceDrives.backup, true)));
   const [ts] = await db.select().from(teamspaces).where(eq(teamspaces.id, teamspaceId));
   if (!link || !ts) return { files: 0, written: 0, error: "not linked" };
 
@@ -353,7 +356,7 @@ async function backupAsLinker(teamspaceId: string): Promise<BackupResult> {
   const [link] = await db
     .select({ createdBy: teamspaceDrives.createdBy })
     .from(teamspaceDrives)
-    .where(eq(teamspaceDrives.teamspaceId, teamspaceId));
+    .where(and(eq(teamspaceDrives.teamspaceId, teamspaceId), eq(teamspaceDrives.backup, true)));
   try {
     return await runAsOrService(link?.createdBy, () => backupTeamspace(teamspaceId));
   } catch (e) {
@@ -362,7 +365,7 @@ async function backupAsLinker(teamspaceId: string): Promise<BackupResult> {
     await db
       .update(teamspaceDrives)
       .set({ lastBackupAt: new Date(), lastBackupFiles: 0, lastBackupError: r.error })
-      .where(eq(teamspaceDrives.teamspaceId, teamspaceId));
+      .where(and(eq(teamspaceDrives.teamspaceId, teamspaceId), eq(teamspaceDrives.backup, true)));
     return r;
   }
 }
@@ -405,7 +408,7 @@ export function scheduleDriveBackups(workspaceId: string): void {
           .select({ teamspaceId: teamspaceDrives.teamspaceId })
           .from(teamspaceDrives)
           .innerJoin(teamspaces, eq(teamspaces.id, teamspaceDrives.teamspaceId))
-          .where(eq(teamspaces.workspaceId, workspaceId));
+          .where(and(eq(teamspaces.workspaceId, workspaceId), eq(teamspaceDrives.backup, true)));
         for (const { teamspaceId } of linked) {
           const r = await runBackup(teamspaceId);
           if (r.error) console.error(`[aindrive-backup] ${teamspaceId}: ${r.error}`);

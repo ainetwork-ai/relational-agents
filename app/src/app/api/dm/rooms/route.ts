@@ -133,7 +133,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
 }
 
 /** My dm rooms in the active workspace. Each relationship lives in its own
- * "{me} ❤️ {partner}" workspace, so scoping by workspace shows one room per
+ * "{me} · {partner}" workspace, so scoping by workspace shows one room per
  * relationship in the space that relationship belongs to. */
 async function myDmRooms(meId: string, workspaceId: string): Promise<ChatRoom[]> {
   const rows = await db
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
     .select({ id: users.id, displayName: users.displayName })
     .from(users)
     .where(inArray(users.id, allMemberIds));
- // relationship rooms are named after their people: "{me} ❤️ {partner}"
+ // relationship rooms are named after their people: "{me} · {partner}"
   const byId = new Map(memberRows.map((r) => [r.id, r.displayName]));
   const roomName =
     name ||

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { AindriveError, cleanPath, hasServiceToken, linkAllowed, readFileBytes } from "@/lib/aindrive";
-import { getAccount, runAs } from "@/lib/aindrive-account";
+import { getAccount, runAs, runAsOrService } from "@/lib/aindrive-account";
+import { sharedLinkFor } from "@/lib/aindrive-teamspace";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,9 @@ const ACTIVE = new Set(["html", "htm", "svg", "xml", "xhtml"]);
  * aindrive's MCP. What an aindrive link in a page previews through.
  *
  * Read as the viewer's own aindrive account, like a Google Drive link: a file
- * shows for people whose aindrive can open it. Without a connected account the
+ * shows for people whose aindrive can open it. A file inside a folder linked
+ * into one of the viewer's teamspaces is shared with them through that link and
+ * read as whoever linked it (a family member's folder). Otherwise the
  * deployment's service token may serve it, inside the offered folders only.
  */
 export async function GET(req: NextRequest) {
@@ -42,13 +45,20 @@ export async function GET(req: NextRequest) {
   if (!driveId || !path) return NextResponse.json({ error: "drive and path required" }, { status: 400 });
   const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
   const own = !!(await getAccount(auth.user.id));
-  if (!own && !(hasServiceToken() && linkAllowed({ driveId, root: dir })))
+  const shared = await sharedLinkFor(auth.user.id, driveId, path);
+  if (!own && !shared && !(hasServiceToken() && linkAllowed({ driveId, root: dir })))
     return NextResponse.json({ error: "Connect your aindrive to view this file", needsAccount: true }, { status: 401 });
 
   let bytes: Buffer;
   try {
     const read = () => readFileBytes({ driveId, root: "" }, path);
-    bytes = own ? await runAs(auth.user.id, read) : await read();
+    // a teamspace-shared folder first: the viewer's own aindrive may well not
+    // have that family member's drive
+    bytes = shared
+      ? await runAsOrService(shared.linkedBy, read)
+      : own
+        ? await runAs(auth.user.id, read)
+        : await read();
   } catch (e) {
     const msg = (e as Error).message;
     const status = !(e instanceof AindriveError)

@@ -3,7 +3,7 @@ import type { RelationshipProfile } from "./types";
 /**
  * Two people who work together.
  *
- * Section keys are deliberately shared with the romantic profile wherever the
+ * Section keys are deliberately shared with the family profile wherever the
  * meaning carries over — `timeline` is a meeting log rather than a story of
  * dates, but it is the same chronological record, so switching profiles keeps
  * the file and changes only its label. `actions` is the one genuinely new

@@ -30,6 +30,12 @@ const nextConfig: NextConfig = {
   // without this does nothing.
   experimental: {
     proxyClientMaxBodySize: 50 * 1024 * 1024,
+    // Dev only. Next 16.2's server Fast Refresh keeps an async loop per server
+    // chunk (hot-reloader-turbopack setupServerHmr) spinning even when no file
+    // changes, and React's dev async tracking records every promise it makes —
+    // the idle dev server grew ~300MB/min until it ran out of heap (2026-09-24).
+    // Off, a server edit reloads the module instead of patching it in place.
+    turbopackServerFastRefresh: false,
   },
   // /uploads/* is served same-origin off disk, so an html or svg opened as a
   // document would run its script as us (stored XSS — the session cookie rides

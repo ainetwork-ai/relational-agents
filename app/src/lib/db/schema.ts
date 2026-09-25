@@ -973,10 +973,11 @@ export const aindriveLinks = pgTable("aindrive_links", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// The aindrive folder a teamspace is linked to (sidebar → 새로 추가 → aindrive).
-// One per teamspace: the teamspace's OKF content is backed up into it
-// (lib/aindrive-backup), and whatever else the folder holds is browsable from
-// the sidebar. A pointer, not a page — the files stay on someone's machine.
+// aindrive folders linked into a teamspace (sidebar → aindrive에 동기화하기).
+// Each member links their own (a family: grandma's, mom's, dad's), and every
+// member of the teamspace can open all of them — calls run as whoever linked
+// the folder. One of them (`backup`) also receives the teamspace's OKF backup
+// (lib/aindrive-backup). A pointer, not a page — files stay on someone's machine.
 export const teamspaceDrives = pgTable(
   "teamspace_drives",
   {
@@ -993,8 +994,13 @@ export const teamspaceDrives = pgTable(
     lastBackupAt: timestamp("last_backup_at"),
     lastBackupFiles: integer("last_backup_files"),
     lastBackupError: text("last_backup_error"),
+    // the teamspace's OKF backup goes to this folder (at most one per teamspace)
+    backup: boolean("backup").default(false).notNull(),
   },
-  (t) => [uniqueIndex("teamspace_drives_teamspace_uq").on(t.teamspaceId)]
+  (t) => [
+    index("teamspace_drives_teamspace_idx").on(t.teamspaceId),
+    uniqueIndex("teamspace_drives_folder_uq").on(t.teamspaceId, t.driveId, t.root),
+  ]
 );
 
 // Per-member Bearer tokens for importing our agent into external platforms

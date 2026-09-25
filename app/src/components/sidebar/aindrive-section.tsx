@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HardDrive } from "lucide-react";
+import { HardDrive, Share2 } from "lucide-react";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { useT } from "@/i18n/provider";
@@ -28,7 +28,19 @@ export function AindriveSection() {
         >
           aindrive
         </button>
-        <span className="truncate pl-2 text-[11px] text-neutral-400">{info.account?.email ?? ""}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="truncate pl-2 text-[11px] text-neutral-400">{info.account?.email ?? ""}</span>
+          {info.drives.length > 0 && (
+            <Link
+              href={`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`}
+              data-testid="aindrive-section-share"
+              title={t("팀스페이스에 폴더 공유")}
+              className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+            >
+              <Share2 size={11} /> {t("팀과 공유")}
+            </Link>
+          )}
+        </span>
       </div>
       {!collapsed &&
         (info.drives.length === 0 ? (

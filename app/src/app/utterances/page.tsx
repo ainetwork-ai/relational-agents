@@ -11,7 +11,7 @@ import { callUtterances, chatRoomMembers, users } from "@/lib/db/schema";
  * read the table without a psql shell.
  *
  * It shipped without any of the guards below and reached production, where it
- * served every couple's call transcript, with speaker names, to anyone who
+ * served every family's call transcript, with speaker names, to anyone who
  * guessed the path — while `/` next to it redirected to login. Hence all three:
  *
  *  - gone entirely outside development, because a debug page has no business

@@ -143,7 +143,7 @@ test.describe("production — what a visitor can actually do", () => {
 
     const list = page.getByTestId("home-workspaces");
     await expect(list).toBeVisible();
-    await expect(list, "the relationships are not offered on home").toContainText("Hannah");
+    await expect(list.getByRole("button").first(), "no workspace is offered on home").toBeVisible();
 
     const { rooms } = await page.request.get("/api/dm/rooms").then((r) => r.json());
     expect(rooms?.length, "no relationship room to open").toBeGreaterThan(0);

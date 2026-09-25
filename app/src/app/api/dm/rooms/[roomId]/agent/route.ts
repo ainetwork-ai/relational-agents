@@ -81,7 +81,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
 /**
  * PATCH → adjust this room's agent. Any member, no signature: the contract is
  * what brought the agent into being, not what it is told to pay attention to,
- * and a couple should not need a wallet to change its tone.
+ * and a family should not need a wallet to change its tone.
  *
  * { name }                     rename (the agent's user displayName)
  * { profile }                  which relationship this is — sections, vocabulary, rules

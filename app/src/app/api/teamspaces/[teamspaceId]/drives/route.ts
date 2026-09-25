@@ -2,19 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { teamspaceDrives } from "@/lib/db/schema";
-import { aindriveConfigured, hasDrive, parseLink } from "@/lib/aindrive";
-import { runAs } from "@/lib/aindrive-account";
+import { teamspaceDrives, users } from "@/lib/db/schema";
+import { aindriveConfigured } from "@/lib/aindrive";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
-import { runBackup } from "@/lib/aindrive-backup";
+import { ShareError, shareFolder } from "@/lib/aindrive-share";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The aindrive folder a teamspace is linked to (at most one).
- * GET  → { drives: [{ id, name, driveId, root, lastBackupAt, lastBackupError }] }
- * POST { name?, driveId, root? } → link one (anyone who can see the teamspace,
- *      as with adding a page there) and start the first OKF backup into it
+ * The aindrive folders linked into a teamspace — each member may link their own.
+ * GET  → { drives: [{ id, name, driveId, root, backup, linkedBy, lastBackupAt, lastBackupError }] }
+ * POST { name?, driveId, root? } → link one of the caller's own folders. The
+ *      teamspace's first link also receives its OKF backup, which starts now.
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ teamspaceId: string }> }) {
   const auth = await requireAuth();
@@ -30,8 +29,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ teamspaceI
       root: teamspaceDrives.root,
       lastBackupAt: teamspaceDrives.lastBackupAt,
       lastBackupError: teamspaceDrives.lastBackupError,
+      backup: teamspaceDrives.backup,
+      linkedBy: users.displayName,
     })
     .from(teamspaceDrives)
+    .leftJoin(users, eq(users.id, teamspaceDrives.createdBy))
     .where(eq(teamspaceDrives.teamspaceId, teamspaceId))
     .orderBy(asc(teamspaceDrives.createdAt));
   return NextResponse.json({ drives });
@@ -41,38 +43,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ teamspaceI
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { teamspaceId } = await ctx.params;
-  if (!(await visibleTeamspace(auth.user.id, teamspaceId)))
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!aindriveConfigured())
     return NextResponse.json({ error: "aindrive is not configured on this server" }, { status: 503 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  let link;
   try {
-    link = parseLink(body);
+    const drive = await shareFolder(auth.user.id, teamspaceId, body);
+    return NextResponse.json({ drive }, { status: 201 });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    if (e instanceof ShareError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
-  if (!link) return NextResponse.json({ error: "driveId required" }, { status: 400 });
-  // linking shares the folder through the linker's own aindrive account
-  const target = link;
-  const mine = await runAs(auth.user.id, () => hasDrive(target.driveId)).catch((e: Error) => e);
-  if (mine instanceof Error) return NextResponse.json({ error: mine.message }, { status: 401 });
-  if (!mine) return NextResponse.json({ error: "That drive is not in your aindrive account" }, { status: 403 });
-  const [already] = await db
-    .select({ id: teamspaceDrives.id })
-    .from(teamspaceDrives)
-    .where(eq(teamspaceDrives.teamspaceId, teamspaceId));
-  if (already)
-    return NextResponse.json({ error: "This teamspace is already linked to an aindrive folder" }, { status: 409 });
-  const given = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
-  // unnamed → the folder's own name, which is what the sidebar would show anyway
-  const name = given || link.root.split("/").pop() || "aindrive";
-  const [drive] = await db
-    .insert(teamspaceDrives)
-    .values({ teamspaceId, name, driveId: link.driveId, root: link.root, createdBy: auth.user.id })
-    .returning();
-  // the first backup can take a while on a big teamspace — the page shows its
-  // progress through the drive's backup status rather than holding this open
-  void runBackup(teamspaceId).catch((err) => console.error("[aindrive-backup] first run:", err));
-  return NextResponse.json({ drive }, { status: 201 });
 }

@@ -1,123 +1,165 @@
 ---
-title: Demo — 3-Minute Video Script & Transition Design
-icon: 🎬
+title: Demo — 김씨네 가족, aindrive 세 폴더로 꾸린 가족 워크스페이스
+icon: 🏡
 ---
 
-# You see me, therefore I am.
+# 흩어진 가족의 자료가, 한 공간에서 만난다
 
-**An agent is born only when people — at least two — see each other.**
+**할머니, 엄마, 아빠가 각자의 aindrive 폴더를 연결하면 — 파일은 각자의 컴퓨터에
+그대로 두고 — 가족 워크스페이스가 저절로 채워진다.**
 
-Total runtime 3:00 · 1440×900 · light mode.
-Concept: a relationship-management workspace. The star is the relational agent — born only by mutual consent, it manages and remembers your relationships. All scenes below use the REAL data in this workspace: the **Relationships** database (Relationships.csv) and the **Relationship Records** pages — every record titled **"Chanho ❤️ {name}"** (Chanho ❤️ Isla Montgomery, Chanho ❤️ Hannah Brooks, Chanho ❤️ Sophie Miller, and seven more).
+오늘은 2026년 9월 24일, 추석 연휴 첫날. 내일(25일)이 추석이다. 김씨네는 할머니 댁에
+모인다. 레시피는 할머니 폴더에, 장보기와 차례상은 엄마 폴더에, 귀성길과 성묘 계획은 아빠
+폴더에 있다. 이 데모는 그 세 폴더가 하나의 가족 공간이 되는 과정을 보여준다.
 
-## Pre-roll · 0:00–0:15 · Why a relational agent?
+## 등장인물과 그들의 aindrive
 
-Two title cards before the product appears. No UI yet — this is the thesis, and everything after it is the proof. Every scene below is timed to absorb this pre-roll, so the total stays at 3:00.
+| 사람 | aindrive 계정 | 드라이브(폴더) | 들어 있는 것 |
+|---|---|---|---|
+| 🧓 할머니 | 지갑 계정 | 「할머니의 부엌과 앨범」 | 송편·토란국·녹두전·식혜 레시피, 우리 집 차례 순서, 선산 가는 길, 옛날 사진과 사진 이야기, 추석 연휴 약 챙기기·복약 일정·혈압 기록·병원 예약, 손주에게 쓴 편지 |
+| 👩 엄마 | 지갑 계정 | 「엄마의 살림」 | 추석 사흘 일정, 역할 분담표(csv), 차례상 차림표·배치도, 장보기(xlsx), 선물·용돈(csv), 보름달 소원, 가족 달력, 명절 사진 |
+| 👨 아빠 | 지갑 계정 | 「아빠의 기록」 | 귀성·귀경 계획, 벌초·성묘 계획, 귀성 전 차량 점검(정비기록), 윷놀이 대진표, 추석 뒤 가족회의 안건(docx), 제주 여행 계획·경비·사진 |
+| 👧 서연 | 지갑 계정 | 「서연이 폰」 | `앨범/` 제주 사진·앨범 소개 (→ 우리 가족), `생신준비/` 할머니 생신 준비 회의 녹음(m4a)+받아쓰기 (→ 할머니 생신 준비, 비밀), `특별영상/` 할머니께 드리는 영상 (공유 안 함 — x402 선물로만 열림) |
 
-**Card 1 — 😈 the problem** (7s). Show `docs/img/agent.png`: one agent per human, one shared memory store holding "Egg tart with Hannah". **Ava** asks *"Chanho, do you like egg tarts?"* — the agent answers *"Yes — Chanho used to love egg tarts, especially with Hannah."* The red leak arrow lands, screen shake 0.2s, BGM drops.
+할머니·엄마·아빠는 드라이브 통째로, 서연은 **폴더 단위로** 공유한다. 사진에는 찍은 시각·위치·기기(EXIF)가 들어 있다.
 
-![One agent per human — Ava's question leaks Hannah's memory](img/agent.png)
+각자의 기기(aindrive 드라이브)가 자료를 올리는 구조다. 추석 자료 12건과 시나리오 자료 33건(사진·영상·녹음 포함)은
+aindrive MCP `write_file`로 각자의 계정 권한으로 그 기기에 올렸다(`scripts/family-demo-push.mts`, 올린 뒤 다시 읽어 비교).
 
-Caption: **"Nobody hacked anything. It was being helpful."**
+네 사람은 **각자 자기 aindrive 계정**을 쓴다(이메일 없이 지갑으로 로그인). 모두
+ainmem에 "aindrive로 로그인"으로 들어오고, 로그인 바로 다음 화면 **"어떤 aindrive
+폴더를 팀과 공유할까요?"** 에서 자기 드라이브를 골라 "우리 가족" 팀스페이스에 공유한다
+(드라이브 목록과 내 것인지 확인은 aindrive MCP로, 내 계정 권한으로). 연결된 폴더는 팀스페이스 가족 모두가 열어 볼 수 있다. 읽기와
+쓰기는 **폴더를 연결한 사람의 계정으로** MCP를 통해 aindrive로 간다.
 
-**Card 2 — 🛡️ the fix** (8s). Show `docs/img/relational_agent.png`: the agents sit **on the relationships** — **Chanho–Hannah** holds the egg tart memory, **Chanho–Ava** holds none. "No leak" snaps in green, BGM returns.
+사진은 모두 Wikimedia Commons의 자유 라이선스 사진이고, 출처는 각 폴더의
+`CREDITS.md`에 있다. 문서는 실제 정보를 바탕으로 썼다(2026년 추석 날짜, 전통 레시피,
+차례상 규칙, 귀성길 경로). 복약 정보 같은 건강 자료는 표본 데이터이고, 실제 개인정보는 없다.
 
-![One agent per relationship — the Chanho–Ava agent has no egg tart memory, no leak](img/relational_agent.png)
+## 준비 (한 번)
 
-Caption: **"Nothing else is in there to leak."** This plants the egg tart, so the 2:12 finale pays it off.
+```bash
+cd app
+# 1) 네 사람: aindrive 계정(지갑) + 드라이브(aindrive CLI) + ainmem 계정
+pnpm tsx scripts/family-demo-accounts.mts --data ~/.ainmem-demo/source/family
+# 2) 자료를 각자의 기기로 — aindrive MCP로, 각자의 계정으로 (선택: 이미 있으면 생략)
+pnpm tsx scripts/family-demo-push.mts --from ~/.ainmem-demo/source/family
+# 3) 가족 워크스페이스 "김씨네 가족": 팀스페이스 2개(우리 가족 · 할머니 생신 준비[비공개]),
+#    드라이브·폴더 연결, 페이지 13개, 대화방 2개, x402 선물, 용돈 장부
+pnpm demo:family            # 다시 만들 때는 --reset
+# (선택) "오늘 여행사진"을 글자 그대로: 여행 사진의 촬영일을 오늘로 옮긴다 (폰의 EXIF를 MCP로 고침)
+pnpm tsx scripts/family-demo-trip-date.mts --end today
+```
 
-**VO**:
-> "Ava asked Chanho's agent, 'Do you like egg tarts?' — and it answered, 'especially with Hannah,' from a memory that belongs to Hannah. No attack, just a helpful answer. So we didn't give the agent to the person. We gave it to the **relationship**: born when **both see each other**, remembering only what **the two of them** shared. There is **nothing else in there to leak.**"
+- 드라이브 폴더, 지갑 키, CLI 홈은 `~/.ainmem-demo/`에 있다(리포 밖, 키 파일은 600).
+- aindrive CLI 세 개가 이 머신에서 돌아야 파일이 열린다. 다시 띄우려면 1)을 다시
+  실행하면 된다. 이미 도는 CLI는 건드리지 않는다.
+- `DEMO_LOGIN_ADDRESS`가 설정돼 있으면 "데모 계정으로 시작"이 **엄마**로 들어간다.
+  그 아래 **다른 가족으로: 할머니 · 아빠 · 서연**을 누르면 그 사람으로 바로 들어간다(시나리오 4는 할머니로).
+- 자료 원본과 생성 도구(사진 다운로드·EXIF·녹음 합성·영상)는 `~/.ainmem-demo/source/`에 있다.
 
-## Setup — three wallets (live, right after the pre-roll)
+## 데모 순서 (약 3분)
 
-Nothing is pre-wired — both relationships are formed on camera.
+### 0:00 · 로그인 — "aindrive로 로그인"
+로그인 화면에서 **aindrive로 로그인**을 누른다. aindrive 승인 창("Connect “ainmem” to
+aindrive")에서 Authorize를 한 번 누르면 엄마로 로그인된다. 사이드바 **AINDRIVE**에 엄마
+계정의 드라이브가 바로 뜬다. 엄마 폴더는 이미 "우리 가족"에 공유돼 있어서 공유 화면은
+건너뛴다 — 아직 공유 안 한 드라이브가 있으면 그 화면에서 체크된 채로 나온다(사이드바
+AINDRIVE의 **팀과 공유**로 언제든 다시 열 수 있다).
+> "가입도 업로드도 없다. 원래 쓰던 aindrive 계정으로 들어오면 내 폴더가 그대로 따라온다."
 
-1. **Three MetaMask accounts, three browser profiles**: Chanho (the recording profile), Hannah, Ava. One profile per account — localhost cookies are shared across ports, so two logins in the same profile evict each other. Each signs in via **Sign in with MetaMask** (the account picker opens on every sign-in).
-2. Recording profile logged in as **Chanho**, sidebar on the **Chats** tab, Relationships table one click away; the two invitations (**Hannah**, **Ava**) already sent so both rooms exist. Warm up the local LLM once before recording.
+### 0:30 · 세 폴더가 모인 팀스페이스
+사이드바 **우리 가족** 팀스페이스 아래에 aindrive 폴더 세 개가 있다. 「엄마의 살림」
+(동기화됨), 「할머니의 부엌과 앨범」(할머니), 「아빠의 기록」(아빠). 할머니 폴더를 열면
+할머니 컴퓨터에 있는 레시피와 옛날 사진이 보인다. 옛날 사진을 누르면 바로 미리보기가 뜬다.
+> "각자의 파일은 각자의 컴퓨터에 있다. 연결만 했을 뿐인데 가족 모두가 볼 수 있다."
 
-Both **Chanho ❤️ Hannah** and **Chanho ❤️ Ava** are born live in the consent scene. Hannah is where the Lisbon egg tart lands (via chat upload); Ava is the one who later asks over a video call — and whose agent has nothing to leak.
+### 1:00 · 🎑 2026 우리 가족 추석 — 준비
+허브 페이지 **2026 우리 가족 추석**에서 시작한다.
+- **추석 일정 · 귀성길**: 엄마의 사흘 일정 + 아빠의 귀성·귀경 계획(7시 출발, 망향휴게소) + 귀성 전 차량 점검 기록.
+- **역할 분담**: 엄마의 역할분담표가 보드(할 일 → 진행 중 → 완료)로. 상태를 옮기면 모두에게 보인다.
+- **차례상과 음식**: 엄마의 차림표·배치도, 할머니가 불러 준 **우리 집 차례 순서**, 할머니 레시피 4가지(송편·토란국·녹두전·식혜), 장보기 엑셀.
+- **벌초 · 성묘**: 아빠의 계획 + 할머니의 선산 가는 길("빨간 리본", "밤 주워 오기").
 
-3. **Seed the rooms before the epilogue** — `cd app && pnpm demo:seed "<room>" --as Chanho`, once per room, in the cut between 2:12 and 2:40. A relationship born on camera has an **empty document**, and the agent answers only from the document: unseeded, the Belém Tower recommendation comes back as *"I have nothing to go on"* and the epilogue dies on screen. The seed back-fills Ava's sunset photos and the Open-topics entry the recommendation is grounded in. Always pass `--as Chanho` — without it the room's creator becomes the driver and the sunset preference is recorded against the wrong person. Rehearse the line with `pnpm demo:ask "<room>" "@agent plan the egg tart date"` (it removes its own messages afterwards); a good take answers **Belém Tower + why + map link + tower photo** in about three seconds.
+세 사람 폴더의 파일이 페이지마다 섞여 있지만 복사본은 하나도 없다. 전부 aindrive 링크다.
+빈 줄에서 **+** 를 누르면 메뉴 맨 위가 **aindrive에서 가져오기**다. 내 드라이브뿐 아니라
+"팀스페이스에 공유된 폴더"로 할머니·아빠 폴더의 파일도 골라 넣을 수 있다.
 
-## 0:15–1:00 · Mutual consent → two relationships are born
+### 1:40 · 챙길 것과 추억
+- **할머니 건강 · 연휴 약**: 추석 당일 아침 약은 차례 전 7시에 서연이. 복약 일정 표, 혈압 기록, 병원 예약.
+- **선물 · 용돈**: 누가 누구에게 무엇을, 얼마, 준비 상태.
+- **추석 앨범**: 할머니의 1950–70년대 사진과 "사진 이야기", 엄마의 명절 사진.
+- **추석 밤 · 가족회의**: 아빠의 윷놀이 대진표, 엄마의 보름달 소원(작년 소원 이뤄졌나?), 추석 뒤 가족회의 안건.
 
-**Screen actions**:
-1. **Chanho ❤️ Hannah first.** Hannah opens the room — the contract banner: *"The relational agent is born when both of you sign."* She clicks **Sign the contract**; MetaMask renders the `RelationConsent` fields (relation id + both parties) and she signs. Cut to Chanho signing too — the banner ticks **1/2 → 2/2 signed**.
-2. On the second signature the agent is **minted on-chain**: a system line drops in — *"📜 Registered on-chain — agent #N in the ERC-8004 registry (Sepolia). tx: 0x…"* — with the tx link. Both signatures were relayed for them; neither paid gas. (B-roll: the Etherscan tx page, the RelationalAgentRegistry `Registered` event.)
-3. **Now Chanho ❤️ Ava**, the same way — Ava signs, Chanho signs, **2/2**, a second on-chain mint. Two heart-pages **title themselves into being** in the sidebar — **Chanho ❤️ Hannah Brooks** and **Chanho ❤️ Ava Thorne** — each agent greets both members, and both show up in the left **Agents** section.
+### 2:20 · 가족 대화방의 에이전트 — 공유된 폴더에서 답한다
+**우리 가족** 대화방. 에이전트는 가족이 팀스페이스에 공유한 폴더를 읽고(공유한 사람의 권한으로),
+답에 **어느 파일에서 왔는지** 말한다. 실제로 확인한 질문:
+- `@agent 추석날 할머니 아침 약은 몇 시에 누가 챙겨?` → 오전 7시, 서연 (할머니 `건강/추석연휴_약챙기기.md`)
+- `@agent 작은아버지네 몇 시에 도착해? 누가 데리러 가?` → 9/24 18:41 논산역, 아빠 (아빠 `귀성/귀성길_계획.md`)
+- `@agent 성묘 갈 때 뭐 챙겨야 돼?` → 청주·잔·북어포·과일·돗자리·목장갑·벌레 기피제… (아빠 `벌초_성묘_계획.md`)
+- `@agent 토란국에 할머니 비법이 뭐야?` → 마지막에 들깨가루 (할머니 `레시피/토란국.md`)
+- `@agent 송편 주문해` → 에이전트가 자기 지갑으로 **달빛떡집**에 송편 한 상자를 주문한다.
 
-**VO**:
-> "The record isn't created by one person — it's *agreed into existence*. Both sign, and the agent is minted into an on-chain registry — its birth certificate is a contract two people signed, not a setting one person flipped. Two relationships, two agents, born the same way."
+### 2:50 · 마무리 — 백업은 OKF로, 원래 폴더에
+「엄마의 살림」을 열면 `ainmem-우리-가족-…/` 폴더에 방금 본 페이지들이 OKF(Markdown +
+CSV)로 동기화돼 있다. 편집하면 몇 초 뒤 다시 동기화된다.
+> "가족의 기억은 가족의 폴더에 남는다."
 
-## 1:00–2:12 · It remembers (upload → memory)
+## 추석 다음 이야기 — 네 가지 시나리오
 
-**Screen actions**:
-1. In **Chanho ❤️ Hannah Brooks**, drop the egg tart photo (`docs/img/egg-tart.jpg`) **into the agent chat**: "@agent midnight natas 🥧". The agent files it — the record's Timeline gains **"2026-08-01 — Lisbon evening — midnight pastéis de nata"** on screen.
-2. Ask the agent: "What did we eat that night in Lisbon?" → it answers from the record it just wrote, photo attached, with a link to the **Chanho ❤️ Hannah** page.
+> 지금 3110 상태: ①②③의 결과 페이지(🛒 녹두전 4인분 장보기 · ✅ 할머니 생신 준비 회의 — 할 일 · 📸 제주 여행 앨범)는
+> 엄마로 한 번씩 만들어 두었고, ④ 선물은 잠겨 있다. 처음부터 보여 주려면 `pnpm demo:family --reset`.
+> 결과 페이지는 같은 부탁을 다시 하면 같은 자리에 새로 만들어진다.
 
-**VO**:
-> "Drop in a photo, and the agent files the memory — into this relationship's record, and nowhere else. Ask, and it answers from memory — not search."
+어느 페이지에서든 **오른쪽 아래 동그란 에이전트 버튼**을 누르면 오른쪽에 에이전트가 열린다.
+맨 위에 이 에이전트가 읽는 aindrive가 보인다 — 엄마·할머니·아빠·서연 앨범(엄마로 들어가면
+비밀 팀스페이스의 「서연 폰 · 생신 준비」까지). 에이전트는 각 폴더를 **공유한 사람의 계정으로** 읽는다.
+가족 대화방에서 `@agent`로 부탁해도 같은 일을 한다.
 
-## 2:12–2:40 · Finale: the video-call question (the fun bit)
+### ① 요리 — 할머니 녹두전 (🥞 할머니 녹두전)
+할머니 폰의 레시피·손글씨 사진·반죽 농도 영상·계량법, 엄마 폰의 후기가 한 페이지에.
+> 「녹두전 4인분 장보기 목록 만들어줘」 → 🛒 **녹두전 4인분 장보기**: 할머니 레시피를 4인분으로 줄이고,
+> 「한 줌」은 계량법으로 바꿔 체크리스트 + 요약 + 할머니 자료.
 
-**Screen actions**:
-1. **A video call rings** — the call UI, **Ava** calling. Chanho answers; her video fills the screen.
-2. Ava, casually: *"Do you like egg tarts? I found a place."* Beat — the audience knows where the egg tarts live.
-3. Chanho glances at **Chanho ❤️ Ava**'s agent chat in the corner: *"Didn't we have egg tart?"* → agent: **"No record. Not in this relationship."**
-4. Chanho, back on camera, perfectly calm: *"…I've been meaning to try them."* The agent that remembers Hannah's natas says nothing here — it isn't in this room.
+### ② 생신 — "할머니 생신인 거 알지? 선물 뭐 할까?" (🎂 할머니 생신 준비 · 비공개)
+서연 폰의 10/11 준비 회의 녹음(1분 42초, 엄마·아빠·서연·도윤)은 **할머니를 뺀** 비공개 팀스페이스에만 공유돼 있다.
+**할머니 생신 준비** 대화방(할머니 없음)에서:
+> 「할머니 생신인 거 알지? 선물 뭐 할까?」 → 녹음에서: 줄 달린 돋보기(서연), 무릎 담요(도윤)…
+> 「녹음에서 할 일 뽑아줘」 → ✅ **할머니 생신 준비 회의 — 할 일**: 담당별 보드(엄마·아빠·서연·도윤·모두), 기한 달력, 녹음·받아쓰기 링크.
 
-**VO**: none — screen and captions carry it.
-Caption: **"An agent that remembers also knows what never happened."**
+할머니가 가족방에서 「애들이 내 생일 뭐 준비해?」라고 물으면 에이전트는 모두가 볼 수 있는 가족 달력(케이크·용돈 봉투)만
+말한다. 녹음 파일을 직접 열려 해도 aindrive가 거절한다(403). 할머니에게는 비공개 팀스페이스 자체가
+사이드바에 보이지 않고, 그 안의 페이지도 열리지 않는다(404).
 
-## 2:40–2:52 · Epilogue: the relationship grows (Belém Tower)
+### ③ 가족 여행 — 세 폰의 사진이 하나의 앨범으로 (✈️ 제주 가족여행)
+에이전트 버튼 → 「**오늘 여행사진 정리해서 앨범으로 만들어줘.**」
+→ 📸 **제주 여행 앨범**: 엄마(iPhone 15)·아빠(Galaxy S24)·서연(Galaxy A35) 폰의 사진 17장을
+찍은 시각·위치(EXIF)로 모아 1~4일차로. 엄마가 카톡으로 받은 아빠 사진(같은 파일)은 한 번만, 원본 쪽으로.
+"오늘"은 오늘이 들어 있는 여행, 없으면 가장 최근 여행이다(데모 당일로 옮기려면 `family-demo-trip-date.mts`).
 
-Prep (once, after the consent scene): from Chanho's session, `POST /api/dm/rooms/{avaRoomId}/seed-sunsets` — back-fills **Chanho ❤️ Ava** with Ava's golden-hour photo history and her *"I love sunsets"* line, and grounds the agent's People notes / Open topics with the Belém Tower recommendation (Maps link + photo).
+### ④ 손주 앨범 보다가 용돈 — 특별 영상 x402 (📷 서연이 앨범)
+서연 앨범 아래 **🎁 할머니께, 제주에서** — 흐린 미리보기와 「🔒 용돈 50,000원으로 열기」(x402 · 36.23 USDC → 서연 지갑).
+영상 원본은 서연 폰의 공유 안 한 폴더에만 있다. **할머니로** 들어가서 버튼을 누르거나, 가족방에서
+「@agent 서연이 용돈 주고 영상 보자」 →
+1. 선물 주소가 **402 Payment Required** + `PAYMENT-REQUIRED`(x402 v2, exact, Base Sepolia USDC, EIP-3009)로 답한다.
+2. 할머니 가족 지갑이 `transferWithAuthorization`에 서명해 `PAYMENT-SIGNATURE`로 다시 요청한다.
+3. 서명을 검증하고, 정산은 **가족 용돈 장부**에 — 할머니 폰 `지갑/용돈_장부.csv`(300,000 → 250,000)와
+   서연 폰 `지갑/받은_용돈.csv`(+50,000)에 같은 영수증으로 한 줄씩(MCP, 각자의 계정으로).
+4. `PAYMENT-RESPONSE`와 함께 영상이 열리고, 가족방에 "🎁 할머니께서 서연에게 용돈 50,000원을…" 알림.
 
-**Screen actions**:
-1. Back in **Chanho ❤️ Ava**, scroll past Ava's sunset photos (the story evidence — she posts them constantly). Chanho: *"@agent plan the egg tart date"*.
-2. The agent answers **from this relationship's memory**: it books the calendar event for the egg tart place, then recommends **Belém Tower** right nearby — *"the sunset over the Tagus wraps the tower in a romantic glow — and you told me you love sunsets"* — with the tower photo attached and the **Google Maps link** (https://maps.app.goo.gl/Nir82uC1c9UQTQtd7) clickable in chat.
-3. Push-in on the recommendation card: photo, reason, map link. The Chanho ❤️ Ava agent now has its own story to grow.
+> 체인 정산은 하지 않는다 — 이 환경에는 잔고가 있는 지갑이 없다. 서명·검증은 실제 EIP-3009이고,
+> 정산 단계(`src/lib/gift.ts`의 `settle`)만 x402 facilitator(Base USDC)로 바꾸면 실제 송금이 된다.
+> 위조 서명은 402 "signature does not match the payer"로 거절된다.
 
-**VO**:
-> "And that's how it grows — the agent plans from what these two share: she loves sunsets, so it finds the tower where the sun goes down."
+## 확인 포인트
+- 로그인 → 사이드바 AINDRIVE에 드라이브 목록(켜진 것 먼저)
+- 팀스페이스 아래 폴더 3개, 각자 연결한 사람 표시, 백업 폴더만 "동기화됨"
+- 페이지의 파일 블록: 이미지·PDF·xlsx·pptx·docx·md·csv 미리보기
+- 다른 가족이 연결한 폴더의 파일도 열린다(연결한 사람 권한으로) — 공유 안 된 남의 드라이브는 안 열린다
+- 에이전트가 공유된 폴더의 파일로 답하고 출처 파일을 말한다(방 사람 모두가 볼 수 있는 팀스페이스의 폴더만)
+- aindrive로 로그인하면 공유할 폴더를 고르는 화면(이미 모두 공유했으면 건너뜀)
+- `+` 메뉴의 첫 항목이 aindrive에서 가져오기, 가져오기 창에 "팀스페이스에 공유된 폴더"
 
-## 2:52–3:00 · Closing — Chanho's home (담당: hyeonjj)
-
-**Screen**: Cut to **Chanho's home** — the progress dashboard over all ten relationships ("Chanho ❤️ …" with Isla, Hannah, Ava, Sophie, Olivia, Emma and the rest): per-relationship progress bars, upcoming dates, last-memory timestamps, one very busy Chanho at the center. Then the graph view zooms out — ten nodes orbiting him → title card.
-
-**VO**:
-> "Every person, every promise, remembered — human to human."
-
----
-
-# Screen Transition Design
-
-Global rules:
-
-- Grammar: hard cuts inside a scene, one transition style per scene boundary, never stacked.
-- The Relationships table is "home base" — every section departs from and returns toward it, so the viewer always knows where they are.
-- Speed ramp: record real-time, edit at 1.2–1.5×; drop to 1.0× for every agent reply.
-
-Per-boundary plan (the pre-roll is title cards only — no UI, so it has no in-app transition of its own):
-
-1. **Pre-roll → Consent (0:15)** — the Card-2 diagram fades to black 0.5s, then fade in 0.6s straight onto Hannah's room with the contract banner. The first in-app gesture is a signature, not a tour.
-2. **Inside Consent** — on "consent granted," a soft radial pulse from the button (0.3s), then the agent bubble pops with the app's own 80ms pop-in.
-3. **Consent → Remember (1:00)** — **match cut** on the agent avatar: the chat bubble avatar aligns to the same position across the cut into **Chanho ❤️ Hannah Brooks**. 0.4s crossfade.
-4. **Inside Remember** — as the agent files the natas photo, **push-zoom 110%** onto the Timeline line it just wrote for 1s, then settle.
-5. **Remember → Video call (2:12)** — no transition. **Hard cut + call ringtone over black**, then the call UI. Kill the BGM; the ringtone is the only sound.
-6. **Inside the call** — picture-in-picture: the agent chat slides in bottom-right (0.3s) for the "No record" check, then slides out before Chanho answers. Zoom 120% on **"Not in this relationship."** for one beat.
-7. **Video call → Epilogue (2:40)** — call-end blip to black 0.4s; fade up on the ❤️ page in silence. **Epilogue → Closing (2:52)** — luma fade to white 0.8s into the graph zoom-out; warm BGM returns.
-8. **Title card (2:56)** — graph nodes collapse into the logo dot (0.5s), title in, hold 2s, fade out.
-
-Caption style: white on 60% black rounded backing, bottom-center; the private message keeps its own 🔒 bubble style. SNS 15-second cut = scenes 5–6 only, vertical crop on the chat panel with the untouched Relationships table picture-in-picture top-right.
-
----
-
-# Closing tagline (video close)
-
-Not an agent that replaces us. One that keeps us close.
-
-**You see me, therefore I am.**
-
-*(Fade to black on the tagline — end of video.)*
+이전 커플 데모는 `archive/couple/`, 영업사원 데모는 `archive/sales/`로 옮겼다.
+- 오른쪽 아래 에이전트 버튼 → 연동된 aindrive 목록 → 「오늘 여행사진 정리해서 앨범으로 만들어줘.」 → 앨범 페이지
+- 서연의 영상·녹음은 공유 폴더 밖이라 aindrive가 거절(403), 선물 결제로만 영상이 열린다

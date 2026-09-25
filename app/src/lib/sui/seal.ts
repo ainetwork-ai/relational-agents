@@ -14,7 +14,7 @@
  * ciphertext. There is no admin bypass to build, because there is no key to
  * bypass with.
  *
- * Verified against Sui testnet by `sui/scripts/walrus-seal.mjs`; results in
+ * Verified against Sui testnet by `archive/couple/sui/scripts/walrus-seal.mjs`; results in
  * `sui/PROOF.md`.
  */
 
@@ -56,7 +56,7 @@ export interface SealContext {
  * The Seal identity for one memory: the agent's object id, then a per-memory
  * suffix. `seal_approve` checks the object id is a *prefix* of the identity, so
  * a key derived for this relationship cannot be requested through another
- * object — being in some couple never unlocks a different couple's blob.
+ * object — being in one relationship never unlocks a different relationship's blob.
  */
 export function sealIdentity(agentId: string, suffix = ""): string {
   return `${agentId.startsWith("0x") ? agentId.slice(2) : agentId}${suffix}`;

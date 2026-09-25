@@ -67,7 +67,7 @@ function fakeEdits(batch: ChatMessage[], profile: RelationshipProfile): DocEdit[
       else lines.push(`- 📎 [${a.name || "file"}](${a.url})`);
     }
   }
-  // a batch with shared photos is a date event — the deterministic path keeps
+  // a batch with shared photos is a timeline event — the deterministic path keeps
   // the same formal template the LLM path writes (date h1 / title h2 / callout / timed photos)
   const hasPhotos = batch.some((m) => (m.attachments ?? []).some((a) => IMG_EXT.test(a.url)));
   const last = batch[batch.length - 1]!;
@@ -121,6 +121,11 @@ function imageDataUrl(url: string): string | null {
 
 /** What each built-in event kind means, for the classification instruction. */
 const EVENT_HINT: Record<string, string> = {
+  gathering: "the family getting together (a visit, a meal at grandma's), especially one with photos",
+  holiday: "a holiday the family keeps (Chuseok, Seollal, a birthday or anniversary)",
+  milestone: "a family milestone — a birthday, a first, a graduation",
+  trip: "a family trip, planned or taken",
+  checkup: "a hospital visit or health check-up",
   date: "a shared outing or meetup, especially one with photos",
   "first-met": "the story of how the two FIRST MET",
   meeting: "a call or meeting they both took part in",
@@ -171,7 +176,7 @@ async function llmEdits(
           `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the image url exactly as given — do not alter the path). ` +
           `The image must sit on its own line with nothing before it — a leading "- " turns it into a bullet and the photo stops rendering.\n` +
           `Write entries someone can answer questions from later: name the food, place, and people plainly, and say what the members did. ` +
-          `Casual or misspelled wording is not a proper noun — "midnight natas" is a late-night pastel de nata, not a person called Natas. When a word is ambiguous, trust the photo over the spelling.`,
+          `Casual or misspelled wording is not a proper noun — "할머니표 송편" is songpyeon grandma makes, not a person or a brand. When a word is ambiguous, trust the photo over the spelling.`,
       },
       {
         role: "user" as const,
@@ -208,8 +213,8 @@ const hhmm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
  * The formal Timeline template — the agent writes events in it directly:
  *
  *   # 2026-08-04                ← event date (h1)
- *   ## Belém day — natas …      ← short title (h2, date events only)
- *   > 💕 detail plain text      ← callout (💘 for first-met)
+ *   ## 추석 전날 — 송편 빚기 …   ← short title (h2)
+ *   > 🌕 detail plain text      ← callout (the event kind's icon)
  *   ### 14:02 ~                 ← per shared photo: message time (h3)
  *   [image]                     ←   then the photo, LLM caption preserved
  *
@@ -252,7 +257,7 @@ function timelineEventLines(
   // real-time writes arrive one message at a time, so the LLM rarely names the
   // event — with several detail sentences the first stands in as the summary
   // heading; a lone sentence lives in the callout only (no verbatim-echo h2)
-  const calloutText = detail.join(" ") || event.title || "A moment together";
+  const calloutText = detail.join(" ") || event.title || "A family moment";
   const title =
     event.title ?? (detail.length >= 2 ? detail[0].slice(0, 80) : undefined);
   const lines: NewLine[] = [{ type: "heading1", text: day }];

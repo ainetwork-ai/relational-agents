@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
  // A relationship can be born before anyone verifies. When the last party
  // proves themselves afterwards, the chain should learn it too — otherwise the
- // couple is verified in our database and still refused by every seller.
+ // family is verified in our database and still refused by every seller.
   const bind = await bindIfRelationshipComplete(roomId);
 
   return NextResponse.json({

@@ -11,6 +11,7 @@ import { PagePeek } from "@/components/page/page-peek";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
 import { IncomingCallHost } from "@/components/call/incoming-call-host";
+import { AssistantDock } from "@/components/assistant/assistant-dock";
 import { LocaleProvider } from "@/i18n/provider";
 import { getLocale } from "@/i18n/server";
 
@@ -68,6 +69,8 @@ export default async function AppLayout({
         {children}
         <ToastHost />
       </main>
+      {/* the round agent button, bottom right — opens the agent on the right */}
+      <AssistantDock />
       <SearchModal />
       {/* center peek — a page opened over the current one (sidebar + on a page) */}
       <PagePeek />

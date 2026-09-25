@@ -1,7 +1,7 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pages, pageShares, pageMembers } from "@/lib/db/schema";
+import { pages, pageShares, pageMembers, teamspaces, teamspaceMembers } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 
@@ -98,7 +98,7 @@ export async function getPagePermission(
   userId: string
 ): Promise<SharePermission | null> {
   const [page] = await db
-    .select({ workspaceId: pages.workspaceId, restricted: pages.restricted })
+    .select({ workspaceId: pages.workspaceId, restricted: pages.restricted, teamspaceId: pages.teamspaceId })
     .from(pages)
     .where(eq(pages.id, pageId))
     .limit(1);
@@ -126,7 +126,21 @@ export async function getPagePermission(
  // grant — the whole point is participant-only privacy. Non-restricted pages
  // keep the workspace-wide default (backwards compatible).
   if (page.restricted) return null;
+  // A private teamspace's pages are its members' — no grant, no member, no page.
+  if (page.teamspaceId && !(await inTeamspaceIfPrivate(page.teamspaceId, userId))) return null;
   return "full";
+}
+
+/** True unless the teamspace is private and the person is not in it. */
+export async function inTeamspaceIfPrivate(teamspaceId: string, userId: string): Promise<boolean> {
+  const [ts] = await db.select({ visibility: teamspaces.visibility }).from(teamspaces).where(eq(teamspaces.id, teamspaceId)).limit(1);
+  if (ts?.visibility !== "private") return true;
+  const [m] = await db
+    .select({ u: teamspaceMembers.userId })
+    .from(teamspaceMembers)
+    .where(and(eq(teamspaceMembers.teamspaceId, teamspaceId), eq(teamspaceMembers.userId, userId)))
+    .limit(1);
+  return !!m;
 }
 
 /**

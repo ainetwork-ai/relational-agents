@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { aindriveRawUrl } from "@/lib/aindrive-url";
 import { useRouter } from "next/navigation";
 import { CloudUpload, HardDrive } from "lucide-react";
 import { Browser, errorOf, SYNC_DOT, SYNC_LABEL, type Managed, type SyncState } from "@/components/home/aindrive-panel";
@@ -26,7 +27,9 @@ interface DriveMeta {
     lastBackupAt: string | null;
     lastBackupFiles: number | null;
     lastBackupError: string | null;
+    backup: boolean;
   };
+  linkedBy: string | null;
   teamspaceName: string;
   backupFolder: string;
   available: boolean;
@@ -126,7 +129,16 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
         {d.root ? ` / ${d.root}` : ""}
       </p>
 
+      {!d.backup && (
+        <p data-testid="teamspace-drive-shared" className="mb-6 rounded-xl border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+          {t("{who}님이 {ts} 팀스페이스와 공유한 aindrive 폴더입니다. 팀스페이스 멤버 누구나 열어 보고 고칠 수 있고, 바뀐 내용은 {who}님의 드라이브에 바로 반영됩니다.", {
+            who: meta.linkedBy ?? t("멤버"),
+            ts: meta.teamspaceName,
+          })}
+        </p>
+      )}
       {/* 1. the connection itself — is this teamspace linked, and is it current */}
+      {d.backup && (
       <section
         data-testid="teamspace-drive-backup"
         data-state={state}
@@ -211,6 +223,7 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
           </div>
         )}
       </section>
+      )}
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {/* 3. the folder: the backup and the drive's own files, told apart */}
@@ -221,7 +234,8 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
           api={`/api/aindrive/links/${id}`}
           title={`${d.driveId}${d.root ? ` / ${d.root}` : ""}`}
           onUnlink={() => void unlink()}
-          managed={managed}
+          managed={d.backup ? managed : undefined}
+          rawUrl={(path) => aindriveRawUrl({ driveId: d.driveId, path: d.root ? `${d.root}/${path}` : path })}
         />
       ) : (
         <p className="text-sm text-neutral-500">{t("이 폴더는 이 서버에서 더 이상 제공되지 않습니다.")}</p>

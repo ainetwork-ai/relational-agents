@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, HardDrive, Paperclip, Upload } from "lucide-react";
 import { FilePreview } from "@/components/previews";
 import { AindrivePicker } from "@/components/aindrive/aindrive-picker";
@@ -9,6 +9,7 @@ import { uploadResumable } from "@/lib/upload";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { aindriveFileName, aindriveRawUrl, parseAindriveUrl } from "@/lib/aindrive-url";
 import { useT } from "@/i18n/provider";
+import { aindrivePickPending } from "@/lib/editor/block-defs";
 
 /**
  * A file block's two faces.
@@ -25,7 +26,11 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
   const t = useT();
   const info = useAindriveInfo();
   const ref = parseAindriveUrl(url, info?.base);
-  const fileName = name || (ref ? aindriveFileName(ref) : url.split("/").pop() || "file");
+  const realName = ref ? aindriveFileName(ref) : url.split("/").pop() || "file";
+  const fileName = name || realName;
+  // the label may be a caption ("14:10 · 용두암 — 엄마 폰"); what the file IS
+  // comes from its own name when the label carries no extension
+  const kindName = /\.[a-z0-9]{1,8}$/i.test(fileName) ? fileName : realName;
   const bytesUrl = ref ? aindriveRawUrl(ref) : url;
   const downloadUrl = ref ? aindriveRawUrl(ref, true) : url;
   return (
@@ -81,7 +86,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
         // aindrive can open it
         <AindriveConnect compact />
       ) : (
-        <FilePreview src={{ name: fileName, url: bytesUrl }} compact header={false} className="rounded-none border-0" />
+        <FilePreview src={{ name: kindName, url: bytesUrl }} compact header={false} className="rounded-none border-0" />
       )}
     </div>
   );
@@ -101,7 +106,11 @@ export function FileAttachPicker({
   const info = useAindriveInfo();
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const [picking, setPicking] = useState(false);
+    // inserted from the menu's "aindrive에서 가져오기": start on the picker
+  const [picking, setPicking] = useState(() => aindrivePickPending.has(blockId));
+  useEffect(() => {
+    aindrivePickPending.delete(blockId);
+  }, [blockId]);
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [over, setOver] = useState(false);

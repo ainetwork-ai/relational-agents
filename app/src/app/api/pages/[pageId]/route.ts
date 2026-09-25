@@ -68,6 +68,8 @@ async function loadOwnedPage(pageId: string, userId: string) {
  // takes an explicit grant (pageMembers) or owner/admin. Shields DM
  // relationship docs from non-participant members.
   if (page.restricted && !(await getPagePermission(pageId, userId))) return null;
+  // nor for a private teamspace's pages: its members (and owner/admin) only
+  if (page.teamspaceId && !(await getPagePermission(pageId, userId))) return null;
   return page;
 }
 

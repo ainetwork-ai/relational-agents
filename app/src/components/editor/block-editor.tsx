@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import type { Block, BlockContent, BlockType, ButtonAction, TableData } from "@/lib/db/schema";
-import { MARKDOWN_SHORTCUTS, TEXT_TYPES } from "@/lib/editor/block-defs";
+import { AINDRIVE_PICK, MARKDOWN_SHORTCUTS, TEXT_TYPES, aindrivePickPending } from "@/lib/editor/block-defs";
 import { caretOffset, caretRect, setCaret } from "@/lib/editor/caret";
 import { tryInlineAutoformat } from "@/lib/editor/inline-autoformat";
 import {
@@ -1222,7 +1222,11 @@ export const BlockEditor = forwardRef<
           cur.content.table = cur.content.table ?? {
             cells: [["", "", ""], ["", "", ""], ["", "", ""]],
           };
-        if (preset) Object.assign(cur.content, preset);
+        if (preset) {
+          const { [AINDRIVE_PICK]: pick, ...rest } = preset;
+          Object.assign(cur.content, rest);
+          if (pick) aindrivePickPending.add(cur.id);
+        }
         cur.version++;
  // image/table manage their own focus targets, not a text caret
         if (type !== "image" && type !== "table") {

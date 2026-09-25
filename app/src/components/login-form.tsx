@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/i18n/provider";
 
 import { getInjectedProvider } from "@/lib/wallet/provider";
@@ -52,7 +52,8 @@ export function LoginForm() {
     const ok = await signInWithAindrive((s) => setAindriveWaiting(s === "waiting"));
     setAindriveWaiting(false);
     if (ok) {
-      window.location.href = "/";
+      // signed in: next, which of the account's folders the team gets to see
+      window.location.href = "/aindrive/share?next=/";
       return;
     }
     setBusy(null);
@@ -233,6 +234,7 @@ export function LoginForm() {
         >
           {busy === "demo" ? t("로그인 중…") : t("데모 계정으로 시작")}
         </button>
+        <DemoFamily onPick={(member) => login("/api/auth/demo-login", { member })} disabled={busy !== null} />
 
         <input
           data-testid="display-name-input"
@@ -285,5 +287,40 @@ export function LoginForm() {
         )}
       </div>
     </main>
+  );
+}
+
+/** "다른 가족으로": the demo account's family, one click each — for showing a
+ *  scenario from grandma's or 서연's side without a second browser. */
+function DemoFamily({ onPick, disabled }: { onPick: (member: string) => void; disabled: boolean }) {
+  const t = useT();
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/demo-login")
+      .then((r) => (r.ok ? r.json() : { members: [] }))
+      .then((d: { members?: string[] }) => alive && setMembers(d.members ?? []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!members.length) return null;
+  return (
+    <p data-testid="demo-family" className="mt-1.5 flex flex-wrap items-center justify-center gap-1 text-[11px] text-neutral-400">
+      {t("다른 가족으로:")}
+      {members.map((m) => (
+        <button
+          key={m}
+          type="button"
+          data-testid={`demo-member-${m}`}
+          disabled={disabled}
+          onClick={() => onPick(m)}
+          className="rounded px-1.5 py-0.5 text-neutral-600 underline-offset-2 hover:bg-neutral-100 hover:underline disabled:opacity-50 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          {m}
+        </button>
+      ))}
+    </p>
   );
 }

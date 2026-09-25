@@ -10,7 +10,8 @@ const require = createRequire(new URL("../app/", import.meta.url));
 const { createPublicClient, http } = require("viem");
 const { sepolia } = require("viem/chains");
 
-const NAME = process.argv[2] ?? "test-ava-dd51c5.ainetwork.eth";
+const NAME = process.argv[2];
+if (!NAME) { console.error("usage: node ens/verify-resolution.mjs <name.ainetwork.eth>"); process.exit(2); }
 const AGENT_ID = process.argv[3] ?? "3";
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 const REGISTRY = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e";

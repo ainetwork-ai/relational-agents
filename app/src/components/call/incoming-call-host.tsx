@@ -10,7 +10,7 @@ import type { DmUser } from "@/stores/dm-rooms";
 
 const RING_TIMEOUT_MS = 30_000;
 
-/** Classic dual-tone ring (ported from videocall/public/index.html) — WebAudio
+/** Classic dual-tone ring (ported from the videocall prototype, now archive/couple/videocall/public/index.html) — WebAudio
  * synth, no asset. Fails silently when autoplay policy keeps the context
  * suspended (fresh tab, no prior gesture): the visual card still shows. */
 function startRingtone(): (() => void) | null {

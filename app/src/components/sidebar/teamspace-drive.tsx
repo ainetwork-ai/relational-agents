@@ -27,6 +27,10 @@ interface TsDrive {
   name: string;
   lastBackupAt?: string | null;
   lastBackupError?: string | null;
+  /** receives the teamspace's OKF backup */
+  backup?: boolean;
+  /** who linked it (their folder, shared with the teamspace) */
+  linkedBy?: string | null;
 }
 
 export type DriveState = "synced" | "syncing" | "failed";
@@ -56,8 +60,9 @@ export const STATE_LABEL: Record<DriveState, string> = {
 // status drifts as syncs run after edits — re-read it now and then
 const POLL_MS = 30_000;
 
-function useTeamspaceDrive(teamspaceId: string) {
-  const [drive, setDrive] = useState<TsDrive | null | undefined>(undefined);
+/** Every folder linked into the teamspace (undefined while loading). */
+function useTeamspaceDrives(teamspaceId: string) {
+  const [drives, setDrives] = useState<TsDrive[] | undefined>(undefined);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
   useEffect(() => {
@@ -72,13 +77,20 @@ function useTeamspaceDrive(teamspaceId: string) {
     let alive = true;
     fetch(`/api/teamspaces/${teamspaceId}/drives`)
       .then((r) => (r.ok ? r.json() : { drives: [] }))
-      .then((d: { drives: TsDrive[] }) => alive && setDrive(d.drives[0] ?? null))
-      .catch(() => alive && setDrive(null));
+      .then((d: { drives: TsDrive[] }) => alive && setDrives(d.drives))
+      .catch(() => alive && setDrives([]));
     return () => {
       alive = false;
     };
   }, [teamspaceId, version]);
-  return drive;
+  return drives;
+}
+
+/** The link that receives the teamspace's sync (null = none linked yet). */
+function useTeamspaceDrive(teamspaceId: string) {
+  const drives = useTeamspaceDrives(teamspaceId);
+  if (drives === undefined) return undefined;
+  return drives.find((d) => d.backup) ?? drives[0] ?? null;
 }
 
 function ago(iso: string, t: ReturnType<typeof useT>): string {
@@ -324,15 +336,16 @@ export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
   );
 }
 
-/** First under the teamspace. Linked: opens the folder, with the sync state.
- *  Not linked: the way to start syncing, where it can be seen. */
+/** First under the teamspace: every folder linked into it — each member's
+ *  own, labelled with who linked it — and, while there is none, the way to
+ *  start syncing. */
 export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
   const t = useT();
-  const drive = useTeamspaceDrive(teamspaceId);
+  const drives = useTeamspaceDrives(teamspaceId);
   const link = useLinkDialog(teamspaceId);
   const pathname = usePathname();
-  if (drive === undefined) return null;
-  if (drive === null) {
+  if (drives === undefined) return null;
+  if (drives.length === 0) {
     return (
       <>
         <button
@@ -353,26 +366,39 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
       </>
     );
   }
-  const active = pathname === `/aindrive/${drive.id}`;
-  const state = driveState(drive);
   return (
-    <Link
-      data-testid={`teamspace-drive-row-${teamspaceId}`}
-      data-state={state}
-      href={`/aindrive/${drive.id}`}
-      aria-current={active ? "page" : undefined}
-      className={`flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
-        active ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"
-      }`}
-      style={{ paddingLeft: "36px" }}
-    >
-      <HardDrive size={14} className="shrink-0 text-neutral-400" />
-      <span className="truncate">aindrive</span>
-      <span className={`ml-auto flex shrink-0 items-center gap-1 text-[11px] ${STATE_TEXT[state]}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${STATE_DOT[state]}`} />
-        {t(STATE_LABEL[state])}
-      </span>
-    </Link>
+    <>
+      {drives.map((drive) => {
+        const active = pathname === `/aindrive/${drive.id}`;
+        const state = driveState(drive);
+        return (
+          <Link
+            key={drive.id}
+            data-testid={`teamspace-drive-row-${teamspaceId}`}
+            data-drive={drive.id}
+            data-state={drive.backup ? state : "linked"}
+            href={`/aindrive/${drive.id}`}
+            aria-current={active ? "page" : undefined}
+            title={drive.linkedBy ? t("{who}님이 연결한 aindrive 폴더", { who: drive.linkedBy }) : undefined}
+            className={`flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
+              active ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"
+            }`}
+            style={{ paddingLeft: "36px" }}
+          >
+            <HardDrive size={14} className="shrink-0 text-neutral-400" />
+            <span className="truncate">{drive.name}</span>
+            {drive.backup ? (
+              <span className={`ml-auto flex shrink-0 items-center gap-1 text-[11px] ${STATE_TEXT[state]}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${STATE_DOT[state]}`} />
+                {t(STATE_LABEL[state])}
+              </span>
+            ) : (
+              drive.linkedBy && <span className="ml-auto shrink-0 truncate text-[11px] text-neutral-400">{drive.linkedBy}</span>
+            )}
+          </Link>
+        );
+      })}
+    </>
   );
 }
 
@@ -413,7 +439,7 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
           >
             <FileText size={14} className="text-neutral-400" /> {t("페이지")}
           </button>
-          {drive === null && (
+          {drive !== undefined && (
             <button
               role="menuitem"
               data-testid={`teamspace-add-aindrive-${teamspaceId}`}
@@ -425,8 +451,10 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
             >
               <HardDrive size={14} className="text-neutral-400" />
               <span>
-                {t("aindrive에 동기화하기")}
-                <span className="block text-[11px] text-neutral-400">{t("이 팀스페이스를 OKF로 백업")}</span>
+                {drive ? t("aindrive 폴더 추가") : t("aindrive에 동기화하기")}
+                <span className="block text-[11px] text-neutral-400">
+                  {drive ? t("내 폴더를 이 팀스페이스와 공유") : t("이 팀스페이스를 OKF로 백업")}
+                </span>
               </span>
             </button>
           )}

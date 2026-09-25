@@ -22,8 +22,17 @@ export async function GET(req: NextRequest) {
     .from(teamspaces)
     .where(eq(teamspaces.workspaceId, workspaceId))
     .orderBy(teamspaces.createdAt);
-
-  return NextResponse.json({ teamspaces: rows });
+  // a private teamspace is not even named to someone outside it (a surprise
+  // birthday plan, say) — the same rule its pages and folders follow
+  const mine = new Set(
+    (
+      await db
+        .select({ id: teamspaceMembers.teamspaceId })
+        .from(teamspaceMembers)
+        .where(eq(teamspaceMembers.userId, auth.user.id))
+    ).map((m) => m.id)
+  );
+  return NextResponse.json({ teamspaces: rows.filter((t) => t.visibility !== "private" || mine.has(t.id)) });
 }
 
 const VISIBILITIES = ["open", "closed", "private"] as const;

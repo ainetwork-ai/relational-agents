@@ -32,8 +32,8 @@ import { profileForRoom, sectionMenu, type RelationshipProfile } from "./profile
  * a question to your member always earns a whisper (the answer may be on
  * record, or conspicuously not), a statement only when it touches something
  * recorded. Asking the model "should you whisper?" gave different answers to
- * the same kind of line — "do you like egg tarts?" and "what's your favourite
- * dessert?" split — so the model is left with the part it is good at: what the
+ * the same kind of line — "do you like songpyeon?" and "what's your favourite
+ * rice cake?" split — so the model is left with the part it is good at: what the
  * line is about, and whether this relationship has it.
  */
 

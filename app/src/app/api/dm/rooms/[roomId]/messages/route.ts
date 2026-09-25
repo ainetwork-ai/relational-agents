@@ -11,7 +11,8 @@ import {
 } from "@/lib/chat-room-access";
 import { maybeAutoRun } from "@/lib/agent/triggers";
 import { dispatchToRoomBots } from "@/lib/agent/dispatch";
-import { buyEggTarts, isBuyEggTartsCommand } from "@/lib/agent/spend";
+import { buySongpyeon, isBuySongpyeonCommand } from "@/lib/agent/spend";
+import { rememberOrigin } from "@/lib/app-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -112,24 +113,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
   }
 
- // "@agent buy egg tarts" is the one sentence that spends money, so it is
- // matched exactly rather than interpreted: the model may talk about egg tarts
+ // "@agent buy songpyeon" is the one sentence that spends money, so it is
+ // matched exactly rather than interpreted: the model may talk about songpyeon
  // all it likes, but only this exact line moves the agent's wallet. Handled
  // before the bots see it, so the agent acts instead of replying about it.
-  if (isBuyEggTartsCommand(text)) {
+  if (isBuySongpyeonCommand(text)) {
     const [bot] = await db
       .select({ agentUserId: chatRoomBots.agentUserId })
       .from(chatRoomBots)
       .where(eq(chatRoomBots.roomId, roomId))
       .limit(1);
     if (bot) {
-      void buyEggTarts(bot.agentUserId, roomId, req.nextUrl.origin).catch((err) =>
+      void buySongpyeon(bot.agentUserId, roomId, req.nextUrl.origin).catch((err) =>
         console.error("chat-triggered spend failed:", err)
       );
       return NextResponse.json({ message, autoRun }, { status: 201 });
     }
   }
 
+ // the agent's work outlives this request; it may need to call this server
+  rememberOrigin(req.nextUrl.origin);
  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response
   void dispatchToRoomBots(room, message).catch((err) =>
     console.error("bot dispatch failed:", err)

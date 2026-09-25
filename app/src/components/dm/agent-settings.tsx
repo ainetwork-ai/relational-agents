@@ -91,7 +91,7 @@ export function AgentSettings({
     })();
   }, [roomId]);
 
-  const active = profiles?.find((p) => p.key === (config.profile ?? "romantic")) ?? profiles?.[0];
+  const active = profiles?.find((p) => p.key === (config.profile ?? "family")) ?? profiles?.[0];
   // the profile supplies every default, so the form can show what a blank field
   // will actually do instead of showing nothing
   const personaName = config.persona?.name ?? active?.persona.name ?? "";

@@ -22,9 +22,9 @@ if (!ROOM) {
 }
 
 const SPOKEN = [
-  "so are we still on for Saturday?",
-  "yes — I booked the ferry for the afternoon",
-  "perfect, let's watch the sunset from the tower again",
+  "so are we still going to grandma's on Saturday?",
+  "yes — I booked the train for the afternoon",
+  "perfect, let's make songpyeon with her again",
 ];
 
 let failed = 0;

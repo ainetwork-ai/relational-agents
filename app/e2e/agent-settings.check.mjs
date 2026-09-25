@@ -51,7 +51,7 @@ const ctx = await browser.newContext();
 await ctx.request.post(`${BASE}/api/auth/demo-login`, { data: { as: MEMBER } });
 // start from a known profile: this check flips back and forth, and a previous
 // run that ended mid-flight would otherwise decide what "restored" means
-await ctx.request.patch(`${BASE}/api/dm/rooms/${ROOM}/agent`, { data: { profile: "romantic" } });
+await ctx.request.patch(`${BASE}/api/dm/rooms/${ROOM}/agent`, { data: { profile: "family" } });
 // Titles are what a profile switch is supposed to change; the writing under
 // them is what it must never touch. Asserting only titles let a run that
 // emptied every section pass 12/12.
@@ -91,11 +91,11 @@ const saved = await config(ctx);
 check("extra instructions kept", (saved.systemPrompt ?? "").includes("Action items"));
 check("tone override kept", saved.persona?.tone === "formal", `${saved.persona?.tone}`);
 
-// --- back to Romantic --------------------------------------------------------
+// --- back to Family --------------------------------------------------------
 await page.getByTestId("dm-agent-settings").click();
 await page.getByTestId("agent-settings").waitFor();
-await page.getByTestId("profile-romantic").waitFor();
-await page.getByTestId("profile-romantic").click();
+await page.getByTestId("profile-family").waitFor();
+await page.getByTestId("profile-family").click();
 await page.getByTestId("agent-settings-save").click();
 await page.getByTestId("agent-settings").waitFor({ state: "detached", timeout: 10_000 });
 await page.waitForTimeout(500);
