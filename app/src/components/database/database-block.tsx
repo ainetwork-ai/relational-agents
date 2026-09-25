@@ -465,6 +465,10 @@ export function DatabaseBlock({
     };
   }, [databaseId, linkedViewId]);
 
+ // view configs edited locally but not yet confirmed by the server —
+ // refreshSnapshot must not clobber these (cleared once their PATCH lands)
+  const dirtyViewConfigs = useRef<Map<string, ViewConfig>>(new Map());
+
  // Re-pull the snapshot after destructive ops: a file-backed (OKF) database
  // has positional row/column ids (`row3`, `col2`) that SHIFT when one is
  // spliced from the CSV — optimistic local state would misalign after that.
@@ -476,7 +480,14 @@ export function DatabaseBlock({
     setDatabase(snap.database);
     setProperties(snap.properties);
     setRows(snap.rows);
-    setViews(snap.views);
+ // a view config edit that hasn't landed on the server yet must survive
+ // the refresh — otherwise an SSE-triggered re-pull silently reverts it
+    setViews(
+      (snap.views as DbView[]).map((v) => {
+        const dirty = dirtyViewConfigs.current.get(v.id);
+        return dirty ? { ...v, config: dirty } : v;
+      })
+    );
   }, [databaseId]);
 
   const updateRow = useCallback(
@@ -930,12 +941,17 @@ export function DatabaseBlock({
         return;
       }
       setViews((prev) => prev.map((v) => (v.id === vid ? { ...v, config } : v)));
+      dirtyViewConfigs.current.set(vid, config);
       const send = () => {
         patchNet.current.lastSent = Date.now();
         void fetch(`/api/databases/${databaseId}/views/${vid}`, {
           method: "PATCH",
           headers: { "content-type": "application/json", "x-client-id": clientId },
           body: JSON.stringify({ config }),
+        }).finally(() => {
+ // only the latest write clears the flag — an older PATCH landing
+ // must not unprotect a newer local edit still in flight
+          if (dirtyViewConfigs.current.get(vid) === config) dirtyViewConfigs.current.delete(vid);
         });
       };
       if (patchNet.current.timer) clearTimeout(patchNet.current.timer);
@@ -956,11 +972,13 @@ export function DatabaseBlock({
       delete next[vid];
       return next;
     });
+    dirtyViewConfigs.current.set(vid, draft);
     await fetch(`/api/databases/${databaseId}/views/${vid}`, {
       method: "PATCH",
       headers: { "content-type": "application/json", "x-client-id": clientId },
       body: JSON.stringify({ config: draft }),
     });
+    if (dirtyViewConfigs.current.get(vid) === draft) dirtyViewConfigs.current.delete(vid);
   }, [databaseId, activeView?.id, draftConfigs, clientId]);
 
   const resetDraft = useCallback(() => {
