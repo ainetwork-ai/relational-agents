@@ -24,9 +24,19 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # NEXT_PUBLIC_* is inlined into the client bundle at build time, so these are
-# build args rather than runtime env — changing one requires a rebuild.
+# build args rather than runtime env — changing one requires a rebuild. Keep
+# this list and docker-compose.prod.yml's build args the same: an arg compose
+# passes that is not declared here never reaches `next build`, while the
+# server still reads the value at runtime — e.g. the treasury then runs World
+# ID 4.0 seats on the server and the panel says "not available in this build".
 ARG NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS
 ARG NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID
+ARG NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS
+ARG NEXT_PUBLIC_WORLD_ID_APP_ID
+ARG NEXT_PUBLIC_WORLD_ID_ACTION
+ARG NEXT_PUBLIC_WORLD_ID_ENV
+ARG NEXT_PUBLIC_SUI_PACKAGE_ID
+ARG NEXT_PUBLIC_CALL_WEB_SPEECH
 ENV NEXT_STANDALONE=1 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 # Invoke the binary directly: `pnpm exec` re-runs the dependency status check
 # first, which trips over the same unanswered allowBuilds entries.
