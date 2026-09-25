@@ -3,6 +3,9 @@
  * a weekly mandate keyed on days would buy every day (the dca-bot skill documents this bug).
  */
 export function periodKey(period, date) {
+  // A NaN date would key as "NaN-WNaN" and silently merge every run of that mandate.
+  if (!(date instanceof Date) || Number.isNaN(date.getTime()))
+    throw new TypeError("periodKey: date must be a valid Date");
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   if (period === "day") return d.toISOString().slice(0, 10);
   if (period === "month") return d.toISOString().slice(0, 7);
