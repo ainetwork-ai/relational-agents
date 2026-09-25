@@ -66,8 +66,9 @@ verify(m, signature)               → signer address | throws
 check(m, ledgerView, intent, now)  → { ok: true, decisionOrigin } | { ok: false, reason }
 ```
 
-`check` refuses, in this order: revoked · expired · pair not allowed · `amountIn > perRunCap` ·
-`spentThisPeriod + amountIn > perPeriodCap` · period already bought (standing only).
+`check` refuses, in this order: revoked · expired · unapproved (no `approval`) · pair not allowed ·
+`amountIn > perRunCap` · `spentThisPeriod + amountIn > perPeriodCap` · period already bought (standing
+only). An unknown `kind` is not a refusal but an error — a malformed mandate never reaches a verdict.
 `decisionOrigin` is `autonomous` for a standing mandate and `human_mediated` for a one-off — the
 value the `api` provider puts in `X-Agent-Info`.
 
