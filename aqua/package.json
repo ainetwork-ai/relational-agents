@@ -9,7 +9,8 @@
     "ship": "tsx src/ship.js",
     "swap": "tsx src/swap.js",
     "demo": "tsx src/demo.js",
-    "watch": "tsx src/journal-watcher.js"
+    "watch": "tsx src/journal-watcher.js",
+    "review": "node src/review.js"
   },
   "dependencies": {
     "@1inch/aqua-sdk": "^0.3.4",

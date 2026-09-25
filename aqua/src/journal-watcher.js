@@ -22,9 +22,21 @@ const sym = (a) => TOKENS[a.toLowerCase()]?.symbol ?? a.slice(0, 8);
 const dec = (a) => TOKENS[a.toLowerCase()]?.decimals ?? 18;
 const human = (amount, addr) => Number(formatUnits(amount, dec(addr)));
 
+// "Day" is a select the dashboard groups by — a fill on a new day must first
+// become an option, or the bar chart files it under "none"
+async function ensureDayOption(db, day) {
+  const prop = db.props["Day"];
+  const options = prop.config?.options ?? [];
+  if (options.some((o) => o.id === day)) return;
+  options.push({ id: day, name: day, color: ["blue", "green", "purple", "orange", "pink", "yellow"][options.length % 6] });
+  await api("PATCH", `/api/databases/${db.id}/properties/${prop.id}`, { config: { ...prop.config, options } });
+  prop.config = { ...prop.config, options };
+}
+
 async function journalRow(db, fill) {
   const P = (n) => db.props[n].id;
   const titleId = db.properties.find((p) => p.type === "title").id;
+  await ensureDayOption(db, fill.day);
   await api("POST", `/api/databases/${db.id}/rows`, { values: {
     [titleId]: fill.title,
     [P("Date")]: fill.date,
@@ -97,6 +109,12 @@ async function onSwapped(log) {
   };
 
   const db = await databaseByTitle("Swap Journal");
+  // idempotent by tx hash — a watcher restart must not double-journal a fill
+  const txId = db.props["Tx"].id;
+  if (db.rows.some((r) => String(r.values[txId] ?? "").includes(fill.tx))) {
+    console.log(`already journaled, skipping: ${fill.tx.slice(0, 12)}…`);
+    return;
+  }
   await journalRow(db, fill);
 
   mkdirSync(RECORDS_DIR, { recursive: true });
