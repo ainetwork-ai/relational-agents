@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { chatMessages, users } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { agentKitFor, invokeAction, txHashFromActionResult } from "@/lib/agent/agentkit";
+import { holdsTreasury } from "@/lib/agent/treasury/approvals";
 import { SONGPYEON_PRICE_ETH, sellerPayTo } from "@/lib/seller";
 
 /**
@@ -39,14 +40,25 @@ export async function buySongpyeon(
   roomId: string,
   origin: string
 ): Promise<SpendOutcome> {
-  const [agent] = await db.select().from(users).where(eq(users.id, agentUserId)).limit(1);
-  if (!agent?.encryptedPrivateKey)
-    return { status: 500, body: { error: "Agent has no wallet key" } };
-
   const post = async (text: string) => {
     await db.insert(chatMessages).values({ roomId, authorId: agentUserId, text });
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: null });
   };
+
+ // An agent that holds a relation treasury has one wallet, and it is the
+ // relation's: money leaves it only through the treasury's rules and quorum
+ // (lib/agent/treasury). This purchase checks neither, so it is refused there
+ // before the key is even read — by both entry points, the button and the chat line.
+  if (await holdsTreasury(agentUserId)) {
+    await post(
+      "This agent holds our shared treasury, so its wallet only pays what our Treasury Rules allow — ask me to pay one of our payees instead. Nothing was bought."
+    ).catch((err: unknown) => console.error("agent spend: refusal notice failed:", err));
+    return { status: 403, body: { error: "This agent's wallet is a relation treasury — it spends only under the treasury's rules" } };
+  }
+
+  const [agent] = await db.select().from(users).where(eq(users.id, agentUserId)).limit(1);
+  if (!agent?.encryptedPrivateKey)
+    return { status: 500, body: { error: "Agent has no wallet key" } };
 
   try {
     const wallet = await agentKitFor(agent.encryptedPrivateKey);

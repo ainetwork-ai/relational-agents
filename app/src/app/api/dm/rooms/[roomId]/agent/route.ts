@@ -16,7 +16,12 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/dm/rooms/{roomId}/agent — consent complete → create & import the
  * relationship agent. Requires the signed contract (consentAt). Idempotent.
- * → { agentUserId, memberTokens: { [userId]: token }, a2aUrl }
+ * → { agentUserId, memberTokens: { [callerId]: token }, a2aUrl }
+ *
+ * Only the caller's own token comes back. A member token is that member's
+ * voice over A2A (the message is stored and acted on as theirs), so handing
+ * every member's token to whoever calls this would let one member speak — and
+ * direct the treasury — as another.
  */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
@@ -40,12 +45,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: s
   const [agent] = await db.select().from(users).where(eq(users.id, result.agentUserId));
   if (!result.alreadyExisted)
     await publishToRoomMembers(roomId, { type: "dm-message", clientId: `agent-join:${result.agentUserId}` });
+  const mine = result.memberTokens[auth.user.id];
 
   return NextResponse.json(
     {
       agentUserId: result.agentUserId,
       a2aUrl: agent?.a2aUrl ?? null,
-      memberTokens: result.memberTokens,
+      memberTokens: mine ? { [auth.user.id]: mine } : {},
       alreadyExisted: result.alreadyExisted,
     },
     { status: result.alreadyExisted ? 200 : 201 }

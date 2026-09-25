@@ -96,23 +96,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
       : null);
   if (!authorId) return rpcError(id, -32602, "Unknown author");
 
-  let message = null as typeof chatMessages.$inferSelect | null;
   if (params?.message?.messageId && UUID_RE.test(params.message.messageId)) {
  // redelivery of a message the dispatcher already stored (never happens
- // in-app, but external eve may echo it back) — prevents duplicate rows
+ // in-app, but external eve may echo it back) — prevents duplicate rows.
+ // A redelivered message was answered when it first arrived, so it is never
+ // acted on again: re-running it would repeat whatever it asked for ("pay the
+ // hotel $40", twenty times). And only its author may echo it, into the room
+ // it was said in — a message id is visible to every member, a voice is not.
     const [existing] = await db
-      .select()
+      .select({ roomId: chatMessages.roomId, authorId: chatMessages.authorId })
       .from(chatMessages)
       .where(eq(chatMessages.id, params.message.messageId));
-    message = existing ?? null;
+    if (existing) {
+      if (existing.roomId !== roomId || existing.authorId !== authorId)
+        return rpcError(id, -32602, "Unknown message");
+      return NextResponse.json({
+        jsonrpc: "2.0",
+        id: id ?? null,
+        result: { kind: "message", role: "agent", messageId: null, parts: [], metadata: { action: "silent", roomId, redelivery: true } },
+      });
+    }
   }
-  if (!message) {
-    const [inserted] = await db
-      .insert(chatMessages)
-      .values({ roomId, authorId, text })
-      .returning();
-    message = inserted;
-  }
+  const [message] = await db
+    .insert(chatMessages)
+    .values({ roomId, authorId, text })
+    .returning();
 
   const result = await respondToMessage(agent.id, roomId, message);
   return NextResponse.json({

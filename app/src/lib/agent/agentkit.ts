@@ -62,8 +62,12 @@ export async function agentKitFor(storedKey: string): Promise<AgentWallet> {
   const { AgentKit: Kit, ViemWalletProvider: Provider, walletActionProvider } = loaded;
  // AgentKit pins an older viem than the app, so the two WalletClient types are
  // structurally identical but nominally distinct. The cast crosses that gap.
+ // rpcUrl: the provider builds its own public client for fee estimation and
+ // the receipt wait, and without one it falls back to RPC_URL or viem's
+ // default public endpoint — a second, unkeyed RPC nobody chose.
   const provider = new Provider(
-    walletClient as unknown as ConstructorParameters<typeof ViemWalletProvider>[0]
+    walletClient as unknown as ConstructorParameters<typeof ViemWalletProvider>[0],
+    { rpcUrl: RPC }
   );
   const agentkit = await Kit.from({
     walletProvider: provider,

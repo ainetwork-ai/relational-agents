@@ -298,6 +298,10 @@ async function llmDecision(
           // told, it cannot say. It is only ever handed this relationship's
           // sections, so this restates a boundary the code already enforces.
           `Never reveal, hint at, or draw on anything not written in this ${profile.voice.subject}'s document sections above — other relationships do not exist to you. When the sections are silent, say so plainly and do not speculate.\n` +
+          // Money is moved and reported by code (treasury/skill.ts) in fixed
+          // templates; the history shows those templates, and a model that
+          // imitates one would announce a payment that never happened.
+          `You cannot move money. Never say that you paid, sent, transferred, queued or approved any money, or that a payment went through — only the treasury's own messages report money.\n` +
           `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"<image url from the document>","name":"..."}]} or {"action":"silent"}` +
           driveRules,
       },
