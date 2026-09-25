@@ -47,3 +47,10 @@ Format: `JST time — surface — what happened`.
   pinned by config (discovery lists three). IDKit: seats accept only World ID
   3.0 proofs — `allow_legacy_proofs` means 3.0 and 4.0 nullifiers differ for
   one human, so accepting both could seat one human twice.
+- 2026-09-26 02:3x — IDKit — Portal: "Finish registering your relying party
+  to create actions" — actions stay locked until the RP is registered (the
+  Signer address field was empty). Registering produced the RP signing key
+  (secp256k1; signer 0x0652…cDD7). First server-signed rp_context from our
+  route right after (seatMode → world-id-v4, environment staging). FRICTION:
+  the Portal's order (RP registration before actions) isn't in the docs; the
+  app page's "Dashboard" menu item is where actions live (…/world-id?tab=actions).

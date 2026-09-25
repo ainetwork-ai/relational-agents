@@ -34,6 +34,25 @@ function rejected(message: string) {
 }
 
 /**
+ * The Portal's per-action limits (max_verifications / max_accounts_per_user)
+ * can't be raised for this action in the Portal UI, so they sit at 1: World
+ * itself refuses a second verification of the same human on "treasury-seat".
+ * That IS the one-human-one-seat answer, arriving one layer earlier than our
+ * (room, nullifier) index — say it as such instead of "proof rejected".
+ */
+const ALREADY_VERIFIED = /max_verifications|max_accounts|already[ _-]?(verified|used)|exceeded|reached/i;
+
+function sameHumanAtWorld() {
+  return NextResponse.json(
+    {
+      reason: "same-human",
+      message: "World ID says this human has already claimed a treasury seat — one human, one seat.",
+    },
+    { status: 409 }
+  );
+}
+
+/**
  * POST → claim this member's seat (the right to approve treasury actions).
  *
  * Three modes, first configured wins:
@@ -66,7 +85,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     const result = await verifyIdKitV4(body.idkitResponse, TREASURY_SEAT_ACTION, { signal: roomId }).catch(
       (err: Error) => ({ ok: false as const, error: err.message })
     );
-    if (!result.ok) return rejected(result.error);
+    if (!result.ok) return ALREADY_VERIFIED.test(result.error) ? sameHumanAtWorld() : rejected(result.error);
     if (result.protocolVersion !== SEAT_PROTOCOL)
       return rejected(`A seat proof must be World ID ${SEAT_PROTOCOL} (one human, one nullifier) — this one is ${result.protocolVersion}`);
     if (!isProofOfHuman(result))
@@ -88,7 +107,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
       roomId,
       TREASURY_SEAT_ACTION
     ).catch((err: Error) => ({ ok: false as const, error: err.message, nullifierHash: undefined, verificationLevel: undefined }));
-    if (!result.ok || !result.nullifierHash) return rejected(result.error ?? "World ID proof rejected");
+    if (!result.ok || !result.nullifierHash)
+      return result.error && ALREADY_VERIFIED.test(result.error)
+        ? sameHumanAtWorld()
+        : rejected(result.error ?? "World ID proof rejected");
     verificationLevel = result.verificationLevel ?? "orb";
     if (verificationLevel !== "orb")
       return rejected(`A seat needs a proof of human (Orb) — this proof is "${verificationLevel}"`);
