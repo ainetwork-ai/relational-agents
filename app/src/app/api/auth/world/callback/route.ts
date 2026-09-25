@@ -1,24 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { NextRequest, NextResponse, after } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { exchangeWorldCode, worldSiteUrl } from "@/lib/auth/world";
 import { safeReturnTo } from "@/lib/auth/return-to";
-import { recordIdpApproval } from "@/lib/agent/treasury/approvals";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { bindWorldSub, executeIfQuorum, recordIdpApproval } from "@/lib/agent/treasury/approvals";
 
 export const dynamic = "force-dynamic";
 
 const WORLD_COOKIES = ["world_pkce", "world_state", "world_nonce", "world_uid", "world_action", "world_return"];
-
-/** Postgres error code, looking through drizzle's DrizzleQueryError wrapper. */
-function pgCode(err: unknown): string | undefined {
-  for (let e = err, depth = 0; e && typeof e === "object" && depth < 4; e = (e as { cause?: unknown }).cause, depth++) {
-    const code = (e as { code?: unknown }).code;
-    if (typeof code === "string") return code;
-  }
-  return undefined;
-}
 
 /**
  * GET /api/auth/world/callback?code=…&state=… — the IdP sends the browser here.
@@ -28,8 +16,12 @@ function pgCode(err: unknown): string | undefined {
  * (signature, iss, aud, exp, nonce) · one-time cookies cleared · returnTo
  * re-validated. Only then does the sub count for anything:
  *   - world_action set → recordIdpApproval (freshness against the action,
- *     seat, distinct human, quorum, execution are decided there)
- *     → ?treasury=executed | approved | <ApprovalResult reason>
+ *     seat, distinct human and quorum are decided there)
+ *     → ?treasury=executing | approved | <ApprovalResult reason>
+ *     "executing": this approval completed the quorum and the payment is
+ *     started after the response — a transfer plus its gas refund is a few
+ *     Sepolia blocks, too long to hold the browser on the IdP's redirect. The
+ *     outcome arrives as the agent's chat line and in the panel's status poll.
  *   - otherwise → bind the sub to this account
  *     → ?world=verified | same-human | mismatch
  * Failures before that land as ?treasury=… / ?world=… cancelled | idp-error |
@@ -87,25 +79,32 @@ export async function GET(req: NextRequest) {
         userId: auth.user.id,
         sub: identity.sub,
         authTime: identity.authTime,
-        issuedAt: identity.issuedAt,
       });
-      return done(result.ok ? (result.executed ? "executed" : "approved") : result.reason);
+      if (!result.ok) return done(result.reason);
+      if (result.executed) return done("executed");
+      if (result.approvals < result.required) return done("approved");
+      // after the response, on purpose (see above); executeIfQuorum settles the
+      // action itself, so this catch only keeps a failure out of the unhandled
+      // rejections. If this never runs (the process dies first), the panel's
+      // status poll restarts any request that reached its quorum unclaimed.
+      after(() =>
+        executeIfQuorum(actionId).catch((err: unknown) => console.error(`treasury: execution of ${actionId} failed:`, err))
+      );
+      return done("executing");
     } catch (err) {
       console.error("treasury approval failed:", err);
       return done("error");
     }
   }
 
-  // plain verification: this account is backed by this human
-  if (auth.user.worldSub && auth.user.worldSub !== identity.sub) return done("mismatch");
+  // plain verification: this account is backed by this human — the same
+  // conditional bind approvals use, so two flows finishing together cannot
+  // move the account from one human to another
   try {
-    await db
-      .update(users)
-      .set({ worldSub: identity.sub, worldVerifiedAt: new Date() })
-      .where(eq(users.id, auth.user.id));
+    const bind = await bindWorldSub(auth.user.id, identity.sub);
+    if (bind?.kind === "sub-mismatch") return done("mismatch");
+    if (bind?.kind === "sub-taken") return done("same-human");
   } catch (err) {
-    // users.world_sub is unique: this human already vouches for another account
-    if (pgCode(err) === "23505") return done("same-human");
     console.error("world bind failed:", err);
     return done("error");
   }

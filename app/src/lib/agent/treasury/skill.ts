@@ -1,13 +1,22 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatRoomMembers, treasuryActions, treasuryApprovals, treasurySeats, users } from "@/lib/db/schema";
-import { matchTreasuryCommand } from "./match";
+import { matchTreasuryCommand, mentionsMoney } from "./match";
 import { evaluateCommand } from "./policy";
 import { appendTreasuryActivity, loadRelationTreasury } from "./memory";
 import { ensureAgentWallet, treasuryBalance, USD_PER_ETH } from "./wallet";
 import { createTreasuryAction, executeIfQuorum } from "./approvals";
-import type { Payee, RelationTreasury, TreasuryCommand, TreasuryKind, TreasuryRule } from "./types";
+import {
+  RATIFY_KIND,
+  REQUEST_TTL_MS,
+  type Payee,
+  type RatifiedText,
+  type RelationTreasury,
+  type TreasuryCommand,
+  type TreasuryKind,
+  type TreasuryRule,
+} from "./types";
 
 /**
  * The agent's side of the Relation Treasury in chat. A money sentence
@@ -27,6 +36,10 @@ export interface TreasuryCommandContext {
 }
 
 type MoneyCommand = Extract<TreasuryCommand, { kind: TreasuryKind }>;
+
+/** Payments the agent makes on its own, per room per rolling hour — each one also
+ *  spends the relayer's gas, so "pay $0.01" in a loop must run out somewhere. */
+const AUTO_PER_HOUR = Number(process.env.TREASURY_AUTO_PER_HOUR ?? 10);
 
 interface Member {
   userId: string;
@@ -95,8 +108,19 @@ function rulesLink(t: RelationTreasury): string | null {
   return t.rulesPageId ? `(Rules → /p/${t.rulesPageId})` : null;
 }
 
-function sharePct(amountUsd: number, balanceUsd: number): number | null {
-  return balanceUsd > 0 ? Math.round((amountUsd / balanceUsd) * 100) : null;
+/** "85.4" — one decimal, so $304 of $1,000 reads 30.4% next to a "more than 30%" rule, not 30% */
+function sharePct(amountUsd: number, balanceUsd: number): string | null {
+  if (balanceUsd <= 0) return null;
+  const pct = Math.round((amountUsd / balanceUsd) * 1000) / 10;
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+}
+
+/** One sentence when the doc says something the agent is not following yet. */
+function unadoptedNote(t: RelationTreasury): string | null {
+  const p = t.proposal;
+  if (!p || !t.adoptedAt) return null;
+  if (!p.added.length && !p.removed.length && !p.reordered) return null;
+  return "(Our memory doc has edits to the rules or payees nobody has adopted yet — I follow the version we adopted. “@agent adopt the new rules” puts them to a vote.)";
 }
 
 /** " (hotel deposit)" — unless the memo only restates the recipient ("hotel", "Bea") */
@@ -126,25 +150,35 @@ function tokens(s: string): Set<string> {
   );
 }
 
-/** The agreed payee the memo names — most shared words wins, ties go to the doc's order. */
+/**
+ * The agreed payee the memo names: most words that name ONE payee wins. A word
+ * two payees share ("hotel" for two hotels) tells them apart for no one, and a
+ * tie is no answer — both mean "which one?", never the doc's first line.
+ */
 function payeeNamed(memo: string, payees: Payee[]): Payee | null {
   const said = tokens(memo);
+  const uses = new Map<string, number>();
+  for (const p of payees) for (const w of tokens(p.name)) uses.set(w, (uses.get(w) ?? 0) + 1);
   let best: Payee | null = null;
   let bestScore = 0;
+  let tied = false;
   for (const p of payees) {
     let score = 0;
-    for (const w of tokens(p.name)) if (said.has(w)) score++;
+    for (const w of tokens(p.name)) if (said.has(w) && uses.get(w) === 1) score++;
     if (score > bestScore) {
       best = p;
       bestScore = score;
-    }
+      tied = false;
+    } else if (score > 0 && score === bestScore) tied = true;
   }
-  return best;
+  return tied ? null : best;
 }
 
 // "invest $300 of the idle funds" names no payee; a payee the relation
-// labelled as where savings go is the only place idle funds may be sent.
-const INVESTMENT_PAYEE = /\b(invest\w*|vault|pool|savings?|staking|yield|aave|lido|compound)\b/i;
+// explicitly labelled as where savings go ("Savings (Aave): 0x…", "Vault
+// (savings): 0x…") is the only place idle funds may be sent — a name that
+// merely contains "pool" ("Pool Bar Shinjuku") is not that label.
+const INVESTMENT_PAYEE = /^(?:savings|investments?|idle funds)\b|\((?:savings|investments?|idle funds)\)/i;
 
 /** The member a memo names by first name ("Bea's wallet") — "Alex" over "Alex (2nd account)" unless the memo says more. */
 function memberNamed(memo: string, members: Member[]): Member | null {
@@ -243,12 +277,20 @@ async function statusReply(t: RelationTreasury, roomId: string, balance: { eth: 
   const pending = await db
     .select({
       id: treasuryActions.id,
+      kind: treasuryActions.kind,
       amountUsd: treasuryActions.amountUsd,
       memo: treasuryActions.memo,
       requiredApprovals: treasuryActions.requiredApprovals,
     })
     .from(treasuryActions)
-    .where(and(eq(treasuryActions.roomId, roomId), eq(treasuryActions.status, "pending")))
+    .where(
+      and(
+        eq(treasuryActions.roomId, roomId),
+        eq(treasuryActions.status, "pending"),
+        // a lapsed request is swept by the panel's next poll; it is not waiting any more
+        gt(treasuryActions.createdAt, new Date(Date.now() - REQUEST_TTL_MS))
+      )
+    )
     .orderBy(desc(treasuryActions.createdAt))
     .limit(5);
   if (!pending.length) {
@@ -266,9 +308,12 @@ async function statusReply(t: RelationTreasury, roomId: string, balance: { eth: 
     out.push("Waiting for approval:");
     for (const p of pending)
       out.push(
-        `- ${usd(p.amountUsd)}${p.memo ? ` · ${p.memo}` : ""} — ${counts.get(p.id) ?? 0} of ${p.requiredApprovals} verified approvals`
+        `- ${p.kind === RATIFY_KIND ? `Adopting ${p.memo}` : `${usd(p.amountUsd)}${p.memo ? ` · ${p.memo}` : ""}`} — ${counts.get(p.id) ?? 0} of ${p.requiredApprovals} verified approvals`
       );
   }
+  if (!t.adoptedAt) out.push("Our Treasury Rules were never adopted, so I move no money yet.");
+  const note = unadoptedNote(t);
+  if (note) out.push(note);
   const link = rulesLink(t);
   if (link) out.push(link);
   return out.join("\n");
@@ -339,6 +384,8 @@ async function refuse(
   if (also) out.push(also);
   const purpose = purposeClause(t);
   if (purpose) out.push(purpose);
+  const note = unadoptedNote(t);
+  if (note) out.push(note);
   const link = rulesLink(t);
   if (link) out.push(link);
   return out.join(" ");
@@ -384,6 +431,23 @@ async function moneyReply(
     return `That's more than the treasury holds — we have ${usd(decision.balanceUsd)}. Nothing was moved.`;
   if (!recipient?.address) return noRecipient(cmd, recipient, t.payees);
 
+  // the same payment already went out and its receipt was never seen: asking
+  // again is how a hotel gets paid twice
+  const [inFlight] = await db
+    .select({ txHash: treasuryActions.txHash })
+    .from(treasuryActions)
+    .where(
+      and(
+        eq(treasuryActions.roomId, ctx.roomId),
+        eq(treasuryActions.status, "unconfirmed"),
+        eq(treasuryActions.recipientAddress, recipient.address),
+        eq(treasuryActions.amountUsd, cmd.amountUsd)
+      )
+    )
+    .limit(1);
+  if (inFlight)
+    return `I already sent ${destination(cmd.amountUsd, recipient, cmd.memo)} and am waiting for Sepolia to confirm it (tx ${inFlight.txHash}). I won't send it again until that settles — check the treasury panel. Nothing was moved.`;
+
   const base = {
     roomId: ctx.roomId,
     agentUserId: ctx.agentUserId,
@@ -397,6 +461,21 @@ async function moneyReply(
   const what = destination(cmd.amountUsd, recipient, cmd.memo);
 
   if (decision.outcome === "auto") {
+    const [recent] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(treasuryActions)
+      .where(
+        and(
+          eq(treasuryActions.roomId, ctx.roomId),
+          eq(treasuryActions.requiredApprovals, 0),
+          ne(treasuryActions.status, "blocked"),
+          ne(treasuryActions.kind, RATIFY_KIND),
+          gt(treasuryActions.createdAt, new Date(Date.now() - 3_600_000))
+        )
+      );
+    if (Number(recent?.n ?? 0) >= AUTO_PER_HOUR)
+      return `I've already paid ${AUTO_PER_HOUR} expenses on my own in the last hour — that's as many as I make without anyone looking. Try again later. Nothing was moved.`;
+
     const action = await createTreasuryAction({ ...base, ruleText: decision.rule.text, requiredApprovals: 0 });
     let run: Awaited<ReturnType<typeof executeIfQuorum>>;
     try {
@@ -407,7 +486,9 @@ async function moneyReply(
       return `I started paying ${what} on my own, but couldn't confirm the transfer (${(e as Error).message}). Check the treasury panel before asking again.`;
     }
     if (run.executed)
-      return `✅ Paid ${what} on my own — our rules allow it: “${decision.rule.text}”${run.txHash ? ` (tx ${run.txHash})` : ""}`;
+      return `✅ Paid ${what} on my own — our rules allow it: “${decision.rule.text}”${run.txHash ? ` (tx ${run.txHash})` : ""}${run.gasSponsored ? " · gas sponsored by the relayer" : ""}`;
+    if (run.unconfirmedTx)
+      return `I sent ${what} on my own (“${decision.rule.text}”), but couldn't confirm it yet (tx ${run.unconfirmedTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`;
     return (
       `Our rules let me pay ${what} on my own (“${decision.rule.text}”), but the transfer didn't go through` +
       `${run.error ? `: ${sentence(run.error)}` : "."} It's marked in the treasury panel — check it before asking again.`
@@ -422,29 +503,124 @@ async function moneyReply(
     requiredApprovals: decision.required,
     status: "pending",
   });
+  // the request stands even if the ledger line fails — the action row is the record
+  await appendTreasuryActivity(ctx.roomId, [
+    `⏳ Requested by ${asker.displayName}: ${usd(cmd.amountUsd)} · ${base.memo} — needs ${humans(decision.required)} (“${decision.rule.text}”)`,
+  ]).catch((e: unknown) => console.error("[treasury] could not log a queued action:", e));
   const pct = sharePct(cmd.amountUsd, balanceUsd);
   const out = [
     `Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
     `This needs ${humans(decision.required)}. Our rules say: “${decision.rule.text}”`,
     `Seated members: tap “Approve with World ID” in the treasury panel — each approval is a fresh World ID check, and one human counts once no matter how many accounts they have.`,
   ];
-  const seatedCount = members.filter((m) => seated.has(m.userId)).length;
-  if (seatedCount < decision.required) {
-    const unseated = members.filter((m) => !seated.has(m.userId)).map((m) => m.displayName);
-    const lead = seatedCount === 0 ? "Nobody holds a seat yet" : `Only ${seatedCount} of us ${seatedCount === 1 ? "holds" : "hold"} a seat so far`;
-    if (unseated.length) out.push(`${lead} — ${unseated.join(", ")}: claim yours with World ID in the treasury panel first.`);
-  }
+  out.push(...seatShortfall(t, members, seated, decision.required));
+  const note = unadoptedNote(t);
+  if (note) out.push(note);
   return out.join(" ");
+}
+
+/** "Only 2 of us hold a seat so far — Alex, Bea: claim yours…" when the voters can't reach the bar yet. */
+function seatShortfall(t: RelationTreasury, members: Member[], seated: Set<string>, required: number): string[] {
+  const voting = members.filter((m) => t.electorate.includes(m.userId));
+  const seatedCount = voting.filter((m) => seated.has(m.userId)).length;
+  if (seatedCount >= required) return [];
+  const unseated = voting.filter((m) => !seated.has(m.userId)).map((m) => m.displayName);
+  const lead = seatedCount === 0 ? "Nobody holds a seat yet" : `Only ${seatedCount} of us ${seatedCount === 1 ? "holds" : "hold"} a seat so far`;
+  return unseated.length ? [`${lead} — ${unseated.join(", ")}: claim yours with World ID in the treasury panel first.`] : [];
+}
+
+/**
+ * "@agent adopt the new rules": puts the doc's current Rules and Payees — and
+ * the room's current members — to a vote. Changing what the agent follows is
+ * the most sensitive thing a relation can do with its treasury, so it takes
+ * the strictest bar any rule names (old or new), and never fewer than 2.
+ */
+async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, members: Member[], asker: Member): Promise<string> {
+  const p = t.proposal;
+  if (!p)
+    return "Our Treasury Rules and Payees are exactly what we adopted, and everyone here already votes — there's nothing to adopt.";
+  if (p.policy.unparsed.length)
+    return `I can't read ${p.policy.unparsed.length === 1 ? "this line" : "these lines"} in our Treasury Rules: ${p.policy.unparsed.map((l) => `“${l}”`).join("; ")}. Fix ${p.policy.unparsed.length === 1 ? "it" : "them"} before we adopt anything — nothing changed.`;
+
+  const [waiting] = await db
+    .select({ id: treasuryActions.id, ruleText: treasuryActions.ruleText })
+    .from(treasuryActions)
+    .where(
+      and(
+        eq(treasuryActions.roomId, ctx.roomId),
+        eq(treasuryActions.kind, RATIFY_KIND),
+        eq(treasuryActions.status, "pending"),
+        gt(treasuryActions.createdAt, new Date(Date.now() - REQUEST_TTL_MS))
+      )
+    )
+    .orderBy(desc(treasuryActions.createdAt))
+    .limit(1);
+  const proposed = JSON.stringify([p.text.rules, p.text.payees, p.text.members]);
+  if (waiting) {
+    let same = false;
+    try {
+      const w = JSON.parse(waiting.ruleText) as RatifiedText;
+      same = JSON.stringify([w.rules, w.payees, w.members]) === proposed;
+    } catch {
+      // unreadable: treat as a different change
+    }
+    if (same) return "That change is already waiting for approval — seated members can approve it in the treasury panel.";
+  }
+
+  const bars = [...t.policy.rules, ...p.policy.rules].filter((r) => !r.forbidden).map((r) => r.approvals);
+  const required = Math.max(2, ...bars);
+  const bar = `Changing what the agent follows takes our strictest bar: ${membersWord(required)} approve.`;
+  const nameOf = (id: string) => members.find((m) => m.userId === id)?.displayName ?? "a new member";
+  const joined = p.joined.map(nameOf);
+  const text: RatifiedText = { ...p.text, added: p.added, removed: p.removed, joined, bar };
+  const parts = [
+    p.added.length || p.removed.length || p.reordered ? "our edited Treasury Rules and Payees" : null,
+    joined.length ? `${joined.join(", ")} as voting member${joined.length === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
+  const memo = parts.join(" and ") || "our Treasury Rules and Payees";
+
+  const seated = await seatedUserIds(ctx.roomId);
+  await createTreasuryAction({
+    roomId: ctx.roomId,
+    agentUserId: ctx.agentUserId,
+    requestedBy: ctx.askerId,
+    kind: RATIFY_KIND,
+    amountUsd: 0,
+    memo,
+    ruleText: JSON.stringify(text),
+    requiredApprovals: required,
+    status: "pending",
+  });
+  const changes = [
+    ...p.added.map((l) => `+ “${l}”`),
+    ...p.removed.map((l) => `− “${l}”`),
+    ...(p.reordered ? ["the order of the lines"] : []),
+    ...joined.map((n) => `+ ${n} votes`),
+  ];
+  await appendTreasuryActivity(ctx.roomId, [
+    `⏳ Requested by ${asker.displayName}: adopt ${memo} — needs ${humans(required)}${changes.length ? ` (${changes.join("; ")})` : ""}`,
+  ]).catch((e: unknown) => console.error("[treasury] could not log a ratification request:", e));
+
+  const out = [
+    `Queued: adopting ${memo}.`,
+    changes.length ? `Changes: ${changes.join("; ")}.` : "",
+    `This needs ${humans(required)} — ${bar.charAt(0).toLowerCase()}${bar.slice(1)} Until then I keep following the version we adopted.`,
+    `Seated members: tap “Approve with World ID” in the treasury panel.`,
+    ...seatShortfall(t, members, seated, required),
+  ];
+  return out.filter(Boolean).join(" ");
 }
 
 /**
  * Answer a treasury command, or return null so the caller carries on with its
- * normal path: null when the text is not a money sentence, or when the room's
- * memory has no Treasury Rules (the treasury is off there).
+ * normal path: null when the text is not about moving money, or when the
+ * room's memory has no Treasury Rules (the treasury is off there). A money
+ * sentence the matcher could not read gets a fixed "nothing was moved" — it
+ * never reaches the model, which could otherwise answer as if it had paid.
  */
 export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promise<{ text: string } | null> {
   const cmd = matchTreasuryCommand(ctx.text, ctx.agentName);
-  if (!cmd) return null;
+  if (!cmd && !mentionsMoney(ctx.text, ctx.agentName)) return null;
   const treasury = await loadRelationTreasury(ctx.roomId);
   if (!treasury) return null;
   // a message can also arrive over A2A under a member token; only a current
@@ -452,6 +628,21 @@ export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promis
   const members = await roomHumans(ctx.roomId);
   const asker = members.find((m) => m.userId === ctx.askerId);
   if (!asker) return { text: "Only members of this room can use its treasury — nothing was moved." };
+
+  if (!cmd) {
+    const example = treasury.payees[0]?.name ?? "the hotel";
+    return {
+      text: `I didn't move anything. I act only on a plain request with one dollar amount — like “@agent pay ${example} $180”.`,
+    };
+  }
+  if (cmd.kind === "adopt") {
+    try {
+      return { text: await adoptReply(ctx, treasury, members, asker) };
+    } catch (e) {
+      console.error("[treasury] adopt failed:", e);
+      return { text: `Something went wrong on my side (${(e as Error).message}) — nothing changed.` };
+    }
+  }
 
   let balance: { wei: bigint; eth: string; usd: number };
   try {
@@ -463,6 +654,14 @@ export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promis
   }
 
   if (cmd.kind === "status") return { text: await statusReply(treasury, ctx.roomId, balance) };
+  if (!treasury.adoptedAt)
+    return {
+      text: "Our Treasury Rules were never adopted, so I move no money yet. “@agent adopt the rules” puts them to a vote — nothing was moved.",
+    };
+  if (!treasury.electorate.includes(asker.userId))
+    return {
+      text: "You joined after our rules were adopted, so you can't direct the treasury yet. “@agent adopt the new members” puts that to a vote — nothing was moved.",
+    };
   try {
     return { text: await moneyReply(ctx, treasury, cmd, balance.usd, members, asker) };
   } catch (e) {

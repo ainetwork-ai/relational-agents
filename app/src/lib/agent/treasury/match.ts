@@ -15,9 +15,21 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const PREAMBLE =
   /^(?:hi|hey|hello|ok|okay|so|alright|agent|please|pls|kindly|now|can you|could you|would you|will you|go ahead and)\b[\s,!:.-]*/i;
 
-/** the request is not "do it now, exactly this" */
+/** the request is not "do it now, exactly this" — conditional, negated, narrated or scheduled
+ *  ("once we land" is a condition; "at once" is not) */
 const HEDGE =
-  /\b(?:not|don'?t|do not|never|cancel|stop|wait|hold off|later|tomorrow|tonight|next (?:week|month|year)|yesterday|already|if|unless|when|whether|should|maybe|might|once)\b/i;
+  /\b(?:not|don'?t|do not|never|cancel|stop|wait|hold off|later|tomorrow|tonight|next (?:week|month|year)|yesterday|already|if|unless|when|whether|should|maybe|might|once (?:we|you|they|he|she|it|i|the|everyone|everybody)|after|before|until|till|(?:mon|tues|wednes|thurs|fri|satur|sun)days?|in \d+ (?:minutes?|hours?|days?|weeks?|months?)|on the \d+(?:st|nd|rd|th)?)\b/i;
+
+/** the figure said is not the total: "$12 each", "$180 per night", "2x $90", "180 dollars and 50 cents" */
+const MULTIPLIER = /\b(?:each|per|apiece|times|twice|thrice|cents?)\b|\b\d+\s?[x×](?=\s|\$|\d|$)|(?:^|\s)[x×]\s?\d|×/i;
+
+/** "@agent adopt the new rules" — the one sentence that puts an edit of the rules to a vote */
+const ADOPT =
+  /^(?:adopt|ratify|accept)\s+(?:the\s+|our\s+)?(?:new\s+|updated\s+|edited\s+|changed\s+|current\s+)?(?:treasury\s+)?(?:rules|payees|members|membership|changes|rules and payees|payees and rules)\b[\s.!]*$/i;
+
+/** words that ask for money to move, in any tense — mentionsMoney's half of "a money sentence" */
+const MONEY_VERB =
+  /\b(?:pay|paid|paying|send|sent|sending|transfer\w*|book\w*|reserve\w*|buy|bought|buying|purchas\w*|withdr[ae]w\w*|invest\w*|move|moved|moving|spend|spent|spending|give|gave|giving|deposit\w*|cover\w*|reimburs\w*|refund\w*|tip)\b|보내|송금|결제|지불|출금|투자|예약|구매/i;
 
 const EXPENSE_VERBS = new Set(["pay", "book", "reserve", "buy", "purchase", "cover", "spend", "deposit"]);
 const TRANSFER_VERBS = new Set(["send", "transfer", "give"]);
@@ -38,11 +50,14 @@ interface Amounts {
   invalid: boolean;
 }
 
+// A number is "180", "1,800" or "180.50" — never "180," ("$180, thanks"): a
+// grouping comma must be followed by exactly three digits to count.
+const NUM = String.raw`(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?`;
 const AMOUNT_RES: { re: RegExp; dollarSign?: boolean }[] = [
-  { re: /\$\s?(\d[\d,]*(?:\.\d+)?)/g, dollarSign: true },
-  { re: /\busd\s?(\d[\d,]*(?:\.\d+)?)/gi, dollarSign: true },
-  { re: /(\d[\d,]*(?:\.\d+)?)\s?(?:dollars?|bucks|usd)\b/gi },
-  { re: /(\d[\d,]*(?:\.\d+)?)\s?달러/g },
+  { re: new RegExp(String.raw`\$\s?${NUM}`, "g"), dollarSign: true },
+  { re: new RegExp(String.raw`\busd\s?${NUM}`, "gi"), dollarSign: true },
+  { re: new RegExp(String.raw`(?<![\d,.])${NUM}\s?(?:dollars?|bucks|usd)\b`, "gi") },
+  { re: new RegExp(String.raw`(?<![\d,.])${NUM}\s?달러`, "g") },
 ];
 
 function findAmounts(t: string): Amounts {
@@ -51,20 +66,37 @@ function findAmounts(t: string): Amounts {
     for (const m of t.matchAll(re)) {
       const start = m.index!;
       const end = start + m[0].length;
-      const num = m[1];
-      // "$1.2k", "$180m", "$1,20" — a shape we'd have to guess at
-      if (!/^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?$/.test(num)) out.invalid = true;
-      if (dollarSign && /[a-z0-9%]/i.test(t[end] ?? "") && !/^\s?(?:dollars?|bucks|usd)\b/i.test(t.slice(end)))
+      const after = t.slice(end);
+      // "$180.505", "$1.2k", "$180m", "$1,20", "$1 800" — a shape we'd have to guess at
+      if (m[2] !== undefined && m[2].length > 2) out.invalid = true;
+      if (/^[.,]\d|^\s\d/.test(after)) out.invalid = true;
+      if (dollarSign && /[a-z0-9%]/i.test(t[end] ?? "") && !/^\s?(?:dollars?|bucks|usd)\b/i.test(after))
         out.invalid = true;
-      out.values.push(Number(num.replace(/,/g, "")));
+      // "HK$500", "A$40", "NT$90" — dollars, but not US ones
+      if (t[start] === "$" && /[a-z]/i.test(t[start - 1] ?? "")) out.invalid = true;
+      out.values.push(Number(`${m[1].replace(/,/g, "")}${m[2] !== undefined ? `.${m[2]}` : ""}`));
       out.spans.push([start, end]);
     }
   }
   return out;
 }
 
+/** overlapping matches of one figure ("$180 dollars" is matched twice) as one span */
+function mergeSpans(spans: [number, number][]): [number, number][] {
+  const merged: [number, number][] = [];
+  for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
+    const last = merged[merged.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  return merged;
+}
+
 function oneAmount(a: Amounts): number | null {
   if (a.invalid || !a.values.length) return null;
+  // said once: "$30 for the taxi and $30 for snacks" is two payments, even
+  // though both are $30 — only overlapping matches are the same figure
+  if (mergeSpans(a.spans).length !== 1) return null;
   const cents = new Set(a.values.map((v) => Math.round(v * 100)));
   if (cents.size !== 1) return null; // "pay $180 of the $300 bill" — which one?
   const v = [...cents][0] / 100;
@@ -73,13 +105,7 @@ function oneAmount(a: Amounts): number | null {
 
 /** cut the amount spans (and a connector in front: ", $180" / "for $180") */
 function withoutAmounts(t: string, spans: [number, number][]): string {
-  // "$180 dollars" is matched twice, overlapping — cut the union once
-  const merged: [number, number][] = [];
-  for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
-    const last = merged[merged.length - 1];
-    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
-    else merged.push([a, b]);
-  }
+  const merged = mergeSpans(spans);
   let s = t;
   for (const [a, b] of merged.reverse()) {
     const before = s.slice(0, a).replace(/(?:\b(?:for|of|at|worth|costing|about|around)\s+|,\s*)$/i, "");
@@ -130,7 +156,7 @@ function matchEnglish(t: string, raw: string): TreasuryCommand | null {
   const isExpense = EXPENSE_VERBS.has(verb);
   const isTransfer = TRANSFER_VERBS.has(verb);
   if (!isExpense && !isTransfer && verb !== "withdraw" && verb !== "invest" && verb !== "move") return null;
-  if (HEDGE.test(t) || INTO_TREASURY.test(t)) return null;
+  if (HEDGE.test(t) || INTO_TREASURY.test(t) || MULTIPLIER.test(t)) return null;
 
   const amounts = findAmounts(t);
   const amountUsd = oneAmount(amounts);
@@ -185,8 +211,8 @@ function matchKorean(t: string, raw: string): TreasuryCommand | null {
   return money(kind, amountUsd, memo, toSelf, raw);
 }
 
-export function matchTreasuryCommand(text: string, agentName?: string): TreasuryCommand | null {
-  const raw = text;
+/** the message without its address to the agent and the politeness in front */
+function normalize(text: string, agentName?: string): string {
   let t = text.replace(/[‘’]/g, "'").replace(/\s+/g, " ");
   if (agentName?.trim()) t = t.replace(new RegExp(`@${escapeRe(agentName.trim())}`, "gi"), " ");
   t = t.replace(/@agent\b/gi, " ").trim();
@@ -194,7 +220,27 @@ export function matchTreasuryCommand(text: string, agentName?: string): Treasury
     prev = t;
     t = t.replace(/^[\s,:;.!-]+/, "").replace(PREAMBLE, "").trim();
   }
+  return t;
+}
+
+/**
+ * A message that talks about moving money (a money word and an amount) —
+ * whether or not matchTreasuryCommand could read it. When it could not, the
+ * caller answers with a fixed "nothing was moved" instead of handing the
+ * sentence to a model that might say otherwise.
+ */
+export function mentionsMoney(text: string, agentName?: string): boolean {
+  const t = normalize(text, agentName);
+  if (!t || !MONEY_VERB.test(t)) return false;
+  const a = findAmounts(t);
+  return a.invalid || a.values.length > 0;
+}
+
+export function matchTreasuryCommand(text: string, agentName?: string): TreasuryCommand | null {
+  const raw = text;
+  const t = normalize(text, agentName);
   if (!t) return null;
+  if (ADOPT.test(t)) return { kind: "adopt", raw };
 
   const cmd = matchEnglish(t, raw) ?? (/[가-힣]/.test(t) ? matchKorean(t, raw) : null);
   if (cmd) return cmd;

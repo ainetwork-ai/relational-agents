@@ -1,12 +1,12 @@
 import "server-only";
 import path from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { agentRoomStates } from "@/lib/db/schema";
+import { agentRoomStates, chatRoomMembers, treasuryActions, users } from "@/lib/db/schema";
 import { readNode, nodeExists } from "@/lib/okf-store";
 import { appendOkfLines, okfDocPageId, type NewLine } from "@/lib/agent/okf-docs";
 import { parsePayees, parseTreasuryPolicy } from "./policy";
-import type { RelationTreasury } from "./types";
+import { RATIFY_KIND, type RatifiedText, type RelationTreasury, type TreasuryProposal } from "./types";
 
 /**
  * The treasury's view of the relation's memory doc. Its sections are
@@ -14,6 +14,11 @@ import type { RelationTreasury } from "./types";
  * sections, which the recording LLM appends to — and found by title in the doc
  * folder when the map lost them (a pipeline run that started before a key was
  * added writes back the map it read).
+ *
+ * The doc is where the rules are written, not what is enforced: every member
+ * can edit it (and delete and recreate a page by title), so the agent follows
+ * the text the relation last ADOPTED — a ratify action in the database — and
+ * reports anything the doc says beyond it as a proposal.
  */
 
 const SECTIONS = {
@@ -76,21 +81,130 @@ async function register(roomId: string, key: SectionKey, rel: string): Promise<v
     .where(eq(agentRoomStates.roomId, roomId));
 }
 
+/** a rule or payee line as adopted and compared: no bullet, single spaces */
+function normLine(line: string): string {
+  return line.replace(/^[-*•]\s+/, "").replace(/\s+/g, " ").trim();
+}
+
+function sameLines(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((l, i) => l === b[i]);
+}
+
+function liveText(state: RoomState): { rules: string[]; payees: string[]; rulesRel: string } | null {
+  const rules = resolveSection(state, "treasury-rules");
+  if (!rules) return null;
+  const payees = resolveSection(state, "payees");
+  return {
+    rules: sectionLines(rules.rel).map(normLine).filter(Boolean),
+    payees: payees ? sectionLines(payees.rel).map(normLine).filter(Boolean) : [],
+    rulesRel: rules.rel,
+  };
+}
+
+/** The Rules and Payees text the doc holds right now; null = no Treasury Rules section (treasury off). */
+export async function liveTreasuryText(roomId: string): Promise<{ rules: string[]; payees: string[] } | null> {
+  const state = await roomState(roomId);
+  const live = state ? liveText(state) : null;
+  return live && { rules: live.rules, payees: live.payees };
+}
+
+/** The room's human members, oldest first — who an adoption made now would let vote. */
+export async function humanMemberIds(roomId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: chatRoomMembers.userId })
+    .from(chatRoomMembers)
+    .innerJoin(users, eq(users.id, chatRoomMembers.userId))
+    .where(and(eq(chatRoomMembers.roomId, roomId), eq(users.isAgent, false)))
+    .orderBy(asc(chatRoomMembers.joinedAt));
+  return rows.map((r) => r.userId);
+}
+
+/** Reads a ratify row's rule_text; null when it isn't one (an unreadable adoption adopts nothing). */
+export function parseRatified(json: string): RatifiedText | null {
+  try {
+    const v = JSON.parse(json) as Partial<RatifiedText>;
+    const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every((s) => typeof s === "string");
+    if (!strings(v.rules) || !strings(v.payees) || !strings(v.members)) return null;
+    return {
+      rules: v.rules,
+      payees: v.payees,
+      members: v.members,
+      added: strings(v.added) ? v.added : [],
+      removed: strings(v.removed) ? v.removed : [],
+      joined: strings(v.joined) ? v.joined : [],
+      bar: typeof v.bar === "string" ? v.bar : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The version in force: the latest adoption to be decided (claim time, not request time). */
+export async function latestAdoption(roomId: string): Promise<{ id: string; at: Date; text: RatifiedText } | null> {
+  const [row] = await db
+    .select({ id: treasuryActions.id, ruleText: treasuryActions.ruleText, decidedAt: treasuryActions.decidedAt })
+    .from(treasuryActions)
+    .where(
+      and(eq(treasuryActions.roomId, roomId), eq(treasuryActions.kind, RATIFY_KIND), eq(treasuryActions.status, "executed"))
+    )
+    .orderBy(desc(treasuryActions.decidedAt), desc(treasuryActions.createdAt))
+    .limit(1);
+  if (!row) return null;
+  const text = parseRatified(row.ruleText);
+  return text && row.decidedAt ? { id: row.id, at: row.decidedAt, text } : null;
+}
+
+/** Lines in `next` but not in `prev` (as a multiset, so a duplicated line counts). */
+function linesAdded(prev: string[], next: string[]): string[] {
+  const left = [...prev];
+  return next.filter((l) => {
+    const i = left.indexOf(l);
+    if (i < 0) return true;
+    left.splice(i, 1);
+    return false;
+  });
+}
+
 export async function loadRelationTreasury(roomId: string): Promise<RelationTreasury | null> {
   const state = await roomState(roomId);
   if (!state) return null;
-  const rules = resolveSection(state, "treasury-rules");
-  if (!rules) return null;
+  const live = liveText(state);
+  if (!live) return null;
   const purpose = resolveSection(state, "purpose");
-  const payees = resolveSection(state, "payees");
   const activity = resolveSection(state, "treasury-activity");
+  const [adopted, members] = await Promise.all([latestAdoption(roomId), humanMemberIds(roomId)]);
+
+  // never adopted: the doc is shown, and the agent moves no money until it is
+  const enforced = adopted?.text ?? { rules: live.rules, payees: live.payees, members };
+  const textChanged = !adopted || !sameLines(adopted.text.rules, live.rules) || !sameLines(adopted.text.payees, live.payees);
+  const joined = adopted ? members.filter((id) => !adopted.text.members.includes(id)) : [];
+  let proposal: TreasuryProposal | null = null;
+  if (textChanged || joined.length) {
+    const prev = adopted ? [...adopted.text.rules, ...adopted.text.payees] : [];
+    const next = [...live.rules, ...live.payees];
+    const added = linesAdded(prev, next);
+    const removed = linesAdded(next, prev);
+    proposal = {
+      text: { rules: live.rules, payees: live.payees, members },
+      policy: parseTreasuryPolicy(live.rules.join("\n")),
+      payees: parsePayees(live.payees.join("\n")),
+      added,
+      removed,
+      reordered: textChanged && !added.length && !removed.length,
+      joined,
+    };
+  }
+
   return {
     roomId,
-    policy: parseTreasuryPolicy(sectionLines(rules.rel).join("\n")),
-    payees: payees ? parsePayees(sectionLines(payees.rel).join("\n")) : [],
+    policy: parseTreasuryPolicy(enforced.rules.join("\n")),
+    payees: parsePayees(enforced.payees.join("\n")),
     purpose: purpose ? sectionLines(purpose.rel).join("\n") : "",
-    rulesPageId: okfDocPageId(rules.rel),
+    rulesPageId: okfDocPageId(live.rulesRel),
     activityPath: activity?.rel ?? null,
+    adoptedAt: adopted ? adopted.at.toISOString() : null,
+    electorate: adopted ? adopted.text.members : members,
+    proposal,
   };
 }
 

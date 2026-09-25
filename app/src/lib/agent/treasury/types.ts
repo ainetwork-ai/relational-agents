@@ -13,22 +13,56 @@
  *     the right to approve. Proof of Human, once per member. One human, one
  *     seat: a second account of the same person yields the same nullifier.
  *   - World ID for Agents (sandbox OIDC IdP, pairwise `sub`): every APPROVAL of
- *     a critical agent action is a fresh step-up (max_age=0; auth_time/iat must
- *     postdate the action). Quorum = count of DISTINCT subs on that action.
+ *     a critical agent action is a fresh step-up (max_age=0; auth_time must be
+ *     present and postdate the action). Quorum = count of DISTINCT subs on
+ *     that action.
+ *
+ * What the agent enforces is the version of the Rules and Payees the relation
+ * ADOPTED (a "ratify" action, below), not whatever the doc says right now: any
+ * member can edit the doc, so an edit is a proposal until the strictest quorum
+ * the rules name adopts it. The adoption also fixes who votes — the members
+ * at that moment; someone added later counts once the relation re-adopts.
  *
  * Module map (each file owned by one builder; import only through these names):
  *   policy.ts     parseTreasuryPolicy(), parsePayees(), evaluateCommand()  (pure)
- *   match.ts      matchTreasuryCommand()                                  (pure)
- *   memory.ts     loadRelationTreasury(), appendTreasuryActivity()        (OKF io)
+ *   match.ts      matchTreasuryCommand(), mentionsMoney()                 (pure)
+ *   memory.ts     loadRelationTreasury(), liveTreasuryText(),
+ *                 appendTreasuryActivity()                                (OKF io)
  *   wallet.ts     ensureAgentWallet(), treasuryBalance(), fundTreasury(),
  *                 transferUsd(), usdToEth(), ethToUsd()                   (chain io)
  *   approvals.ts  createTreasuryAction(), recordIdpApproval(), claimSeat(),
- *                 executeIfQuorum(), treasuryStatus()                     (db)
+ *                 executeIfQuorum(), treasuryStatus(), approvalCard()     (db)
  *   skill.ts      handleTreasuryCommand()  — called from respond.ts
  */
 
 /** IDKit action for claiming a seat (register in the Developer Portal). */
 export const TREASURY_SEAT_ACTION = process.env.WORLD_ID_SEAT_ACTION ?? "treasury-seat";
+
+/**
+ * treasury_actions.kind of a RATIFICATION: the relation adopting the text of
+ * its Treasury Rules and Payees, and with it who votes. amountUsd is 0, there
+ * is no recipient, and rule_text holds a RatifiedText as JSON. The latest
+ * executed one is what the agent enforces (memory.ts).
+ */
+export const RATIFY_KIND = "ratify";
+
+/** What an adoption records — lines as the parser reads them (bullet stripped, spaces collapsed). */
+export interface RatifiedText {
+  rules: string[];
+  payees: string[];
+  /** human members when adopted: the electorate — who may approve and direct money */
+  members: string[];
+  /** display only, frozen when the change was requested */
+  added?: string[];
+  removed?: string[];
+  /** display names of members the change lets in */
+  joined?: string[];
+  /** why this many approvals ("the strictest bar our rules name") */
+  bar?: string;
+}
+
+/** A pending request stops waiting after this long, unapproved or not. */
+export const REQUEST_TTL_MS = Number(process.env.TREASURY_REQUEST_TTL_HOURS ?? 24) * 3_600_000;
 
 // ── rules (from the memory doc) ─────────────────────────────────────────────
 
@@ -102,7 +136,9 @@ export type TreasuryCommand =
       toSelf: boolean;
       raw: string;
     }
-  | { kind: "status"; raw: string };
+  | { kind: "status"; raw: string }
+  /** "@agent adopt the new rules" — put the doc's current Rules/Payees (and members) to a vote */
+  | { kind: "adopt"; raw: string };
 
 // ── evaluation ──────────────────────────────────────────────────────────────
 
@@ -128,7 +164,9 @@ export interface EvaluateInput {
 
 export interface RelationTreasury {
   roomId: string;
+  /** the ADOPTED rules — or, when nothing was ever adopted, the doc's (which then move no money) */
   policy: TreasuryPolicy;
+  /** the adopted payees (same fallback) */
   payees: Payee[];
   /** the doc's "Purpose" section as plain text ("" if none) */
   purpose: string;
@@ -136,6 +174,26 @@ export interface RelationTreasury {
   rulesPageId: string | null;
   /** OKF rel path of the "Treasury Activity" section (created on first append) */
   activityPath: string | null;
+  /** when the enforced version was adopted; null = never adopted, so no money moves */
+  adoptedAt: string | null;
+  /** userIds whose approvals and requests count: the members at adoption (never adopted: the members now) */
+  electorate: string[];
+  /** the doc and the room as they are now, when that differs from what was adopted */
+  proposal: TreasuryProposal | null;
+}
+
+export interface TreasuryProposal {
+  /** what adopting now would record */
+  text: RatifiedText;
+  policy: TreasuryPolicy;
+  payees: Payee[];
+  /** rule and payee lines the doc has that the adopted version does not, and the reverse */
+  added: string[];
+  removed: string[];
+  /** only the order of the lines changed (it decides which rule is cited) */
+  reordered: boolean;
+  /** userIds of members who joined after the adoption */
+  joined: string[];
 }
 
 // ── status (GET /api/dm/rooms/[roomId]/treasury) ────────────────────────────
@@ -149,7 +207,12 @@ export interface TreasuryStatus {
   usdPerEth: number;
   purpose: string;
   rulesPageId: string | null;
+  /** the rules the agent enforces (the adopted version) */
   rules: string[];
+  /** when those were adopted; null = never — the agent then moves no money */
+  adoptedAt: string | null;
+  /** edits to the doc (or new members) nobody has adopted yet; lines as written */
+  proposal: { added: string[]; removed: string[]; reordered: boolean; joined: string[] } | null;
   members: {
     userId: string;
     displayName: string;
@@ -157,26 +220,45 @@ export interface TreasuryStatus {
     seatLevel: string | null;
     /** has completed a World ID for Agents step-up at least once */
     worldVerified: boolean;
+    /** in the electorate: joined before the rules in force were adopted */
+    voting: boolean;
   }[];
   mySeated: boolean;
   actions: {
     id: string;
-    kind: TreasuryKind;
+    kind: TreasuryKind | typeof RATIFY_KIND;
     amountUsd: number;
     memo: string;
-    status: "pending" | "executed" | "blocked" | "failed" | "cancelled";
+    /** "unconfirmed": sent, but no receipt seen yet — it may still land */
+    status: "pending" | "executed" | "blocked" | "failed" | "cancelled" | "unconfirmed";
     requiredApprovals: number;
+    /** the rule that set the bar (a ratification: why it needs this many) */
     ruleText: string;
+    /** where the money goes, as the relation names it and as the chain does */
+    recipient: { label: string | null; address: string | null } | null;
+    /** a ratification's changes, as frozen when it was requested */
+    changes: { added: string[]; removed: string[]; joined: string[] } | null;
     requestedBy: { userId: string; displayName: string };
+    /** approvals that count: from voting members still here and seated */
     approvals: { userId: string; displayName: string; at: string }[];
     txHash: string | null;
     error: string | null;
     createdAt: string;
-    /** can the viewer approve right now (seated, not yet approved, pending) */
+    /** a pending request lapses at this time */
+    expiresAt: string | null;
+    /** can the viewer approve right now (seated, voting, not yet approved, pending) */
     canApprove: boolean;
   }[];
-  /** IDKit seat claim: "world-id" needs NEXT_PUBLIC_WORLD_ID_APP_ID + rpContext */
-  seatMode: "world-id" | "dev-simulator";
+  /**
+   * IDKit seat claim, first configured wins:
+   *   "world-id-v4"   World ID 4.0 — WORLD_RP_ID + WORLD_RP_SIGNING_KEY + app_id;
+   *                   the client fetches a per-request rp_context (seat/rp-context)
+   *   "world-id"      World ID 3.0 — NEXT_PUBLIC_WORLD_ID_APP_ID + static rpContext
+   *   "dev-simulator" no Portal credentials; not a proof of anything
+   */
+  seatMode: "world-id-v4" | "world-id" | "dev-simulator";
+  /** IDKit environment for "world-id-v4" ("staging" = simulator.worldcoin.org); absent/null otherwise */
+  seatEnvironment?: "production" | "staging" | "sandbox" | null;
   seatAction: string;
   rpContext: Record<string, unknown> | null;
   /** where the step-up goes: "sandbox" | "mock" | null (IdP not configured) */
@@ -191,12 +273,14 @@ export type ApprovalResult =
       reason:
         | "not-found"
         | "not-pending"
+        | "expired"
         | "not-member"
+        | "not-electorate"
         | "not-seated"
         | "stale-proof"
         | "same-human"
-        | "already-approved"
-        | "requester-excluded";
+        | "world-id-mismatch"
+        | "already-approved";
       message: string;
     };
 

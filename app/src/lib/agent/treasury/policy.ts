@@ -22,17 +22,25 @@ function money(whole: string, frac: string | undefined): number {
 }
 
 /** Words a rule subject may carry besides the parts we extract. Anything else
- *  is a condition we'd be ignoring, so the bullet is reported, not guessed. */
+ *  is a condition we'd be ignoring, so the bullet is reported, not guessed.
+ *  No destination words: where money goes is read only as PERSONAL_DEST, so
+ *  "to our joint account" or "to a member's wallet" can never be dropped and
+ *  leave a rule that covers every destination. */
 const FILLER = new Set(
   (
     "shared group common joint expense expenses spending spend payment payments purchase purchases bill bills " +
     "investing invest investment investments idle spare extra funds fund money cash " +
     "the a an of at once in one go single transaction transactions transfer transfers " +
     "moving move moves sending send sends withdrawing withdraw withdrawal withdrawals " +
-    "to into from out treasury treasury's our any amount member's members' member members " +
-    "someone's anyone's personal own their wallet wallets account accounts and or"
+    "from out treasury treasury's our any amount and or"
   ).split(" ")
 );
+
+/** The one destination the grammar reads: a member's own wallet or account,
+ *  however it is said ("to a member's wallet", "their own wallet", "personal
+ *  wallets"). Every other destination stays in the subject and is reported. */
+const PERSONAL_DEST =
+  / (?:(?:to|into) )?(?:a |an |any |the )?(?:(?:member's|members'|someone's|anyone's|their) (?:own |personal )*|(?:own |personal )+)(?:wallets?|accounts?) /;
 
 interface Subject {
   kind: TreasuryKind | "any";
@@ -76,14 +84,17 @@ function parseSubject(raw: string): Subject | null {
   }
   // any amount or percentage left over is a condition we did not read
   if (/[$%\d]/.test(s)) return null;
-  s = s.replace(/[,;()]/g, " ");
+  s = ` ${s.replace(/[,;()]/g, " ").replace(/\s+/g, " ").trim()} `;
+
+  // ── destination ──
+  const personal = PERSONAL_DEST.test(s);
+  if (personal) s = s.replace(PERSONAL_DEST, " ");
 
   const words = s.trim().split(/\s+/).filter(Boolean);
   if (words.some((w) => !FILLER.has(w))) return null;
 
   // ── kind ──
   const has = (re: RegExp) => words.some((w) => re.test(w));
-  const personal = /\bpersonal wallets?\b|\b(?:member's|members'|their) own wallets?\b/.test(s);
   const kinds = new Set<TreasuryKind>();
   if (has(/^invest/)) kinds.add("investment");
   if (has(/^withdraw/)) kinds.add("withdrawal");
