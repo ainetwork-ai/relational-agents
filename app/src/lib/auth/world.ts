@@ -156,6 +156,22 @@ function jwksFor(uri: string) {
 
 // ── code exchange ───────────────────────────────────────────────────────────
 
+/**
+ * How this client authenticates at the token endpoint. Discovery lists what
+ * the IdP supports; a registered client has ONE method, and a strict IdP
+ * answers invalid_client to any other. WORLD_TOKEN_AUTH_METHOD pins it to what
+ * the registration output names; unset, client_secret_basic (the default for a
+ * registered client, RFC 7591 §2) whenever the IdP offers it.
+ */
+function tokenAuthMethod(disco: WorldDiscovery): "client_secret_basic" | "client_secret_post" {
+  const pinned = process.env.WORLD_TOKEN_AUTH_METHOD;
+  if (pinned === "client_secret_basic" || pinned === "client_secret_post") return pinned;
+  const methods = disco.token_endpoint_auth_methods_supported ?? ["client_secret_basic"];
+  return methods.includes("client_secret_basic") || !methods.includes("client_secret_post")
+    ? "client_secret_basic"
+    : "client_secret_post";
+}
+
 export interface WorldIdentity {
   /** pairwise subject — the human, as this client sees them */
   sub: string;
@@ -188,9 +204,7 @@ export async function exchangeWorldCode(code: string, verifier: string, expected
     "content-type": "application/x-www-form-urlencoded",
     accept: "application/json",
   };
-  // OIDC default when unadvertised is client_secret_basic
-  const methods = disco.token_endpoint_auth_methods_supported ?? ["client_secret_basic"];
-  if (methods.includes("client_secret_post")) {
+  if (tokenAuthMethod(disco) === "client_secret_post") {
     body.set("client_id", cfg.clientId);
     body.set("client_secret", cfg.clientSecret);
   } else {

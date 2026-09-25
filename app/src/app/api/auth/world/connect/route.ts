@@ -1,30 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
-import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNonce } from "@/lib/auth/world";
+import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNonce, type WorldConfig } from "@/lib/auth/world";
 import { safeReturnTo } from "@/lib/auth/return-to";
-import { db } from "@/lib/db";
-import { chatRoomMembers, treasuryActions } from "@/lib/db/schema";
+import { stamp, stampOk } from "@/lib/secret-box";
+import { approvalCard, type ApprovalCard } from "@/lib/agent/treasury/approvals";
 
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EXPLORER = "https://sepolia.etherscan.io";
+
+/** The confirmation form is good for this long, for this member and this action only. */
+const CONFIRM_TTL_MS = 10 * 60_000;
+const CONFIRM_LABEL = "world-approval-confirm";
 
 /**
- * GET /api/auth/world/connect?action=<treasuryActionId>&returnTo=<path>
+ * /api/auth/world/connect — step-up to World ID: sends the signed-in member to
+ * the Human Continuity IdP.
  *
- * Step-up to World ID: sends the signed-in member to the Human Continuity IdP.
- *   - with `action`: an APPROVAL of that pending treasury action. The callback
- *     hands the verified pairwise sub to recordIdpApproval.
- *   - without: a plain verification — the callback binds the sub to this
- *     account (users.worldSub).
+ *   GET  (no action)   a plain verification — straight to the IdP; the
+ *                      callback binds the sub to this account (users.worldSub).
+ *   GET  ?action=<id>  an APPROVAL of that pending treasury action. Nothing is
+ *                      started yet: this renders, on our origin, what is being
+ *                      approved — amount, payee and its address, requester, the
+ *                      rule, who approved so far. The IdP screen can't say any
+ *                      of that, so without this page a link that looks like
+ *                      "re-verify your World ID" would collect an approval of a
+ *                      spend the person never saw.
+ *   POST (from that page) action + a stamp binding member, action and expiry
+ *                      → the same checks again → the IdP. The callback hands
+ *                      the verified pairwise sub to recordIdpApproval.
+ *
  * max_age=0 + prompt=login: the approval must be a verification made NOW, not
  * a session the IdP remembers. `returnTo` brings the person back to the moment
  * that asked for trust (the room, the approval card).
  *
- * Every world_* cookie is (re)written here, including clearing world_action on
- * a plain verification — a stale one from an abandoned approval must not turn
- * the next plain verification into an approval.
+ * Every world_* cookie is (re)written when a flow starts, including clearing
+ * world_action on a plain verification — a stale one from an abandoned
+ * approval must not turn the next plain verification into an approval.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
@@ -33,31 +46,83 @@ export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const actionId = params.get("action") || null;
   const returnTo = safeReturnTo(params.get("returnTo")) ?? "/";
-  const back = (value: string) => {
-    const url = worldSiteUrl(returnTo, req.url);
-    url.searchParams.set(actionId ? "treasury" : "world", value);
-    return NextResponse.redirect(url);
-  };
+  const back = backTo(req, returnTo, actionId !== null);
 
   const cfg = worldConfig();
   if (!cfg) return back("unavailable");
+  if (!actionId) return startFlow(req, cfg, auth.user.id, null, returnTo, back);
 
-  if (actionId) {
-    if (!UUID_RE.test(actionId)) return back("not-allowed");
-    const [action] = await db
-      .select({ roomId: treasuryActions.roomId, status: treasuryActions.status })
-      .from(treasuryActions)
-      .where(eq(treasuryActions.id, actionId))
-      .limit(1);
-    if (!action || action.status !== "pending") return back("not-allowed");
-    const [member] = await db
-      .select({ userId: chatRoomMembers.userId })
-      .from(chatRoomMembers)
-      .where(and(eq(chatRoomMembers.roomId, action.roomId), eq(chatRoomMembers.userId, auth.user.id)))
-      .limit(1);
-    if (!member) return back("not-allowed");
-  }
+  if (!UUID_RE.test(actionId)) return back("not-allowed");
+  const card = await approvalCard(actionId, auth.user.id);
+  if (!card.ok) return back(refusalCode(card.reason));
 
+  const exp = Date.now() + CONFIRM_TTL_MS;
+  const token = stamp(CONFIRM_LABEL, `${auth.user.id}:${actionId}:${exp}`);
+  return new NextResponse(confirmPage(card.card, { returnTo, exp, token, mock: cfg.mode === "mock" }), {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      // an approval page must not be framed under someone else's buttons
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      "x-frame-options": "DENY",
+    },
+  });
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+
+  const form = await req.formData().catch(() => null);
+  const field = (name: string) => {
+    const v = form?.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  const actionId = field("action");
+  const returnTo = safeReturnTo(field("returnTo")) ?? "/";
+  const back = backTo(req, returnTo, true, 303);
+
+  const cfg = worldConfig();
+  if (!cfg) return back("unavailable");
+  const exp = Number(field("exp"));
+  if (
+    !UUID_RE.test(actionId) ||
+    !Number.isFinite(exp) ||
+    Date.now() > exp ||
+    !stampOk(CONFIRM_LABEL, `${auth.user.id}:${actionId}:${exp}`, field("token"))
+  )
+    return back("bad-state");
+  // the page may be minutes old: everything is checked again
+  const card = await approvalCard(actionId, auth.user.id);
+  if (!card.ok) return back(refusalCode(card.reason));
+  return startFlow(req, cfg, auth.user.id, actionId, returnTo, back, 303);
+}
+
+type Back = (value: string) => NextResponse;
+
+function backTo(req: NextRequest, returnTo: string, approval: boolean, status?: number): Back {
+  return (value: string) => {
+    const url = worldSiteUrl(returnTo, req.url);
+    url.searchParams.set(approval ? "treasury" : "world", value);
+    return NextResponse.redirect(url, status);
+  };
+}
+
+/** What the panel shows for a refusal before the IdP: the reason itself, except
+ *  "this request isn't yours to approve" in its several forms. */
+function refusalCode(reason: string): string {
+  return reason === "not-found" || reason === "not-pending" || reason === "not-member" ? "not-allowed" : reason;
+}
+
+async function startFlow(
+  req: NextRequest,
+  cfg: WorldConfig,
+  userId: string,
+  actionId: string | null,
+  returnTo: string,
+  back: Back,
+  status?: number
+): Promise<NextResponse> {
   let authorizationEndpoint: string;
   try {
     authorizationEndpoint = (await worldDiscovery(cfg)).authorization_endpoint;
@@ -82,7 +147,7 @@ export async function GET(req: NextRequest) {
   url.searchParams.set("max_age", "0");
   url.searchParams.set("prompt", "login");
 
-  const res = NextResponse.redirect(url);
+  const res = NextResponse.redirect(url, status);
   // short-lived, HttpOnly, scoped to /api/auth/world: the callback reads them
   // once and clears them. Secure only where the browser would keep it (https
   // or production) — a Secure cookie on http://localhost is silently dropped.
@@ -98,9 +163,95 @@ export async function GET(req: NextRequest) {
   res.cookies.set("world_nonce", nonce, cookie);
   // who started the flow — a demo login switch mid-flow must not bind this
   // person's proof to whichever account is signed in when it comes back
-  res.cookies.set("world_uid", auth.user.id, cookie);
+  res.cookies.set("world_uid", userId, cookie);
   res.cookies.set("world_return", returnTo, cookie);
   if (actionId) res.cookies.set("world_action", actionId, cookie);
   else res.cookies.set("world_action", "", { ...cookie, maxAge: 0 });
   return res;
+}
+
+// ── the confirmation page ───────────────────────────────────────────────────
+
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+function usd(n: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+}
+
+function confirmPage(
+  c: ApprovalCard,
+  f: { returnTo: string; exp: number; token: string; mock: boolean }
+): string {
+  const ratify = c.kind === "ratify";
+  const so = c.approvedBy.length
+    ? `${c.approvedBy.length} of ${c.required} so far: ${c.approvedBy.map(esc).join(", ")}`
+    : `none of ${c.required} yet`;
+  const what = ratify
+    ? `<h1>Adopt ${esc(c.memo)}</h1>
+       ${
+         c.changes && (c.changes.added.length || c.changes.removed.length || c.changes.joined.length)
+           ? `<ul class="changes">${[
+               ...c.changes.added.map((l) => `<li class="add">+ “${esc(l)}”</li>`),
+               ...c.changes.removed.map((l) => `<li class="del">− “${esc(l)}”</li>`),
+               ...c.changes.joined.map((n) => `<li class="add">+ ${esc(n)} votes</li>`),
+             ].join("")}</ul>`
+           : ""
+       }
+       <p class="muted">Once adopted, the agent follows this version for every payment.</p>`
+    : `<h1>${esc(usd(c.amountUsd))}</h1>
+       <p class="to">to <strong>${esc(c.recipient?.label ?? "an unknown recipient")}</strong>${c.memo ? ` · ${esc(c.memo)}` : ""}</p>
+       ${
+         c.recipient?.address
+           ? `<p class="addr">Paid to <a href="${EXPLORER}/address/${esc(c.recipient.address)}" target="_blank" rel="noreferrer">${esc(c.recipient.address)}</a></p>`
+           : ""
+       }`;
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approve with World ID</title>
+<style>
+  :root { color-scheme: light dark; --fg:#171717; --muted:#737373; --line:#e5e5e5; --bg:#fafafa; --card:#fff; --btn:#171717; --btnfg:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e5e5e5; --muted:#a3a3a3; --line:#404040; --bg:#0a0a0a; --card:#171717; --btn:#f5f5f5; --btnfg:#171717; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:30rem; margin:3rem auto; padding:0 1rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.25rem 1.5rem; }
+  .kicker { font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:0 0 .5rem; }
+  h1 { font-size:28px; margin:0; }
+  .to { margin:.25rem 0 0; }
+  .addr { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; color:var(--muted); margin:.5rem 0 0; }
+  .addr a { color:inherit; }
+  dl { margin:1rem 0 0; display:grid; grid-template-columns:auto 1fr; gap:.35rem 1rem; font-size:14px; }
+  dt { color:var(--muted); }
+  dd { margin:0; }
+  .rule { font-style:italic; }
+  .changes { margin:.75rem 0 0; padding-left:1rem; font-size:14px; }
+  .changes li { margin:.15rem 0; }
+  .muted { color:var(--muted); font-size:13px; }
+  .note { font-size:13px; color:var(--muted); margin:1rem 0 0; }
+  .actions { display:flex; gap:.75rem; align-items:center; margin-top:1.25rem; }
+  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:8px; padding:.6rem 1rem; font:inherit; font-weight:600; cursor:pointer; }
+  a.cancel { color:var(--muted); }
+</style></head>
+<body><main>
+  <div class="card">
+    <p class="kicker">Treasury approval${f.mock ? " · local mock IdP" : ""}</p>
+    ${what}
+    <dl>
+      <dt>Requested by</dt><dd>${esc(c.requestedBy)}</dd>
+      <dt>Rule</dt><dd class="rule">“${esc(c.ruleText)}”</dd>
+      <dt>Approvals</dt><dd>${so}</dd>
+      <dt>Expires</dt><dd>${esc(new Date(c.expiresAt).toUTCString())}</dd>
+    </dl>
+    <p class="note">World ID will ask you to prove, right now, that you are a unique human. Your approval counts once toward this request and can't be withdrawn.</p>
+    <form method="post" action="/api/auth/world/connect" class="actions">
+      <input type="hidden" name="action" value="${esc(c.actionId)}">
+      <input type="hidden" name="returnTo" value="${esc(f.returnTo)}">
+      <input type="hidden" name="exp" value="${f.exp}">
+      <input type="hidden" name="token" value="${esc(f.token)}">
+      <button type="submit">Approve with World ID</button>
+      <a class="cancel" href="${esc(f.returnTo)}">Cancel</a>
+    </form>
+  </div>
+</main></body></html>`;
 }
