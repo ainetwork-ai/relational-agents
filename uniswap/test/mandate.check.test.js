@@ -46,7 +46,36 @@ test("a revoked mandate reports revoked even if also expired", () => {
   assert.equal(checkMandate(mandate({ revokedAt: 1, expiresAt: 1 }), emptyView(), intent(), now).reason, "revoked");
 });
 
+// Each case above carries a single defect, so it cannot tell the order apart from the set.
+// These stack two defects per assertion — one per adjacent pair — so swapping any two
+// neighbouring checks in check.js changes an answer here.
+test("refusal order is fixed: each adjacent pair reports the earlier reason", () => {
+  const wrongPair = { tokenOut: USDC };
+  const boughtNearCap = { spentByPeriod: { "m-1": { "2026-W39": 90_000_000n } }, boughtPeriods: { "m-1": ["2026-W39"] } };
+  assert.equal(checkMandate(mandate({ revokedAt: 1, expiresAt: 1 }), emptyView(), intent(), now).reason, "revoked");
+  assert.equal(checkMandate(mandate({ expiresAt: 1, approval: undefined }), emptyView(), intent(), now).reason, "expired");
+  assert.equal(checkMandate(mandate({ approval: undefined }), emptyView(), intent(20_000_000n, wrongPair), now).reason, "unapproved");
+  assert.equal(checkMandate(mandate(), emptyView(), intent(50_000_000n, wrongPair), now).reason, "pair-not-allowed");
+  assert.equal(checkMandate(mandate(), emptyView(), intent(150_000_000n), now).reason, "over-per-run-cap");
+  assert.equal(checkMandate(mandate(), boughtNearCap, intent(), now).reason, "over-per-period-cap");
+});
+
+test("an unknown kind throws instead of taking the permissive branch", () => {
+  assert.throws(() => checkMandate(mandate({ kind: "one-off" }), emptyView(), intent(), now), /unknown mandate kind/);
+});
+
 test("token comparison is case-insensitive (chain-returned addresses are often lowercase)", () => {
-  const r = checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenIn: USDC.toLowerCase(), tokenOut: WETH.toUpperCase().replace("0X", "0x") }), now);
-  assert.equal(r.ok, true);
+  const lower = USDC.toLowerCase(), upper = USDC.toUpperCase().replace("0X", "0x");
+  assert.equal(checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenIn: lower }), now).ok, true);
+  assert.equal(checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenIn: upper }), now).ok, true);
+  // WETH's address is all digits, so varying its case is a no-op: to exercise the tokenOut
+  // comparison the pair has to run the other way, with the lettered token on the out side.
+  const selling = { tokenIn: WETH, tokenOut: USDC };
+  assert.equal(checkMandate(mandate(selling), emptyView(), intent(20_000_000n, { ...selling, tokenOut: lower }), now).ok, true);
+});
+
+test("a cap includes its boundary; expiry excludes its second", () => {
+  const atCap = { spentByPeriod: { "m-1": { "2026-W39": 80_000_000n } }, boughtPeriods: {} };
+  assert.equal(checkMandate(mandate(), atCap, intent(), now).ok, true);
+  assert.equal(checkMandate(mandate({ expiresAt: Math.floor(now.getTime() / 1000) }), emptyView(), intent(), now).reason, "expired");
 });
