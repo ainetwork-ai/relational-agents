@@ -511,7 +511,7 @@ async function moneyReply(
   const out = [
     `Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
     `This needs ${humans(decision.required)}. Our rules say: “${decision.rule.text}”`,
-    `Seated members: tap “Approve with World ID” in the treasury panel — each approval is a fresh World ID check, and one human counts once no matter how many accounts they have.`,
+    `Members with a vote: tap “Approve with World ID” in the treasury panel — each approval is a fresh World ID check, and one human counts once no matter how many accounts they have.`,
   ];
   out.push(...seatShortfall(t, members, seated, decision.required));
   const note = unadoptedNote(t);
@@ -519,13 +519,13 @@ async function moneyReply(
   return out.join(" ");
 }
 
-/** "Only 2 of us hold a seat so far — Alex, Bea: claim yours…" when the voters can't reach the bar yet. */
+/** "Only 2 of us have a vote so far — Alex, Bea: claim yours…" when the voters can't reach the bar yet. */
 function seatShortfall(t: RelationTreasury, members: Member[], seated: Set<string>, required: number): string[] {
   const voting = members.filter((m) => t.electorate.includes(m.userId));
   const seatedCount = voting.filter((m) => seated.has(m.userId)).length;
   if (seatedCount >= required) return [];
   const unseated = voting.filter((m) => !seated.has(m.userId)).map((m) => m.displayName);
-  const lead = seatedCount === 0 ? "Nobody holds a seat yet" : `Only ${seatedCount} of us ${seatedCount === 1 ? "holds" : "hold"} a seat so far`;
+  const lead = seatedCount === 0 ? "Nobody has a vote yet" : `Only ${seatedCount} of us ${seatedCount === 1 ? "has" : "have"} a vote so far`;
   return unseated.length ? [`${lead} — ${unseated.join(", ")}: claim yours with World ID in the treasury panel first.`] : [];
 }
 
@@ -564,7 +564,7 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
     } catch {
       // unreadable: treat as a different change
     }
-    if (same) return "That change is already waiting for approval — seated members can approve it in the treasury panel.";
+    if (same) return "That change is already waiting for approval — members with a vote can approve it in the treasury panel.";
   }
 
   const bars = [...t.policy.rules, ...p.policy.rules].filter((r) => !r.forbidden).map((r) => r.approvals);
@@ -605,7 +605,7 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
     `Queued: adopting ${memo}.`,
     changes.length ? `Changes: ${changes.join("; ")}.` : "",
     `This needs ${humans(required)} — ${bar.charAt(0).toLowerCase()}${bar.slice(1)} Until then I keep following the version we adopted.`,
-    `Seated members: tap “Approve with World ID” in the treasury panel.`,
+    `Members with a vote: tap “Approve with World ID” in the treasury panel.`,
     ...seatShortfall(t, members, seated, required),
   ];
   return out.filter(Boolean).join(" ");

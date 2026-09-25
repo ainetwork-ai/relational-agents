@@ -63,7 +63,7 @@ const RESULT_COPY: Record<string, { tone: Tone; text: string }> = {
     tone: "bad",
     text: "You joined after our rules were adopted — the relation has to adopt its new membership before your approval counts.",
   },
-  "not-seated": { tone: "bad", text: "Claim your seat with World ID before approving treasury actions." },
+  "not-seated": { tone: "bad", text: "Claim your vote with World ID before approving treasury actions." },
   "account-switched": {
     tone: "bad",
     text: "The verification came back for a different account than the one that started it — nothing was approved.",
@@ -83,7 +83,7 @@ const RESULT_COPY: Record<string, { tone: Tone; text: string }> = {
   error: { tone: "bad", text: "Something went wrong recording the approval — nothing was approved." },
 };
 
-const SAME_HUMAN_SEAT = "This human already holds a seat in this relation — one human, one seat.";
+const SAME_HUMAN_SEAT = "This human already has a vote in this relation — one human, one vote.";
 
 const usdFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 function usd(n: number): string {
@@ -234,7 +234,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           setSeatErr({
             roomId,
             sameHuman: res.status === 409 || data.reason === "same-human",
-            text: data.message || data.error || `Seat claim failed (${res.status})`,
+            text: data.message || data.error || `Claiming your vote failed (${res.status})`,
           });
         }
         await refresh();
@@ -242,7 +242,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
         setSeatErr({
           roomId,
           sameHuman: false,
-          text: `Seat claim failed: ${err instanceof Error ? err.message : String(err)}`,
+          text: `Claiming your vote failed: ${err instanceof Error ? err.message : String(err)}`,
         });
       } finally {
         setClaiming(false);
@@ -390,10 +390,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 data-testid="treasury-member"
                 title={
                   !m.seated
-                    ? "No seat yet"
+                    ? "No vote yet"
                     : m.seatLevel === "dev-simulator"
-                      ? "Seat claimed with the dev simulator — not a World ID proof"
-                      : `Seat claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""}`
+                      ? "Vote claimed with the dev simulator — not a World ID proof"
+                      : `Vote claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""}`
                 }
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
                   m.seated
@@ -405,9 +405,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 {/* by the seat's own proof, whatever mode the server runs: a
                     simulator seat never shows as a World ID one on camera */}
                 <span className="opacity-80">
-                  · {!m.seated ? "no seat" : m.seatLevel === "dev-simulator" ? "dev seat" : "🌍 seat"}
+                  · {!m.seated ? "no vote" : m.seatLevel === "dev-simulator" ? "dev vote" : "🌍 vote"}
                 </span>
-                {!m.voting && <span className="opacity-80">· not voting yet</span>}
+                {!m.voting && <span className="opacity-80">· joins at next adoption</span>}
                 {m.worldVerified && (
                   <span className="font-medium text-emerald-700 dark:text-emerald-300">✓ World ID</span>
                 )}
@@ -417,15 +417,15 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           {(status.seatMode === "dev-simulator" || status.members.some((m) => m.seatLevel === "dev-simulator")) && (
             // on stage a seat chip must not pass for a World ID proof
             <div data-testid="treasury-seat-dev-note" className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-              “dev seat” = claimed with the dev simulator — not a World ID proof
+              “dev vote” = claimed with the dev simulator — not a World ID proof
             </div>
           )}
 
           {!status.mySeated && (
             <div className="mt-3 rounded-md border border-dashed border-neutral-300 px-3 py-2 dark:border-neutral-700">
               <div className="text-neutral-700 dark:text-neutral-300">
-                Claim your seat — prove you&apos;re a unique human. Only seated members can approve what
-                the agent asks to spend.
+                Claim your vote — prove you&apos;re a unique human. Only members with a vote can approve
+                what the agent asks to spend.
               </div>
               {status.seatMode === "world-id-v4" ? (
                 WORLD_ID_APP_ID.startsWith("app_") ? (
@@ -452,7 +452,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   rpContext={rpContext}
                   disabled={claiming}
                   onVerified={claimSeat}
-                  label="🌍 Claim your seat with World ID"
+                  label="🌍 Claim your vote with World ID"
                 />
               ) : (
                 <button
@@ -462,7 +462,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   disabled={claiming}
                   className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
                 >
-                  {claiming ? "Verifying…" : "🌍 Claim your seat (dev simulator)"}
+                  {claiming ? "Verifying…" : "🌍 Claim your vote (dev simulator)"}
                 </button>
               )}
             </div>
@@ -579,7 +579,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   </button>
                 ) : (
                   <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                    {status.mySeated ? "Waiting for other verified members." : "Claim your seat to approve."}
+                    {status.mySeated ? "Waiting for other verified members." : "Claim your vote to approve."}
                   </div>
                 )}
               </div>

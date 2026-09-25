@@ -63,7 +63,7 @@ import {
 const FRESHNESS_SKEW_MS = 5_000;
 
 const MSG = {
-  seatSameHuman: "This human already holds a seat in this relation — one human, one seat.",
+  seatSameHuman: "This human already has a vote in this relation — one human, one vote.",
   notMember: "Only members of this relation can do that.",
   notElectorate:
     "You joined after our rules were adopted — the relation has to adopt its new membership before your approval counts.",
@@ -71,7 +71,7 @@ const MSG = {
   notPending: "This request has already been decided.",
   noRules: "This relation's memory has no Treasury Rules right now, so nothing can be approved.",
   expired: "This request expired before enough verified members approved it.",
-  notSeated: "Claim your seat first — prove you're a unique human.",
+  notSeated: "Claim your vote first — prove you're a unique human.",
   stale: "That World ID verification didn't show a fresh sign-in made after this request — approvals must be fresh.",
   subTaken: "This World ID already vouches for another account.",
   subMismatch: "This account is bound to a different World ID.",

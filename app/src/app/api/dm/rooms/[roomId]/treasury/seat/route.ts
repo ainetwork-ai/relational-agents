@@ -46,7 +46,7 @@ function sameHumanAtWorld() {
   return NextResponse.json(
     {
       reason: "same-human",
-      message: "World ID says this human has already claimed a treasury seat — one human, one seat.",
+      message: "World ID says this human has already claimed a vote in this treasury — one human, one vote.",
     },
     { status: 409 }
   );
@@ -87,9 +87,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     );
     if (!result.ok) return ALREADY_VERIFIED.test(result.error) ? sameHumanAtWorld() : rejected(result.error);
     if (result.protocolVersion !== SEAT_PROTOCOL)
-      return rejected(`A seat proof must be World ID ${SEAT_PROTOCOL} (one human, one nullifier) — this one is ${result.protocolVersion}`);
+      return rejected(`A proof for a vote must be World ID ${SEAT_PROTOCOL} (one human, one nullifier) — this one is ${result.protocolVersion}`);
     if (!isProofOfHuman(result))
-      return rejected(`A seat needs a proof of human (Orb) — this proof is "${result.credential}"`);
+      return rejected(`A vote needs a proof of human (Orb) — this proof is "${result.credential}"`);
     nullifierHash = result.nullifier;
     verificationLevel = result.level;
   } else if (worldIdConfigured()) {
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         : rejected(result.error ?? "World ID proof rejected");
     verificationLevel = result.verificationLevel ?? "orb";
     if (verificationLevel !== "orb")
-      return rejected(`A seat needs a proof of human (Orb) — this proof is "${verificationLevel}"`);
+      return rejected(`A vote needs a proof of human (Orb) — this proof is "${verificationLevel}"`);
     // the verifier accepted this field element; store it in one spelling
     nullifierHash = nullifier;
   } else {

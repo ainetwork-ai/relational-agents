@@ -253,6 +253,16 @@ await db
   .values(humanIds.map((userId) => ({ roomId, userId })))
   .onConflictDoNothing();
 const { agentUserId } = await provisionRoomAgent(room, humanIds, ids.alex);
+// five friends running a trip fund read as a team, not a family: the business
+// profile titles the doc "Working record" with Agreements / Action items /
+// Meeting log, where the default family profile brings Health & care
+{
+  const [agentRow] = await db.select({ agentConfig: S.users.agentConfig }).from(S.users).where(eq(S.users.id, agentUserId));
+  await db
+    .update(S.users)
+    .set({ agentConfig: { ...((agentRow?.agentConfig ?? {}) as Record<string, unknown>), profile: "business" } })
+    .where(eq(S.users.id, agentUserId));
+}
 if (carriedKey)
   await db
     .update(S.users)
@@ -395,7 +405,7 @@ const adoptedNow = await adoptFoundingRules({ roomId, agentUserId, requestedBy: 
 
 // ── seats ───────────────────────────────────────────────────────────────────
 
-// labelled "dev-simulator": the panel shows these as "dev seat", never as World ID
+// labelled "dev-simulator": the panel shows these as "dev vote", never as World ID
 if (PRESEAT)
   await db
     .insert(S.treasurySeats)

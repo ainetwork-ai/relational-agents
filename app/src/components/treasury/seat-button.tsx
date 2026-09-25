@@ -18,12 +18,12 @@ function idkitErrorText(code: IDKitErrorCodes): string {
     case IDKitErrorCodes.UserRejected:
     case IDKitErrorCodes.VerificationRejected:
     case IDKitErrorCodes.Cancelled:
-      return "You declined in World App — no seat was claimed.";
+      return "You declined in World App — no vote was claimed.";
     case IDKitErrorCodes.CredentialUnavailable:
-      return "This World ID has no Orb verification — a seat needs a proof of human.";
+      return "This World ID has no Orb verification — a vote needs a proof of human.";
     case IDKitErrorCodes.Timeout:
     case IDKitErrorCodes.ConnectionFailed:
-      return "World App didn't answer in time — no seat was claimed. Try again.";
+      return "World App didn't answer in time — no vote was claimed. Try again.";
     case IDKitErrorCodes.InvalidRpSignature:
     case IDKitErrorCodes.UnknownRp:
     case IDKitErrorCodes.InactiveRp:
@@ -33,9 +33,9 @@ function idkitErrorText(code: IDKitErrorCodes): string {
     case IDKitErrorCodes.TimestampTooOld:
     case IDKitErrorCodes.TimestampTooFarInFuture:
     case IDKitErrorCodes.InvalidTimestamp:
-      return `World ID refused this app's signed request (${code}) — no seat was claimed.`;
+      return `World ID refused this app's signed request (${code}) — no vote was claimed.`;
     default:
-      return `World ID couldn't verify you (${code}) — no seat was claimed.`;
+      return `World ID couldn't verify you (${code}) — no vote was claimed.`;
   }
 }
 
@@ -117,7 +117,7 @@ export function SeatButton({
     const data = (await res.json().catch(() => ({}))) as { reason?: string; message?: string; error?: string };
     const failure: SeatClaimError = {
       sameHuman: res.status === 409 || data.reason === "same-human",
-      text: data.message || data.error || `Seat claim failed (${res.status})`,
+      text: data.message || data.error || `Claiming your vote failed (${res.status})`,
     };
     onError(failure);
     // the panel's red line is the answer; the widget's generic "host app
@@ -135,14 +135,14 @@ export function SeatButton({
         disabled={starting || open}
         className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
       >
-        {starting ? "Starting World ID…" : "🌍 Claim your seat with World ID"}
+        {starting ? "Starting World ID…" : "🌍 Claim your vote with World ID"}
       </button>
       {rpContext && (
         <IDKitRequestWidget
           app_id={appId}
           action={action}
           rp_context={rpContext}
-          action_description="Claim your approver seat in this relation's shared treasury — one human, one seat."
+          action_description="Claim your vote in this relation's shared treasury — one human, one vote."
           allow_legacy_proofs
           preset={preset}
           environment={environment}
