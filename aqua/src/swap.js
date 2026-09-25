@@ -35,8 +35,17 @@ export async function runSwap({ tokenIn = USDC, tokenOut = WETH, amountHuman = "
   const sim = await publicClient.call({ account: taker.account.address, to: q.to.toString(), data: q.data.toString() });
   const [, expectedOut] = decodeFunctionResult({ abi: ABI.SWAP_VM_ABI, functionName: "quote", data: sim.data });
 
+  // leave the expected amount for the journal watcher (expected vs executed → slippage)
+  const { mkdirSync, readFileSync: rf, writeFileSync: wf, existsSync } = await import("node:fs");
+  const { dirname } = await import("node:path");
+
   const s = swapVM.swap(params);
   const hash = await taker.sendTransaction({ to: s.to.toString(), data: s.data.toString() });
+  const qFile = new URL("../.state/pending-quotes.json", import.meta.url).pathname;
+  mkdirSync(dirname(qFile), { recursive: true });
+  const q0 = existsSync(qFile) ? JSON.parse(rf(qFile, "utf8")) : {};
+  q0[hash] = { expectedOut: expectedOut.toString(), quotedAt: Date.now() };
+  wf(qFile, JSON.stringify(q0, null, 2));
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
   console.log(
