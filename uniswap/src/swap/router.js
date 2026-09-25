@@ -32,8 +32,38 @@ export function routerProvider(chain) {
     };
   }
 
-  async function execute(quote, account) {
-    throw new Error("execute: not implemented yet (Task 2)");
+  // `priced` is a quote from quote() above — named so it does not shadow that function.
+  async function execute(priced, account) {
+    const { intent } = priced;
+    const wallet = createWalletClient({ account, chain: chain.viemChain, transport: http(chain.rpc) });
+    const decimalsOf = (addr) =>
+      Object.values(chain.tokens).find((t) => t.address.toLowerCase() === addr.toLowerCase())?.decimals ?? 18;
+
+    // 1. allowance for the router — a plain ERC-20 approval, exactly the amount of this buy
+    const approveHash = await wallet.writeContract({ address: intent.tokenIn, abi: erc20Abi,
+      functionName: "approve", args: [swapRouter02, intent.amountIn] });
+    await pub.waitForTransactionReceipt({ hash: approveHash });
+
+    // 2. the swap; slippage is enforced by the router through amountOutMinimum
+    const amountOutMinimum = priced.amountOutExpected * BigInt(10_000 - intent.slippageBps) / 10_000n;
+    const before = await pub.readContract({ address: intent.tokenOut, abi: erc20Abi,
+      functionName: "balanceOf", args: [intent.recipient] });
+    const txHash = await wallet.writeContract({ address: swapRouter02, abi: swapRouter02Abi,
+      functionName: "exactInputSingle",
+      args: [{ tokenIn: intent.tokenIn, tokenOut: intent.tokenOut, fee: v3FeeTier,
+               recipient: intent.recipient, amountIn: intent.amountIn, amountOutMinimum,
+               sqrtPriceLimitX96: 0n }] });
+    const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") throw new Error(`swap reverted: ${txHash}`);
+    const after = await pub.readContract({ address: intent.tokenOut, abi: erc20Abi,
+      functionName: "balanceOf", args: [intent.recipient] });
+
+    // 3. what actually moved — read from balances, not from the quote
+    const amountOut = after - before;
+    const inWhole = Number(intent.amountIn) / 10 ** decimalsOf(intent.tokenIn);
+    const outWhole = Number(amountOut) / 10 ** decimalsOf(intent.tokenOut);
+    return { txHash, amountIn: intent.amountIn, amountOut, price: inWhole / outWhole,
+             route: priced.route, provider: "router" };
   }
 
   return { quote, execute, pub };
