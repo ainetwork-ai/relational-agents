@@ -54,15 +54,18 @@ same ACL.
 
 ## ETHGlobal Tokyo 2026 — 1inch "Build an Aqua App" (Continuity)
 
-[`aqua/`](aqua/) extends this workspace into a **swap journal**: a
-self-custodial XYC strategy shipped on the official 1inch Aqua registry, fills
-through the official SwapVM router (Base fork), a watcher that journals every
-`Swapped` event into a database + aindrive markdown records, and a review agent
-that writes realized PnL back. The trading dashboard is pure data/config on top
-of general widgets; the hackathon also added three general product features
-(counter number formatting, a line/candles chart widget, a depth widget — each
-with its own e2e check). The pre-existing vs built-this-weekend split is in
-[`aqua/README.md`](aqua/README.md).
+[`family-vault/`](family-vault/) — **a time capsule that pays interest.**
+Parents deposit $1,000 for their child with a sealed letter in the workspace;
+a **custom SwapVM** (two new operators: `_timeCapsule`, `_lowRiskGuard`) runs
+it as low-risk liquidity on the official Aqua registry for 18 years; at
+maturity the child's `claim()` moves principal + spread on-chain and the same
+event unlocks the letter — the money and the message arrive together. Custody
+never leaves the family's own vault contract. See
+[`family-vault/README.md`](family-vault/README.md) for the Continuity split.
+
+The hackathon also added general dashboard features to the workspace (counter
+formatting, chart and depth widgets — each with an e2e check) and a first
+iteration, a [swap journal](aqua/) on vanilla Aqua.
 
 ## Architecture
 
