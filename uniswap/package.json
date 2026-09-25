@@ -8,6 +8,7 @@
     "fork": "anvil --fork-url ${BASE_RPC:-https://mainnet.base.org} --chain-id 8453 --port 8547 --silent",
     "fund": "node src/cli/fund.js",
     "buy": "node src/cli/buy.js",
+    "mandate": "node src/cli/mandate.js",
     "tsumitate": "node src/cli/tsumitate.js",
     "test": "node --test"
   },
