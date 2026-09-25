@@ -10,6 +10,10 @@ export function routerProvider(chain) {
   const { quoterV2, swapRouter02, v3FeeTier } = chain.uniswap;
 
   async function quote(intent) {
+    // The intent names its chain and the provider is bound to one. Refuse rather than quote the
+    // wrong book: the mismatch would otherwise ride out in the quote and be signed by execute().
+    if (intent.chainId !== chain.chainId)
+      throw new Error(`intent chainId ${intent.chainId} ≠ provider chain ${chain.chainId} (${chain.name})`);
     const { result } = await pub.simulateContract({
       address: quoterV2,
       abi: quoterV2Abi,
