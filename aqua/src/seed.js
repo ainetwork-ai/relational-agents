@@ -8,7 +8,15 @@ async function ensureDb(title) {
   const existing = await databaseByTitle(title);
   if (existing) return existing;
   const snap = await api("POST", "/api/databases", { title, shape: "minimal" });
-  return { ...snap, id: snap.database?.id ?? snap.id, props: Object.fromEntries(snap.properties.map((p) => [p.name, p])) };
+  const db = { ...snap, id: snap.database?.id ?? snap.id, props: Object.fromEntries(snap.properties.map((p) => [p.name, p])) };
+  // the app names the title property in the workspace locale — the demo is English
+  const titleProp = snap.properties.find((p) => p.type === "title");
+  if (titleProp && titleProp.name !== "Name") {
+    await api("PATCH", `/api/databases/${db.id}/properties/${titleProp.id}`, { name: "Name" });
+    delete db.props[titleProp.name];
+    db.props["Name"] = { ...titleProp, name: "Name" };
+  }
+  return db;
 }
 
 async function ensureProp(db, name, type, config = {}) {

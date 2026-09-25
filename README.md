@@ -52,6 +52,18 @@ a Bearer token; knowing the URL is not enough.
 so an external agent reads and writes the exact bundle the in-app agent does — through the
 same ACL.
 
+## ETHGlobal Tokyo 2026 — 1inch "Build an Aqua App" (Continuity)
+
+[`aqua/`](aqua/) extends this workspace into a **swap journal**: a
+self-custodial XYC strategy shipped on the official 1inch Aqua registry, fills
+through the official SwapVM router (Base fork), a watcher that journals every
+`Swapped` event into a database + aindrive markdown records, and a review agent
+that writes realized PnL back. The trading dashboard is pure data/config on top
+of general widgets; the hackathon also added three general product features
+(counter number formatting, a line/candles chart widget, a depth widget — each
+with its own e2e check). The pre-existing vs built-this-weekend split is in
+[`aqua/README.md`](aqua/README.md).
+
 ## Architecture
 
 A workspace is a team. Conversations form between its members, each with its own agent and
