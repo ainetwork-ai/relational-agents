@@ -10,7 +10,8 @@ import { isOkfId, decodeId, okfPatchView, okfDeleteView } from "@/lib/okf-store"
 
 export const dynamic = "force-dynamic";
 
-/** PATCH { config } → replaces the view config (groupBy / filters / sorts). */
+/** PATCH { config?, name?, position? } → updates the view (position = tab order;
+ *  the lowest-positioned view is the one a fresh visit opens on). */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ databaseId: string; viewId: string }> }
@@ -20,9 +21,10 @@ export async function PATCH(
   const { databaseId, viewId } = await params;
 
   const body = await req.json().catch(() => ({}));
-  const patch: { config?: ViewConfig; name?: string } = {};
+  const patch: { config?: ViewConfig; name?: string; position?: number } = {};
   if (body?.config && typeof body.config === "object") patch.config = body.config as ViewConfig;
   if (typeof body?.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body?.position === "number" && Number.isFinite(body.position)) patch.position = body.position;
 
  // file-backed database: view config/name persist in the schema overlay
  // (the default "okf-table" view materializes on first patch)

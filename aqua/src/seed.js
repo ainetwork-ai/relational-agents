@@ -75,6 +75,12 @@ async function main() {
       ]},
     });
   }
+  // the dashboard is the page's face — make it the view a fresh visit opens on
+  const withDash = await api("GET", `/api/databases/${journal.id}`);
+  const dash = withDash.views.find((v) => v.type === "dashboard");
+  const minPos = Math.min(...withDash.views.map((v) => v.position ?? 0));
+  if (dash && (dash.position ?? 0) > minPos)
+    await api("PATCH", `/api/databases/${journal.id}/views/${dash.id}`, { position: minPos - 1 });
 
   // ---- Token DB -------------------------------------------------------------
   const tokens = await ensureDb("Token DB");
