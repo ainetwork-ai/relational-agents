@@ -1,4 +1,4 @@
-# Aqua Swap Journal (ETHGlobal Tokyo 2026 — 1inch "Build an Aqua App", Continuity)
+# Aqua Swap Journal — trade in your wallet, remember in your workspace
 
 **Trade in your wallet, remember in your workspace.** A self-custodial XYC AMM
 strategy is shipped on the **official 1inch Aqua registry** and filled through
@@ -54,7 +54,7 @@ REST surface the [`notion-mcp`](../relational-memory-mcp) server exposes.
    bars light up), and writes a review document into the aindrive folder and
    as a workspace page. A local model adds a coach's narrative when available.
 
-## Continuity: pre-existing vs built during the hackathon
+## What is pre-existing vs part of this demo
 
 Pre-existing (this repo's ongoing work):
 
@@ -62,7 +62,7 @@ Pre-existing (this repo's ongoing work):
   calendar/**dashboard** views (counter/bar/donut/table/board/list widgets),
   realtime SSE sync, aindrive integration, the notion-mcp server.
 
-Built during the hackathon:
+Built for this demo:
 
 - Everything in `aqua/` — ship/swap/demo scripts on the official contracts,
   the fill watcher, the seed script, the review agent.

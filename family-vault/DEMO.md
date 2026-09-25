@@ -1,6 +1,6 @@
 # Demo video script — Family Vault (3:00, human voiceover)
 
-Record the voice live (ETHGlobal: no AI narration). Screen: terminal left,
+Record the voice live. Screen: terminal left,
 workspace right. Rehearse the pipeline once; every scene is one command.
 
 ## Scene 1 — the promise (0:00–0:25)

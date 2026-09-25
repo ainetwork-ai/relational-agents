@@ -1,4 +1,4 @@
-# Family Vault (ETHGlobal Tokyo 2026 — 1inch "Build an Aqua App", Continuity)
+# Family Vault — a time capsule that pays interest
 
 **A time capsule that pays interest.** Parents deposit $1,000 for their child's
 100th day; a custom **SwapVM program** runs it as low-risk liquidity on the
@@ -75,16 +75,10 @@ pnpm open               # jump to maturity; the child claims; the letter unlocks
 Official deployment used: Aqua `0x1111113ccf1426a8e30e2bff5e005d929bf6a90a`
 (deterministic, same on every chain). Contract deps are the official pins from
 1inch's SDK monorepo (`github:1inch/aqua`, `github:1inch/swap-vm`); the custom
-router follows the documented `TestCustomSwapVM` extension pattern
-(modified-SwapVM redeploys are explicitly allowed by the track).
+router follows the documented `TestCustomSwapVM` extension pattern.
 
-## Continuity: pre-existing vs built during the hackathon
+## What this demo consists of
 
-**Pre-existing** — the workspace this plugs into (github history since July):
-pages, block editor, databases with dashboard views, realtime sync, aindrive,
-notifications, the notion-mcp server, per-conversation memory agents.
-
-**Built during the hackathon:**
 - everything in `family-vault/` — the custom SwapVM (2 new operators), the
   FamilyVault custody contract, 10 fork tests, the three-act demo pipeline,
   the ledger watcher and workspace seed

@@ -52,20 +52,19 @@ a Bearer token; knowing the URL is not enough.
 so an external agent reads and writes the exact bundle the in-app agent does — through the
 same ACL.
 
-## ETHGlobal Tokyo 2026 — 1inch "Build an Aqua App" (Continuity)
+## Family Vault — a time capsule that pays interest (demo)
 
-[`family-vault/`](family-vault/) — **a time capsule that pays interest.**
-Parents deposit $1,000 for their child with a sealed letter in the workspace;
-a **custom SwapVM** (two new operators: `_timeCapsule`, `_lowRiskGuard`) runs
-it as low-risk liquidity on the official Aqua registry for 18 years; at
-maturity the child's `claim()` moves principal + spread on-chain and the same
-event unlocks the letter — the money and the message arrive together. Custody
-never leaves the family's own vault contract. See
-[`family-vault/README.md`](family-vault/README.md) for the Continuity split.
+[`family-vault/`](family-vault/) extends the workspace with a family-savings
+demo on 1inch Aqua: parents deposit $1,000 for their child with a sealed
+letter in the workspace; a **custom SwapVM** (two new operators:
+`_timeCapsule`, `_lowRiskGuard`) runs it as low-risk liquidity for 18 years;
+at maturity the child's `claim()` moves principal + spread on-chain and the
+same event unlocks the letter — the money and the message arrive together.
+Custody never leaves the family's own vault contract.
 
-The hackathon also added general dashboard features to the workspace (counter
+Building it also added general dashboard features to the workspace (counter
 formatting, chart and depth widgets — each with an e2e check) and a first
-iteration, a [swap journal](aqua/) on vanilla Aqua.
+iteration, a [swap journal](aqua/).
 
 ## Architecture
 

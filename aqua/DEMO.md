@@ -1,7 +1,7 @@
 # Demo video script — Aqua Swap Journal (2:30, human voiceover)
 
-One take per scene is fine; record the voice live (no AI narration — ETHGlobal
-rule). Screen: left half terminal, right half the workspace in the browser.
+One take per scene is fine; record the voice live (no AI narration).
+Screen: left half terminal, right half the workspace in the browser.
 
 ## Scene 1 — the idea (0:00–0:20)
 
