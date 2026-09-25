@@ -43,13 +43,14 @@
 
 | 항목 | 값 |
 |---|---|
-| URL | `https://ainmem.ainetwork.xyz` — Cloudflare가 TLS, **cloudflared 터널 `ainmem-xyz`** → `127.0.0.1:3150` (nginx·certbot 없음) |
-| 터널 | `~/.cloudflared/ainmem-xyz.yml`, systemd `ainmem-xyz-tunnel.service`. DNS는 `cloudflared tunnel route dns`가 만든 CNAME |
+| URL | `https://ainmem.ainetwork.xyz` — Cloudflare 프록시 A 레코드 → 이 호스트 nginx(443, Let's Encrypt, certbot 자동 갱신) → `127.0.0.1:3150` |
+| nginx | `/etc/nginx/sites-available/ainmem-xyz` (SSE용 버퍼링 off, 80 → 301) |
 | compose | `docker-compose.xyz.yml` (프로젝트 `ainmem_xyz`) · 시크릿 `.env.xyz` (600, gitignore) |
 | 앱 / DB | `ainmem_xyz-app-1` (`ainmem_xyz-app:<sha>`) · `ainmem_xyz-postgres-1` (DB/롤 `ainmem_xyz`, `127.0.0.1:5439`만) |
 | 콘텐츠 | `deploy-xyz/okf-content`, `deploy-xyz/uploads`, `deploy-xyz/avatars` (gitignore) |
 | LLM | 호스트 vLLM gemma `:8110` |
-| 데이터 | 가족 데모 — `family-demo-accounts.mts --app https://ainmem.ainetwork.xyz --home ~/.ainmem-demo-xyz --no-cli` 후 `seed-family-demo.mts` (DB·SESSION_SECRET·OKF_ROOT를 xyz 것으로) |
+| 스키마 | 빈 DB에 `POSTGRES_URL=…127.0.0.1:5439/ainmem_xyz npx drizzle-kit push` (처음 한 번, 이후 변경은 §3.6처럼 손으로) |
+| 데이터 | 가족 데모 — `family-demo-accounts.mts --app http://127.0.0.1:3150 --home ~/.ainmem-demo-xyz --no-cli` 후 `seed-family-demo.mts --home ~/.ainmem-demo-xyz`를 `POSTGRES_URL`·`SESSION_SECRET`(.env.xyz 값)·`OKF_ROOT=deploy-xyz/okf-content`로. 폰(aindrive 드라이브)은 dev와 같은 것 — CLI를 새로 띄우지 않는다 |
 
 `docker-compose.prod.yml`(프로젝트 `memory-live`)은 **쓰지 않는다** — 같은 이름의 스택을 다른 리포가 이 호스트에서 돌린다.
 
