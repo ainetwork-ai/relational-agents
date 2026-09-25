@@ -485,7 +485,7 @@ export interface ViewConfig {
  * max 4 widgets per row); rows wrap in reading order. */
 export interface DashWidget {
   id: string;
-  kind: "counter" | "bar" | "donut" | "table" | "board" | "list";
+  kind: "counter" | "bar" | "donut" | "table" | "board" | "list" | "chart";
   title?: string;
   width: 1 | 2 | 3 | 4;
   /** bar / donut / board: the select/status property that forms the groups */
@@ -503,6 +503,15 @@ export interface DashWidget {
   suffix?: string;
   /** counter: tint green/red by sign and show a leading + (PnL-style) */
   colorBySign?: boolean;
+  /** chart: date property on the x axis, number property on the y axis */
+  xPropertyId?: string;
+  yPropertyId?: string;
+  /** chart: line through the points, or OHLC candles per time bucket */
+  chartType?: "line" | "candles";
+  /** chart: candle bucket size */
+  bucket?: "hour" | "day" | "week";
+  /** chart: select/status property that draws each row as a colored marker */
+  markerPropertyId?: string;
 }
 
 export const databases = pgTable("databases", {

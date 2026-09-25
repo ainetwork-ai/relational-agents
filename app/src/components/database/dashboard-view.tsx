@@ -25,10 +25,17 @@ const KINDS: { kind: DashWidget["kind"]; label: string }[] = [
   { kind: "counter", label: "카운터" },
   { kind: "bar", label: "막대 차트" },
   { kind: "donut", label: "도넛 차트" },
+  { kind: "chart", label: "차트" },
   { kind: "table", label: "표" },
   { kind: "board", label: "보드" },
   { kind: "list", label: "리스트" },
 ];
+
+const BUCKET_MS: Record<NonNullable<DashWidget["bucket"]>, number> = {
+  hour: 3_600_000,
+  day: 86_400_000,
+  week: 7 * 86_400_000,
+};
 
 // SVG needs literal colors; these mirror the option-chip palette
 const OPTION_HEX: Record<string, string> = {
@@ -88,6 +95,7 @@ export function DashboardView({ view }: { view: DbView }) {
   const titleProp = db.properties.find((p) => p.type === "title");
   const groupable = db.properties.filter(isGroupable);
   const numberProps = db.properties.filter((p) => p.type === "number");
+  const dateProps = db.properties.filter((p) => p.type === "date");
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -118,10 +126,15 @@ export function DashboardView({ view }: { view: DbView }) {
     const w: DashWidget = {
       id: newId(),
       kind,
-      width: kind === "table" || kind === "board" ? 4 : 1,
+      width: kind === "table" || kind === "board" ? 4 : kind === "chart" ? 2 : 1,
       aggregate: "count",
       groupByPropertyId: groupable[0]?.id,
       limit: 5,
+      ...(kind === "chart" && {
+        chartType: "line" as const,
+        xPropertyId: dateProps[0]?.id,
+        yPropertyId: numberProps[0]?.id,
+      }),
     };
     save([...widgets, w]);
   };
@@ -214,6 +227,122 @@ export function DashboardView({ view }: { view: DbView }) {
     );
   };
 
+  const renderChart = (w: DashWidget) => {
+    const xProp = db.properties.find((p) => p.id === w.xPropertyId) ?? db.properties.find((p) => p.type === "date");
+    const yProp = db.properties.find((p) => p.id === w.yPropertyId) ?? numberProps[0];
+    const markerProp = db.properties.find((p) => p.id === w.markerPropertyId);
+    if (!xProp || !yProp)
+      return <p className="text-xs text-neutral-400">{t("날짜 속성과 숫자 속성이 필요합니다.")}</p>;
+
+    const pts = rows
+      .map((r) => ({ row: r, t: Date.parse(String(r.values[xProp.id] ?? "")), v: Number(r.values[yProp.id]) }))
+      .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v))
+      .sort((a, b) => a.t - b.t);
+    if (pts.length === 0) return <p className="text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>;
+
+    // plot geometry — fixed viewBox, scales to the widget width
+    const W = 560, H = 170, L = 62, R = 10, T = 10, B = 20;
+    const plotW = W - L - R, plotH = H - T - B;
+    // candles sit at bucket centers, so the x domain must span whole buckets —
+    // otherwise a candle for a short burst of rows lands outside the canvas
+    const bucketMs = BUCKET_MS[w.bucket ?? "day"];
+    const t0 = w.chartType === "candles" ? Math.floor(pts[0].t / bucketMs) * bucketMs : pts[0].t;
+    const t1 = w.chartType === "candles" ? (Math.floor(pts[pts.length - 1].t / bucketMs) + 1) * bucketMs : pts[pts.length - 1].t;
+    let vMin = Math.min(...pts.map((p) => p.v)), vMax = Math.max(...pts.map((p) => p.v));
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+    const pad = (vMax - vMin) * 0.08;
+    vMin -= pad; vMax += pad;
+    const x = (tm: number) => L + (t1 === t0 ? plotW / 2 : ((tm - t0) / (t1 - t0)) * plotW);
+    const y = (v: number) => T + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+    const fmtV = (v: number) => v.toLocaleString("en-US", { notation: Math.abs(v) >= 10_000 ? "compact" : "standard", maximumFractionDigits: 2 });
+    const fmtT = (tm: number) => {
+      const d = new Date(tm);
+      return t1 - t0 < 2 * 86_400_000
+        ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+        : `${d.getMonth() + 1}/${d.getDate()}`;
+    };
+
+    // candles: open/high/low/close of the y values inside each time bucket
+    const candles: { t: number; o: number; h: number; l: number; c: number }[] = [];
+    if (w.chartType === "candles") {
+      const byBucket = new Map<number, { t: number; o: number; h: number; l: number; c: number }>();
+      for (const p of pts) {
+        const k = Math.floor(p.t / bucketMs);
+        const b = byBucket.get(k);
+        if (!b) byBucket.set(k, { t: k * bucketMs + bucketMs / 2, o: p.v, h: p.v, l: p.v, c: p.v });
+        else { b.h = Math.max(b.h, p.v); b.l = Math.min(b.l, p.v); b.c = p.v; }
+      }
+      candles.push(...[...byBucket.values()].sort((a, b) => a.t - b.t));
+    }
+    const candleW = Math.max(2, Math.min(14, (plotW / Math.max(candles.length, 1)) * 0.68));
+
+    const gridV = [vMin + pad, (vMin + vMax) / 2, vMax - pad];
+    return (
+      <div className="py-1">
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" data-testid={`db-dashw-chart-${w.id}`}>
+          {gridV.map((v) => (
+            <g key={v}>
+              <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="stroke-neutral-100 dark:stroke-neutral-700/60" strokeWidth="1" />
+              <text x={L - 6} y={y(v)} textAnchor="end" dominantBaseline="central" className="fill-neutral-400 text-[10px] tabular-nums">{fmtV(v)}</text>
+            </g>
+          ))}
+          <text x={L} y={H - 4} className="fill-neutral-400 text-[10px]">{fmtT(t0)}</text>
+          <text x={W - R} y={H - 4} textAnchor="end" className="fill-neutral-400 text-[10px]">{fmtT(t1)}</text>
+
+          {w.chartType === "candles" ? (
+            candles.map((c, i) => {
+              const up = c.c >= c.o;
+              const color = up ? OPTION_HEX.green : OPTION_HEX.red;
+              const bodyTop = y(Math.max(c.o, c.c));
+              const bodyH = Math.max(1.5, Math.abs(y(c.o) - y(c.c)));
+              return (
+                <g key={i} data-chart-candle>
+                  <title>{`${fmtT(c.t)}  O ${fmtV(c.o)} · H ${fmtV(c.h)} · L ${fmtV(c.l)} · C ${fmtV(c.c)}`}</title>
+                  <line x1={x(c.t)} x2={x(c.t)} y1={y(c.h)} y2={y(c.l)} stroke={color} strokeWidth="1.5" />
+                  <rect x={x(c.t) - candleW / 2} y={bodyTop} width={candleW} height={bodyH} rx="1" fill={color} />
+                </g>
+              );
+            })
+          ) : (
+            <path
+              data-chart-line
+              d={pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}
+              fill="none" stroke={OPTION_HEX.blue} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
+            />
+          )}
+
+          {markerProp &&
+            pts.map((p) => {
+              const opt = markerProp.config.options?.find((o) => o.id === p.row.values[markerProp.id]);
+              if (!opt) return null;
+              return (
+                <circle
+                  key={p.row.id}
+                  data-chart-marker
+                  cx={x(p.t)} cy={y(p.v)} r="3.5"
+                  fill={OPTION_HEX[opt.color] ?? OPTION_HEX.gray}
+                  className="stroke-white dark:stroke-neutral-800"
+                  strokeWidth="1.5"
+                >
+                  <title>{`${opt.name} · ${fmtV(p.v)} · ${fmtT(p.t)}`}</title>
+                </circle>
+              );
+            })}
+        </svg>
+        {markerProp && (
+          <div className="mt-1 flex flex-wrap gap-2">
+            {(markerProp.config.options ?? []).map((o) => (
+              <span key={o.id} className="flex items-center gap-1 text-[10px] text-neutral-500">
+                <span className="h-2 w-2 rounded-full" style={{ background: OPTION_HEX[o.color] ?? OPTION_HEX.gray }} />
+                {o.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderTable = (w: DashWidget) => {
     const hidden = new Set(view.config.hiddenProperties ?? []);
     const cols = db.properties.filter((p) => p.type !== "title" && !hidden.has(p.id)).slice(0, 3);
@@ -290,6 +419,7 @@ export function DashboardView({ view }: { view: DbView }) {
     counter: renderCounter,
     bar: renderBar,
     donut: renderDonut,
+    chart: renderChart,
     table: renderTable,
     board: renderBoard,
     list: renderList,
@@ -299,6 +429,10 @@ export function DashboardView({ view }: { view: DbView }) {
     if (w.title) return w.title;
     const g = db.properties.find((p) => p.id === w.groupByPropertyId);
     if (w.kind === "counter") return aggLabel(t, w, db.properties);
+    if (w.kind === "chart") {
+      const yName = db.properties.find((p) => p.id === w.yPropertyId)?.name ?? numberProps[0]?.name;
+      return yName ? t("{name} 차트", { name: yName }) : t("차트");
+    }
     if (w.kind === "bar" || w.kind === "donut") return g ? t("{prop}별 {agg}", { prop: g.name, agg: aggLabel(t, w, db.properties) }) : t(KINDS.find((k) => k.kind === w.kind)!.label);
     return t(KINDS.find((k) => k.kind === w.kind)!.label);
   };
@@ -416,6 +550,62 @@ export function DashboardView({ view }: { view: DbView }) {
                       <option key={p.id} value={p.id}>{t("{name} 합계", { name: p.name })}</option>
                     ))}
                   </select>
+                )}
+                {w.kind === "chart" && (
+                  <>
+                    <select
+                      data-testid={`db-dashw-charttype-${w.id}`}
+                      value={w.chartType ?? "line"}
+                      onChange={(e) => patchWidget(w.id, { chartType: e.target.value as DashWidget["chartType"] })}
+                      className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      <option value="line">{t("선")}</option>
+                      <option value="candles">{t("캔들")}</option>
+                    </select>
+                    <select
+                      data-testid={`db-dashw-x-${w.id}`}
+                      value={w.xPropertyId ?? dateProps[0]?.id ?? ""}
+                      onChange={(e) => patchWidget(w.id, { xPropertyId: e.target.value || undefined })}
+                      className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      {dateProps.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      data-testid={`db-dashw-y-${w.id}`}
+                      value={w.yPropertyId ?? numberProps[0]?.id ?? ""}
+                      onChange={(e) => patchWidget(w.id, { yPropertyId: e.target.value || undefined })}
+                      className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      {numberProps.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    {w.chartType === "candles" && (
+                      <select
+                        data-testid={`db-dashw-bucket-${w.id}`}
+                        value={w.bucket ?? "day"}
+                        onChange={(e) => patchWidget(w.id, { bucket: e.target.value as DashWidget["bucket"] })}
+                        className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                      >
+                        <option value="hour">{t("시간별")}</option>
+                        <option value="day">{t("일별")}</option>
+                        <option value="week">{t("주별")}</option>
+                      </select>
+                    )}
+                    <select
+                      data-testid={`db-dashw-marker-${w.id}`}
+                      value={w.markerPropertyId ?? ""}
+                      onChange={(e) => patchWidget(w.id, { markerPropertyId: e.target.value || undefined })}
+                      className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      <option value="">{t("마커 없음")}</option>
+                      {groupable.map((p) => (
+                        <option key={p.id} value={p.id}>{t("{name} 마커", { name: p.name })}</option>
+                      ))}
+                    </select>
+                  </>
                 )}
                 {w.kind === "counter" && (
                   <>
