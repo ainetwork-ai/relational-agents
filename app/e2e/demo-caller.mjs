@@ -5,7 +5,7 @@
 // ends on either side. (The videocall UI used to ring through this; it now
 // places calls directly as the caller endpoint, so this is test-only.)
 //
-//   [BASE_URL=http://localhost:3220] [VC_CALLER=Ava] \
+//   [BASE_URL=http://localhost:3220] [VC_CALLER=할머니] \
 //   [CALL_TIMEOUT_MS=600000] node e2e/demo-caller.mjs
 //
 // Prints "ROOM <id>" once the room is known — the bridge parses this line
@@ -13,7 +13,7 @@
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3220";
-const CALLER = process.env.VC_CALLER ?? "Ava";
+const CALLER = process.env.VC_CALLER ?? "할머니";
 const TIMEOUT_MS = Number(process.env.CALL_TIMEOUT_MS ?? 10 * 60 * 1000);
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);

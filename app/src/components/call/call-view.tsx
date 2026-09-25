@@ -746,9 +746,9 @@ export function CallView({ roomId }: { roomId: string }) {
             data-testid="call-mock-utterance"
             onClick={() => {
               const MOCKS = [
-                "Do you remember our anniversary? It is on October tenth.",
-                "We first met at the university library, do you remember?",
-                "Let's plan a weekend date by the river, maybe watch the sunset.",
+                "Grandma's check-up at the clinic is on October sixth, remember?",
+                "Who is bringing the songpyeon for Chuseok this year?",
+                "Let's plan a family trip to Jeju, maybe watch the sunrise at Seongsan.",
               ];
               const text = MOCKS[mockIdxRef.current++ % MOCKS.length];
               void fetch(`/api/calls/${roomId}/utterance`, {

@@ -14,11 +14,11 @@
 // sends the current title, DELETE is archive-only (no ?permanent=1).
 
 const BASE = process.env.BASE_URL ?? "http://localhost:36625";
-const DOC = process.env.OKF_DOC ?? "Relationship doc — vc-alice ❤️ vc-bob-81b609";
+const DOC = process.env.OKF_DOC ?? "Family doc — vc-alice · vc-bob-81b609";
 const MEMBER = process.env.MEMBER ?? "vc-alice";
 const STRANGER = process.env.STRANGER ?? "acl-stranger";
 
-const SECRET = /ferry|sunset|Saturday|tteokbokki|nata/i;
+const SECRET = /train|songpyeon|Saturday|grandma/i;
 const relPage = `${DOC}/Timeline.md`;
 const id = (p) => Buffer.from(p, "utf8").toString("base64url");
 

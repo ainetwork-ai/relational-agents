@@ -85,7 +85,7 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
   );
 
  // The banner used to vanish the moment the agent was born, taking the verify
- // button with it — so a couple who signed first and verified later had no way
+ // button with it — so a pair who signed first and verified later had no way
  // back. It stays while anyone is still unproven, and the copy below switches
  // from "sign" to "you can still prove it".
   const born = Boolean(status?.consentAt);
@@ -171,7 +171,7 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
         <>
           <div className="mt-2 text-amber-800/80 dark:text-amber-300/80">
             {born
-              ? "Tarts&Co refuses agents without a human on each side. Verify now and the chain records it — the same refusal turns into two egg tarts."
+              ? "달빛떡집 refuses agents without a human on each side. Verify now and the chain records it — the same refusal turns into a box of Chuseok songpyeon."
               : "Optional — prove you're a unique human. An agent with a proof on each side can buy where a bot is refused; without it the agent is born just the same."}
           </div>
           {WORLD_ID_APP_ID && rpContext ? (

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 /**
  * RelationalAgentRegistry — an ERC-8004 (Trustless Agents) compatible identity
  * registry where an agent can only be born from a RELATIONSHIP: its members —
- * a couple or a group — co-sign an EIP-712 consent, and that set of signatures
+ * a pair, a family or a group — co-sign an EIP-712 consent, and that set of signatures
  * is what mints the agent. "An agent is born only when everyone in the
  * relationship agrees", enforced on-chain.
  *

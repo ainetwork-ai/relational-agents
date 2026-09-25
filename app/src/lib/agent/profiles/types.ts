@@ -47,12 +47,12 @@ export interface RelationshipProfile {
     /** callout icon for an unclassified moment */
     defaultIcon: string;
   };
-  /** Wording the prompts adopt. These are not decoration: "the couple's shared
+  /** Wording the prompts adopt. These are not decoration: "the family's shared
    *  record" tells the model what kind of thing it is writing. */
   voice: {
     /** who the record-keeper keeps the record for, e.g. "this relationship" */
     subject: string;
-    /** the two people, e.g. "the couple" / "the two colleagues" */
+    /** the people, e.g. "the family" / "the two colleagues" */
     parties: string;
     /** what makes a draft harmful enough to hold back (guard's AND condition) */
     guardHarm: string;

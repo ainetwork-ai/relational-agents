@@ -7,7 +7,7 @@ import { chatRoomBots, users } from "@/lib/db/schema";
 import { readIsHumanBacked } from "@/lib/relation-registry";
 
 /**
- * Tarts&Co — a storefront that sells only to agents with two proven humans
+ * 달빛떡집 — a storefront that sells only to agents with two proven humans
  * behind them.
  *
  * The interesting part is what it does NOT do. It does not ask who the buyer
@@ -19,8 +19,8 @@ import { readIsHumanBacked } from "@/lib/relation-registry";
 
 const RPC = process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
-export const EGG_TART_PRICE_ETH = "0.0001";
-export const EGG_TART_PRICE_WEI = parseEther(EGG_TART_PRICE_ETH);
+export const SONGPYEON_PRICE_ETH = "0.0001";
+export const SONGPYEON_PRICE_WEI = parseEther(SONGPYEON_PRICE_ETH);
 
 /** Where buyers pay. Defaults to the relayer so a demo works without setup. */
 export function sellerPayTo(): Hex {
@@ -31,12 +31,12 @@ export function sellerPayTo(): Hex {
 export function paymentQuote() {
   return {
     error: "payment required",
-    price: `${EGG_TART_PRICE_ETH} ETH`,
-    priceWei: EGG_TART_PRICE_WEI.toString(),
+    price: `${SONGPYEON_PRICE_ETH} ETH`,
+    priceWei: SONGPYEON_PRICE_WEI.toString(),
     payTo: sellerPayTo(),
     network: "sepolia",
     chainId: sepolia.id,
-    item: "2 egg tarts",
+    item: "송편 한 상자 (1kg)",
     payWith: "send the price to payTo, then retry with header X-Payment-Tx: <txhash>",
     condition: "only relationships with a proof-of-personhood per party are served",
   };
@@ -64,10 +64,10 @@ export async function verifyPaymentTx(txHash: string): Promise<PaymentCheck> {
   if (!tx) return { ok: false, error: "payment tx not found on sepolia" };
   if ((tx.to ?? "").toLowerCase() !== sellerPayTo().toLowerCase())
     return { ok: false, error: "payment was not sent to the seller" };
-  if (tx.value < EGG_TART_PRICE_WEI)
+  if (tx.value < SONGPYEON_PRICE_WEI)
     return {
       ok: false,
-      error: `underpaid: ${formatEther(tx.value)} ETH < ${EGG_TART_PRICE_ETH} ETH`,
+      error: `underpaid: ${formatEther(tx.value)} ETH < ${SONGPYEON_PRICE_ETH} ETH`,
     };
 
   return { ok: true, from: tx.from.toLowerCase() as Hex, valueWei: tx.value };
@@ -107,7 +107,7 @@ export interface SellerVerdict {
 const spentTxs = new Set<string>();
 
 /** The whole gate: money confirmed, then personhood confirmed, then goods. */
-export async function serveEggTarts(txHash: string): Promise<SellerVerdict> {
+export async function serveSongpyeon(txHash: string): Promise<SellerVerdict> {
   const payment = await verifyPaymentTx(txHash);
   if (!payment.ok)
     return { status: 402, body: { ...paymentQuote(), error: payment.error! } };
@@ -143,10 +143,10 @@ export async function serveEggTarts(txHash: string): Promise<SellerVerdict> {
   return {
     status: 200,
     body: {
-      eggTarts: 2,
+      songpyeon: "1kg",
       receipt: {
-        seller: "Tarts&Co",
-        item: "2 egg tarts",
+        seller: "달빛떡집",
+        item: "송편 한 상자 (1kg)",
         paid: `${formatEther(payment.valueWei!)} ETH`,
         payer: payment.from,
         paymentTx: txHash,
@@ -154,7 +154,7 @@ export async function serveEggTarts(txHash: string): Promise<SellerVerdict> {
         humanBacked: true,
         servedAt: new Date().toISOString(),
       },
-      message: "Two verified humans, one agent — enjoy the tarts 🥮",
+      message: "실제 가족이 뒤에 있는 에이전트 — 추석 잘 보내세요 🌕",
     },
   };
 }

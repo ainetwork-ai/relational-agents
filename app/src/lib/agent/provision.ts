@@ -133,6 +133,13 @@ export function buildAgentCard(agentUserId: string, roomName: string) {
         description: "Answers questions from the relationship document and folds new facts back into it",
         tags: ["relationship", "memory"],
       },
+      {
+        id: "sales-pipeline",
+        name: "Integrated sales pipeline",
+        description:
+          "Reads the call histories in the aindrive folders linked to the workspace and builds one pipeline database per customer (\"통합 sales pipeline 만들어줘\")",
+        tags: ["sales", "aindrive"],
+      },
     ],
   };
 }

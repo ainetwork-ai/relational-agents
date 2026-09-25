@@ -26,7 +26,7 @@ const EXPLORER_BASE =
   EXPLORER_BY_CHAIN[process.env.NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID ?? "11155111"] ??
   "https://sepolia.etherscan.io";
 
-// The agent-buys-tarts demo only makes sense where a human-backed registry is
+// The agent-buys-songpyeon demo only makes sense where a human-backed registry is
 // deployed for the seller to check — otherwise the button would always fail.
 const HUMAN_BACKED_ON = Boolean(process.env.NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS);
 
@@ -558,24 +558,24 @@ export function DmView({
     }
   }
 
-  /** The agent buys from Tarts&Co with its own wallet. The seller only serves
+  /** The agent buys from 달빛떡집 with its own wallet. The seller only serves
    * agents the chain says two verified humans stand behind, so the outcome —
-   * tarts or refusal — is the human-backed claim being tested for real. The
+   * songpyeon or refusal — is the human-backed claim being tested for real. The
    * agent posts it into the room itself; here we only surface the verdict. */
-  async function buyTarts() {
+  async function buySongpyeon() {
     if (spending || !agentMember) return;
     setSpending(true);
     setSpendSince(Date.now());
     setSpendElapsed(0);
-    show("The agent is paying Tarts&Co — this waits for a block, about 20 seconds");
+    show("The agent is paying 달빛떡집 — this waits for a block, about 20 seconds");
     try {
       const res = await fetch(`/api/agent/${agentMember.id}/spend`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
  // 200 = the seller served us, 402 = it took the payment question seriously and
  // said no. Both are the feature working; anything else is the feature broken.
-      if (res.ok) show("Tarts&Co served the agent — two verified humans, one agent 🥮");
+      if (res.ok) show("달빛떡집 served the agent — two verified humans, one agent 🥮");
       else if (res.status === 402)
-        show(`Tarts&Co refused: ${data?.seller?.body?.error ?? "not human-backed"}`);
+        show(`달빛떡집 refused: ${data?.seller?.body?.error ?? "not human-backed"}`);
       else show(`Purchase failed: ${data?.error ?? res.status}`);
     } catch (err) {
       show(`Purchase failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -750,10 +750,10 @@ export function DmView({
           {agentMember && HUMAN_BACKED_ON && (
             <button
               data-testid="dm-agent-spend"
-              onClick={() => void buyTarts()}
+              onClick={() => void buySongpyeon()}
               disabled={spending}
-              aria-label="Ask the agent to buy egg tarts"
-              data-tip={spending ? "Paying Tarts&Co…" : "Agent buys egg tarts (Tarts&Co checks two humans)"}
+              aria-label="에이전트에게 추석 송편 주문 부탁"
+              data-tip={spending ? "Paying 달빛떡집…" : "에이전트가 추석 송편 주문 (달빛떡집이 실제 사람 두 명을 확인)"}
               className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 dark:hover:bg-amber-950/40 dark:hover:text-amber-400"
             >
               <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
@@ -770,7 +770,7 @@ export function DmView({
                   ? "Agent is paying…"
                   : spendElapsed < 20
                     ? "Waiting for the block…"
-                    : "Asking Tarts&Co…"}
+                    : "Asking 달빛떡집…"}
               </span>
               <span className="tabular-nums">{spendElapsed}s</span>
             </span>

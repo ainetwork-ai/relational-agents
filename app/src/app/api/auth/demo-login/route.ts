@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
+import { workspaceMembers, workspaces } from "@/lib/db/schema";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { toPublicUser } from "@/lib/auth/public-user";
 
@@ -17,7 +18,41 @@ export const dynamic = "force-dynamic";
  * With `as`, logs into (or creates) a named secondary demo account (address
  * `demo:<slug>`) — for DM demos/e2e needing two accounts in one browser.
  * Wallet addresses are 0x…-shaped, so the `demo:` namespace can't collide.
+ *
+ * With `member`, logs into one of the demo account's family by name (할머니,
+ * 아빠, 서연 — people who share a workspace the demo account owns), landing in
+ * that workspace. GET lists who can be picked.
  */
+
+/** The demo account, and the people of the workspaces it owns. */
+async function demoFamily() {
+  const configured = (process.env.DEMO_LOGIN_ADDRESS ?? "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(configured)) return null;
+  const [demo] = await db.select().from(users).where(eq(users.ainAddress, configured)).limit(1);
+  if (!demo) return null;
+  const owned = await db
+    .select({ id: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+    .where(and(eq(workspaceMembers.userId, demo.id), eq(workspaceMembers.role, "owner")));
+  if (!owned.length) return { demo, members: [] as { id: string; displayName: string; workspaceId: string }[] };
+  const members = await db
+    .select({ id: users.id, displayName: users.displayName, workspaceId: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .innerJoin(users, eq(users.id, workspaceMembers.userId))
+    .where(and(inArray(workspaceMembers.workspaceId, owned.map((o) => o.id)), ne(users.id, demo.id), eq(users.isAgent, false)));
+  return { demo, members };
+}
+
+export async function GET() {
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO_LOGIN !== "1")
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const fam = await demoFamily();
+  return NextResponse.json({
+    demo: fam?.demo.displayName ?? null,
+    members: [...new Set((fam?.members ?? []).map((m) => m.displayName))],
+  });
+}
 async function loginUser(ainAddress: string, displayName: string, homeCoverUrl?: string) {
   let [user] = await db.select().from(users).where(eq(users.ainAddress, ainAddress)).limit(1);
   if (!user) {
@@ -47,6 +82,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const body = await req.json().catch(() => ({}));
+    const member = typeof body?.member === "string" ? body.member.trim() : "";
+    if (member) {
+      const fam = await demoFamily();
+      const who = fam?.members.find((m) => m.displayName === member);
+      if (!who) return NextResponse.json({ error: "No such family member" }, { status: 404 });
+      const session = await getSession();
+      session.userId = who.id;
+      session.ainAddress = undefined;
+      session.challenge = undefined;
+      // straight into the family's workspace, not their own empty one
+      session.activeWorkspaceId = who.workspaceId;
+      await session.save();
+      const [user] = await db.select().from(users).where(eq(users.id, who.id));
+      return NextResponse.json({ user: toPublicUser(user) });
+    }
     const as = typeof body?.as === "string" ? body.as.trim().slice(0, 32) : "";
     if (as) {
       const slug = as.toLowerCase().replace(/[^a-z0-9-_]/g, "");
@@ -55,8 +105,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ user: toPublicUser(user) });
     }
 
-   // The demo world hangs off one specific account (Chanho — owner of the
-   // girlfriend workspaces, DM rooms and agents). DEMO_LOGIN_ADDRESS points
+   // The demo world hangs off one specific account (엄마 — who made the
+   // family workspace "우리 가족" and linked her aindrive folder into it, beside
+   // grandma's and dad's; scripts/seed-family-demo.mts). DEMO_LOGIN_ADDRESS points
    // "Try the demo" straight at that account so the demo opens with its
    // workspaces instead of a fresh empty one. There is no second-best account
    // to fall back to: any other lands in an empty app that looks like data
@@ -65,12 +116,12 @@ export async function POST(req: NextRequest) {
     if (!/^0x[0-9a-f]{40}$/i.test(configured))
       return NextResponse.json({ error: "Demo login is not configured" }, { status: 503 });
 
-   // the account ships with its own azulejo home cover — seeded only at
+   // the account ships with a Chuseok full-moon home cover — seeded only at
    // creation, so a user-picked cover is never overwritten
     const user = await loginUser(
       configured.toLowerCase(),
-      "Chanho",
-      "/covers/home-cover-chanho.png"
+      "엄마",
+      "/covers/home-cover-family.jpg"
     );
     return NextResponse.json({ user: toPublicUser(user) });
   } catch (err) {

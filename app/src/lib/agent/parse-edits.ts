@@ -8,13 +8,13 @@ export type SectionKey = string;
 
 /** Timeline entries carry an event classification so the writer can lay them
  *  out in the formal template (date h1 → title h2 → callout → timed photos).
- *  Which kinds exist comes from the profile — "date"/"first-met" for a
- *  romance, "meeting"/"intro" for a working relationship. */
+ *  Which kinds exist comes from the profile — "gathering"/"holiday" for a
+ *  family, "meeting"/"intro" for a working relationship. */
 export interface TimelineEvent {
   kind: string;
   /** YYYY-MM-DD; when absent the writer falls back to the message date. */
   date?: string;
-  /** short event title, e.g. "Belém day — natas at the source" */
+  /** short event title, e.g. "추석 전날 — 할머니 댁에서 송편 빚기" */
   title?: string;
 }
 

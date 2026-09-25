@@ -41,8 +41,8 @@ export interface SpeechTranscriptOptions {
 
 /**
  * Transcribes the local mic with the Web Speech API while `enabled`.
- * Signature follows videocall/CONTRACT.md §1, so the Azure engine
- * (videocall/web/use-azure-transcript.ts) is a one-line import swap.
+ * Signature follows archive/couple/videocall/CONTRACT.md §1, so the Azure engine
+ * (archive/couple/videocall/web/use-azure-transcript.ts) is a one-line import swap.
  * Chrome auto-stops recognition after silence (and on transient "network"/
  * "no-speech" errors), so onend restarts it while enabled; "not-allowed"
  * stops it for good (mic permission denied).

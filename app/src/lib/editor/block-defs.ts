@@ -6,7 +6,7 @@ export interface SlashItem {
   keywords: string;
   hint: string;
   /** menu section */
-  category?: "basic" | "media" | "database" | "advanced" | "ai";
+  category?: "aindrive" | "basic" | "media" | "database" | "advanced" | "ai";
   /** markdown shortcut shown as a kbd hint on the right */
   md?: string;
   /** compact glyph for the item icon tile */
@@ -19,8 +19,19 @@ export interface SlashItem {
   preset?: Record<string, unknown>;
 }
 
+/** Preset key of the menu's aindrive item. Never stored: the editor takes it
+ *  off the block and opens the picker on that block, for this person only. */
+export const AINDRIVE_PICK = "__aindrivePick";
+
+/** Blocks that should open on the aindrive picker when they first render. */
+export const aindrivePickPending = new Set<string>();
+
 /** Order matters: first match wins for slash-menu filtering. */
 export const SLASH_ITEMS: SlashItem[] = [
+  // First in the menu: bringing in a file from a linked aindrive folder is the
+  // thing this workspace is for. A file block that opens straight on the
+  // aindrive picker — the file stays in aindrive, the block keeps its link.
+  { type: "file", id: "aindrive", label: "aindrive에서 가져오기", keywords: "aindrive drive import link file 에이아이드라이브 드라이브 가져오기", hint: "Link a file from aindrive", category: "aindrive", glyph: "☁", preset: { [AINDRIVE_PICK]: true } },
   { type: "paragraph", label: "텍스트", keywords: "text paragraph plain", hint: "Just start writing" , category: "basic", glyph: "Aa" },
   { type: "heading1", label: "제목1", keywords: "heading1 h1 title big", hint: "Big section heading" , category: "basic", md: "#", glyph: "H1" },
   { type: "heading2", label: "제목2", keywords: "heading2 h2 subtitle", hint: "Medium section heading" , category: "basic", md: "##", glyph: "H2" },

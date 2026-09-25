@@ -9,6 +9,7 @@ import { OptionChip } from "./option-chip";
 import { parseDateValue } from "./date-picker";
 import { DEFAULT_DATE_FORMAT, fmtDateRange, type DateFormat } from "@/lib/date-format";
 import { useIntlLocale, useT } from "@/i18n/provider";
+import { formatNumber } from "./property-cell";
 
 /** Read-only rendering of a property value (for List / Gallery / Calendar). */
 export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
@@ -70,6 +71,15 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
         { locale: intl, t }
       );
       return label ? <span className="text-xs text-neutral-500">{label}</span> : null;
+    }
+    case "number": {
+      // the column's format, as the table shows it (1,080,000, not 1080000)
+      const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+      return Number.isFinite(n) ? (
+        <span className="text-sm text-neutral-700 dark:text-neutral-300">
+          {formatNumber(n, prop.config?.numberFormat as string | undefined, intl)}
+        </span>
+      ) : null;
     }
     default:
       return v ? (

@@ -17,6 +17,7 @@ import { sanitizeInline } from "@/lib/rich-text";
 import { copyText, resolveAppUrl } from "@/lib/compat";
 import { uploadBlob } from "@/lib/upload";
 import { FileAttachment, FileAttachPicker } from "./file-attachment";
+import { GiftBlock } from "./gift-block";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { parseAindriveUrl } from "@/lib/aindrive-url";
 import { highlightCode } from "@/lib/editor/highlight";
@@ -276,6 +277,9 @@ function ColumnCell({ block }: { block: EBlock }) {
 /** File attachment block: upload any file, then a download chip. */
 function FileBlockBody({ block }: { block: EBlock }) {
   const editor = useEditor();
+  // a gift behind x402: a file its maker keeps unshared, opened with pocket money
+  const gift = block.content.gift as Parameters<typeof GiftBlock>[0]["gift"] | undefined;
+  if (gift?.spec?.id) return <GiftBlock blockId={block.id} gift={gift} />;
   // an uploaded file or an aindrive link — both preview the same way
   if (block.content.url)
     return <FileAttachment blockId={block.id} url={block.content.url} name={block.content.text ?? ""} />;

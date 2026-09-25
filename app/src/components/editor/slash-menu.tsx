@@ -5,7 +5,7 @@ import {
   Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse,
   TextQuote, Minus, ListTree, Link2, Paperclip, Sparkles, Sigma, MousePointerClick,
   LayoutTemplate, Code, Info, Table, Database, Image, Bookmark, Video, AppWindow,
-  LayoutDashboard, FileText, Columns2, type LucideIcon,
+  LayoutDashboard, FileText, Columns2, HardDrive, type LucideIcon,
 } from "lucide-react";
 import { useAnchoredAt } from "@/hooks/use-anchored";
 import { useT } from "@/i18n/provider";
@@ -23,10 +23,11 @@ const ITEM_ICON: Record<string, LucideIcon> = {
   file: Paperclip, ai_prompt: Sparkles, equation: Sigma, button: MousePointerClick,
   template_button: LayoutTemplate, code: Code, callout: Info, table: Table, database: Database,
   dashboard: LayoutDashboard, image: Image, bookmark: Bookmark, video: Video,
-  embed: AppWindow, column_list: Columns2,
+  embed: AppWindow, column_list: Columns2, aindrive: HardDrive,
 };
 
 const CATEGORY_ORDER: Record<string, number> = {
+  aindrive: -1,
   basic: 0,
   media: 1,
   database: 2,
@@ -89,6 +90,7 @@ export function SlashMenu({
       <div ref={listRef} className="max-h-[354.8px] overflow-y-auto pb-1">
         {items.map((item, i) => {
           const SECTION_LABEL: Record<string, string> = {
+            aindrive: "aindrive",
             basic: "기본 블록",
             media: "미디어",
             database: "데이터베이스",

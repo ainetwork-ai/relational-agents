@@ -207,9 +207,11 @@ export async function pollPairing(
   const token = typeof data.token === "string" ? data.token : "";
   const user = (data.user ?? {}) as { id?: unknown; email?: unknown; name?: unknown };
   if (status >= 400 || !token || typeof user.id !== "string" || !user.id) return { state: "expired" };
+  // a wallet-only aindrive account carries a made-up address, not an inbox
+  const email = typeof user.email === "string" && !user.email.endsWith("@wallet.aindrive.local") ? user.email : null;
   const identity: AindriveIdentity = {
     sub: `${p.server}|${user.id}`,
-    email: typeof user.email === "string" ? user.email : null,
+    email,
     name: typeof user.name === "string" ? user.name : null,
   };
   if (userId === null) return { state: "connected", token, identity, server: p.server };

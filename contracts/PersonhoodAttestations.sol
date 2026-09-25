@@ -7,7 +7,7 @@ pragma solidity ^0.8.24;
  * RelationalAgentRegistry binds a World ID nullifier per party at the moment
  * the agent is minted, which is the strongest form: the agent is born already
  * knowing two humans stand behind it. But people meet before they verify. An
- * agent born without proofs was stuck that way forever, and a couple who
+ * agent born without proofs was stuck that way forever, and a pair who
  * verified afterwards had no way to say so on chain.
  *
  * This contract is that second door. It never mints anything and it cannot

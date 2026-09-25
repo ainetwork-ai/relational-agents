@@ -302,7 +302,7 @@ export default function HomePage() {
 
   return (
     <div data-testid="home-dashboard" className="pb-16">
-      {/* dashboard cover — per-user (users.home_cover_url; demo Chanho ships
+      {/* dashboard cover — per-user (users.home_cover_url; the demo's 엄마 ships
           with the azulejo one), falling back to the default generated banner.
           Rendered only once /api/auth/me resolves, so a custom cover never
           flashes the default first. */}

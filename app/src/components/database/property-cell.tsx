@@ -600,7 +600,7 @@ function DateCell({
 }
 
 /** Format a number per the column's numberFormat config. */
-function formatNumber(n: number, fmt: string | undefined, locale: string): string {
+export function formatNumber(n: number, fmt: string | undefined, locale: string): string {
   switch (fmt) {
     case "percent":
       return `${n}%`;

@@ -14,10 +14,10 @@ import { db } from "@/lib/db";
 import { chatMessages, users } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { agentKitFor, invokeAction, txHashFromActionResult } from "@/lib/agent/agentkit";
-import { EGG_TART_PRICE_ETH, sellerPayTo } from "@/lib/seller";
+import { SONGPYEON_PRICE_ETH, sellerPayTo } from "@/lib/seller";
 
 /**
- * The agent buys from Tarts&Co, and the room learns what happened.
+ * The agent buys from 달빛떡집, and the room learns what happened.
  *
  * Extracted from the spend route so the same act can be asked for two ways —
  * the button in the header, or saying it in the chat — without either becoming
@@ -34,7 +34,7 @@ export interface SpendOutcome {
   body: Record<string, unknown>;
 }
 
-export async function buyEggTarts(
+export async function buySongpyeon(
   agentUserId: string,
   roomId: string,
   origin: string
@@ -57,7 +57,7 @@ export async function buyEggTarts(
  // its agent; for the demo the deployer tops it up on first spend.
     let balance = await pub.getBalance({ address });
     let fundingTx: string | null = null;
-    if (balance < parseEther(EGG_TART_PRICE_ETH)) {
+    if (balance < parseEther(SONGPYEON_PRICE_ETH)) {
       const funderKey = process.env.RELAYER_KEY ?? process.env.DEPLOYER_KEY;
       if (!funderKey || !/^0x[0-9a-fA-F]{64}$/.test(funderKey))
         return { status: 503, body: { error: "Agent wallet is empty and no funder is configured" } };
@@ -73,11 +73,11 @@ export async function buyEggTarts(
 
     const actionResult = await invokeAction(wallet, "native_transfer", {
       to: sellerPayTo(),
-      value: EGG_TART_PRICE_ETH,
+      value: SONGPYEON_PRICE_ETH,
     });
     const paymentTx = txHashFromActionResult(actionResult);
     if (!paymentTx) {
-      await post(`🥮 I tried to buy us egg tarts and the payment failed — ${actionResult}`);
+      await post(`🥮 추석 송편을 주문하려 했는데 결제가 실패했어요 — ${actionResult}`);
       return { status: 502, body: { error: "payment failed", detail: actionResult } };
     }
 
@@ -92,8 +92,8 @@ export async function buyEggTarts(
 
     await post(
       sellerRes.ok
-        ? `🥮 Bought us 2 egg tarts from Tarts&Co — they only sell to agents with two verified humans behind them, and the chain vouched for us. Paid ${EGG_TART_PRICE_ETH} ETH from my own wallet. payment tx: ${paymentTx}`
-        : `🚫 Tarts&Co turned me away (${sellerRes.status} — ${String(sellerBody.error ?? "rejected")}). I paid ${EGG_TART_PRICE_ETH} ETH but could not prove two real people stand behind me. payment tx: ${paymentTx}`
+        ? `🥮 달빛떡집에서 추석 송편 한 상자를 주문했어요 — 실제 사람 두 명이 뒤에 있는 에이전트에게만 파는 곳인데, 체인이 우리 가족을 확인해 줬어요. 제 지갑에서 ${SONGPYEON_PRICE_ETH} ETH를 냈습니다. payment tx: ${paymentTx}`
+        : `🚫 달빛떡집이 주문을 거절했어요 (${sellerRes.status} — ${String(sellerBody.error ?? "rejected")}). ${SONGPYEON_PRICE_ETH} ETH를 냈지만 실제 사람 두 명이 뒤에 있다는 걸 증명하지 못했어요. payment tx: ${paymentTx}`
     );
 
     return {
@@ -116,7 +116,7 @@ export async function buyEggTarts(
 }
 
 /**
- * Ask Tarts&Co, from inside the container.
+ * Ask 달빛떡집, from inside the container.
  *
  * The public origin is HTTPS terminated by nginx out front; reaching for it
  * from in here hits the app's own plain-HTTP port and dies on the TLS
@@ -127,13 +127,14 @@ async function fetchSeller(origin: string, paymentTx: string): Promise<Response>
   const headers = { "x-payment-tx": paymentTx };
   const loopback = `http://127.0.0.1:${process.env.PORT ?? 3000}`;
   try {
-    return await fetch(`${loopback}/api/seller/egg-tarts`, { headers, cache: "no-store" });
+    return await fetch(`${loopback}/api/seller/songpyeon`, { headers, cache: "no-store" });
   } catch {
-    return fetch(`${origin}/api/seller/egg-tarts`, { headers, cache: "no-store" });
+    return fetch(`${origin}/api/seller/songpyeon`, { headers, cache: "no-store" });
   }
 }
 
 /** The one sentence that means "do it", said in the room instead of clicked. */
-export function isBuyEggTartsCommand(text: string): boolean {
-  return text.trim().toLowerCase().replace(/\s+/g, " ") === "@agent buy egg tarts";
+export function isBuySongpyeonCommand(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/\s+/g, " ");
+  return t === "@agent buy songpyeon" || t === "@agent 송편 주문해" || t === "@agent 송편 주문해줘";
 }

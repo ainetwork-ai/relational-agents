@@ -1,6 +1,6 @@
 import { isServableAssetUrl } from "@/lib/files/serve";
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agentRoomStates,
@@ -19,11 +19,16 @@ import { aiChat } from "@/lib/ai";
 import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
+import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
+import { answerViewers, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
+import { matchFamilySkill, runFamilySkill } from "./family-skills";
+import { isAssistantRoom } from "./assistant-room";
 import { runAsOrService } from "@/lib/aindrive-account";
 import {
   aindriveConfigured,
   parseLink,
   listTree,
+  notUserFolder,
   readFile as readDriveFile,
   writeFile as writeDriveFile,
   type AindriveLink,
@@ -41,9 +46,13 @@ export interface RespondResult {
   writes?: { path: string; content: string }[];
 }
 
-/** The aindrive folder linked to this agent, as the model sees it. */
+/** The aindrive folders this agent reads, as the model sees them: its own
+ *  linked folder, or the folders shared into the teamspaces of the room. */
 interface DriveContext {
-  link: AindriveLink;
+  sources: DriveSource[];
+  /** the one folder the agent may write to (its own link) — shared folders are read-only */
+  writable: DriveSource | null;
+  /** "<label>/<path>" per file ("<path>" for the agent's own folder) */
   files: string[];
   /** path → contents of the files opened for this answer */
   opened: Record<string, string>;
@@ -63,6 +72,16 @@ function safeLink(raw: unknown): AindriveLink | null {
     console.error("aindrive link refused:", (e as Error).message);
     return null;
   }
+}
+
+/** The folder a model-given path belongs to, and the path inside it. */
+function locate(drive: DriveContext, p: string): { src: DriveSource; rel: string } | null {
+  const own = drive.sources.find((x) => x.label === "");
+  const hit = drive.sources
+    .filter((x) => x.label && p.startsWith(`${x.label}/`))
+    .sort((a, b) => b.label.length - a.label.length)[0];
+  if (hit) return { src: hit, rel: p.slice(hit.label.length + 1) };
+  return own ? { src: own, rel: p } : null;
 }
 
 const DRIVE_READ_MAX = 3;
@@ -142,7 +161,7 @@ function contentWords(s: string): Set<string> {
 }
 
 /** The photo whose surroundings the answer is talking about. Deterministic, so
- *  a recall that mentions the egg tart shows it whether or not the model
+ *  a recall that mentions grandma's songpyeon shows it whether or not the model
  *  remembered to fill in "attachments". */
 function photoForAnswer(text: string, photos: DocPhoto[]): DocPhoto | null {
   const words = contentWords(text);
@@ -225,6 +244,8 @@ async function llmDecision(
   sections: Record<string, string>,
   titles: Record<string, string>,
   recent: ChatMessage[],
+  /** userId → display name, so the model knows who said what */
+  names: Map<string, string>,
   rootPageId: string | null,
   drive: DriveContext | null
 ): Promise<RespondResult> {
@@ -237,15 +258,23 @@ async function llmDecision(
   const history = recent
     .slice()
     .reverse()
-    .map((m) => `(${m.authorId.slice(0, 8)}) ${m.text}`)
+    .map((m) => `${names.get(m.authorId) ?? m.authorId.slice(0, 8)}: ${m.text}`)
     .join("\n");
   const opened = drive ? Object.entries(drive.opened) : [];
+  const shared = drive ? drive.sources.some((x) => x.label) : false;
   const driveRules = drive
-    ? `\nYou also have a linked file folder (aindrive). Its files:\n${drive.files.map((f) => `- ${f}`).join("\n") || "(empty)"}\n` +
+    ? (shared
+        ? `\nYou can also read the aindrive folders the members shared with this space (each file is "<folder>/<path>"; the folder name says whose it is). ` +
+          `Answer from these files when they bear on the question, and say which file you took it from. Files:\n`
+        : `\nYou also have a linked file folder (aindrive). Its files:\n`) +
+      `${drive.files.map((f) => `- ${f}`).join("\n") || "(empty)"}\n` +
       (opened.length
         ? `The files you opened are under "## Opened files". Do not ask to open more.\n`
-        : `If answering needs a file's contents, output {"action":"read_files","paths":["<path from the list>"]} (at most ${DRIVE_READ_MAX}) and you will be shown them.\n`) +
-      `Only when a member asks you to create or change a file, add "writes":[{"path":"<path relative to the folder>","content":"<the full new file contents>"}] to your reply and say in the text what you wrote. Never write unasked.`
+        : `If a listed file may hold the answer (judge by its name), output {"action":"read_files","paths":["<path from the list>"]} (at most ${DRIVE_READ_MAX}) and you will be shown them — ` +
+          `open it before ever saying something is not recorded.\n`) +
+      (drive.writable
+        ? `Only when a member asks you to create or change a file, add "writes":[{"path":"<path relative to the folder>","content":"<the full new file contents>"}] to your reply and say in the text what you wrote. Never write unasked.`
+        : `These folders are read-only to you: never offer to change them.`)
     : "";
   const openedText = opened.length
     ? `\n\n## Opened files\n${opened.map(([p, c]) => `### ${p}\n${c}`).join("\n\n")}`
@@ -260,7 +289,7 @@ async function llmDecision(
           `Rules: always reply when mentioned. When not mentioned, ${proactive ? "chime in briefly only if the members must know something (a scheduling conflict, an important remembered fact)" : "stay silent"}. Otherwise stay silent.\n` +
           `Answer from the document above. If a section records something that bears on the question, say what is recorded — a partial memory is still an answer. ` +
           `When asked what to do, where to go, or what they would like, make one concrete suggestion and say which remembered detail it follows from ` +
-          `("she loves sunsets — you two watched one at …"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
+          `("grandma loves her songpyeon with sesame filling — you made them together last Chuseok"), and attach the photo that detail came from. A preference that is not in the document does not exist: suggest from what is recorded or say you have nothing to go on. ` +
           `Only say you do not have it when the sections are genuinely silent on the subject, and never park a question as an open topic instead of answering what you already know.\n` +
           `When you cite the document, mention its link (/p/${rootPageId ?? ""}).\n` +
           `When you recommend ${profile.voice.suggestion}, ground it in this ${profile.voice.subject}'s memories (say WHY — e.g. a preference the person mentioned before), include the place's Google Maps link if the document has one, and attach its image by putting the document's image url (exactly as written there) in "attachments".\n` +
@@ -291,7 +320,7 @@ async function llmDecision(
     }
     if (parsed.action === "reply" && typeof parsed.text === "string" && parsed.text.trim()) {
       const reply = withPhoto(parsed.text.trim(), sanitizeAttachments(parsed.attachments), sections);
-      const writes = drive ? writeList(parsed.writes) : [];
+      const writes = drive?.writable ? writeList(parsed.writes) : [];
       return writes.length ? { ...reply, writes } : reply;
     }
     return { action: "silent" };
@@ -315,9 +344,10 @@ export async function respondToMessage(
   if (!agent?.isAgent || !room) return { action: "silent" };
 
  // write path: observe → update the doc (replies continue even if it fails)
-  const writeDone = runPipeline(roomId).catch((err) =>
-    console.error("agent write failed:", err)
-  );
+  const assistant = isAssistantRoom(room);
+  const writeDone = assistant
+    ? Promise.resolve()
+    : runPipeline(roomId).catch((err) => console.error("agent write failed:", err));
 
   const config = (agent.agentConfig ?? {}) as AgentConfig;
  // the agent's own config decides how it behaves here — not the room's, since
@@ -325,8 +355,11 @@ export async function respondToMessage(
   const profile = resolveProfile(config);
  // a quiet message is addressed to the agent by definition — the lock is the
  // address, so it need not also be spelled out with an @
+  // a room of one person and their agent (the assistant panel) needs no "@agent":
+  // everything said there is said to it
+  const humans = await answerViewers(roomId, message.authorId, null);
   const mentioned =
-    Boolean(message.privateToUserId) || isMentioned(message.text, agent.displayName);
+    Boolean(message.privateToUserId) || humans.length === 1 || isMentioned(message.text, agent.displayName);
 
  // The answer is on its way — say so on screen. Only when the agent is
  // addressed: a chime-in is decided after the fact, and dots that resolve into
@@ -335,9 +368,45 @@ export async function respondToMessage(
     ? showAgentTyping(roomId, agent, message.privateToUserId ?? null)
     : null;
 
+  // an agent message in the room, seen by the same people the reply would be
+  const post = async (text: string) => {
+    const [row] = await db
+      .insert(chatMessages)
+      .values({ roomId, authorId: agentUserId, text, attachments: [], privateToUserId: message.privateToUserId ?? null })
+      .returning();
+    await publishToRoomMembers(roomId, { type: "dm-message", clientId: `agent:${agentUserId}` });
+    return row;
+  };
+
   let decision: RespondResult;
   try {
-    if (process.env.AGENT_FAKE_LLM === "1") {
+    // what a family agent can do beyond answering: build a page from the
+    // family's shared folders, or pay a gift over x402 (family-skills.ts)
+    const skill = mentioned && room.workspaceId && process.env.AGENT_FAKE_LLM !== "1" ? matchFamilySkill(message.text) : null;
+    // a work agent (business profile, or given the skill) can build the pipeline
+    const canPipeline =
+      profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
+    if (skill && room.workspaceId) {
+      const viewers = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
+      const sources = await sharedDriveSources(room.workspaceId, viewers).catch(() => []);
+      const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text }).catch(
+        (e: Error) => {
+          console.error(`[family-skill:${skill}] failed:`, e);
+          return { text: `하다가 멈췄어요: ${e.message}` };
+        }
+      );
+      decision = { action: "reply", text: done.text };
+    } else if (mentioned && canPipeline && asksForPipeline(message.text) && process.env.AGENT_FAKE_LLM !== "1") {
+      // a skill, not an answer: gather the linked call histories and build the page
+      const viewers = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
+      const built = await buildSalesPipeline(room.workspaceId, message.authorId, viewers, async (line) => {
+        await post(line);
+      }).catch((e) => {
+        console.error("[sales-pipeline] failed:", e);
+        return { pageId: null, text: `파이프라인을 만들다 멈췄어요: ${(e as Error).message}` };
+      });
+      decision = { action: "reply", text: built.text };
+    } else if (process.env.AGENT_FAKE_LLM === "1") {
       decision = fakeDecision(message, mentioned);
     } else {
       const [state] = await db
@@ -345,10 +414,12 @@ export async function respondToMessage(
         .from(agentRoomStates)
         .where(eq(agentRoomStates.roomId, roomId));
    // the relationship doc is OKF-file-canonical — answer evidence reads from files too
-      const tree = ensureOkfDocTree(roomId, room.name, profile, {
-        rootPath: state?.rootOkfPath,
-        sectionPaths: state?.sectionOkfPaths,
-      });
+      const tree = assistant
+        ? null
+        : ensureOkfDocTree(roomId, room.name, profile, {
+            rootPath: state?.rootOkfPath,
+            sectionPaths: state?.sectionOkfPaths,
+          });
    // ensureOkfDocTree CREATES the folder, and an OKF path nobody registered is
    // workspace-readable. Answering is often a room's first doc-touching event
    // (the write pipeline returns early when there is nothing new to record), so
@@ -359,15 +430,23 @@ export async function respondToMessage(
           .from(chatRoomMembers)
           .where(eq(chatRoomMembers.roomId, roomId))
       ).map((m) => m.userId);
-      await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
-      const sections = readOkfSectionTexts(tree, profile);
-    const titles = sectionTitles(tree, profile);
+      if (tree) await setOkfAcl(tree.rootPath, roomId, [...new Set([room.createdBy, ...memberIds])]);
+      const sections = tree ? readOkfSectionTexts(tree, profile) : {};
+      const titles = tree ? sectionTitles(tree, profile) : {};
       const recent = await db
         .select()
         .from(chatMessages)
         .where(and(eq(chatMessages.roomId, roomId)))
         .orderBy(desc(chatMessages.createdAt))
         .limit(20);
+      const authors = [...new Set(recent.map((m) => m.authorId))];
+      const names = new Map(
+        authors.length
+          ? (await db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, authors))).map(
+              (u) => [u.id, u.name] as const
+            )
+          : []
+      );
       const ask = (nudge: string) =>
         llmDecision(
           nudge ? { ...message, text: `${message.text}\n\n${nudge}` } : message,
@@ -378,25 +457,52 @@ export async function respondToMessage(
           sections,
           titles,
           recent,
+          names,
           docPageIdOf(state),
           drive
         );
-   // A linked aindrive folder is consulted only when the agent is addressed —
-   // listing someone's drive on every passing message is traffic nobody asked for.
-      const link = safeLink(config.aindrive);
-      const drive: DriveContext | null =
-        mentioned && link && aindriveConfigured()
-          ? await runAsOrService(linkerOf(config.aindrive), () => listTree(link, 100))
-              .then((files) => ({ link, files, opened: {} }))
-              .catch((e) => {
-                console.error("aindrive list failed:", e);
-                return null;
-              })
-          : null;
+   // aindrive folders are consulted only when the agent is addressed — listing
+   // people's drives on every passing message is traffic nobody asked for.
+   // Its own linked folder when it has one; otherwise the folders the room's
+   // people shared into their teamspaces (the ones all of them can see).
+      const own = safeLink(config.aindrive);
+      let sources: DriveSource[] = [];
+      if (mentioned && aindriveConfigured()) {
+        if (own) sources = [{ label: "", link: own, linkedBy: linkerOf(config.aindrive) }];
+        else if (room.workspaceId)
+          sources = await sharedDriveSources(
+            room.workspaceId,
+            await answerViewers(roomId, message.authorId, message.privateToUserId ?? null)
+          ).catch((e) => {
+            console.error("shared drives failed:", e);
+            return [];
+          });
+      }
+      const listed = await Promise.all(
+        sources.map((src) =>
+          runAsOrService(src.linkedBy, () => listTree(src.link, 100, 40, notUserFolder))
+            .then((files) => (src.label ? files.filter(readableFile).map((f) => `${src.label}/${f}`) : files))
+            .catch((e) => {
+              console.error("aindrive list failed:", src.label, e);
+              return null;
+            })
+        )
+      );
+      const drive: DriveContext | null = listed.some((l) => l !== null)
+        ? {
+            sources,
+            writable: own ? sources[0] : null,
+            files: listed.flatMap((l) => l ?? []).slice(0, 150),
+            opened: {},
+          }
+        : null;
       decision = await ask("");
       if (drive && decision.readPaths?.length) {
         for (const p of decision.readPaths) {
-          drive.opened[p] = await runAsOrService(linkerOf(config.aindrive), () => readDriveFile(drive.link, p))
+          const at = locate(drive, p);
+          drive.opened[p] = !at
+            ? "(no such file)"
+            : await runAsOrService(at.src.linkedBy, () => readDriveFile(at.src.link, at.rel))
             .then((c) => (c.length > DRIVE_FILE_CHARS ? `${c.slice(0, DRIVE_FILE_CHARS)}\n…(truncated)` : c))
             .catch((e) => `(could not read: ${(e as Error).message})`);
         }

@@ -258,7 +258,7 @@ export interface NewLine {
   text: string;
   /** image blocks render from content.url — text is kept as the caption. */
   url?: string;
-  /** callout blocks: emoji icon (💕 date / 💘 first-met / 💡 default) */
+  /** callout blocks: emoji icon (the profile's event icon, e.g. 🏡 gathering / 🌕 holiday) */
   icon?: string;
 }
 

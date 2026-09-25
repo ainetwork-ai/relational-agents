@@ -7,6 +7,27 @@ import { aindriveFileUrl } from "@/lib/aindrive-url";
 import { useT } from "@/i18n/provider";
 import { AindriveAccountBadge, AindriveConnect } from "./aindrive-connect";
 
+/** Where the picker reads from: one of your own drives, or a folder a
+ *  teammate shared into a teamspace you are in (read as them). */
+interface Source {
+  key: string;
+  label: string;
+  driveId: string;
+  root: string;
+  /** teamspace link id, for a shared folder */
+  linkId?: string;
+  group: "mine" | "shared";
+}
+
+interface SharedFolder {
+  id: string;
+  name: string;
+  driveId: string;
+  root: string;
+  teamspaceName: string;
+  sharedBy: string | null;
+}
+
 interface Entry {
   name: string;
   isDir: boolean;
@@ -34,20 +55,56 @@ export function AindrivePicker({
 }) {
   const t = useT();
   const [info, setInfo] = useState<AindriveInfo | null>(null);
-  const [driveId, setDriveId] = useState<string>("");
+  const [shared, setShared] = useState<SharedFolder[]>([]);
+  const [sourceKey, setSourceKey] = useState<string>("");
   const [dir, setDir] = useState<string>("");
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const sources: Source[] = [
+    ...(info?.drives ?? []).map((d) => ({
+      key: `d:${d.id}`,
+      label: d.name,
+      driveId: d.id,
+      root: d.root,
+      group: "mine" as const,
+    })),
+    ...shared.map((f) => ({
+      key: `l:${f.id}`,
+      label: `${f.name}${f.sharedBy ? ` · ${f.sharedBy}` : ""}`,
+      driveId: f.driveId,
+      root: f.root,
+      linkId: f.id,
+      group: "shared" as const,
+    })),
+  ];
+  const source = sources.find((x) => x.key === sourceKey);
+
+  const open = (s: Source | undefined) => {
+    if (!s) return;
+    setSourceKey(s.key);
+    setDir(s.root);
+  };
+
   useEffect(() => {
     let alive = true;
-    void loadAindriveInfo().then((i) => {
+    void Promise.all([
+      loadAindriveInfo(),
+      fetch("/api/aindrive/shared")
+        .then((r) => (r.ok ? r.json() : { folders: [] }))
+        .then((d: { folders: SharedFolder[] }) => d.folders)
+        .catch(() => [] as SharedFolder[]),
+    ]).then(([i, folders]) => {
       if (!alive) return;
       setInfo(i);
+      setShared(folders);
       const first = i.drives.find((d) => d.online !== false) ?? i.drives[0];
       if (first) {
-        setDriveId(first.id);
+        setSourceKey(`d:${first.id}`);
         setDir(first.root);
+      } else if (folders[0]) {
+        setSourceKey(`l:${folders[0].id}`);
+        setDir(folders[0].root);
       }
     });
     return () => {
@@ -55,10 +112,16 @@ export function AindrivePicker({
     };
   }, []);
 
+  const browseQuery = source
+    ? source.linkId
+      ? new URLSearchParams({ link: source.linkId, path: dir })
+      : new URLSearchParams({ drive: source.driveId, path: dir })
+    : null;
+  const browseKey = browseQuery?.toString() ?? "";
   useEffect(() => {
-    if (!driveId) return;
+    if (!browseKey) return;
     let alive = true;
-    fetch(`/api/aindrive/browse?${new URLSearchParams({ drive: driveId, path: dir })}`)
+    fetch(`/api/aindrive/browse?${browseKey}`)
       .then(async (r) => {
         const d = (await r.json().catch(() => ({}))) as { entries?: Entry[]; error?: string };
         if (!alive) return;
@@ -74,7 +137,7 @@ export function AindrivePicker({
     return () => {
       alive = false;
     };
-  }, [driveId, dir, t]);
+  }, [browseKey, t]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,8 +147,8 @@ export function AindrivePicker({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const drive = info?.drives.find((d) => d.id === driveId);
-  const rootDir = drive?.root ?? "";
+  const driveId = source?.driveId ?? "";
+  const rootDir = source?.root ?? "";
   // breadcrumbs start at the offered folder — nothing above it can be opened
   const crumbs = dir.slice(rootDir.length).split("/").filter(Boolean);
 
@@ -106,22 +169,25 @@ export function AindrivePicker({
         <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
           <HardDrive size={16} className="text-neutral-400" />
           <h2 className="text-sm font-semibold">{t("aindrive에서 가져오기")}</h2>
-          {info && info.drives.length > 1 && (
+          {sources.length > 1 && (
             <select
               data-testid="aindrive-picker-drive"
-              value={driveId}
-              onChange={(e) => {
-                const d = info.drives.find((x) => x.id === e.target.value);
-                setDriveId(e.target.value);
-                setDir(d?.root ?? "");
-              }}
-              className="ml-2 rounded border border-neutral-200 px-1.5 py-0.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"
+              value={sourceKey}
+              onChange={(e) => open(sources.find((x) => x.key === e.target.value))}
+              className="ml-2 min-w-0 max-w-[16rem] rounded border border-neutral-200 px-1.5 py-0.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"
             >
-              {info.drives.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
+              {(["mine", "shared"] as const).map((g) => {
+                const inGroup = sources.filter((x) => x.group === g);
+                return inGroup.length ? (
+                  <optgroup key={g} label={g === "mine" ? t("내 aindrive") : t("팀스페이스에 공유된 폴더")}>
+                    {inGroup.map((x) => (
+                      <option key={x.key} value={x.key}>
+                        {x.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null;
+              })}
             </select>
           )}
           <button onClick={onClose} aria-label={t("닫기")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
@@ -137,30 +203,27 @@ export function AindrivePicker({
           {t("파일을 복사하지 않고 링크로 넣습니다. 드라이브의 파일이 바뀌면 미리보기도 바뀝니다.")}
         </p>
 
-        {info && info.configured && !info.connected ? (
+        {info && info.configured && !info.connected && !shared.length ? (
           <div className="p-4">
             <AindriveConnect
               onConnected={() =>
                 void loadAindriveInfo(true).then((i) => {
                   setInfo(i);
                   const first = i.drives.find((d) => d.online !== false) ?? i.drives[0];
-                  if (first) {
-                    setDriveId(first.id);
-                    setDir(first.root);
-                  }
+                  if (first) open({ key: `d:${first.id}`, label: first.name, driveId: first.id, root: first.root, group: "mine" });
                 })
               }
             />
           </div>
         ) : info && !info.configured ? (
           <p className="p-4 text-sm text-neutral-500">{t("이 서버에는 aindrive가 설정되어 있지 않습니다.")}</p>
-        ) : info && info.drives.length === 0 ? (
+        ) : info && sources.length === 0 ? (
           <p className="p-4 text-sm text-neutral-500">{t("가져올 수 있는 aindrive 폴더가 없습니다.")}</p>
         ) : (
           <>
             <nav className="flex flex-wrap items-center gap-0.5 px-4 py-2 text-xs text-neutral-500">
               <button data-testid="aindrive-picker-crumb-root" onClick={() => setDir(rootDir)} className="rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                {drive?.name ?? "aindrive"}
+                {source?.label ?? "aindrive"}
                 {rootDir ? ` / ${rootDir}` : ""}
               </button>
               {crumbs.map((c, i) => (

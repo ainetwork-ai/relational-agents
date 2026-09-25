@@ -8,7 +8,7 @@ use sui::test_scenario as ts;
 
 const ALICE: address = @0xA;
 const BOB: address = @0xB;
-const AVA: address = @0xEEE;
+const OUTSIDER: address = @0xEEE;
 
 #[test]
 fun members_can_write_and_dissolve() {
@@ -21,10 +21,10 @@ fun members_can_write_and_dissolve() {
     let mut agent = sc.take_shared<RelationalAgent>();
     assert!(agent.is_member(ALICE));
     assert!(agent.is_member(BOB));
-    assert!(!agent.is_member(AVA));
+    assert!(!agent.is_member(OUTSIDER));
     assert!(agent.status() == 0);
     agent.add_memory(
-        string::utf8(b"walrus://demo-egg-tart-blob"),
+        string::utf8(b"walrus://demo-family-blob"),
         string::utf8(b"date"),
         &clk,
         sc.ctx(),
@@ -51,7 +51,7 @@ fun non_member_cannot_add_memory() {
 
     relational_agent::create(ALICE, BOB, &clk, sc.ctx());
 
-    sc.next_tx(AVA);
+    sc.next_tx(OUTSIDER);
     let mut agent = sc.take_shared<RelationalAgent>();
     agent.add_memory(string::utf8(b"walrus://stolen"), string::utf8(b"date"), &clk, sc.ctx());
 

@@ -3,16 +3,16 @@ import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatRoomBots, chatRoomMembers, users } from "@/lib/db/schema";
-import { buyEggTarts } from "@/lib/agent/spend";
+import { buySongpyeon } from "@/lib/agent/spend";
 
 export const dynamic = "force-dynamic";
 
 /**
  * The agent spends.
  *
- * A member asks their relationship agent to buy from Tarts&Co. The agent pays
+ * A member asks their relationship agent to buy from 달빛떡집. The agent pays
  * with its OWN wallet, then presents the payment to the seller, which decides
- * whether two humans stand behind it. Either answer — the tarts or the refusal
+ * whether two humans stand behind it. Either answer — the songpyeon or the refusal
  * — is posted back into the room by the agent, because the room is where the
  * relationship can see what its agent did with its money.
  */
@@ -43,6 +43,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
     .limit(1);
   if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const out = await buyEggTarts(agentUserId, bot.roomId, req.nextUrl.origin);
+  const out = await buySongpyeon(agentUserId, bot.roomId, req.nextUrl.origin);
   return NextResponse.json(out.body, { status: out.status });
 }

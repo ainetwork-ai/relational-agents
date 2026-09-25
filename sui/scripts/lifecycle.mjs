@@ -50,7 +50,7 @@ const args = parseArgs(process.argv.slice(2));
 const SUI = args.sui ?? process.env.SUI_BIN ?? "sui";
 const CONFIG = args.config ?? process.env.SUI_CLIENT_CONFIG ?? null;
 const OUT = resolve(args.out ?? resolve(HERE, "..", "lifecycle.json"));
-const BLOB = args.blob ?? "walrus://demo-egg-tart-blob";
+const BLOB = args.blob ?? "walrus://demo-family-blob";
 const KIND = args.kind ?? "date";
 
 /** Run the CLI. Returns { ok, stdout, stderr } instead of throwing, because a

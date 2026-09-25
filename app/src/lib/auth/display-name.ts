@@ -37,9 +37,16 @@ export function fallbackDisplayName(address: string): string {
   return `User-${address.slice(0, 8)}`;
 }
 
-/** Auto-generated 1:1 relationship room title — creator first. Single source of
- *  truth: room creation and rename propagation must agree byte-for-byte. */
+/** Auto-generated 1:1 relationship room title — creator first, e.g. "엄마 · 아빠".
+ *  Single source of truth: room creation and rename propagation must agree
+ *  byte-for-byte. */
 export function relationshipRoomName(creator: string, partner: string): string {
+  return `${creator} · ${partner}`;
+}
+
+/** The title rooms were given before the family demo (2026-09-24) — rename
+ *  propagation still recognises it so those rooms keep following renames. */
+function legacyRoomName(creator: string, partner: string): string {
   return `${creator} ❤️ ${partner}`;
 }
 
@@ -171,7 +178,8 @@ export async function propagateDisplayName(
     const nameBefore = (m: { userId: string; displayName: string }) =>
       m.userId === userId ? oldName : m.displayName;
     const stale = relationshipRoomName(nameBefore(creator), nameBefore(partner));
-    if (room.name !== stale) continue;
+    const staleLegacy = legacyRoomName(nameBefore(creator), nameBefore(partner));
+    if (room.name !== stale && room.name !== staleLegacy) continue;
 
     const fresh = relationshipRoomName(creator.displayName, partner.displayName);
     await db.update(chatRooms).set({ name: fresh }).where(eq(chatRooms.id, room.id));

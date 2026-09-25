@@ -14,9 +14,7 @@
     "emoji:gen": "tsx --tsconfig scripts/tsconfig.json scripts/gen-emoji-data.mts",
     "emoji:check": "tsx --tsconfig scripts/tsconfig.json scripts/check-emoji-data.mts",
     "check:dismiss": "tsx --tsconfig scripts/tsconfig.json scripts/check-dismiss.mts",
-    "demo:cast": "tsx scripts/demo-cast.mts",
-    "demo:seed": "tsx --tsconfig scripts/tsconfig.json scripts/seed-demo-room.mts",
-    "demo:ask": "tsx --tsconfig scripts/tsconfig.json scripts/demo-ask.mts"
+    "demo:family": "tsx --tsconfig scripts/tsconfig.json scripts/seed-family-demo.mts"
   },
   "dependencies": {
     "@ainblockchain/ain-js": "^1.15.0",

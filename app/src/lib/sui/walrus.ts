@@ -9,7 +9,7 @@
  *
  * This module deliberately speaks the Walrus HTTP publisher/aggregator protocol
  * rather than pulling in `@mysten/walrus`: the same two functions then work in
- * the browser, in a route handler, and in `sui/scripts/walrus-seal.mjs`, with no
+ * the browser, in a route handler, and in `archive/couple/sui/scripts/walrus-seal.mjs`, with no
  * WAL-token plumbing in the request path.
  */
 

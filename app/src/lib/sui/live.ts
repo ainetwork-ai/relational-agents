@@ -60,7 +60,7 @@ export function suiLiveEnabled(): boolean {
 
 /**
  * gRPC, not JSON-RPC: the fullnode's JSON-RPC endpoint now answers 404, and
- * gRPC is the transport `sui/scripts/walrus-seal.mjs` was proven against.
+ * gRPC is the transport `archive/couple/sui/scripts/walrus-seal.mjs` was proven against.
  */
 let clientMemo: SuiGrpcClient | null = null;
 export function suiLiveClient(): SuiGrpcClient {

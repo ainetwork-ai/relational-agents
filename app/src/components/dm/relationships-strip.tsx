@@ -25,14 +25,15 @@ interface PageRow {
   isArchived: boolean;
 }
 
-/** A title side → a comparable key: "❤️ Ada Park" / "Bo ❤️ Ada Park" → "ada park" */
+/** A title side → a comparable key: "· 할머니" / "엄마 · 할머니" → "할머니" */
 const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
-const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥)+/u;
+// " · " is how rooms are named now; the hearts are how they were named before
+const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥|\s·\s)+/u;
 
-/** Doc titles read "Relationship doc — <me> ❤️ <partner>" (rooms are named
- * "<me> ❤️ <partner>" — see lib/auth/display-name) and the face belongs to
+/** Doc titles read "Family doc — <me> · <partner>" (rooms are named
+ * "<me> · <partner>" — see lib/auth/display-name) and the face belongs to
  * whichever side isn't the viewer. Split on the heart rather than on every
  * symbol, because a name may carry hyphens of its own; the trailing "-<room6>"
  * an OKF doc folder ends in (lib/agent/okf-docs) is stripped separately.
@@ -51,12 +52,12 @@ const partnerOf = (title: string, myName?: string | null) => {
 };
 
 /** File-primary relationship docs are OKF root folders titled
- * "Relationship doc — <A> ❤️ <B>" (관계 문서 — …). */
+ * "Family doc — <A> · <B>" (가족 문서 — …; older ones "Relationship doc — A ❤️ B"). */
 const isRelationshipDoc = (title: string) =>
-  /^(relationship doc|관계 문서)\s*—/i.test(title.trim());
+  /^(relationship doc|관계 문서|family doc|가족 문서)\s*—/i.test(title.trim());
 
 /** Sidebar Chats tab, horizontal people strip: one round face per relation.
- * Faces come from file-primary OKF docs titled "Relationship doc — A ❤️ B"
+ * Faces come from file-primary OKF docs titled "Family doc — A · B"
  * (agent-maintained; okf_acl scopes them to participants) and from
  * agent-attached 1:1 rooms, which are relations before their first doc page
  * exists. Hidden when the viewer has neither. */
@@ -90,7 +91,7 @@ export function RelationshipsStrip() {
         );
         const memberNames = new Set(memberByKey.keys());
 
-        // file-primary OKF docs — root pages titled "Relationship doc — A ❤️ B"
+        // file-primary OKF docs — root pages titled "Family doc — A · B"
         // (the agent-maintained ones; okf_acl already scoped them to us)
         const okfDocs = pages.filter((p) => !p.isArchived && isRelationshipDoc(p.title));
 
