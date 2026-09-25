@@ -51,6 +51,16 @@ test("mandate sign refuses a non-positive cap before anything is signed", () => 
   rejects(r, /usage: mandate sign .*perRun must be positive/);
 });
 
+// An id that is not in the passbook is a typo, not a crash. Printing node's stack trace here sent
+// the operator reading viem and module-loader frames to learn they mistyped an id they can see in
+// `mandate sign`'s own output. The same catch covers the id that was never typed at all.
+test("mandate revoke of an unknown id is a usage error, not a stack trace", () => {
+  const r = cli(["src/cli/mandate.js", "revoke", "m-nope"]);
+  rejects(r, /^usage: mandate revoke <id>\s+— no mandate "m-nope"$/m);
+  assert.doesNotMatch(r.stderr, /node:internal|node_modules/, "no stack trace reaches the operator");
+  rejects(cli(["src/cli/mandate.js", "revoke"]), /^usage: mandate revoke <id>\s+— no mandate "undefined"$/m);
+});
+
 test("mandate sign refuses a cap that is not a decimal number", () => {
   const r = cli(["src/cli/mandate.js", "sign", "20", "abc"], { AGENT_PK: ANVIL_KEY_9, MEMBER_PK: ANVIL_KEY_4 });
   rejects(r, /usage: mandate sign .*perPeriod "abc" is not a decimal amount/);

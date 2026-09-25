@@ -11,8 +11,13 @@ const [cmd, a, b, c] = process.argv.slice(2);
 const chain = chainByName();
 const ledger = ledgerByName();
 
-const usage = (reason) => {
-  console.error(`usage: mandate sign [perRun] [perPeriod] [days] | mandate revoke <id>${reason ? `  — ${reason}` : ""}`);
+// One way out for every refused command: the form that would have worked, then why this one did
+// not. `form` is the subcommand the operator actually typed — someone revoking does not need the
+// sign arguments to find their mistake.
+const SIGN = "mandate sign [perRun] [perPeriod] [days]";
+const REVOKE = "mandate revoke <id>";
+const usage = (form, reason) => {
+  console.error(`usage: ${form}${reason ? `  — ${reason}` : ""}`);
   process.exit(2);
 };
 
@@ -26,8 +31,8 @@ if (cmd === "sign") {
   // decimal string in USDC's own units, and refuses "abc" instead of signing NaN.
   const cap = (value, what) => {
     let amount;
-    try { amount = parseUnits(value, d); } catch { usage(`${what} "${value}" is not a decimal amount`); }
-    if (amount <= 0n) usage(`${what} must be positive`);
+    try { amount = parseUnits(value, d); } catch { usage(SIGN, `${what} "${value}" is not a decimal amount`); }
+    if (amount <= 0n) usage(SIGN, `${what} must be positive`);
     return amount;
   };
   const m = {
@@ -44,8 +49,17 @@ if (cmd === "sign") {
   await ledger.addMandate(m);
   console.log(JSON.stringify({ ...m, perRunCap: m.perRunCap.toString(), perPeriodCap: m.perPeriodCap.toString() }, null, 2));
 } else if (cmd === "revoke") {
-  await ledger.revoke(a, Math.floor(Date.now() / 1000));
+  try {
+    await ledger.revoke(a, Math.floor(Date.now() / 1000));
+  } catch (err) {
+    // Only the ledger's "that id is not here". An unreadable or unwritable passbook is not the
+    // operator's typo and keeps its stack trace: told "no mandate", they would go on checking what
+    // they typed while the file is the problem. The wording is the coupling between the two files,
+    // and test/cli.test.js is what holds it — a renamed message rethrows and the test sees exit 1.
+    if (!/^no mandate /.test(String(err?.message))) throw err;
+    usage(REVOKE, `no mandate "${a}"`);
+  }
   console.log(JSON.stringify({ revoked: a }));
 } else {
-  usage();
+  usage(`${SIGN} | ${REVOKE}`);
 }
