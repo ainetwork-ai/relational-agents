@@ -1,0 +1,15 @@
+{
+  "name": "@relational-agents/family-vault",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Family Vault — a time-capsule savings vault on 1inch Aqua with a custom SwapVM (ETHGlobal Tokyo 2026)",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test -vv"
+  },
+  "devDependencies": {
+    "@1inch/aqua": "github:1inch/aqua#af53fc31b636c683a6b72cf4755f5aad089c12e8",
+    "@1inch/swap-vm": "github:1inch/swap-vm#be0a9cc840bb63b9f1abf864a39f4393e1a7312e"
+  }
+}
