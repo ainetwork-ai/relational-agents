@@ -20,6 +20,12 @@ export const SPEND_MANDATE_TYPES = {
 };
 
 export function mandateDomain(chainId) {
+  // viem builds the domain separator from the fields it recognises and drops the rest, so a string
+  // chainId is not a wrong binding but no binding: "8453", "1" and a missing chainId all produce
+  // the same digest, and a mandate signed for Base then verifies on every chain. Refuse it here —
+  // coercing would hide the caller's bug behind a signature that looks right.
+  if (typeof chainId !== "number" && typeof chainId !== "bigint")
+    throw new TypeError(`mandateDomain: chainId must be a number or bigint, got ${typeof chainId}`);
   return { name: "ainmem Family Passbook", version: "1", chainId };
 }
 
