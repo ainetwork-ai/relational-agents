@@ -47,13 +47,77 @@ Rules:  ₩100,000 미만 지출        → Agent 자동 실행
 - **"왜 에이전트가 필요한가?"** — 모임 회계는 노동(걷기·독촉·장부·정산)이고, 총무 1인이 단일 장애점(유용·잠적). 노동은 에이전트가, 권한은 인간이.
 - **"왜 지갑인가?"** — 지갑 소유권(에이전트)과 인간 권한(World ID)의 분리가 이 구조의 발명. Human → World Verification → Relation Membership → Agent Authorization → Wallet → Transaction.
 
-## 5. 구현 계획 (Continuity: 기존 자산 위에)
+## 5. 구현 계획 v2 (2026-09-25 재검토 — 스토리 구체화 반영)
 
-재사용: 룸/멤버/채팅, **에이전트 지갑(이미 룸마다 발급됨 — 공동지갑 D)**, 원장 대시보드(카운터±색/차트), watcher 패턴, 서명·알림 플로우.
-신규: ① sandbox OIDC 연동(/api/auth/world/*, sub 바인딩) ② Relation Policy(규칙) + 에이전트의 보호행동 분류 ③ 다중 승인 흐름(정족수=고유 sub 수) ④ 온체인 집행(송금+스왑) ⑤ 데모·디브리프 문서.
+### 설계 원칙 (스토리에서 온 것)
+
+- **별도 앱 아님.** Relation Agent = AINmem(기억/규칙) + AINDrive(데이터/권한, P2) +
+  Wallet(공동자산)을 잇는 기존 제품의 새 capability. 해커톤 데모와 제품 아키텍처가 동일.
+- **정책은 설정 화면이 아니라 관계의 기억이다.** Treasury Rules는 관계 문서(OKF)의
+  섹션으로 존재하고, 에이전트가 그걸 읽어 인용하며 판단한다 —
+  *"I know who we are, what our relationship is, and what we agreed to."*
+  단, **집행은 결정적 코드**: 문서의 규칙 표를 타입드 정책으로 파싱해 정족수·한도를
+  코드가 비교한다. LLM은 명령 분류와 사유 설명만 담당 (파싱 실패 = 실행 거부가 기본값).
+- **차단은 2계층**: ① 정책 위반(개인 출금 불허 등) → 승인 요청조차 없이 거절 + 기억 인용
+  설명 ② 허용되지만 큰 행동 → 정족수 미달이면 미실행. 데모의 상황②는 ①이 주인공.
+- **모든 결정이 다시 기억이 된다**: 승인·집행·거절이 관계 문서(Treasury Activity)와
+  원장 대시보드에 기록 — AINmem이 relation의 financial memory.
+
+### Continuity 자산 (재조사 결과 — 생각보다 훨씬 많다)
+
+| 이미 있는 것 | 어디에 |
+|---|---|
+| **World ID 통합 (7월)**: IDKit v4 서버 검증 + dev-simulator 폴백, 인증 버튼 UI, consent의 인당 nullifier 바인딩, 온체인 Sybil 가드("한 인간이 관계 양쪽 불가") | `app/src/lib/worldid.ts`, `components/dm/world-id-button.tsx`, `api/worldid/verify`, `contracts/RelationalAgentRegistry.sol` + `PersonhoodAttestations.sol` |
+| 룸별 에이전트 지갑 (공동지갑 D) | `lib/agent/agentkit.ts` (`provisionRoomAgent`) |
+| 룸/멤버/채팅/에이전트 파이프라인 + OKF 기억·근거 인용 | `lib/agent/*`, okf-docs |
+| 멀티 계정 데모 로그인(멤버 전환), agent dock 패널 | PR #5 (family demo) |
+| 원장 대시보드 위젯(±색 카운터/차트), watcher 패턴 | 이번 해커톤 1inch 단계 |
+
+→ **Continuity 서사**: "7월엔 에이전트의 *탄생*에 인간 증명을 물었다(consent 시
+nullifier 바인딩). 이번 주말엔 *돈이 움직이는 모든 순간*에 같은 질문을 묻는다 —
+World의 새 IdP(for Agents)와 fresh 다중 승인으로."
+
+### 두 트랙 = 두 인증 표면, 한 제품
+
+- **IDKit 트랙**: 인앱 승인 버튼 = 기존 `world-id-button`/verify 경로 재사용, **새 신뢰
+  순간**(action `treasury-approval`, 승인 건별 nullifier). 크레덴셜 최소충분 논리 그대로.
+- **Agents 트랙**: 신규 sandbox IdP(OIDC step-up) — 에이전트 흐름에서 챌린지 → World
+  인증 → pairwise sub 검증 → 보호 행동. (P1: notion-mcp의 treasury 도구에 step-up 챌린지
+  — 워크숍 데모와 같은 구조를 우리 MCP에서.)
+
+### P0 — 반드시 (순서대로)
+
+1. **[진행 중] World IdP OIDC** — `lib/auth/world.ts`+`/api/auth/world/connect` 작성됨.
+   남은 것: callback(백엔드 JWKS 검증→`users.worldSub` 바인딩), 검증 상태 API, dev DB
+   컬럼 push. 크리덴셜 전엔 로컬 목 IdP로 개발(기존 worldid.ts의 simulator 폴백과 동형).
+2. **Relation Policy** — 관계 문서의 "Treasury Rules" 섹션(마크다운 표) → 결정적 파서
+   → 타입드 정책. 룸 시드에 규칙 포함.
+3. **에이전트 보호행동 분류 + 승인 흐름** — 파이프라인에서 자연어 명령 → 행동/금액 분류
+   → 정책 대조 → (a) 정책 위반: 기억 인용 거절 (b) 승인 필요: 승인 요청 카드(채팅+알림)
+   → 멤버별 인증(IDKit 버튼 or IdP 링크) → **고유 sub/nullifier 수로 정족수** → 실행.
+   거부 경로 4종: 정책 위반 / 정족수 미달 / 부계정 sub 충돌 / 미인증 멤버.
+4. **온체인 집행 1종 + 기록** — 에이전트 지갑에서 이체(호텔 결제 장면), 결과를 관계
+   문서 Treasury Activity + 원장 대시보드에 기록. 멤버 인증 배지(✓ Verified Human) 표시.
+
+### P1 — 있으면 강력
+
+- Uniswap 스왑 장면 (Base 포크, 사전 구성 — 실시장 변수 제거), 운용 후 호텔 엔딩
+- notion-mcp treasury 도구 + step-up 챌린지 (외부 에이전트(Claude Code)가 명령하는 장면)
+- 에이전트의 거절/승인 사유 자연어 설명 고도화 (Why was this blocked? 장면)
+
+### P2 — 제품 확장 (이번엔 문서 언급만)
+
+- AINDrive 권한 부여를 같은 승인 흐름으로 ("돈과 데이터에 같은 정책"), x402 결제 연동
+
+### W5 문서 — 데모 대본(3분, 호텔 엔딩) + **integration debrief 2종**(두 트랙 공통
+요구: time-to-success/마찰/개선 1가지) + README(영어) + 폼.
 
 ## 6. 남은 일 & 리스크
 
-- [ ] sandbox 앱 등록 (world-id-agent-plugin / 포털 — 콜백 HTTPS 필요, 인터랙티브 로그인은 사람 필요)
-- [ ] 데모 영상 육성 녹음
-- 리스크: 마감 09-27 09:00 JST. 운용(스왑) 장면은 실시장 대신 포크/사전 시나리오로 고정 (변수 제거)
+- [ ] **sandbox IdP 클라이언트 등록** — world-id-agent-plugin(Claude Code) 또는 포털.
+      인터랙티브 로그인·20분 승인 창은 사람 필요 → 시점 되면 사용자에게 요청.
+      폴백: IDKit 트랙은 기존 simulator 경로로 무등록 데모 가능, Agents 트랙은 등록 필수.
+- [ ] HTTPS 콜백 = `https://ainmem.ainetwork.ai/api/auth/world/callback` (배포본 도메인)
+- [ ] 데모 영상 육성 녹음 (사용자)
+- 리스크: 마감 09-27 09:00 JST (~1.5일). P0가 전부, P1은 시간 남으면. 데모 계정은
+  family demo의 멤버 전환 재사용, "Tokyo Trip" 5인 룸 시드.
