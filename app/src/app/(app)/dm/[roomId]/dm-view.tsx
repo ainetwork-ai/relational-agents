@@ -10,6 +10,7 @@ import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
 import { ConsentBanner } from "@/components/dm/consent-banner";
+import { TreasuryPanel } from "@/components/treasury/treasury-panel";
 import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import { AgentSettings } from "@/components/dm/agent-settings";
@@ -878,6 +879,7 @@ export function DmView({
       {variant !== "call" && (
         <>
           <ConsentBanner roomId={roomId} />
+          <TreasuryPanel roomId={roomId} />
           <DissolveBanner roomId={roomId} />
         </>
       )}
