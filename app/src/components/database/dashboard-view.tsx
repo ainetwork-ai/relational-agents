@@ -262,9 +262,12 @@ export function DashboardView({ view }: { view: DbView }) {
     const fmtV = (v: number) => v.toLocaleString("en-US", { notation: Math.abs(v) >= 10_000 ? "compact" : "standard", maximumFractionDigits: 2 });
     const fmtT = (tm: number) => {
       const d = new Date(tm);
-      return t1 - t0 < 2 * 86_400_000
-        ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-        : `${d.getMonth() + 1}/${d.getDate()}`;
+      const span = t1 - t0;
+      if (span < 2 * 86_400_000)
+        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      // multi-year ranges label by year — "9/25 … 9/20" says nothing about 18 years
+      if (span >= 2 * 365 * 86_400_000) return String(d.getFullYear());
+      return `${d.getMonth() + 1}/${d.getDate()}`;
     };
 
     // candles: open/high/low/close of the y values inside each time bucket
