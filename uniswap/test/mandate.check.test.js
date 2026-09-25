@@ -45,3 +45,8 @@ test("a one-off mandate may run in a period that already had a standing buy", ()
 test("a revoked mandate reports revoked even if also expired", () => {
   assert.equal(checkMandate(mandate({ revokedAt: 1, expiresAt: 1 }), emptyView(), intent(), now).reason, "revoked");
 });
+
+test("token comparison is case-insensitive (chain-returned addresses are often lowercase)", () => {
+  const r = checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenIn: USDC.toLowerCase(), tokenOut: WETH.toUpperCase().replace("0X", "0x") }), now);
+  assert.equal(r.ok, true);
+});
