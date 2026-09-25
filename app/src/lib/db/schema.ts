@@ -42,6 +42,11 @@ export const users = pgTable("users", {
   // "aindrive로 로그인" and by connecting aindrive in-app, so either path lands
   // on the same account. Keyed on the aindrive id, never adopted by email.
   aindriveSub: text("aindrive_sub").unique(),
+  // World ID (Human Continuity IdP) pairwise subject — proof that a unique
+  // human stands behind this account. Set by /api/auth/world/callback; the
+  // treasury approval quorum counts DISTINCT worldSub values, not accounts.
+  worldSub: text("world_sub").unique(),
+  worldVerifiedAt: timestamp("world_verified_at"),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
  // /home dashboard cover the user picked (uploaded or built-in); null = default
