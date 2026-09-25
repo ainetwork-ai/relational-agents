@@ -78,10 +78,12 @@ export function devNullifier(userId: string, action: string): string {
  * Verifies an IDKit proof against the Worldcoin cloud verifier.
  * `signal` binds the proof to this specific relationship (the relationId), so a
  * proof harvested for one relationship cannot be replayed into another.
+ * `action` must match the one the widget ran (the nullifier is per app+action).
  */
 export async function verifyCloudProof(
   proof: IdKitProof,
-  signal: string
+  signal: string,
+  action: string = WORLD_ID_ACTION
 ): Promise<VerifyResult> {
   const appId = worldIdAppId();
   if (!appId) return { ok: false, error: "World ID is not configured" };
@@ -95,7 +97,7 @@ export async function verifyCloudProof(
       merkle_root: proof.merkle_root,
       proof: proof.proof,
       verification_level: proof.verification_level,
-      action: WORLD_ID_ACTION,
+      action,
       signal_hash: hashSignal(signal),
     }),
   }).catch((err) => {
