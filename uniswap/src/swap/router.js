@@ -51,22 +51,30 @@ export function routerProvider(chain) {
       args: [{ tokenIn: intent.tokenIn, tokenOut: intent.tokenOut, fee: v3FeeTier,
                recipient: intent.recipient, amountIn: intent.amountIn, amountOutMinimum,
                sqrtPriceLimitX96: 0n }] });
-    const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
-    if (receipt.status !== "success") throw new Error(`swap reverted: ${txHash}`);
+    // The swap is broadcast from here on, so every failure below is ambiguous — a timeout or an
+    // undecodable receipt does not mean the tokens stayed put. Carry the hash out with the error so
+    // the caller can file a refusal that names the transaction instead of one that denies it.
+    try {
+      const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
+      if (receipt.status !== "success") throw new Error(`swap reverted: ${txHash}`);
 
-    // 3. what THIS swap moved, taken from its own Transfer logs. A balance read either side of the
-    //    swap would also count anything else that credited the recipient in the same window — two
-    //    buys sharing a recipient would each report the other's fill, into the family's passbook.
-    const credits = parseEventLogs({ abi: erc20Abi, logs: receipt.logs, eventName: "Transfer" })
-      .filter((log) => log.address.toLowerCase() === intent.tokenOut.toLowerCase()
-        && log.args.to.toLowerCase() === intent.recipient.toLowerCase());
-    if (credits.length === 0)
-      throw new Error(`swap ${txHash} credited no ${intent.tokenOut} to ${intent.recipient}`);
-    const amountOut = credits.reduce((sum, log) => sum + log.args.value, 0n);
-    const inWhole = Number(intent.amountIn) / 10 ** decimalsOf(intent.tokenIn);
-    const outWhole = Number(amountOut) / 10 ** decimalsOf(intent.tokenOut);
-    return { txHash, amountIn: intent.amountIn, amountOut, price: inWhole / outWhole,
-             route: priced.route, provider: "router" };
+      // 3. what THIS swap moved, taken from its own Transfer logs. A balance read either side of the
+      //    swap would also count anything else that credited the recipient in the same window — two
+      //    buys sharing a recipient would each report the other's fill, into the family's passbook.
+      const credits = parseEventLogs({ abi: erc20Abi, logs: receipt.logs, eventName: "Transfer" })
+        .filter((log) => log.address.toLowerCase() === intent.tokenOut.toLowerCase()
+          && log.args.to.toLowerCase() === intent.recipient.toLowerCase());
+      if (credits.length === 0)
+        throw new Error(`swap ${txHash} credited no ${intent.tokenOut} to ${intent.recipient}`);
+      const amountOut = credits.reduce((sum, log) => sum + log.args.value, 0n);
+      const inWhole = Number(intent.amountIn) / 10 ** decimalsOf(intent.tokenIn);
+      const outWhole = Number(amountOut) / 10 ** decimalsOf(intent.tokenOut);
+      return { txHash, amountIn: intent.amountIn, amountOut, price: inWhole / outWhole,
+               route: priced.route, provider: "router" };
+    } catch (err) {
+      if (err && typeof err === "object") err.txHash = txHash;
+      throw err;
+    }
   }
 
   return { quote, execute, pub };

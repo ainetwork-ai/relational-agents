@@ -2,11 +2,17 @@ import { checkMandate } from "./mandate/index.js";
 
 const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 
+// The bound handed to every quote. Not a mandate field yet: the family signs caps and a pair, not
+// how much slippage their agent may accept.
+const SLIPPAGE_BPS = 50;
+
 /**
  * One run of the family's tsumitate. Idempotent: the mandate's period key decides whether this
  * run may buy, so a scheduler can wake it as often as it likes. Every outcome the run decides is
  * written to the passbook — a refusal is a line the family reads, not a silent no-op; a malformed
  * mandate or clock is an error, not an outcome, and propagates instead of being filed as a skip.
+ * A swap-failed skip that carries a txHash means money may have moved and the period is NOT marked
+ * bought — a follow-up must reconcile it.
  */
 export async function runOnce({ ledger, swap, account, chain, now = new Date(), mandateId }) {
   const view = await ledger.view();
@@ -18,11 +24,11 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   if (!m) return { outcome: "no-mandate" };
 
   const intent = { chainId: chain.chainId, tokenIn: m.tokenIn, tokenOut: m.tokenOut,
-    amountIn: m.perRunCap, recipient: account.address, slippageBps: 50 };
+    amountIn: m.perRunCap, recipient: account.address, slippageBps: SLIPPAGE_BPS };
   const verdict = checkMandate(m, view, intent, now);
   // Both verdict shapes carry periodKey, so a refusal is filed under the period it was refused for.
-  const skip = (reason) => ledger.record({ at: now.toISOString(), kind: "skip", who: account.address,
-    mandateId: m.id, periodKey: verdict.periodKey, reason });
+  const skip = (reason, extra) => ledger.record({ at: now.toISOString(), kind: "skip", who: account.address,
+    mandateId: m.id, periodKey: verdict.periodKey, reason, ...extra });
 
   if (!verdict.ok) {
     await skip(verdict.reason);
@@ -32,8 +38,15 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   // A swap that throws is this run's outcome, not a crash: the passbook says the week was missed
   // and why. Recording a skip rather than a buy also leaves the period open, so the next run retries.
   const failed = async (err) => {
-    await skip(`swap-failed: ${err.message}`);
-    return { outcome: "skipped", reason: "swap-failed", periodKey: verdict.periodKey, error: err.message };
+    // Never `err.message`: viem's BaseError puts the RPC URL and the request body in it, so an API
+    // key in RPC_URL would be written into the family's passbook. `shortMessage` is the safe half,
+    // and String() keeps a non-Error throw from being filed as "undefined".
+    const detail = String(err?.shortMessage ?? err?.message ?? err).slice(0, 200);
+    // Set by the provider once the swap is broadcast: the transaction may have landed even though
+    // this call failed, so the skip names it rather than implying nothing happened.
+    const landed = err?.txHash ? { txHash: err.txHash } : undefined;
+    await skip(`swap-failed: ${detail}`, landed);
+    return { outcome: "skipped", reason: "swap-failed", periodKey: verdict.periodKey, error: detail, ...landed };
   };
 
   let quote;

@@ -25,8 +25,8 @@ const fakeSwap = () => {
 // The same provider with one thing wrong — the branches that are not the happy path.
 const dryPool = () => { const s = fakeSwap(); return { ...s,
   quote: async (i) => { s.calls.quote++; return { provider: "fake", amountIn: i.amountIn, amountOutExpected: 0n, route: "fake", raw: null, intent: i }; } }; };
-const revertingSwap = (message) => { const s = fakeSwap(); return { ...s,
-  execute: async () => { s.calls.execute++; throw new Error(message); } }; };
+const revertingSwap = (thrown) => { const s = fakeSwap(); return { ...s,
+  execute: async () => { s.calls.execute++; throw thrown; } }; };
 
 const fresh = () => fileLedger(join(mkdtempSync(join(tmpdir(), "tsumitate-")), "passbook.json"));
 const raw = (ledger) => JSON.parse(readFileSync(ledger.path, "utf8"));
@@ -40,6 +40,12 @@ test("first run of the week buys the per-run amount and records it", async () =>
   const v = await ledger.view();
   assert.deepEqual(v.boughtPeriods, { "m-1": ["2026-W39"] });
   assert.equal(swap.calls.execute, 1);
+  const entry = raw(ledger).entries.at(-1);
+  assert.equal(entry.kind, "buy");
+  assert.equal(entry.txHash, "0x" + "ab".repeat(32), "the family's receipt is the tx hash");
+  assert.equal(typeof entry.price, "number", "price stays a number on disk, not a bigint string");
+  assert.equal(entry.who, agent.address);
+  assert.equal(entry.at, friday.toISOString());
 });
 
 test("second run in the same week skips without quoting; next week buys again", async () => {
@@ -117,7 +123,7 @@ test("a dry pool is a recorded skip, not a zero-amount buy", async () => {
 
 test("a swap that throws is an outcome: skipped, with the error in the passbook", async () => {
   const ledger = fresh(); await ledger.addMandate(mandate());
-  const r = await runOnce({ ledger, swap: revertingSwap("router reverted"), account: agent, chain, now: friday });
+  const r = await runOnce({ ledger, swap: revertingSwap(new Error("router reverted")), account: agent, chain, now: friday });
   assert.equal(r.outcome, "skipped"); assert.equal(r.reason, "swap-failed");
   assert.equal(r.periodKey, "2026-W39"); assert.equal(r.error, "router reverted");
   const last = raw(ledger).entries.at(-1);
@@ -134,6 +140,37 @@ test("a quote that throws is an outcome too, and nothing is signed", async () =>
   const r = await runOnce({ ledger, swap, account: agent, chain, now: friday });
   assert.equal(r.outcome, "skipped"); assert.equal(r.reason, "swap-failed"); assert.equal(r.error, "rpc down");
   assert.equal(raw(ledger).entries.at(-1).reason, "swap-failed: rpc down");
+});
+
+test("a swap failure is recorded without the RPC secrets viem puts in err.message", async () => {
+  const ledger = fresh(); await ledger.addMandate(mandate());
+  // The shape viem's HttpRequestError has: shortMessage is safe, message carries the URL and body.
+  const leaky = { shortMessage: "HTTP request failed.",
+    message: "HTTP request failed.\nURL: https://rpc.example/v2/SECRET_KEY_123\nRequest body: {}" };
+  const r = await runOnce({ ledger, swap: revertingSwap(leaky), account: agent, chain, now: friday });
+  const last = raw(ledger).entries.at(-1);
+  assert.match(last.reason, /HTTP request failed\./, "the family still reads why");
+  assert.ok(!last.reason.includes("SECRET"), `the passbook reason was "${last.reason}"`);
+  assert.ok(!JSON.stringify(r).includes("SECRET"), "and the returned result must not carry it either");
+  assert.equal(r.reason, "swap-failed");
+});
+
+test("a non-Error throw still reads as a reason, not as undefined", async () => {
+  const ledger = fresh(); await ledger.addMandate(mandate());
+  const r = await runOnce({ ledger, swap: revertingSwap("boom"), account: agent, chain, now: friday });
+  assert.equal(raw(ledger).entries.at(-1).reason, "swap-failed: boom");
+  assert.equal(r.error, "boom");
+});
+
+test("a swap that failed after broadcast carries its tx hash into the passbook", async () => {
+  const ledger = fresh(); await ledger.addMandate(mandate());
+  const txHash = "0x" + "cd".repeat(32);
+  const err = new Error("swap credited no WETH to the recipient"); err.txHash = txHash;
+  const r = await runOnce({ ledger, swap: revertingSwap(err), account: agent, chain, now: friday });
+  const last = raw(ledger).entries.at(-1);
+  assert.equal(last.kind, "skip"); assert.equal(last.txHash, txHash, "money may have moved — name the transaction");
+  assert.equal(r.txHash, txHash);
+  assert.deepEqual((await ledger.view()).boughtPeriods, {}, "and the period is still not marked bought");
 });
 
 test("a malformed mandate is an error, not an outcome: it propagates and writes nothing", async () => {
