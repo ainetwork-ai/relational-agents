@@ -112,6 +112,30 @@ World의 새 IdP(for Agents)와 fresh 다중 승인으로."
 - **디브리프는 hour-0부터 타임스탬프 로그** → IDKit/IdP 각 1부. 커밋은 작업 단위마다
   제출 리포(origin=relational-agents, 확인 완료)에 즉시.
 
+### v3.1 (구현 착수 시 확정, 2026-09-26 00:10) — 표면↔순간 재배치
+
+리뷰 합의("건별 fresh", "표면 고정 매핑")를 유지하되 **어느 표면이 어느 순간을 맡는지**를
+트랙 문구에 맞춰 뒤집었다:
+
+- **승인(에이전트의 돈 이동 직전) = World ID for Agents IdP step-up** — Agents 트랙
+  문구가 정확히 "fresh verification at the moment"이고, 이벤트 공식 리소스가 sandbox
+  IdP(`sandbox.auth.world.org`)다. `max_age=0`+`prompt=login`, 서버에서 JWKS·nonce·
+  `auth_time ≥ action.createdAt` 검증, 정족수 = 액션별 DISTINCT pairwise sub.
+  같은 인간의 두 번째 계정 = 같은 sub → 무효(`treasury_approvals` unique).
+- **좌석(승인권) 획득 = IDKit Proof of Human** — "희소한 권리(표)에 대한 공정한 접근",
+  크레덴셜 최소충분 논리 그대로. signal=roomId, `treasury_seats(room, nullifier)` unique →
+  한 인간 한 좌석(IDKit 대안 경로 "ineligible user").
+- **IDKit v4 실모드 요건(문서 확인)**: rp_context는 요청마다 서버가 서명
+  (`signRequest` @worldcoin/idkit-core/signing, Portal의 RP signing key), 검증은
+  `developer.world.org/api/v4/verify/{rp_id}`로 결과를 그대로 전달, 테스트는
+  `environment="staging"` + simulator.worldcoin.org. 7월 코드의 정적 rp_context·v2
+  verify는 v4에서 유효하지 않음 → 시트 경로를 v4로 이식(빌드 후 후속 작업).
+- **Portal에서 받아야 할 값**: `app_id`, `rp_id`, RP signing key, action `treasury-seat`
+  등록. **sandbox IdP**: client_id/secret, redirect
+  `https://ainmem.ainetwork.ai/api/auth/world/callback`.
+- 공식 문서의 human-in-the-loop 가이드(IDKit 승인 + `${action}:${nullifier}` 1회 소비)가
+  우리 액션 바인딩 설계와 같은 원리임을 확인 — 디브리프에 인용.
+
 ### P0 — 확정 실행 순서 (총 ~30h, 크리티컬 패스 = 등록→배포→실IdP 검증→리허설)
 
 0. **[완료] 즉시 조치** — dev DB에 `world_sub`/`world_verified_at`/`teamspace_drives.backup`

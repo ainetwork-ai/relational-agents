@@ -1,0 +1,33 @@
+# World integration log (raw, timestamped — source for the two debriefs)
+
+Kept from hour 0 so the debrief reports measured times, not memory.
+Format: `JST time — surface — what happened`.
+
+- 2026-09-25 22:40 — IdP — sandbox OIDC discovery answered first try
+  (`/.well-known/openid-configuration`: authorize/token/jwks/device endpoints,
+  client_secret_basic|post|private_key_jwt). Friction: docs page for "World ID
+  for Agents" gives no endpoint list; had to read discovery directly.
+- 2026-09-25 22:50 — IdP — client registration is interactive (portal login +
+  20-min approval window) and HTTPS-only redirect → cannot iterate on
+  localhost; building a local mock IdP with the same discovery shape.
+- 2026-09-25 23:10 — IDKit — cross-review found the repo's July dev-simulator
+  path mints nullifiers server-side (never touches IDKit). Needs a Developer
+  Portal staging app + simulator.worldcoin.org for real proofs.
+- 2026-09-25 23:33 — hour 0 of implementation.
+- 2026-09-25 23:50 — both — design settled (plan v3.1): approvals of agent
+  actions = fresh World ID for Agents step-ups (sandbox IdP, max_age=0,
+  auth_time checked server-side, quorum = DISTINCT pairwise subs); seats =
+  IDKit Proof of Human (signal = roomId, one human one seat).
+- 2026-09-26 00:05 — IDKit — FRICTION: the repo's July integration read a
+  static `rp_context` JSON from env. IDKit v4 requires the RP to SIGN a fresh
+  context per request (nonce + created_at/expires_at, secp256k1 recoverable,
+  keccak — `signRequest` in @worldcoin/idkit-core/signing, key from the
+  Developer Portal). The overview page doesn't say this; only
+  /world-id/idkit/signatures.md does. Also: verify moved to
+  developer.world.org/api/v4/verify/{rp_id} (payload forwarded as-is); the
+  July code used developer.worldcoin.org/api/v2/verify/{app_id}.
+- 2026-09-26 00:05 — Agents — found docs.world.org/agents/human-in-the-loop:
+  IDKit-based approvals bound to an action string (`booking:${id}`), consumed
+  once on `${action}:${nullifier}`. Same binding idea as ours; the event's
+  World ID for Agents resources point at the sandbox IdP, so approvals stay on
+  the IdP and we bind to the action via state/nonce + auth_time.
