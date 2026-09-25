@@ -61,7 +61,7 @@ Mandate = { id, roomId, agent, kind: "standing" | "oneoff",
             tokenIn, tokenOut, perRunCap, perPeriodCap, period: "week",
             expiresAt, nonce, revokedAt?,
             approval?: { method: "wallet-signature" | string, subject, verifiedAt, ref } }
-typedData(m)                       → EIP-712 payload (domain shared with RelationConsent)
+typedData(m)                       → EIP-712 payload (own domain `ainmem Family Passbook`; same mechanism as RelationConsent, not the same domain)
 verify(m, signature)               → signer address | throws
 check(m, ledgerView, intent, now)  → { ok: true, decisionOrigin } | { ok: false, reason }
 ```
