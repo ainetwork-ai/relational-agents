@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { chatRoomBots, chatRoomMembers, chatRooms, users, workspaces } from "@/lib/db/schema";
-import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { chatRoomBots, chatRoomMembers, chatRooms, teamspaces, users, workspaces } from "@/lib/db/schema";
+import { visibleTeamspace } from "@/lib/aindrive-teamspace";
+import { workspaceForRequest } from "@/lib/workspace";
 import { provisionRoomAgent } from "@/lib/agent/provision";
 import { ASSISTANT_ROOM } from "@/lib/agent/assistant-room";
-import { sharedDriveSources } from "@/lib/agent/shared-drives";
+import { ownDriveSources, sharedDriveSources } from "@/lib/agent/shared-drives";
 import { driveOnline } from "@/lib/aindrive";
 import { runAsOrService } from "@/lib/aindrive-account";
 
@@ -14,17 +15,18 @@ export const dynamic = "force-dynamic";
 
 
 /**
- * GET → { roomId, agentId, agentName, drives: [{ label, owner, online }] }
+ * GET ?workspaceId= → { roomId, agentId, agentName, workspaceName, drives: [{ label, owner, online }] }
  *
  * The caller's own agent in the active workspace (the round button, bottom
  * right): a room of one person and one agent, made on first open. With nobody
  * else in the room, the agent reads every aindrive folder shared into the
  * teamspaces the caller can see — each family member's phone, read as them.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  const workspaceId = await getDefaultWorkspaceId(auth.user.id);
+  // the workspace being viewed (?workspaceId=, membership-checked), else the session's
+  const workspaceId = await workspaceForRequest(req, auth.user.id);
   if (!workspaceId) return NextResponse.json({ error: "no workspace" }, { status: 404 });
   const [ws] = await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId));
 
@@ -48,14 +50,23 @@ export async function GET() {
     .innerJoin(users, eq(users.id, chatRoomBots.agentUserId))
     .where(eq(chatRoomBots.roomId, room.id))
     .limit(1);
-  const sources = await sharedDriveSources(workspaceId, [auth.user.id]).catch(() => []);
+  const shared = await sharedDriveSources(workspaceId, [auth.user.id]).catch(() => []);
+  const sources = [...shared, ...(await ownDriveSources(auth.user.id, shared).catch(() => []))];
   const online = await Promise.all(
     sources.map((s) => runAsOrService(s.linkedBy, () => driveOnline(s.link.driveId)).catch(() => false))
   );
+  // the family folders sheet opens on the teamspace the folders come from
+  let teamspaceId = shared.find((x) => x.teamspaceId)?.teamspaceId ?? null;
+  if (!teamspaceId) {
+    const tss = await db.select({ id: teamspaces.id }).from(teamspaces).where(eq(teamspaces.workspaceId, workspaceId));
+    for (const t of tss) if (!teamspaceId && (await visibleTeamspace(auth.user.id, t.id))) teamspaceId = t.id;
+  }
   return NextResponse.json({
     roomId: room.id,
+    teamspaceId,
     agentId: bot?.id ?? null,
     agentName: bot?.name ?? "에이전트",
+    workspaceName: ws?.name ?? null,
     drives: sources.map((s, i) => ({ label: s.label, owner: s.ownerName ?? null, online: online[i] })),
   });
 }

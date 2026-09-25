@@ -20,8 +20,8 @@ import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
 import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
-import { answerViewers, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
-import { matchFamilySkill, runFamilySkill } from "./family-skills";
+import { answerViewers, ownDriveSources, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
+import { langOf, matchFamilySkill, runFamilySkill } from "./family-skills";
 import { handleTreasuryCommand } from "./treasury/skill";
 import { isAssistantRoom } from "./assistant-room";
 import { runAsOrService } from "@/lib/aindrive-account";
@@ -73,6 +73,16 @@ function safeLink(raw: unknown): AindriveLink | null {
     console.error("aindrive link refused:", (e as Error).message);
     return null;
   }
+}
+
+/** The aindrive folders a room's agent may read: what was shared into the
+ *  teamspaces everyone reading the answer can see — and, in a person's own
+ *  assistant room, their own drives too. */
+async function roomSources(room: { kind: string; name: string; workspaceId: string | null }, roomId: string, message: ChatMessage): Promise<DriveSource[]> {
+  if (!room.workspaceId) return [];
+  const shared = await sharedDriveSources(room.workspaceId, await answerViewers(roomId, message.authorId, message.privateToUserId ?? null));
+  if (!isAssistantRoom(room)) return shared;
+  return [...shared, ...(await ownDriveSources(message.authorId, shared).catch(() => []))];
 }
 
 /** The folder a model-given path belongs to, and the path inside it. */
@@ -302,6 +312,7 @@ async function llmDecision(
           // templates; the history shows those templates, and a model that
           // imitates one would announce a payment that never happened.
           `You cannot move money. Never say that you paid, sent, transferred, queued or approved any money, or that a payment went through — only the treasury's own messages report money.\n` +
+          `Write "text" in the language the new message is written in (English message → English reply, even when the files are Korean).\n` +
           `Output JSON only: {"action":"reply","text":"..."} or {"action":"reply","text":"...","attachments":[{"url":"<image url from the document>","name":"..."}]} or {"action":"silent"}` +
           driveRules,
       },
@@ -409,12 +420,12 @@ export async function respondToMessage(
     if (treasuryReply) {
       decision = { action: "reply", text: treasuryReply.text };
     } else if (skill && room.workspaceId) {
-      const viewers = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
-      const sources = await sharedDriveSources(room.workspaceId, viewers).catch(() => []);
-      const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text }).catch(
+      const sources = await roomSources(room, roomId, message).catch(() => []);
+      const lang = langOf(message.text);
+      const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text, lang }).catch(
         (e: Error) => {
           console.error(`[family-skill:${skill}] failed:`, e);
-          return { text: `하다가 멈췄어요: ${e.message}` };
+          return { text: lang === "en" ? `I stopped partway: ${e.message}` : `하다가 멈췄어요: ${e.message}` };
         }
       );
       decision = { action: "reply", text: done.text };
@@ -492,10 +503,7 @@ export async function respondToMessage(
       if (mentioned && aindriveConfigured()) {
         if (own) sources = [{ label: "", link: own, linkedBy: linkerOf(config.aindrive) }];
         else if (room.workspaceId)
-          sources = await sharedDriveSources(
-            room.workspaceId,
-            await answerViewers(roomId, message.authorId, message.privateToUserId ?? null)
-          ).catch((e) => {
+          sources = await roomSources(room, roomId, message).catch((e) => {
             console.error("shared drives failed:", e);
             return [];
           });

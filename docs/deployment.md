@@ -37,6 +37,34 @@
 한다. 개명 시점에 DB 행이 0이라 덤프 없이 `down -v` 후 재기동으로 끝났다 —
 데이터가 쌓인 뒤엔 이 비용이 훨씬 커진다.
 
+### 1.1 ainmem.ainetwork.xyz — 가족 데모 (랩 호스트, 2026-09-25)
+
+`v100-02`에 닿지 않는 동안 데모는 이 랩 호스트(`/mnt/newdata/git/relational-agents`)에서 띄운다.
+
+| 항목 | 값 |
+|---|---|
+| URL | `https://ainmem.ainetwork.xyz` — Cloudflare가 TLS, **cloudflared 터널 `ainmem-xyz`** → `127.0.0.1:3150` (nginx·certbot 없음) |
+| 터널 | `~/.cloudflared/ainmem-xyz.yml`, systemd `ainmem-xyz-tunnel.service`. DNS는 `cloudflared tunnel route dns`가 만든 CNAME |
+| compose | `docker-compose.xyz.yml` (프로젝트 `ainmem_xyz`) · 시크릿 `.env.xyz` (600, gitignore) |
+| 앱 / DB | `ainmem_xyz-app-1` (`ainmem_xyz-app:<sha>`) · `ainmem_xyz-postgres-1` (DB/롤 `ainmem_xyz`, `127.0.0.1:5439`만) |
+| 콘텐츠 | `deploy-xyz/okf-content`, `deploy-xyz/uploads`, `deploy-xyz/avatars` (gitignore) |
+| LLM | 호스트 vLLM gemma `:8110` |
+| 데이터 | 가족 데모 — `family-demo-accounts.mts --app https://ainmem.ainetwork.xyz --home ~/.ainmem-demo-xyz --no-cli` 후 `seed-family-demo.mts` (DB·SESSION_SECRET·OKF_ROOT를 xyz 것으로) |
+
+`docker-compose.prod.yml`(프로젝트 `memory-live`)은 **쓰지 않는다** — 같은 이름의 스택을 다른 리포가 이 호스트에서 돌린다.
+
+```bash
+cd /mnt/newdata/git/relational-agents
+# 이미지는 origin/main의 깨끗한 worktree에서 — 공용 체크아웃엔 다른 세션의 미커밋 파일이 섞여 있다
+git fetch origin && TAG=$(git rev-parse --short origin/main)
+git worktree add -f /tmp/ainmem-build-$TAG origin/main
+docker build -t ainmem_xyz-app:$TAG /tmp/ainmem-build-$TAG/app && git worktree remove --force /tmp/ainmem-build-$TAG
+# 실행은 이 디렉터리에서 (볼륨·.env.xyz가 여기 있다)
+APP_TAG=$TAG docker compose --env-file .env.xyz -f docker-compose.xyz.yml up -d
+sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.xyz
+curl -s -o /dev/null -w '%{http_code}\n' https://ainmem.ainetwork.xyz/api/health
+```
+
 ## 2. 배포 / 롤백
 
 ```bash
@@ -421,6 +449,28 @@ aindrive 쪽: 승인 창이 앱 이름을 보여주는 변경(ainetwork-ai/aindr
 `delete_path`(#97)가 aindrive 운영에 배포돼 있어야 문구와 동기화 삭제가 제대로 된다.
 배포 전이라도 연결과 동기화는 된다(창 문구가 CLI 용으로 나오고, 지운 페이지 파일이
 백업에 남는다).
+
+### 3.12 가족 초대 — `family_invites` (2026-09-25)
+
+가족 폴더 시트의 "가족 초대하기"가 만드는 링크(`/family/<token>`)는 `family_invites`에 한 줄로 남는다
+(누가·어느 팀스페이스에·누구를(이름) 초대했는지, 수락한 사람). 스키마는 손으로 민다 — dev에는
+적용됐고, 운영 DB에는 배포 전에 아래를 한 번 실행한다(drizzle-kit push가 users 등을 건드리려 하면 멈출 것):
+
+```sql
+CREATE TABLE IF NOT EXISTS family_invites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  token text NOT NULL UNIQUE,
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  teamspace_id uuid NOT NULL REFERENCES teamspaces(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  created_by uuid REFERENCES users(id),
+  accepted_by uuid REFERENCES users(id),
+  accepted_at timestamp,
+  expires_at timestamp NOT NULL,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS family_invites_teamspace_idx ON family_invites (teamspace_id);
+```
 
 ## 4. 함정 — 여기서 시간을 썼다
 

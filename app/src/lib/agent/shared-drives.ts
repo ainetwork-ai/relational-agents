@@ -88,3 +88,24 @@ export function readableFile(path: string): boolean {
     !/(^|\/)CREDITS[^/]*\.md$/i.test(path)
   );
 }
+
+/** The person's own aindrive drives (their connected account), read as them —
+ *  for their own assistant, beside whatever the family shared. Drives already
+ *  shared whole into a teamspace are left to that share. Empty when no account
+ *  is connected. */
+export async function ownDriveSources(userId: string, already: DriveSource[] = []): Promise<DriveSource[]> {
+  const { getAccount, runAs } = await import("@/lib/aindrive-account");
+  const { listDrives } = await import("@/lib/aindrive");
+  if (!(await getAccount(userId).catch(() => null))) return [];
+  const [me] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, userId));
+  const drives = await runAs(userId, () => listDrives()).catch(() => []);
+  const labels = new Set(already.map((s) => s.label));
+  return drives
+    .filter((d) => !already.some((s) => s.link.driveId === d.id && !s.link.root))
+    .map((d) => {
+      let label = d.name.replace(/\//g, "∕").trim() || "aindrive";
+      while (labels.has(label)) label += "'";
+      labels.add(label);
+      return { label, link: { driveId: d.id, root: "" }, linkedBy: userId, ownerName: me?.name ?? undefined };
+    });
+}

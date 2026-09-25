@@ -46,6 +46,8 @@ const FAMILY = [
   { key: "mom", name: "엄마", drive: "엄마의 살림" },
   { key: "dad", name: "아빠", drive: "아빠의 기록" },
   { key: "seoyeon", name: "서연", drive: "서연이 폰" },
+  // not in the family workspace at first — the demo invites him (가족 폴더 → 초대)
+  { key: "grandpa", name: "외할아버지", drive: "외할아버지 폰" },
 ] as const;
 
 fs.mkdirSync(HOME, { recursive: true, mode: 0o700 });

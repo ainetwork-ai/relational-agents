@@ -40,7 +40,10 @@ ARG NEXT_PUBLIC_CALL_WEB_SPEECH
 ENV NEXT_STANDALONE=1 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 # Invoke the binary directly: `pnpm exec` re-runs the dependency status check
 # first, which trips over the same unanswered allowBuilds entries.
-RUN node_modules/.bin/next build
+# Preview renderers' workers/wasm/CMaps come out of node_modules into
+# public/preview-assets (gitignored) — generated here so the image never
+# depends on a leftover copy in the build context.
+RUN node scripts/copy-preview-assets.mjs && node_modules/.bin/next build
 
 FROM base AS runner
 WORKDIR /app

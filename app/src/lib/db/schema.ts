@@ -1043,6 +1043,33 @@ export interface AgentConfig {
 export type ChatRoomBot = typeof chatRoomBots.$inferSelect;
 
 export type TeamspaceDrive = typeof teamspaceDrives.$inferSelect;
+
+// A family member invited into a teamspace to share their phone's folders
+// (sidebar/page header → 가족 폴더 → 초대하기). The link opens /family/<token>:
+// approve once with aindrive, pick what to share, done. `acceptedBy` is set when
+// they join; until then the family folders sheet lists them as waiting.
+export const familyInvites = pgTable(
+  "family_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    token: text("token").unique().notNull(),
+    workspaceId: uuid("workspace_id")
+      .references(() => workspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    teamspaceId: uuid("teamspace_id")
+      .references(() => teamspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    // who they are to the family ("외할아버지") — becomes their name on joining
+    name: text("name").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    acceptedBy: uuid("accepted_by").references(() => users.id),
+    acceptedAt: timestamp("accepted_at"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("family_invites_teamspace_idx").on(t.teamspaceId)]
+);
+export type FamilyInvite = typeof familyInvites.$inferSelect;
 export type ChatRoom = typeof chatRooms.$inferSelect;
 export type ChatRoomMember = typeof chatRoomMembers.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
