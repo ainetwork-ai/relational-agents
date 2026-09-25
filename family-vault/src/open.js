@@ -2,15 +2,18 @@
 // the policy docks, and principal + accrued spread transfer on-chain.
 import { readFileSync } from "node:fs";
 import { formatUnits } from "viem";
-import { USDC, WETH, EIGHTEEN_YEARS, STATE_FILE } from "./config.js";
+import { USDC, WETH, STATE_FILE } from "./config.js";
 import { publicClient, child, artifact, erc20Abi, increaseTime } from "./clients.js";
 
 const st = JSON.parse(readFileSync(STATE_FILE, "utf8"));
 const vaultAbi = artifact("FamilyVault").abi;
 
-if (process.env.SKIP_JUMP !== "1") {
-  await increaseTime(EIGHTEEN_YEARS + 3600n);
-  console.log("… eighteen years pass …");
+// jump exactly to maturity, however much of the 18 years is still ahead
+const now = (await publicClient.getBlock()).timestamp;
+const remaining = BigInt(st.unlockAt) - now;
+if (remaining > 0n) {
+  await increaseTime(remaining + 3600n);
+  console.log(`… ${(Number(remaining) / 31_536_000).toFixed(1)} more years pass …`);
 }
 
 const before = await Promise.all([USDC, WETH].map((t) =>

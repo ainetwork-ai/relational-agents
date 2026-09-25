@@ -9,8 +9,11 @@
     "test": "forge test -vv",
     "fork": "anvil --fork-url ${BASE_RPC:-https://mainnet.base.org} --chain-id 8453 --port 8546 --silent",
     "deploy": "node src/deploy.js",
+    "seed": "node src/seed-workspace.js",
+    "watch": "node src/watcher.js",
     "deposit": "node src/deposit.js",
     "market": "node src/market.js",
+    "years": "node src/years.js",
     "open": "node src/open.js",
     "exit": "node src/exit.js"
   },
