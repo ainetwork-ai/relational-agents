@@ -27,6 +27,7 @@ app/public/avatars/
 # production runtime state — the live OKF content tree and DB dumps.
 # Lives in the project so deploys are discoverable, but is data, not source.
 /deploy/
+/deploy-xyz/
 
 # local backups (not source)
 /backup/

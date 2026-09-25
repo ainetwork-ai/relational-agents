@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { IconPicker } from "./icon-picker";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { SharePopover } from "./share-popover";
+import { FamilyFoldersPill } from "@/components/family/family-folders";
 import { MessageSquare, Link2, Check, Lock as LockIcon, Maximize2, X } from "lucide-react";
 import { PageIcon } from "@/components/page-icon";
 import { PageOptionsMenu } from "./page-options";
@@ -312,6 +313,7 @@ export function PageView({
           <Breadcrumbs pageId={initialPage.id} current={page} />
         )}
         <div className="flex items-center gap-1">
+        <FamilyFoldersPill teamspaceId={page.teamspaceId} />
         <PresenceBar self={self} others={others} />
         {page.isLocked && (
           <span

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, FileText, HardDrive, Plus, RefreshCw } from "lucide-react";
+import { FileText, HardDrive, Plus, Users } from "lucide-react";
 import { LinkForm, errorOf, type Drive } from "@/components/home/aindrive-panel";
 import { useT } from "@/i18n/provider";
+import { openFamilySheet } from "@/components/family/family-folders";
 import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
 import { loadAindriveInfo } from "@/lib/aindrive-client";
 
@@ -93,13 +94,6 @@ function useTeamspaceDrive(teamspaceId: string) {
   return drives.find((d) => d.backup) ?? drives[0] ?? null;
 }
 
-function ago(iso: string, t: ReturnType<typeof useT>): string {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return t("방금 전");
-  if (m < 60) return t("{n}분 전", { n: m });
-  const h = Math.floor(m / 60);
-  return h < 24 ? t("{n}시간 전", { n: h }) : new Date(iso).toLocaleString();
-}
 
 /** Closes on a click outside the returned ref, or Escape. */
 function useDismiss(open: boolean, close: () => void) {
@@ -211,128 +205,29 @@ function useLinkDialog(teamspaceId: string) {
 
 /** Beside the teamspace's name. Linked: a status dot that opens a small status
  *  card with 지금 동기화. Not linked: a faint connect icon on hover. */
+/** Beside the teamspace's name: the family's folders at a glance (a dot for
+ *  their state) — it opens the family folders sheet, where members, their
+ *  phones, invites and the backup all live. */
 export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
   const t = useT();
   const drive = useTeamspaceDrive(teamspaceId);
-  const link = useLinkDialog(teamspaceId);
-  const [open, setOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  // where the card opens: fixed, measured from the badge and kept on screen —
-  // the badge sits at the sidebar's right edge, so a card anchored to it
-  // overflows the window's left edge
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-
   if (drive === undefined) return null;
-  if (drive === null) {
-    return (
-      <>
-        <button
-          data-testid={`teamspace-drive-connect-icon-${teamspaceId}`}
-          onClick={() => void link.open()}
-          aria-label={t("aindrive에 동기화하기")}
-          title={t("aindrive에 동기화하기")}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-300 opacity-0 transition-opacity hover:bg-neutral-300/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/row:opacity-100 dark:text-neutral-600 dark:hover:bg-neutral-700"
-        >
-          <HardDrive size={13} />
-        </button>
-        {link.dialog}
-      </>
-    );
-  }
-
-  const current = drive;
-  const state = syncing ? "syncing" : driveState(current);
-  const label = `aindrive · ${t(STATE_LABEL[state])}`;
-
-  async function syncNow() {
-    setSyncing(true);
-    setResult(null);
-    const res = await fetch(`/api/aindrive/links/${current.id}/backup`, { method: "POST" });
-    const r = (await res.json().catch(() => ({}))) as { written?: number; deleted?: number; error?: string };
-    setSyncing(false);
-    setResult(
-      res.ok
-        ? t("동기화했습니다 · 바뀐 파일 {n}개", { n: (r.written ?? 0) + (r.deleted ?? 0) })
-        : t("동기화 실패: {error}", { error: r.error ?? res.statusText })
-    );
-    window.dispatchEvent(new Event(CHANGED));
-  }
-
+  const state = drive ? driveState(drive) : null;
+  const label = t("가족 폴더");
   return (
-    <div className="relative" ref={ref}>
-      <button
-        data-testid={`teamspace-drive-badge-${teamspaceId}`}
-        data-state={state}
-        aria-label={label}
-        aria-expanded={open}
-        title={label}
-        onClick={(e) => {
-          setResult(null);
-          const r = e.currentTarget.getBoundingClientRect();
-          const width = 256;
-          setPos({
-            top: r.bottom + 6,
-            left: Math.max(8, Math.min(r.left - 12, window.innerWidth - width - 8)),
-          });
-          setOpen((v) => !v);
-        }}
-        className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 dark:hover:bg-neutral-700 ${
-          open ? "bg-neutral-300/60 text-neutral-700 dark:bg-neutral-700" : ""
-        }`}
-      >
-        <HardDrive size={13} />
-        <span className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white dark:ring-neutral-900 ${STATE_DOT[state]}`} />
-      </button>
-      {open && pos && (
-        <div
-          role="dialog"
-          aria-label={label}
-          data-testid={`teamspace-drive-popover-${teamspaceId}`}
-          style={{ top: pos.top, left: pos.left }}
-          className="fixed z-50 w-64 rounded-lg border border-neutral-200 bg-white p-3 text-left shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <HardDrive size={14} className="text-neutral-400" />
-            <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">aindrive</span>
-            <span className={`ml-auto flex items-center gap-1 text-xs ${STATE_TEXT[state]}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${STATE_DOT[state]}`} />
-              {t(STATE_LABEL[state])}
-            </span>
-          </div>
-          <p className="text-xs text-neutral-500">{t("페이지를 편집하면 몇 초 뒤 자동으로 동기화됩니다.")}</p>
-          <p data-testid={`teamspace-drive-popover-status-${teamspaceId}`} className="mt-1 text-xs text-neutral-400">
-            {result ??
-              (current.lastBackupError
-                ? t("동기화 실패: {error}", { error: current.lastBackupError })
-                : current.lastBackupAt
-                  ? t("마지막 동기화 {when}", { when: ago(current.lastBackupAt, t) })
-                  : t("첫 동기화 중…"))}
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              data-testid={`teamspace-drive-sync-now-${teamspaceId}`}
-              onClick={() => void syncNow()}
-              disabled={syncing}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-2 py-1.5 text-xs font-medium text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
-              {syncing ? t("동기화 중…") : t("지금 동기화")}
-            </button>
-            <Link
-              data-testid={`teamspace-drive-open-${teamspaceId}`}
-              href={`/aindrive/${current.id}`}
-              onClick={close}
-              className="flex flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 px-2 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              {t("aindrive 열기")} <ArrowRight size={12} />
-            </Link>
-          </div>
-        </div>
-      )}
-    </div>
+    <button
+      data-testid={`teamspace-drive-badge-${teamspaceId}`}
+      data-state={state ?? "none"}
+      aria-label={label}
+      title={label}
+      onClick={() => openFamilySheet(teamspaceId)}
+      className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 dark:hover:bg-neutral-700 ${
+        state ? "" : "opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
+      }`}
+    >
+      <Users size={13} />
+      {state && <span className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white dark:ring-neutral-900 ${STATE_DOT[state]}`} />}
+    </button>
   );
 }
 

@@ -1,0 +1,60 @@
+# ainmem on ainmem.ainetwork.xyz — the family demo, served from the lab host.
+#
+# Its own compose project, database, volumes and port: `memory-live` (the other
+# prod file) names a stack another repo runs on this same host, and sharing a
+# project name would let one `up` replace the other's containers.
+#
+#   docker compose --env-file .env.xyz -f docker-compose.xyz.yml build app
+#   docker compose --env-file .env.xyz -f docker-compose.xyz.yml up -d
+#
+# Traffic: Cloudflare (TLS) → cloudflared tunnel "ainmem-xyz" → 127.0.0.1:3150.
+name: ainmem_xyz
+
+services:
+  app:
+    image: ainmem_xyz-app:${APP_TAG:-latest}
+    build:
+      context: ./app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.xyz
+    environment:
+      POSTGRES_URL: postgresql://ainmem_xyz:${POSTGRES_PASSWORD}@postgres:5432/ainmem_xyz
+      OKF_ROOT: /data/okf
+      MD_MIRROR_ROOT: /data/md-mirror
+      # vLLM runs on the host (gemma on :8110)
+      AI_URL: http://host.docker.internal:8110/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./deploy-xyz/okf-content:/data/okf
+      - ./deploy-xyz/uploads:/app/public/uploads
+      - ./deploy-xyz/avatars:/app/public/avatars
+      - ainmem_xyz_mdmirror:/data/md-mirror
+    ports:
+      - "127.0.0.1:3150:3000"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ainmem_xyz
+      POSTGRES_USER: ainmem_xyz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ainmem_xyz_pgdata:/var/lib/postgresql/data
+    # loopback only — for schema pushes and the demo seed from this host
+    ports:
+      - "127.0.0.1:5439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ainmem_xyz -d ainmem_xyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  ainmem_xyz_pgdata:
+  ainmem_xyz_mdmirror:
