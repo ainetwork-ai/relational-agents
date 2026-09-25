@@ -389,7 +389,7 @@ Expected: FAIL — `Cannot find module '../src/fork.js'`
 
 `uniswap/src/fork.js`:
 ```js
-import { createWalletClient, http, toHex, parseEther } from "viem";
+import { createPublicClient, createWalletClient, http, toHex, parseEther } from "viem";
 import { weth9Abi } from "./swap/abi.js";
 
 /** anvil only: set a native balance. `wholeEth` is a decimal string like "5". */
@@ -400,10 +400,9 @@ export async function giveEth(pub, address, wholeEth) {
 /** Wrap native ETH into WETH from `account` (works on any chain; on the fork it follows giveEth). */
 export async function wrapEth(chain, account, amountWei) {
   const wallet = createWalletClient({ account, chain: chain.viemChain, transport: http(chain.rpc) });
+  const pub = createPublicClient({ chain: chain.viemChain, transport: http(chain.rpc) });
   const hash = await wallet.writeContract({ address: chain.tokens.WETH.address, abi: weth9Abi,
     functionName: "deposit", value: amountWei });
-  const { createPublicClient } = await import("viem");
-  const pub = createPublicClient({ chain: chain.viemChain, transport: http(chain.rpc) });
   await pub.waitForTransactionReceipt({ hash });
   return hash;
 }
@@ -648,7 +647,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mandateTypedData } from "../src/mandate/typedData.js";
 import { recoverMandateSigner } from "../src/mandate/verify.js";
 
-const grandmother = privateKeyToAccount("0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"); // anvil #6
+const grandmother = privateKeyToAccount("0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"); // anvil #4
 const CHAIN_ID = 8453;
 
 export const sampleMandate = () => ({
@@ -1229,7 +1228,7 @@ process.exit(result.outcome === "no-mandate" ? 3 : 0);
 ```bash
 cd uniswap && export PATH="$HOME/.foundry/bin:$PATH"
 export AGENT_PK=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6   # anvil #9 = the agent
-export MEMBER_PK=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a  # anvil #6 = the grandmother
+export MEMBER_PK=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a  # anvil #4 = the grandmother
 rm -rf .state
 pnpm fund                                   # agent holds USDC
 pnpm mandate sign 20 100 90                 # standing: 20 USDC/run, 100/week, 90 days
