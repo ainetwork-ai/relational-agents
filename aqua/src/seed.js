@@ -54,10 +54,10 @@ async function main() {
       type: "dashboard",
       name: "Dashboard",
       config: { widgets: [
-        { id: "w-pnl", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("PnL"), title: "Realized PnL" },
+        { id: "w-pnl", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("PnL"), title: "Realized PnL", prefix: "$", decimals: 2, colorBySign: true },
         { id: "w-fills", kind: "counter", width: 1, aggregate: "count", title: "Fills" },
-        { id: "w-gas", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("Gas ETH"), title: "Gas spent (ETH)" },
-        { id: "w-vol", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("Amount"), title: "Volume" },
+        { id: "w-gas", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("Gas ETH"), title: "Gas spent (ETH)", decimals: 4, suffix: " ETH" },
+        { id: "w-vol", kind: "counter", width: 1, aggregate: "sum", aggregatePropertyId: P("Amount"), title: "Volume", prefix: "$", decimals: 2 },
         { id: "w-day", kind: "bar", width: 2, groupByPropertyId: P("Day"), aggregate: "sum", aggregatePropertyId: P("PnL"), title: "Daily PnL" },
         { id: "w-tag", kind: "bar", width: 2, groupByPropertyId: P("Tag"), aggregate: "sum", aggregatePropertyId: P("PnL"), title: "PnL by hypothesis tag" },
         { id: "w-side", kind: "donut", width: 1, groupByPropertyId: P("Side"), aggregate: "sum", aggregatePropertyId: P("Amount"), title: "Flow by side" },

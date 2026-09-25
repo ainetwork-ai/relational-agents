@@ -62,6 +62,17 @@ function seriesFor(
     .filter((s) => s.value > 0);
 }
 
+/** Counter value → display string: grouping + decimals + literal prefix/suffix. */
+function formatCounter(value: number, w: DashWidget) {
+  const opts: Intl.NumberFormatOptions =
+    w.decimals != null
+      ? { minimumFractionDigits: w.decimals, maximumFractionDigits: w.decimals }
+      : { maximumFractionDigits: 2 };
+  // sign sits before the prefix ("-$120.50", "+$1,204.55"), never inside it
+  const sign = value < 0 ? "-" : w.colorBySign && value > 0 ? "+" : "";
+  return `${sign}${w.prefix ?? ""}${Math.abs(value).toLocaleString("en-US", opts)}${w.suffix ?? ""}`;
+}
+
 function aggLabel(t: T, w: DashWidget, props: DbProperty[]) {
   if (w.aggregate === "sum") {
     const p = props.find((x) => x.id === w.aggregatePropertyId);
@@ -124,10 +135,16 @@ export function DashboardView({ view }: { view: DbView }) {
       w.aggregate === "sum" && w.aggregatePropertyId
         ? rows.reduce((a, r) => a + (Number(r.values[w.aggregatePropertyId!]) || 0), 0)
         : rows.length;
+    const signCls =
+      w.colorBySign && value > 0
+        ? "text-green-600 dark:text-green-400"
+        : w.colorBySign && value < 0
+          ? "text-red-500 dark:text-red-400"
+          : "text-neutral-800 dark:text-neutral-100";
     return (
       <div className="flex h-full flex-col justify-center py-2">
-        <div data-testid={`db-dashw-value-${w.id}`} className="text-2xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
-          {Number.isInteger(value) ? value : value.toFixed(1)}
+        <div data-testid={`db-dashw-value-${w.id}`} className={`text-2xl font-bold tracking-tight ${signCls}`}>
+          {formatCounter(value, w)}
         </div>
         <div className="mt-0.5 text-[11px] font-medium text-neutral-400">{aggLabel(t, w, db.properties)}</div>
       </div>
@@ -399,6 +416,46 @@ export function DashboardView({ view }: { view: DbView }) {
                       <option key={p.id} value={p.id}>{t("{name} 합계", { name: p.name })}</option>
                     ))}
                   </select>
+                )}
+                {w.kind === "counter" && (
+                  <>
+                    <select
+                      data-testid={`db-dashw-decimals-${w.id}`}
+                      value={w.decimals ?? "auto"}
+                      onChange={(e) => patchWidget(w.id, { decimals: e.target.value === "auto" ? undefined : Number(e.target.value) })}
+                      className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    >
+                      <option value="auto">{t("소수 자동")}</option>
+                      {[0, 1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>{t("소수 {n}자리", { n })}</option>
+                      ))}
+                    </select>
+                    <input
+                      data-testid={`db-dashw-prefix-${w.id}`}
+                      defaultValue={w.prefix ?? ""}
+                      placeholder={t("접두어")}
+                      onBlur={(e) => patchWidget(w.id, { prefix: e.target.value || undefined })}
+                      className="w-14 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    />
+                    <input
+                      data-testid={`db-dashw-suffix-${w.id}`}
+                      defaultValue={w.suffix ?? ""}
+                      placeholder={t("접미어")}
+                      onBlur={(e) => patchWidget(w.id, { suffix: e.target.value || undefined })}
+                      className="w-14 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                    />
+                    <button
+                      data-testid={`db-dashw-sign-${w.id}`}
+                      onClick={() => patchWidget(w.id, { colorBySign: !w.colorBySign })}
+                      className={`rounded border px-1 py-0.5 text-[11px] ${
+                        w.colorBySign
+                          ? "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "border-neutral-200 bg-white text-neutral-500 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                      }`}
+                    >
+                      {t("±부호색")}
+                    </button>
+                  </>
                 )}
                 {(w.kind === "table" || w.kind === "list") && (
                   <select

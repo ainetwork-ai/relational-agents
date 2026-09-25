@@ -496,6 +496,13 @@ export interface DashWidget {
   aggregatePropertyId?: string;
   /** table / list: row cap */
   limit?: number;
+  /** counter: fixed fraction digits (undefined = auto, up to 2) */
+  decimals?: number;
+  /** counter: literal text around the value — "$", " ETH", "%" … */
+  prefix?: string;
+  suffix?: string;
+  /** counter: tint green/red by sign and show a leading + (PnL-style) */
+  colorBySign?: boolean;
 }
 
 export const databases = pgTable("databases", {
