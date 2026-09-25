@@ -22,6 +22,7 @@ import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs
 import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
 import { answerViewers, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
 import { matchFamilySkill, runFamilySkill } from "./family-skills";
+import { handleTreasuryCommand } from "./treasury/skill";
 import { isAssistantRoom } from "./assistant-room";
 import { runAsOrService } from "@/lib/aindrive-account";
 import {
@@ -380,13 +381,30 @@ export async function respondToMessage(
 
   let decision: RespondResult;
   try {
+    // the relation's treasury: a money sentence is matched by shape and decided
+    // by the rules in the relation's memory, never by the model (treasury/skill.ts)
+    const treasuryReply =
+      mentioned && process.env.AGENT_FAKE_LLM !== "1"
+        ? await handleTreasuryCommand({
+            roomId,
+            agentUserId,
+            askerId: message.authorId,
+            text: message.text,
+            agentName: agent.displayName,
+          }).catch((e) => {
+            console.error("[treasury] failed:", e);
+            return null;
+          })
+        : null;
     // what a family agent can do beyond answering: build a page from the
     // family's shared folders, or pay a gift over x402 (family-skills.ts)
     const skill = mentioned && room.workspaceId && process.env.AGENT_FAKE_LLM !== "1" ? matchFamilySkill(message.text) : null;
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
-    if (skill && room.workspaceId) {
+    if (treasuryReply) {
+      decision = { action: "reply", text: treasuryReply.text };
+    } else if (skill && room.workspaceId) {
       const viewers = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
       const sources = await sharedDriveSources(room.workspaceId, viewers).catch(() => []);
       const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text }).catch(
