@@ -485,7 +485,7 @@ export interface ViewConfig {
  * max 4 widgets per row); rows wrap in reading order. */
 export interface DashWidget {
   id: string;
-  kind: "counter" | "bar" | "donut" | "table" | "board" | "list" | "chart";
+  kind: "counter" | "bar" | "donut" | "table" | "board" | "list" | "chart" | "depth";
   title?: string;
   width: 1 | 2 | 3 | 4;
   /** bar / donut / board: the select/status property that forms the groups */
@@ -503,8 +503,9 @@ export interface DashWidget {
   suffix?: string;
   /** counter: tint green/red by sign and show a leading + (PnL-style) */
   colorBySign?: boolean;
-  /** chart: date property on the x axis, number property on the y axis */
+  /** chart: date property on the x axis / depth: number property (the level) */
   xPropertyId?: string;
+  /** chart: number property on the y axis */
   yPropertyId?: string;
   /** chart: line through the points, or OHLC candles per time bucket */
   chartType?: "line" | "candles";

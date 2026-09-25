@@ -26,6 +26,7 @@ const KINDS: { kind: DashWidget["kind"]; label: string }[] = [
   { kind: "bar", label: "막대 차트" },
   { kind: "donut", label: "도넛 차트" },
   { kind: "chart", label: "차트" },
+  { kind: "depth", label: "깊이" },
   { kind: "table", label: "표" },
   { kind: "board", label: "보드" },
   { kind: "list", label: "리스트" },
@@ -36,6 +37,9 @@ const BUCKET_MS: Record<NonNullable<DashWidget["bucket"]>, number> = {
   day: 86_400_000,
   week: 7 * 86_400_000,
 };
+
+// svg viewBox width per widget width — keeps text at a readable rendered size
+const PLOT_W: Record<DashWidget["width"], number> = { 1: 260, 2: 420, 3: 560, 4: 700 };
 
 // SVG needs literal colors; these mirror the option-chip palette
 const OPTION_HEX: Record<string, string> = {
@@ -135,6 +139,7 @@ export function DashboardView({ view }: { view: DbView }) {
         xPropertyId: dateProps[0]?.id,
         yPropertyId: numberProps[0]?.id,
       }),
+      ...(kind === "depth" && { xPropertyId: numberProps[0]?.id }),
     };
     save([...widgets, w]);
   };
@@ -240,8 +245,8 @@ export function DashboardView({ view }: { view: DbView }) {
       .sort((a, b) => a.t - b.t);
     if (pts.length === 0) return <p className="text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>;
 
-    // plot geometry — fixed viewBox, scales to the widget width
-    const W = 560, H = 170, L = 62, R = 10, T = 10, B = 20;
+    // plot geometry — viewBox sized to the widget width, scales responsively
+    const W = PLOT_W[w.width] ?? 560, H = 170, L = W < 300 ? 48 : 62, R = 10, T = 10, B = 20;
     const plotW = W - L - R, plotH = H - T - B;
     // candles sit at bucket centers, so the x domain must span whole buckets —
     // otherwise a candle for a short burst of rows lands outside the canvas
@@ -343,6 +348,103 @@ export function DashboardView({ view }: { view: DbView }) {
     );
   };
 
+  // two-sided cumulative step area: rows split by a select property's first two
+  // options, accumulated along a number property (order-book style)
+  const renderDepth = (w: DashWidget) => {
+    const levelProp = db.properties.find((p) => p.id === w.xPropertyId) ?? numberProps[0];
+    const sizeProp = db.properties.find((p) => p.id === w.aggregatePropertyId);
+    const sideProp = db.properties.find((p) => p.id === w.groupByPropertyId) ?? groupable[0];
+    const sides = (sideProp?.config.options ?? []).slice(0, 2);
+    if (!levelProp || !sideProp || sides.length < 2)
+      return <p className="text-xs text-neutral-400">{t("숫자 속성과 옵션 2개 이상의 선택 속성이 필요합니다.")}</p>;
+
+    const levels = (optId: string) => {
+      const byLevel = new Map<number, number>();
+      for (const r of rows) {
+        if (r.values[sideProp.id] !== optId) continue;
+        const lv = Number(r.values[levelProp.id]);
+        if (!Number.isFinite(lv)) continue;
+        const sz = sizeProp ? Number(r.values[sizeProp.id]) || 0 : 1;
+        byLevel.set(lv, (byLevel.get(lv) ?? 0) + sz);
+      }
+      return [...byLevel.entries()].map(([level, size]) => ({ level, size }));
+    };
+    // left side accumulates from its best (highest) level outward; right side
+    // from its best (lowest) level outward — classic bid/ask reading
+    const left = levels(sides[0].id).sort((a, b) => b.level - a.level);
+    const right = levels(sides[1].id).sort((a, b) => a.level - b.level);
+    let acc = 0;
+    const leftCum = left.map((l) => ({ ...l, cum: (acc += l.size) }));
+    acc = 0;
+    const rightCum = right.map((l) => ({ ...l, cum: (acc += l.size) }));
+    if (leftCum.length === 0 && rightCum.length === 0)
+      return <p className="text-xs text-neutral-400">{t("표시할 값이 없습니다")}</p>;
+
+    const W = PLOT_W[w.width] ?? 560, H = 170, L = W < 300 ? 36 : 46, R = 10, T = 10, B = 20;
+    const plotW = W - L - R, plotH = H - T - B;
+    const allLv = [...leftCum, ...rightCum].map((l) => l.level);
+    let lv0 = Math.min(...allLv), lv1 = Math.max(...allLv);
+    if (lv0 === lv1) { lv0 -= 1; lv1 += 1; }
+    const cumMax = Math.max(...leftCum.map((l) => l.cum), ...rightCum.map((l) => l.cum), 1);
+    const x = (lv: number) => L + ((lv - lv0) / (lv1 - lv0)) * plotW;
+    const y = (c: number) => T + plotH - (c / cumMax) * plotH;
+    const fmt = (v: number) => v.toLocaleString("en-US", { notation: Math.abs(v) >= 10_000 ? "compact" : "standard", maximumFractionDigits: 2 });
+
+    // step path: horizontal run at each cumulative level, then rise at the next
+    const stepPath = (cum: { level: number; cum: number }[]) => {
+      if (!cum.length) return null;
+      let d = `M${x(cum[0].level).toFixed(1)},${y(0).toFixed(1)}`;
+      let prev = cum[0].level;
+      for (const p of cum) {
+        d += `L${x(prev).toFixed(1)},${y(p.cum).toFixed(1)}L${x(p.level).toFixed(1)},${y(p.cum).toFixed(1)}`;
+        prev = p.level;
+      }
+      d += `L${x(prev).toFixed(1)},${y(0).toFixed(1)}Z`;
+      return d;
+    };
+
+    return (
+      <div className="py-1">
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" data-testid={`db-dashw-depth-${w.id}`}>
+          {[cumMax / 2, cumMax].map((v) => (
+            <g key={v}>
+              <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="stroke-neutral-100 dark:stroke-neutral-700/60" strokeWidth="1" />
+              <text x={L - 6} y={y(v)} textAnchor="end" dominantBaseline="central" className="fill-neutral-400 text-[10px] tabular-nums">{fmt(v)}</text>
+            </g>
+          ))}
+          <text x={L} y={H - 4} className="fill-neutral-400 text-[10px] tabular-nums">{fmt(lv0)}</text>
+          <text x={W - R} y={H - 4} textAnchor="end" className="fill-neutral-400 text-[10px] tabular-nums">{fmt(lv1)}</text>
+          {[
+            { cum: leftCum, opt: sides[0] },
+            { cum: rightCum, opt: sides[1] },
+          ].map(({ cum, opt }) => {
+            const d = stepPath(cum);
+            if (!d) return null;
+            const color = OPTION_HEX[opt.color] ?? OPTION_HEX.gray;
+            return (
+              <g key={opt.id} data-depth-side={opt.id}>
+                <title>{`${opt.name} · ${fmt(cum[cum.length - 1].cum)}`}</title>
+                <path d={d} fill={color} fillOpacity="0.22" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+              </g>
+            );
+          })}
+        </svg>
+        <div className="mt-1 flex flex-wrap gap-3">
+          {[
+            { cum: leftCum, opt: sides[0] },
+            { cum: rightCum, opt: sides[1] },
+          ].map(({ cum, opt }) => (
+            <span key={opt.id} className="flex items-center gap-1 text-[10px] text-neutral-500">
+              <span className="h-2 w-2 rounded-full" style={{ background: OPTION_HEX[opt.color] ?? OPTION_HEX.gray }} />
+              {opt.name}
+              <span className="tabular-nums text-neutral-400">{cum.length ? fmt(cum[cum.length - 1].cum) : 0}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderTable = (w: DashWidget) => {
     const hidden = new Set(view.config.hiddenProperties ?? []);
     const cols = db.properties.filter((p) => p.type !== "title" && !hidden.has(p.id)).slice(0, 3);
@@ -420,6 +522,7 @@ export function DashboardView({ view }: { view: DbView }) {
     bar: renderBar,
     donut: renderDonut,
     chart: renderChart,
+    depth: renderDepth,
     table: renderTable,
     board: renderBoard,
     list: renderList,
@@ -519,7 +622,7 @@ export function DashboardView({ view }: { view: DbView }) {
                     <option key={k.kind} value={k.kind}>{t(k.label)}</option>
                   ))}
                 </select>
-                {(w.kind === "bar" || w.kind === "donut" || w.kind === "board") && (
+                {(w.kind === "bar" || w.kind === "donut" || w.kind === "board" || w.kind === "depth") && (
                   <select
                     data-testid={`db-dashw-group-${w.id}`}
                     value={w.groupByPropertyId ?? ""}
@@ -531,7 +634,19 @@ export function DashboardView({ view }: { view: DbView }) {
                     ))}
                   </select>
                 )}
-                {(w.kind === "counter" || w.kind === "bar" || w.kind === "donut") && (
+                {w.kind === "depth" && (
+                  <select
+                    data-testid={`db-dashw-x-${w.id}`}
+                    value={w.xPropertyId ?? numberProps[0]?.id ?? ""}
+                    onChange={(e) => patchWidget(w.id, { xPropertyId: e.target.value || undefined })}
+                    className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[11px] outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
+                  >
+                    {numberProps.map((p) => (
+                      <option key={p.id} value={p.id}>{t("{name} 축", { name: p.name })}</option>
+                    ))}
+                  </select>
+                )}
+                {(w.kind === "counter" || w.kind === "bar" || w.kind === "donut" || w.kind === "depth") && (
                   <select
                     data-testid={`db-dashw-agg-${w.id}`}
                     value={w.aggregate === "sum" ? w.aggregatePropertyId ?? "" : "count"}
