@@ -54,3 +54,18 @@ Format: `JST time — surface — what happened`.
   route right after (seatMode → world-id-v4, environment staging). FRICTION:
   the Portal's order (RP registration before actions) isn't in the docs; the
   app page's "Dashboard" menu item is where actions live (…/world-id?tab=actions).
+- 2026-09-26 01:53 — IDKit — **first real World ID seat, end to end** (staging, World ID
+  simulator identity 0x18310f83): our server signed rp_context → bridge request
+  → simulator "Complete verification · Unique Human · Claim your approver seat…"
+  → Continue → v4 verify → seat (level orb). Click-to-seat ≈ 14 s. Measured
+  time to first success for IDKit: RP registered 02:3x → first seat 2026-09-26 01:53
+  (the ~25 min between were the Portal steps + locating the Actions tab).
+- 2026-09-26 01:53 — IDKit — **same human, second account → refused** (409 "This human
+  already holds a seat in this relation — one human, one seat.") — caught by
+  our (room, nullifier) index, NOT by the Portal: although the action shows
+  max_verifications=1 / max_accounts_per_user=1 (and the Portal UI offers no
+  way to change them), the v4 verifier accepted the same human's second
+  verification. FRICTION/insight for the debrief: per-action limits are not a
+  uniqueness guarantee on the v4 path — the RP must enforce it (as the IDKit
+  docs' "track nullifiers yourself" hints); the Portal's limit fields are
+  legacy-only and silently inert here.
