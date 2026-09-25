@@ -47,7 +47,9 @@ Format: `JST time — surface — what happened`.
   pinned by config (discovery lists three). IDKit: seats accept only World ID
   3.0 proofs — `allow_legacy_proofs` means 3.0 and 4.0 nullifiers differ for
   one human, so accepting both could seat one human twice.
-- 2026-09-26 02:3x — IDKit — Portal: "Finish registering your relying party
+- 2026-09-26 01:3x (corrected — first logged as 02:3x, a time that had not
+  happened yet; the registration came shortly before the 01:53 seat) — IDKit —
+  Portal: "Finish registering your relying party
   to create actions" — actions stay locked until the RP is registered (the
   Signer address field was empty). Registering produced the RP signing key
   (secp256k1; signer 0x0652…cDD7). First server-signed rp_context from our
@@ -58,7 +60,7 @@ Format: `JST time — surface — what happened`.
   simulator identity 0x18310f83): our server signed rp_context → bridge request
   → simulator "Complete verification · Unique Human · Claim your approver seat…"
   → Continue → v4 verify → seat (level orb). Click-to-seat ≈ 14 s. Measured
-  time to first success for IDKit: RP registered 02:3x → first seat 2026-09-26 01:53
+  time to first success for IDKit: RP registered ~01:3x → first seat 2026-09-26 01:53
   (the ~25 min between were the Portal steps + locating the Actions tab).
 - 2026-09-26 01:53 — IDKit — **same human, second account → refused** (409 "This human
   already holds a seat in this relation — one human, one seat.") — caught by
@@ -69,3 +71,11 @@ Format: `JST time — surface — what happened`.
   uniqueness guarantee on the v4 path — the RP must enforce it (as the IDKit
   docs' "track nullifiers yourself" hints); the Portal's limit fields are
   legacy-only and silently inert here.
+- 2026-09-26 02:05 — IDKit — copy: the user-facing word "seat" is now "vote"
+  ("Claim your vote with World ID", "one human, one vote", and the IDKit
+  request's `action_description`). The meaning is unchanged: the right to
+  approve treasury actions, claimed once with Proof of Human. The action keeps
+  its registered id `treasury-seat` — renaming it in the Portal would break
+  verification — as do the `treasury_seats` table, the `/treasury/seat` routes
+  and the `not-seated` reason code. Entries above keep the word they were
+  written with.

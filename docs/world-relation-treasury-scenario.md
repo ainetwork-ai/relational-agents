@@ -95,7 +95,7 @@ World의 새 IdP(for Agents)와 fresh 다중 승인으로."
   step-up = IdP(부재중 인간 소환). 데모·README에 명시. 승인 카드는 **에이전트가 채팅에
   게시**(에이전트가 챌린지 발행 주체로 보이게).
 - **시빌 장면 = 바인딩 시점 거절**: `worldSub` unique 위반(23505)을 "이 인간은 이미
-  이 관계의 좌석을 보증함" 카드로 렌더. 승인 중복은 unique(actionId, approverKey)가
+  이 관계에 투표권이 있음" 카드로 렌더. 승인 중복은 unique(actionId, approverKey)가
   자연 차단. 등록 직후 mock 신원의 양방향(같은 인간/다른 인간) 동작을 **최우선 테스트**.
 - **분류는 정규식, 집행은 SQL**: `matchTreasuryCommand()`를 `matchFamilySkill` 옆에
   (`respond.ts:385` seam, "돈 명령은 문장으로" 선례). 실행은
@@ -122,16 +122,17 @@ World의 새 IdP(for Agents)와 fresh 다중 승인으로."
   IdP(`sandbox.auth.world.org`)다. `max_age=0`+`prompt=login`, 서버에서 JWKS·nonce·
   `auth_time ≥ action.createdAt` 검증, 정족수 = 액션별 DISTINCT pairwise sub.
   같은 인간의 두 번째 계정 = 같은 sub → 무효(`treasury_approvals` unique).
-- **좌석(승인권) 획득 = IDKit Proof of Human** — "희소한 권리(표)에 대한 공정한 접근",
+- **투표권(승인권) 획득 = IDKit Proof of Human** — "희소한 권리(표)에 대한 공정한 접근",
   크레덴셜 최소충분 논리 그대로. signal=roomId, `treasury_seats(room, nullifier)` unique →
-  한 인간 한 좌석(IDKit 대안 경로 "ineligible user").
+  한 인간 한 표(IDKit 대안 경로 "ineligible user").
 - **IDKit v4 실모드 요건(문서 확인)**: rp_context는 요청마다 서버가 서명
   (`signRequest` @worldcoin/idkit-core/signing, Portal의 RP signing key), 검증은
   `developer.world.org/api/v4/verify/{rp_id}`로 결과를 그대로 전달, 테스트는
   `environment="staging"` + simulator.worldcoin.org. 7월 코드의 정적 rp_context·v2
-  verify는 v4에서 유효하지 않음 → 시트 경로를 v4로 이식(빌드 후 후속 작업).
+  verify는 v4에서 유효하지 않음 → 투표권 획득 경로를 v4로 이식(빌드 후 후속 작업).
 - **Portal에서 받아야 할 값**: `app_id`, `rp_id`, RP signing key, action `treasury-seat`
-  등록. **sandbox IdP**: client_id/secret, redirect
+  등록(화면 표기가 seat → vote로 바뀐 뒤에도 액션 id는 Portal에 등록된 이 값 그대로 —
+  바꾸면 검증이 깨진다). **sandbox IdP**: client_id/secret, redirect
   `https://ainmem.ainetwork.ai/api/auth/world/callback`.
 - 공식 문서의 human-in-the-loop 가이드(IDKit 승인 + `${action}:${nullifier}` 1회 소비)가
   우리 액션 바인딩 설계와 같은 원리임을 확인 — 디브리프에 인용.

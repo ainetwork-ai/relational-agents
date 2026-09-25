@@ -74,20 +74,20 @@ quotes the rule it followed. No model decides anything about money
 
 | Moment | Surface | What it proves | Why it is the minimum |
 |---|---|---|---|
-| Becoming an approver (a *seat*), once per member | **IDKit** — action `treasury-seat`, signal = the room's id | Proof of Human (Orb) | The treasury needs exactly one fact about a member: one unique human, not the second account of someone already seated. A passport reveals name and nationality for nothing; Selfie Check is weaker against one person running several accounts — the attack on a group treasury. |
+| Getting a vote (the right to approve), once per member | **IDKit** — action `treasury-seat` (the id registered in the Portal, kept when *seat* became *vote*), signal = the room's id | Proof of Human (Orb) | The treasury needs exactly one fact about a member: one unique human, not the second account of someone who already has a vote. A passport reveals name and nationality for nothing; Selfie Check is weaker against one person running several accounts — the attack on a group treasury. |
 | Approving a critical action, every time | **World ID for Agents** — OIDC step-up at the sandbox IdP, `max_age=0`, `prompt=login` | A fresh sign-in by a unique human (pairwise `sub`); `auth_time` must postdate the request | The quorum counts distinct humans at the moment money moves, not a login from this morning. |
 
-*Why both, not one.* The seat fixes the roster before any request exists: who is notified,
-whether enough people could ever reach a bar ("only 2 of us hold a seat so far"), and it
-anchors "one human, one seat" on the strongest uniqueness credential. The step-up proves
-presence for one specific action; alone it would let any account holder vote, and a seat
-alone would let a hijacked session approve. Before the IdP, the app shows its own
+*Why both, not one.* The vote fixes the roster before any request exists: who is notified,
+whether enough people could ever reach a bar ("only 2 of us have a vote so far"), and it
+anchors "one human, one vote" on the strongest uniqueness credential. The step-up proves
+presence for one specific action; alone it would let any account holder's approval count,
+and a vote alone would let a hijacked session approve. Before the IdP, the app shows its own
 confirmation page — amount, payee name and address, requester, the rule, who approved so
 far — because the IdP screen cannot say what is being approved.
 
 **Denied paths** (all asserted by the e2e): a request the rules forbid is refused without
-asking anyone (the personal-wallet rule); a second account of the same human is voided; an
-unseated member, a stale proof, a cancel at the IdP, and an outsider count for nothing.
+asking anyone (the personal-wallet rule); a second account of the same human is voided; a
+member without a vote, a stale proof, a cancel at the IdP, and an outsider count for nothing.
 Requests lapse after 24 hours; a request that reaches its quorum is re-checked against the
 rules and balance in force at that moment before anything moves.
 
@@ -98,7 +98,7 @@ the strictest bar the rules name (never fewer than 2). Members who joined after 
 don't vote or direct money until the relation adopts them.
 
 **Trust model — what this is and isn't.** The treasury is a custodial agent EOA on Sepolia
-at a disclosed demo scale ($200,000 per ETH, so $1,000 is 0.005 SepETH). Rules, seats and
+at a disclosed demo scale ($200,000 per ETH, so $1,000 is 0.005 SepETH). Rules, votes and
 quorum are enforced by this server; the key is sealed at rest (AES-256-GCM under
 `SESSION_SECRET`), so a database dump alone moves nothing, but whoever runs the server can
 sign. The ledger of record is the `treasury_actions` table the panel reads; the *Treasury
@@ -115,7 +115,7 @@ and the policy is the relation's own sentences, which the agent reads, applies a
 plays the whole journey over HTTP against the **local mock** of the World ID for Agents IdP
 and moves real Sepolia ETH (8/8). The real sandbox IdP and a Developer Portal staging app for
 IDKit need client registration, which is a manual step — see the pre-flight in
-[DEMO.md](docs/world/DEMO.md); without them the panel labels itself "mock IdP" / "dev seat".
+[DEMO.md](docs/world/DEMO.md); without them the panel labels itself "mock IdP" / "dev vote".
 
 **Pre-existing vs built this weekend.** The weekend's commits are `4d4612d..HEAD` (the
 treasury, the World step-up, the panel, the seed and e2e, the docs); everything else
@@ -125,7 +125,7 @@ predates 2026-09-25.
 |---|---|
 | World ID 3.0 personhood for relation consent (July): [`lib/worldid.ts`](app/src/lib/worldid.ts), [`world-id-button.tsx`](app/src/components/dm/world-id-button.tsx), the consent route's nullifier binding, `personhood_proofs` | [`lib/agent/treasury/*`](app/src/lib/agent/treasury/) — rules parser and evaluator, command matcher, memory reader, wallet, approvals/quorum/adoption, the agent's skill |
 | Relation agents and their memory (July): [`provision.ts`](app/src/lib/agent/provision.ts), [`respond.ts`](app/src/lib/agent/respond.ts), OKF folders ([`okf-store.ts`](app/src/lib/okf-store.ts), [`okf-docs.ts`](app/src/lib/agent/okf-docs.ts)), demo login | World ID for Agents step-up: [`lib/auth/world.ts`](app/src/lib/auth/world.ts), [`api/auth/world/*`](app/src/app/api/auth/world/) (confirmation page, callback), the local mock IdP [`api/world-mock/*`](app/src/app/api/world-mock/) |
-| AgentKit wallet wrapper ([`agentkit.ts`](app/src/lib/agent/agentkit.ts), July); the songpyeon purchase demo ([`spend.ts`](app/src/lib/agent/spend.ts), Sep 23 — it now refuses a treasury agent) | IDKit v4 seats: [`lib/worldid-v4.ts`](app/src/lib/worldid-v4.ts), the seat and rp-context routes, [`seat-button.tsx`](app/src/components/treasury/seat-button.tsx) |
+| AgentKit wallet wrapper ([`agentkit.ts`](app/src/lib/agent/agentkit.ts), July); the songpyeon purchase demo ([`spend.ts`](app/src/lib/agent/spend.ts), Sep 23 — it now refuses a treasury agent) | Claiming a vote with IDKit v4: [`lib/worldid-v4.ts`](app/src/lib/worldid-v4.ts), the `treasury/seat` and `rp-context` routes, [`seat-button.tsx`](app/src/components/treasury/seat-button.tsx) |
 | [`secret-box.ts`](app/src/lib/secret-box.ts), the family wallet in [`gift.ts`](app/src/lib/gift.ts) (Sep 25, before the treasury) | The panel ([`treasury-panel.tsx`](app/src/components/treasury/treasury-panel.tsx)), the `treasury_*` tables and `users.world_sub`, the seed, selftest and e2e, [`docs/world/`](docs/world/) |
 
 *A note on the history:* the eight treasury commits `aa9fc39..a4c81bb` carry the same

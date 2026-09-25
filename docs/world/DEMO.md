@@ -11,7 +11,7 @@ chain) and are captured as separate takes; **[live]** scenes are deterministic.
 1. `cd app && npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts --reset`
    → five friends, $1,000 in the agent's wallet, the relation's memory doc with
    Purpose / Treasury Rules / Payees (adopted as the founding agreement),
-   Chris·Dana·Eli already seated. The seed also unbinds every demo account's
+   Chris·Dana·Eli already have a vote. The seed also unbinds every demo account's
    World ID, so a rehearsal's bindings can't void a take.
 2. **Pre-flight — the takes must show World, not the stand-ins.** As any member,
    `GET /api/dm/rooms/<room>/treasury` must report:
@@ -21,15 +21,16 @@ chain) and are captured as separate takes; **[live]** scenes are deterministic.
      registered (`WORLD_CLIENT_ID`, `WORLD_CLIENT_SECRET`, an HTTPS
      `WORLD_REDIRECT_URI`; `WORLD_TOKEN_AUTH_METHOD` if the registration names
      `client_secret_post`).
-   - `"seatMode": "world-id-v4"` for the seat scenes (1, 2). `"dev-simulator"`
-     means no Portal app — the panel says "dev seat"; that is not a take either.
+   - `"seatMode": "world-id-v4"` for the vote scenes (1, 2). `"dev-simulator"`
+     means no Portal app — the panel says "dev vote"; that is not a take either.
      Needs the Developer Portal staging app (`WORLD_RP_ID`,
      `WORLD_RP_SIGNING_KEY`, `NEXT_PUBLIC_WORLD_ID_APP_ID` baked into the build)
-     and action `treasury-seat` registered.
+     and action `treasury-seat` registered (it keeps that original id — "vote"
+     is only the on-screen word; renaming the action would break verification).
    - Production must never run with `WORLD_IDP=mock`: anyone can claim any human there.
-3. With seats from the Portal app, seed with `--reset --no-preseat` and have
-   Chris, Dana and Eli claim theirs through simulator.worldcoin.org off camera,
-   so every seat on screen is a real proof (seeded seats show as "dev seat").
+3. With votes claimed through the Portal app, seed with `--reset --no-preseat`
+   and have Chris, Dana and Eli claim theirs through simulator.worldcoin.org off
+   camera, so every vote on screen is a real proof (seeded votes show as "dev vote").
 4. Rehearsing on the mock IdP: pick the same human per member every time —
    Alex = Human 1, Bea = Human 2, Chris = Human 3, Dana = Human 4, Eli = Human 5,
    and Alex (2nd account) = Human 1 (the same human as Alex, for scene 4).
@@ -47,15 +48,15 @@ relation's memory doc beside it — **Treasury Rules** in plain sentences.
 > follows what we agreed, written here, in our own words — and anyone can edit
 > this page, but it only follows the version the group adopted."
 
-Alex taps **Claim your seat with World ID** (IDKit, Proof of Human).
+Alex taps **Claim your vote with World ID** (IDKit, Proof of Human).
 
 > "Before anyone can approve anything, they prove one thing: that they're a
-> unique human. Not who they are — just: one human, one seat."
+> unique human. Not who they are — just: one human, one vote."
 
 ## 2 · The second account (0:25–0:40) [pre-record — needs the Portal app]
 
-"Alex (2nd account)" tries to claim a sixth seat → **"This human already holds
-a seat in this relation — one human, one seat."**
+"Alex (2nd account)" tries to claim a sixth vote → **"This human already has
+a vote in this relation — one human, one vote."**
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 
