@@ -1273,3 +1273,84 @@ export const personhoodProofs = pgTable(
   (t) => [uniqueIndex("personhood_proofs_room_user").on(t.roomId, t.userId)]
 );
 
+
+// ---------------------------------------------------------------------------
+// Relation Treasury — the room agent manages a shared wallet; any action the
+// relation's rules mark as critical waits here until enough DISTINCT verified
+// humans approve it. An approval is a fresh World ID proof bound to ONE action
+// (signal = action id), so a proof for action X can never count toward Y.
+// ---------------------------------------------------------------------------
+
+export const treasuryActions = pgTable(
+  "treasury_actions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+    agentUserId: uuid("agent_user_id").notNull(),
+    requestedBy: uuid("requested_by").notNull(),
+    // "expense" | "withdrawal" | "investment" — see lib/agent/treasury/types.ts
+    kind: text("kind").notNull(),
+    amountUsd: doublePrecision("amount_usd").notNull(),
+    // human-readable purpose/recipient label ("hotel deposit", "C's wallet")
+    memo: text("memo").default("").notNull(),
+    recipientAddress: text("recipient_address"),
+    recipientUserId: uuid("recipient_user_id"),
+    // the rule line (verbatim, from the relation's memory doc) that set the bar
+    ruleText: text("rule_text").default("").notNull(),
+    requiredApprovals: integer("required_approvals").notNull(),
+    // "pending" | "executed" | "blocked" | "failed" | "cancelled"
+    status: text("status").default("pending").notNull(),
+    txHash: text("tx_hash"),
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    decidedAt: timestamp("decided_at"),
+  },
+  (t) => [index("treasury_actions_room_idx").on(t.roomId, t.createdAt)]
+);
+
+export const treasuryApprovals = pgTable(
+  "treasury_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actionId: uuid("action_id")
+      .references(() => treasuryActions.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id").notNull(),
+    // WHO approved, as a human: "sub:<pairwise sub>" from a fresh World ID for
+    // Agents step-up (validated server-side: JWKS, nonce, auth_time after the
+    // action was created). Never taken from the client. Two accounts of one
+    // human carry the same sub and collide on (action, approver).
+    approverKey: text("approver_key").notNull(),
+    verificationLevel: text("verification_level"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("treasury_approvals_action_approver").on(t.actionId, t.approverKey),
+    uniqueIndex("treasury_approvals_action_user").on(t.actionId, t.userId),
+  ]
+);
+
+// A seat is the right to approve: claimed once per member with an IDKit Proof
+// of Human (action "treasury-seat", signal = roomId). One human, one seat —
+// a second account of the same person produces the same nullifier and bounces
+// off the (room, nullifier) index.
+export const treasurySeats = pgTable(
+  "treasury_seats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    nullifierHash: text("nullifier_hash").notNull(),
+    // "orb" | "device" from the proof, or "dev-simulator"
+    verificationLevel: text("verification_level"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("treasury_seats_room_user").on(t.roomId, t.userId),
+    uniqueIndex("treasury_seats_room_nullifier").on(t.roomId, t.nullifierHash),
+  ]
+);
+
+export type TreasuryAction = typeof treasuryActions.$inferSelect;
+export type TreasuryApproval = typeof treasuryApprovals.$inferSelect;
+export type TreasurySeat = typeof treasurySeats.$inferSelect;
