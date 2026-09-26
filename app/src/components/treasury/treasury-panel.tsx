@@ -260,7 +260,14 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
     const seq = ++seqRef.current;
     inFlightRef.current = true;
     return fetch(`/api/dm/rooms/${roomId}/treasury`, { cache: "no-store" })
-      .then((res) => (res.ok ? (res.json() as Promise<StatusView>) : null))
+      .then((res) => {
+        if (res.ok) return res.json() as Promise<StatusView>;
+        // a 5xx is the server mid-restart (a deploy swaps the container): keep
+        // the last status and keep polling, rather than blank the panel until
+        // the next successful read. A 4xx is an answer — no treasury, no access.
+        if (res.status >= 500) throw new Error(`treasury status ${res.status}`);
+        return null;
+      })
       .then((next) => {
         if (roomRef.current !== roomId || seq < appliedRef.current) return;
         appliedRef.current = seq;
