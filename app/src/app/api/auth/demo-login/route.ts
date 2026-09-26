@@ -45,9 +45,19 @@ async function demoFamily() {
   return { demo, members };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO_LOGIN !== "1")
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // ?as=<slug>: the link form of POST { as } — a clickable sign-in as a named
+  // demo account (the Tokyo Trip members), then straight to the app. Same
+  // guard and same accounts as POST; nothing a link can reach that POST can't.
+  const as = req.nextUrl.searchParams.get("as")?.trim().slice(0, 32) ?? "";
+  if (as) {
+    const slug = as.toLowerCase().replace(/[^a-z0-9-_]/g, "");
+    if (!slug) return NextResponse.json({ error: "Bad name" }, { status: 400 });
+    await loginUser(`demo:${slug}`, as);
+    return NextResponse.redirect(new URL("/", req.nextUrl.origin), 303);
+  }
   const fam = await demoFamily();
   return NextResponse.json({
     demo: fam?.demo.displayName ?? null,
