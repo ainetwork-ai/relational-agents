@@ -11,26 +11,33 @@ export function openAiCompatProvider(opts: {
   model: string;
   /** sent as `Authorization: Bearer` when present (hosted gateways need it) */
   apiKey?: string;
+  /**
+   * A reasoning deployment (Azure gpt-5.x): it rejects `max_tokens` and any
+   * non-default `temperature`, so the budget goes as `max_completion_tokens`
+   * and temperature is left out. Classic servers (vLLM) take the first pair.
+   */
+  reasoning?: boolean;
 }): ToolChatProvider {
   const base = opts.baseUrl.replace(/\/$/, "");
   const headers = {
     "content-type": "application/json",
     ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
   };
+  // both request paths shape the budget the same way, so one deployment never works for one and fails the other
+  const budget = (maxTokens: number, temperature: number | undefined) =>
+    opts.reasoning
+      ? { max_completion_tokens: maxTokens }
+      : { max_tokens: maxTokens, ...(temperature !== undefined ? { temperature } : {}) };
   return {
     name: `openai-compat(${opts.model})`,
     async chat(messages: AiMessage[], o: ChatOptions): Promise<string> {
       const res = await fetch(`${base}/chat/completions`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
-        },
+        headers,
         body: JSON.stringify({
           model: opts.model,
           messages,
-          max_tokens: o.maxTokens ?? 1024,
-          temperature: o.temperature ?? 0.4,
+          ...budget(o.maxTokens ?? 1024, o.temperature ?? 0.4),
         }),
         signal: AbortSignal.timeout(o.timeoutMs ?? 120_000),
       });
@@ -46,9 +53,6 @@ export function openAiCompatProvider(opts: {
       return out.trim();
     },
 
-    // Its own request shape, not chat()'s: reasoning deployments (Azure gpt-5.x)
-    // reject `max_tokens` and any non-default `temperature`, so the budget goes as
-    // `max_completion_tokens` and temperature only when the caller sets one.
     async chatWithTools(messages: AiToolMessage[], tools: AiTool[], o: ToolChatOptions): Promise<ToolChatResult> {
       const timeout = AbortSignal.timeout(o.timeoutMs ?? 60_000);
       const res = await fetch(`${base}/chat/completions`, {
@@ -58,9 +62,8 @@ export function openAiCompatProvider(opts: {
           model: opts.model,
           messages,
           ...(tools.length ? { tools, tool_choice: o.toolChoice ?? "auto" } : {}),
-          max_completion_tokens: o.maxTokens ?? 4096,
-          ...(o.temperature !== undefined ? { temperature: o.temperature } : {}),
-          ...(o.reasoningEffort ? { reasoning_effort: o.reasoningEffort } : {}),
+          ...budget(o.maxTokens ?? 4096, o.temperature),
+          ...(opts.reasoning && o.reasoningEffort ? { reasoning_effort: o.reasoningEffort } : {}),
         }),
         signal: o.signal ? AbortSignal.any([timeout, o.signal]) : timeout,
       });

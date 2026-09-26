@@ -28,6 +28,7 @@ function selectProvider(): ToolChatProvider {
     baseUrl: process.env.AI_URL ?? "http://localhost:8100/v1",
     model: process.env.AI_MODEL ?? "gemma-4-31B-it",
     apiKey: process.env.AI_API_KEY,
+    reasoning: process.env.AI_REASONING === "1",
   });
 }
 
