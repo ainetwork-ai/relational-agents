@@ -14,6 +14,7 @@ import {
   type Candidate,
 } from "@/lib/prompt-export";
 import {
+  answerLang,
   answerPending,
   coversAsked,
   forgetPendingPrompt,
@@ -84,7 +85,6 @@ async function pickTitle(request: string, titles: Candidate[]): Promise<Candidat
 }
 
 export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null> {
-  const t = makeT(ctx.lang);
   const readers = ctx.viewerIds?.length ? [...new Set([ctx.askerId, ...ctx.viewerIds])] : [ctx.askerId];
   const shared = readers.length > 1;
   // links in the prompt (saved into a page others read) come from configuration only
@@ -97,6 +97,10 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
   if (ctx.roomId) forgetPendingPrompt(ctx.roomId, ctx.askerId);
   const answer = pending && !ask?.sure && sameReaders(pending.readers, readers) ? answerPending(pending, ctx.text) : null;
   if (!ask && !answer) return null;
+  // an answer to "which one?" goes on in the question's language unless it has words of its
+  // own: "@agent 2" to a Korean question is answered (and its page titled) in Korean
+  const lang = answer && pending?.lang ? answerLang(ctx.text, pending.lang) : ctx.lang;
+  const t = makeT(lang);
 
   const said = parsePromptRequest(ctx.text);
   // the answer to "which one?" keeps what the question's request said, and adds its own
@@ -109,7 +113,7 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
   const q = promptQuestions(t, { shared, pageOpen: !!ctx.contextPageId });
   const whichPage = q.whichPage;
   const remember = (choices: Choice[], pool: Choice[] = []) => {
-    if (ctx.roomId) rememberPendingPrompt(ctx.roomId, ctx.askerId, { choices, pool, fetch: req.fetch, render: req.render, readers });
+    if (ctx.roomId) rememberPendingPrompt(ctx.roomId, ctx.askerId, { choices, pool, fetch: req.fetch, render: req.render, readers, lang });
   };
   /** "Which one?" — numbered, so "2" or "the second one" can answer it */
   const askWhich = (choices: Choice[]): SkillResult => {
@@ -194,8 +198,8 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
     databases: s.databases,
     rows: s.rows,
     files: out.files.length,
-    chars: out.chars.toLocaleString(ctx.lang === "ko" ? "ko-KR" : "en-US"),
-    tokens: out.estimatedTokens.toLocaleString(ctx.lang === "ko" ? "ko-KR" : "en-US"),
+    chars: out.chars.toLocaleString(lang === "ko" ? "ko-KR" : "en-US"),
+    tokens: out.estimatedTokens.toLocaleString(lang === "ko" ? "ko-KR" : "en-US"),
   };
 
   // ── where it goes ──

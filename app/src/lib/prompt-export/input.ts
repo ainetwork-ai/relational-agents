@@ -496,7 +496,26 @@ export interface PendingPrompt {
   render: Partial<RenderOptions>;
   /** who the question was asked for — an answer read for other people starts afresh */
   readers: string[];
+  /** the language the question was asked in — an answer said in no language ("2") keeps it */
+  lang?: "ko" | "en";
   expires: number;
+}
+
+/**
+ * The language to answer a reply to "which one?" in: the reply's own when it has words
+ * ("yes", "the second one", Korean — its jamo-only "yes" included), else the question's.
+ * "2", "#2", an @mention, a pasted link or id are said in no language: a Korean
+ * conversation answered with a number or a link stays Korean, in the reply and in the
+ * saved page's title.
+ */
+export function answerLang(reply: string, asked: "ko" | "en"): "ko" | "en" {
+  const said = reply
+    .split(/\s+/)
+    .filter((w) => w && !w.startsWith("@") && !w.includes("/") && !findRefInText(w))
+    .join(" ");
+  if (/[\u1100-\u11FF\u3131-\u318E\uAC00-\uD7A3]/.test(said)) return "ko";
+  if (/[A-Za-z]/.test(said)) return "en";
+  return asked;
 }
 
 /** How long a "which one?" waits for its answer. */

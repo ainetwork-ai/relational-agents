@@ -8,6 +8,7 @@
 // matcher is pure (the pg pool behind @/lib/db connects on first query, never here).
 // Korean sentences live in @/i18n/content/scripts (PROMPT_EXPORT_CHAT_CHECK).
 import {
+  answerLang,
   answerPending,
   answersPendingPrompt,
   forgetPendingPrompt,
@@ -465,6 +466,33 @@ function ok(name: string, cond: boolean, detail?: unknown) {
   ok("lock: several readers are 'the people'", lockLine(t, P(true, false, false), true) === t("🔒 The prompt page is shared only with the people who will read this answer."));
   ok("lock: owners and admins who can open it are named", lockLine(t, P(true, true, false), false)!.includes("owners and admins") && lockLine(t, P(true, true, false), true)!.includes("owners and admins"));
   ok("lock: no page when it would reach them and they may not see it", lockLine(t, P(true, true, true), false)!.startsWith("🔒 Not saved as a page"));
+}
+
+// ── 12. live-tested: the language of an answer to "which one?" ──────────────
+{
+  // "@agent 2" to a Korean question answered in English, and the page titled so, was found
+  // by scripts/prompt-export.live.mts; an answer with no words keeps the question's language
+  for (const [reply, asked, want] of [
+    ["@agent 2", "ko", "ko"],
+    ["#2", "ko", "ko"],
+    ["2", "en", "en"],
+    ["@agent yes", "ko", "en"],
+    ["the second one", "ko", "en"],
+    [K.answers[2][0], "en", "ko"],
+    [K.yesMore[0], "en", "ko"],
+    [`@agent ${K.choices[0]}`, "en", "ko"],
+    // a link or id pasted as the answer (the question invites one) is in no language either
+    ["@agent /p/0b3f5c1e-8d2a-4f6b-9c7d-1e2f3a4b5c6d", "ko", "ko"],
+    ["https://ainmem.example/p/0b3f5c1e8d2a4f6b9c7d1e2f3a4b5c6d", "ko", "ko"],
+    ["0b3f5c1e-8d2a-4f6b-9c7d-1e2f3a4b5c6d", "ko", "ko"],
+    ["teamspace:0b3f5c1e-8d2a-4f6b-9c7d-1e2f3a4b5c6d", "ko", "ko"],
+    ["@agent this one: /p/0b3f5c1e-8d2a-4f6b-9c7d-1e2f3a4b5c6d", "ko", "en"],
+  ] as const)
+    eq(`answer language: ${reply} (asked in ${asked})`, answerLang(reply, asked), want);
+  const room = "room-lang";
+  rememberPendingPrompt(room, "mom", { choices: [], pool: [], fetch: {}, render: {}, readers: ["mom"], lang: "ko" });
+  eq("the question remembers its language", pendingPrompt(room, "mom")?.lang, "ko");
+  forgetPendingPrompt(room, "mom");
 }
 
 console.log(`\nprompt export chat: ${passes} passed, ${fails} failed`);

@@ -144,3 +144,31 @@ export const PROMPT_EXPORT_CHAT_CHECK = {
   /** a question about turning into a prompt is still a question */
   promptizeQuestion: "@agent 프롬프트화가 뭐야?",
 } as const;
+
+/** prompt-export.live.mts: the Kim family demo as the dev database holds it, and what is said
+ *  to its agent there (Korean requests, and Korean chat that must be left to the model) */
+export const PROMPT_EXPORT_LIVE = {
+  /** the private teamspace grandma is not in, and its room */
+  privateTeamspace: "할머니 생신 준비",
+  hubTitle: "2026 우리 가족 추석",
+  /** the page open behind the panel for "this page" */
+  contextPageTitle: "할머니 건강 · 연휴 약",
+  chuseok: "@agent 추석 페이지를 AI 프롬프트로 만들어줘",
+  thisPage: "@agent 이 페이지 프롬프트로",
+  /** several album pages tie: "which one?" */
+  ambiguous: "@agent 앨범 페이지를 프롬프트로 만들어줘",
+  /** the answer to it with a title alone, and that title */
+  titleAnswer: ["@agent 서연이 앨범", "서연이 앨범"],
+  /** "grandma's page": only the pages everyone in the family room sees are candidates */
+  grandmaPage: "@agent 할머니 페이지 프롬프트로 만들어줘",
+  /** chat about prompts: never the skill */
+  notRequests: [
+    "@agent 프롬프트가 뭐야?",
+    "@agent 이 앨범 만들 때 쓴 프롬프트 뭐야?",
+    "@agent 할머니께 보낼 추석 카드 문구 만들 프롬프트 좀 만들어줘",
+  ],
+  /** the private teamspace's page asked for by name */
+  privateByTitle: "@agent 할머니 생신 준비 페이지를 프롬프트로 만들어줘",
+  /** said after a link or id: "@agent <link> …" */
+  afterLink: "프롬프트로 만들어줘",
+} as const;
