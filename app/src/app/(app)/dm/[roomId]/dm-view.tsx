@@ -987,7 +987,10 @@ export function DmView({
       {variant !== "call" && (
         <>
           <ConsentBanner roomId={roomId} />
-          <TreasuryPanel roomId={roomId} />
+          <TreasuryPanel
+            roomId={roomId}
+            agent={agentMember ? { name: agentMember.displayName, avatarUrl: agentMember.avatarUrl } : null}
+          />
           <DissolveBanner roomId={roomId} />
         </>
       )}

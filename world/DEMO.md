@@ -112,7 +112,7 @@ in the room between the final reset and the first take.
 
 ## 0 · The problem (0:00–0:12) [live]
 
-The Tokyo Trip room, panel collapsed: `Shared treasury · $1,000.00`.
+The Tokyo Trip room, panel collapsed: `Tokyo Trip agent · Shared treasury $1,000.00`.
 
 > "Have you ever managed money with other people? Five of us are, right now, at ETHGlobal
 > Tokyo. Pooling it was easy. The hard part is what we agreed — who can spend it, on what,

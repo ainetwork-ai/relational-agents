@@ -10,7 +10,6 @@ import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
 import { UserAvatar } from "@/components/user-avatar";
 import { ADOPTED_RESULT, TREASURY_RESULT, countedLine, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
-import { ChainBadge } from "@/components/chain/chain-badge";
 import { useT } from "@/i18n/provider";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
@@ -219,7 +218,13 @@ const toneClass: Record<ResultTone, string> = {
  * SQL, and a seat or an approval is only ever a World ID proof the server
  * checked — this panel never decides anything, it links to where trust is given.
  */
-export function TreasuryPanel({ roomId }: { roomId: string }) {
+/** The room's agent, as the room lists it: the panel is that agent's, and says so in its header. */
+export interface TreasuryPanelAgent {
+  name: string;
+  avatarUrl?: string | null;
+}
+
+export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?: TreasuryPanelAgent | null }) {
   // Snapshots carry their room so a room switch never shows the previous
   // room's wallet, without resetting state inside an effect.
   const [snap, setSnap] = useState<{ roomId: string; status: StatusView | null } | null>(null);
@@ -394,9 +399,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   // someone without a vote sees how to get one without looking for it
   const open = openOverride ?? (pending.length > 0 || banner !== null || !status.mySeated);
   const showClaim = !status.mySeated || holdClaim === roomId;
-  const scaleNote = `Testnet demo: $1 = ${new Intl.NumberFormat("en-US", { maximumSignificantDigits: 3 }).format(
-    status.usdPerEth > 0 ? 1 / status.usdPerEth : 0
-  )} SepETH`;
 
   return (
     <section
@@ -415,7 +417,15 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             aria-hidden
             className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform group-hover:text-neutral-600 ${open ? "rotate-90" : ""}`}
           />
-          <span aria-hidden>🏦</span>
+          {agent ? (
+            <span data-testid="treasury-agent" className="flex items-center gap-1.5" title={`${agent.name} holds this treasury and follows the rules the group adopted`}>
+              <UserAvatar user={{ displayName: agent.name, avatarUrl: agent.avatarUrl ?? null }} size={20} />
+              <span className="font-medium">{agent.name}</span>
+              <span aria-hidden className="text-neutral-400">·</span>
+            </span>
+          ) : (
+            <span aria-hidden>🏦</span>
+          )}
           <span data-testid="treasury-balance" className="flex items-baseline gap-1.5">
             <span className="text-neutral-500 dark:text-neutral-400">Shared treasury</span>
             <span className="text-base font-semibold tabular-nums">
@@ -446,9 +456,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             {pending.length} waiting for approval
           </span>
         )}
-        <span data-testid="treasury-slogan" className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
-          AI manages the money · humans approve it
-        </span>
       </div>
 
       {banner && (
@@ -471,42 +478,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
 
       {open && (
         // on a phone the open panel keeps to half the screen and scrolls inside, so the conversation stays in view
+        // the wallet, its chain and the rules page live on the Treasury page; here
+        // the room sees the agent, the pot, the votes and what waits for them
         <div data-testid="treasury-body" className="max-md:max-h-[50vh] max-md:overflow-y-auto max-md:overscroll-contain">
-          <div
-            data-testid="treasury-wallet"
-            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400"
-          >
-            <span>
-              Agent wallet{" "}
-              {status.address ? (
-                <a
-                  href={`${EXPLORER}/address/${status.address}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={`Agent wallet ${status.address}${status.balanceEth ? ` · holds ${status.balanceEth} SepETH` : ""} — open on Ethereum Sepolia Etherscan`}
-                  className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
-                >
-                  {short(status.address)}
-                </a>
-              ) : (
-                "—"
-              )}
-              {" · "}
-              <span title={scaleNote} className="cursor-help align-middle">
-                <ChainBadge chain="sepolia" />
-              </span>
-            </span>
-            {status.rulesPageId && (
-              <Link
-                href={`/p/${status.rulesPageId}`}
-                data-testid="treasury-rules-link"
-                className="ml-auto shrink-0 font-medium text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
-              >
-                📄 Our rules →
-              </Link>
-            )}
-          </div>
-
           {!status.adoptedAt ? (
             <div data-testid="treasury-unadopted" className={`mt-2 rounded-md border px-3 py-2 text-xs ${toneClass.bad}`}>
               These rules were never adopted, so the agent moves no money yet. Ask it “@agent adopt the rules” to put
