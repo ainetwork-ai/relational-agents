@@ -18,7 +18,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
-import { useTreasuryUi } from "@/components/treasury-app/use-treasury-ui";
 import { TreasurerChat } from "@/components/treasurer/treasurer-chat";
 import { TreasuryRoomProvider, useTreasuryRoom } from "./room-data";
 import { LatestMessage } from "./latest-message";
@@ -58,12 +57,18 @@ function resultCopy(t: T, code: string): { tone: "ok" | "bad" | "info"; text: st
   }
 }
 
+/** What the World flow puts on ?treasury= (api/auth/world/callback); anything else there is not an outcome. */
+const CALLBACK_CODES: ReadonlySet<string> = new Set([
+  "approved", "executing", "executed", "already-approved", "not-pending", "expired", "cancelled", "same-human",
+  "not-seated", "not-electorate", "not-member", "not-found", "stale-proof", "world-id-mismatch",
+  "idp-error", "bad-state", "account-switched", "verify-failed",
+]);
+
 function useCallbackResult(): [string | null, () => void] {
   const params = useSearchParams();
-  // the switch values share this parameter (use-treasury-ui.ts) and are not outcomes
   const [code, setCode] = useState<string | null>(() => {
     const v = params.get("treasury");
-    return v && v !== "v1" && v !== "v2" ? v : null;
+    return v && CALLBACK_CODES.has(v) ? v : null;
   });
   useEffect(() => {
     if (!code) return;
@@ -228,24 +233,7 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
-function SwitchOffNote({ roomId }: { roomId: string }) {
-  const t = useT();
-  return (
-    <div className="mx-auto max-w-xl px-6 py-24 text-sm text-neutral-600 dark:text-neutral-300">
-      <p className="font-medium text-neutral-800 dark:text-neutral-100">{t("The new Treasury view is off in this browser.")}</p>
-      <p className="mt-2">
-        <a href={`${treasuryPath(roomId)}?treasury=v2`} className="text-blue-600 underline underline-offset-2 dark:text-blue-400">
-          {t("Turn it on")}
-        </a>
-      </p>
-    </div>
-  );
-}
-
 export function TreasuryRoomShell({ roomId, children }: { roomId: string; children: ReactNode }) {
-  const ui = useTreasuryUi();
-  if (ui === null) return null; // before hydration the switch is unknown
-  if (ui === "v1") return <SwitchOffNote roomId={roomId} />;
   return (
     <div className={styles.root} data-testid="treasury-room">
       {/* React hoists and dedupes this stylesheet; the font stack falls back to system fonts until it lands */}

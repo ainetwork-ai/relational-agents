@@ -9,7 +9,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/i18n/provider";
-import { useTreasuryUi } from "@/components/treasury-app/use-treasury-ui";
 import { filterRooms, overviewStats, parseSummary, sortRooms, type OverviewFilter } from "./overview-model";
 import { OverviewList, OverviewListSkeleton } from "./overview-list";
 import { OverviewStatStrip } from "./overview-stats";
@@ -66,22 +65,6 @@ function useTreasurySummary(): { load: Load; retry: () => void } {
   }, [fetchSummary]);
 
   return { load, retry };
-}
-
-function SwitchOffNote() {
-  const t = useT();
-  return (
-    <div className="mx-auto max-w-xl px-6 py-24 text-sm text-neutral-600 dark:text-neutral-300">
-      <p className="font-medium text-neutral-800 dark:text-neutral-100">{t("The new Treasury view is off in this browser.")}</p>
-      <p className="mt-2">
-        {/* a full load: the switch reads ?treasury= from the URL it loads with (use-treasury-ui.ts), not from a client-side push */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a href="/treasury?treasury=v2" className="text-blue-600 underline underline-offset-2 dark:text-blue-400">
-          {t("Turn it on")}
-        </a>
-      </p>
-    </div>
-  );
 }
 
 function EmptyState() {
@@ -174,7 +157,5 @@ function Overview() {
 }
 
 export function TreasuryOverview() {
-  const ui = useTreasuryUi();
-  if (ui === null) return null; // before hydration the switch is unknown
-  return ui === "v2" ? <Overview /> : <SwitchOffNote />;
+  return <Overview />;
 }

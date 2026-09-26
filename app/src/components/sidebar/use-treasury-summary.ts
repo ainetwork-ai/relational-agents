@@ -67,15 +67,14 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** roomId → money state; empty while `enabled` is false (the treasury switch is off). */
-export function useTreasurySummary(enabled: boolean): ReadonlyMap<string, TreasurySummaryRoom> {
+/** roomId → money state. */
+export function useTreasurySummary(): ReadonlyMap<string, TreasurySummaryRoom> {
   const map = useSyncExternalStore(subscribe, () => byRoom, () => EMPTY);
   useEffect(() => {
-    if (!enabled) return;
     if (subscribers++ === 0) start();
     return () => {
       if (--subscribers === 0) stop();
     };
-  }, [enabled]);
-  return enabled ? map : EMPTY;
+  }, []);
+  return map;
 }

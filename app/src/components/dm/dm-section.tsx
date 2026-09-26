@@ -11,7 +11,6 @@ import { NewDmModal } from "./new-dm-modal";
 import type { T } from "@/i18n/translate";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { chipColors } from "@/components/database/option-chip";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
 import { TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
 import { stripA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
@@ -101,7 +100,7 @@ export function DmSection() {
   const t = useT();
   const locale = useIntlLocale();
   const pathname = usePathname();
-  const money = useTreasurySummary(useTreasuryV2());
+  const money = useTreasurySummary();
 
   useEffect(() => {
     void load();

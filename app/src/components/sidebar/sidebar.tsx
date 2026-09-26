@@ -34,7 +34,6 @@ import { PageIcon } from "@/components/page-icon";
 import { pageLabel, pageFallbackIcon, type PageRow } from "@/lib/page-label";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { chipColors } from "@/components/database/option-chip";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useTreasurySummary } from "./use-treasury-summary";
 import { initial } from "@/lib/glyph";
 import { useT } from "@/i18n/provider";
@@ -104,7 +103,7 @@ export function Sidebar({
  // of the way of the page a row just opened
   const pathname = usePathname();
  // money across relations lives on Home: its icon carries a dot while a vote of mine is owed anywhere
-  const treasuries = useTreasurySummary(useTreasuryV2());
+  const treasuries = useTreasurySummary();
   const voteOwed = useMemo(() => [...treasuries.values()].some((r) => r.pendingForMe > 0), [treasuries]);
   useEffect(() => {
     setMobileNavOpen(false);
