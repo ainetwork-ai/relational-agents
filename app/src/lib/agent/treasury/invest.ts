@@ -1,14 +1,18 @@
 import "server-only";
-import { createPublicClient, createWalletClient, fallback, formatUnits, http, parseAbi, parseEventLogs, type Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { createPublicClient, createWalletClient, fallback, formatUnits, http, parseAbi, type Hex } from "viem";
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { base } from "viem/chains";
+import { ROUTE_WORDS, type SwapRoute } from "./swap-route";
+import { buyWethWithUsdc, tradingApiKey, wethReceived, type SwapWallet } from "./uniswap-api";
 import { agentKey } from "./wallet";
 
 /**
  * Investing idle funds — the "investment" kind, once its quorum is met — is a
- * Uniswap v3 swap on Base, USDC → WETH, signed by the treasury agent's own key
- * (the same address as its Sepolia pot). The WETH stays in the agent's wallet;
- * the relation's memory names that wallet as the "Savings (idle funds)" payee.
+ * Uniswap swap on Base, USDC → WETH, signed by the treasury agent's own key
+ * (the same address as its Sepolia pot): through the Uniswap Trading API when
+ * UNISWAP_API_KEY is set (uniswap-api.ts), else directly through Uniswap v3
+ * (swapDirect). The WETH stays in the agent's wallet; the relation's memory
+ * names that wallet as the "Savings (idle funds)" payee.
  *
  * Addresses mirror uniswap/src/chains/base.js (verified against the Uniswap
  * deployments page on 2026-09-25). They are repeated here because the Docker
@@ -50,7 +54,6 @@ const erc20 = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address owner) view returns (uint256)",
-  "event Transfer(address indexed from, address indexed to, uint256 value)",
 ]);
 const quoter = parseAbi([
   "function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
@@ -61,6 +64,9 @@ const router = parseAbi([
 
 const transportFor = (cfg: InvestConfig) => fallback(cfg.rpcs.map((u) => http(u, { timeout: 10_000 })), { rank: false });
 const publicClient = (cfg: InvestConfig) => createPublicClient({ chain: base, transport: transportFor(cfg) });
+const walletClient = (cfg: InvestConfig, account: PrivateKeyAccount) => createWalletClient({ account, chain: base, transport: transportFor(cfg) });
+type PublicClient = ReturnType<typeof publicClient>;
+type WalletClient = ReturnType<typeof walletClient>;
 
 /** USDC (6 decimals) for a story amount at demo scale. */
 export function usdcForUsd(cfg: InvestConfig, usd: number): bigint {
@@ -84,12 +90,22 @@ export interface InvestResult {
   usdcIn: bigint;
   wethOut: bigint;
   txUrl: string;
+  /** which way it went (swap-route.ts) */
+  route: SwapRoute;
+  /** the Trading API's /quote requestId, whenever the API was asked */
+  requestId?: string;
+  /** why a server with UNISWAP_API_KEY swapped directly: the API failed before anything was sent */
+  fallbackReason?: string;
   /** one line for the chat and the activity page */
   note: string;
 }
 
-/** Swap the story amount's worth of real USDC into WETH, from the agent's wallet, on Base. */
-export async function investViaUniswap(agentUserId: string, amountUsd: number): Promise<InvestResult> {
+/**
+ * Swap the story amount's worth of real USDC into WETH, from the agent's wallet,
+ * on Base. `allowOrders` lets the Trading API answer with a UniswapX order —
+ * only for a caller whose record can hold an order that hasn't filled yet.
+ */
+export async function investViaUniswap(agentUserId: string, amountUsd: number, opts: { allowOrders?: boolean } = {}): Promise<InvestResult> {
   const cfg = investConfig();
   if (!cfg) throw new Error("investing is not configured on this server (TREASURY_INVEST)");
   const amountIn = usdcForUsd(cfg, amountUsd);
@@ -97,7 +113,7 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
 
   const account = privateKeyToAccount(await agentKey(agentUserId));
   const client = publicClient(cfg);
-  const wallet = createWalletClient({ account, chain: base, transport: transportFor(cfg) });
+  const wallet = walletClient(cfg, account);
 
   const held = await client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "balanceOf", args: [account.address] });
   if (held < amountIn)
@@ -105,6 +121,47 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
       `the agent's Base wallet holds ${formatUnits(held, 6)} USDC, less than the ${formatUnits(amountIn, 6)} this investment needs`
     );
 
+  const fill = await buyWethWithUsdc({
+    request: {
+      chainId: INVEST_CHAIN.chainId,
+      usdc: INVEST_CHAIN.usdc,
+      weth: INVEST_CHAIN.weth,
+      amountIn,
+      slippageBps: cfg.slippageBps,
+      allowOrders: opts.allowOrders ?? false,
+    },
+    apiKey: tradingApiKey(),
+    api: { fetch, wallet: swapWallet(account, client, wallet), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: Date.now },
+    direct: () => swapDirect(cfg, account, client, wallet, amountIn),
+  });
+  if (fill.requestId)
+    console.info(`invest: ${fill.route}, Trading API request ${fill.requestId}${fill.fallbackReason ? ` — ${fill.fallbackReason}` : ""}`);
+  return {
+    ...fill,
+    txUrl: `${INVEST_CHAIN.explorer}/tx/${fill.txHash}`,
+    note: `${trim(formatUnits(fill.usdcIn, 6))} USDC → ${trim(formatUnits(fill.wethOut, 18))} WETH via ${ROUTE_WORDS[fill.route]} (demo scale: $1 = ${cfg.usdcPerUsd} USDC)`,
+  };
+}
+
+/** The agent's wallet as the Trading API route drives it. */
+function swapWallet(account: PrivateKeyAccount, client: PublicClient, wallet: WalletClient): SwapWallet {
+  return {
+    address: account.address,
+    signTypedData: (typedData) => account.signTypedData(typedData),
+    sendTransaction: (tx) => wallet.sendTransaction(tx),
+    waitForReceipt: (hash) => client.waitForTransactionReceipt({ hash }),
+    allowance: (token, owner, spender) => client.readContract({ address: token, abi: erc20, functionName: "allowance", args: [owner, spender] }),
+  };
+}
+
+/** The direct route, and the fallback while nothing has been sent: QuoterV2's quote, then SwapRouter02 on the 0.05% pool. */
+async function swapDirect(
+  cfg: InvestConfig,
+  account: PrivateKeyAccount,
+  client: PublicClient,
+  wallet: WalletClient,
+  amountIn: bigint
+): Promise<{ txHash: Hex; wethOut: bigint }> {
   // A plain ERC-20 approval for exactly this buy, only when the router lacks
   // it. Then wait until THIS client can read the allowance: a load-balanced
   // RPC has shown the approval's receipt from one node and estimated the swap
@@ -149,17 +206,7 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
     throw err;
   }
   // what THIS swap delivered: the WETH Transfer to the agent in its own receipt
-  const wethOut = parseEventLogs({ abi: erc20, logs: receipt.logs, eventName: "Transfer" })
-    .filter((l) => l.address.toLowerCase() === INVEST_CHAIN.weth.toLowerCase() && l.args.to.toLowerCase() === account.address.toLowerCase())
-    .reduce((sum, l) => sum + l.args.value, BigInt(0));
-
-  return {
-    txHash,
-    usdcIn: amountIn,
-    wethOut,
-    txUrl: `${INVEST_CHAIN.explorer}/tx/${txHash}`,
-    note: `${trim(formatUnits(amountIn, 6))} USDC → ${trim(formatUnits(wethOut, 18))} WETH via Uniswap v3 on Base (demo scale: $1 = ${cfg.usdcPerUsd} USDC)`,
-  };
+  return { txHash, wethOut: wethReceived(receipt.logs, INVEST_CHAIN.weth, account.address) };
 }
 
 export interface InvestedPosition {
