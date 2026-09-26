@@ -34,7 +34,9 @@ export const useTeamspacesStore = create<TeamspacesState>((set, get) => ({
     await get().reload();
   },
   reload: async (workspaceId?: string) => {
-    const res = await fetch(workspaceId ? `/api/teamspaces?workspaceId=${encodeURIComponent(workspaceId)}` : "/api/teamspaces");
+    const res = await fetch(workspaceId ? `/api/teamspaces?workspaceId=${encodeURIComponent(workspaceId)}` : "/api/teamspaces").catch(() => null);
+    // dropped connection: keep the list and stay unloaded so the next load() retries
+    if (!res) return;
     if (!res.ok) {
       set({ loaded: true });
       return;

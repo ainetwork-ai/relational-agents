@@ -197,3 +197,38 @@ Format: `JST time — surface — what happened`.
   host user, so the container (uid 1001) got EACCES logging to Treasury
   Activity — fixed with a+rw on the demo doc tree; the seed should chmod what
   it writes when OKF_ROOT is a bind mount.
+- 2026-09-26 09:05 — both — **why World hops "weren't reachable" all afternoon**:
+  not DNS, not docker NAT, not deploys (each was a real but smaller thing).
+  Node 22's `fetch` (undici) races a host's addresses and gives each 250 ms
+  to connect; `sandbox.auth.world.org` resolves to CloudFront edges that take
+  ~300 ms from this host (curl: tcp 0.32 s, fine), so the container's Node
+  reported `ETIMEDOUT` after ~1 s for every address — and it looked
+  intermittent because the resolver sometimes returned nearer edges
+  (52.84.x, 140 ms) that made it under the limit. Proven in the container:
+  default node FAIL 1.1 s; `--network-family-autoselection-attempt-timeout=3000`
+  ok 1.7 s; `--no-network-family-autoselection` ok 2.2 s. Fix: `NODE_OPTIONS`
+  in the runner image (and in `.env.xyz` for the running one). Along the way,
+  kept because each helped a real case: discovery/JWKS/token retries on
+  connect-level failures (a resolver `EAI_AGAIN` right after a swap, a swap
+  mid-hop), public resolvers, and host networking for the xyz app (moves the
+  app's egress off the docker bridge; bind 127.0.0.1:3150). Cost of the
+  detour: ~2 h of the last day. Lesson for the debrief: when a fetch fails
+  where curl succeeds on the same machine, suspect the runtime's connect
+  policy before the network.
+- 2026-09-26 09:14 — both — **first investment executed end to end on
+  ainmem.ainetwork.xyz**: Alex `@agent invest $200 of the idle funds` → the
+  agent queues it citing "Investing idle funds: 3 verified members approve." →
+  Chris, Dana, Eli approve, each from their own browser (three sandbox humans)
+  → the agent swaps 1 USDC → 0.000371977 WETH on Uniswap v3 (Base),
+  tx `0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b`,
+  from its own wallet `0xe03F…Cf2a`; the panel shows "+ $199.79 invested",
+  priced through the same pool; the agent writes "📈 Invested $200 to
+  Savings (idle funds) — 1 USDC → 0.000371977105046968 WETH via Uniswap v3 on
+  Base (demo scale: $1 = 0.005 USDC)". The first attempt (3/3 at 09:03) had
+  reverted at gas estimation with an empty reason: the approval's receipt came
+  from one node of a load-balanced RPC and the swap was estimated on another
+  that had not seen it (STF, reason stripped) — fixed by reading the allowance
+  back through the same client until it shows, quoting after that, and
+  sending the swap with its own gas limit. Earlier the same afternoon, the
+  deposit ($180, Chris + Dana) executed the same way; the 💡 idle-funds hint
+  did not post that time because the Base RPC call failed — now tolerated.

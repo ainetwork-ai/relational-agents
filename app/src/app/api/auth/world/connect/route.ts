@@ -4,6 +4,7 @@ import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNo
 import { safeReturnTo } from "@/lib/auth/return-to";
 import { stamp, stampOk } from "@/lib/secret-box";
 import { approvalCard, type ApprovalCard } from "@/lib/agent/treasury/approvals";
+import { relationDay } from "@/lib/agent/treasury/recurring-record";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,9 @@ const CONFIRM_LABEL = "world-approval-confirm";
  *                      callback binds the sub to this account (users.worldSub).
  *   GET  ?action=<id>  an APPROVAL of that pending treasury action. Nothing is
  *                      started yet: this renders, on our origin, what is being
- *                      approved — amount, payee and its address, requester, the
+ *                      approved — amount, payee and its address (a recurring
+ *                      buy: its terms, total, and the agent wallet it trades
+ *                      from on Base), requester, the
  *                      rule, who approved so far. The IdP screen can't say any
  *                      of that, so without this page a link that looks like
  *                      "re-verify your World ID" would collect an approval of a
@@ -180,14 +183,70 @@ function usd(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
+/** The relation's clock — the room is in Tokyo, and so is everyone approving. */
+const LOCAL_ZONE = { id: "Asia/Tokyo", label: "Tokyo" };
+
+/** "in 10 h (19:12 Tokyo)" — how long is left, and when that is where the group is. */
+function expiresIn(iso: string, now = Date.now()): string {
+  const at = new Date(iso);
+  const ms = at.getTime() - now;
+  const left = ms < 3_600_000 ? `in ${Math.max(1, Math.round(ms / 60_000))} min` : `in ${Math.round(ms / 3_600_000)} h`;
+  const day = (d: Date) => d.toLocaleDateString("en-US", { timeZone: LOCAL_ZONE.id });
+  const clock = new Intl.DateTimeFormat("en-GB", {
+    timeZone: LOCAL_ZONE.id,
+    ...(day(at) !== day(new Date(now)) ? { weekday: "short" as const } : {}),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(at);
+  return `${left} (${clock} ${LOCAL_ZONE.label})`;
+}
+
+/**
+ * The memo only when it says more than the payee's name — "· hotel deposit"
+ * beside Hotel Gracery Shinjuku, but not "· hotel" (the panel's card does the same).
+ */
+const FILLER = new Set(["the", "a", "an", "for", "to", "of", "our", "and", "pay", "send", "book"]);
+function memoAddsWords(memo: string, label: string | undefined): boolean {
+  const words = (s: string) =>
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9$']+/)
+      .filter((w) => /[a-z]/.test(w) && !FILLER.has(w));
+  if (!label) return true;
+  const named = new Set(words(label));
+  return words(memo).some((w) => !named.has(w));
+}
+
+/** "2 different humans approve it" / "a verified human approves it" */
+function humansApprove(n: number): string {
+  return n === 1 ? "a verified human approves it" : `${n} different humans approve it`;
+}
+
+/** A recurring buy is an authority, not a payment: its terms, where it trades and from which wallet — never its stored JSON. */
+function recurringWhat(r: NonNullable<ApprovalCard["recurring"]>): string {
+  return `<h1>Recurring buy</h1>
+       <p class="to"><strong>${esc(usd(r.weeklyUsd))} of ETH every week for ${r.weeks} week${r.weeks === 1 ? "" : "s"}</strong> · at most ${esc(usd(r.exposureUsd))} in total</p>
+       <p class="muted">USDC → WETH on Uniswap v3 on Base, at most once a week, through ${esc(relationDay(Date.parse(r.expiresAt) - 1000, true))}. Anyone in the room can stop it without a vote.</p>
+       <p class="addr">From the agent's wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer">${esc(r.agentAddress)}</a> (basescan)</p>
+       <p class="addr">Terms ${esc(r.digestShort)}</p>`;
+}
+
 function confirmPage(
   c: ApprovalCard,
   f: { returnTo: string; exp: number; token: string; mock: boolean }
 ): string {
   const ratify = c.kind === "ratify";
+  // the card grew these for this page; an older card without them still renders
+  const { roomName, approverName } = c as ApprovalCard & { roomName?: string; approverName?: string };
   const so = c.approvedBy.length
-    ? `${c.approvedBy.length} of ${c.required} so far: ${c.approvedBy.map(esc).join(", ")}`
-    : `none of ${c.required} yet`;
+    ? `${c.approvedBy.map(esc).join(", ")} — ${c.approvedBy.length} of ${c.required} needed`
+    : `No one yet — 0 of ${c.required} needed`;
+  const bar = ratify
+    ? `The agent follows this version only after ${humansApprove(c.required)} with World ID.`
+    : c.recurring
+      ? `The agent starts buying only after ${humansApprove(c.required)} with World ID.`
+      : `The agent can't send this until ${humansApprove(c.required)} with World ID.`;
   const what = ratify
     ? `<h1>Adopt ${esc(c.memo)}</h1>
        ${
@@ -200,56 +259,61 @@ function confirmPage(
            : ""
        }
        <p class="muted">Once adopted, the agent follows this version for every payment.</p>`
-    : `<h1>${esc(usd(c.amountUsd))}</h1>
-       <p class="to">to <strong>${esc(c.recipient?.label ?? "an unknown recipient")}</strong>${c.memo ? ` · ${esc(c.memo)}` : ""}</p>
+    : c.recurring
+      ? recurringWhat(c.recurring)
+      : `<h1>${esc(usd(c.amountUsd))}</h1>
+       <p class="to">to <strong>${esc(c.recipient?.label ?? "an unknown recipient")}</strong>${c.memo && memoAddsWords(c.memo, c.recipient?.label) ? ` · ${esc(c.memo)}` : ""}</p>
        ${
          c.recipient?.address
-           ? `<p class="addr">Paid to <a href="${EXPLORER}/address/${esc(c.recipient.address)}" target="_blank" rel="noreferrer">${esc(c.recipient.address)}</a></p>`
+           ? `<p class="addr">Sends to <a href="${EXPLORER}/address/${esc(c.recipient.address)}" target="_blank" rel="noreferrer">${esc(c.recipient.address)}</a></p>`
            : ""
        }`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Approve with World ID</title>
 <style>
-  :root { color-scheme: light dark; --fg:#171717; --muted:#737373; --line:#e5e5e5; --bg:#fafafa; --card:#fff; --btn:#171717; --btnfg:#fff; }
-  @media (prefers-color-scheme: dark) { :root { --fg:#e5e5e5; --muted:#a3a3a3; --line:#404040; --bg:#0a0a0a; --card:#171717; --btn:#f5f5f5; --btnfg:#171717; } }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width:30rem; margin:3rem auto; padding:0 1rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.25rem 1.5rem; }
-  .kicker { font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:0 0 .5rem; }
-  h1 { font-size:28px; margin:0; }
-  .to { margin:.25rem 0 0; }
-  .addr { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; color:var(--muted); margin:.5rem 0 0; }
+  :root { color-scheme: light dark; --fg:#171717; --muted:#737373; --line:#e5e5e5; --bg:#f5f5f4; --card:#fff; --btn:#171717; --btnfg:#fff; --shadow:0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.08); }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e5e5e5; --muted:#a3a3a3; --line:#333; --bg:#0a0a0a; --card:#171717; --btn:#f5f5f5; --btnfg:#171717; --shadow:0 12px 32px rgba(0,0,0,.5); } }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { width:100%; max-width:35rem; box-sizing:border-box; padding:2rem 1rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:2rem 2.25rem; box-shadow:var(--shadow); }
+  .kicker { font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); margin:0 0 .75rem; }
+  h1 { font-size:42px; line-height:1.1; letter-spacing:-.01em; margin:0; font-variant-numeric:tabular-nums; }
+  .to { font-size:18px; margin:.5rem 0 0; }
+  .addr { font-family:ui-monospace, monospace; font-size:12.5px; word-break:break-all; color:var(--muted); margin:.5rem 0 0; }
   .addr a { color:inherit; }
-  dl { margin:1rem 0 0; display:grid; grid-template-columns:auto 1fr; gap:.35rem 1rem; font-size:14px; }
+  dl { margin:1.5rem 0 0; padding-top:1.25rem; border-top:1px solid var(--line); display:grid; grid-template-columns:auto 1fr; gap:.5rem 1.25rem; font-size:15px; }
   dt { color:var(--muted); }
   dd { margin:0; }
   .rule { font-style:italic; }
-  .changes { margin:.75rem 0 0; padding-left:1rem; font-size:14px; }
+  .changes { margin:.75rem 0 0; padding-left:1rem; font-size:15px; }
   .changes li { margin:.15rem 0; }
-  .muted { color:var(--muted); font-size:13px; }
-  .note { font-size:13px; color:var(--muted); margin:1rem 0 0; }
-  .actions { display:flex; gap:.75rem; align-items:center; margin-top:1.25rem; }
-  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:8px; padding:.6rem 1rem; font:inherit; font-weight:600; cursor:pointer; }
+  .muted { color:var(--muted); font-size:14px; }
+  .bar { font-size:15px; font-weight:600; margin:1.5rem 0 0; }
+  .note { font-size:13px; color:var(--muted); margin:.25rem 0 0; }
+  .actions { display:flex; gap:1rem; align-items:center; margin-top:1.25rem; }
+  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:10px; padding:.75rem 1.25rem; font:inherit; font-weight:600; cursor:pointer; }
   a.cancel { color:var(--muted); }
 </style></head>
 <body><main>
   <div class="card">
-    <p class="kicker">Treasury approval${f.mock ? " · local mock IdP" : ""}</p>
+    <p class="kicker">${roomName ? `${esc(roomName)} · shared treasury` : "Shared treasury"} → World ID for Agents${f.mock ? " · local mock IdP" : ""}</p>
     ${what}
     <dl>
+      ${approverName ? `<dt>Approving as</dt><dd>${esc(approverName)}</dd>` : ""}
       <dt>Requested by</dt><dd>${esc(c.requestedBy)}</dd>
       <dt>Rule</dt><dd class="rule">“${esc(c.ruleText)}”</dd>
-      <dt>Approvals</dt><dd>${so}</dd>
-      <dt>Expires</dt><dd>${esc(new Date(c.expiresAt).toUTCString())}</dd>
+      <dt>Approved so far</dt><dd>${so}</dd>
+      <dt>Expires</dt><dd>${esc(expiresIn(c.expiresAt))}</dd>
     </dl>
-    <p class="note">World ID will ask you to prove, right now, that you are a unique human. Your approval counts once toward this request and can't be withdrawn.</p>
+    <p class="bar">${esc(bar)}</p>
+    <p class="note">World ID checks, right now, that you're a unique human. Your approval counts once and can't be withdrawn.</p>
     <form method="post" action="/api/auth/world/connect" class="actions">
       <input type="hidden" name="action" value="${esc(c.actionId)}">
       <input type="hidden" name="returnTo" value="${esc(f.returnTo)}">
       <input type="hidden" name="exp" value="${f.exp}">
       <input type="hidden" name="token" value="${esc(f.token)}">
-      <button type="submit">Approve with World ID</button>
+      <button type="submit">🌍 Approve with World ID</button>
       <a class="cancel" href="${esc(f.returnTo)}">Cancel</a>
     </form>
   </div>

@@ -33,7 +33,13 @@
  *   approvals.ts  createTreasuryAction(), recordIdpApproval(), claimSeat(),
  *                 executeIfQuorum(), treasuryStatus(), approvalCard()     (db)
  *   skill.ts      handleTreasuryCommand()  — called from respond.ts
+ *   recurring-record.ts  isoWeekKey(), windowFor(), termsDigest(),
+ *                 parseAuthority(), parseRun(), decideRun()              (pure)
+ *   recurring.ts  proposeRecurringBuy(), runRecurringBuy(), stopRecurringBuy(),
+ *                 recurringBuyStatus()          (db + chain; approvals.ts adopts)
  */
+
+import type { RecurringSkipReason } from "./recurring-record";
 
 /** IDKit action for claiming a seat (register in the Developer Portal). */
 export const TREASURY_SEAT_ACTION = process.env.WORLD_ID_SEAT_ACTION ?? "treasury-seat";
@@ -45,6 +51,16 @@ export const TREASURY_SEAT_ACTION = process.env.WORLD_ID_SEAT_ACTION ?? "treasur
  * executed one is what the agent enforces (memory.ts).
  */
 export const RATIFY_KIND = "ratify";
+
+/**
+ * treasury_actions.kind of a RECURRING BUY: a standing authority to buy ETH
+ * weekly, adopted by quorum like a ratification — it never pays itself.
+ * amountUsd is its exposure (weekly × weeks), rule_text a RecurringBuyRecord
+ * as JSON (recurring-record.ts). Its runs are RECURRING_RUN_KIND rows, each
+ * inserted once, already "executed": a weekly buy or a skipped week.
+ */
+export const RECURRING_BUY_KIND = "recurring-buy";
+export const RECURRING_RUN_KIND = "recurring-buy-run";
 
 /** What an adoption records — lines as the parser reads them (bullet stripped, spaces collapsed). */
 export interface RatifiedText {
@@ -60,6 +76,10 @@ export interface RatifiedText {
   /** why this many approvals ("the strictest bar our rules name") */
   bar?: string;
 }
+
+/** Where the relation is: clock times in chat ("fresh check at 14:02") and the
+ *  Treasury Activity date headings ("Friday, Sep 25") are read in this zone. */
+export const TREASURY_TIME_ZONE = "Asia/Tokyo";
 
 /** A pending request stops waiting after this long, unapproved or not. */
 export const REQUEST_TTL_MS = Number(process.env.TREASURY_REQUEST_TTL_HOURS ?? 24) * 3_600_000;
@@ -138,7 +158,15 @@ export type TreasuryCommand =
     }
   | { kind: "status"; raw: string }
   /** "@agent adopt the new rules" — put the doc's current Rules/Payees (and members) to a vote */
-  | { kind: "adopt"; raw: string };
+  | { kind: "adopt"; raw: string }
+  /** "@agent buy $20 of ETH every week for 26 weeks" — queue a recurring buy for approval */
+  | { kind: "recurring-propose"; weeklyUsd: number; weeks: number }
+  /** "@agent buy this week's ETH" — one run inside the adopted recurring buy */
+  | { kind: "recurring-run" }
+  /** "@agent stop the recurring buy" — any human member, no vote */
+  | { kind: "recurring-stop" }
+  /** "@agent recurring buy status" */
+  | { kind: "recurring-status" };
 
 // ── evaluation ──────────────────────────────────────────────────────────────
 
@@ -200,10 +228,16 @@ export interface TreasuryProposal {
 
 export interface TreasuryStatus {
   enabled: boolean;
+  /** the account this status was built for — members[].userId === viewerId is "you" */
+  viewerId: string;
+  /** the room's name, as the chat header shows it ("Tokyo Trip") */
+  roomName: string;
   address: string | null;
   balanceUsd: number | null;
   /** idle funds at work: the agent's WETH on Base (bought on Uniswap), priced now; null = investing off */
   invested?: { chain: "base"; address: string; weth: string; usdcIdle: string; storyUsd: number } | null;
+  /** the room's recurring buy (live, waiting, its history); null = unavailable */
+  recurring?: RecurringBuyStatus | null;
   /** ETH on Sepolia behind balanceUsd, and the demo scale used */
   balanceEth: string | null;
   usdPerEth: number;
@@ -215,9 +249,12 @@ export interface TreasuryStatus {
   adoptedAt: string | null;
   /** edits to the doc (or new members) nobody has adopted yet; lines as written */
   proposal: { added: string[]; removed: string[]; reordered: boolean; joined: string[] } | null;
+  /** human members in a stable order: joined first, then by userId (chips must not reshuffle between polls or accounts) */
   members: {
     userId: string;
     displayName: string;
+    /** the face to draw (resolved like every other surface's), null = draw the initial */
+    avatarUrl: string | null;
     seated: boolean;
     seatLevel: string | null;
     /** has completed a World ID for Agents step-up at least once */
@@ -228,7 +265,8 @@ export interface TreasuryStatus {
   mySeated: boolean;
   actions: {
     id: string;
-    kind: TreasuryKind | typeof RATIFY_KIND;
+    /** a recurring buy is an authority (no recipient); its runs are in `recurring.history`, never here */
+    kind: TreasuryKind | typeof RATIFY_KIND | typeof RECURRING_BUY_KIND;
     amountUsd: number;
     memo: string;
     /** "unconfirmed": sent, but no receipt seen yet — it may still land */
@@ -270,6 +308,65 @@ export interface TreasuryStatus {
   rpContext: Record<string, unknown> | null;
   /** where the step-up goes: "sandbox" | "mock" | null (IdP not configured) */
   idpMode: "sandbox" | "mock" | null;
+}
+
+/**
+ * The room's recurring buy as the panel, the Treasury page and the treasurer
+ * see it (recurring.ts recurringBuyStatus). Token amounts are decimal strings
+ * in whole tokens ("0.0074" WETH), as `invested` above; dates are ISO strings.
+ */
+export interface RecurringBuyStatus {
+  /** the adopted authority in force: executed, not stopped, window not over */
+  live: null | {
+    actionId: string;
+    weeklyUsd: number;
+    weeks: number;
+    /** 1-based week of the window we are in */
+    weekIndex: number;
+    startsAt: string;
+    expiresAt: string;
+    /** when the next week opens (Monday 00:00 on the relation's clock) inside the window; a buy runs when a member asks, nothing on a timer */
+    nextRunAt: string | null;
+    approvedBy: string[];
+    approvals: number;
+    required: number;
+    /** the rule line that set the bar */
+    rule: string;
+    /** the terms' fingerprint, shortened as on the approval page */
+    digestShort: string;
+    boughtWeeks: number;
+    /** story dollars: weeklyUsd × boughtWeeks */
+    investedUsd: number;
+    usdcIn: string;
+    wethOut: string;
+    /** real USDC paid per WETH received, across its buys; null before the first */
+    avgPriceUsdcPerEth: number | null;
+    thisWeek: "bought" | "open" | "skipped";
+  };
+  /** a request still waiting for approvals (approvals = those that count now) */
+  pending: null | {
+    actionId: string;
+    weeklyUsd: number;
+    weeks: number;
+    exposureUsd: number;
+    approvals: number;
+    required: number;
+    rule: string;
+    expiresAt: string;
+  };
+  /** every recorded run in the room, newest first, at most 26 */
+  history: Array<{
+    at: string;
+    isoWeek: string;
+    outcome: "bought" | "skipped";
+    reason?: RecurringSkipReason;
+    usdcIn?: string;
+    wethOut?: string;
+    /** Base explorer link (basescan), for a buy or a skip whose swap was sent */
+    txUrl?: string;
+  }>;
+  /** false: runs on this server are rehearsals that move nothing */
+  realRuns: boolean;
 }
 
 /** Result of an approval arriving (OIDC callback → recordIdpApproval). */

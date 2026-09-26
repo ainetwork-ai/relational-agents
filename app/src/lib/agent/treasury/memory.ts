@@ -6,7 +6,13 @@ import { agentRoomStates, chatRoomMembers, treasuryActions, users } from "@/lib/
 import { readNode, nodeExists } from "@/lib/okf-store";
 import { appendOkfLines, okfDocPageId, type NewLine } from "@/lib/agent/okf-docs";
 import { parsePayees, parseTreasuryPolicy } from "./policy";
-import { RATIFY_KIND, type RatifiedText, type RelationTreasury, type TreasuryProposal } from "./types";
+import {
+  RATIFY_KIND,
+  TREASURY_TIME_ZONE,
+  type RatifiedText,
+  type RelationTreasury,
+  type TreasuryProposal,
+} from "./types";
 
 /**
  * The treasury's view of the relation's memory doc. Its sections are
@@ -108,14 +114,14 @@ export async function liveTreasuryText(roomId: string): Promise<{ rules: string[
   return live && { rules: live.rules, payees: live.payees };
 }
 
-/** The room's human members, oldest first — who an adoption made now would let vote. */
+/** The room's human members, oldest first (ties by userId, so the order is stable) — who an adoption made now would let vote. */
 export async function humanMemberIds(roomId: string): Promise<string[]> {
   const rows = await db
     .select({ userId: chatRoomMembers.userId })
     .from(chatRoomMembers)
     .innerJoin(users, eq(users.id, chatRoomMembers.userId))
     .where(and(eq(chatRoomMembers.roomId, roomId), eq(users.isAgent, false)))
-    .orderBy(asc(chatRoomMembers.joinedAt));
+    .orderBy(asc(chatRoomMembers.joinedAt), asc(chatRoomMembers.userId));
   return rows.map((r) => r.userId);
 }
 
@@ -208,9 +214,21 @@ export async function loadRelationTreasury(roomId: string): Promise<RelationTrea
   };
 }
 
-function isoDay(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: TREASURY_TIME_ZONE,
+  weekday: "long",
+  month: "short",
+  day: "numeric",
+});
+
+/**
+ * "Friday, Sep 25" — the Treasury Activity's date heading, on the relation's
+ * calendar. It is also the dedupe key: appendOkfLines skips the heading when
+ * the file's last h1 already says it, so the seed writes its first heading
+ * with this same function.
+ */
+export function activityDayHeading(d: Date): string {
+  return dayFormat.format(d);
 }
 
 export async function appendTreasuryActivity(roomId: string, lines: string[]): Promise<void> {
@@ -222,7 +240,7 @@ export async function appendTreasuryActivity(roomId: string, lines: string[]): P
   const found = resolveSection(state, "treasury-activity");
   const rel = found?.rel ?? path.posix.join(state.rootOkfPath, `${SECTIONS["treasury-activity"]}.md`);
   const blocks: NewLine[] = [
-    { type: "heading1", text: isoDay(new Date()) },
+    { type: "heading1", text: activityDayHeading(new Date()) },
     ...clean.map((text) => ({ type: "bulleted_list" as const, text })),
   ];
   // appendOkfLines drops the heading when the file's last h1 is already today

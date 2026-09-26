@@ -126,7 +126,20 @@ export function worldDiscovery(cfg: WorldConfig): Promise<WorldDiscovery> {
   let hit = discoveryCache.get(cfg.issuer);
   if (!hit) {
     hit = (async () => {
-      const res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`, { cache: "no-store" });
+      // A cold cache right after a container start has met a resolver that is
+      // not ready yet ("fetch failed", EAI_AGAIN) and turned a member's step-up
+      // into "World ID isn't reachable". Three tries, a second apart, before
+      // giving up — the document is static, so retrying costs nothing.
+      let res: Response | null = null;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`, { cache: "no-store" });
+          break;
+        } catch (err) {
+          if (attempt >= 3) throw err;
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+        }
+      }
       if (!res.ok) throw new Error(`world discovery failed: ${res.status}`);
       const doc = (await res.json()) as WorldDiscovery;
       if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri)
@@ -143,6 +156,28 @@ export function worldDiscovery(cfg: WorldConfig): Promise<WorldDiscovery> {
   return hit;
 }
 
+/** Network-level failures: nothing reached the other side, so a retry cannot double anything. */
+function isConnectFailure(err: unknown): boolean {
+  const cause = (err as { cause?: { code?: string; errors?: { code?: string }[] } } | null)?.cause;
+  const codes = [cause?.code, ...(cause?.errors ?? []).map((e) => e.code)].filter(Boolean) as string[];
+  if ((err as { name?: string } | null)?.name === "TimeoutError") return true;
+  return codes.some((c) => /^(ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENETUNREACH|EHOSTUNREACH|EAI_AGAIN|ENOTFOUND|UND_ERR_CONNECT_TIMEOUT)$/.test(c));
+}
+
+const CONNECT_ATTEMPTS = 3;
+const ATTEMPT_TIMEOUT_MS = 8000;
+
+async function fetchWithConnectRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
+    } catch (err) {
+      if (attempt >= CONNECT_ATTEMPTS || !isConnectFailure(err)) throw err;
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
+}
+
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 function jwksFor(uri: string) {
@@ -152,6 +187,18 @@ function jwksFor(uri: string) {
     jwksCache.set(uri, set);
   }
   return set;
+}
+
+/** Verifying an id_token is idempotent, so a JWKS fetch that never connected is simply tried again. */
+async function verifyWithRetry(token: string, jwksUri: string, options: Parameters<typeof jwtVerify>[2]) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await jwtVerify(token, jwksFor(jwksUri), options);
+    } catch (err) {
+      if (attempt >= CONNECT_ATTEMPTS || !isConnectFailure(err)) throw err;
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
 }
 
 // ── code exchange ───────────────────────────────────────────────────────────
@@ -213,13 +260,18 @@ export async function exchangeWorldCode(code: string, verifier: string, expected
     headers.authorization = `Basic ${Buffer.from(basic).toString("base64")}`;
   }
 
-  const res = await fetch(disco.token_endpoint, { method: "POST", headers, body, cache: "no-store" });
+  // The code is single-use, so only a failure that never reached the IdP is
+  // retried: a connect that timed out or was refused (this host's container
+  // egress drops for tens of seconds while other stacks redeploy). A response,
+  // any response, ends the attempts — a lost reply would surface as
+  // invalid_grant on retry and fail cleanly, never as two approvals.
+  const res = await fetchWithConnectRetry(disco.token_endpoint, { method: "POST", headers, body, cache: "no-store" });
   if (!res.ok) throw new Error(`world token exchange failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
   const tokens = (await res.json()) as { id_token?: string };
   if (!tokens.id_token) throw new Error("world token response had no id_token");
 
   const algs = (disco.id_token_signing_alg_values_supported ?? ["RS256"]).filter((a) => a !== "none");
-  const { payload } = await jwtVerify(tokens.id_token, jwksFor(disco.jwks_uri), {
+  const { payload } = await verifyWithRetry(tokens.id_token, disco.jwks_uri, {
     issuer: cfg.issuer,
     audience: cfg.clientId,
     algorithms: algs,

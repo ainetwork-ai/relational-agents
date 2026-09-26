@@ -7,6 +7,9 @@ import { ChevronRight, X } from "lucide-react";
 import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
+import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
+import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
+import { UserAvatar } from "@/components/user-avatar";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
 // Until the status reports seatEnvironment, fall back to the same variable the
@@ -30,25 +33,33 @@ const SeatButton = dynamic(() => import("@/components/treasury/seat-button").the
 });
 
 type Action = TreasuryStatus["actions"][number];
+type Member = TreasuryStatus["members"][number];
 type Tone = "ok" | "bad" | "info";
+type Copy = { tone: Tone; text: string };
+
+/**
+ * Who is looking and the members' faces. The status gains these for the demo;
+ * until every server sends them the panel reads them as optional.
+ */
+type StatusView = TreasuryStatus & { viewerId?: string; roomName?: string };
+function avatarOf(m: Member): string | null {
+  return (m as Member & { avatarUrl?: string | null }).avatarUrl ?? null;
+}
 
 /**
  * What the OIDC callback / seat routes report back via ?treasury= / ?world=.
  * The codes mirror ApprovalResult reasons plus the IdP round-trip outcomes.
  */
-const RESULT_COPY: Record<string, { tone: Tone; text: string }> = {
-  executing: {
-    tone: "ok",
-    text: "Quorum reached — the agent is paying on Sepolia now. This updates when the payment confirms.",
-  },
-  executed: { tone: "ok", text: "Quorum reached — the agent executed the payment on Sepolia." },
-  approved: { tone: "ok", text: "Your approval was recorded with a fresh World ID verification." },
+const RESULT_COPY: Record<string, Copy> = {
+  executing: { tone: "ok", text: "✅ That was the last approval needed — the agent is paying now." },
+  executed: { tone: "ok", text: "✅ That was the last approval needed — the agent paid." },
+  approved: { tone: "ok", text: "✅ Approved — World ID confirmed a unique human, just now." },
   verified: { tone: "ok", text: "World ID is now linked to your account." },
   mismatch: { tone: "bad", text: "This account is already linked to a different World ID — nothing was changed." },
   cancelled: { tone: "bad", text: "You cancelled the World ID verification — nothing was approved." },
   "same-human": {
     tone: "bad",
-    text: "This World ID already vouches for another account — one human, one vote. Nothing was added.",
+    text: "⛔ Not counted — this human already approved from another account. One human, one vote.",
   },
   "world-id-mismatch": {
     tone: "bad",
@@ -56,14 +67,17 @@ const RESULT_COPY: Record<string, { tone: Tone; text: string }> = {
   },
   "stale-proof": {
     tone: "bad",
-    text: "That verification didn't show a fresh World ID sign-in made after the request was asked for. Nothing was approved.",
+    text: "⛔ Not counted — every approval needs a fresh World ID check made after the request, and this one wasn't fresh. Approve again to check now.",
   },
   expired: { tone: "bad", text: "This request expired before enough verified members approved it — nothing was approved." },
   "not-electorate": {
     tone: "bad",
     text: "You joined after our rules were adopted — the relation has to adopt its new membership before your approval counts.",
   },
-  "not-seated": { tone: "bad", text: "Claim your vote with World ID before approving treasury actions." },
+  "not-seated": {
+    tone: "bad",
+    text: "⛔ Not counted — this account has no vote. Claim your vote with World ID first, then approve.",
+  },
   "account-switched": {
     tone: "bad",
     text: "The verification came back for a different account than the one that started it — nothing was approved.",
@@ -82,6 +96,38 @@ const RESULT_COPY: Record<string, { tone: Tone; text: string }> = {
   unavailable: { tone: "bad", text: "World ID isn't reachable right now — nothing was approved." },
   error: { tone: "bad", text: "Something went wrong recording the approval — nothing was approved." },
 };
+/** ?world= codes that mean something else than the ?treasury= code of the same name. */
+const WORLD_COPY: Record<string, Copy> = {
+  "same-human": {
+    tone: "bad",
+    text: "⛔ This World ID already vouches for another account — one human, one vote. Nothing was changed.",
+  },
+};
+/** Said only by this panel after the server answered — never read from the URL. */
+const LOCAL_COPY: Record<string, Copy> = {
+  "vote-claimed": {
+    tone: "ok",
+    text: "🌍 Vote claimed — World ID confirmed you're a unique human. One human, one vote.",
+  },
+  "vote-claimed-dev": { tone: "info", text: "Vote claimed with the dev simulator — not a World ID proof." },
+};
+/** An adoption reaching its quorum pays nobody. */
+const RATIFY_COPY = {
+  executing: "✅ That was the last approval needed — the agent is adopting the rules now.",
+  executed: "✅ That was the last approval needed — the rules are adopted.",
+};
+// a recurring buy is adopted, not paid: nothing moves when its last approval lands
+const RECURRING_COPY = {
+  executing: "✅ That was the last approval needed — the agent is adopting the recurring buy now.",
+  executed: "✅ That was the last approval needed — the recurring buy is adopted.",
+};
+
+/**
+ * A banner is kept as its code, not its text: "executing" becomes "executed"
+ * once the action it is about (actionId, found from the status) is paid, and
+ * goes away if that payment failed — the history line then says what happened.
+ */
+type Result = { key: "treasury" | "world" | "local"; code: string; actionId?: string };
 
 const SAME_HUMAN_SEAT = "This human already has a vote in this relation — one human, one vote.";
 
@@ -98,6 +144,17 @@ function usdShort(n: number): string {
     maximumFractionDigits: 2,
   }).format(n);
 }
+/** Approval times are shown where the group is: the trip is in Tokyo. */
+const tokyoClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Tokyo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+function clock(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : tokyoClock.format(d);
+}
 function short(hex: string): string {
   return hex.length > 12 ? `${hex.slice(0, 6)}…${hex.slice(-4)}` : hex;
 }
@@ -106,9 +163,31 @@ function memoOf(a: Action): string {
   const memo = a.memo.trim() || a.kind;
   return memo.replace(/\bmy\b/gi, `${a.requestedBy.displayName}'s`);
 }
-/** The card's headline: a payment's amount and memo, or what a ratification adopts. */
+/** The history line's headline: a payment's amount and memo, or what a ratification adopts. */
 function titleOf(a: Action, amount: (n: number) => string): string {
+  if (a.kind === "recurring-buy") return `🔁 ${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
   return a.kind === "ratify" ? `📜 Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
+}
+const FILLER = new Set(["the", "a", "an", "for", "to", "of", "our", "and", "pay", "send", "book"]);
+function words(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9$']+/)
+    .filter((w) => /[a-z]/.test(w) && !FILLER.has(w));
+}
+/**
+ * A pending card's headline: "$150.00 to Hotel Gracery Shinjuku", with the
+ * memo only when it says more than the payee's name ("(hotel deposit)").
+ */
+function pendingTitle(a: Action): string {
+  if (a.kind === "ratify" || a.kind === "recurring-buy") return titleOf(a, usd);
+  const label = a.recipient?.label;
+  const memo = memoOf(a);
+  if (!label) return `${usd(a.amountUsd)} · ${memo}`;
+  const named = new Set(words(label));
+  return words(memo).some((w) => !named.has(w))
+    ? `${usd(a.amountUsd)} to ${label} (${memo})`
+    : `${usd(a.amountUsd)} to ${label}`;
 }
 function hoursLeft(iso: string | null): string | null {
   if (!iso) return null;
@@ -119,17 +198,71 @@ function hoursLeft(iso: string | null): string | null {
 function newestFirst(a: Action, b: Action): number {
   return b.createdAt.localeCompare(a.createdAt);
 }
+function humans(n: number): string {
+  return `${n} more ${n === 1 ? "human" : "humans"}`;
+}
 
 /**
  * Coming back from the IdP or a seat claim, the outcome rides on ?treasury= /
  * ?world=. Only codes this panel knows are shown: the query string is anyone's
  * to write, and text echoed from it would read as the treasury speaking.
  */
-function readResultFromUrl(): { tone: Tone; text: string } | null {
+function readResultFromUrl(): Result | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
-  const code = params.get("treasury") ?? params.get("world");
-  return code && Object.prototype.hasOwnProperty.call(RESULT_COPY, code) ? RESULT_COPY[code] : null;
+  const key = params.has("treasury") ? "treasury" : params.has("world") ? "world" : null;
+  const code = key && params.get(key);
+  return key && code && Object.prototype.hasOwnProperty.call(RESULT_COPY, code) ? { key, code } : null;
+}
+
+/**
+ * The action an "the agent is paying now" banner is about: the one holding the
+ * newest approval by the viewer (by anyone, until the status names the viewer).
+ */
+function payingActionId(s: StatusView): string | undefined {
+  let best: { id: string; at: string } | undefined;
+  for (const a of s.actions) {
+    if (a.requiredApprovals <= 0) continue;
+    for (const p of a.approvals) {
+      if (s.viewerId && p.userId !== s.viewerId) continue;
+      if (!best || p.at > best.at) best = { id: a.id, at: p.at };
+    }
+  }
+  return best?.id;
+}
+
+function bannerOf(r: Result | null, s: StatusView): Copy | null {
+  if (!r) return null;
+  if (r.key === "local") return LOCAL_COPY[r.code] ?? null;
+  if (r.key === "world" && WORLD_COPY[r.code]) return WORLD_COPY[r.code];
+  const target = r.code === "executing" && r.actionId ? s.actions.find((a) => a.id === r.actionId) : undefined;
+  if (target) {
+    // the history line says how it ended; a green "paying now" above it would contradict it
+    if (target.status === "failed" || target.status === "blocked" || target.status === "cancelled") return null;
+    const done = target.status === "executed";
+    if (target.kind === "ratify") return { tone: "ok", text: done ? RATIFY_COPY.executed : RATIFY_COPY.executing };
+    if (target.kind === "recurring-buy") return { tone: "ok", text: done ? RECURRING_COPY.executed : RECURRING_COPY.executing };
+    if (done) return RESULT_COPY.executed;
+  }
+  return RESULT_COPY[r.code] ?? null;
+}
+
+/** "Bea (you)", and "Alex (2nd account, you)" rather than two brackets in a row. */
+function youName(name: string): string {
+  return /\)\s*$/.test(name) ? `${name.replace(/\)\s*$/, "")}, you)` : `${name} (you)`;
+}
+
+function chipTitle(m: Member): string {
+  const lines = [
+    !m.seated
+      ? "No vote — a vote is claimed by proving you're a unique human with World ID"
+      : m.seatLevel === "dev-simulator"
+        ? "Vote claimed with the dev simulator — not a World ID proof"
+        : `Vote claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""} — a unique human`,
+  ];
+  if (m.worldVerified) lines.push("✓ World ID — this account has passed a fresh World ID check");
+  if (!m.voting) lines.push("Joined after our rules were adopted — votes once the group adopts them again");
+  return lines.join("\n");
 }
 
 const toneClass: Record<Tone, string> = {
@@ -147,13 +280,18 @@ const toneClass: Record<Tone, string> = {
 export function TreasuryPanel({ roomId }: { roomId: string }) {
   // Snapshots carry their room so a room switch never shows the previous
   // room's wallet, without resetting state inside an effect.
-  const [snap, setSnap] = useState<{ roomId: string; status: TreasuryStatus | null } | null>(null);
+  const [snap, setSnap] = useState<{ roomId: string; status: StatusView | null } | null>(null);
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  // the link to the Treasury page is one of the new surfaces ?treasury=v1 turns off
+  const treasuryV2 = useTreasuryV2();
   // Read during the first client render; nothing renders until the status
   // fetch lands, so this cannot diverge from the server HTML.
-  const [result, setResult] = useState<{ tone: Tone; text: string } | null>(readResultFromUrl);
+  const [result, setResult] = useState<Result | null>(readResultFromUrl);
   const [claiming, setClaiming] = useState(false);
   const [seatErr, setSeatErr] = useState<{ roomId: string; sameHuman: boolean; text: string } | null>(null);
+  // IDKit's success screen outlives the claim: the claim box (and the widget
+  // inside it) stays mounted until it closes, even though we are seated now
+  const [holdClaim, setHoldClaim] = useState<string | null>(null);
   const roomRef = useRef(roomId);
   const enabledRef = useRef(false);
   // a slow status call must not pile up behind the timer, and an older
@@ -169,12 +307,19 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
     const seq = ++seqRef.current;
     inFlightRef.current = true;
     return fetch(`/api/dm/rooms/${roomId}/treasury`, { cache: "no-store" })
-      .then((res) => (res.ok ? (res.json() as Promise<TreasuryStatus>) : null))
+      .then((res) => (res.ok ? (res.json() as Promise<StatusView>) : null))
       .then((next) => {
         if (roomRef.current !== roomId || seq < appliedRef.current) return;
         appliedRef.current = seq;
         enabledRef.current = Boolean(next?.enabled);
         setSnap({ roomId, status: next });
+        // pin a "paying now" banner to the action it is about, once it can be found
+        if (next)
+          setResult((r) => {
+            if (!r || r.code !== "executing" || r.key !== "treasury" || r.actionId) return r;
+            const actionId = payingActionId(next);
+            return actionId ? { ...r, actionId } : r;
+          });
       })
       // transient network error: keep the last status rather than flicker
       .catch(() => {})
@@ -226,6 +371,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           body: JSON.stringify(proof),
         });
         const data = (await res.json().catch(() => ({}))) as {
+          level?: string;
           reason?: string;
           message?: string;
           error?: string;
@@ -236,6 +382,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             sameHuman: res.status === 409 || data.reason === "same-human",
             text: data.message || data.error || `Claiming your vote failed (${res.status})`,
           });
+        } else {
+          // the chip turning into a vote must not fold the panel away on camera
+          setOpenOverride(true);
+          setResult({ key: "local", code: data.level === "dev-simulator" ? "vote-claimed-dev" : "vote-claimed" });
         }
         await refresh();
       } catch (err) {
@@ -255,22 +405,38 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
     (err: SeatClaimError | null) => setSeatErr(err && { roomId, ...err }),
     [roomId]
   );
+  // World ID 4.0: the server seated us while IDKit still shows its success screen
+  const onSeated = useCallback(() => {
+    setOpenOverride(true);
+    setHoldClaim(roomId);
+    setResult({ key: "local", code: "vote-claimed" });
+    void refresh();
+  }, [roomId, refresh]);
+  const onClaimed = useCallback(() => {
+    setHoldClaim(null);
+    return refresh();
+  }, [refresh]);
 
   if (!status?.enabled) return null;
   // The server reads NEXT_PUBLIC_WORLD_ID_APP_ID at runtime; this bundle has it
   // only if the image was built with it (deployment.md §4.9). Prefer the server's.
   const worldIdAppId = status.seatAppId ?? WORLD_ID_APP_ID;
+  const viewerId = status.viewerId;
+  const me = viewerId ? status.members.find((m) => m.userId === viewerId) : undefined;
+  const withAvatars = status.members.some((m) => avatarOf(m));
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
   const history = status.actions
     .filter((a) => a.status !== "pending")
     .sort(newestFirst)
     .slice(0, 5);
-  const open = openOverride ?? (pending.length > 0 || result !== null);
-  const scaleNote = `${status.balanceEth ?? "?"} SepETH on Sepolia · disclosed demo scale $1 = ${new Intl.NumberFormat(
-    "en-US",
-    { maximumSignificantDigits: 3 }
-  ).format(status.usdPerEth > 0 ? 1 / status.usdPerEth : 0)} SepETH`;
+  const banner = bannerOf(result, status);
+  // someone without a vote sees how to get one without looking for it
+  const open = openOverride ?? (pending.length > 0 || banner !== null || !status.mySeated);
+  const showClaim = !status.mySeated || holdClaim === roomId;
+  const scaleNote = `Testnet demo: $1 = ${new Intl.NumberFormat("en-US", { maximumSignificantDigits: 3 }).format(
+    status.usdPerEth > 0 ? 1 / status.usdPerEth : 0
+  )} SepETH`;
 
   return (
     <section
@@ -283,15 +449,18 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           data-testid="treasury-toggle"
           onClick={() => setOpenOverride(!open)}
           aria-expanded={open}
-          className="flex items-center gap-1.5 font-medium text-neutral-900 hover:text-neutral-600 dark:text-neutral-100 dark:hover:text-neutral-300"
+          className="group flex items-center gap-1.5 text-neutral-900 dark:text-neutral-100"
         >
           <ChevronRight
             aria-hidden
-            className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${open ? "rotate-90" : ""}`}
+            className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform group-hover:text-neutral-600 ${open ? "rotate-90" : ""}`}
           />
           <span aria-hidden>🏦</span>
-          <span data-testid="treasury-balance">
-            Shared treasury · {status.balanceUsd === null ? "—" : usd(status.balanceUsd)}
+          <span data-testid="treasury-balance" className="flex items-baseline gap-1.5">
+            <span className="text-neutral-500 dark:text-neutral-400">Shared treasury</span>
+            <span className="text-base font-semibold tabular-nums">
+              {status.balanceUsd === null ? "—" : usd(status.balanceUsd)}
+            </span>
           </span>
           {status.invested && Number(status.invested.weth) > 0 && (
             <span
@@ -308,32 +477,27 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             {pending.length} waiting for approval
           </span>
         )}
-        <span className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
-          <span title={scaleNote}>Sepolia · testnet scale</span>
-          {status.address && (
-            <>
-              {" · "}
-              <a
-                href={`${EXPLORER}/address/${status.address}`}
-                target="_blank"
-                rel="noreferrer"
-                title={`Agent wallet ${status.address}`}
-                className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
-              >
-                {short(status.address)}
-              </a>
-            </>
-          )}
+        <span data-testid="treasury-slogan" className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
+          AI manages the money · humans approve it
         </span>
+        {treasuryV2 && (
+          <Link
+            href={`/treasury/${roomId}`}
+            data-testid="treasury-open-page"
+            className="text-xs text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
+          >
+            Open treasury ↗
+          </Link>
+        )}
       </div>
 
-      {result && (
+      {banner && (
         <div
           role="status"
           data-testid="treasury-result"
-          className={`mt-2 flex items-start gap-2 rounded-md border px-3 py-2 ${toneClass[result.tone]}`}
+          className={`mt-2 flex items-start gap-2 rounded-md border px-3 py-2 ${toneClass[banner.tone]}`}
         >
-          <span className="flex-1">{result.text}</span>
+          <span className="flex-1">{banner.text}</span>
           <button
             type="button"
             onClick={() => setResult(null)}
@@ -347,6 +511,41 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
 
       {open && (
         <>
+          <div
+            data-testid="treasury-wallet"
+            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            <span>
+              Agent wallet{" "}
+              {status.address ? (
+                <a
+                  href={`${EXPLORER}/address/${status.address}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Agent wallet ${status.address}${status.balanceEth ? ` · holds ${status.balanceEth} SepETH` : ""} — open on Etherscan`}
+                  className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
+                >
+                  {short(status.address)}
+                </a>
+              ) : (
+                "—"
+              )}
+              {" · "}
+              <span title={scaleNote} className="cursor-help">
+                Sepolia testnet
+              </span>
+            </span>
+            {status.rulesPageId && (
+              <Link
+                href={`/p/${status.rulesPageId}`}
+                data-testid="treasury-rules-link"
+                className="ml-auto shrink-0 font-medium text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
+              >
+                📄 Our rules →
+              </Link>
+            )}
+          </div>
+
           {!status.adoptedAt ? (
             <div data-testid="treasury-unadopted" className={`mt-2 rounded-md border px-3 py-2 text-xs ${toneClass.bad}`}>
               These rules were never adopted, so the agent moves no money yet. Ask it “@agent adopt the rules” to put
@@ -378,53 +577,41 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             )
           )}
 
-          {(status.purpose || status.rulesPageId) && (
-            <div className="mt-1.5 flex items-center gap-3 text-neutral-500 dark:text-neutral-400">
-              <span className="min-w-0 flex-1 truncate" title={status.purpose}>
-                {status.purpose}
-              </span>
-              {status.rulesPageId && (
-                <Link
-                  href={`/p/${status.rulesPageId}`}
-                  data-testid="treasury-rules-link"
-                  className="shrink-0 text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" data-testid="treasury-members">
+            <span className="mr-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">One human, one vote</span>
+            {status.members.map((m) => {
+              // by the seat's own proof, whatever mode the server runs: a
+              // simulator seat never shows as a World ID one on camera
+              const dev = m.seated && m.seatLevel === "dev-simulator";
+              const avatar = avatarOf(m);
+              return (
+                <span
+                  key={m.userId}
+                  data-testid="treasury-member"
+                  title={chipTitle(m)}
+                  className={`inline-flex items-center gap-1 rounded-full border py-0.5 pr-2 text-xs ${
+                    withAvatars ? "pl-0.5" : "pl-2"
+                  } ${
+                    !m.seated
+                      ? "border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"
+                      : dev
+                        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+                  }`}
                 >
-                  Rules (from our memory) →
-                </Link>
-              )}
-            </div>
-          )}
-
-          <div className="mt-2 flex flex-wrap gap-1.5" data-testid="treasury-members">
-            {status.members.map((m) => (
-              <span
-                key={m.userId}
-                data-testid="treasury-member"
-                title={
-                  !m.seated
-                    ? "No vote yet"
-                    : m.seatLevel === "dev-simulator"
-                      ? "Vote claimed with the dev simulator — not a World ID proof"
-                      : `Vote claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""}`
-                }
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
-                  m.seated
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
-                    : "border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"
-                }`}
-              >
-                {m.displayName}
-                {/* by the seat's own proof, whatever mode the server runs: a
-                    simulator seat never shows as a World ID one on camera */}
-                <span className="opacity-80">
-                  · {!m.seated ? "no vote" : m.seatLevel === "dev-simulator" ? "dev vote" : "🌍 vote"}
+                  {withAvatars && (
+                    <span aria-hidden className="contents">
+                      <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatar }} size={18} />
+                    </span>
+                  )}
+                  <span className={m.userId === viewerId ? "font-medium" : undefined}>
+                    {m.userId === viewerId ? youName(m.displayName) : m.displayName}
+                  </span>
+                  <span className="opacity-80">· {!m.seated ? "no vote" : dev ? "dev vote" : "🌍 vote"}</span>
+                  {!m.voting && <span className="opacity-80">· joins at next adoption</span>}
                 </span>
-                {!m.voting && <span className="opacity-80">· joins at next adoption</span>}
-                {m.worldVerified && (
-                  <span className="font-medium text-emerald-700 dark:text-emerald-300">✓ World ID</span>
-                )}
-              </span>
-            ))}
+              );
+            })}
           </div>
           {(status.seatMode === "dev-simulator" || status.members.some((m) => m.seatLevel === "dev-simulator")) && (
             // on stage a seat chip must not pass for a World ID proof
@@ -433,7 +620,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             </div>
           )}
 
-          {!status.mySeated && (
+          {showClaim && (
             <div className="mt-3 rounded-md border border-dashed border-neutral-300 px-3 py-2 dark:border-neutral-700">
               <div className="text-neutral-700 dark:text-neutral-300">
                 Claim your vote — prove you&apos;re a unique human. Only members with a vote can approve
@@ -446,7 +633,8 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     appId={worldIdAppId as `app_${string}`}
                     action={status.seatAction}
                     environment={status.seatEnvironment ?? WORLD_ID_ENV}
-                    onClaimed={refresh}
+                    onSeated={onSeated}
+                    onClaimed={onClaimed}
                     onError={onSeatError}
                   />
                 ) : (
@@ -499,42 +687,47 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             </div>
           )}
 
-          {pending.map((a) => {
+          {pending.filter((a) => a.id !== status.recurring?.pending?.actionId).map((a) => {
             const got = a.approvals.length;
-            const pct = a.requiredApprovals > 0 ? Math.min(100, (got / a.requiredApprovals) * 100) : 100;
+            const need = a.requiredApprovals;
             // quorum met but still pending: the transfer and its gas refund are
             // in flight (tens of seconds), and nobody can approve it any more
-            const paying = got >= a.requiredApprovals;
+            const paying = got >= need;
+            const iApproved = Boolean(viewerId && a.approvals.some((p) => p.userId === viewerId));
+            const left = hoursLeft(a.expiresAt);
+            const progress = `${got} of ${need} verified humans`;
             return (
               <div
                 key={a.id}
                 data-testid="treasury-pending"
-                className="mt-3 rounded-md border border-neutral-200 px-3 py-2.5 dark:border-neutral-700"
+                className="mt-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-medium text-neutral-900 dark:text-neutral-100">{titleOf(a, usd)}</span>
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                    requested by {a.requestedBy.displayName}
-                    {hoursLeft(a.expiresAt) && <> · {hoursLeft(a.expiresAt)}</>}
-                  </span>
+                <div className="text-xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
+                  {pendingTitle(a)}
                 </div>
-                {a.recipient?.address && (
-                  // approvers see where the money lands, not only the name it goes by
-                  <div data-testid="treasury-recipient" className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                    to {a.recipient.label ?? "an address"} ·{" "}
-                    <a
-                      href={`${EXPLORER}/address/${a.recipient.address}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={a.recipient.address}
-                      className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
-                    >
-                      {short(a.recipient.address)}
-                    </a>
-                  </div>
-                )}
+                <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  requested by {a.requestedBy.displayName}
+                  {left && <> · {left}</>}
+                  {a.recipient?.address && (
+                    // approvers see where the money lands, not only the name it goes by
+                    <>
+                      {" · "}
+                      {!a.recipient.label && "to "}
+                      <a
+                        data-testid="treasury-recipient"
+                        href={`${EXPLORER}/address/${a.recipient.address}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`${a.recipient.label ?? "Recipient"}: ${a.recipient.address}`}
+                        className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
+                      >
+                        {short(a.recipient.address)}
+                      </a>
+                    </>
+                  )}
+                </div>
                 {a.changes && (a.changes.added.length > 0 || a.changes.removed.length > 0 || a.changes.joined.length > 0) && (
-                  <ul className="mt-1 space-y-0.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
+                  <ul className="mt-2 space-y-0.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
                     {a.changes.added.map((l) => (
                       <li key={`+${l}`}>+ {l}</li>
                     ))}
@@ -546,57 +739,104 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     ))}
                   </ul>
                 )}
-                <p className="mt-1 italic text-neutral-600 dark:text-neutral-400">“{a.ruleText}”</p>
-                <div
-                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={a.requiredApprovals}
-                  aria-valuenow={got}
-                >
-                  <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                  {got} / {a.requiredApprovals} verified humans
-                  {got > 0 && <> · {a.approvals.map((p) => p.displayName).join(", ")}</>}
-                </div>
+                {a.ruleText && (
+                  <p className="mt-3 border-l-2 border-neutral-300 pl-3 italic text-neutral-600 dark:border-neutral-600 dark:text-neutral-400">
+                    “{a.ruleText}”
+                  </p>
+                )}
+                {need > 0 && (
+                  <div
+                    data-testid="treasury-slots"
+                    className="mt-3 flex flex-wrap items-center gap-2"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={need}
+                    aria-valuenow={Math.min(got, need)}
+                    aria-valuetext={`${progress}${
+                      got ? `: ${a.approvals.map((p) => `${p.displayName} at ${clock(p.at)}`).join(", ")}` : ""
+                    }`}
+                  >
+                    {Array.from({ length: Math.max(need, got) }, (_, i) => {
+                      const p = a.approvals[i];
+                      return p ? (
+                        <span
+                          key={p.userId}
+                          data-testid="treasury-slot-filled"
+                          title={`${p.displayName} approved with a fresh World ID check at ${clock(p.at)} (Tokyo)`}
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+                        >
+                          ✓ {p.displayName} · <span className="tabular-nums">{clock(p.at)}</span>
+                        </span>
+                      ) : (
+                        <span
+                          key={`open-${i}`}
+                          data-testid="treasury-slot-empty"
+                          className="inline-flex items-center rounded-md border border-dashed border-neutral-300 px-2.5 py-1 text-sm text-neutral-400 dark:border-neutral-600 dark:text-neutral-500"
+                        >
+                          verified human
+                        </span>
+                      );
+                    })}
+                    <span className="ml-auto text-sm tabular-nums text-neutral-500 dark:text-neutral-400">{progress}</span>
+                  </div>
+                )}
                 {paying ? (
                   <div
                     data-testid="treasury-paying"
-                    className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300"
+                    className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300"
                   >
-                    {a.kind === "ratify"
+                    {a.kind === "ratify" || a.kind === "recurring-buy"
                       ? "Adopting… this updates in a moment."
                       : "Paying on Sepolia… this updates when the payment confirms."}
                   </div>
+                ) : iApproved ? (
+                  <div data-testid="treasury-you-approved" className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
+                    ✓ You approved — waiting for {humans(need - got)}.
+                  </div>
+                ) : !status.mySeated ? (
+                  <div data-testid="treasury-no-vote" className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+                    No vote on this account — only verified humans can approve.
+                  </div>
+                ) : me && !me.voting ? (
+                  <div className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+                    You joined after our rules were adopted — your vote counts once the group adopts them again.
+                  </div>
                 ) : !status.idpMode ? (
-                  <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  <div className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
                     World ID for Agents is not configured
                   </div>
                 ) : a.canApprove ? (
-                  <button
-                    type="button"
-                    data-testid="treasury-approve"
-                    onClick={() =>
-                      window.location.assign(
-                        `/api/auth/world/connect?action=${encodeURIComponent(a.id)}&returnTo=${encodeURIComponent(
-                          `/dm/${roomId}`
-                        )}`
-                      )
-                    }
-                    className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
-                  >
-                    🌍 Approve with World ID
-                    {status.idpMode === "mock" && <span className="ml-1 text-xs opacity-70">(mock IdP)</span>}
-                  </button>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      data-testid="treasury-approve"
+                      onClick={() =>
+                        window.location.assign(
+                          `/api/auth/world/connect?action=${encodeURIComponent(a.id)}&returnTo=${encodeURIComponent(
+                            `/dm/${roomId}`
+                          )}`
+                        )
+                      }
+                      className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+                    >
+                      🌍 Approve with World ID
+                    </button>
+                    {status.idpMode === "mock" && (
+                      <div data-testid="treasury-mock-idp" className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                        local mock IdP
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                    {status.mySeated ? "Waiting for other verified members." : "Claim your vote to approve."}
+                  <div className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+                    Waiting for other verified humans.
                   </div>
                 )}
               </div>
             );
           })}
+
+          <RecurringBuyPanel key={roomId} roomId={roomId} status={status} onChanged={refresh} />
 
           {history.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800" data-testid="treasury-history">
@@ -604,6 +844,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 <li key={a.id} data-testid="treasury-history-item" className="leading-relaxed">
                   {a.status === "executed" && a.kind === "ratify" && (
                     <span className="text-neutral-700 dark:text-neutral-300">📜 Adopted {a.memo}</span>
+                  )}
+                  {a.status === "executed" && a.kind === "recurring-buy" && (
+                    <span className="text-neutral-700 dark:text-neutral-300">📌 Adopted {a.memo}</span>
                   )}
                   {a.status === "unconfirmed" && (
                     <span className="text-amber-700 dark:text-amber-300">
@@ -624,7 +867,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                       · don&apos;t ask again until it settles
                     </span>
                   )}
-                  {a.status === "executed" && a.kind !== "ratify" && (
+                  {a.status === "executed" && a.kind !== "ratify" && a.kind !== "recurring-buy" && (
                     <span className="text-neutral-700 dark:text-neutral-300">
                       ✅ {usdShort(a.amountUsd)} · {memoOf(a)}
                       {a.txHash && (

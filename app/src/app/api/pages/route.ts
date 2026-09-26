@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, teamspaceMembers, teamspaces, users, workspaceMembers } from "@/lib/db/schema";
+import { blocks, dbRows, pageMembers, pages, agentRoomStates, chatRooms, okfAcl, teamspaceMembers, teamspaces, users, workspaceMembers } from "@/lib/db/schema";
 import { loadDatabaseForUser } from "@/lib/db-access";
 import { getPagePermission, hasPermission } from "@/lib/auth/share-token";
 import { and, eq, inArray, max, isNotNull, sql } from "drizzle-orm";
 import { getDefaultWorkspaceId, workspaceForRequest } from "@/lib/workspace";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 import { scheduleMirror } from "@/lib/md-mirror";
-import { listPages, okfSyntheticPage } from "@/lib/okf-store";
+import { encodeId, listPages, okfSyntheticPage } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
 import { RELATIONSHIP_DOC_PREFIXES } from "@/i18n/content/components";
 
@@ -175,6 +175,11 @@ export async function GET(req: NextRequest) {
       const norm = (t: string) => t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
       return memberNamesLower.has(norm(partner));
     };
+    // a failure here only costs the Shared grouping (the docs fall back to Private), not the tree
+    const sharedById = await relationDocsSharedWith(auth.user.id).catch((e: unknown) => {
+      console.error("[pages] relation doc sharing lookup failed:", e);
+      return new Map<string, RelationShare>();
+    });
     okf = listPages()
       .filter((p) => gate.canReadId(p.id) && inThisWorkspace(p.id))
       .map((p) => ({
@@ -191,11 +196,56 @@ export async function GET(req: NextRequest) {
         position: p.position,
         kind: p.kind,
         }),
+        ...(sharedById.has(p.id) ? { sharedWith: sharedById.get(p.id) } : {}),
       }));
   } catch {
  // OKF root missing/malformed → just the Postgres pages
   }
   return NextResponse.json({ pages: [...visible, ...okf] });
+}
+
+/** Who a relation's memory doc is shared with, as the sidebar's Shared section
+ * shows it ("Tokyo Trip · 6 people"). */
+interface RelationShare {
+  roomId: string;
+  /** the relation's room name; null when the room row is gone (resets drop rooms) */
+  roomName: string | null;
+  /** the humans who can read the doc (okf_acl members, the room's agent excluded) */
+  people: number;
+}
+
+/** A relation's memory doc is readable only by the relation's members — the
+ * okf_acl rows that carry a roomId. Keyed by the doc ROOT's page id, only for
+ * docs this user is a member of: everything here comes from okf_acl, never
+ * from the client, so no one can move a page into Shared by asking. */
+async function relationDocsSharedWith(userId: string): Promise<Map<string, RelationShare>> {
+  const rows = (
+    await db
+      .select({ path: okfAcl.path, roomId: okfAcl.roomId, memberIds: okfAcl.memberIds })
+      .from(okfAcl)
+      .where(isNotNull(okfAcl.roomId))
+  ).filter((r) => (r.memberIds ?? []).includes(userId));
+  const out = new Map<string, RelationShare>();
+  if (!rows.length) return out;
+  const roomIds = [...new Set(rows.map((r) => r.roomId!))];
+  const memberIds = [...new Set(rows.flatMap((r) => r.memberIds ?? []))];
+  const [rooms, humans] = await Promise.all([
+    db.select({ id: chatRooms.id, name: chatRooms.name }).from(chatRooms).where(inArray(chatRooms.id, roomIds)),
+    db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(inArray(users.id, memberIds), eq(users.isAgent, false))),
+  ]);
+  const roomName = new Map(rooms.map((r) => [r.id, r.name]));
+  const human = new Set(humans.map((h) => h.id));
+  for (const r of rows) {
+    out.set(encodeId(r.path), {
+      roomId: r.roomId!,
+      roomName: roomName.get(r.roomId!) ?? null,
+      people: (r.memberIds ?? []).filter((id) => human.has(id)).length,
+    });
+  }
+  return out;
 }
 
 /** POST /api/pages { title?, parentPageId?, icon?, teamspaceId? } → { page }

@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, createWalletClient, formatUnits, http, parseAbi, parseEventLogs, type Hex } from "viem";
+import { createPublicClient, createWalletClient, fallback, formatUnits, http, parseAbi, parseEventLogs, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { agentKey } from "./wallet";
@@ -30,7 +30,8 @@ export const INVEST_CHAIN = {
 };
 
 export interface InvestConfig {
-  rpc: string;
+  /** BASE_RPC_URL first, then public fallbacks — one rate-limited endpoint must not fail an approved swap */
+  rpcs: string[];
   /** real USDC per story dollar */
   usdcPerUsd: number;
   slippageBps: number;
@@ -41,7 +42,8 @@ export function investConfig(): InvestConfig | null {
   const usdcPerUsd = Number(process.env.TREASURY_INVEST_USDC_PER_USD ?? "0.005");
   const slippageBps = Number(process.env.TREASURY_INVEST_SLIPPAGE_BPS ?? "50");
   if (!(usdcPerUsd > 0) || !(slippageBps >= 0 && slippageBps < 10_000)) return null;
-  return { rpc: process.env.BASE_RPC_URL ?? "https://mainnet.base.org", usdcPerUsd, slippageBps };
+  const rpcs = [...new Set([process.env.BASE_RPC_URL, "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://mainnet.base.org"].filter((u): u is string => !!u))];
+  return { rpcs, usdcPerUsd, slippageBps };
 }
 
 const erc20 = parseAbi([
@@ -57,7 +59,8 @@ const router = parseAbi([
   "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)",
 ]);
 
-const publicClient = (cfg: InvestConfig) => createPublicClient({ chain: base, transport: http(cfg.rpc) });
+const transportFor = (cfg: InvestConfig) => fallback(cfg.rpcs.map((u) => http(u, { timeout: 10_000 })), { rank: false });
+const publicClient = (cfg: InvestConfig) => createPublicClient({ chain: base, transport: transportFor(cfg) });
 
 /** USDC (6 decimals) for a story amount at demo scale. */
 export function usdcForUsd(cfg: InvestConfig, usd: number): bigint {
@@ -94,7 +97,7 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
 
   const account = privateKeyToAccount(await agentKey(agentUserId));
   const client = publicClient(cfg);
-  const wallet = createWalletClient({ account, chain: base, transport: http(cfg.rpc) });
+  const wallet = createWalletClient({ account, chain: base, transport: transportFor(cfg) });
 
   const held = await client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "balanceOf", args: [account.address] });
   if (held < amountIn)
@@ -102,23 +105,44 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
       `the agent's Base wallet holds ${formatUnits(held, 6)} USDC, less than the ${formatUnits(amountIn, 6)} this investment needs`
     );
 
+  // A plain ERC-20 approval for exactly this buy, only when the router lacks
+  // it. Then wait until THIS client can read the allowance: a load-balanced
+  // RPC has shown the approval's receipt from one node and estimated the swap
+  // on another that had not seen the block yet — an "STF" revert that public
+  // nodes hand back with the reason stripped.
+  const allowanceNow = () => client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "allowance", args: [account.address, INVEST_CHAIN.swapRouter02] });
+  if ((await allowanceNow()) < amountIn) {
+    const approveHash = await wallet.writeContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "approve", args: [INVEST_CHAIN.swapRouter02, amountIn] });
+    await client.waitForTransactionReceipt({ hash: approveHash });
+    let seen = false;
+    for (let i = 0; i < 20 && !seen; i++) {
+      seen = (await allowanceNow()) >= amountIn;
+      if (!seen) await new Promise((r) => setTimeout(r, 1500));
+    }
+    if (!seen) throw new Error("the router's allowance is not visible yet — try the investment again in a minute");
+  }
+
+  // quote after the allowance is settled, so the minimum is from a fresh block
   const expected = await quote(cfg, INVEST_CHAIN.usdc, INVEST_CHAIN.weth, amountIn);
   const amountOutMinimum = (expected * BigInt(10_000 - cfg.slippageBps)) / BigInt(10_000);
 
-  // a plain ERC-20 approval for exactly this buy, only when the router lacks it
-  const allowance = await client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "allowance", args: [account.address, INVEST_CHAIN.swapRouter02] });
-  if (allowance < amountIn) {
-    const approveHash = await wallet.writeContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "approve", args: [INVEST_CHAIN.swapRouter02, amountIn] });
-    await client.waitForTransactionReceipt({ hash: approveHash });
-  }
-
+  // an explicit gas limit: the swap is ordered after the approval by nonce, so
+  // it cannot run before it on-chain; estimating it against a lagging node is
+  // the one step that could still fail spuriously. ~130k used; 300k is room.
   const txHash = await wallet.writeContract({
     address: INVEST_CHAIN.swapRouter02,
     abi: router,
     functionName: "exactInputSingle",
     args: [{ tokenIn: INVEST_CHAIN.usdc, tokenOut: INVEST_CHAIN.weth, fee: INVEST_CHAIN.feeTier, recipient: account.address, amountIn, amountOutMinimum, sqrtPriceLimitX96: BigInt(0) }],
+    gas: BigInt(300_000),
   });
-  const receipt = await client.waitForTransactionReceipt({ hash: txHash });
+  // The swap is broadcast from here on, so a receipt wait that fails (a timeout, a dropped RPC
+  // call) does not mean the USDC stayed put. The error carries the hash, and callers file the
+  // attempt as "may have moved" instead of buying again on top of a swap that may have landed.
+  const receipt = await client.waitForTransactionReceipt({ hash: txHash }).catch((err: unknown) => {
+    if (err && typeof err === "object") (err as { txHash?: Hex }).txHash = txHash;
+    throw err;
+  });
   if (receipt.status !== "success") {
     const err = new Error("the swap reverted on Base") as Error & { txHash: Hex };
     err.txHash = txHash;

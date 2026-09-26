@@ -4,7 +4,8 @@
  *
  *   npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts [--reset] [--no-fund] [--no-preseat] [--app URL]
  *     --reset    delete the "Tokyo Trip" room(s) Alex made (treasury rows, chat,
- *                agent, relation doc) and build it again; accounts are kept
+ *                agent, relation doc) and the six accounts' notifications, and
+ *                build it again; accounts are kept
  *     --no-fund  skip the Sepolia top-up of the treasury
  *     --no-preseat  seat nobody: with the Portal app configured, every seat on
  *                camera should be a real IDKit proof, not a seeded one
@@ -14,7 +15,8 @@
  *   - six accounts reachable by demo login (POST /api/auth/demo-login
  *     { as: "tokyo-alex" } …): Alex, Bea, Chris, Dana, Eli, and
  *     "Alex (2nd account)" — the same human as Alex on a second account, the
- *     case one-human-one-seat exists for;
+ *     case one-human-one-seat exists for — each with a face from
+ *     public/demo/tokyo/ (the room's agent too), joined in that order;
  *   - the "ETHGlobal Tokyo Team" workspace (Alex owns it, all six are members);
  *   - the "Tokyo Trip" room with its agent, and the chat where they agreed on
  *     the rules;
@@ -91,15 +93,20 @@ const funder = privateKeyToAccount((funderKey.startsWith("0x") ? funderKey : `0x
 // demo-login `as` finds an account by ainAddress "demo:<slug>" and keeps its
 // display name, so these are the same rows a browser lands on.
 
+// faces: public/demo/tokyo/<key>.jpg (512px squares); the agent's is agent.jpg
+const avatarOf = (key: Key | "agent") => `/demo/tokyo/${key}.jpg`;
+
 const ids = {} as Record<Key, string>;
 for (const p of PEOPLE) {
   const ainAddress = `demo:${p.slug}`;
+  const avatarUrl = avatarOf(p.key);
   const [found] = await db.select().from(S.users).where(eq(S.users.ainAddress, ainAddress)).limit(1);
   if (found) {
-    if (found.displayName !== p.name) await db.update(S.users).set({ displayName: p.name }).where(eq(S.users.id, found.id));
+    if (found.displayName !== p.name || found.avatarUrl !== avatarUrl)
+      await db.update(S.users).set({ displayName: p.name, avatarUrl }).where(eq(S.users.id, found.id));
     ids[p.key] = found.id;
   } else {
-    const [created] = await db.insert(S.users).values({ ainAddress, displayName: p.name }).returning();
+    const [created] = await db.insert(S.users).values({ ainAddress, displayName: p.name, avatarUrl }).returning();
     ids[p.key] = created.id;
   }
 }
@@ -114,6 +121,14 @@ await db
 /** the agent's wallet key survives a reset, so the treasury's SepETH is not stranded with a deleted agent */
 let carriedKey: string | null = null;
 if (RESET) {
+  // rehearsal pings ("Treasury: approve $150 …") would sit in every bell; the
+  // first one on camera should be the new request's
+  const cleared = await db
+    .delete(S.notifications)
+    .where(inArray(S.notifications.userId, humanIds))
+    .returning({ id: S.notifications.id });
+  if (cleared.length) console.log(`cleared ${cleared.length} notification(s) of the demo accounts`);
+
   const rooms = await db
     .select({ id: S.chatRooms.id })
     .from(S.chatRooms)
@@ -248,11 +263,31 @@ if (!room)
     .returning();
 if (!room) throw new Error("could not create the room");
 const roomId = room.id;
+// Joined in PEOPLE order, a second apart: member lists sort by joinedAt, and a
+// single insert would give all six the same instant — the order was then the
+// uuids', different on every reset. Just before now, so the chat above (dated
+// minutes ago) does not count as unread.
+const joinedFrom = Date.now() - (PEOPLE.length + 1) * 1000;
 await db
   .insert(S.chatRoomMembers)
-  .values(humanIds.map((userId) => ({ roomId, userId })))
+  .values(humanIds.map((userId, i) => ({ roomId, userId, joinedAt: new Date(joinedFrom + i * 1000) })))
   .onConflictDoNothing();
 const { agentUserId } = await provisionRoomAgent(room, humanIds, ids.alex);
+// A room seeded before that (or rerun) keeps its rows, so the order is set
+// again against the agent's join, which never moves: the six a second apart,
+// ending just before it — the same values on every run.
+{
+  const [agentMember] = await db
+    .select({ at: S.chatRoomMembers.joinedAt })
+    .from(S.chatRoomMembers)
+    .where(and(eq(S.chatRoomMembers.roomId, roomId), eq(S.chatRoomMembers.userId, agentUserId)));
+  const anchor = (agentMember?.at ?? new Date()).getTime();
+  for (const [i, p] of PEOPLE.entries())
+    await db
+      .update(S.chatRoomMembers)
+      .set({ joinedAt: new Date(anchor - (PEOPLE.length - i) * 1000) })
+      .where(and(eq(S.chatRoomMembers.roomId, roomId), eq(S.chatRoomMembers.userId, ids[p.key])));
+}
 // five friends running a trip fund read as a team, not a family: the business
 // profile titles the doc "Working record" with Agreements / Action items /
 // Meeting log, where the default family profile brings Health & care
@@ -260,7 +295,10 @@ const { agentUserId } = await provisionRoomAgent(room, humanIds, ids.alex);
   const [agentRow] = await db.select({ agentConfig: S.users.agentConfig }).from(S.users).where(eq(S.users.id, agentUserId));
   await db
     .update(S.users)
-    .set({ agentConfig: { ...((agentRow?.agentConfig ?? {}) as Record<string, unknown>), profile: "business" } })
+    .set({
+      agentConfig: { ...((agentRow?.agentConfig ?? {}) as Record<string, unknown>), profile: "business" },
+      avatarUrl: avatarOf("agent"),
+    })
     .where(eq(S.users.id, agentUserId));
 }
 if (carriedKey)
@@ -322,8 +360,9 @@ const participants = [
 ];
 await setOkfAcl(tree.rootPath, roomId, participants);
 
-const isoDay = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// the heading appendTreasuryActivity writes ("Friday, Sep 25") — the same
+// function, since it is also the key today's appends dedupe against
+const { activityDayHeading } = await import("../src/lib/agent/treasury/memory");
 const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks: [ParsedBlock["type"], string][] }[] = [
   {
     key: "purpose",
@@ -362,7 +401,7 @@ const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks
     okfType: "Memory",
     // dated the way appendTreasuryActivity writes, so today's entries join this heading
     blocks: [
-      ["heading1", isoDay(new Date())],
+      ["heading1", activityDayHeading(new Date())],
       ["bulleted_list", "Treasury opened with $1,000 — $200 from each of us."],
     ],
   },

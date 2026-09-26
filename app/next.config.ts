@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   // dev on it got /_next/webpack-hmr blocked, and the page then sat there
   // "compiling" forever with no hydration.
   allowedDevOrigins: ["192.168.1.193", "192.168.1.194", "127.0.0.1"],
+  // `next dev` draws a round "N" dev-tools button (and an "N Issues" badge)
+  // over the bottom-left corner of every page, on top of the sidebar. It ended
+  // up in the demo recording. HIDE_DEV_INDICATOR=1 turns it off for one server
+  // without changing it for the others. Next still pops up runtime errors, and
+  // prod builds never draw the button. For a local recording, set it in
+  // app/.env.development.local, which only `next dev` reads.
+  ...(process.env.HIDE_DEV_INDICATOR === "1" ? { devIndicators: false as const } : {}),
   // Isolated build dir (e2e): a concurrent dev server overwrites the default
   // .next and wipes prod builds (F12), so e2e prod builds go to
   // NEXT_DIST_DIR=.next-e2e. Unset = default .next (dev server), so other
