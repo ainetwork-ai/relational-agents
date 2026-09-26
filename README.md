@@ -60,8 +60,8 @@ same ACL.
 ## Relation Treasury — AI manages the money, humans approve it
 
 *ETHGlobal Tokyo 2026 · World — Best Use of World ID for Agents, Best IDKit Use Case (Continuity).*
-[Demo script](docs/world/DEMO.md) · [integration debriefs](docs/world/debrief.md) ·
-[integration log](docs/world/integration-log.md) · [plan](docs/world-relation-treasury-scenario.md)
+[Demo script](world/DEMO.md) · [integration debriefs](world/DEBRIEF.md) ·
+[integration log](world/integration-log.md) · [plan](world/plan.md)
 
 **The problem.** Shared money comes with an agreement — who may spend it, on what, how many
 must say yes — and we keep it in chat and docs. The wallet doesn't know it: a multisig knows
@@ -123,7 +123,7 @@ and the policy is the relation's own sentences, which the agent reads, applies a
 plays the whole journey over HTTP against the **local mock** of the World ID for Agents IdP
 and moves real Sepolia ETH (8/8). The real sandbox IdP and a Developer Portal staging app for
 IDKit need client registration, which is a manual step — see the pre-flight in
-[DEMO.md](docs/world/DEMO.md); without them the panel labels itself "mock IdP" / "dev vote".
+[DEMO.md](world/DEMO.md); without them the panel labels itself "mock IdP" / "dev vote".
 
 **Pre-existing vs built this weekend.** The weekend's commits are `4d4612d..HEAD` (the
 treasury, the World step-up, the panel, the seed and e2e, the docs); everything else
@@ -134,7 +134,7 @@ predates 2026-09-25.
 | World ID 3.0 personhood for relation consent (July): [`lib/worldid.ts`](app/src/lib/worldid.ts), [`world-id-button.tsx`](app/src/components/dm/world-id-button.tsx), the consent route's nullifier binding, `personhood_proofs` | [`lib/agent/treasury/*`](app/src/lib/agent/treasury/) — rules parser and evaluator, command matcher, memory reader, wallet, approvals/quorum/adoption, the agent's skill |
 | Relation agents and their memory (July): [`provision.ts`](app/src/lib/agent/provision.ts), [`respond.ts`](app/src/lib/agent/respond.ts), OKF folders ([`okf-store.ts`](app/src/lib/okf-store.ts), [`okf-docs.ts`](app/src/lib/agent/okf-docs.ts)), demo login | World ID for Agents step-up: [`lib/auth/world.ts`](app/src/lib/auth/world.ts), [`api/auth/world/*`](app/src/app/api/auth/world/) (confirmation page, callback), the local mock IdP [`api/world-mock/*`](app/src/app/api/world-mock/) |
 | AgentKit wallet wrapper ([`agentkit.ts`](app/src/lib/agent/agentkit.ts), July); the songpyeon purchase demo ([`spend.ts`](app/src/lib/agent/spend.ts), Sep 23 — it now refuses a treasury agent) | Claiming a vote with IDKit v4: [`lib/worldid-v4.ts`](app/src/lib/worldid-v4.ts), the `treasury/seat` and `rp-context` routes, [`seat-button.tsx`](app/src/components/treasury/seat-button.tsx) |
-| [`secret-box.ts`](app/src/lib/secret-box.ts), the family wallet in [`gift.ts`](app/src/lib/gift.ts) (Sep 25, before the treasury) | The panel ([`treasury-panel.tsx`](app/src/components/treasury/treasury-panel.tsx)), the `treasury_*` tables and `users.world_sub`, the seed, selftest and e2e, [`docs/world/`](docs/world/) |
+| [`secret-box.ts`](app/src/lib/secret-box.ts), the family wallet in [`gift.ts`](app/src/lib/gift.ts) (Sep 25, before the treasury) | The panel ([`treasury-panel.tsx`](app/src/components/treasury/treasury-panel.tsx)), the `treasury_*` tables and `users.world_sub`, the seed, selftest and e2e, [`world/`](world/) |
 
 *A note on the history:* the eight treasury commits `aa9fc39..a4c81bb` carry the same
 second (2026-09-25 15:10:57 UTC) — one working session was split into these units and

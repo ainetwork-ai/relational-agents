@@ -31,7 +31,7 @@ listed only in the last section, as proposals; this document changes neither the
 
 ## 2. What the scenario uses
 
-### 2a. The script `docs/world/DEMO.md` S0–S6
+### 2a. The script [`DEMO.md`](DEMO.md) S0–S6
 
 | Scene | Uses | State |
 |---|---|---|
