@@ -12,7 +12,8 @@ export interface AlbumFile {
 
 /**
  * An album: one file block holding several photos (`content.files`), shown as
- * a grid of square tiles — 2 across on a phone, 3 above. A tile opens the
+ * a grid of square tiles — 2 across on a phone, 3 above (2 for four or fewer,
+ * so four photos make a square rather than 3 + 1). A tile opens the
  * photo full size; Escape or a click closes it. aindrive links load through
  * this app's access-checked proxy, like a single file block's preview.
  */
@@ -33,7 +34,7 @@ export function AlbumGrid({ blockId, files }: { blockId: string; files: AlbumFil
   }, [open, files.length]);
 
   return (
-    <div data-testid={`album-grid-${blockId}`} contentEditable={false} className="my-1 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+    <div data-testid={`album-grid-${blockId}`} contentEditable={false} className={`my-1 grid grid-cols-2 gap-1.5 ${files.length > 4 ? "sm:grid-cols-3" : ""}`}>
       {files.map((f, i) => (
         <button
           key={`${f.url}-${i}`}

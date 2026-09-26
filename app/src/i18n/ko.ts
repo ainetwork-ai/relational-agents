@@ -963,6 +963,7 @@ export const ko: Record<string, string> = {
   "Settling USDC on Base…": "Base에서 USDC 정산 중…",
   "MetaMask is needed to pay. Install it and try again.": "결제하려면 메타마스크가 필요해요. 설치한 뒤 다시 시도해 주세요.",
   "Payment cancelled in MetaMask.": "메타마스크에서 결제를 취소했어요.",
+  "The payment didn't go through. Check that this wallet holds at least {price} on Base, then try again.": "결제가 되지 않았어요. 이 지갑의 Base 네트워크에 {price} 이상 있는지 확인한 뒤 다시 시도해 주세요.",
   "「{title}」 opens with {price} from your own wallet — press the button on the page and approve it in MetaMask → /p/{pageId}": "「{title}」은 내 지갑에서 {price}로 열려요 — 페이지의 버튼을 누르고 메타마스크에서 승인해 주세요 → /p/{pageId}",
   "Open agent": "에이전트 열기",
   "Could not open the agent.": "에이전트를 열지 못했어요.",
