@@ -218,7 +218,11 @@ function revertName(err: unknown): string {
  * up — is simulated, not sent. Returns once this client sees every sent pull mined, so a buy sent
  * next gets the right nonce.
  */
-export function collectDueContributions(input: { roomId: string; agentUserId: string }): Promise<CollectResult> {
+/**
+ * `expect`: a plan id just started — a load-balanced RPC can answer from a node that has not seen
+ * it yet, so the collection waits (bounded) until plansOf lists it.
+ */
+export function collectDueContributions(input: { roomId: string; agentUserId: string; expect?: Hex }): Promise<CollectResult> {
   // one collection per room at a time: two would send from the agent with the same nonce
   const prev = collecting.get(input.roomId) ?? Promise.resolve();
   const next = prev.catch(() => undefined).then(() => collectNow(input));
@@ -235,13 +239,22 @@ export interface CollectResult {
 
 const collecting = new Map<string, Promise<CollectResult>>();
 
-async function collectNow(input: { roomId: string; agentUserId: string }): Promise<CollectResult> {
+const EXPECT_POLLS = 12;
+const EXPECT_POLL_MS = 1_500;
+
+async function collectNow(input: { roomId: string; agentUserId: string; expect?: Hex }): Promise<CollectResult> {
   const cfg = investConfig();
   if (!cfg || !realRunsEnabled()) return { collected: [], notCollected: [] };
   const account = privateKeyToAccount(await agentKey(input.agentUserId));
   const { client, transport } = clients(cfg.rpcs);
   const wallet = createWalletClient({ account, chain: base, transport });
-  const [reads, memberIds] = await Promise.all([readPlans(cfg.rpcs, account.address), humanMemberIds(input.roomId)]);
+  const [firstRead, memberIds] = await Promise.all([readPlans(cfg.rpcs, account.address), humanMemberIds(input.roomId)]);
+  let reads = firstRead;
+  const expect = input.expect?.toLowerCase();
+  for (let i = 0; expect && i < EXPECT_POLLS && !reads.some((r) => r.id.toLowerCase() === expect); i++) {
+    await new Promise((r) => setTimeout(r, EXPECT_POLL_MS));
+    reads = await readPlans(cfg.rpcs, account.address);
+  }
   const nowS = Math.floor(Date.now() / 1000);
   const due = reads.filter((r) => isDue(r.plan, nowS));
   const collected: Collected[] = [];

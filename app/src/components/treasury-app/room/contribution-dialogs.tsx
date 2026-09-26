@@ -257,7 +257,12 @@ export function StartContributionDialog({
   const collectFirst = async (w: BaseWallet, x: Terms) => {
     const id = contributionPlanId(w.address, pot, C.usdc, contributionSalt(roomId, meId)).toLowerCase();
     try {
-      const res = await fetch(`/api/treasury/${encodeURIComponent(roomId)}/contributions/collect`, { method: "POST" });
+      // the plan's id: the server waits until its RPC sees the plan that was just started
+      const res = await fetch(`/api/treasury/${encodeURIComponent(roomId)}/contributions/collect`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ planId: id }),
+      });
       const body = (await res.json().catch(() => null)) as { collected?: { id: string }[]; notCollected?: { id: string; reason: string }[] } | null;
       const mine = body?.collected?.some((r) => r.id.toLowerCase() === id);
       const refused = body?.notCollected?.find((r) => r.id.toLowerCase() === id);

@@ -39,6 +39,7 @@
  *                 recurringBuyStatus()          (db + chain; approvals.ts adopts)
  */
 
+import type { SwapRoute } from "./swap-route";
 import type { RecurringSkipReason } from "./recurring-record";
 
 /** IDKit action for claiming a seat (register in the Developer Portal). */
@@ -364,6 +365,8 @@ export interface RecurringBuyStatus {
     wethOut?: string;
     /** Base explorer link (basescan), for a buy or a skip whose swap was sent */
     txUrl?: string;
+    /** which way the swap went (swap-route.ts), when the run recorded it */
+    route?: SwapRoute;
   }>;
   /** false: runs on this server are rehearsals that move nothing */
   realRuns: boolean;

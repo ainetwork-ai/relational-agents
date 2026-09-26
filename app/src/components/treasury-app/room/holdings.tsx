@@ -21,7 +21,7 @@ function ChainCard({ holdings }: { holdings: ChainHoldings }) {
         <ChainBadge chain={chain} />
         {chain === "sepolia" && <span className={styles.testnet}>{t("testnet")}</span>}
       </div>
-      <p className={styles.chainRole}>{chain === "sepolia" ? t("Shared pot · payments") : t("Swaps · Uniswap v3")}</p>
+      <p className={styles.chainRole}>{chain === "sepolia" ? t("Shared pot · payments") : t("Swaps · Uniswap")}</p>
       {state === "ready" ? (
         <ul className={styles.list}>
           {rows.map((row) => (

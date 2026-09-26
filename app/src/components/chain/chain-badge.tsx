@@ -39,12 +39,12 @@ export function ChainBadge({ chain, className = "" }: { chain: TreasuryChain; cl
   );
 }
 
-/** "● Uniswap v3" — on a swap, next to its ChainBadge. */
+/** "● Uniswap" — on a swap, next to its ChainBadge; the Route line says which way it went. */
 export function UniswapBadge({ className = "" }: { className?: string }) {
   return (
     <span data-venue="uniswap-v3" className={`${BADGE} border-pink-200 text-pink-700 dark:border-pink-900 dark:text-pink-300 ${className}`}>
       <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: UNISWAP_PINK }} />
-      Uniswap v3
+      Uniswap
     </span>
   );
 }

@@ -6,6 +6,7 @@
  * wallet in, rows out; UI text goes through `t`.
  */
 
+import type { SwapRoute } from "@/lib/agent/treasury/swap-route";
 import { explorerTxUrl, type TreasuryChain } from "@/components/chain/chain-badge";
 import type { T } from "@/i18n/translate";
 import { TREASURY_TIME_ZONE, type TreasuryStatus } from "@/lib/agent/treasury/types";
@@ -22,7 +23,7 @@ export interface ActivityItem {
   at: string;
   tone: ActivityTone;
   /** what kind of line it is, for the icon */
-  icon: "rules" | "recurring" | "buy" | "skip" | "pay" | "invest" | "withdraw" | "wait";
+  icon: "rules" | "recurring" | "buy" | "skip" | "pay" | "invest" | "withdraw" | "wait" | "contribution";
   title: string;
   /** what it was for and where it went: "hotel deposit · to Hotel Gracery" */
   detail: string | null;
@@ -32,8 +33,10 @@ export interface ActivityItem {
   chain: Chain | null;
   /** what moved, in tokens: "0.0009 ETH", "0.1 USDC → 0.0000372 WETH" */
   tokens: string | null;
-  /** a swap through Uniswap v3 on Base */
+  /** a swap through Uniswap on Base */
   uniswap: boolean;
+  /** which way that swap went, when its run recorded it (swap-route.ts) */
+  route: SwapRoute | null;
   /** where a payment went, as the relation names it and as the chain does; null for a swap or a decision */
   to: { label: string | null; address: string | null } | null;
   /** its transaction: settled, still unconfirmed, or failed on chain; `url` only when a public explorer has it */
@@ -65,7 +68,7 @@ function paymentDetail(t: T, a: TreasuryAction): string {
 
 function actionItem(t: T, a: TreasuryAction, status: TreasuryStatus, wallet: TreasuryWallet): ActivityItem {
   const approvedBy = a.approvals.map((p) => p.displayName).join(", ");
-  const base = { id: a.id, at: a.createdAt, amount: null, chain: null, tokens: null, uniswap: false, to: null, tx: null };
+  const base = { id: a.id, at: a.createdAt, amount: null, chain: null, tokens: null, uniswap: false, route: null, to: null, tx: null };
 
   if (a.kind === "ratify") {
     if (a.status === "executed")
@@ -141,7 +144,7 @@ function actionItem(t: T, a: TreasuryAction, status: TreasuryStatus, wallet: Tre
 
 function runItem(t: T, run: RecurringRun, i: number, wallet: TreasuryWallet): ActivityItem {
   const hash = run.txUrl?.match(TX_HASH)?.[0] ?? null;
-  const base = { id: `run-${run.at}-${i}`, at: run.at, detail: null, amount: null, chain: null, tokens: null, uniswap: false, to: null, tx: null };
+  const base = { id: `run-${run.at}-${i}`, at: run.at, detail: null, amount: null, chain: null, tokens: null, uniswap: false, route: run.route ?? null, to: null, tx: null };
   if (run.outcome === "bought") {
     // the run records real USDC; the story dollars are that at demo scale
     const storyUsd = run.usdcIn ? Math.round((Number(run.usdcIn) / wallet.usdcPerUsd) * 100) / 100 : null;
@@ -171,10 +174,41 @@ function runItem(t: T, run: RecurringRun, i: number, wallet: TreasuryWallet): Ac
 }
 
 /** Every treasury action the status carries plus every recurring run, newest first. */
+/**
+ * Every collected period of the members' Permit2 contributions, as money in. Contract state says
+ * which periods were collected, not when or by which transaction, so a row is dated by its period's
+ * start and has no transaction of its own (the Contributions tab links each member's transfers).
+ */
+function contributionItems(t: T, status: TreasuryStatus, wallet: TreasuryWallet): ActivityItem[] {
+  if (wallet.contributions.state !== "ready") return [];
+  const nameOf = new Map(status.members.map((m) => [m.userId, m.displayName]));
+  return wallet.contributions.plans.flatMap((plan) => {
+    const name = (plan.userId && nameOf.get(plan.userId)) || shortAddress(plan.member);
+    return plan.periods
+      .filter((p) => p.state === "collected")
+      .map((p) => ({
+        id: `contribution-${plan.id}-${p.index}`,
+        at: p.startsAt,
+        tone: "ok" as const,
+        icon: "contribution" as const,
+        title: t("{name}'s contribution", { name }),
+        detail: t("Permit2 · period {k} of {n}", { k: p.index + 1, n: plan.periods.length }),
+        amount: `+${usd(plan.amountUsd)}`,
+        chain: "base" as const,
+        tokens: `${tokenAmount(plan.amount)} USDC`,
+        uniswap: false,
+        route: null,
+        to: null,
+        tx: null,
+      }));
+  });
+}
+
 export function buildActivity(t: T, status: TreasuryStatus, wallet: TreasuryWallet): ActivityItem[] {
   const items = [
     ...status.actions.map((a) => actionItem(t, a, status, wallet)),
     ...(status.recurring?.history ?? []).map((r, i) => runItem(t, r, i, wallet)),
+    ...contributionItems(t, status, wallet),
   ];
   return items.sort((a, b) => b.at.localeCompare(a.at));
 }

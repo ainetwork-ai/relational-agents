@@ -267,8 +267,11 @@ export async function runAndAnnounce(ctx: TreasurerContext): Promise<{ run: Recu
  * what came in. Shared by the weekly run and the collect route (a member's button, and the last step
  * of starting a plan), so both leave the same trace. Collects nothing unless real runs are on.
  */
-export async function collectAndAnnounce(ctx: Pick<TreasurerContext, "roomId" | "agentUserId">): Promise<CollectResult & { line: string | null }> {
-  const result = await collectDueContributions({ roomId: ctx.roomId, agentUserId: ctx.agentUserId });
+export async function collectAndAnnounce(
+  ctx: Pick<TreasurerContext, "roomId" | "agentUserId">,
+  expect?: `0x${string}`
+): Promise<CollectResult & { line: string | null }> {
+  const result = await collectDueContributions({ roomId: ctx.roomId, agentUserId: ctx.agentUserId, expect });
   if (result.collected.length === 0) return { ...result, line: null };
   const perUsd = investConfig()?.usdcPerUsd ?? 0.005;
   const each = result.collected.map((c) => `${c.name} ${c.amount} USDC (${storyUsd(c.amount, perUsd)})`).join(", ");

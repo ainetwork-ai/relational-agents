@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * Any human member may ask: a pull moves only what a member allowed, only into this pot, at most
  * once a period — the contract enforces that — and the agent pays the gas.
  */
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { roomId } = await ctx.params;
@@ -20,6 +20,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ roomId: s
   const agent = await roomAgent(roomId);
   if (!agent) return NextResponse.json({ error: "This relation has no agent" }, { status: 404 });
 
-  const { collected, notCollected } = await collectAndAnnounce({ roomId, agentUserId: agent.agentUserId });
+  // a plan the member just started: the collection waits until the RPC lists it
+  const body = (await req.json().catch(() => null)) as { planId?: unknown } | null;
+  const expect = typeof body?.planId === "string" && /^0x[0-9a-fA-F]{64}$/.test(body.planId) ? (body.planId as `0x${string}`) : undefined;
+  const { collected, notCollected } = await collectAndAnnounce({ roomId, agentUserId: agent.agentUserId }, expect);
   return NextResponse.json({ collected, notCollected });
 }
