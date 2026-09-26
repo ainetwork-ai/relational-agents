@@ -7,6 +7,8 @@ export const registryAbi = parseAbi([
   "function getSubregistry(string label) view returns (address)",
   "function getResolver(string label) view returns (address)",
   "event LabelRegistered(uint256 indexed tokenId, bytes32 indexed labelHash, string label, address owner, uint64 expiry, address indexed sender)",
+  // IStandardRegistry at 71a3b73 (after the event: chain.ts reads registryAbi[3]): anyId = uint256(labelhash(label)); needs ROLE_SET_SUBREGISTRY (root roles count)
+  "function setSubregistry(uint256 anyId, address registry)",
 ]);
 
 export const userRegistryInitAbi = parseAbi(["function initialize((address account, uint256 roleBitmap)[] grants)"]);

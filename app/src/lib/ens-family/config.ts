@@ -15,6 +15,8 @@ export const MOCK_USDC: Address = "0x16f95d91dba7da3aca778ec053df0ff6c6a8aa8e";
 
 export const UNIVERSAL_HELPER: Address = "0x33f571aa8a160a21b877cf6e0fb8806692b97df5";
 export const VERIFIABLE_FACTORY: Address = "0x9e726eb570beb6bceb495ab8cda7df517d4e841c";
+/** VERIFIABLE_FACTORY.proxyLogic() (immutable): every proxy's CREATE2 init code embeds it. */
+export const VERIFIABLE_PROXY_LOGIC: Address = "0xC6dbA04e7c6264e85A459Dd592a6CBC2D2a6Ad8E";
 export const USER_REGISTRY_IMPL: Address = "0xa80338aaa8d23831cea25e858d1774534abb0263";
 export const PERMISSIONED_RESOLVER_IMPL: Address = "0x14f09fd05d4585759e54844dc9b00147131cf243";
 export const ETH_REGISTRAR: Address = "0xabe76f6c8dfced81aa5a2bb8034202a7136b94ca";

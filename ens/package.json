@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "setup-family": "tsx scripts/setup-family.ts",
     "live": "tsx scripts/live-check.ts",
+    "simulate": "tsx scripts/simulate-check.ts",
     "mcp": "tsx mcp/server.ts",
     "sync-to-app": "node scripts/sync-to-app.mjs"
   },
