@@ -48,7 +48,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ giftId: st
   if (typeof paymentSignature !== "string" || !paymentSignature || paymentSignature.length > 8192)
     return NextResponse.json({ error: "paymentSignature required" }, { status: 400 });
   const paid = await paySale(g.sale, paymentSignature);
-  if (!paid.ok) return NextResponse.json({ error: paid.error }, { status: paid.status });
+  if (!paid.ok) {
+    // aindrive words a failed on-chain check (most often: not enough USDC) as "facilitator unavailable"
+    const t = await getT();
+    const error = /facilitator unavailable/i.test(paid.error)
+      ? t("The payment didn't go through. Check that this wallet holds at least {price} on Base, then try again.", { price: `${g.sale.price} ${g.sale.currency}` })
+      : paid.error;
+    return NextResponse.json({ error }, { status: paid.status });
+  }
   const [u] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, g.user.id));
   const unlock = await markUnlocked(g.found.blockId, g.found.gift, { userId: g.user.id, name: u?.name ?? "" }, paid.txHash);
   await announceGift(g.found.workspaceId, g.user.id, g.found.gift.spec, paid.txHash).catch(() => {});
