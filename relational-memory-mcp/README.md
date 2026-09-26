@@ -1,53 +1,53 @@
-# notion-mcp
+# relational-memory-mcp
 
-An MCP (stdio) server wrapping the full REST API of the notion clone (parent
-repo). Exposes 58 routes as 65 tools: pages, blocks, databases (rows/
-properties/views), comments, search, upload, sharing, notifications, AI, and OKF.
+A stdio MCP server wrapping ainmem's REST API: pages, blocks, databases, comments, search,
+uploads, sharing, notifications, AI, chat and OKF. It calls the running app; it does not open
+memory files directly. REST authorization applies to the signed-in user.
 
-## Prerequisite
+The app also has a separate **Streamable HTTP MCP endpoint at `/api/mcp`**, which accepts
+session cookies, agent tokens or a public read-only service token. See the
+[root README](../README.md#a2a-and-mcp) for that interface.
 
-The clone app must be running (`../app`, `npm run dev`).
+## Setup
+
+Start ainmem using the [root setup guide](../README.md#running-it), then:
+
+```bash
+cd relational-memory-mcp
+npm ci
+npm run build
+MEMORY_BASE_URL=http://localhost:3110 npm start
+```
+
+Configure your MCP client to run `node /absolute/path/to/relational-agents/relational-memory-mcp/dist/index.js`
+with the environment below. For source development, `npm run dev` runs `tsx src/index.ts`.
 
 ## Configuration
 
-| env | default | meaning |
+| Variable | Default | Meaning |
 |---|---|---|
-| `NOTION_BASE_URL` | `http://localhost:3000` | clone app address |
-| `NOTION_PRIVATE_KEY` | (none) | key-login if set, else the shared demo-login |
-| `NOTION_DISPLAY_NAME` | (none) | display name for key-login |
+| `MEMORY_BASE_URL` | `http://localhost:3000` | ainmem address; set port **3110** for the repository dev server |
+| `MEMORY_PRIVATE_KEY` | Unset | AIN key passed to the app's key-login endpoint; otherwise uses demo-login |
+| `MEMORY_DISPLAY_NAME` | Unset | Display name for key-login |
 
-The server holds an iron-session cookie in memory, auto-logs-in on the first
-call, and re-logs-in once on a 401. The `login` tool can switch users mid-session.
-
-## Register with Claude Code
-
-```bash
-# run the source directly with tsx (development)
-claude mcp add notion-clone \
-  --env NOTION_BASE_URL=http://localhost:3000 \
-  -- npx tsx /mnt/newdata/git/notion/notion-mcp/src/index.ts
-
-# or after building
-npm run build
-claude mcp add notion-clone \
-  --env NOTION_BASE_URL=http://localhost:3000 \
-  -- node /mnt/newdata/git/notion/notion-mcp/dist/index.js
-```
+These names come from [`src/index.ts`](src/index.ts); the old `NOTION_*` variables are not read.
+The wrapper holds a session cookie in memory, signs in lazily, and retries login once on a 401.
+The `login` tool can switch users. Login without a key requires `DEMO_LOGIN_ADDRESS` on the app;
+production also requires `ENABLE_DEMO_LOGIN=1`. Set `MEMORY_PRIVATE_KEY` only for an app server
+you trust: key-login sends it to that server. The wrapper does not perform Google or aindrive
+browser sign-in.
 
 ## Representative tools
 
 - `login`, `auth_me`, `auth_logout`
-- `pages_list`, `page_create`, `page_blocks_get/append/replace`, `page_export(_pdf)`, `page_share_*`, `page_history_*`
-- `databases_list`, `database_create`, `database_row_add/update/delete`,
-  `database_property_add/update/delete`, `database_view_add/update/delete` (board = kanban view)
-- `search`, `upload_file` (image/file upload), `import_notion_zip`
-- `page_comments_list`, `page_comment_add`, `comment_update/delete`
-- `okf_tree`, `okf_node`, `okf_page_write`, `okf_db_*` — direct file-backend (OKF) access
-- `api_request` — raw escape hatch for unmapped endpoints
+- `pages_list`, `page_create`, `page_blocks_get`, `page_blocks_append`, `page_blocks_replace`,
+  page export, sharing and history tools
+- Database, row, property and view tools
+- `search`, `upload_file`, `import_notion_zip`, comment and notification tools
+- `okf_tree`, `okf_pages`, `okf_node`, `okf_page_write`, `okf_db_create`, `okf_db_update`
+- `chat_rooms_list` and chat tools
+- `api_request` for REST endpoints without a dedicated tool
 
-Binary responses (PDF/zip/asset) are saved to a temp file and the path returned.
-
-## Not supported
-
-- `GET /api/pages/{id}/events` (SSE realtime stream) — excluded; it doesn't fit
-  the MCP request/response model.
+The source is the tool inventory; the wrapper does not automatically expose every new API.
+Binary responses such as PDF, ZIP and assets are saved to temporary files and returned as paths.
+Page event streams (`GET /api/pages/<id>/events`) are not exposed as stdio request/response tools.

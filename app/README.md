@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ainmem app
 
-## Getting Started
+The application behind [AINMEM](../README.md): connect family-owned device folders through
+aindrive, turn shared sources into lasting relationship-agent memory, and read or use that
+memory through pages, databases and chat. The app also hosts the AIN-UI integration and
+Relation Treasury. See the root README for the P2P home-server direction and current runtime
+requirements.
 
-First, run the development server:
+## Start locally
+
+Follow [Running it](../README.md#running-it) for PostgreSQL, `.env.local`, schema setup and
+optional sign-in/AI services. From the repository root, use:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+scripts/dev.sh
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3110`. The script reuses an existing server and keeps development build
+output in `.next-dev3110`. See [CLAUDE.md](../CLAUDE.md) for shared-workspace rules.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run these from `app/`. Export `POSTGRES_URL` for schema commands; these standalone CLI
+commands do not automatically load Next.js `.env.local`.
 
-## Learn More
+| Command | Purpose |
+|---|---|
+| `pnpm typecheck` | TypeScript checks |
+| `pnpm lint` | ESLint |
+| `pnpm db:check` | Detect missing schema |
+| `pnpm db:push` | Apply schema changes to the selected database after reviewing the diff |
+| `pnpm check:prompt` | Prompt-export checks |
+| `pnpm exec playwright test` | Browser specs; see the root README's database/fixture setup notes |
+| `pnpm build` | Copy preview assets and build the application |
+| `pnpm demo:family` | Seed the family demo after its accounts and drives are prepared |
 
-To learn more about Next.js, take a look at the following resources:
+## References
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Environment example](.env.example) and [deployment guide](../docs/deployment.md)
+- [Family demo setup](../docs/demo.md) and [aindrive source](https://github.com/ainetwork-ai/aindrive)
+- [Object storage](../docs/object-storage.md)
+- [AIN-UI integration](../README.md#ain-ui--shared-file-and-payment-surfaces) and [package source](https://github.com/ainetwork-ai/AIN-UI)
+- [World / Relation Treasury](../world/README.md) and [Uniswap](../uniswap/README.md)
+- [HTTP MCP implementation](src/app/api/mcp/route.ts) and [stdio MCP wrapper](../relational-memory-mcp/README.md)
