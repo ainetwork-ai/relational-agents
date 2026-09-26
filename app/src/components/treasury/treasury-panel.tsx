@@ -7,6 +7,8 @@ import { ChevronRight, X } from "lucide-react";
 import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
+import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
+import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { UserAvatar } from "@/components/user-avatar";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
@@ -114,6 +116,11 @@ const RATIFY_COPY = {
   executing: "✅ That was the last approval needed — the agent is adopting the rules now.",
   executed: "✅ That was the last approval needed — the rules are adopted.",
 };
+// a recurring buy is adopted, not paid: nothing moves when its last approval lands
+const RECURRING_COPY = {
+  executing: "✅ That was the last approval needed — the agent is adopting the recurring buy now.",
+  executed: "✅ That was the last approval needed — the recurring buy is adopted.",
+};
 
 /**
  * A banner is kept as its code, not its text: "executing" becomes "executed"
@@ -158,6 +165,7 @@ function memoOf(a: Action): string {
 }
 /** The history line's headline: a payment's amount and memo, or what a ratification adopts. */
 function titleOf(a: Action, amount: (n: number) => string): string {
+  if (a.kind === "recurring-buy") return `🔁 ${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
   return a.kind === "ratify" ? `📜 Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
 }
 const FILLER = new Set(["the", "a", "an", "for", "to", "of", "our", "and", "pay", "send", "book"]);
@@ -172,7 +180,7 @@ function words(s: string): string[] {
  * memo only when it says more than the payee's name ("(hotel deposit)").
  */
 function pendingTitle(a: Action): string {
-  if (a.kind === "ratify") return `📜 Adopt ${a.memo}`;
+  if (a.kind === "ratify" || a.kind === "recurring-buy") return titleOf(a, usd);
   const label = a.recipient?.label;
   const memo = memoOf(a);
   if (!label) return `${usd(a.amountUsd)} · ${memo}`;
@@ -233,6 +241,7 @@ function bannerOf(r: Result | null, s: StatusView): Copy | null {
     if (target.status === "failed" || target.status === "blocked" || target.status === "cancelled") return null;
     const done = target.status === "executed";
     if (target.kind === "ratify") return { tone: "ok", text: done ? RATIFY_COPY.executed : RATIFY_COPY.executing };
+    if (target.kind === "recurring-buy") return { tone: "ok", text: done ? RECURRING_COPY.executed : RECURRING_COPY.executing };
     if (done) return RESULT_COPY.executed;
   }
   return RESULT_COPY[r.code] ?? null;
@@ -273,6 +282,8 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   // room's wallet, without resetting state inside an effect.
   const [snap, setSnap] = useState<{ roomId: string; status: StatusView | null } | null>(null);
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  // the link to the Treasury page is one of the new surfaces ?treasury=v1 turns off
+  const treasuryV2 = useTreasuryV2();
   // Read during the first client render; nothing renders until the status
   // fetch lands, so this cannot diverge from the server HTML.
   const [result, setResult] = useState<Result | null>(readResultFromUrl);
@@ -469,6 +480,15 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
         <span data-testid="treasury-slogan" className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
           AI manages the money · humans approve it
         </span>
+        {treasuryV2 && (
+          <Link
+            href={`/treasury/${roomId}`}
+            data-testid="treasury-open-page"
+            className="text-xs text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
+          >
+            Open treasury ↗
+          </Link>
+        )}
       </div>
 
       {banner && (
@@ -667,7 +687,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             </div>
           )}
 
-          {pending.map((a) => {
+          {pending.filter((a) => a.id !== status.recurring?.pending?.actionId).map((a) => {
             const got = a.approvals.length;
             const need = a.requiredApprovals;
             // quorum met but still pending: the transfer and its gas refund are
@@ -765,7 +785,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     data-testid="treasury-paying"
                     className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300"
                   >
-                    {a.kind === "ratify"
+                    {a.kind === "ratify" || a.kind === "recurring-buy"
                       ? "Adopting… this updates in a moment."
                       : "Paying on Sepolia… this updates when the payment confirms."}
                   </div>
@@ -816,12 +836,17 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             );
           })}
 
+          <RecurringBuyPanel key={roomId} roomId={roomId} status={status} onChanged={refresh} />
+
           {history.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800" data-testid="treasury-history">
               {history.map((a) => (
                 <li key={a.id} data-testid="treasury-history-item" className="leading-relaxed">
                   {a.status === "executed" && a.kind === "ratify" && (
                     <span className="text-neutral-700 dark:text-neutral-300">📜 Adopted {a.memo}</span>
+                  )}
+                  {a.status === "executed" && a.kind === "recurring-buy" && (
+                    <span className="text-neutral-700 dark:text-neutral-300">📌 Adopted {a.memo}</span>
                   )}
                   {a.status === "unconfirmed" && (
                     <span className="text-amber-700 dark:text-amber-300">
@@ -842,7 +867,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                       · don&apos;t ask again until it settles
                     </span>
                   )}
-                  {a.status === "executed" && a.kind !== "ratify" && (
+                  {a.status === "executed" && a.kind !== "ratify" && a.kind !== "recurring-buy" && (
                     <span className="text-neutral-700 dark:text-neutral-300">
                       ✅ {usdShort(a.amountUsd)} · {memoOf(a)}
                       {a.txHash && (

@@ -145,8 +145,10 @@ test("the default passbook path is a real path, not a percent-encoded URL", asyn
 });
 
 test("defaultPath decodes a checkout under a path with spaces or Korean characters", async () => {
+  // a Korean folder name, written as escapes: the repo keeps Korean text in app/src/i18n/ only
+  const koreanDir = "\uD504\uB85C\uC81D\uD2B8";
   const p = defaultPath("file:///Users/a%20b/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8/uniswap/src/ledger/index.js");
-  assert.ok(p.includes("/a b/프로젝트/"), p);
+  assert.ok(p.includes(`/a b/${koreanDir}/`), p);
   assert.ok(!p.includes("%"), p);
-  assert.equal(p, "/Users/a b/프로젝트/uniswap/.state/passbook.json");
+  assert.equal(p, `/Users/a b/${koreanDir}/uniswap/.state/passbook.json`);
 });

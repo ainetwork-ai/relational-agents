@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   chatMessages,
@@ -39,7 +39,20 @@ import {
 import { INVEST_CHAIN, investConfig, investViaUniswap, investedPosition } from "./invest";
 import { formatUnits as formatTokenUnits } from "viem";
 import {
+  authorityExposure,
+  authorityRule,
+  judgeAuthority,
+  recurringBuyStatus,
+  recurringCardTerms,
+  supersedeOlderAuthorities,
+  termsPhrase,
+  verifiedAuthority,
+  type RecurringBuyCardTerms,
+} from "./recurring";
+import {
   RATIFY_KIND,
+  RECURRING_BUY_KIND,
+  RECURRING_RUN_KIND,
   REQUEST_TTL_MS,
   TREASURY_SEAT_ACTION,
   TREASURY_TIME_ZONE,
@@ -97,7 +110,7 @@ function plural(n: number, word: string): string {
 
 /** "Chris and Alex", "Chris, Dana, and Alex" */
 const listFormat = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
-function nameList(list: string[]): string {
+export function nameList(list: string[]): string {
   return listFormat.format(list);
 }
 
@@ -112,11 +125,14 @@ const clockFormat = new Intl.DateTimeFormat("en-GB", {
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
 /** "[tx 0xbf04…bcab](https://sepolia.etherscan.io/tx/0x…)" — the doc renders it as a link */
-function txLink(txHash: string, explorer = SEPOLIA_EXPLORER): string {
+export function txLink(txHash: string, explorer = SEPOLIA_EXPLORER): string {
   return `[tx ${txHash.slice(0, 6)}…${txHash.slice(-4)}](${explorer}/tx/${txHash})`;
 }
 
 const TTL_HOURS = Math.round(REQUEST_TTL_MS / 3_600_000);
+
+/** The kinds that pay out when approved — treasury_actions.kind is free text, so this is the list, not the column. */
+const PAYMENT_KINDS: ReadonlySet<string> = new Set<TreasuryKind>(["expense", "withdrawal", "investment"]);
 
 /** The unique index a Postgres 23505 tripped on ("" if unnamed), or null for any other error.
  *  drizzle wraps the pg error in DrizzleQueryError.cause. */
@@ -142,7 +158,7 @@ async function isHumanMember(roomId: string, userId: string): Promise<boolean> {
 }
 
 /** Who can vote in this room right now: the electorate, still a member, seated. */
-async function voters(roomId: string, electorate: string[]): Promise<Set<string>> {
+export async function voters(roomId: string, electorate: string[]): Promise<Set<string>> {
   const [members, seats] = await Promise.all([
     humanMemberIds(roomId),
     db.select({ userId: treasurySeats.userId }).from(treasurySeats).where(eq(treasurySeats.roomId, roomId)),
@@ -203,7 +219,7 @@ export async function createTreasuryAction(input: {
   roomId: string;
   agentUserId: string;
   requestedBy: string;
-  kind: TreasuryKind | typeof RATIFY_KIND;
+  kind: TreasuryKind | typeof RATIFY_KIND | typeof RECURRING_BUY_KIND;
   amountUsd: number;
   memo: string;
   recipientAddress?: string | null;
@@ -246,7 +262,11 @@ export async function createTreasuryAction(input: {
         )
         .where(eq(treasurySeats.roomId, input.roomId));
       const what =
-        input.kind === RATIFY_KIND ? `adopting ${input.memo}` : `${usd(input.amountUsd)} · ${input.memo}`;
+        input.kind === RATIFY_KIND
+          ? `adopting ${input.memo}`
+          : input.kind === RECURRING_BUY_KIND
+            ? `a ${input.memo}, at most ${usd(input.amountUsd)} in all`
+            : `${usd(input.amountUsd)} · ${input.memo}`;
       await notifyConsent({
         recipientIds: seated.map((s) => s.userId),
         actorId: input.requestedBy, // notifyConsent skips the actor — the requester is not pinged
@@ -443,6 +463,8 @@ export interface ApprovalCard {
   ruleText: string;
   recipient: { label: string; address: string | null } | null;
   changes: { added: string[]; removed: string[]; joined: string[] } | null;
+  /** a recurring buy's terms — it has no recipient, and its rule_text is never shown */
+  recurring?: RecurringBuyCardTerms | null;
   requestedBy: string;
   approvedBy: string[];
   required: number;
@@ -467,6 +489,10 @@ export async function approvalCard(actionId: string, viewerId: string): Promise<
   if (!gate.ok) return gate;
   const { action, eligible } = gate;
   const ratified = action.kind === RATIFY_KIND ? parseRatified(action.ruleText) : null;
+  // terms that don't read, or no longer match the digest, can't be shown — so can't be approved
+  const recurring = action.kind === RECURRING_BUY_KIND ? recurringCardTerms(action.ruleText) : null;
+  if (action.kind === RECURRING_BUY_KIND && !recurring)
+    return { ok: false, reason: "not-pending", message: "This recurring buy request can't be read, so it can't be approved." };
   return {
     ok: true,
     card: {
@@ -475,14 +501,15 @@ export async function approvalCard(actionId: string, viewerId: string): Promise<
       kind: action.kind,
       amountUsd: action.amountUsd,
       memo: action.memo,
-      ruleText: ratified ? ratified.bar ?? "" : action.ruleText,
+      ruleText: ratified ? ratified.bar ?? "" : recurring ? recurring.rule : action.ruleText,
       recipient:
-        action.kind === RATIFY_KIND
+        action.kind === RATIFY_KIND || recurring
           ? null
           : { label: await recipientLabel(action), address: action.recipientAddress },
       changes: ratified
         ? { added: ratified.added ?? [], removed: ratified.removed ?? [], joined: ratified.joined ?? [] }
         : null,
+      recurring,
       requestedBy: await displayName(action.requestedBy),
       approvedBy: await approverNames(action.id, eligible),
       required: action.requiredApprovals,
@@ -668,8 +695,13 @@ async function expire(action: TreasuryAction): Promise<boolean> {
     .returning({ id: treasuryActions.id });
   if (!done) return false;
   const what =
-    action.kind === RATIFY_KIND ? `adopting ${action.memo}` : `${usd(action.amountUsd)} · ${action.memo}`;
-  const nothing = action.kind === RATIFY_KIND ? "nothing was adopted" : "nothing was paid";
+    action.kind === RATIFY_KIND
+      ? `adopting ${action.memo}`
+      : action.kind === RECURRING_BUY_KIND
+        ? `a ${action.memo}, at most ${usd(action.amountUsd)} in all`
+        : `${usd(action.amountUsd)} · ${action.memo}`;
+  const nothing =
+    action.kind === RATIFY_KIND || action.kind === RECURRING_BUY_KIND ? "nothing was adopted" : "nothing was paid";
   await postAgentMessage(
     action.roomId,
     action.agentUserId,
@@ -739,6 +771,91 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
     await logActivity(
       claimed.roomId,
       `📜 Adopted edited rules and payees — approved by ${nameList(names)}${changes.length ? `: ${changes.join("; ")}` : ""}`
+    );
+  } catch (err) {
+    console.error(`treasury: could not announce adoption ${claimed.id}:`, err);
+  }
+  return { executed: true, txHash: null, approvals, required };
+}
+
+/**
+ * Adopting a recurring buy: a standing authority, not a payment — nothing
+ * moves now. Like recheck(), it is judged again against the rules and pot in
+ * force at claim time and only ever tightens, and its terms must still match
+ * the digest the approvers were shown. Adopting it supersedes any older live
+ * one in the room: one recurring buy at a time. rule_text stays its record
+ * (JSON) whatever happens — a new bar or a forbidding rule goes into
+ * record.rule.
+ */
+async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eligible: Set<string>): Promise<ExecuteResult> {
+  const required = claimed.requiredApprovals;
+  const record = verifiedAuthority(claimed.ruleText);
+  const what = record ? termsPhrase(record.terms) : claimed.memo;
+  const notAdopted = async (status: "failed" | "blocked", why: string, rule?: string): Promise<ExecuteResult> => {
+    const error = `Not adopted: ${why}`;
+    const ruleText = record && rule ? JSON.stringify({ ...record, rule }) : claimed.ruleText;
+    await settle(claimed.id, status === "blocked" ? { status, ruleText, error } : { status, error });
+    await postAgentMessage(
+      claimed.roomId,
+      claimed.agentUserId,
+      `⚠️ Not adopted: the recurring buy (${what}).\n${why} Nothing will be bought under it.`
+    );
+    await logActivity(claimed.roomId, `⚠️ Not adopted: a recurring buy (${what}) — ${why}`);
+    return { executed: false, approvals, required, error: why };
+  };
+
+  if (!record) return notAdopted("failed", "its terms can't be read, or changed after it was asked.");
+  if (Date.now() >= record.terms.expiresAt * 1000)
+    return notAdopted("failed", "its weeks ran out before enough verified members approved it.");
+  const treasury = await loadRelationTreasury(claimed.roomId);
+  if (!treasury?.adoptedAt)
+    return notAdopted("blocked", "our memory has no adopted Treasury Rules right now, and I don't move money without them.");
+  let balanceUsd: number;
+  try {
+    balanceUsd = (await treasuryBalance((await ensureAgentWallet(claimed.agentUserId)).address)).usd;
+  } catch (err) {
+    console.error(`treasury: balance read for ${claimed.id} failed:`, err);
+    return notAdopted("failed", "I couldn't read the treasury balance to re-check our rules.");
+  }
+
+  const verdict = judgeAuthority({ record, policy: treasury.policy, balanceUsd, approvals });
+  if (verdict.kind === "forbidden") return notAdopted("blocked", `${verdict.why}.`, verdict.rule ?? undefined);
+  if (verdict.kind === "insufficient")
+    return notAdopted(
+      "failed",
+      `at most ${usd(authorityExposure(record))} in all is more than the treasury holds now (${usd(verdict.balanceUsd)}).`
+    );
+  if (verdict.kind === "raise") {
+    // back to pending under the bar that applies now; the approvals so far still count
+    await db
+      .update(treasuryActions)
+      .set({ decidedAt: null, requiredApprovals: verdict.required, ruleText: JSON.stringify({ ...record, rule: verdict.rule }) })
+      .where(and(eq(treasuryActions.id, claimed.id), eq(treasuryActions.status, "pending")));
+    await postAgentMessage(
+      claimed.roomId,
+      claimed.agentUserId,
+      `⏳ Things changed since this was asked: the recurring buy (${what}) now needs ${plural(verdict.required, "verified human")}.\nOur rules: “${verdict.rule}” — ${approvals} so far.`
+    );
+    return { executed: false, approvals, required: verdict.required };
+  }
+
+  await settle(claimed.id, { status: "executed", txHash: null });
+  const superseded = await supersedeOlderAuthorities(claimed.roomId, claimed.id, claimed.decidedAt ?? new Date()).catch(
+    (err: unknown) => {
+      console.error(`treasury: could not supersede older recurring buys for ${claimed.id}:`, err);
+      return 0;
+    }
+  );
+  try {
+    const names = await approverNames(claimed.id, eligible);
+    await postAgentMessage(
+      claimed.roomId,
+      claimed.agentUserId,
+      `📌 Adopted: a recurring buy — ${what}.${superseded ? " It replaces the one we had before." : ""}\nI buy at most once a week inside it, and anyone can stop it.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
+    );
+    await logActivity(
+      claimed.roomId,
+      `📌 Adopted a recurring buy: ${what}, at most ${usd(authorityExposure(record))} in all — approved by ${nameList(names)}${superseded ? " — it replaces the one before" : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);
@@ -836,7 +953,7 @@ async function recheck(
  * (or at once when the bar is 0), after re-checking it against the rules and
  * balance in force now. Safe to call from any number of concurrent approvals
  * or status polls: only the caller whose UPDATE claims the pending row acts.
- * A ratification is adopted instead of paid.
+ * A ratification or a recurring buy is adopted instead of paid.
  *
  * Once claimed, the row always ends "executed", "unconfirmed" (sent, receipt
  * not seen — the hash is kept), "blocked" or "failed", or goes back to
@@ -874,6 +991,12 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
   if (!claimed) return { executed: false, approvals, required };
 
   if (claimed.kind === RATIFY_KIND) return adopt(claimed, approvals, eligible);
+  if (claimed.kind === RECURRING_BUY_KIND) return adoptRecurringBuy(claimed, approvals, eligible);
+  // only a payment request reaches the money below — never a history row or a kind added later
+  if (!PAYMENT_KINDS.has(claimed.kind)) {
+    await settle(claimed.id, { status: "failed", error: "Not paid: this request is not a payment." });
+    return { executed: false, approvals, required, error: "not a payment kind" };
+  }
   const stopped = await recheck(claimed, treasury, approvals);
   if (stopped) return stopped;
 
@@ -1113,7 +1236,8 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
   const actionRows = await db
     .select()
     .from(treasuryActions)
-    .where(eq(treasuryActions.roomId, roomId))
+    // a recurring buy's weekly runs are its history (status.recurring), and must not push waiting requests out of this window
+    .where(and(eq(treasuryActions.roomId, roomId), ne(treasuryActions.kind, RECURRING_RUN_KIND)))
     .orderBy(desc(treasuryActions.createdAt))
     .limit(20);
   try {
@@ -1182,14 +1306,15 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
       void executeIfQuorum(a.id).catch((err: unknown) => console.error(`treasury: restarting ${a.id} failed:`, err));
     return {
       id: a.id,
-      kind: a.kind as TreasuryKind | typeof RATIFY_KIND,
+      kind: a.kind as TreasuryKind | typeof RATIFY_KIND | typeof RECURRING_BUY_KIND,
       amountUsd: a.amountUsd,
       memo: a.memo,
       status,
       requiredApprovals: a.requiredApprovals,
-      ruleText: a.kind === RATIFY_KIND ? ratified?.bar ?? "" : a.ruleText,
+      ruleText:
+        a.kind === RATIFY_KIND ? ratified?.bar ?? "" : a.kind === RECURRING_BUY_KIND ? authorityRule(a.ruleText) : a.ruleText,
       recipient:
-        a.kind === RATIFY_KIND
+        a.kind === RATIFY_KIND || a.kind === RECURRING_BUY_KIND
           ? null
           : {
               label:
@@ -1219,6 +1344,12 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
   // the WETH the agent bought with idle funds, priced through the pool it bought from;
   // null when investing is off or Base can't be read (the pot's own numbers still show)
   const invested = bot && treasury ? await investedPosition(bot.agentUserId).catch(() => null) : null;
+  const recurring = treasury
+    ? await recurringBuyStatus(roomId).catch((err: unknown) => {
+        console.error("treasury: recurring buy status unavailable:", err);
+        return null;
+      })
+    : null;
   return {
     enabled: treasury !== null,
     viewerId,
@@ -1228,6 +1359,7 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
     invested: invested
       ? { chain: invested.chain, address: invested.address, weth: formatTokenUnits(invested.weth, 18), usdcIdle: formatTokenUnits(invested.usdcIdle, 6), storyUsd: invested.wethAsStoryUsd }
       : null,
+    recurring,
     balanceEth: balance?.eth ?? null,
     usdPerEth: USD_PER_ETH,
     purpose: treasury?.purpose ?? "",

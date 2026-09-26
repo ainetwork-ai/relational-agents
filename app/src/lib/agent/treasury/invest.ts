@@ -136,7 +136,13 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
     args: [{ tokenIn: INVEST_CHAIN.usdc, tokenOut: INVEST_CHAIN.weth, fee: INVEST_CHAIN.feeTier, recipient: account.address, amountIn, amountOutMinimum, sqrtPriceLimitX96: BigInt(0) }],
     gas: BigInt(300_000),
   });
-  const receipt = await client.waitForTransactionReceipt({ hash: txHash });
+  // The swap is broadcast from here on, so a receipt wait that fails (a timeout, a dropped RPC
+  // call) does not mean the USDC stayed put. The error carries the hash, and callers file the
+  // attempt as "may have moved" instead of buying again on top of a swap that may have landed.
+  const receipt = await client.waitForTransactionReceipt({ hash: txHash }).catch((err: unknown) => {
+    if (err && typeof err === "object") (err as { txHash?: Hex }).txHash = txHash;
+    throw err;
+  });
   if (receipt.status !== "success") {
     const err = new Error("the swap reverted on Base") as Error & { txHash: Hex };
     err.txHash = txHash;

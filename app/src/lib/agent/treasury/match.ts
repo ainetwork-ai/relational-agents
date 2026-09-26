@@ -8,6 +8,8 @@ import { TREASURY_KO as KO } from "@/i18n/content/agent";
  * and gives up on anything conditional, negated, scheduled or narrated
  * ("I paid $180 yesterday", "don't pay …", "pay $30 if Bea agrees").
  * A missed command costs a retyped message; a wrong one costs the treasury.
+ * Money said to move repeatedly ("every week", in English or Korean) is
+ * never one payment: it is one of the recurring-buy shapes below, or refused.
  */
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -28,6 +30,67 @@ const MULTIPLIER = /\b(?:each|per|apiece|times|twice|thrice|cents?)\b|\b\d+\s?[x
 const ADOPT =
   /^(?:adopt|ratify|accept)\s+(?:the\s+|our\s+)?(?:new\s+|updated\s+|edited\s+|changed\s+|current\s+)?(?:treasury\s+)?(?:rules|payees|members|membership|changes|rules and payees|payees and rules)\b[\s.!]*$/i;
 
+// ── recurring buy: the four shapes, read before any one-off matcher ─────────
+
+/** a weekly figure: "$20", "$1,000", "$12.50", "20 dollars", "USD 20" — at most two decimals */
+const WEEKLY = String.raw`(?:\$\s?|usd\s?)(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?|(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\s?(?:dollars?|bucks|usd)`;
+const ETH = String.raw`(?:eth|ether|ethereum|weth)`;
+const EVERY_WEEK = String.raw`(?:every\s+week|each\s+week|weekly|per\s+week|a\s+week)`;
+const FOR_WEEKS = String.raw`for\s+(?:the\s+next\s+)?(\d{1,4})\s+weeks?`;
+const END = String.raw`(?:,?\s+please)?[\s.!?]*$`;
+/** "the recurring buy", "our weekly ETH buy" */
+const THE_BUY = String.raw`(?:the|our|this)\s+(?:recurring|weekly)\s+(?:${ETH}\s+)?buy`;
+
+const RECURRING_PROPOSE = [
+  // "set up a recurring buy of $20 of ETH every week for 26 weeks"
+  new RegExp(
+    String.raw`^(?:(?:set\s+up|start|create)\s+)?(?:a\s+)?(?:recurring|weekly)\s+(?:${ETH}\s+)?buy\s+of\s+(?:${WEEKLY})\s+(?:of|in)\s+${ETH}\s+(?:${EVERY_WEEK}\s+)?${FOR_WEEKS}${END}`,
+    "i"
+  ),
+  // "buy $20 of ETH every week for 26 weeks", "invest $20 in ETH weekly for 26 weeks"
+  new RegExp(String.raw`^(?:buy|invest)\s+(?:${WEEKLY})\s+(?:of|in|into)\s+${ETH}\s+${EVERY_WEEK}\s+${FOR_WEEKS}${END}`, "i"),
+];
+const RECURRING_RUN = new RegExp(
+  String.raw`^(?:buy\s+this\s+week'?s\s+${ETH}|run\s+(?:${THE_BUY}|this\s+week'?s\s+(?:recurring\s+|weekly\s+)?buy))(?:\s+now)?${END}`,
+  "i"
+);
+const RECURRING_STOP = new RegExp(String.raw`^(?:stop|cancel|end|pause)\s+${THE_BUY}(?:ing)?(?:\s+now)?${END}`, "i");
+const RECURRING_STATUS = new RegExp(
+  String.raw`^(?:how(?:'s|\s+is)\s+${THE_BUY}\s+(?:doing|going)|(?:(?:the|our)\s+)?(?:recurring|weekly)\s+(?:${ETH}\s+)?buy\s+status|status\s+of\s+${THE_BUY})\s*[?.!]*$`,
+  "i"
+);
+
+/** the figure a WEEKLY group captured: [whole, cents] from whichever alternative matched */
+function weeklyFigure(m: RegExpExecArray): number {
+  const whole = m[1] ?? m[3];
+  const frac = m[1] !== undefined ? m[2] : m[4];
+  return Number(`${whole.replace(/,/g, "")}${frac !== undefined ? `.${frac}` : ""}`);
+}
+
+function matchRecurring(t: string): TreasuryCommand | null {
+  for (const re of RECURRING_PROPOSE) {
+    const m = re.exec(t);
+    // groups 1–4 are the figure, 5 the number of weeks — validity (0 weeks, $0) is the proposal's to refuse
+    if (m) return { kind: "recurring-propose", weeklyUsd: weeklyFigure(m), weeks: Number(m[5]) };
+  }
+  if (RECURRING_RUN.test(t)) return { kind: "recurring-run" };
+  if (RECURRING_STOP.test(t)) return { kind: "recurring-stop" };
+  if (RECURRING_STATUS.test(t)) return { kind: "recurring-status" };
+  return null;
+}
+
+/**
+ * said to happen again and again — a one-off payment it is not ("pay the gym
+ * $30 monthly", "$10 a week"). "The weekly pass" and "our monthly rent" name
+ * one thing bought once, so after a determiner these words are not a schedule.
+ */
+const RECURRING_WORDS = new RegExp(
+  String.raw`\b(?:every|(?<!\b(?:the|a|an|our|my|your|their|this|that|one)\s)(?:weekly|monthly|daily|nightly|yearly|annually|hourly|biweekly|fortnightly|recurring)|regularly|repeatedly|(?:each|per)\s+(?:week|month|day|year)|once\s+an?\s+(?:week|month|day|year))\b|(?:\$\s?\d[\d,.]*|\d[\d,.]*\s?(?:dollars?|bucks|usd))\s+an?\s+(?:week|month|day|year)\b`,
+  "i"
+);
+/** what a recurring buy buys, said without a dollar figure ("buy ETH every week") */
+const ASSET = /\b(?:eth|ether|ethereum|weth|btc|bitcoin|crypto|usdc|tokens?|coins?)\b/i;
+
 /** words that ask for money to move, in any tense — mentionsMoney's half of "a money sentence" */
 const MONEY_VERB = new RegExp(
   String.raw`\b(?:pay|paid|paying|send|sent|sending|transfer\w*|book\w*|reserve\w*|buy|bought|buying|purchas\w*|withdr[ae]w\w*|invest\w*|move|moved|moving|spend|spent|spending|give|gave|giving|deposit\w*|cover\w*|reimburs\w*|refund\w*|tip)\b|` + KO.moneyVerbs.join("|"),
@@ -45,7 +108,10 @@ const INTO_TREASURY = /\b(?:in|into|to)\s+(?:the|our)\s+(?:treasury|shared walle
 
 const KO_TO_SELF = new RegExp(KO.toSelf.join("|"));
 const KO_REQUEST = new RegExp(String.raw`(?:${KO.requestEndings.join("|")})[.!?~\s]*$`);
-const KO_HEDGE = new RegExp(KO.hedge.join("|"));
+const KO_RECURRING = new RegExp(KO.recurring.join("|"));
+const KO_HEDGE = new RegExp([...KO.hedge, ...KO.recurring].join("|"));
+const KO_MONEY_ASK = new RegExp([...KO.moneyVerbs, ...KO.expense, ...KO.recurringBuy].join("|"));
+const KO_RECURRING_OBJECT = new RegExp(KO.recurringObject.join("|"));
 const KO_STATUS = new RegExp(KO.status.join("|"));
 const KO_EXPENSE = new RegExp(KO.expense.join("|"));
 const HANGUL = /[\uAC00-\uD7A3]/;
@@ -162,7 +228,7 @@ function matchEnglish(t: string, raw: string): TreasuryCommand | null {
   const isExpense = EXPENSE_VERBS.has(verb);
   const isTransfer = TRANSFER_VERBS.has(verb);
   if (!isExpense && !isTransfer && verb !== "withdraw" && verb !== "invest" && verb !== "move") return null;
-  if (HEDGE.test(t) || INTO_TREASURY.test(t) || MULTIPLIER.test(t)) return null;
+  if (HEDGE.test(t) || INTO_TREASURY.test(t) || MULTIPLIER.test(t) || RECURRING_WORDS.test(t)) return null;
 
   const amounts = findAmounts(t);
   const amountUsd = oneAmount(amounts);
@@ -242,11 +308,36 @@ export function mentionsMoney(text: string, agentName?: string): boolean {
   return a.invalid || a.values.length > 0;
 }
 
+/**
+ * A request to move money again and again that is not one of the recurring-buy
+ * shapes — "pay the gym $30 every month", "buy ETH every week", or the
+ * Korean for "buy ETH for 10,000 won every week". matchTreasuryCommand never reads it as one payment, and the
+ * caller answers it with a fixed "nothing was moved" and the shape to use.
+ */
+export function mentionsRecurringMoney(text: string, agentName?: string): boolean {
+  const t = normalize(text, agentName);
+  if (!t) return false;
+  if (RECURRING_WORDS.test(t) && MONEY_VERB.test(t)) {
+    const a = findAmounts(t);
+    if (a.invalid || a.values.length > 0 || ASSET.test(t)) return true;
+  }
+  // Korean says the figure in won as often as in dollars, which findAmounts doesn't read
+  return (
+    HANGUL.test(t) &&
+    KO_REQUEST.test(t) &&
+    KO_RECURRING.test(t) &&
+    KO_MONEY_ASK.test(t) &&
+    (KO_RECURRING_OBJECT.test(t) || ASSET.test(t))
+  );
+}
+
 export function matchTreasuryCommand(text: string, agentName?: string): TreasuryCommand | null {
   const raw = text;
   const t = normalize(text, agentName);
   if (!t) return null;
   if (ADOPT.test(t)) return { kind: "adopt", raw };
+  const recurring = matchRecurring(t);
+  if (recurring) return recurring;
 
   const cmd = matchEnglish(t, raw) ?? (HANGUL.test(t) ? matchKorean(t, raw) : null);
   if (cmd) return cmd;

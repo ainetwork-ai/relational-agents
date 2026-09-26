@@ -11,6 +11,8 @@ import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
 import { useToastStore } from "@/stores/toast";
 import { ConsentBanner } from "@/components/dm/consent-banner";
 import { TreasuryPanel } from "@/components/treasury/treasury-panel";
+import { A2uiSurface } from "@/components/a2ui/surface";
+import { splitA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
 import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import { AgentSettings } from "@/components/dm/agent-settings";
@@ -1009,7 +1011,7 @@ export function DmView({
                           ))}
                         </div>
                       )}
-                      {m.text && (
+                      {m.text && !m.text.includes("[[a2ui:") && (
                         <p
                           className="whitespace-pre-wrap [overflow-wrap:anywhere]"
                           data-testid="dm-msg-text"
@@ -1017,6 +1019,19 @@ export function DmView({
                           {linkify(m.text, mine)}
                         </p>
                       )}
+                      {/* the treasurer's card: a [[a2ui:recurring-buy/<id>]] line is drawn as that recurring buy, live */}
+                      {m.text?.includes("[[a2ui:") &&
+                        splitA2uiMarkers(m.text).map((part, pi) =>
+                          part.kind === "text" ? (
+                            <p key={pi} className="whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="dm-msg-text">
+                              {linkify(part.text, mine)}
+                            </p>
+                          ) : (
+                            <div key={pi} className="my-1.5">
+                              <A2uiSurface src={`/api/treasury/${roomId}/surfaces/recurring-buy/${part.actionId}`} />
+                            </div>
+                          )
+                        )}
                       {m.recordedAt && !m.privateToUserId && (
                         <Link
                           href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
