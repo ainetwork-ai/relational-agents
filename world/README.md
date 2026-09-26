@@ -138,14 +138,16 @@ stay right while the code keeps moving.
 
 ## Try it
 
-In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). The page opens
-with two actions — watch the demo, or try it in about two minutes — and a status line that says
-whether World is live and the staging window is open. "Try it" is five numbered steps with one
-button each: enter the room as Alex, claim a vote through the World ID Simulator, bring a second
-human as Chris in a private window, ask the agent to pay and approve from both, see it refuse.
-"What to check" maps each prize requirement to a step and to the code or document behind it.
-The room you enter is the try-it copy (`seed-tokyo-trip.mts --try`): its own accounts, agent and
-wallet, so nothing done there reaches the recorded room.
+In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). Under the
+headline, two actions (watch the demo, or try it in about two minutes) and a status line that
+says whether World is live and the staging window is open. Below: the recorded room, live and
+read-only; then "Try it yourself": pick a member and you are signed in as them, on the treasury
+page or in the room chat, with "What to try" (claim a vote through the World ID Simulator,
+bring Chris from a second browser, ask the agent to pay, approve from both, see what gets
+refused) and "Good to know". A folded table at the bottom maps each prize requirement to a step
+and to the code or document behind it. The room you enter is the try-it copy
+(`seed-tokyo-trip.mts --try`): its own accounts, agent and wallet, so nothing done there reaches
+the recorded room.
 
 Locally, against the mock IdP. Set up the app first ([Running it](../README.md#running-it)).
 The treasury also needs a key with a little Sepolia ETH (`RELAYER_KEY` or `DEPLOYER_KEY`): it
