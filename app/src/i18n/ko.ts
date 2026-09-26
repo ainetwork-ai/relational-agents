@@ -1516,6 +1516,7 @@ export const ko: Record<string, string> = {
   "Swaps · Uniswap": "스왑 · Uniswap",
   "{name}'s contribution": "{name}의 정기 모금",
   "Permit2 · period {k} of {n}": "Permit2 · {n}회 중 {k}회째",
+  "This wallet has started {n} plans here already — start from another wallet.": "이 지갑으로 여기서 이미 {n}개 계획을 시작했어요 — 다른 지갑으로 시작해 주세요.",
   "Terms": "조건",
   "That didn't work ({status}).": "처리하지 못했어요 ({status}).",
   "The connection dropped — try again.": "연결이 끊겼어요 — 다시 시도해 주세요.",

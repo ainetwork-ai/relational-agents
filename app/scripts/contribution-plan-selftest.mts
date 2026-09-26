@@ -52,6 +52,13 @@ check("the app's salt names the room member, and differs per room and per member
   assert.equal(a, contributionSalt("room-1", "user-a"));
 });
 
+check("a member's next salts differ from the first, and the first is the one plans already carry", () => {
+  const first = contributionSalt("room-1", "user-a");
+  assert.equal(contributionSalt("room-1", "user-a", 0), first);
+  assert.notEqual(contributionSalt("room-1", "user-a", 1), first);
+  assert.notEqual(contributionSalt("room-1", "user-a", 1), contributionSalt("room-1", "user-a", 2));
+});
+
 check("three weeks less a minute is three periods; the last one is short", () => {
   assert.equal(periodCount(plan()), 3);
   assert.equal(periodCount(plan({ until: T0 + 3 * WEEK })), 3);
