@@ -536,7 +536,7 @@
   background: var(--w-line);
 }
 
-/* ── hero actions and the live-status pill ── */
+/* ── hero actions ── */
 .cta {
   display: flex;
   flex-wrap: wrap;
@@ -573,40 +573,6 @@
 }
 
 
-.pill {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.pill::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: none;
-}
-
-.pillOk {
-  background: var(--w-ok-bg);
-  color: var(--w-ok-ink);
-}
-
-.pillWarn {
-  background: #fef3dc;
-  color: #a35a00;
-}
-
-.pillBad {
-  background: #feecee;
-  color: #c22d3a;
-}
 
 /* ── folded details (what to check) ── */
 .more {

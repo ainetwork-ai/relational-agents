@@ -48,18 +48,6 @@ const RESET_NOTE: Record<string, string> = {
   missing: "The try-it room isn't set up on this server yet.",
 };
 
-/**
- * World verifies staging (simulator) proofs only while the app's team has a
- * staging window open and this server sends its token; without it every vote
- * claim is refused, so the page says so before a judge finds out the hard way.
- */
-function stagingWindow(): { open: boolean; until: string | null } {
-  const token = process.env.WORLD_STAGING_VERIFICATION_TOKEN?.trim();
-  const untilMs = Date.parse(process.env.WORLD_STAGING_VERIFICATION_EXPIRES_AT ?? "");
-  const open = Boolean(token) && (Number.isNaN(untilMs) || untilMs > Date.now());
-  return { open, until: Number.isFinite(untilMs) ? `${when.format(new Date(untilMs))} Tokyo` : null };
-}
-
 function Activity({ snap }: { snap: DemoSnapshot }) {
   if (!snap.activity.length) return <p className={styles.muted}>Nothing has happened in this room yet.</p>;
   return (
@@ -94,18 +82,6 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
   const video = process.env.WORLD_DEMO_VIDEO_URL;
   const note = RESET_NOTE[sp.reset ?? (sp.try === "missing" ? "missing" : "")];
   const flash = note && sp.reset === "done" && canTopUp() ? `${note} If visitors ran its wallet low, it is being topped up now.` : note;
-  const staging = stagingWindow();
-
-  // what a judge who clicks will actually get, in one line
-  const worldLive = modes.approvals === "sandbox" && modes.votes !== null;
-  const status = !worldLive
-    ? { tone: styles.pillWarn, text: "Running against local stand-ins, not World" }
-    : modes.votes === "staging" && !staging.open
-      ? { tone: styles.pillBad, text: "Live on World, but the staging window is closed: vote claims will be refused" }
-      : {
-          tone: styles.pillOk,
-          text: `Live on World: sandbox IdP for approvals · ${modes.votes} IDKit for votes${staging.until ? ` · window open until ${staging.until}` : ""}`,
-        };
 
   return (
     <div className={styles.root}>
@@ -145,7 +121,6 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
               Try it yourself — about 2 minutes →
             </a>
           </div>
-          <p className={`${styles.pill} ${status.tone}`}>{status.text}</p>
           <div className={styles.surfaces}>
             <div className={styles.surface}>
               <p className={styles.surfaceName}>IDKit · Proof of Human</p>
