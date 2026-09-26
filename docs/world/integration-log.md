@@ -215,3 +215,20 @@ Format: `JST time — surface — what happened`.
   detour: ~2 h of the last day. Lesson for the debrief: when a fetch fails
   where curl succeeds on the same machine, suspect the runtime's connect
   policy before the network.
+- 2026-09-26 09:14 — both — **first investment executed end to end on
+  ainmem.ainetwork.xyz**: Alex `@agent invest $200 of the idle funds` → the
+  agent queues it citing "Investing idle funds: 3 verified members approve." →
+  Chris, Dana, Eli approve, each from their own browser (three sandbox humans)
+  → the agent swaps 1 USDC → 0.000371977 WETH on Uniswap v3 (Base),
+  tx `0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b`,
+  from its own wallet `0xe03F…Cf2a`; the panel shows "+ $199.79 invested",
+  priced through the same pool; the agent writes "📈 Invested $200 to
+  Savings (idle funds) — 1 USDC → 0.000371977105046968 WETH via Uniswap v3 on
+  Base (demo scale: $1 = 0.005 USDC)". The first attempt (3/3 at 09:03) had
+  reverted at gas estimation with an empty reason: the approval's receipt came
+  from one node of a load-balanced RPC and the swap was estimated on another
+  that had not seen it (STF, reason stripped) — fixed by reading the allowance
+  back through the same client until it shows, quoting after that, and
+  sending the swap with its own gas limit. Earlier the same afternoon, the
+  deposit ($180, Chris + Dana) executed the same way; the 💡 idle-funds hint
+  did not post that time because the Base RPC call failed — now tolerated.
