@@ -257,3 +257,26 @@ test("a malformed mandate is an error, not an outcome: it propagates and writes 
     /unknown mandate kind "one-off"/);
   assert.deepEqual(raw(ledger).entries, []);
 });
+
+// Before a run against real funds: the same mandate, ledger and quote, with nothing written and
+// nothing swapped. The period stays open, so the real run that follows still buys.
+test("a dry run decides and quotes but writes nothing and swaps nothing", async () => {
+  const ledger = fresh(); await ledger.addMandate(await mandate()); const swap = fakeSwap();
+  const r = await runOnce({ ledger, swap, account: agent, chain, now: friday, dryRun: true });
+  assert.equal(r.outcome, "dry-run"); assert.equal(r.periodKey, "2026-W39"); assert.equal(r.mandateId, "m-1");
+  assert.equal(r.decisionOrigin, "autonomous");
+  assert.equal(r.quote.amountIn, 20_000_000n); assert.equal(r.quote.amountOutExpected, 20_000_000n * 400_000_000n);
+  assert.equal(swap.calls.quote, 1); assert.equal(swap.calls.execute, 0);
+  assert.deepEqual(raw(ledger).entries, [], "a dry run leaves the passbook untouched");
+  const real = await runOnce({ ledger, swap, account: agent, chain, now: friday });
+  assert.equal(real.outcome, "bought", "the period is still open after a dry run");
+});
+
+test("a dry run reports a refusal without filing it", async () => {
+  const ledger = fresh(); await ledger.addMandate(await mandate()); await ledger.revoke("m-1", 1758700000);
+  const swap = fakeSwap();
+  const r = await runOnce({ ledger, swap, account: agent, chain, now: friday, dryRun: true });
+  assert.deepEqual(r, { outcome: "skipped", reason: "revoked", periodKey: "2026-W39" });
+  assert.equal(swap.calls.quote, 0);
+  assert.deepEqual(raw(ledger).entries, [], "the refusal is returned, not written");
+});

@@ -78,3 +78,9 @@ test("mandate sign refuses a days argument that is not a positive whole number",
   rejects(cli(["src/cli/mandate.js", "sign", "20", "100", "0"], keys), /days "0" must be a positive/);
   rejects(cli(["src/cli/mandate.js", "sign", "20", "100", "1.5"], keys), /days "1\.5" must be a positive/);
 });
+
+// A mistyped flag against real funds must not quietly become a real run: anything but --dry-run is
+// refused before a chain, a ledger or a key is touched.
+test("tsumitate refuses an argument it does not know", () => {
+  rejects(cli(["src/cli/tsumitate.js", "--dryrun"], { AGENT_PK: "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6" }), /unknown argument "--dryrun"/);
+});

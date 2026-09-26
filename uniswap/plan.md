@@ -166,5 +166,8 @@ type, the `passbook` profile section, the scheduler hook.
 
 ## Open
 
-- Chain for the video: Base fork (sure) vs Sepolia + API (needs key). Same code path either way.
+- Chain for the video — decided 2026-09-26: Base mainnet with real funds, the fork for tests, same
+  code path. Sepolia measured and rejected: Ethereum Sepolia's USDC/WETH pools quote ETH at about
+  eleven times the real price, Base Sepolia's disagree with each other across fee tiers; and every
+  ETHGlobal Lisbon 2026 Uniswap winner that named a chain showed public-chain transactions.
 - Who deposits in the demo (grandmother only, or the son too).

@@ -24,7 +24,7 @@ Each layer runs without the layer in front of it.
 | `src/ledger/` | the passbook. `file.js` is one JSON file, and its `view()` is what the caps are checked against. |
 | `src/tsumitate.js` | `runOnce()` — one idempotent run: choose a mandate, verify it, check it, quote, swap, record. |
 | `src/chains/` | every contract and token address this package knows. Nothing outside this folder holds one. |
-| `src/cli/` | `fund` (fork only), `buy` (the swap layer alone), `mandate sign`/`revoke`, `tsumitate` (one run). |
+| `src/cli/` | `fund` (fork only), `buy` (the swap layer alone), `mandate sign`/`revoke`, `tsumitate` (one run; `--dry-run` decides and quotes, writes and swaps nothing). |
 | `src/address.js` | the one address comparison, case-insensitive. |
 
 ## Running it on the fork
@@ -67,10 +67,39 @@ pnpm test
 Read the `skipped 0` line in the summary. The two suites that need the fork skip themselves when
 nothing answers on 8547, so a run reporting skips never touched the chain path.
 
+## Running it on Base mainnet
+
+The same code with a different `RPC_URL` — `src/chains/base.js` already holds the mainnet
+addresses. Real funds, so three things differ from the fork run:
+
+- **Fresh keys.** Never the anvil keys above; they are public. Generate two with viem's
+  `generatePrivateKey()`, keep them in a git-ignored env file (the root `.gitignore` covers `.env*`)
+  and fund only the agent's address: USDC for the buys, ETH for gas. The member key signs mandates
+  and holds nothing.
+- **A separate passbook.** `PASSBOOK_PATH=.state/passbook.base.json`, so fork rehearsals and real
+  buys never share a file.
+- **A dry run first.** `pnpm tsumitate --dry-run` chooses the mandate, re-verifies its signature,
+  checks the caps and asks QuoterV2 for the real quote, then stops: nothing written, nothing swapped.
+
+```bash
+cd uniswap
+set -a; source .env.base; set +a           # CHAIN, RPC_URL, AGENT_PK, MEMBER_PK, PASSBOOK_PATH
+pnpm mandate sign 1 1 90                    # 1 USDC per run, 1 per week — the caps bound every run
+pnpm tsumitate --dry-run                    # the real quote, no transaction
+pnpm tsumitate                              # approve + swap on Base; the hash opens on basescan
+```
+
+Gas: on the fork the approval takes 46k–55k gas and the swap 114k–149k; multiply by the chain's
+current gas price for the L2 part and read the L1 data fee, which anvil does not model, off the
+first real receipt. `pnpm fund` is fork-only (anvil's balance cheat); on mainnet the deposit is an
+ordinary transfer into the agent's address. A failing RPC surfaces as a `swap-failed` skip with the
+provider's short message, never as a silent miss.
+
 ## Honest limits
 
-- **Fork only today.** Base mainnet fork through anvil. Sepolia and the Uniswap Trading API provider
-  are slice 2, behind the same `SwapProvider` interface.
+- **One chain template.** `src/chains/base.js` serves the anvil fork and Base mainnet through
+  `RPC_URL`; other chains and the Uniswap Trading API provider are slice 2, behind the same
+  `SwapProvider` interface.
 - **The fork is shared.** A red balance assertion in `test/router.execute.test.js` after someone
   else's swap landed between the quote and the fill is not a code defect — rerun it.
 - **`NOW` is not the chain's clock.** It moves the period key, the `at` timestamp and the expiry
@@ -82,14 +111,15 @@ nothing answers on 8547, so a run reporting skips never touched the chain path.
 - **A `swap-failed` skip carrying a `txHash` means money may have moved.** That period is then
   treated as bought, so the next run refuses rather than buying on top of it — but nothing yet reads
   the chain back to find out what actually landed. A confirmed revert carries no `txHash` — the EVM
-  rolled everything back — and leaves its period open. **Do not point the router provider at a
-  funded real-chain account before that reconciliation exists.**
+  rolled everything back — and leaves its period open. Until that reconciliation exists, mainnet
+  runs are supervised — a person watching each one — from a wallet holding only what the demo
+  needs, with the mandate's caps as the bound; an unattended scheduler against real funds waits.
 - **A new mandate starts its own count.** Periods bought and amounts spent are kept per mandate, so
   revoking and re-signing inside one period lets that period be bought again under the new mandate,
   with `perPeriodCap` counted from zero. Re-signing needs a family member's key, which the agent
   never holds; a wallet-wide cap across mandates is slice 2.
-- **`explorerTx` makes a basescan link that does not resolve for a fork transaction.** The hash is
-  real on the fork and unknown to the public explorer.
+- **`explorerTx` is a basescan link.** It opens for a mainnet transaction and not for a fork one —
+  the hash is real on the fork and unknown to the public explorer.
 - **The anvil keys above are demo actors.** They are published test keys; never reuse them anywhere.
 - **Single writer.** Never run two executors against one passbook: the ledger is read-modify-write
   with no lock, and `writeFileSync` is not atomic.

@@ -29,8 +29,9 @@ function chooseStanding(mandates, agentAddress, now) {
  * mandate or clock is an error, not an outcome, and propagates instead of being filed as a skip.
  * A swap-failed skip that carries a txHash means money may have moved, so that period counts as
  * bought and the next run refuses it; reconciling what actually landed is still missing.
+ * With `dryRun` the run decides and quotes exactly as it would, returns that, and writes nothing.
  */
-export async function runOnce({ ledger, swap, account, chain, now = new Date(), mandateId }) {
+export async function runOnce({ ledger, swap, account, chain, now = new Date(), mandateId, dryRun = false }) {
   const view = await ledger.view();
   // A mandate id names a mandate, it does not confer one. Without the owner check, a caller who
   // knows an id could spend under another family's mandate and have it filed under this agent.
@@ -43,7 +44,10 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   // mandate and clock; having it here lets the approval refusal below be filed under its period
   // too, before there is a verdict to read it from.
   const key = periodKey(m.period, now);
-  const skip = (reason, extra) => ledger.record({ at: now.toISOString(), kind: "skip", who: account.address,
+  // A dry run is the rehearsal before a run against real funds: the real mandate, the real ledger
+  // and the real quote, with the passbook left as it was and the swap stopped at the quote.
+  const record = dryRun ? async () => {} : (entry) => ledger.record(entry);
+  const skip = (reason, extra) => record({ at: now.toISOString(), kind: "skip", who: account.address,
     mandateId: m.id, periodKey: key, reason, ...extra });
 
   // The signature is recovered again here rather than read as a field. The passbook is a plain
@@ -83,6 +87,8 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
     await skip("no-liquidity");
     return { outcome: "skipped", reason: "no-liquidity", periodKey: key };
   }
+  if (dryRun) return { outcome: "dry-run", periodKey: key, mandateId: m.id, decisionOrigin: verdict.decisionOrigin,
+    quote: { amountIn: quote.amountIn, amountOutExpected: quote.amountOutExpected, route: quote.route, provider: quote.provider } };
   let receipt;
   try { receipt = await swap.execute(quote, account); } catch (err) { return failed(err); }
 
