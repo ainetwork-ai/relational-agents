@@ -378,6 +378,36 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
   { type: "equation", label: "Block equation" },
 ];
 
+/** "Last edited by …" under the block menu, like the original's; in a teamspace
+ *  linked to aindrive, "Signed" when the drive verifies who signed that edit
+ *  (docs/willow-ainmem-plan.md Task 7). */
+function BlockAuthorFooter({ pageId, blockId }: { pageId: string; blockId: string }) {
+  const t = useT();
+  const [who, setWho] = useState<{ name: string | null; signed: "wallet" | "attested" | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fetch(`/api/pages/${pageId}/authors`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { blocks?: Record<string, { name: string | null; signed: "wallet" | "attested" | null }> } | null) => {
+        if (live) setWho(d?.blocks?.[blockId] ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [pageId, blockId]);
+  if (!who?.name) return null;
+  return (
+    <div
+      data-testid="block-menu-edited-by"
+      className="mt-1 border-t border-neutral-100 px-3 pb-1 pt-1.5 text-[11px] leading-tight text-neutral-400 dark:border-neutral-700"
+    >
+      <div>{t("Last edited by {name}", { name: who.name })}</div>
+      {who.signed && <div>{who.signed === "wallet" ? t("Signed · wallet") : t("Signed · vouched by aindrive")}</div>}
+    </div>
+  );
+}
+
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
 function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
@@ -643,6 +673,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
               onClick={() => setTurnOpen((v) => !v)}
             />
           </div>
+          {pageId && <BlockAuthorFooter pageId={pageId} blockId={block.id} />}
           </div>,
           document.body
         )}

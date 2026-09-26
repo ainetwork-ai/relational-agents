@@ -49,6 +49,8 @@ export const ko: Record<string, string> = {
   "No {name}": "{name} 없음",
   "Remove {name}": "{name} 제거",
   "Last edited by {name}": "{name} 최종 편집",
+  "Signed · wallet": "서명됨 · 지갑",
+  "Signed · vouched by aindrive": "서명됨 · aindrive 보증",
   "{name} cover": "{name} 커버",
   "Sum of {name}": "{name} 합계",
   "Share with {name}": "{name}님과 공유",
