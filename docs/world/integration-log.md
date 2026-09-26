@@ -101,3 +101,19 @@ Format: `JST time — surface — what happened`.
   `invalid_request` (no reason given); prod-only succeeded. So the real IdP
   path can only be exercised end to end on prod; local dev stays on
   `WORLD_IDP=mock`.
+- 2026-09-26 02:39 — Agents — **correction: the client above points at the
+  wrong domain.** The live demo is `memory.ainetwork.ai` (this host,
+  `memory-live-app`), not `ainmem.ainetwork.ai`. Adding the right redirect to
+  `c2b39b28…` was refused with `invalid_sector_identifier`: the first
+  registration pins the client's sector to the first redirect's host
+  (immutable), and pairwise `sub`s derive from it — a second host needs a
+  sector document served from the first. Registered a new client instead:
+  `e82cf4d2-5a57-4af5-9eb2-d4ee98c55b6c`, redirect
+  `https://memory.ainetwork.ai/api/auth/world/callback`, sector
+  `memory.ainetwork.ai` (staged 02:37, created 02:39:46). Old client set to
+  `disabled` (clients can't be deleted). Credentials checked the same way
+  (`invalid_grant` vs `invalid_client`). FRICTION: the secret pasted from the
+  Portal picked up a trailing Korean IME character (`ㅅ`) — `invalid_client`
+  with no hint; found by checking the value for non-token bytes. Lesson for the
+  debrief: pick the redirect host before registering — it becomes the identity
+  sector and can't be moved.
