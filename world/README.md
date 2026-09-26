@@ -85,7 +85,7 @@ proposal, adoption and the weekly runs are in
 
 | Someone tries to… | What stops it | Where | Shown by |
 |---|---|---|---|
-| send the pot to a member's own wallet ("$700 to my wallet") | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts`](../app/src/lib/agent/treasury/policy.ts) `evaluateCommand`, called from [`skill.ts`](../app/src/lib/agent/treasury/skill.ts) before anything is queued | e2e scene e |
+| send the pot to a member's own wallet ("$500 to my wallet" in the video; "$700" in the try room) | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts`](../app/src/lib/agent/treasury/policy.ts) `evaluateCommand`, called from [`skill.ts`](../app/src/lib/agent/treasury/skill.ts) before anything is queued | e2e scene e |
 | claim a second vote from a second account | the proof's nullifier already holds a vote in this relation: the unique index `treasury_seats_room_nullifier`, answered with 409 | [`schema.ts`](../app/src/lib/db/schema.ts), [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `claimSeat`, [`seat/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts) | World ID simulator, 2026-09-26 01:53 (the e2e cannot make a proof headless) |
 | approve one payment twice as one human, from two accounts | the IdP's pairwise `sub` has already approved it: the second approval is voided and the count stays | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene d |
 | approve on a sign-in from this morning | `auth_time` must be present and after the request; there is no `iat` fallback | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene g |

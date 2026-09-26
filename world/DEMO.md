@@ -293,7 +293,7 @@ Agent — no approval request at all, one thought per line:
 > Our treasury rules say: “Sending treasury money to a member's personal wallet: not allowed.”
 > $500 is also 81.9% of our $610.86 — the rules require 4 verified members to move more than 30% at once.
 > We agreed what this money is for: “Fund our five-person trip to ETHGlobal Tokyo, Sep 25–27 — the hotel comes first. We each put in $200; the pot is for the trip, not for anyone to take home.”
-> Rules: Treasury Rules (link) (link)
+> Rules: Treasury Rules (link)
 
 > "It didn't ask for votes. It knew this isn't something our group does —
 > because we told it, and it remembers."
