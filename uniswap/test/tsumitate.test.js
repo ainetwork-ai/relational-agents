@@ -243,7 +243,11 @@ test("a swap that failed after broadcast carries its tx hash into the passbook",
   const last = raw(ledger).entries.at(-1);
   assert.equal(last.kind, "skip"); assert.equal(last.txHash, txHash, "money may have moved — name the transaction");
   assert.equal(r.txHash, txHash);
-  assert.deepEqual((await ledger.view()).boughtPeriods, {}, "and the period is still not marked bought");
+  // The swap may have landed, so the week is spent whatever the receipt said. Buying again on top
+  // of it is the one outcome that cannot be undone; a missed week can be.
+  assert.deepEqual((await ledger.view()).boughtPeriods, { "m-1": ["2026-W39"] });
+  const again = await runOnce({ ledger, swap: fakeSwap(), account: agent, chain, now: saturday });
+  assert.deepEqual(again, { outcome: "skipped", reason: "period-already-bought", periodKey: "2026-W39" });
 });
 
 test("a malformed mandate is an error, not an outcome: it propagates and writes nothing", async () => {

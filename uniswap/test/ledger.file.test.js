@@ -32,6 +32,21 @@ test("buys accumulate per mandate and period; skips and deposits do not", async 
   assert.deepEqual(v.boughtPeriods, { "m-1": ["2026-W39"] });
 });
 
+// A skip with a txHash is a swap that was broadcast and then lost track of: the tokens may have
+// moved. Counting it as bought costs the family that period; not counting it lets the next run buy
+// again on top of a transfer that may already have landed.
+test("a skip that names a transaction occupies its period, but spends nothing", async () => {
+  const l = fresh();
+  await l.addMandate(m);
+  await l.record({ at: "2026-09-25T09:10:00Z", kind: "skip", who: "0xagent", mandateId: "m-1",
+    periodKey: "2026-W39", reason: "swap-failed: timed out waiting for the receipt", txHash: "0x9" });
+  await l.record({ at: "2026-09-25T09:20:00Z", kind: "skip", who: "0xagent", mandateId: "m-1",
+    periodKey: "2026-W40", reason: "no-liquidity" });
+  const v = await l.view();
+  assert.deepEqual(v.boughtPeriods, { "m-1": ["2026-W39"] }, "only the broadcast one takes its period");
+  assert.deepEqual(v.spentByPeriod, {}, "and nothing is counted against the period cap: the fill is unknown");
+});
+
 test("revoke stamps revokedAt; the file is plain JSON with string amounts", async () => {
   const l = fresh();
   await l.addMandate(m);

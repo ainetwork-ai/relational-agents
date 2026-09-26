@@ -27,8 +27,8 @@ function chooseStanding(mandates, agentAddress, now) {
  * run may buy, so a scheduler can wake it as often as it likes. Every outcome the run decides is
  * written to the passbook — a refusal is a line the family reads, not a silent no-op; a malformed
  * mandate or clock is an error, not an outcome, and propagates instead of being filed as a skip.
- * A swap-failed skip that carries a txHash means money may have moved and the period is NOT marked
- * bought — a follow-up must reconcile it.
+ * A swap-failed skip that carries a txHash means money may have moved, so that period counts as
+ * bought and the next run refuses it; reconciling what actually landed is still missing.
  */
 export async function runOnce({ ledger, swap, account, chain, now = new Date(), mandateId }) {
   const view = await ledger.view();
@@ -63,7 +63,8 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   }
 
   // A swap that throws is this run's outcome, not a crash: the passbook says the week was missed
-  // and why. Recording a skip rather than a buy also leaves the period open, so the next run retries.
+  // and why. A skip with no txHash leaves the period open and the next run retries; one that names
+  // a broadcast transaction takes the period with it (`view` in ledger/file.js).
   const failed = async (err) => {
     // Never `err.message`: viem's BaseError puts the RPC URL and the request body in it, so an API
     // key in RPC_URL would be written into the family's passbook. `shortMessage` is the safe half,

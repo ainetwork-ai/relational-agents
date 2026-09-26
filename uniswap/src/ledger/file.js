@@ -49,12 +49,23 @@ export function fileLedger(path) {
     async view() {
       const db = load();
       const spentByPeriod = {}, boughtPeriods = {};
+      const occupy = (mandateId, key) => {
+        const list = (boughtPeriods[mandateId] ??= []);
+        if (!list.includes(key)) list.push(key);
+      };
       for (const e of db.entries.map(fromDisk)) {
-        // `record` refuses a buy with no mandateId, but the file is hand-editable in a demo.
-        if (e.kind !== "buy" || !e.mandateId) continue;
-        (spentByPeriod[e.mandateId] ??= {})[e.periodKey] = (spentByPeriod[e.mandateId][e.periodKey] ?? 0n) + e.amountIn;
-        const list = (boughtPeriods[e.mandateId] ??= []);
-        if (!list.includes(e.periodKey)) list.push(e.periodKey);
+        // `record` refuses a buy or a skip with no mandateId, but the file is hand-editable in a demo.
+        if (!e.mandateId) continue;
+        if (e.kind === "buy") {
+          (spentByPeriod[e.mandateId] ??= {})[e.periodKey] = (spentByPeriod[e.mandateId][e.periodKey] ?? 0n) + e.amountIn;
+          occupy(e.mandateId, e.periodKey);
+        } else if (e.kind === "skip" && e.txHash) {
+          // A skip only carries a txHash when the swap was broadcast and then lost track of: a swap
+          // that may have moved money must not let the same period buy again; the cost is a skipped
+          // period, never a double buy. It adds nothing to `spentByPeriod` — the fill is unknown, and
+          // a guessed amount against the period cap would be worse than none.
+          occupy(e.mandateId, e.periodKey);
+        }
       }
       return { mandates: db.mandates.map(fromDisk), spentByPeriod, boughtPeriods };
     },
