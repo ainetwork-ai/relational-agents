@@ -227,7 +227,7 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                     <h3 className={styles.stepTitle}>See it refuse</h3>
                     <p className={styles.stepText}>
                       {/* an explicit space: the compiler drops a leading one from text that holds an entity */}
-                      <code>@agent send $700 to my wallet</code>{" "}is refused on the spot, citing the rule, and nobody is
+                      <code>@agent send $500 to my wallet</code>{" "}is refused on the spot, citing the rule, and nobody is
                       asked to vote. Then, in Alex&apos;s browser, enter as <b>Alex (2nd account)</b>, the same person on a
                       second account, and claim a vote with the simulator identity Alex used. World ID gives the same
                       nullifier, so the claim is refused: this human already has a vote.
@@ -370,7 +370,7 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                 </tr>
                 <tr>
                   <td>A refused, cancelled or ineligible path where nothing moves</td>
-                  <td>Step 5 — $700 to a personal wallet (the rules); Alex&apos;s second account asking for a second vote (IDKit)</td>
+                  <td>Step 5 — $500 to a personal wallet (the rules); Alex&apos;s second account asking for a second vote (IDKit)</td>
                   <td>
                     <a href={`${WORLD_DIR}#what-gets-refused`}>every refused path, with the check that stops it</a>
                   </td>
