@@ -9,6 +9,7 @@ import { decodeFunctionData, encodeAbiParameters, encodeEventTopics, erc20Abi, g
 import { receiptOutcome } from "../src/chain";
 import { prepareSend } from "../src/prepare";
 import { SEPOLIA_USDC } from "../src/config";
+import { checkLabel, suggestLabels } from "../src/labels";
 
 let fails = 0;
 let passes = 0;
@@ -210,6 +211,21 @@ releaseSent("release-me", "0xdef");
 ok("sent: another hash does not free the link", wasSent("release-me") === "0xAbc");
 releaseSent("release-me", "0xabc");
 ok("sent: released link can pay again", wasSent("release-me") === null);
+
+// ── labels ──────────────────────────────────────────────────────────────────
+ok("label: plain", same(checkLabel("lee"), { ok: true, label: "lee" }));
+ok("label: trimmed + lowercased", same(checkLabel("  Lee "), { ok: true, label: "lee" }));
+ok("label: spaces become hyphens", same(checkLabel("Lee family"), { ok: true, label: "lee-family" }));
+ok("label: empty", same(checkLabel("   "), { ok: false, reason: "empty" }));
+ok("label: .eth minimum", same(checkLabel("li", { min: 3 }), { ok: false, reason: "too-short" }));
+ok("label: subname may be short", same(checkLabel("jo"), { ok: true, label: "jo" }));
+ok("label: too long", same(checkLabel("a".repeat(33)), { ok: false, reason: "too-long" }));
+ok("label: emoji rejected", same(checkLabel("lee🙂"), { ok: false, reason: "invalid" }));
+ok("label: dot rejected", same(checkLabel("lee.kim"), { ok: false, reason: "invalid" }));
+ok("label: leading hyphen rejected", same(checkLabel("-lee"), { ok: false, reason: "invalid" }));
+ok("label: double hyphen rejected", same(checkLabel("ab--c"), { ok: false, reason: "invalid" }));
+ok("suggest: a long base only yields valid labels", same(suggestLabels("a".repeat(31), 2), ["a".repeat(31) + "2", "a".repeat(31) + "3"]));
+ok("suggest: family-style candidates", same(suggestLabels("lee", 4), ["lee-family", "the-lees", "lee2", "lee3"]));
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
