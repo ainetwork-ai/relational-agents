@@ -132,9 +132,10 @@ stay right while the code keeps moving.
 ## Try it
 
 In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). Pick a member and
-you are in the try-it copy of the room, signed in as them; use a second browser or a private
-window for a second human. The copy is `seed-tokyo-trip.mts --try`: its own accounts, agent and
-wallet, so nothing done there reaches the recorded room.
+you are in the try-it copy of the room, signed in as them — on its treasury page (the account
+and the treasurer) or in the room chat; use a second browser or a private window for a second
+human. The copy is `seed-tokyo-trip.mts --try`: its own accounts, agent and wallet, so nothing
+done there reaches the recorded room.
 
 Locally, against the mock IdP. Set up the app first ([Running it](../README.md#running-it)).
 The treasury also needs a key with a little Sepolia ETH (`RELAYER_KEY` or `DEPLOYER_KEY`): it
