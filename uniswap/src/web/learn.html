@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside the Family Passbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --paper:#EBEFEF; --surface:#FAFCFC; --surface-2:#F1F5F5;
+  --ink:#13232A; --ink-soft:#5D7379; --rule:#C7D5D6; --rule-strong:#9FB4B6;
+  --accent:#12685A; --accent-soft:#DCEBE7; --stamp:#A8342A; --stamp-soft:#F3DEDA;
+  --shadow:0 1px 2px rgba(19,35,42,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --paper:#0D1518; --surface:#141F23; --surface-2:#19262B;
+    --ink:#DCE7E7; --ink-soft:#8CA2A7; --rule:#27383E; --rule-strong:#3B535A;
+    --accent:#43BEA4; --accent-soft:#14312C; --stamp:#E47A68; --stamp-soft:#3A1F1B;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --paper:#0D1518; --surface:#141F23; --surface-2:#19262B;
+  --ink:#DCE7E7; --ink-soft:#8CA2A7; --rule:#27383E; --rule-strong:#3B535A;
+  --accent:#43BEA4; --accent-soft:#14312C; --stamp:#E47A68; --stamp-soft:#3A1F1B;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:400 16px/1.6 "IBM Plex Sans", system-ui, sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1040px; margin:0 auto; padding-inline:16px; padding-block:0 72px}
+.col{max-width:66ch}
+h1,h2,h3{font-family:"Zilla Slab", Georgia, serif; font-weight:600; text-wrap:balance; margin:0}
+h1{font-size:clamp(30px,5.2vw,44px); line-height:1.12; letter-spacing:-.01em}
+h2{font-size:clamp(21px,3vw,26px); line-height:1.2}
+h3{font-size:17px; line-height:1.3}
+p{margin:0}
+a{color:var(--accent); text-underline-offset:3px}
+code,kbd,.mono{font-family:"IBM Plex Mono", ui-monospace, monospace}
+.eyebrow{font:500 11px/1 "IBM Plex Mono", monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft)}
+
+header.top{border-bottom:1px solid var(--rule); background:var(--surface)}
+header.top .wrap{display:flex; flex-direction:column; gap:20px; padding-block:40px 32px}
+.lede{display:flex; flex-direction:column; gap:14px; max-width:66ch}
+.lede p{font-size:17px; color:var(--ink-soft)}
+.lede p strong{color:var(--ink); font-weight:600}
+.live-badge{
+  display:inline-flex; align-items:center; gap:8px; align-self:flex-start;
+  border:1px solid var(--accent); color:var(--accent); background:var(--accent-soft);
+  border-radius:2px; padding:6px 10px; font:500 12px/1 "IBM Plex Mono", monospace;
+}
+.live-badge .dot{width:6px; height:6px; border-radius:50%; background:currentColor}
+
+nav.toc{position:sticky; top:env(safe-area-inset-top, 0px); z-index:5; background:var(--surface); border-bottom:1px solid var(--rule)}
+nav.toc ul{display:flex; gap:4px; list-style:none; margin:0; padding:0 16px; overflow-x:auto; max-width:1040px; margin-inline:auto}
+nav.toc a{
+  display:block; padding:11px 10px; white-space:nowrap; text-decoration:none;
+  font:500 12px/1 "IBM Plex Mono", monospace; letter-spacing:.04em; color:var(--ink-soft);
+  border-bottom:2px solid transparent;
+}
+nav.toc a:hover{color:var(--ink); border-bottom-color:var(--rule-strong)}
+
+section{display:flex; flex-direction:column; gap:20px; padding-block:48px; border-bottom:1px solid var(--rule)}
+section:last-of-type{border-bottom:0}
+.head{display:flex; flex-direction:column; gap:8px; max-width:66ch}
+.body{display:flex; flex-direction:column; gap:14px; max-width:66ch}
+.body p{color:var(--ink)}
+.note{color:var(--ink-soft); font-size:15px}
+
+.panel{border:1px solid var(--rule-strong); background:var(--surface); border-radius:2px; box-shadow:var(--shadow); overflow:hidden}
+.panel-head{
+  display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;
+  padding:12px 16px; border-bottom:1px solid var(--rule); background:var(--surface-2);
+}
+.panel-head .eyebrow{color:var(--ink)}
+.panel-body{padding:16px}
+
+.gate{display:grid; grid-template-columns:minmax(260px,1fr) minmax(280px,1.05fr); gap:0}
+.gate > div{padding:16px}
+.gate > div:first-child{border-right:1px solid var(--rule)}
+@media (max-width:760px){
+  .gate{grid-template-columns:1fr}
+  .gate > div:first-child{border-right:0; border-bottom:1px solid var(--rule)}
+}
+fieldset{border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
+fieldset + fieldset{margin-top:18px; padding-top:16px; border-top:1px dashed var(--rule)}
+legend{font:500 11px/1 "IBM Plex Mono", monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); padding:0 0 4px}
+.field{display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px}
+.field label{font-size:14px; color:var(--ink)}
+.field label .hint{display:block; font-size:12px; color:var(--ink-soft); font-family:"IBM Plex Mono", monospace}
+input[type=number], input[type=date], select{
+  font:400 13px/1 "IBM Plex Mono", monospace; color:var(--ink); background:var(--surface-2);
+  border:1px solid var(--rule-strong); border-radius:2px; padding:6px 8px; width:120px; max-width:100%;
+}
+input[type=checkbox]{width:16px; height:16px; accent-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.presets{display:flex; flex-wrap:wrap; gap:6px; padding:12px 16px; border-bottom:1px solid var(--rule); background:var(--surface-2)}
+.presets button{
+  font:400 12px/1 "IBM Plex Mono", monospace; color:var(--ink); cursor:pointer;
+  background:var(--surface); border:1px solid var(--rule-strong); border-radius:2px; padding:6px 9px;
+}
+.presets button:hover{border-color:var(--accent); color:var(--accent)}
+
+.verdict{border:1px solid currentColor; border-radius:2px; padding:12px 14px; display:flex; flex-direction:column; gap:4px}
+.verdict.ok{color:var(--accent); background:var(--accent-soft)}
+.verdict.no{color:var(--stamp); background:var(--stamp-soft)}
+.verdict .what{font:600 20px/1.1 "Zilla Slab", serif; letter-spacing:.01em}
+.verdict .why{font:400 13px/1.45 "IBM Plex Sans", sans-serif; color:var(--ink)}
+
+ol.checks{list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column}
+ol.checks li{
+  display:grid; grid-template-columns:20px 1fr auto; gap:10px; align-items:baseline;
+  padding:8px 0; border-bottom:1px solid var(--rule); font-size:13px;
+}
+ol.checks li:last-child{border-bottom:0}
+ol.checks .mark{font:500 13px/1.4 "IBM Plex Mono", monospace; text-align:center}
+ol.checks .name{font-family:"IBM Plex Mono", monospace}
+ol.checks .why{color:var(--ink-soft); font-size:12px; text-align:right}
+li.passed .mark{color:var(--accent)}
+li.passed .name{color:var(--ink)}
+li.fired .mark, li.fired .name{color:var(--stamp); font-weight:500}
+li.unreached{opacity:.4}
+
+pre{
+  margin:0; padding:12px 14px; overflow-x:auto; background:var(--surface-2);
+  border:1px solid var(--rule); border-radius:2px;
+  font:400 12.5px/1.6 "IBM Plex Mono", monospace; color:var(--ink);
+}
+pre .c{color:var(--ink-soft)}
+pre .k{color:var(--accent)}
+
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+.scroll{overflow-x:auto; border:1px solid var(--rule-strong); border-radius:2px; background:var(--surface)}
+th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+thead th{font:500 11px/1 "IBM Plex Mono", monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:0}
+td.num, th.num{font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums; text-align:right}
+td.f{font-family:"IBM Plex Mono", monospace; white-space:nowrap}
+.signed{color:var(--accent)}
+.unsigned{color:var(--stamp)}
+
+.keys{display:flex; flex-wrap:wrap; gap:0; border:1px solid var(--rule-strong); border-radius:2px; overflow:hidden}
+.keys div{flex:1 1 140px; padding:12px 14px; background:var(--surface); border-right:1px solid var(--rule)}
+.keys div:last-child{border-right:0}
+.keys .k{display:block; font:500 10px/1 "IBM Plex Mono", monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px}
+.keys .v{font:500 19px/1.1 "IBM Plex Mono", monospace; font-variant-numeric:tabular-nums; color:var(--ink)}
+
+.steps{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0; counter-reset:s}
+.steps li{
+  display:grid; grid-template-columns:34px 1fr; gap:14px; padding:14px 0;
+  border-bottom:1px solid var(--rule);
+}
+.steps li:last-child{border-bottom:0}
+.steps li::before{
+  counter-increment:s; content:counter(s,decimal-leading-zero);
+  font:500 12px/1.5 "IBM Plex Mono", monospace; color:var(--ink-soft);
+  border-right:1px solid var(--rule); padding-right:10px;
+}
+.steps h3{margin-bottom:3px}
+.steps p{font-size:14px; color:var(--ink-soft)}
+.steps .exit{
+  display:inline-block; margin-top:6px; font:400 12px/1.5 "IBM Plex Mono", monospace;
+  color:var(--stamp); border-left:2px solid var(--stamp); padding-left:8px;
+}
+.steps .writes{
+  display:inline-block; margin-top:6px; font:400 12px/1.5 "IBM Plex Mono", monospace;
+  color:var(--accent); border-left:2px solid var(--accent); padding-left:8px;
+}
+
+.finds{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+.find{border:1px solid var(--rule-strong); border-left:3px solid var(--stamp); border-radius:2px; background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:8px}
+.find h3{color:var(--stamp)}
+.find p{font-size:14px}
+.find .fix{font-size:13.5px; color:var(--ink-soft); border-top:1px dashed var(--rule); padding-top:8px}
+
+footer{padding-block:32px; color:var(--ink-soft); font-size:13.5px; display:flex; flex-direction:column; gap:8px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="lede">
+      <span class="eyebrow">ETHGlobal Tokyo 2026 · Uniswap Foundation, Continuity</span>
+      <h1>Inside the Family Passbook</h1>
+      <p>An agent owns a wallet. Today it can spend that wallet on anything. This makes it a
+      <strong>shared savings account</strong>: a family member signs what the agent may buy, the agent buys
+      through Uniswap v3 once a week inside that permission and only inside it, and every purchase
+      <em>and every refusal</em> is written where the family reads.</p>
+      <p>Three nouns carry the whole design — the <strong>mandate</strong> the family signs, the
+      <strong>run</strong> that decides, the <strong>passbook</strong> that records. This page takes them in that order.</p>
+    </div>
+    <span class="live-badge"><span class="dot"></span> the controls below call the shipped code, not a copy of it</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <ul>
+    <li><a href="#mandate">1 · the mandate</a></li>
+    <li><a href="#gate">2 · the gate</a></li>
+    <li><a href="#period">3 · the period key</a></li>
+    <li><a href="#run">4 · the run</a></li>
+    <li><a href="#swap">5 · the swap</a></li>
+    <li><a href="#chain">6 · what the chain taught us</a></li>
+    <li><a href="#try">7 · run it yourself</a></li>
+  </ul>
+</nav>
+
+<div class="wrap">
+
+<section id="mandate">
+  <div class="head">
+    <span class="eyebrow">01 — what the family signs</span>
+    <h2>A permission with an address on it</h2>
+  </div>
+  <div class="body">
+    <p>The mandate is an EIP-712 typed message. A member signs it in their own wallet; the agent
+    holds its own key and never a member's, so it cannot write itself one. Eleven fields go into the
+    signature. Two deliberately stay outside it.</p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>field</th><th>type</th><th>what it decides</th></tr></thead>
+      <tbody>
+        <tr><td class="f signed">id</td><td class="f">string</td><td>names this permission; the passbook files every line under it</td></tr>
+        <tr><td class="f signed">roomId</td><td class="f">string</td><td>which family this belongs to</td></tr>
+        <tr><td class="f signed">agent</td><td class="f">address</td><td>the one wallet allowed to act on it</td></tr>
+        <tr><td class="f signed">kind</td><td class="f">string</td><td><code>standing</code> repeats every period; <code>oneoff</code> happens once</td></tr>
+        <tr><td class="f signed">tokenIn / tokenOut</td><td class="f">address</td><td>the only pair — USDC in, WETH out</td></tr>
+        <tr><td class="f signed">perRunCap</td><td class="f">uint256</td><td>the most one run may spend</td></tr>
+        <tr><td class="f signed">perPeriodCap</td><td class="f">uint256</td><td>the most a whole period may spend</td></tr>
+        <tr><td class="f signed">period</td><td class="f">string</td><td>the cadence — <code>week</code>, <code>day</code> or <code>month</code></td></tr>
+        <tr><td class="f signed">expiresAt</td><td class="f">uint256</td><td>after this second, every run is refused</td></tr>
+        <tr><td class="f signed">nonce</td><td class="f">uint256</td><td>orders replacements; the newest live one wins</td></tr>
+        <tr><td class="f unsigned">approval</td><td class="f">—</td><td><strong>not signed.</strong> It holds the signature itself, so it cannot be inside it</td></tr>
+        <tr><td class="f unsigned">revokedAt</td><td class="f">—</td><td><strong>not signed.</strong> Revoking must work after the fact, without the signer</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="body">
+    <p class="note">Because the eleven signed fields exclude <code>approval</code> and <code>revokedAt</code>, a stored
+    mandate re-verifies for as long as its terms are untouched — and stops verifying the moment one is edited.
+    The agent re-recovers the signature on <em>every</em> run, so raising a cap by hand in the JSON file
+    produces a refusal (<code>approval-invalid</code>), not a larger purchase.</p>
+    <p class="note">The domain binds the chain: <code>{ name: "ainmem Family Passbook", version: "1", chainId }</code>.
+    A chainId passed as a string would be dropped by the signer and the same digest would verify everywhere,
+    so <code>mandateDomain</code> throws on anything but a number or bigint.</p>
+  </div>
+</section>
+
+<section id="gate">
+  <div class="head">
+    <span class="eyebrow">02 — the decision</span>
+    <h2>Seven checks, in an order that is part of the contract</h2>
+  </div>
+  <div class="body">
+    <p><code>checkMandate</code> is pure: a mandate, the ledger's view, the intent, the clock. It returns
+    the <em>first</em> reason that applies — so the order is not an implementation detail, it is what the
+    family reads in the passbook. Move the controls and watch which check fires.</p>
+  </div>
+
+  <div class="panel">
+    <div class="presets" id="presets"></div>
+    <div class="gate">
+      <div>
+        <fieldset>
+          <legend>the mandate</legend>
+          <div class="field"><label for="g-kind">kind<span class="hint">standing repeats weekly</span></label>
+            <select id="g-kind"><option value="standing">standing</option><option value="oneoff">oneoff</option><option value="one-off">one-off (typo)</option></select></div>
+          <div class="field"><label for="g-run">per-run cap<span class="hint">USDC</span></label><input id="g-run" type="number" min="0" step="0.5" value="20"></div>
+          <div class="field"><label for="g-period">per-period cap<span class="hint">USDC per week</span></label><input id="g-period" type="number" min="0" step="0.5" value="100"></div>
+          <div class="field"><label for="g-expires">expires<span class="hint">end of that day, UTC</span></label><input id="g-expires" type="date" value="2026-12-24"></div>
+          <div class="field"><label for="g-revoked">revoked<span class="hint">anyone in the family may</span></label><input id="g-revoked" type="checkbox"></div>
+          <div class="field"><label for="g-approved">has an approval<span class="hint">the signature field</span></label><input id="g-approved" type="checkbox" checked></div>
+        </fieldset>
+        <fieldset>
+          <legend>this run's intent</legend>
+          <div class="field"><label for="g-amount">amount in<span class="hint">USDC</span></label><input id="g-amount" type="number" min="0" step="0.5" value="20"></div>
+          <div class="field"><label for="g-pair">pair<span class="hint">the mandate allows USDC → WETH</span></label>
+            <select id="g-pair"><option value="ok">USDC → WETH</option><option value="bad">WETH → USDC</option></select></div>
+        </fieldset>
+        <fieldset>
+          <legend>what the passbook already holds</legend>
+          <div class="field"><label for="g-spent">spent this period<span class="hint">USDC</span></label><input id="g-spent" type="number" min="0" step="0.5" value="0"></div>
+          <div class="field"><label for="g-bought">this period already bought<span class="hint">a buy is recorded for it</span></label><input id="g-bought" type="checkbox"></div>
+        </fieldset>
+        <fieldset>
+          <legend>the clock</legend>
+          <div class="field"><label for="g-now">now<span class="hint">09:00 UTC that day</span></label><input id="g-now" type="date" value="2026-09-25"></div>
+        </fieldset>
+      </div>
+      <div>
+        <div id="g-verdict" class="verdict ok"><span class="what">—</span><span class="why"></span></div>
+        <ol class="checks" id="g-checks"></ol>
+      </div>
+    </div>
+    <div class="panel-body" style="border-top:1px solid var(--rule)">
+      <pre id="g-call"></pre>
+    </div>
+  </div>
+
+  <div class="body">
+    <p class="note"><strong>An unknown <code>kind</code> throws instead of answering.</strong> Pick the
+    <code>one-off</code> typo above. A permissive fall-through would skip the already-bought check and file the
+    buy as human-mediated — a typo would buy every run and blame a person for it. A malformed mandate is a bug,
+    not a verdict, so it never reaches the passbook as one.</p>
+    <p class="note">When every check passes, the answer carries <code>decisionOrigin</code>:
+    <code>autonomous</code> for a standing mandate, <code>human_mediated</code> for a one-off. That is the value
+    the Uniswap Trading API's <code>X-Agent-Info</code> header wants, decided here rather than guessed at the edge.</p>
+  </div>
+</section>
+
+<section id="period">
+  <div class="head">
+    <span class="eyebrow">03 — idempotency</span>
+    <h2>One key decides whether this run already happened</h2>
+  </div>
+  <div class="body">
+    <p>A scheduler can wake the agent as often as it likes; what stops a second purchase is the period
+    key. It comes from the mandate's cadence, never from the calendar day — a weekly mandate keyed on
+    days would buy seven times a week, which is the bug Uniswap's own DCA-bot guidance warns about.</p>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <span class="eyebrow">periodKey(period, date)</span>
+      <span style="display:flex; gap:8px; align-items:center"><label for="p-date" class="eyebrow">date</label><input id="p-date" type="date" value="2026-09-25"></span>
+    </div>
+    <div class="panel-body" style="display:flex; flex-direction:column; gap:12px">
+      <div class="keys">
+        <div><span class="k">week</span><span class="v" id="p-week">—</span></div>
+        <div><span class="k">day</span><span class="v" id="p-day">—</span></div>
+        <div><span class="k">month</span><span class="v" id="p-month">—</span></div>
+      </div>
+      <div class="presets" style="border:0; padding:0; background:transparent" id="p-presets"></div>
+      <p class="note" id="p-note"></p>
+    </div>
+  </div>
+  <div class="body">
+    <p class="note">The week key is the ISO week, and the Thursday of that week fixes its year — which is why
+    Friday 1 January 2027 keys as <code>2026-W53</code>, not <code>2027-W01</code>. Press the last two buttons:
+    the calendar year turns over and the period does not.</p>
+    <p class="note">An invalid <code>Date</code> throws rather than keying as <code>NaN-WNaN</code>, which would
+    silently merge every run of that mandate into one period.</p>
+  </div>
+</section>
+
+<section id="run">
+  <div class="head">
+    <span class="eyebrow">04 — one invocation</span>
+    <h2>The run, and what each exit writes</h2>
+  </div>
+  <div class="body">
+    <p><code>runOnce</code> never loops and never schedules itself — cron or the app's timer calls it.
+    Every outcome it decides is written down; a refusal is a line the family reads, not a silent no-op.
+    Passing <code>dryRun</code> keeps the whole decision and the real quote, and writes nothing.</p>
+  </div>
+  <ol class="steps">
+    <li><div><h3>Read the passbook</h3><p>Mandates, what each period already spent, which periods are already bought. The ledger is the only state; there is no database in this layer.</p></div></li>
+    <li><div><h3>Choose the mandate</h3><p>This agent's live standing mandate with the highest nonce. When none is live it takes the newest dead one on purpose.</p>
+      <span class="exit">no mandate at all → outcome <code>no-mandate</code>, exit code 3</span>
+      <p class="note" style="margin-top:8px">Choosing the newest <em>dead</em> one is what makes the refusal say <code>revoked</code> or <code>expired</code> instead of “no mandate” — the difference between a family reading why, and a family reading a lost passbook.</p></div></li>
+    <li><div><h3>Re-verify the signature</h3><p>Recover the signer from the stored approval and compare it to the subject. The passbook is a plain JSON file written by the agent's own process, so “the family allowed this” is only as true as the last time someone checked.</p>
+      <span class="exit">does not recover → skip <code>approval-invalid</code></span></div></li>
+    <li><div><h3>Run the seven checks</h3><p>The gate above, with the intent built from the mandate itself: <code>amountIn = perRunCap</code>.</p>
+      <span class="exit">any check fires → skip, with that reason</span></div></li>
+    <li><div><h3>Quote</h3><p>QuoterV2, as a call that changes nothing. A quote of zero is a refusal of its own.</p>
+      <span class="exit">nothing quoted → skip <code>no-liquidity</code></span>
+      <span class="writes">dry run stops here and returns the quote</span></div></li>
+    <li><div><h3>Swap</h3><p>Approve exactly this amount, then <code>exactInputSingle</code>. The fill is read back from the transaction's own logs.</p>
+      <span class="exit">threw before broadcast → skip <code>swap-failed</code>, the period stays open</span>
+      <span class="exit">threw after broadcast → skip carries the tx hash, and that period counts as bought</span></div></li>
+    <li><div><h3>Record the buy</h3><p>Amount in, amount out, price, transaction, the mandate that allowed it, and whether the decision was autonomous.</p>
+      <span class="writes">passbook entry <code>kind: "buy"</code>, keyed to this period</span></div></li>
+  </ol>
+  <div class="body">
+    <p class="note"><strong>Why a failure after broadcast takes the period with it:</strong> the tokens may already have
+    left. Treating it as “nothing happened” lets the next run buy on top of a purchase that did land. The cost of
+    the other choice is one skipped week; the cost of this one is a double purchase, so the week loses. A
+    <em>confirmed revert</em> is the one exception — the chain rolled every change back, so it carries no hash and the
+    period stays open.</p>
+  </div>
+</section>
+
+<section id="swap">
+  <div class="head">
+    <span class="eyebrow">05 — the Uniswap part</span>
+    <h2>Three calls, and two choices that are not obvious</h2>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>step</th><th>call</th><th>why this one</th></tr></thead>
+      <tbody>
+        <tr><td class="f">quote</td><td class="f">QuoterV2.quoteExactInputSingle</td><td>returns its answer by reverting, so it is a simulated call — a plain read cannot invoke it</td></tr>
+        <tr><td class="f">allow</td><td class="f">ERC-20 approve</td><td>exactly this buy's amount, never unlimited</td></tr>
+        <tr><td class="f">swap</td><td class="f">SwapRouter02.exactInputSingle</td><td>with <code>amountOutMinimum</code> from the executor's slippage bound</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="body">
+    <p><strong>The fill is read from the swap's own Transfer logs, not from a balance before and after.</strong>
+    A balance difference also counts anything else that credited the same wallet in that window — two agents
+    sharing a recipient would each write the other's purchase into the family's passbook. The logs of one
+    transaction can only describe that transaction.</p>
+    <p><strong>Slippage is the executor's policy, not a signed term.</strong> The family signs caps on what goes
+    <em>in</em>; <code>perRunCap</code> and <code>perPeriodCap</code> both bound <code>tokenIn</code>. A bound on what
+    comes <em>out</em> needs a minimum-output field in the mandate, and that is honest work for a later slice
+    rather than something to imply now.</p>
+  </div>
+</section>
+
+<section id="chain">
+  <div class="head">
+    <span class="eyebrow">06 — findings</span>
+    <h2>Two things only the real chain told us</h2>
+  </div>
+  <div class="body">
+    <p>Both were invisible on a local fork, and both are in <code>FEEDBACK.md</code> for the Uniswap team.
+    A fork is one node; a public endpoint is a pool of them, and that difference is the whole story.</p>
+  </div>
+  <div class="finds">
+    <div class="find">
+      <h3>The swap was estimated against an approval that had already landed</h3>
+      <p>On Base mainnet the approval was mined — receipt <code>success</code>, the allowance readable a moment
+      later on every endpoint — but the node that estimated the swap was one block behind, so the router
+      simulated against a zero allowance and reverted with <code>STF</code>.</p>
+      <p class="fix">Fixed by waiting, bounded, until <em>this</em> client can read the allowance itself, before
+      sending the swap. A single-node fork never shows it.</p>
+    </div>
+    <div class="find">
+      <h3>An endpoint that answers quotes but refuses receipts</h3>
+      <p>One public RPC served quotes and balances and then refused
+      <code>eth_getTransactionReceipt</code> for a transaction it had just mined. For a recurring-buy agent that
+      is the worst failure available: the purchase landed and the agent cannot know it.</p>
+      <p class="fix">Such a run is filed as “may have moved” and locks its period. The README now states the
+      requirement — the endpoint must serve receipts.</p>
+    </div>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>measured on Base mainnet, 26 Sep 2026</th><th class="num">value</th></tr></thead>
+      <tbody>
+        <tr><td>first mandated buy — 1 USDC into WETH</td><td class="num">371 565 166 375 150 wei</td></tr>
+        <tr><td>price it filled at</td><td class="num">2 691.32 USDC / ETH</td></tr>
+        <tr><td>gas for that buy, L1 data fee included</td><td class="num">0.000 000 81 ETH</td></tr>
+        <tr><td>second run the same week</td><td class="num">refused, no chain call</td></tr>
+        <tr><td>test suite against the fork</td><td class="num">69 passed, 0 skipped</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="body">
+    <p class="note">Why the demo is on mainnet and not a testnet: nothing arbitrages faucet tokens, so the
+    testnet pools quote fiction. Ethereum Sepolia's USDC/WETH asked about 29 700 USDC per ETH — roughly eleven
+    times the real price — and Base Sepolia's four fee tiers disagreed with each other, from 1 281 to 14 965.
+    A demo that buys at a fictional price teaches the wrong thing, so the buys above are real, at one dollar each.</p>
+  </div>
+</section>
+
+<section id="try">
+  <div class="head">
+    <span class="eyebrow">07 — your turn</span>
+    <h2>Run it yourself</h2>
+  </div>
+  <div class="body">
+    <p>Everything above runs from one folder with no database and no app. The fork needs no key and no money.</p>
+  </div>
+  <pre><span class="c"># a Base mainnet fork, in its own shell — no key, no funds</span>
+pnpm fork
+
+<span class="c"># the agent and the grandmother are two of anvil's own test accounts</span>
+pnpm fund
+pnpm mandate sign 20 100 90     <span class="c"># 20 USDC a run, 100 a week, 90 days</span>
+pnpm tsumitate                  <span class="c"># "bought", with the transaction</span>
+pnpm tsumitate                  <span class="c"># "skipped", "period-already-bought"</span>
+NOW=2026-10-05T09:00:00Z pnpm tsumitate   <span class="c"># a later week → "bought"</span>
+
+pnpm test                       <span class="c"># 69 tests; read the "skipped 0" line</span>
+pnpm web                        <span class="c"># the control panel, on 127.0.0.1:3120</span></pre>
+  <div class="body">
+    <p class="note"><a href="/">The control panel</a> is the page next door: it signs, dry-runs, runs and
+    revokes against a real wallet. This page is the explanation; that one spends money.</p>
+  </div>
+</section>
+
+<footer>
+  <div>Family Passbook · <code>uniswap/</code> in <span class="mono">ainetwork-ai/relational-agents</span></div>
+  <div>Design record in <code>plan.md</code> · every Uniswap call named with its file and line in <code>README.md</code> · findings in <code>FEEDBACK.md</code></div>
+</footer>
+
+</div>
+
+<script type="module">
+import { checkMandate } from "/src/mandate/check.js";
+import { periodKey } from "/src/mandate/period.js";
+
+/* The refusal order, exactly as check.js returns it. The page does not re-implement the checks —
+   it asks the real function and places its one answer in this list, so a reordering in check.js
+   shows up here as an unplaced reason rather than a quietly wrong diagram. */
+const ORDER = [
+  ["revoked",               "revokedAt is set"],
+  ["expired",               "now ≥ expiresAt"],
+  ["unapproved",            "no approval field"],
+  ["pair-not-allowed",      "intent's pair ≠ the signed pair"],
+  ["over-per-run-cap",      "amountIn > perRunCap"],
+  ["over-per-period-cap",   "spent + amountIn > perPeriodCap"],
+  ["period-already-bought", "standing, and this period is in boughtPeriods"],
+];
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const WETH = "0x4200000000000000000000000000000000000006";
+const $ = (id) => document.getElementById(id);
+const units = (v) => BigInt(Math.round(Number(v || 0) * 1e6));
+const usdc  = (n) => (Number(n) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 6 });
+const atNine = (d) => new Date(`${d}T09:00:00Z`);
+
+const PRESETS = {
+  "allowed":              { revoked:false, approved:true, amount:20, spent:0, bought:false, pair:"ok", kind:"standing" },
+  "already bought":       { revoked:false, approved:true, amount:20, spent:0, bought:true,  pair:"ok", kind:"standing" },
+  "over the week":        { revoked:false, approved:true, amount:20, spent:90, bought:false, pair:"ok", kind:"standing" },
+  "over one run":         { revoked:false, approved:true, amount:50, spent:0, bought:false, pair:"ok", kind:"standing" },
+  "revoked":              { revoked:true,  approved:true, amount:20, spent:0, bought:false, pair:"ok", kind:"standing" },
+  "expired":              { revoked:false, approved:true, amount:20, spent:0, bought:false, pair:"ok", kind:"standing", expires:"2026-09-01" },
+  "approval removed":     { revoked:false, approved:false, amount:20, spent:0, bought:false, pair:"ok", kind:"standing" },
+  "wrong pair":           { revoked:false, approved:true, amount:20, spent:0, bought:false, pair:"bad", kind:"standing" },
+  "kind typo":            { revoked:false, approved:true, amount:20, spent:0, bought:false, pair:"ok", kind:"one-off" },
+};
+
+function readControls() {
+  const now = atNine($("g-now").value || "2026-09-25");
+  const kind = $("g-kind").value;
+  const m = {
+    id: "m-1", roomId: "r", agent: "0xAGENT", kind,
+    tokenIn: USDC, tokenOut: WETH,
+    perRunCap: units($("g-run").value), perPeriodCap: units($("g-period").value),
+    period: "week",
+    expiresAt: Math.floor(atNine($("g-expires").value || "2026-12-24").getTime() / 1000) + 54000,
+    nonce: 1,
+  };
+  if ($("g-revoked").checked) m.revokedAt = Math.floor(now.getTime() / 1000) - 3600;
+  if ($("g-approved").checked) m.approval = { method: "wallet-signature", subject: "0xGRANDMOTHER", verifiedAt: 1, ref: "0x…" };
+  const flipped = $("g-pair").value === "bad";
+  const intent = { chainId: 8453, tokenIn: flipped ? WETH : USDC, tokenOut: flipped ? USDC : WETH,
+                   amountIn: units($("g-amount").value), recipient: "0xAGENT", slippageBps: 50 };
+  const key = safeKey(now);
+  const view = {
+    spentByPeriod: { "m-1": { [key]: units($("g-spent").value) } },
+    boughtPeriods: { "m-1": $("g-bought").checked ? [key] : [] },
+  };
+  return { m, view, intent, now, key };
+}
+function safeKey(now) { try { return periodKey("week", now); } catch { return "—"; } }
+
+function render() {
+  const { m, view, intent, now, key } = readControls();
+  const verdict = $("g-verdict"), what = verdict.querySelector(".what"), why = verdict.querySelector(".why");
+  let result = null, thrown = null;
+  try { result = checkMandate(m, view, intent, now); } catch (err) { thrown = err; }
+
+  if (thrown) {
+    verdict.className = "verdict no";
+    what.textContent = "TypeError";
+    why.textContent = thrown.message + " — a malformed mandate is a bug, so it stops the run instead of being filed as a refusal.";
+  } else if (result.ok) {
+    verdict.className = "verdict ok";
+    what.textContent = "allowed";
+    why.textContent = `${usdc(intent.amountIn)} USDC → WETH, period ${result.periodKey}, decisionOrigin ${result.decisionOrigin}.`;
+  } else {
+    verdict.className = "verdict no";
+    what.textContent = result.reason;
+    why.textContent = `Refused for period ${result.periodKey}. The passbook records this line, with this reason.`;
+  }
+
+  const firedAt = thrown ? -1 : (result.ok ? ORDER.length : ORDER.findIndex(([r]) => r === result.reason));
+  $("g-checks").innerHTML = ORDER.map(([name, note], i) => {
+    const state = thrown ? "unreached" : i < firedAt ? "passed" : i === firedAt ? "fired" : "unreached";
+    const mark = state === "passed" ? "✓" : state === "fired" ? "✕" : "·";
+    return `<li class="${state}"><span class="mark">${mark}</span><span class="name">${name}</span><span class="why">${note}</span></li>`;
+  }).join("");
+  if (!thrown && !result.ok && firedAt === -1)
+    $("g-checks").insertAdjacentHTML("afterbegin",
+      `<li class="fired"><span class="mark">!</span><span class="name">${result.reason}</span><span class="why">returned by check.js but not in this page's list</span></li>`);
+
+  $("g-call").innerHTML = `<span class="c">// the call this page just made</span>
+checkMandate(
+  <span class="c">/* mandate */</span> { kind: <span class="k">"${m.kind}"</span>, perRunCap: ${m.perRunCap}n, perPeriodCap: ${m.perPeriodCap}n,
+                 expiresAt: ${m.expiresAt}${m.revokedAt ? `, revokedAt: ${m.revokedAt}` : ""}${m.approval ? ", approval: { … }" : ""} },
+  <span class="c">/* view    */</span> { spentByPeriod: { "m-1": { <span class="k">"${key}"</span>: ${view.spentByPeriod["m-1"][key]}n } },
+                 boughtPeriods: { "m-1": [${view.boughtPeriods["m-1"].map((k) => `<span class="k">"${k}"</span>`).join(", ")}] } },
+  <span class="c">/* intent  */</span> { amountIn: ${intent.amountIn}n, tokenIn: <span class="k">"${intent.tokenIn.slice(0, 10)}…"</span> },
+  <span class="c">/* now     */</span> new Date(<span class="k">"${now.toISOString()}"</span>),
+)`;
+}
+
+$("presets").innerHTML = Object.keys(PRESETS).map((k) => `<button type="button" data-p="${k}">${k}</button>`).join("");
+$("presets").addEventListener("click", (ev) => {
+  const name = ev.target.dataset?.p; if (!name) return;
+  const p = PRESETS[name];
+  $("g-kind").value = p.kind; $("g-amount").value = p.amount; $("g-spent").value = p.spent;
+  $("g-revoked").checked = p.revoked; $("g-approved").checked = p.approved;
+  $("g-bought").checked = p.bought; $("g-pair").value = p.pair;
+  $("g-expires").value = p.expires ?? "2026-12-24";
+  $("g-run").value = 20; $("g-period").value = 100; $("g-now").value = "2026-09-25";
+  render();
+});
+for (const id of ["g-kind","g-run","g-period","g-expires","g-revoked","g-approved","g-amount","g-pair","g-spent","g-bought","g-now"])
+  $(id).addEventListener("input", render);
+render();
+
+/* the period key explorer */
+const P_PRESETS = [
+  ["Sun 27 Sep 2026", "2026-09-27", "The last day of ISO week 39 — Sunday closes the week, it does not open one."],
+  ["Mon 28 Sep 2026", "2026-09-28", "One day later and the week key moves: a new Monday is a new period, and the next run may buy."],
+  ["Thu 31 Dec 2026", "2026-12-31", "The Thursday that fixes this week's ISO year — it falls in 2026, so the whole week is 2026-W53."],
+  ["Fri 1 Jan 2027",  "2027-01-01", "A new calendar year, still 2026-W53. A run on New Year's Day belongs to last year's final week, and a mandate that bought in it is already done."],
+];
+function renderKeys() {
+  const raw = $("p-date").value;
+  const d = raw ? atNine(raw) : new Date(NaN);
+  for (const [period, el] of [["week", "p-week"], ["day", "p-day"], ["month", "p-month"]]) {
+    try { $(el).textContent = periodKey(period, d); }
+    catch (err) { $(el).textContent = "throws"; }
+  }
+  const hit = P_PRESETS.find(([, iso]) => iso === raw);
+  $("p-note").textContent = hit ? hit[2] : "";
+}
+$("p-presets").innerHTML = P_PRESETS.map(([label, iso]) => `<button type="button" data-d="${iso}">${label}</button>`).join("");
+$("p-presets").addEventListener("click", (ev) => {
+  const iso = ev.target.dataset?.d; if (!iso) return;
+  $("p-date").value = iso; renderKeys();
+});
+$("p-date").addEventListener("input", renderKeys);
+renderKeys();
+</script>
+</body>
+</html>
