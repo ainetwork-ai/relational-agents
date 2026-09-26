@@ -3,6 +3,7 @@
 //
 //   cd ens && npm run check
 import { checkAmount, formatUsdc, isSendRequest, parseSendRequest } from "../src/send-request";
+import { descendants, displayName, findNodeByAddress, matchesKinship, pickRecipients, type FamilyNode } from "../src/family-tree";
 
 let fails = 0;
 let passes = 0;
@@ -52,6 +53,58 @@ ok("amount: 100 ok", checkAmount(100_000_000n) === "ok");
 ok("amount: 100.000001 too large", checkAmount(100_000_001n) === "too-large");
 ok("format: 20", formatUsdc(20_000_000n) === "20");
 ok("format: 0.25", formatUsdc(250_000n) === "0.25");
+
+// ── family-tree ─────────────────────────────────────────────────────────────
+const node = (label: string, parent: string, relation: FamilyNode["relation"], alias: string | null, address: string | null, children: FamilyNode[] = []): FamilyNode => ({
+  name: `${label}.${parent}`,
+  label,
+  alias,
+  relation,
+  avatar: null,
+  address: address as FamilyNode["address"],
+  children,
+});
+const ROOT = "kim.ainmem.eth";
+const minjun = node("minjun", `dad.grandma.${ROOT}`, "son", "Minjun", "0x00000000000000000000000000000000000000a1");
+const seoyeon = node("seoyeon", `dad.grandma.${ROOT}`, "daughter", "Seoyeon", "0x00000000000000000000000000000000000000a2");
+const mom = node("mom", `dad.grandma.${ROOT}`, "spouse", "Mom", "0x00000000000000000000000000000000000000a3");
+const min = node("min", `aunt.grandma.${ROOT}`, "son", "Min", "0x00000000000000000000000000000000000000a4");
+const uncle = node("uncle", `aunt.grandma.${ROOT}`, "spouse", "Uncle", "0x00000000000000000000000000000000000000a5");
+const dad = node("dad", `grandma.${ROOT}`, "son", "Dad", "0x00000000000000000000000000000000000000b1", [mom, minjun, seoyeon]);
+const aunt = node("aunt", `grandma.${ROOT}`, "daughter", "Aunt", "0x00000000000000000000000000000000000000b2", [uncle, min]);
+const grandma = node("grandma", ROOT, null, "Grandma", "0x00000000000000000000000000000000000000c1", [dad, aunt]);
+const greatAunt = node("greataunt", ROOT, null, "Great-aunt", "0x00000000000000000000000000000000000000c2");
+const tree: FamilyNode = { name: ROOT, label: "kim", alias: "Kim family", relation: null, avatar: null, address: null, children: [grandma, greatAunt] };
+const names = (xs: FamilyNode[]) => xs.map((x) => x.label).sort().join(",");
+
+ok("find: by address, any case", findNodeByAddress(tree, "0x00000000000000000000000000000000000000C1")?.label === "grandma");
+ok("find: unknown address", findNodeByAddress(tree, "0x00000000000000000000000000000000000000ff") === null);
+ok("descendants: all 7 below grandma", descendants(grandma).length === 7);
+ok("descendants: path to minjun", descendants(grandma).find((d) => d.node === minjun)?.path.map((p) => p.label).join("/") === "dad/minjun");
+
+ok("kinship: grandson via son", matchesKinship([dad, minjun], "grandson"));
+ok("kinship: grandson via daughter", matchesKinship([aunt, min], "grandson"));
+ok("kinship: granddaughter", matchesKinship([dad, seoyeon], "granddaughter"));
+ok("kinship: spouse is not a grandchild", !matchesKinship([dad, mom], "grandchild"));
+ok("kinship: daughter-in-law", matchesKinship([dad, mom], "daughter-in-law"));
+ok("kinship: son-in-law", matchesKinship([aunt, uncle], "son-in-law"));
+ok("kinship: son", matchesKinship([dad], "son"));
+ok("kinship: son is not grandson", !matchesKinship([dad], "grandson"));
+
+ok("pick: by name", names(pickRecipients(grandma, { kinship: null, text: "send Minjun 20 USDC" })) === "minjun");
+ok("pick: name is case-insensitive", names(pickRecipients(grandma, { kinship: null, text: "send minjun 20 USDC" })) === "minjun");
+ok("pick: 'Min' is not 'Minjun'", names(pickRecipients(grandma, { kinship: null, text: "send Min 20 USDC" })) === "min");
+ok("pick: grandson → two candidates", names(pickRecipients(grandma, { kinship: "grandson", text: "send my grandson 5 USDC" })) === "min,minjun");
+ok("pick: grandson + name narrows", names(pickRecipients(grandma, { kinship: "grandson", text: "send my grandson Minjun 5 USDC" })) === "minjun");
+ok("pick: grandchild", names(pickRecipients(grandma, { kinship: "grandchild", text: "send my grandchild 5 USDC" })) === "min,minjun,seoyeon");
+ok("pick: outside the subtree", pickRecipients(grandma, { kinship: null, text: "send Great-aunt 5 USDC" }).length === 0);
+ok("pick: nobody named", pickRecipients(grandma, { kinship: null, text: "send 5 USDC" }).length === 0);
+ok("pick: never the asker", pickRecipients(grandma, { kinship: null, text: "send Grandma 5 USDC" }).length === 0);
+const nick = new Map([[minjun.name, ["Junie"]], [seoyeon.name, ["baby"]], [min.name, ["baby"]]]);
+ok("pick: nickname", names(pickRecipients(grandma, { kinship: null, text: "send Junie 5 USDC", nicknames: nick })) === "minjun");
+ok("pick: shared nickname → ask", names(pickRecipients(grandma, { kinship: null, text: "send baby 5 USDC", nicknames: nick })) === "min,seoyeon");
+ok("displayName: alias", displayName(minjun) === "Minjun");
+ok("displayName: label fallback", displayName({ ...minjun, alias: null }) === "minjun");
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
