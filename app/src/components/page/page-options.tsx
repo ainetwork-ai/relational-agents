@@ -12,7 +12,10 @@ import {
   Download,
   History,
   Trash2,
+  Star,
+  Link2,
 } from "lucide-react";
+import { copyText } from "@/lib/compat";
 import type { Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { useToastStore } from "@/stores/toast";
@@ -88,7 +91,7 @@ export function PageOptionsMenu({
     .slice(0, 12);
 
   const item =
-    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700";
+    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 max-md:py-2.5 dark:text-neutral-200 dark:hover:bg-neutral-700";
 
   return (
     <div ref={ref} className="relative">
@@ -97,12 +100,37 @@ export function PageOptionsMenu({
         data-tip={t("Show more")}
         onClick={toggle}
         aria-label={t("Page options")}
-        className="flex items-center rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        className="flex items-center rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:min-w-9 max-md:justify-center dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <MoreHorizontal size={16} />
       </button>
       {open && (
-        <div className="popover-anim absolute right-0 top-8 z-50 w-[256px] rounded-[10px] border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="popover-anim absolute right-0 top-8 z-50 w-[256px] rounded-[10px] border border-neutral-200 bg-white py-1 shadow-xl max-md:top-10 max-md:max-w-[calc(100vw-16px)] dark:border-neutral-700 dark:bg-neutral-800">
+          {/* phones: the top bar has no room for these two, so they live here */}
+          <div className="md:hidden">
+            <button
+              data-testid="page-opt-favorite"
+              onClick={() => {
+                setOpen(false);
+                void updatePage(page.id, { isFavorite: !page.isFavorite });
+              }}
+              className={item}
+            >
+              <Star size={14} className={page.isFavorite ? "fill-yellow-400 text-yellow-500" : ""} />
+              {page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
+            </button>
+            <button
+              data-testid="page-opt-copylink"
+              onClick={async () => {
+                setOpen(false);
+                if (await copyText(`${window.location.origin}/p/${page.id}`)) useToastStore.getState().show(t("Link copied"));
+              }}
+              className={item}
+            >
+              <Link2 size={14} /> {t("Copy link")}
+            </button>
+            <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
+          </div>
           <button
             data-testid="page-opt-fullwidth"
             onClick={() => void updatePage(page.id, { fullWidth: !page.fullWidth })}

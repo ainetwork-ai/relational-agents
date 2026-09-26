@@ -113,7 +113,7 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
       <div
         aria-label={t("Comment actions")}
         data-testid={`comment-actions-${comment.id}`}
-        className="pointer-events-none absolute right-0 top-0 flex h-7 items-center opacity-0 transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
+        className="pointer-events-none absolute right-0 top-0 flex h-7 items-center touch-reveal opacity-0 transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
       >
         <button
           ref={btn}

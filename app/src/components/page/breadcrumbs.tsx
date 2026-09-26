@@ -52,7 +52,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
       {teamspace ? (
         <span
           data-testid="breadcrumb-teamspace"
-          className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300"
+          className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-neutral-600 max-md:hidden dark:text-neutral-300"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded bg-neutral-200 text-[10px] font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-200">
             {teamspace.icon || [...teamspace.name][0]}
@@ -63,7 +63,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
         <Link
           href="/"
           data-testid="breadcrumb-home"
-          className="shrink-0 rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="shrink-0 rounded px-1.5 py-0.5 hover:bg-neutral-100 max-md:hidden dark:hover:bg-neutral-800"
         >
           {t("Home")}
         </Link>
@@ -73,7 +73,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
         : [chain[0], { id: "__ellipsis__", title: "…", icon: null }, chain[chain.length - 1]]
       ).map((c) =>
         c.id === "__ellipsis__" ? (
-          <span key="ellipsis" className="flex items-center gap-0.5">
+          <span key="ellipsis" className="flex items-center gap-0.5 max-md:hidden">
             <ChevronRight size={13} className="shrink-0 text-neutral-300 dark:text-neutral-600" />
             <button
               data-testid="breadcrumb-ellipsis"
@@ -85,8 +85,8 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
             </button>
           </span>
         ) : (
-        <span key={c.id} className="flex min-w-0 items-center gap-0.5">
-          <ChevronRight size={13} className="shrink-0 text-neutral-300 dark:text-neutral-600" />
+        <span key={c.id} className={`flex min-w-0 items-center gap-0.5 ${c.id === chain[chain.length - 1]?.id ? "" : "max-md:hidden"}`}>
+          <ChevronRight size={13} className="shrink-0 text-neutral-300 max-md:hidden dark:text-neutral-600" />
           <Link
             href={`/p/${c.id}`}
             data-testid="breadcrumb-crumb"

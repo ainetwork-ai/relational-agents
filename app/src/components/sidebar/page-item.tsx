@@ -146,7 +146,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
     <div>
       <div
         data-testid={`page-tree-item-${page.id}`}
-        className={`group relative flex items-center gap-0.5 rounded-md py-1 pr-1 text-sm transition-colors ${
+        className={`group relative flex items-center gap-0.5 rounded-md py-1 pr-1 text-sm transition-colors max-md:py-2 ${
           isActive
             ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-700/50 dark:text-neutral-100"
             : "text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
@@ -166,7 +166,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
         <button
           data-testid={`page-tree-toggle-${page.id}`}
           onClick={hasChildren ? () => toggleExpanded(page.id) : undefined}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 max-md:h-7 max-md:w-7 dark:hover:bg-neutral-700"
           aria-label={hasChildren ? (expanded ? t("Collapse") : t("Expand")) : undefined}
         >
           {/* Swap the page icon for the chevron on row hover. A leaf keeps its

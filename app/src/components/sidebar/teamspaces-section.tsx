@@ -69,7 +69,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
           <button
             data-testid="teamspace-create"
             onClick={() => setCreating((v) => !v)}
-            className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
+            className="rounded p-0.5 text-neutral-400 max-md:p-2 touch-reveal opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
             aria-label={t("New teamspace")}
           >
             <Plus size={14} />
@@ -99,7 +99,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
               <button
                 data-testid={`teamspace-${ts.id}`}
                 onClick={() => toggleExpanded(key)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1"
+                className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 max-md:py-2"
               >
                 <ChevronRight
                   size={14}
@@ -114,7 +114,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
               <button
                 data-testid={`teamspace-add-page-${ts.id}`}
                 onClick={() => void addPage(ts.id)}
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-all hover:bg-neutral-300/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/row:opacity-100 dark:hover:bg-neutral-700"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 max-md:h-8 max-md:w-8 touch-reveal opacity-0 transition-all hover:bg-neutral-300/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/row:opacity-100 dark:hover:bg-neutral-700"
                 aria-label={t("Add a page")}
               >
                 <Plus size={14} />

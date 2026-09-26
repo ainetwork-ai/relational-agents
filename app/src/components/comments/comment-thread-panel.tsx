@@ -50,7 +50,7 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
  // z above a peek (z-50) rather than behind it: Comments opens from inside one
     <aside
       data-testid="comment-thread-panel"
-      className="popover-anim fixed right-0 top-0 z-[60] flex h-full w-[340px] flex-col border-l border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+      className="popover-anim fixed right-0 top-0 z-[60] flex h-full w-[340px] flex-col border-l max-md:w-full max-md:border-l-0 max-md:pb-[env(safe-area-inset-bottom)] border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
     >
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-700 dark:border-neutral-800 dark:text-neutral-200">
         <MessageSquare size={16} />

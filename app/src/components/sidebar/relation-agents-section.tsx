@@ -63,7 +63,7 @@ export function RelationAgentsSection() {
         agents.map((a) => (
           <div
             key={a.agentUserId}
-            className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 max-md:py-2 hover:bg-neutral-200/50 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
             {a.avatarUrl ? (
  // eslint-disable-next-line @next/next/no-img-element
@@ -100,7 +100,7 @@ export function RelationAgentsSection() {
                   setRenameFor(a.agentUserId);
                 }
               }}
-              className="shrink-0 rounded p-0.5 text-neutral-400 opacity-0 hover:text-neutral-600 group-hover:opacity-100"
+              className="shrink-0 rounded p-0.5 text-neutral-400 touch-reveal opacity-0 hover:text-neutral-600 group-hover:opacity-100"
               aria-label={t("Rename agent")}
             >
               {renameFor === a.agentUserId ? <Check size={12} /> : <Pencil size={12} />}

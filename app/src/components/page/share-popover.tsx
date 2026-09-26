@@ -178,13 +178,13 @@ export function SharePopover({ pageId }: { pageId: string }) {
       <button
         data-testid="share-button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-md px-2.5 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        className="shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:px-2 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         {t("Share")}
       </button>
 
       {open && (
-        <div className="popover-anim absolute right-0 top-9 z-40 w-96 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="popover-anim absolute right-0 top-9 z-40 w-96 rounded-lg border max-md:fixed max-md:inset-x-2 max-md:top-12 max-md:w-auto border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {/* ── Share / Publish tabs (the export structure) ────────────── */}
           <div className="mb-3 flex items-center gap-4 border-b border-neutral-100 px-1 dark:border-neutral-700">
             <button

@@ -494,7 +494,7 @@ export function Browser({
                   data-testid={`aindrive-delete-${e.path}`}
                   onClick={() => void remove(e)}
                   aria-label={t("Delete")}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 opacity-0 hover:bg-neutral-200 hover:text-red-600 focus-visible:opacity-100 group-hover/entry:opacity-100 dark:hover:bg-neutral-700"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 touch-reveal opacity-0 hover:bg-neutral-200 hover:text-red-600 focus-visible:opacity-100 group-hover/entry:opacity-100 dark:hover:bg-neutral-700"
                 >
                   <Trash2 size={13} />
                 </button>

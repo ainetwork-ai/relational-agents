@@ -32,7 +32,7 @@ function NavTab({
       data-testid={`settings-tab-${id}`}
       aria-selected={active}
       onClick={() => onSelect(id)}
-      className={`flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-sm font-medium leading-5 text-neutral-900 transition-colors hover:bg-neutral-200/60 dark:text-neutral-100 dark:hover:bg-neutral-700 ${
+      className={`flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-sm font-medium leading-5 max-md:h-9 max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap max-md:px-2.5 text-neutral-900 transition-colors hover:bg-neutral-200/60 dark:text-neutral-100 dark:hover:bg-neutral-700 ${
         active ? "bg-neutral-200/60 dark:bg-neutral-700" : ""
       }`}
     >
@@ -95,28 +95,28 @@ export function SettingsModal({
 
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 max-md:items-stretch" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={t("Settings")}
         data-testid="settings-modal"
         onClick={(e) => e.stopPropagation()}
-        className="relative flex h-[calc(100%-100px)] w-[90vw] max-w-[1512px] overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-neutral-800"
+        className="relative flex h-[calc(100%-100px)] w-[90vw] max-w-[1512px] overflow-hidden rounded-xl bg-white shadow-2xl max-md:h-full max-md:w-full max-md:flex-col max-md:rounded-none dark:bg-neutral-800"
       >
-        <nav className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto bg-neutral-50 px-2 py-2 dark:bg-neutral-900" role="tablist" aria-orientation="vertical">
-          <div className="flex flex-col gap-0.5">
-            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("Account")}</div>
+        <nav className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto bg-neutral-50 px-2 py-2 max-md:w-full max-md:flex-row max-md:gap-1 max-md:overflow-x-auto max-md:border-b max-md:border-neutral-200 dark:bg-neutral-900 max-md:dark:border-neutral-700" role="tablist" aria-orientation="vertical">
+          <div className="flex flex-col gap-0.5 max-md:flex-row max-md:gap-1">
+            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500 max-md:hidden">{t("Account")}</div>
             <NavTab id="account" active={tab === "account"} onSelect={setTab} icon={<UserAvatar user={shown} size={20} />} label={shown.displayName} />
             <NavTab id="preferences" active={tab === "preferences"} onSelect={setTab} icon={<SlidersIcon />} label={t("Preferences")} />
           </div>
-          <div className="flex flex-col gap-0.5">
-            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("Workspace")}</div>
+          <div className="flex flex-col gap-0.5 max-md:flex-row max-md:gap-1">
+            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500 max-md:hidden">{t("Workspace")}</div>
             <NavTab id="general" active={tab === "general"} onSelect={setTab} icon={<GearIcon />} label={t("General")} />
           </div>
         </nav>
         <div role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="relative flex-1 overflow-y-auto bg-white dark:bg-neutral-800">
-          <div className="flex justify-center px-[clamp(18px,5vw,60px)] py-9">
+          <div className="flex justify-center px-[clamp(18px,5vw,60px)] py-9 max-md:py-6">
             <div className="flex w-full max-w-[800px] flex-col gap-9">
               {tab === "account" && <AccountPanel initialName={displayName} />}
               {tab === "preferences" && <PreferencesPanel />}
@@ -128,7 +128,7 @@ export function SettingsModal({
           onClick={onClose}
           aria-label={t("Close")}
           data-testid="settings-close"
-          className="absolute right-3 top-3 flex h-[22px] w-[22px] items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
+          className="absolute right-3 top-3 flex h-[22px] w-[22px] items-center justify-center rounded-full max-md:right-1.5 max-md:top-1.5 max-md:h-9 max-md:w-9 text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
         >
           <svg aria-hidden viewBox="0 0 16 16" width={14} height={14} fill="currentColor">
             <path d="M12.73 4.33a.75.75 0 1 0-1.06-1.06L8 6.94 4.33 3.27a.75.75 0 0 0-1.06 1.06L6.94 8l-3.67 3.67a.75.75 0 1 0 1.06 1.06L8 9.06l3.67 3.67a.75.75 0 0 0 1.06-1.06L9.06 8z" />

@@ -45,7 +45,7 @@ export function SectionMenu({ testId, label }: { testId: string; label: string }
         aria-label={t("{label} options", { label })}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
+        className="rounded p-0.5 text-neutral-400 max-md:p-2 touch-reveal opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
       >
         <MoreHorizontal size={14} />
       </button>

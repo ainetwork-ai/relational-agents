@@ -204,6 +204,7 @@ body {
 /* #80 styled instant tooltips via data-tip (delay ≈ Notion's 300ms) */
 @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
 [data-tip] { position: relative; }
+@media (hover: hover) {
 [data-tip]:hover::after {
   content: attr(data-tip);
   position: absolute;
@@ -221,6 +222,7 @@ body {
   pointer-events: none;
   opacity: 0;
   animation: tip-in 120ms ease-out 350ms forwards;
+}
 }
 
 /* #97 thin overlay-style scrollbars everywhere */
@@ -301,4 +303,26 @@ header {
    ::selection on Notion 2026-09-09, docs/notion-selection-copy.md §2) */
 [data-testid="editor-root"] ::selection {
   background: rgba(35, 131, 226, 0.28);
+}
+
+/* ── phones ────────────────────────────────────────────────────────────────
+   iOS Safari zooms the whole page into any focused field under 16px and
+   leaves it zoomed. Fields keep their desktop size everywhere else. */
+@media (max-width: 767px) {
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select):is(
+      .text-xs, .text-sm, [class*="text-[10px]"], [class*="text-[11px]"], [class*="text-[12px]"],
+      [class*="text-[13px]"], [class*="text-[14px]"], [class*="text-[15px]"]
+    ) {
+    font-size: 16px;
+  }
+}
+
+/* Controls that appear on hover (add a page, a row's Open, a comment's ⋯, …)
+   have no hover to wait for on a touch screen: there they are simply shown.
+   Drag handles and resize grips stay hover-only — they need a mouse anyway. */
+@media (hover: none) {
+  .touch-reveal {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 }

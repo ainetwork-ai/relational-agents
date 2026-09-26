@@ -44,7 +44,7 @@ export function SettingsSelect<V extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-7 items-center gap-1 rounded-md border border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700"
+        className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border max-md:h-9 border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700"
       >
         {current.label}
         <svg aria-hidden viewBox="3.06 0 9.88 16" width={10} height={16} fill="currentColor" className="text-neutral-500">

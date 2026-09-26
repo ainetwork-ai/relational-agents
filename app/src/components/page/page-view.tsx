@@ -251,7 +251,7 @@ export function PageView({
       {!peek && <title>{title.trim() ? title : t("Untitled")}</title>}
       {/* 44px tall like Notion's .notion-topbar (measured 2026-08-27: the frame
           starts at y=44). It was py-1.5 around 28px buttons = 40. */}
-      <div className="sticky top-0 z-30 flex h-11 items-center justify-between gap-1 bg-white px-3 dark:bg-[#191919]">
+      <div className="sticky top-0 z-30 flex h-11 items-center justify-between gap-1 bg-white px-3 max-md:pl-12 max-md:pr-1 dark:bg-[#191919]">
         {peek ? (
           /* Notion's peek header: open-as-full-page, a divider, then where the
              page went. A page with no parent went to Private, which Notion
@@ -312,9 +312,10 @@ export function PageView({
         ) : (
           <Breadcrumbs pageId={initialPage.id} current={page} />
         )}
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 max-md:gap-0">
         <FamilyFoldersPill teamspaceId={page.teamspaceId} />
-        <PresenceBar self={self} others={others} />
+        {/* on a phone the bar keeps only what fits: the avatars go, Favorite and Copy link move into ⋯ */}
+        <span className="contents max-md:hidden"><PresenceBar self={self} others={others} /></span>
         {page.isLocked && (
           <span
             data-testid="page-locked-banner"
@@ -339,7 +340,7 @@ export function PageView({
           onClick={() => updatePage(initialPage.id, { isFavorite: !page.isFavorite })}
           aria-label={page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
           data-tip={page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
-          className={`rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+          className={`rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-100 max-md:hidden dark:hover:bg-neutral-800 ${
             page.isFavorite ? "text-yellow-500" : "text-neutral-500 dark:text-neutral-400"
           }`}
         >
@@ -350,11 +351,11 @@ export function PageView({
           onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
           aria-label={t("Comments")}
           data-tip={t("Comments")}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:min-w-9 max-md:justify-center dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <MessageSquare size={16} />
         </button>
-        <CopyLinkButton pageId={initialPage.id} />
+        <span className="contents max-md:hidden"><CopyLinkButton pageId={initialPage.id} /></span>
         <SharePopover pageId={initialPage.id} />
         <PageOptionsMenu
           page={page}
@@ -368,7 +369,7 @@ export function PageView({
             onClick={peek.onClose}
             aria-label={t("Close")}
             data-tip={t("Close")}
-            className="rounded-md px-1.5 py-1 text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            className="rounded-md px-1.5 py-1 text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:min-w-9 max-md:justify-center dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <X size={16} />
           </button>
@@ -387,7 +388,7 @@ export function PageView({
       <div style={detailsOpen && !isPeek ? { marginRight: DETAILS_SIDEBAR_WIDTH } : undefined}>
       <div
         data-testid="page-root"
-        className={`group/pagehead mx-auto ${
+        className={`group/pagehead mx-auto max-md:!px-5 ${
  // A database page: no width cap and a fixed 96px inset, which is what the
  // original measures — its content div carries `padding-left: 96px` with no
  // max-width, so the column grows with the window while the margin stays put.
@@ -431,7 +432,7 @@ export function PageView({
         {/* hover action row: Add icon · Add cover · Add comment —
             revealed on header hover, never pinned to the viewport */}
         <div
-          className={`flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/pagehead:opacity-100 ${
+          className={`flex items-center gap-1 touch-reveal opacity-0 transition-opacity focus-within:opacity-100 group-hover/pagehead:opacity-100 ${
  // a database page: the original's .notion-page-controls row is 48 tall right
  // under the cover — 16 above, 28px buttons, 4 below — and the title row
  // follows with no gap
@@ -456,7 +457,7 @@ export function PageView({
           <button
             data-testid="page-head-comment"
             onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
-            className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 max-md:py-2 dark:hover:bg-neutral-800"
           >
             <CommentIcon /> {t("Add comment")}
           </button>
@@ -881,7 +882,7 @@ export function CoverControls({
           setDraft("");
           setEditing(true);
         }}
-        className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+        className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 max-md:py-2 dark:hover:bg-neutral-800"
       >
         <PhotoIcon /> {t("Add cover")}
       </button>
