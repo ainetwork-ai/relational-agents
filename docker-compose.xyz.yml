@@ -25,32 +25,33 @@ services:
         NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
         NEXT_PUBLIC_WORLD_ID_ENV: ${NEXT_PUBLIC_WORLD_ID_ENV:-}
     restart: unless-stopped
-    # Resolve outside names ourselves: the host's stub resolver (one upstream, the
-    # LAN router) has answered EAI_AGAIN under load, and a World ID step-up that
-    # can't resolve sandbox.auth.world.org fails as "isn't reachable".
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+    # Host networking, on purpose. The app's outbound calls — the World ID IdP
+    # for every approval, the Base RPC for investments — left through the
+    # docker bridge and timed out for minutes at a time while the host itself
+    # stayed fine (integration-log.md, 2026-09-26); a step-up that landed in
+    # such a window failed as "World ID isn't reachable". On the host's own
+    # stack there is no NAT and no embedded resolver in the path. The server
+    # binds 127.0.0.1:3150 itself, where nginx already points; postgres is
+    # reached on its published loopback port, vLLM on the host's :8110.
+    network_mode: host
     depends_on:
       postgres:
         condition: service_healthy
     env_file:
       - .env.xyz
     environment:
-      POSTGRES_URL: postgresql://ainmem_xyz:${POSTGRES_PASSWORD}@postgres:5432/ainmem_xyz
+      PORT: "3150"
+      HOSTNAME: 127.0.0.1
+      POSTGRES_URL: postgresql://ainmem_xyz:${POSTGRES_PASSWORD}@127.0.0.1:5439/ainmem_xyz
       OKF_ROOT: /data/okf
       MD_MIRROR_ROOT: /data/md-mirror
       # vLLM runs on the host (gemma on :8110)
-      AI_URL: http://host.docker.internal:8110/v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      AI_URL: http://127.0.0.1:8110/v1
     volumes:
       - ./deploy-xyz/okf-content:/data/okf
       - ./deploy-xyz/uploads:/app/public/uploads
       - ./deploy-xyz/avatars:/app/public/avatars
       - ainmem_xyz_mdmirror:/data/md-mirror
-    ports:
-      - "127.0.0.1:3150:3000"
 
   postgres:
     image: postgres:16-alpine
