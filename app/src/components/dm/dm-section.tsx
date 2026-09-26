@@ -13,7 +13,9 @@ import { useT } from "@/i18n/provider";
 function preview(room: DmRoomSummary, t: T): string {
   const m = room.lastMessage;
   if (!m) return t("Start a chat");
-  if (m.text) return m.text;
+  // one line: a multi-line message ("I won't do that.\nOur rules say…") reads
+  // as sentences, not glued together where the line break was
+  if (m.text) return m.text.replace(/\s*\n\s*/g, " ");
   if (m.hasAttachments) return t("📷 Photo");
   return "";
 }

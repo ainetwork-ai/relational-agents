@@ -86,6 +86,22 @@ function dateLabel(iso: string, locale: string): string {
   });
 }
 
+/** A doc page's name from its OKF page id (the base64url of its path):
+ * ".../Treasury Rules.md" → "Treasury Rules". Null for the doc's root, an
+ * index page, or anything that does not decode to such a path. */
+function okfSectionTitle(id: string): string | null {
+  try {
+    const b64 = id.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+    const path = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(bin, (ch) => ch.charCodeAt(0)));
+    const leaf = path.split("/").pop() ?? "";
+    if (!path.includes("/") || !/\.md$/i.test(leaf) || /^index\.md$/i.test(leaf)) return null;
+    return leaf.replace(/\.md$/i, "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Human↔human DM room view — realtime receive (SSE inbox), photo
  * attachments, invite/rename/leave, and the agent's "AI organize"
  * (relationship-doc creation), all in one screen. */
@@ -179,8 +195,10 @@ export function DmView({
   const loadedRef = useRef(false);
   /** Check whether this room has the relationship agent (drives the header button). */
   const loadAgent = useCallback(async () => {
-    const res = await fetch(`/api/dm/rooms/${roomId}/agent`);
-    setHasAgent(res.ok);
+    // a dropped connection (tunnel blip, dev-server restart) says nothing about
+    // the agent — keep what we know instead of an unhandled rejection
+    const res = await fetch(`/api/dm/rooms/${roomId}/agent`).catch(() => null);
+    if (res) setHasAgent(res.ok);
   }, [roomId]);
 
   const loadAll = useCallback(async () => {
@@ -216,8 +234,9 @@ export function DmView({
   }, [roomId, markRead, t]);
 
   const refetchMessages = useCallback(async () => {
-    const res = await fetch(`/api/dm/rooms/${roomId}/messages`);
-    if (!res.ok) return;
+    // network failure: keep the thread as is — the next event or SSE hello refetches
+    const res = await fetch(`/api/dm/rooms/${roomId}/messages`).catch(() => null);
+    if (!res?.ok) return;
     const { messages: next } = (await res.json()) as { messages: DmMessage[] };
     setMessages(next);
     void markRead();
@@ -625,9 +644,11 @@ export function DmView({
         const isDoc =
           (!!room?.rootPageId && part === `/p/${room.rootPageId}`) ||
           !/^\/p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(part);
+        // a page inside the doc is cited by its own name ("Rules: 📄 Treasury Rules")
+        const section = isDoc ? okfSectionTitle(part.slice(3)) : null;
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 {isDoc ? t("Relation doc") : t("Open page")}
+            📄 {section ?? (isDoc ? t("Relation doc") : t("Open page"))}
           </a>
         );
       }

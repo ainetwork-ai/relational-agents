@@ -8,7 +8,8 @@ import { UserAvatar } from "@/components/user-avatar";
 /** DM avatar: a person goes through the shared UserAvatar — their photo when
  * they have one, else their initial — so a DM face matches the sidebar and the
  * page's face pile. Agents keep their own person-style initial ("relationship
- * agent" → R) with a small robot chip on the corner marking them as an agent. */
+ * agent" → R) — or their picture, when one was set for them — with a small
+ * robot chip on the corner marking them as an agent. */
 export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.max(10, size * 0.45) };
   if (user.isAgent) {
@@ -21,12 +22,16 @@ export function DmAvatar({ user, size = 24 }: { user: DmUser; size?: number }) {
         className="relative inline-flex shrink-0"
         style={{ width: size, height: size }}
       >
-        <span
-          style={style}
-          className="flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
-        >
-          {initial(user.displayName)}
-        </span>
+        {user.avatarUrl ? (
+          <UserAvatar user={user} size={size} />
+        ) : (
+          <span
+            style={style}
+            className="flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
+          >
+            {initial(user.displayName)}
+          </span>
+        )}
         <span
           className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-purple-600 text-white ring-[1.5px] ring-white dark:bg-purple-500 dark:ring-neutral-900"
           style={{ width: chip, height: chip }}
