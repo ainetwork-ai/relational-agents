@@ -237,6 +237,17 @@
   gap: 12px;
 }
 
+/* ── the demo video ── */
+.video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #000;
+  box-shadow: var(--w-shadow);
+}
+
 /* ── the recorded room, as a statement ── */
 .statement {
   background: var(--w-card);
@@ -669,16 +680,6 @@
   gap: 10px;
 }
 
-.primaryOff {
-  display: inline-flex;
-  align-items: center;
-  padding: 12px 20px;
-  border-radius: 12px;
-  background: var(--w-hair);
-  color: var(--w-sec);
-  font-weight: 600;
-  cursor: default;
-}
 
 .secondaryBtn {
   display: inline-flex;

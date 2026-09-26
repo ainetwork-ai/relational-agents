@@ -23,6 +23,9 @@ const PRETENDARD_CSS =
 const REPO = "https://github.com/ainetwork-ai/relational-agents";
 const WORLD_DIR = `${REPO}/tree/main/world`;
 const SRC = `${REPO}/blob/main/app/src`;
+// the narrated demo, served by this app so it plays without an account anywhere
+const VIDEO = "/demo/world/relation-treasury.mp4";
+const VIDEO_POSTER = "/demo/world/relation-treasury-poster.jpg";
 
 const when = new Intl.DateTimeFormat("en-US", {
   timeZone: TREASURY_TIME_ZONE,
@@ -71,8 +74,11 @@ const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 function entryTitle(e: DemoEntry): { title: string; payee: string | null } {
   if (e.kind === RATIFY_KIND) return { title: "Treasury rules adopted", payee: null };
   if (e.kind === "recurring-buy") return { title: "Recurring buy adopted", payee: null };
-  if (e.kind === "investment") return { title: "Invested idle funds", payee: e.payee };
-  if (e.memo) return { title: capitalize(e.memo), payee: e.payee };
+  if (e.kind === "investment") return { title: "Invested", payee: e.payee };
+  const memo = e.memo.toLowerCase();
+  const payee = (e.payee ?? "").toLowerCase();
+  // a memo that only repeats where the money goes ("Alex's wallet") names it once
+  if (e.memo && !(payee && (payee.includes(memo) || memo.includes(payee)))) return { title: capitalize(e.memo), payee: e.payee };
   return { title: e.payee ? `To ${e.payee}` : "Payment", payee: null };
 }
 
@@ -115,7 +121,8 @@ function EntryMeta({ e }: { e: DemoEntry }) {
 function Statement({ snap, modes }: { snap: DemoSnapshot; modes: ReturnType<typeof worldModes> }) {
   const withVote = snap.people.filter((p) => p.vote);
   const without = snap.people.filter((p) => !p.vote);
-  const entries = [...snap.activity].reverse();
+  // in the order things were settled, the times the rows show
+  const entries = [...snap.activity].sort((a, b) => a.at.localeCompare(b.at));
   return (
     <div className={styles.statement}>
       <div className={styles.stHead}>
@@ -193,7 +200,8 @@ function Statement({ snap, modes }: { snap: DemoSnapshot; modes: ReturnType<type
           ? "World ID for Agents, the event's sandbox IdP"
           : modes.approvals === "mock"
             ? "a local mock IdP, not World"
-            : "not configured"}
+            : "not configured"}{" "}
+        · Amounts: Sepolia ETH at a demo scale of $200,000 per ETH
       </p>
     </div>
   );
@@ -205,7 +213,6 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
   const [live, trial] = await Promise.all([recording && demoSnapshot(recording), tryRoom && demoSnapshot(tryRoom)]);
   const modes = worldModes();
   const canEnter = demoLoginEnabled() && tryRoom !== null;
-  const video = process.env.WORLD_DEMO_VIDEO_URL;
   const note = RESET_NOTE[sp.reset ?? (sp.try === "missing" ? "missing" : "")];
   const flash = note && sp.reset === "done" && canTopUp() ? `${note} If visitors ran its wallet low, it is being topped up now.` : note;
 
@@ -234,15 +241,9 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
             gets one vote with IDKit, and every payment waits for fresh World ID checks from different humans.
           </p>
           <div className={styles.cta}>
-            {video ? (
-              <a className={styles.primary} href={video} target="_blank" rel="noreferrer">
-                ▶ Watch the 3-minute demo
-              </a>
-            ) : (
-              <span className={styles.primaryOff} title="The recording is being made; this button turns on with the link">
-                ▶ Demo video — soon
-              </span>
-            )}
+            <a className={styles.primary} href="#demo">
+              ▶ Watch the 3½-minute demo
+            </a>
             <a className={styles.secondaryBtn} href="#try">
               Try it yourself — about 2 minutes →
             </a>
@@ -263,14 +264,17 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
           </div>
         </section>
 
-        <section className={styles.section} aria-labelledby="live">
+        <section className={styles.section} id="demo" aria-labelledby="live">
           <h2 id="live" className={styles.h2}>
-            The room from the video, live
+            The demo, and the room it was recorded in
           </h2>
           <p className={styles.sub}>
-            Read-only: the Tokyo Trip room we recorded in, as it is right now. Every payment links to its transaction, so
-            you can check it on the chain yourself. Sepolia ETH counts at a demo scale of $200,000 per ETH.
+            Three and a half minutes, recorded on this site. Under it, the same room as it is right now: every payment
+            links to its transaction, so you can check it on the chain yourself.
           </p>
+          <video className={styles.video} controls preload="metadata" playsInline poster={VIDEO_POSTER}>
+            <source src={VIDEO} type="video/mp4" />
+          </video>
           {recording && live ? (
             <Statement snap={live} modes={modes} />
           ) : (
