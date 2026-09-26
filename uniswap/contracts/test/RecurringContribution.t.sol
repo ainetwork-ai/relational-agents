@@ -92,8 +92,13 @@ contract RecurringContributionTest {
         rc.pull(plan);
     }
 
-    function nextIndexOf(bytes32 plan) internal view returns (uint48 nextIndex) {
-        (,,,,,,, nextIndex,) = rc.plans(plan);
+    /// bit i set = period i was pulled
+    function pulledOf(bytes32 plan) internal view returns (uint256 pulled) {
+        (,,,,,,,, pulled) = rc.plans(plan);
+    }
+
+    function stoppedAtOf(bytes32 plan) internal view returns (uint48 stoppedAt) {
+        (,,,,,,, stoppedAt,) = rc.plans(plan);
     }
 
     function potOf(bytes32 plan) internal view returns (address p) {
@@ -108,7 +113,7 @@ contract RecurringContributionTest {
         pullAs(stranger, id); // anyone may call pull
         require(m0 - balance(member) == WEEKLY, "member paid exactly one amount");
         require(balance(pot) - p0 == WEEKLY, "the pot got exactly one amount");
-        require(nextIndexOf(id) == 1, "period 0 is spent");
+        require(pulledOf(id) == 1, "period 0 is spent");
     }
 
     function test_a_second_pull_in_the_same_period_reverts() public {
@@ -124,7 +129,7 @@ contract RecurringContributionTest {
         vm.warp(startedAt + WEEK); // period 1 begins
         pullAs(stranger, id);
         require(balance(pot) - p0 == 2 * WEEKLY, "two periods, two amounts");
-        require(nextIndexOf(id) == 2, "period 1 is spent");
+        require(pulledOf(id) == 0x3, "periods 0 and 1 are spent");
     }
 
     function test_a_pull_at_or_after_until_reverts() public {
@@ -139,8 +144,13 @@ contract RecurringContributionTest {
     }
 
     function test_after_stop_every_pull_reverts() public {
+        vm.warp(startedAt + 2 days);
         vm.prank(member);
         rc.stop(id);
+        require(stoppedAtOf(id) == startedAt + 2 days, "the stop is dated");
+        vm.prank(member);
+        vm.expectRevert(abi.encodeWithSelector(RecurringContribution.PlanStopped.selector));
+        rc.stop(id); // a plan stops once
         vm.expectRevert(abi.encodeWithSelector(RecurringContribution.PlanStopped.selector));
         rc.pull(id);
         vm.warp(startedAt + 3 * WEEK);
@@ -245,8 +255,8 @@ contract RecurringContributionTest {
 
         require(balance(pot) == 3 * WEEKLY, "the weekly pot got three weekly amounts");
         require(balance(pot2) == 2 * monthly, "the monthly pot got two monthly amounts");
-        require(nextIndexOf(id) == 5, "weekly plan: periods 0, 1 and 4 taken");
-        require(nextIndexOf(monthlyPlan) == 2, "monthly plan: periods 0 and 1 taken");
+        require(pulledOf(id) == 0x13, "weekly plan: periods 0, 1 and 4 taken");
+        require(pulledOf(monthlyPlan) == 0x3, "monthly plan: periods 0 and 1 taken");
     }
 
     function test_a_late_pull_after_missed_periods_moves_only_one_amount() public {
@@ -254,7 +264,7 @@ contract RecurringContributionTest {
         uint256 m0 = balance(member);
         pullAs(stranger, id);
         require(m0 - balance(member) == WEEKLY, "one amount, not six");
-        require(nextIndexOf(id) == 6, "period 5 is spent; 0-4 are gone");
+        require(pulledOf(id) == 1 << 5, "period 5 is spent; 0-4 were never pulled");
         vm.expectRevert(abi.encodeWithSelector(RecurringContribution.AlreadyPulledThisPeriod.selector, uint48(5)));
         rc.pull(id);
         vm.warp(startedAt + 6 * WEEK);
@@ -273,5 +283,42 @@ contract RecurringContributionTest {
         rc.pull(second);
         vm.expectRevert(abi.encodeWithSelector(IPermit2.InsufficientAllowance.selector, uint256(0)));
         rc.pull(id);
+    }
+
+    // ── what an app reads ─────────────────────────────────────────────────────
+
+    function test_plansOf_lists_every_plan_that_pays_into_a_pot() public {
+        address member2 = actor(0xC0FFEE);
+        address otherPot = vm.addr(0xE11E);
+        vm.prank(member2);
+        bytes32 second = rc.start(pot, USDC, 2 * WEEKLY, 2 * WEEK, until, bytes32("fortnightly"));
+        vm.prank(member);
+        bytes32 elsewhere = rc.start(otherPot, USDC, WEEKLY, WEEK, until, bytes32("tokyo-trip"));
+        pullAs(stranger, id);
+        vm.prank(member2);
+        rc.stop(second);
+
+        (bytes32[] memory ids, RecurringContribution.Plan[] memory list) = rc.plansOf(pot);
+        require(ids.length == 2 && list.length == 2, "two plans pay into the pot");
+        require(ids[0] == id && ids[1] == second, "in start order");
+        require(list[0].member == member && list[0].amountPerPeriod == WEEKLY && list[0].pulled == 1, "the first, pulled once");
+        require(list[1].member == member2 && list[1].period == 2 * WEEK && list[1].stoppedAt == block.timestamp, "the second, stopped");
+        (bytes32[] memory otherIds,) = rc.plansOf(otherPot);
+        require(otherIds.length == 1 && otherIds[0] == elsewhere, "the other pot lists only its own");
+        (bytes32[] memory none,) = rc.plansOf(stranger);
+        require(none.length == 0, "a pot nobody pays into lists nothing");
+    }
+
+    function test_start_refuses_more_periods_than_pulled_can_hold() public {
+        vm.startPrank(member);
+        uint48 day = 1 days;
+        vm.expectRevert(abi.encodeWithSelector(RecurringContribution.BadPlan.selector));
+        rc.start(pot, USDC, WEEKLY, day, startedAt + 256 * day + 1, bytes32("257 days"));
+        bytes32 longest = rc.start(pot, USDC, WEEKLY, day, startedAt + 256 * day, bytes32("256 days"));
+        PERMIT2.approve(USDC, address(rc), WEEKLY, startedAt + 256 * day); // setUp's allowance ends at week 10
+        vm.stopPrank();
+        vm.warp(startedAt + 256 * day - 1); // the last second of period 255
+        pullAs(stranger, longest);
+        require(pulledOf(longest) == 1 << 255, "period 255 is the last bit");
     }
 }
