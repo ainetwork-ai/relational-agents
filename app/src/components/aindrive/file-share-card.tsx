@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AinuiSurface } from "ain-ui/react";
+import { AinuiFile, AinuiText, DriveSurface } from "@/components/ainui/surface";
 import { X402_PAY_ACTION, type A2uiAction, type A2uiMessage } from "ain-ui";
 import "ain-ui/styles.css";
-import { Download, FileAudio, FileIcon, Lock } from "lucide-react";
+import { Download, Lock } from "lucide-react";
 import { aindriveRawUrl } from "@/lib/aindrive-url";
 import { payX402WithWallet } from "@/lib/wallet/x402";
 import { WalletSignatureError } from "@/lib/wallet/provider";
@@ -20,11 +20,6 @@ export interface FileShareInfo {
   messages?: A2uiMessage[];
   error?: string;
 }
-
-const ext = (n: string) => (n.includes(".") ? n.slice(n.lastIndexOf(".") + 1).toLowerCase() : "");
-const AUDIO = new Set(["mp3", "m4a", "wav", "ogg", "oga", "opus", "aac", "flac", "weba"]);
-const VIDEO = new Set(["mp4", "m4v", "webm", "mov", "ogv"]);
-const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp"]);
 
 function size(n: number | null) {
   if (n === null) return "";
@@ -49,7 +44,6 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
   const [error, setError] = useState<string | null>(null);
   const [tx, setTx] = useState<string | null>(null);
   const { file, sale } = info;
-  const e = ext(file.name);
   const src = aindriveRawUrl({ driveId, path });
 
   const paying = useRef(false);
@@ -88,26 +82,10 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
 
   return (
     <div data-testid="file-share" data-unlocked={info.unlocked ? "true" : "false"} className="max-w-xl overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-      <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-        {AUDIO.has(e) ? <FileAudio size={18} className="text-neutral-400" /> : <FileIcon size={18} className="text-neutral-400" />}
-        <span className="truncate font-medium text-neutral-800 dark:text-neutral-100">{file.name}</span>
-        <span className="ml-auto shrink-0 text-xs text-neutral-400">{size(file.size)}</span>
-        {sale && (
-          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
-            {t("On sale · {price}", { price: `${sale.price} ${sale.currency}` })}
-          </span>
-        )}
-      </div>
+      <AinuiText text={`${file.name} · ${size(file.size)}${sale ? ` · ${sale.price} ${sale.currency}` : ""}`} />
       {info.unlocked ? (
         <div className="p-4">
-          {AUDIO.has(e) ? (
-            <audio data-testid="file-share-audio" src={src} controls className="w-full" />
-          ) : VIDEO.has(e) ? (
-            <video src={src} controls playsInline className="max-h-[420px] w-full bg-black" />
-          ) : IMAGE.has(e) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt={file.name} className="max-h-[420px] w-full object-contain" />
-          ) : null}
+          <AinuiFile url={src} name={file.name} size={file.size} />
           <div className="mt-3 flex items-center gap-3 text-xs text-neutral-500">
             <a href={aindriveRawUrl({ driveId, path }, true)} className="flex items-center gap-1 hover:underline">
               <Download size={13} /> {t("Download")}
@@ -128,7 +106,7 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
             <p className="text-xs text-neutral-500">{t("Connect your aindrive to buy this file")}</p>
           ) : (
             info.messages ? <fieldset disabled={step !== null} className="w-full min-w-0 text-left">
-              <AinuiSurface messages={info.messages} onAction={buy} />
+              <DriveSurface messages={info.messages} onAction={buy} />
             </fieldset> : <p role="alert">{info.error ?? "Payment screen is unavailable. Refresh after updating aindrive."}</p>
           )}
           {step === "settle" && <p role="status">{t("Settling USDC on Base…")}</p>}

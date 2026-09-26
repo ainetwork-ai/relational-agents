@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { HardDrive } from "lucide-react";
+import { AinuiText } from "@/components/ainui/surface";
 import { Browser } from "@/components/home/aindrive-panel";
 import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
 import { useAindriveInfo } from "@/lib/aindrive-client";
@@ -28,15 +28,8 @@ export default function AindriveDrivePage({ params }: { params: Promise<{ driveI
       <div className="mb-1">
         <AindriveAccountBadge />
       </div>
-      <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-        <HardDrive size={22} className="text-neutral-400" /> {drive?.name ?? driveId}
-      </h1>
-      <p className="mb-6 flex items-center gap-1.5 text-xs text-neutral-500">
-        <span className={`h-1.5 w-1.5 rounded-full ${offline ? "bg-neutral-300" : "bg-emerald-500"}`} />
-        {offline
-          ? t("Offline — opens once aindrive is running on the computer that holds this drive's folder.")
-          : t("Online — the files live on that computer; what you view and edit here changes them there.")}
-      </p>
+      <AinuiText text={drive?.name ?? driveId} />
+      <AinuiText text={offline ? t("Offline — opens once aindrive is running on the computer that holds this drive's folder.") : t("Online — the files live on that computer; what you view and edit here changes them there.")} />
       {!offline && (
         <Browser
           key={driveId}

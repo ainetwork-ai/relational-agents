@@ -191,6 +191,10 @@ One contract serves every relation and every member; each plan has its own amoun
 - Anyone may call `pull(id)` — the relation's agent does, once a period — and the contract moves
   exactly `amountPerPeriod` from the member to the plan's pot.
 - The member calls `stop(id)` to end it.
+- `plansOf(pot)` returns every plan that pays into a pot, each with `pulled` (bit i is set once period
+  i was pulled) and `stoppedAt` — what an app shows, in one call. Public RPCs refuse the log ranges an
+  event index would need (`eth_getLogs` is limited to 2,000 blocks on mainnet.base.org, about an hour
+  of Base).
 
 What the contract guarantees, whoever calls `pull`:
 - at most `amountPerPeriod` per period. Missed periods don't add up: a late pull covers only the
@@ -211,10 +215,30 @@ member's remaining total, and only until the plan ends. A wallet that already ap
 without limit for other apps is still capped, for this contract, by the Permit2 allowance it gives
 this contract.
 
-Not done yet: no app screen starts a plan, and the contract is not deployed. `node --test` runs its
-Foundry tests on a fork of Base mainnet — the real Permit2 and USDC —
-(`test/recurring-contribution.test.js` runs `forge test --fork-url`) and skips without Foundry or a
-Base RPC.
+Deployed on Base mainnet at
+[`0xE441d2DFa70fF34a20b98ddDB71433Ce8bDfC2E5`](https://basescan.org/address/0xE441d2DFa70fF34a20b98ddDB71433Ce8bDfC2E5),
+source verified on [Sourcify](https://repo.sourcify.dev/8453/0xE441d2DFa70fF34a20b98ddDB71433Ce8bDfC2E5)
+(exact match); `contracts/deployments/base.json` holds the address and the deploy transaction.
+
+Its first plan runs on mainnet: a test member pays 0.1 USDC a week for three weeks into the demo
+relation's pot — the agent's Base wallet `0xe03F48C1a42868707bAa9202991eCEb8BC34Cf2a` — and allowed
+exactly the 0.3 USDC total. Plan id
+`0xe413603acb09c3e580f17f4bf87be03f685447f0bb65c369c7a6e637767f4b91`.
+
+| from | call | tx |
+|---|---|---|
+| member | `USDC.approve(Permit2, 300000)` — 0.3 USDC, the plan's total | [`0x1d6abcfb…`](https://basescan.org/tx/0x1d6abcfb92c2409044ad0bd791b57687d6d0aa44f3d351e0e78b9ee02fc77a36) |
+| member | `Permit2.approve(USDC, RecurringContribution, 300000, until)` | [`0x8f128386…`](https://basescan.org/tx/0x8f128386d17774dfafe9c64c9454d4f139a68599dec55a1655ab76bf2265c9a2) |
+| member | `start(pot, USDC, 100000, 604800, until, "tokyo-trip")` | [`0x858ceb92…`](https://basescan.org/tx/0x858ceb92bd54c916ff643631340f36b85d368ac40a113543ce2f677689df14c6) |
+| another key | `pull(id)` — 0.1 USDC from the member to the pot; both allowances drop from 0.3 to 0.2 USDC, and `plansOf(pot)` shows `pulled = 1` | [`0x8cf28ab0…`](https://basescan.org/tx/0x8cf28ab05f120f7bfdd0a5e2b1e23ba9273185b1c1b1dc6a169826e72127afd0) |
+| another key | `pull(id)` again in the same week — reverts `AlreadyPulledThisPeriod(0)` (an `eth_call`, not sent) | — |
+
+The pull was sent from this package's own agent key, not the pot's: anyone may call `pull`, and the
+USDC still went only to the plan's pot.
+
+Not done yet: no app screen starts a plan. `node --test` runs its Foundry tests on a fork of Base
+mainnet — the real Permit2 and USDC — (`test/recurring-contribution.test.js` runs `forge test
+--fork-url`) and skips without Foundry or a Base RPC.
 
 Per-period pulls are an established pattern: Coinbase Spend Permissions (`SpendPermissionManager`)
 and MetaMask's `ERC20PeriodTransferEnforcer` enforce them for smart accounts. This contract does the
@@ -230,7 +254,7 @@ same for any wallet that has approved Permit2.
 | Everything under `uniswap/`: swap layer, `SpendMandate`, ledger, executor, CLIs, web page, tests | **new, built 2026-09-25/26 during ETHGlobal Tokyo** |
 | The Relation Treasury in the app (rules from the relation's doc, World ID approvals, the Sepolia pot, the investing swap) | the World track, see [`world/`](../world/) for what existed before vs what was built |
 | The recurring buy in the app, its Treasury page (the agent's wallet, holdings per chain, every swap), the treasurer agent (7 tools, AG-UI stream, A2UI cards) | **new, built 2026-09-26 during ETHGlobal Tokyo** |
-| `contracts/RecurringContribution.sol` — recurring contributions from members' wallets through Permit2, with Base-fork tests | **new, built 2026-09-27 during ETHGlobal Tokyo** |
+| `contracts/RecurringContribution.sol` — recurring contributions from members' wallets through Permit2, with Base-fork tests, deployed on Base mainnet | **new, built 2026-09-27 during ETHGlobal Tokyo** |
 | The app's buy through the Uniswap Trading API (`uniswap-api.ts`), the direct v3 path as its fallback | **new, built 2026-09-27 during ETHGlobal Tokyo** |
 | A scheduler that runs the week without a member asking; a Trading API provider in this package | not yet |
 

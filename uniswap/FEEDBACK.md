@@ -15,7 +15,7 @@ lists every Uniswap call of both with `file:line`.
   token allowlist, dry run, kill switch) became the fields of an EIP-712 `SpendMandate`; its
   warning about period keys (a UTC-day key double-buys across a week boundary) became our ISO-week
   key and a pinned test.
-- **anvil fork of Base mainnet** for the 70-test suite; **Base mainnet** with real funds for the demo.
+- **anvil fork of Base mainnet** for the test suite (`npm test`); **Base mainnet** with real funds for the demo.
 - **Trading API**, for the app's buy (`app/src/lib/agent/treasury/uniswap-api.ts`, from 2026-09-27):
   `/check_approval` → `/quote` → `/swap` for CLASSIC, `/order` + `/orders` for UniswapX, with
   `x-universal-router-version: 2.1.2` pinned and `X-Agent-Info` sent (`human_mediated`); the v3 path

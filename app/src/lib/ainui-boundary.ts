@@ -29,8 +29,15 @@ export function confineAction(action: A2uiAction, link: { driveId: string; root:
 }
 
 /** Hide navigation above a linked root; the action boundary remains authoritative. */
-export function confineSurface(messages: A2uiMessage[], root: string): A2uiMessage[] {
+export function confineSurface(messages: A2uiMessage[], root: string, readOnly = false): A2uiMessage[] {
   return messages.map((m) => {
+    if (readOnly && "updateComponents" in m) return { ...m, updateComponents: { ...m.updateComponents,
+      components: m.updateComponents.components.map((c) => {
+        const action = c.action as { event?: { name?: string } } | undefined;
+        return c.component === "FileUpload" || (action?.event?.name && !["aindrive.open", "aindrive.search", "aindrive.view"].includes(action.event.name))
+          ? { id: c.id, component: "Text", text: "" } : c;
+      }),
+    } };
     if (!("updateDataModel" in m) || !m.updateDataModel.value || typeof m.updateDataModel.value !== "object") return m;
     const data = { ...m.updateDataModel.value } as Record<string, unknown>;
     if (Array.isArray(data.crumbs)) data.crumbs = data.crumbs.filter((c: { path?: string }) => !root || c.path === root || c.path?.startsWith(`${root}/`));

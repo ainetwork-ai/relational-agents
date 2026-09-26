@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, HardDrive, Paperclip, Upload } from "lucide-react";
+import { AinuiFile, AinuiButton, AinuiForm } from "@/components/ainui/surface";
 import { FilePreview } from "@/components/previews";
 import { AindrivePicker } from "@/components/aindrive/aindrive-picker";
 import { AindriveConnect } from "@/components/aindrive/aindrive-connect";
@@ -33,6 +34,10 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
   const kindName = /\.[a-z0-9]{1,8}$/i.test(fileName) ? fileName : realName;
   const bytesUrl = ref ? aindriveRawUrl(ref) : url;
   const downloadUrl = ref ? aindriveRawUrl(ref, true) : url;
+  if (ref) return <div data-testid={`file-block-${blockId}`} data-source="aindrive" contentEditable={false}>
+    {info && !info.connected ? <AindriveConnect compact /> : <AinuiFile url={bytesUrl} name={kindName} />}
+    <AinuiButton label={t("Open in aindrive")} onClick={() => { window.open(url, "_blank", "noopener,noreferrer"); }} />
+  </div>;
   return (
     <div
       data-testid={`file-block-${blockId}`}
@@ -111,7 +116,6 @@ export function FileAttachPicker({
   useEffect(() => {
     aindrivePickPending.delete(blockId);
   }, [blockId]);
-  const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
 
@@ -122,7 +126,7 @@ export function FileAttachPicker({
     if (up) onFile({ url: up.url, name: up.name ?? f.name });
   }
 
-  function submitLink() {
+  function submitLink(link: string) {
     const ref = parseAindriveUrl(link.trim(), info?.base);
     if (!ref) return setLinkError(t("Not an aindrive file link (…/d/<drive>?path=<file>)"));
     setLinkError(null);
@@ -170,13 +174,7 @@ export function FileAttachPicker({
             <Upload size={13} /> {t("Upload from this computer")}
           </button>
           {info?.configured && (
-            <button
-              data-testid={`file-aindrive-button-${blockId}`}
-              onClick={() => setPicking(true)}
-              className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              <HardDrive size={13} /> {t("From aindrive")}
-            </button>
+            <AinuiButton testId={`file-aindrive-button-${blockId}`} label={t("From aindrive")} onClick={() => setPicking(true)} />
           )}
           <span className="text-xs text-neutral-400">{t("or drop it here")}</span>
           <input
@@ -193,29 +191,7 @@ export function FileAttachPicker({
         </div>
       )}
       {info?.configured && progress === null && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            data-testid={`file-link-input-${blockId}`}
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                submitLink();
-              }
-            }}
-            placeholder={t("Paste an aindrive file link")}
-            className="flex-1 rounded-md border border-neutral-200 bg-transparent px-2 py-1 text-xs outline-none placeholder:text-neutral-400 dark:border-neutral-700"
-          />
-          <button
-            data-testid={`file-link-submit-${blockId}`}
-            onClick={submitLink}
-            disabled={!link.trim()}
-            className="rounded-md bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
-          >
-            {t("Insert")}
-          </button>
-        </div>
+        <AinuiForm fields={[{ key: "link", label: t("Paste an aindrive file link"), value: "" }]} submitLabel={t("Insert")} onSubmit={(v) => submitLink(String(v.link ?? ""))} />
       )}
       {linkError && <p className="mt-1 text-xs text-red-600">{linkError}</p>}
       {picking && (

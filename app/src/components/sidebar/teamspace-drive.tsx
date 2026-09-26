@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import { AinuiButton, AinuiText } from "@/components/ainui/surface";
 import { usePathname, useRouter } from "next/navigation";
-import { FileText, HardDrive, Plus, Users } from "lucide-react";
+import { FileText, HardDrive, Plus } from "lucide-react";
 import { LinkForm, errorOf, type Drive } from "@/components/home/aindrive-panel";
 import { useT } from "@/i18n/provider";
 import { openFamilySheet } from "@/components/family/family-folders";
@@ -214,21 +214,9 @@ export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
   if (drive === undefined) return null;
   const state = drive ? driveState(drive) : null;
   const label = t("Family folders");
-  return (
-    <button
-      data-testid={`teamspace-drive-badge-${teamspaceId}`}
-      data-state={state ?? "none"}
-      aria-label={label}
-      title={label}
-      onClick={() => openFamilySheet(teamspaceId)}
-      className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 dark:hover:bg-neutral-700 ${
-        state ? "" : "touch-reveal opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
-      }`}
-    >
-      <Users size={13} />
-      {state && <span className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white dark:ring-neutral-900 ${STATE_DOT[state]}`} />}
-    </button>
-  );
+  return <div data-testid={`teamspace-drive-badge-${teamspaceId}`} data-state={state ?? "none"}>
+    <AinuiButton label={`${label}${state ? ` · ${t(STATE_LABEL[state])}` : ""}`} onClick={() => openFamilySheet(teamspaceId)} />
+  </div>;
 }
 
 /** First under the teamspace: every folder linked into it — each member's
@@ -239,62 +227,16 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
   const drives = useTeamspaceDrives(teamspaceId);
   const link = useLinkDialog(teamspaceId);
   const pathname = usePathname();
+  const router = useRouter();
   if (drives === undefined) return null;
-  if (drives.length === 0) {
-    return (
-      <>
-        <button
-          data-testid={`teamspace-drive-connect-row-${teamspaceId}`}
-          onClick={() => void link.open()}
-          className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-sm text-neutral-400 transition-colors hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-neutral-800"
-          style={{ paddingLeft: "36px" }}
-        >
-          <HardDrive size={14} className="shrink-0" />
-          <span className="truncate">{t("Sync to aindrive")}</span>
-        </button>
-        {link.error && (
-          <p className="py-1 pr-2 text-xs text-red-600" style={{ paddingLeft: "36px" }}>
-            {link.error}
-          </p>
-        )}
-        {link.dialog}
-      </>
-    );
-  }
-  return (
-    <>
-      {drives.map((drive) => {
-        const active = pathname === `/aindrive/${drive.id}`;
-        const state = driveState(drive);
-        return (
-          <Link
-            key={drive.id}
-            data-testid={`teamspace-drive-row-${teamspaceId}`}
-            data-drive={drive.id}
-            data-state={drive.backup ? state : "linked"}
-            href={`/aindrive/${drive.id}`}
-            aria-current={active ? "page" : undefined}
-            title={drive.linkedBy ? t("aindrive folder linked by {who}", { who: drive.linkedBy }) : undefined}
-            className={`flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
-              active ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"
-            }`}
-            style={{ paddingLeft: "36px" }}
-          >
-            <HardDrive size={14} className="shrink-0 text-neutral-400" />
-            <span className="truncate">{drive.name}</span>
-            {drive.backup ? (
-              <span className={`ml-auto flex shrink-0 items-center gap-1 text-[11px] ${STATE_TEXT[state]}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${STATE_DOT[state]}`} />
-                {t(STATE_LABEL[state])}
-              </span>
-            ) : (
-              drive.linkedBy && <span className="ml-auto shrink-0 truncate text-[11px] text-neutral-400">{drive.linkedBy}</span>
-            )}
-          </Link>
-        );
-      })}
-    </>
-  );
+  return <div className="pl-8">
+    {!drives.length && <AinuiButton testId={`teamspace-drive-connect-row-${teamspaceId}`} label={t("Sync to aindrive")} onClick={link.open} />}
+    {drives.map((drive) => <div key={drive.id} data-testid={`teamspace-drive-row-${teamspaceId}`} data-drive={drive.id} data-state={drive.backup ? driveState(drive) : "linked"}>
+      <AinuiButton label={`${pathname === `/aindrive/${drive.id}` ? "✓ " : ""}${drive.name} · ${drive.backup ? t(STATE_LABEL[driveState(drive)]) : drive.linkedBy ?? ""}`} onClick={() => router.push(`/aindrive/${drive.id}`)} />
+    </div>)}
+    {link.error && <AinuiText text={link.error} />}
+    {link.dialog}
+  </div>;
 }
 
 /** Add new: a page, or — while the teamspace has none — an aindrive sync. */
@@ -335,23 +277,7 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
             <FileText size={14} className="text-neutral-400" /> {t("Page")}
           </button>
           {drive !== undefined && (
-            <button
-              role="menuitem"
-              data-testid={`teamspace-add-aindrive-${teamspaceId}`}
-              onClick={() => {
-                setMenu(false);
-                void link.open();
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              <HardDrive size={14} className="text-neutral-400" />
-              <span>
-                {drive ? t("Add an aindrive folder") : t("Sync to aindrive")}
-                <span className="block text-[11px] text-neutral-400">
-                  {drive ? t("Share my folders with this teamspace") : t("Back this teamspace up as OKF")}
-                </span>
-              </span>
-            </button>
+            <AinuiButton testId={`teamspace-add-aindrive-${teamspaceId}`} label={drive ? t("Add an aindrive folder") : t("Sync to aindrive")} onClick={() => { setMenu(false); return link.open(); }} />
           )}
         </div>
       )}

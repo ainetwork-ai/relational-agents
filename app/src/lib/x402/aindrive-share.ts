@@ -1,4 +1,5 @@
 import "server-only";
+import type { A2uiMessage } from "ain-ui";
 import { aindriveHttp, aindriveServer, AindriveError } from "@/lib/aindrive";
 import { runAs } from "@/lib/aindrive-account";
 import { unb64, type PaymentRequirements } from "@/lib/gift";
@@ -31,11 +32,11 @@ function shareUrl(token: string): string {
 }
 
 export type SaleQuote =
-  | { ok: true; paymentRequired: string; accepts: PaymentRequirements[] }
+  | { ok: true; paymentRequired: string; accepts: PaymentRequirements[]; messages: A2uiMessage[] }
   | { ok: false; status: number; error: string };
 
 export async function quoteSale(sale: GiftSale): Promise<SaleQuote> {
-  const r = await fetch(shareUrl(sale.token), { cache: "no-store", signal: AbortSignal.timeout(30_000) });
+  const r = await fetch(shareUrl(sale.token), { cache: "no-store", headers: { "X-AINUI": "1" }, signal: AbortSignal.timeout(30_000) });
   const header = r.headers.get("PAYMENT-REQUIRED");
   if (r.status !== 402 || !header) {
     const body = (await r.json().catch(() => ({}))) as { error?: string };
@@ -43,7 +44,9 @@ export async function quoteSale(sale: GiftSale): Promise<SaleQuote> {
   }
   const decoded = unb64<{ accepts?: PaymentRequirements[] }>(header);
   if (!decoded?.accepts?.length) return { ok: false, status: 502, error: "no payment requirements in aindrive's 402" };
-  return { ok: true, paymentRequired: header, accepts: decoded.accepts };
+  const body = await r.json().catch(() => ({})) as { messages?: A2uiMessage[] };
+  if (!Array.isArray(body.messages) || !body.messages.length) return { ok: false, status: 502, error: "aindrive did not return its AIN-UI payment screen. Update aindrive first." };
+  return { ok: true, paymentRequired: header, accepts: decoded.accepts, messages: body.messages };
 }
 
 export type SalePayment = { ok: true; txHash: string } | { ok: false; status: number; error: string };

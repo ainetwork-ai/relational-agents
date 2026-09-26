@@ -1,4 +1,5 @@
 "use client";
+import { AinuiForm, AinuiText } from "@/components/ainui/surface";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
@@ -301,28 +302,11 @@ export function AgentSettings({
           className="mb-4 w-full resize-y rounded-md border border-neutral-200 px-2.5 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
         />
 
-        <label className="mb-1 block text-xs font-medium text-neutral-500">{t("aindrive folder")}</label>
-        <p className="mb-2 text-xs text-neutral-500">
-          {t("Once connected, the agent reads files in this folder when mentioned and writes files when asked. Clear the drive ID to disconnect.")}
-        </p>
-        <div className="mb-4 grid grid-cols-2 gap-3">
-          <input
-            data-testid="agent-aindrive-drive"
-            aria-label={t("Drive ID")}
-            value={config.aindrive?.driveId ?? ""}
-            onChange={(e) => setConfig((c) => ({ ...c, aindrive: { ...c.aindrive, driveId: e.target.value } }))}
-            placeholder={t("Drive ID")}
-            className="w-full rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-          />
-          <input
-            data-testid="agent-aindrive-root"
-            aria-label={t("Folder (blank = whole drive)")}
-            value={config.aindrive?.root ?? ""}
-            onChange={(e) => setConfig((c) => ({ ...c, aindrive: { ...c.aindrive, root: e.target.value } }))}
-            placeholder={t("Folder (blank = whole drive)")}
-            className="w-full rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-          />
-        </div>
+        <AinuiText text={t("Once connected, the agent reads files in this folder when mentioned and writes files when asked. Clear the drive ID to disconnect.")} />
+        <AinuiForm fields={[
+          { key: "driveId", label: t("Drive ID"), value: config.aindrive?.driveId ?? "" },
+          { key: "root", label: t("Folder (blank = whole drive)"), value: config.aindrive?.root ?? "" },
+        ]} submitLabel={t("Apply")} onSubmit={(v) => setConfig((c) => ({ ...c, aindrive: { driveId: String(v.driveId ?? ""), root: String(v.root ?? "") } }))} />
 
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 

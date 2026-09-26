@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     } finally { reader.releaseLock(); }
   }
   const raw = Buffer.concat(chunks).toString("utf8");
-  let body: { source?: string; action?: A2uiAction };
+  let body: { source?: string; action?: A2uiAction; mode?: string };
   try { body = JSON.parse(raw); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   let link: AindriveLink | null = null;
   let by: string | null = auth.user.id;
@@ -59,8 +59,10 @@ export async function POST(req: NextRequest) {
     action = confineAction(body.action ?? { name: "aindrive.open", context: { drive_id: link.driveId, path: link.root, is_dir: true } }, link, protectedPath);
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }); }
   try {
+    if (body.mode === "pick" && !["aindrive.open", "aindrive.search", "aindrive.view"].includes(action.name))
+      return NextResponse.json({ error: "File selection is read-only" }, { status: 403 });
     const call = () => callAindriveSurface(action);
     const messages = shared ? await runAsOrService(by, call) : await runAs(auth.user.id, call);
-    return NextResponse.json({ messages: confineSurface(messages, link.root), link });
+    return NextResponse.json({ messages: confineSurface(messages, link.root, body.mode === "pick"), link });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 502 }); }
 }

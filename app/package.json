@@ -34,7 +34,7 @@
     "@worldcoin/idkit": "^4.2.1",
     "@worldcoin/idkit-core": "^4.2.2",
     "ag-psd": "^31.0.2",
-    "ain-ui": "0.1.0",
+    "ain-ui": "0.1.1",
     "cfb": "^1.2.2",
     "clsx": "^2.1.1",
     "docx-preview": "^0.4.1",

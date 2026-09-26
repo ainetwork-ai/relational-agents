@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, HardDrive, Users } from "lucide-react";
+import { AinuiButton, AinuiForm, AinuiText } from "@/components/ainui/surface";
 import { useT } from "@/i18n/provider";
 import { AindriveAccountBadge } from "./aindrive-connect";
 
@@ -41,8 +41,6 @@ interface ShareInfo {
 export function AindriveShare({ onDone }: { onDone: (to: { workspaceId: string | null }) => void }) {
   const t = useT();
   const [info, setInfo] = useState<ShareInfo | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [teamspaceId, setTeamspaceId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,14 +50,11 @@ export function AindriveShare({ onDone }: { onDone: (to: { workspaceId: string |
       .then((r) => (r.ok ? r.json() : { connected: false, drives: [], teamspaces: [] }))
       .then((d: ShareInfo) => {
         if (!alive) return;
-        const fresh = d.drives.filter((x) => x.online && !x.sharedIn.length);
         if (!d.connected || !d.drives.length || !d.teamspaces.length || d.drives.every((x) => x.sharedIn.length)) {
           onDone({ workspaceId: null });
           return;
         }
         setInfo(d);
-        setPicked(new Set(fresh.map((x) => x.id)));
-        setTeamspaceId(d.teamspaces[0].id);
       })
       .catch(() => alive && onDone({ workspaceId: null }));
     return () => {
@@ -71,20 +66,13 @@ export function AindriveShare({ onDone }: { onDone: (to: { workspaceId: string |
 
   if (!info) return <p className="py-16 text-center text-sm text-neutral-400">{t("Checking your aindrive folders…")}</p>;
 
-  const target = info.teamspaces.find((x) => x.id === teamspaceId) ?? info.teamspaces[0];
-  // what sharing now adds: ticked, and not already in the chosen teamspace
-  const adding = [...picked].filter(
-    (id) => !info.drives.find((d) => d.id === id)?.sharedIn.some((s) => s.teamspaceId === target.id)
-  );
-  const toggle = (id: string) =>
-    setPicked((p) => {
-      const n = new Set(p);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
-  async function share() {
+  async function share(values: Record<string, unknown>) {
+    if (!info || busy) return;
+    const target = info.teamspaces.find((x) => x.id === (values.teamspace as string[])?.[0]);
+    if (!target) throw new Error("Select a teamspace");
+    const picked = Array.isArray(values.drives) ? values.drives : [];
+    const adding = info.drives.filter((d) => picked.includes(d.id) && !d.sharedIn.some((s) => s.teamspaceId === target.id)).map((d) => d.id);
+    if (!adding.length) throw new Error("Select folders that are not already shared in this teamspace");
     setBusy(true);
     setError(null);
     const r = await fetch("/api/aindrive/share", {
@@ -103,92 +91,15 @@ export function AindriveShare({ onDone }: { onDone: (to: { workspaceId: string |
     onDone({ workspaceId: target.workspaceId });
   }
 
-  return (
-    <div data-testid="aindrive-share" className="mx-auto w-full max-w-lg">
-      <div className="mb-1">
-        <AindriveAccountBadge />
-      </div>
-      <h1 className="mb-1 text-xl font-bold text-neutral-900 dark:text-neutral-100">{t("Which aindrive folders should your team see?")}</h1>
-      <p className="mb-5 text-sm text-neutral-500">
-        {t("Everyone in the teamspace can open the folders you pick. The files stay in aindrive and are read through your account.")}
-      </p>
-
-      <ul className="mb-5 divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700">
-        {info.drives.map((d) => {
-          const on = picked.has(d.id);
-          const already = d.sharedIn.some((s) => s.teamspaceId === target.id);
-          return (
-            <li key={d.id}>
-              <label
-                data-testid={`aindrive-share-drive-${d.id}`}
-                className={`flex items-center gap-3 px-3 py-2.5 ${already ? "opacity-60" : "cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/60"}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={already || on}
-                  disabled={already}
-                  onChange={() => toggle(d.id)}
-                  className="h-4 w-4 accent-neutral-900 dark:accent-neutral-100"
-                />
-                <HardDrive size={15} className="shrink-0 text-neutral-400" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-neutral-800 dark:text-neutral-100">
-                    {d.name}
-                    {d.root ? <span className="text-neutral-400"> / {d.root}</span> : null}
-                  </span>
-                  {d.sharedIn.length > 0 && (
-                    <span className="block truncate text-[11px] text-neutral-400">
-                      {t("Shared in: {where}", { where: d.sharedIn.map((s) => s.teamspaceName).join(", ") })}
-                    </span>
-                  )}
-                </span>
-                <span className="flex shrink-0 items-center gap-1 text-[11px] text-neutral-400">
-                  <span className={`h-1.5 w-1.5 rounded-full ${d.online ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-600"}`} />
-                  {d.online ? t("Connected") : t("Offline")}
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-
-      <label className="mb-1 block text-xs font-medium text-neutral-500">{t("Teamspace to share with")}</label>
-      <select
-        data-testid="aindrive-share-teamspace"
-        value={target.id}
-        onChange={(e) => setTeamspaceId(e.target.value)}
-        className="mb-1 w-full rounded-md border border-neutral-200 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-      >
-        {info.teamspaces.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.workspaceName} · {s.icon ? `${s.icon} ` : ""}
-            {s.name} ({t("{n} people", { n: s.members })})
-          </option>
-        ))}
-      </select>
-      <p className="mb-5 flex items-center gap-1 text-[11px] text-neutral-400">
-        <Users size={11} /> {t("{n} people will see these folders.", { n: target.members })}
-      </p>
-
-      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
-      <div className="flex items-center gap-2">
-        <button
-          data-testid="aindrive-share-submit"
-          onClick={() => void share()}
-          disabled={busy || adding.length === 0}
-          className="flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
-        >
-          <Check size={14} />
-          {busy ? t("Sharing…") : t("Share {n} folders", { n: adding.length })}
-        </button>
-        <button
-          data-testid="aindrive-share-skip"
-          onClick={() => onDone({ workspaceId: null })}
-          className="rounded-md px-3 py-1.5 text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-        >
-          {t("Later")}
-        </button>
-      </div>
-    </div>
-  );
+  return <div data-testid="aindrive-share" className="mx-auto w-full max-w-lg space-y-3">
+    <AindriveAccountBadge />
+    <AinuiText text={t("Which aindrive folders should your team see?")} />
+    <AinuiText text={t("Everyone in the teamspace can open the folders you pick. The files stay in aindrive and are read through your account.")} />
+    <AinuiForm testId="aindrive-share-form" disabled={busy} fields={[
+      { key: "drives", label: t("Drive"), multiple: true, value: info.drives.filter((d) => d.online && !d.sharedIn.length).map((d) => d.id), options: info.drives.map((d) => ({ value: d.id, label: `${d.name}${d.root ? ` / ${d.root}` : ""} · ${d.online ? t("Connected") : t("Offline")}${d.sharedIn.length ? ` · ${t("Shared in: {where}", { where: d.sharedIn.map((s) => s.teamspaceName).join(", ") })}` : ""}` })) },
+      { key: "teamspace", label: t("Teamspace to share with"), value: [info.teamspaces[0].id], options: info.teamspaces.map((s) => ({ value: s.id, label: `${s.workspaceName} · ${s.name} (${t("{n} people", { n: s.members })})` })) },
+    ]} submitLabel={t("Share with team")} onSubmit={share} />
+    {error && <p role="alert">{error}</p>}
+    <AinuiButton testId="aindrive-share-skip" label={t("Later")} onClick={() => onDone({ workspaceId: null })} />
+  </div>;
 }

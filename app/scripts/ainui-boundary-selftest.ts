@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { confineAction, confinedPath } from "../src/lib/ainui-boundary";
+import { confineAction, confinedPath, confineSurface } from "../src/lib/ainui-boundary";
 
 const link = { driveId: "drive1", root: "family/shared" };
 for (const path of ["family", "family/shared-other", "family/shared/../secret", "family/shared\\..\\secret"])
@@ -16,4 +16,14 @@ for (const action of [
   { name: "aindrive.upload", context: { path: link.root, name: "backup" } },
 ]) assert.throws(() => confineAction(action, link, protectedPath));
 assert.equal(confineAction({ name: "aindrive.upload", context: { path: link.root, name: "photo.png" } }, link, protectedPath).context?.drive_id, link.driveId);
+const picker = confineSurface([{ version: "v0.9", updateComponents: { surfaceId: "picker", components: [
+  { id: "open", component: "Button", action: { event: { name: "aindrive.open" } } },
+  { id: "upload", component: "FileUpload" },
+  { id: "delete", component: "Button", action: { event: { name: "aindrive.delete" } } },
+] } }], link.root, true);
+assert.ok("updateComponents" in picker[0]);
+const nodes = picker[0].updateComponents.components;
+assert.equal(nodes[0].component, "Button");
+assert.equal(nodes[1].component, "Text");
+assert.equal(nodes[2].component, "Text");
 console.log("AIN-UI boundary checks passed: linked roots, drive identity, action allow-list and managed backups.");

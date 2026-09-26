@@ -55,8 +55,8 @@ importers:
         specifier: ^31.0.2
         version: 31.0.2
       ain-ui:
-        specifier: 0.1.0
-        version: 0.1.0(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: 0.1.1
+        version: 0.1.1(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
       cfb:
         specifier: ^1.2.2
         version: 1.2.2
@@ -3493,8 +3493,8 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ain-ui@0.1.0:
-    resolution: {integrity: sha512-shXlW3wcUfPTOpvzTGGXUdpHDUD3jRhN7NAKj0/5uPr3rFIPehIqvhPT2fJqx7bApAPOHAqdopOE+K6SDsBfvg==}
+  ain-ui@0.1.1:
+    resolution: {integrity: sha512-sWo3pLw7tbIyjn1zdo+ReYcY/yMvTac/jATSjLAcaUUDMmwRPL70SgugsoEXJlX6EGPeBRDfIAZJ/cmUmu4AKw==}
     engines: {node: '>=22'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -11890,7 +11890,7 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ain-ui@0.1.0(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6):
+  ain-ui@0.1.1(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6):
     dependencies:
       '@a2ui/markdown-it': 0.1.2(@a2ui/web_core@0.11.0)
       '@a2ui/react': 0.11.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@3.25.76)

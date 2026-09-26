@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronRight, File, Folder, HardDrive, X } from "lucide-react";
+import { AinuiDriveBrowser } from "@/components/ainui/drive-browser";
+import { AinuiButton, AinuiForm, AinuiText } from "@/components/ainui/surface";
 import { loadAindriveInfo, type AindriveInfo } from "@/lib/aindrive-client";
 import { aindriveFileUrl } from "@/lib/aindrive-url";
 import { useT } from "@/i18n/provider";
@@ -28,19 +29,6 @@ interface SharedFolder {
   sharedBy: string | null;
 }
 
-interface Entry {
-  name: string;
-  isDir: boolean;
-  size?: number;
-}
-
-function fmtSize(n?: number): string {
-  if (n === undefined) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 /**
  * "Import from aindrive": pick a file from the aindrive folders offered here.
  * Nothing is uploaded — the block gets the file's aindrive link, and the
@@ -57,8 +45,6 @@ export function AindrivePicker({
   const [info, setInfo] = useState<AindriveInfo | null>(null);
   const [shared, setShared] = useState<SharedFolder[]>([]);
   const [sourceKey, setSourceKey] = useState<string>("");
-  const [dir, setDir] = useState<string>("");
-  const [entries, setEntries] = useState<Entry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const sources: Source[] = [
@@ -83,7 +69,6 @@ export function AindrivePicker({
   const open = (s: Source | undefined) => {
     if (!s) return;
     setSourceKey(s.key);
-    setDir(s.root);
   };
 
   useEffect(() => {
@@ -101,43 +86,14 @@ export function AindrivePicker({
       const first = i.drives.find((d) => d.online !== false) ?? i.drives[0];
       if (first) {
         setSourceKey(`d:${first.id}`);
-        setDir(first.root);
       } else if (folders[0]) {
         setSourceKey(`l:${folders[0].id}`);
-        setDir(folders[0].root);
       }
     });
     return () => {
       alive = false;
     };
   }, []);
-
-  const browseQuery = source
-    ? source.linkId
-      ? new URLSearchParams({ link: source.linkId, path: dir })
-      : new URLSearchParams({ drive: source.driveId, path: dir })
-    : null;
-  const browseKey = browseQuery?.toString() ?? "";
-  useEffect(() => {
-    if (!browseKey) return;
-    let alive = true;
-    fetch(`/api/aindrive/browse?${browseKey}`)
-      .then(async (r) => {
-        const d = (await r.json().catch(() => ({}))) as { entries?: Entry[]; error?: string };
-        if (!alive) return;
-        if (!r.ok) {
-          setEntries([]);
-          setError(d.error ?? t("Could not read the folder"));
-        } else {
-          setError(null);
-          setEntries(d.entries ?? []);
-        }
-      })
-      .catch(() => alive && setError(t("Could not read the folder")));
-    return () => {
-      alive = false;
-    };
-  }, [browseKey, t]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -146,11 +102,6 @@ export function AindrivePicker({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
-  const driveId = source?.driveId ?? "";
-  const rootDir = source?.root ?? "";
-  // breadcrumbs start at the offered folder — nothing above it can be opened
-  const crumbs = dir.slice(rootDir.length).split("/").filter(Boolean);
 
   return (
     <div
@@ -166,33 +117,10 @@ export function AindrivePicker({
         data-testid="aindrive-picker"
         className="flex max-h-[80vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl dark:bg-neutral-900"
       >
-        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-          <HardDrive size={16} className="text-neutral-400" />
-          <h2 className="text-sm font-semibold">{t("From aindrive")}</h2>
-          {sources.length > 1 && (
-            <select
-              data-testid="aindrive-picker-drive"
-              value={sourceKey}
-              onChange={(e) => open(sources.find((x) => x.key === e.target.value))}
-              className="ml-2 min-w-0 max-w-[16rem] rounded border border-neutral-200 px-1.5 py-0.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"
-            >
-              {(["mine", "shared"] as const).map((g) => {
-                const inGroup = sources.filter((x) => x.group === g);
-                return inGroup.length ? (
-                  <optgroup key={g} label={g === "mine" ? t("My aindrive") : t("Shared in teamspaces")}>
-                    {inGroup.map((x) => (
-                      <option key={x.key} value={x.key}>
-                        {x.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null;
-              })}
-            </select>
-          )}
-          <button onClick={onClose} aria-label={t("Close")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <X size={16} />
-          </button>
+        <div className="p-4">
+          <AinuiText text={t("From aindrive")} />
+          <AinuiButton label={t("Close")} onClick={onClose} />
+          {sources.length > 1 && <AinuiForm fields={[{ key: "source", label: t("Drive"), value: [sourceKey], options: sources.map((s) => ({ value: s.key, label: `${s.group === "mine" ? t("My aindrive") : t("Shared in teamspaces")} · ${s.label}` })) }]} submitLabel={t("Open")} onSubmit={(v) => open(sources.find((s) => s.key === (v.source as string[])?.[0]))} />}
         </div>
         {info?.connected && (
           <div className="px-4 pt-2">
@@ -220,60 +148,13 @@ export function AindrivePicker({
         ) : info && sources.length === 0 ? (
           <p className="p-4 text-sm text-neutral-500">{t("No aindrive folders to pick from.")}</p>
         ) : (
-          <>
-            <nav className="flex flex-wrap items-center gap-0.5 px-4 py-2 text-xs text-neutral-500">
-              <button data-testid="aindrive-picker-crumb-root" onClick={() => setDir(rootDir)} className="rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                {source?.label ?? "aindrive"}
-                {rootDir ? ` / ${rootDir}` : ""}
-              </button>
-              {crumbs.map((c, i) => (
-                <span key={i} className="flex items-center gap-0.5">
-                  <ChevronRight size={12} />
-                  <button
-                    onClick={() => setDir([rootDir, ...crumbs.slice(0, i + 1)].filter(Boolean).join("/"))}
-                    className="rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  >
-                    {c}
-                  </button>
-                </span>
-              ))}
-            </nav>
-            <ul data-testid="aindrive-picker-list" className="min-h-[12rem] flex-1 overflow-y-auto px-2 pb-3">
-              {entries === null && <li className="px-2 py-2 text-xs text-neutral-400">{t("Loading…")}</li>}
-              {error && <li className="px-2 py-2 text-xs text-red-600">{error}</li>}
-              {entries && !error && entries.length === 0 && (
-                <li className="px-2 py-2 text-xs text-neutral-400">{t("The folder is empty")}</li>
-              )}
-              {entries?.map((e) => {
-                const path = dir ? `${dir}/${e.name}` : e.name;
-                return (
-                  <li key={e.name}>
-                    <button
-                      data-testid={`aindrive-picker-entry-${e.name}`}
-                      onClick={() => {
-                        if (e.isDir) return setDir(path);
-                        if (!info?.base) return setError(t("Unknown aindrive address"));
-                        onPick({ url: aindriveFileUrl(info.base, { driveId, path }), name: e.name });
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    >
-                      {e.isDir ? (
-                        <Folder size={15} className="shrink-0 text-neutral-400" />
-                      ) : (
-                        <File size={15} className="shrink-0 text-neutral-400" />
-                      )}
-                      <span className="truncate text-neutral-700 dark:text-neutral-200">{e.name}</span>
-                      {e.isDir ? (
-                        <ChevronRight size={14} className="ml-auto shrink-0 text-neutral-300" />
-                      ) : (
-                        <span className="ml-auto shrink-0 text-[11px] text-neutral-400">{fmtSize(e.size)}</span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          <div className="min-h-48 overflow-auto p-3" data-testid="aindrive-picker-list">
+            {source && <AinuiDriveBrowser source={source.linkId ? `/api/aindrive/links/${source.linkId}` : `/api/aindrive/drives/${source.driveId}`} onPick={({ driveId, path }) => {
+              if (!info?.base) return setError(t("Unknown aindrive address"));
+              onPick({ url: aindriveFileUrl(info.base, { driveId, path }), name: path.split("/").pop() || path });
+            }} />}
+            {error && <p role="alert">{error}</p>}
+          </div>
         )}
       </div>
     </div>
