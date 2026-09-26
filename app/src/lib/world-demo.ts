@@ -208,9 +208,14 @@ export async function resetTryRoom(): Promise<{ status: "done" | "missing" | "to
   return { status: "done", room };
 }
 
+/** fundTreasury pays from this key; a deploy without one (ainmem.ainetwork.xyz) refills only when the seed is rerun. */
+export function canTopUp(): boolean {
+  return Boolean((process.env.RELAYER_KEY ?? process.env.DEPLOYER_KEY ?? "").trim());
+}
+
 /** Refill the try-it wallet when visitors' payments have run it down; a Sepolia transfer, so not on every reset. */
 export async function topUpTryRoom(room: DemoRoom): Promise<string | null> {
-  if (Date.now() - lastTopUp < TOP_UP_EVERY_MS) return null;
+  if (!canTopUp() || Date.now() - lastTopUp < TOP_UP_EVERY_MS) return null;
   const address = await agentAddress(room.agentUserId);
   if (!address) return null;
   lastTopUp = Date.now();

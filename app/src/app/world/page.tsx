@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
-import { demoLoginEnabled, demoRoom, demoSnapshot, worldModes, type DemoSnapshot } from "@/lib/world-demo";
+import { canTopUp, demoLoginEnabled, demoRoom, demoSnapshot, worldModes, type DemoSnapshot } from "@/lib/world-demo";
 import styles from "./world.module.css";
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ const MEMBER_NOTE: Record<string, string> = {
 };
 
 const RESET_NOTE: Record<string, string> = {
-  done: "The try-it room is fresh. If visitors ran its wallet low, it is being topped up now.",
+  done: "The try-it room is fresh.",
   "too-soon": "It was just reset. Give it a few seconds.",
   missing: "The try-it room isn't set up on this server yet.",
 };
@@ -78,7 +78,8 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
   const modes = worldModes();
   const canEnter = demoLoginEnabled() && tryRoom !== null;
   const video = process.env.WORLD_DEMO_VIDEO_URL;
-  const flash = RESET_NOTE[sp.reset ?? (sp.try === "missing" ? "missing" : "")];
+  const note = RESET_NOTE[sp.reset ?? (sp.try === "missing" ? "missing" : "")];
+  const flash = note && sp.reset === "done" && canTopUp() ? `${note} If visitors ran its wallet low, it is being topped up now.` : note;
 
   return (
     <div className={styles.root}>
