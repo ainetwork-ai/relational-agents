@@ -1,3 +1,4 @@
+// GENERATED from ens/src/prepare.ts by ens/scripts/sync-to-app.mjs — edit it there, then re-run the script.
 // ens/src/prepare.ts
 // From "send Minjun 20 USDC" to one of: refuse (with a reason), ask (who?), or ready
 // (with the unsigned USDC.transfer). Used by the app's agent skill and the MCP server.

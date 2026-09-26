@@ -88,7 +88,7 @@
 
 **Interfaces:**
 - Produces:
-  - `config.ts`: `SEPOLIA_CHAIN_ID = 11155111`, `SEPOLIA_EXPLORER`, `SEPOLIA_USDC`, `USDC_DECIMALS = 6`, `MOCK_USDC`, `UNIVERSAL_HELPER`, `VERIFIABLE_FACTORY`, `USER_REGISTRY_IMPL`, `PERMISSIONED_RESOLVER_IMPL`, `ETH_REGISTRAR`, `ETH_REGISTRY` (addresses typed `Address`), `MIN_SEND_MICRO = 10_000n`, `MAX_SEND_MICRO = 100_000_000n`, `RELATION_KEY = "family.relation"`, `ALIAS_KEY = "alias"`, `AVATAR_KEY = "avatar"`, `CLASS_KEY = "class"`, `type Relation = "son" | "daughter" | "spouse"`, `RELATIONS`.
+  - `config.ts`: `SEPOLIA_CHAIN_ID = 11155111`, `SEPOLIA_EXPLORER`, `SEPOLIA_USDC`, `USDC_DECIMALS = 6`, `MOCK_USDC`, `UNIVERSAL_HELPER`, `VERIFIABLE_FACTORY`, `USER_REGISTRY_IMPL`, `PERMISSIONED_RESOLVER_IMPL`, `ETH_REGISTRAR`, `ETH_REGISTRY` (addresses typed `Address`), `MIN_SEND_MICRO = BigInt(10_000)`, `MAX_SEND_MICRO = BigInt(100_000_000)` (no bigint literals: the app targets ES2017), `RELATION_KEY = "family.relation"`, `ALIAS_KEY = "alias"`, `AVATAR_KEY = "avatar"`, `CLASS_KEY = "class"`, `type Relation = "son" | "daughter" | "spouse"`, `RELATIONS`.
   - `send-request.ts`: `type Kinship`; `isSendRequest(text): boolean`; `parseSendRequest(text): { amountMicro: bigint; kinship: Kinship | null } | null`; `checkAmount(amountMicro): "ok" | "too-small" | "too-large"`; `formatUsdc(amountMicro): string`.
 
 - [ ] **Step 1: Scaffold the package**
@@ -176,8 +176,8 @@ export const ETH_REGISTRAR: Address = "0xabe76f6c8dfced81aa5a2bb8034202a7136b94c
 export const ETH_REGISTRY: Address = "0x657ea849311d3d5823348dded7c2aaafb3ede09e";
 
 /** 0.01 USDC … 100 USDC, in 6-decimal units. */
-export const MIN_SEND_MICRO = 10_000n;
-export const MAX_SEND_MICRO = 100_000_000n;
+export const MIN_SEND_MICRO = BigInt(10_000);
+export const MAX_SEND_MICRO = BigInt(100_000_000);
 
 export const RELATION_KEY = "family.relation";
 export const ALIAS_KEY = "alias"; // ENSIP-18
@@ -713,7 +713,7 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
     chain: sepolia,
     transport: http(opts.rpcUrl ?? "https://ethereum-sepolia-rpc.publicnode.com"),
   });
-  const fromBlock = opts.fromBlock ?? 0n;
+  const fromBlock = opts.fromBlock ?? BigInt(0);
   const cacheMs = opts.cacheMs ?? 60_000;
   let cache: { at: number; tree: FamilyNode } | null = null;
 
@@ -937,7 +937,7 @@ export async function prepareSend(
       chainId: SEPOLIA_CHAIN_ID,
       to: SEPOLIA_USDC,
       data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to, req.amountMicro] }),
-      value: 0n,
+      value: BigInt(0),
     },
   };
 }
@@ -1481,7 +1481,7 @@ Append to `app/.env.example`:
 SEPOLIA_RPC=https://ethereum-sepolia-rpc.publicnode.com
 ENS_FAMILY_ROOT=kim.ainmem.eth
 # block of the setup script's first transaction (keeps log queries small)
-ENS_FAMILY_FROM_BLOCK=0
+ENS_FAMILY_FROM_BLOCK=11785247
 ```
 
 - [ ] **Step 4: Typecheck and commit**

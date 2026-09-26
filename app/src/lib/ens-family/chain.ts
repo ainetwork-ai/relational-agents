@@ -1,3 +1,4 @@
+// GENERATED from ens/src/chain.ts by ens/scripts/sync-to-app.mjs — edit it there, then re-run the script.
 // ens/src/chain.ts
 // Everything this feature reads from Sepolia. The tree comes from the chain alone
 // (spec D1): LabelRegistered logs per registry, records through the Universal Resolver.

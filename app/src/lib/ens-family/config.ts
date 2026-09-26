@@ -1,3 +1,4 @@
+// GENERATED from ens/src/config.ts by ens/scripts/sync-to-app.mjs — edit it there, then re-run the script.
 // ens/src/config.ts
 // Pocket money by name — shared constants (ens/plan-family-namespace.md).
 // Addresses: ENSv2 Sepolia Beta (docs.ens.domains/learn/deployments#sepolia-ensv2-beta).
