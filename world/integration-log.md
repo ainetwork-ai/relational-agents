@@ -334,3 +334,17 @@ Format: `JST time — surface — what happened`.
   third one had to be retried after the new container came up. Afterwards:
   WETH unwound (`0xeee797a9…4c5f`), room reset to `673001c2…`, Bea/Chris/
   Dana/Eli seated (`orb`, #0/#3/#2/#1), Alex unseated, $1,000, nothing invested.
+- 2026-09-26 18:45 — both — **full rehearsal in shooting order on xyz, 13/13**
+  (room `673001c2…`): S1 Alex claims with simulator #4; S2 Alex invites the
+  second account (six faces, 5/6 votes, the adoption note) and its claim on
+  #4 is refused; S3 $180 approved by Chris and Alex → paid, then the
+  idle-funds proposal ("After that we hold $815.99"); S3½ approved by Chris,
+  Dana and Bea → swap `0x504a…4071` + out of the pot `0x32a7…96d7`, pot
+  $611.64 · $199.76 invested; S4 "pay the hotel upgrade, $150" → Alex 1 of 2,
+  Eli's account in Alex's browser → `same-human`, voided, still 1 of 2; S5
+  "$500 to my wallet" → refused, 81.7% of $611.64, nothing queued; S5½ Bea
+  approves the same card → paid `0x09db…f8d5` (Alex and Bea), pot $457.76;
+  S6 Treasury Activity lists every step in that order. 8 minutes of wall
+  clock for S3→S6 with every World hop. xyz autodeploy was held by the
+  other session's lock for the run — no redeploy this time. WETH unwound
+  afterwards (`0x15cf…d88a`).

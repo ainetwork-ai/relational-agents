@@ -319,7 +319,7 @@ badge unchanged.
 human buys. A voided approval leaves the request pending for others; the e2e
 covers that path. Not yet rehearsed on xyz in this order.)
 
-## 6 · Why this needs World (2:45–3:00) [live]
+## 6 · Why this needs World (2:45–2:58) [live]
 
 Caption: `The record says which humans said yes — and nothing else about them`
 
@@ -331,3 +331,16 @@ the agent.
 > down. Wallet proves ownership. World proves humanity — and nothing more. The
 > relation agent connects the two: AI manages the money, verified humans approve
 > it, and the record says which ones. That's how our relation paid for our hotel."
+
+## End card (2:58–3:00) [edit]
+
+Two seconds on a still, no voiceover, over the last frame of the Activity page:
+
+```
+AINMEM — P2P Memory · Relation Treasury
+ainmem.ainetwork.xyz/world
+World ID · IDKit — Proof of Human   |   World ID for Agents — fresh step-up
+```
+
+Text only (no World logo files are in the repo; use World's published brand
+assets if the edit adds them).
