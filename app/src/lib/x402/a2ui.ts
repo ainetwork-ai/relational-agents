@@ -13,6 +13,7 @@
  */
 
 import type { T } from "@/i18n";
+import { giftPrice } from "@/lib/gift-price";
 
 export const A2UI_VERSION = "v0.9" as const;
 export const A2UI_MIME = "application/a2ui+json";
@@ -39,6 +40,8 @@ export interface GiftSurfaceInput {
   title: string;
   recipientName: string;
   amountKrw: number;
+  /** sold through aindrive — priced in its own currency */
+  sale?: { price: number; currency: string };
   usdc: string;
   settlement: string;
   previewUrl?: string;
@@ -59,7 +62,7 @@ const button = (id: string, child: string, name: string, context: Record<string,
 });
 const column = (id: string, children: string[]): A2uiComponent => ({ id, component: "Column", children });
 
-const won = (t: T, n: number) => t("₩{n}", { n: n.toLocaleString("ko-KR") });
+const won = (t: T, g: GiftSurfaceInput) => giftPrice(g, (n) => t("₩{n}", { n: n.toLocaleString("ko-KR") }));
 
 /** The gift card: locked (blurred preview + pay button) or open (video + receipt). */
 export function giftSurface(g: GiftSurfaceInput, t: T): A2uiMessage[] {
@@ -80,8 +83,8 @@ export function giftSurface(g: GiftSurfaceInput, t: T): A2uiMessage[] {
       text(
         "note",
         g.unlock
-          ? t("🎁 {name} opened it with {amount} in pocket money · receipt {receipt}", { name: g.unlock.byName, amount: won(t, g.amountKrw), receipt: g.unlock.receipt })
-          : t("This is your video. Your family sees it as a gift that opens with {amount} in pocket money.", { amount: won(t, g.amountKrw) }),
+          ? t("🎁 {name} opened it with {amount} in pocket money · receipt {receipt}", { name: g.unlock.byName, amount: won(t, g), receipt: g.unlock.receipt })
+          : t("This is your video. Your family sees it as a gift that opens with {amount} in pocket money.", { amount: won(t, g) }),
         "caption"
       )
     );
@@ -93,7 +96,7 @@ export function giftSurface(g: GiftSurfaceInput, t: T): A2uiMessage[] {
     root.push("pay", "terms");
     comps.push(
       button("pay", "pay_label", "ainmem.gift.pay", { gift_id: g.id }, "primary"),
-      text("pay_label", t("🔒 Open with {amount} in pocket money", { amount: won(t, g.amountKrw) })),
+      text("pay_label", t("🔒 Open with {amount} in pocket money", { amount: won(t, g) })),
       text("terms", t("x402 · {usdc} USDC → {name}'s wallet", { usdc: g.usdc, name: g.recipientName }), "caption")
     );
     if (g.error) {

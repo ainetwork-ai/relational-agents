@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { giftPrice } from "@/lib/gift-price";
 import { blocks, pages, teamspaces, users } from "@/lib/db/schema";
 import { aiChat } from "@/lib/ai";
 import { runAsOrService } from "@/lib/aindrive-account";
@@ -481,6 +482,15 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
   if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying 🙂") };
   if (unlocked(target.gift))
     return { pageId: target.pageId, text: t("「{title}」 is already open → /p/{pageId}", { title: spec.title, pageId: target.pageId }) };
+  if (spec.sale)
+    return {
+      pageId: target.pageId,
+      text: t("「{title}」 opens with {price} from your own wallet — press the button on the page and approve it in MetaMask → /p/{pageId}", {
+        title: spec.title,
+        price: giftPrice(spec, String),
+        pageId: target.pageId,
+      }),
+    };
   const r = await payGift(ctx.askerId, spec.id);
   if (!r.ok) return { text: t("Couldn't send the pocket money: {error}", { error: r.error }) };
   const payerDrive = await ledgerDriveOf(ctx.askerId);

@@ -37,6 +37,8 @@ export async function payGift(payerId: string, giftId: string, origin?: string, 
   };
 
   emit({ type: "RUN_STARTED", threadId, runId });
+  // sold through aindrive: only the payer's own wallet, in their browser, can pay
+  if ((await findGift(giftId))?.gift.spec.sale) return fail(409, "this gift is paid from your own wallet (MetaMask) on its page");
   const base = selfOrigin(origin);
   const get = (headers: Record<string, string> = {}) =>
     fetch(`${base}/api/gift/${encodeURIComponent(giftId)}`, { headers, cache: "no-store" });

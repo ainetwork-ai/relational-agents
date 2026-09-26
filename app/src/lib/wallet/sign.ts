@@ -118,8 +118,14 @@ export async function signTypedDataWithWallet(
   }
 }
 
-/** Sepolia is the only chain this app pins today; extend if more are added. */
+/** Chains this app pins (the registry on Sepolia, x402 gifts on Base); extend if more are added. */
 const KNOWN_CHAINS: Record<number, { chainName: string; rpcUrls: string[]; nativeCurrency: { name: string; symbol: string; decimals: number }; blockExplorerUrls: string[] }> = {
+  8453: {
+    chainName: "Base",
+    rpcUrls: ["https://mainnet.base.org"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrls: ["https://basescan.org"],
+  },
   11155111: {
     chainName: "Sepolia",
     rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],

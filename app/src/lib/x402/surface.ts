@@ -20,6 +20,7 @@ export async function giftSurfaceInput(gift: GiftContent, viewerId: string, erro
     title: spec.title,
     recipientName: spec.recipientName,
     amountKrw: spec.amountKrw,
+    sale: spec.sale ? { price: spec.sale.price, currency: spec.sale.currency } : undefined,
     usdc: formatUsdc(spec.amount),
     settlement,
     previewUrl: spec.previewUrl,
