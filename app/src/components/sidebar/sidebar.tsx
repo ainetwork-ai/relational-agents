@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -22,6 +22,7 @@ import { totalDmUnread, useDmRoomsStore } from "@/stores/dm-rooms";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { ChatsPanel } from "./chats-panel";
 import { PageItem } from "./page-item";
+import { SharedDocItem, sharedWithOf } from "./shared-doc-item";
 import { TrashModal } from "./trash-modal";
 import { WorkspaceSwitcher, type ActiveWorkspace } from "./workspace-switcher";
 import { AindriveSection } from "./aindrive-section";
@@ -104,6 +105,17 @@ export function Sidebar({
   }, [load, workspaceId]);
 
   const roots = usePagesStore((s) => s.roots);
+ // A relation's memory doc is readable only by the relation's members, so it is
+ // Shared, not Private — listed under Private it read as the viewer's own page.
+ // The server marks the doc root (sharedWith, from okf_acl); Private keeps the rest.
+  const sharedDocs = useMemo(
+    () => roots.flatMap((p) => {
+      const share = sharedWithOf(p);
+      return share ? [{ page: p, share }] : [];
+    }),
+    [roots]
+  );
+  const privateRoots = useMemo(() => roots.filter((p) => !sharedWithOf(p)), [roots]);
   const sidebarSort = useUiStore((s) => s.sidebarSort);
   const [sharedCollapsed, toggleShared] = useSectionCollapse("shared");
   const [favsCollapsed, toggleFavs] = useSectionCollapse("favorites");
@@ -194,8 +206,16 @@ export function Sidebar({
                 ))}
               </div>
             )}
+            {sharedDocs.length > 0 && (
+              <div className="mb-2">
+                <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("Shared")}</p>
+                {sharedDocs.map(({ page, share }) => (
+                  <SharedDocItem key={page.id} page={page} share={share} />
+                ))}
+              </div>
+            )}
             <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("Private")}</p>
-            {roots.map((p) => (
+            {privateRoots.map((p) => (
               <PageItem key={p.id} page={p} depth={0} />
             ))}
           </div>
@@ -375,7 +395,7 @@ export function Sidebar({
       <nav aria-label={t("Page")} className="flex-1 overflow-y-auto px-2 pb-4">
         <TeamspacesSection workspaceId={workspace?.id ?? null} />
         <AindriveSection />
-        {shared.length > 0 && (
+        {(sharedDocs.length > 0 || shared.length > 0) && (
           <section className="mb-4" data-testid="shared-section">
             <button
               data-testid="sidebar-section-toggle-shared"
@@ -384,6 +404,9 @@ export function Sidebar({
             >
               {t("Shared")}
             </button>
+            {!sharedCollapsed && sharedDocs.map(({ page, share }) => (
+              <SharedDocItem key={page.id} page={page} share={share} />
+            ))}
             {!sharedCollapsed && shared.map((p) => (
               <a
                 key={p.id}
@@ -465,10 +488,10 @@ export function Sidebar({
                 />
               ))}
             </div>
-          ) : roots.length === 0 ? (
+          ) : privateRoots.length === 0 ? (
             <p className="px-2 py-1 text-xs text-neutral-400">{t("No pages")}</p>
           ) : (
-            sortRows(roots, sidebarSort).map((p) => <PageItem key={p.id} page={p} depth={0} />)
+            sortRows(privateRoots, sidebarSort).map((p) => <PageItem key={p.id} page={p} depth={0} />)
           )}
         </section>
       </nav>

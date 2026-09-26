@@ -59,6 +59,7 @@ export function SeatButton({
   appId,
   action,
   environment,
+  onSeated,
   onClaimed,
   onError,
 }: {
@@ -67,6 +68,9 @@ export function SeatButton({
   /** the action the server verifies (status.seatAction) — it is hashed into the rp_context */
   action: string;
   environment: SeatEnvironment;
+  /** the server seated this member; IDKit's success screen is still up */
+  onSeated?: () => void;
+  /** the widget closed after a successful claim */
   onClaimed: () => void | Promise<void>;
   onError: (err: SeatClaimError | null) => void;
 }) {
@@ -164,6 +168,7 @@ export function SeatButton({
           onSuccess={() => {
             // only reached after handleVerify resolved: the server seated us
             seatedRef.current = true;
+            onSeated?.();
           }}
           onError={(code) => {
             // handleVerify already reported the server's refusal

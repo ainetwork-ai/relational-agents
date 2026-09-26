@@ -77,8 +77,8 @@ export const useAiChatsStore = create<AiChatsState>()(
       toggleUnreadOnly: () => set((s) => ({ unreadOnly: !s.unreadOnly })),
 
       load: async () => {
-        const r = await fetch(`/api/ai/chats?limit=${getPageSize()}`);
-        if (!r.ok) return;
+        const r = await fetch(`/api/ai/chats?limit=${getPageSize()}`).catch(() => null); // dropped connection → keep the list
+        if (!r?.ok) return;
         const { chats, mutedChatIds, hasMore } = (await r.json()) as {
           chats: AiChat[];
           mutedChatIds?: string[];

@@ -27,8 +27,8 @@ export function DissolveBanner({ roomId, refreshKey }: { roomId: string; refresh
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/dm/rooms/${roomId}/dissolve`);
-    if (res.ok) setStatus(await res.json());
+    const res = await fetch(`/api/dm/rooms/${roomId}/dissolve`).catch(() => null); // dropped connection → keep the last status
+    if (res?.ok) setStatus(await res.json());
   }, [roomId]);
 
   useEffect(() => {

@@ -94,6 +94,11 @@ function membersWord(n: number): string {
   return `${n} verified member${n === 1 ? "" : "s"}`;
 }
 
+/** the Treasury Activity's request line: "needs 2 humans to approve" */
+function toApprove(n: number): string {
+  return `needs ${n} human${n === 1 ? "" : "s"} to approve`;
+}
+
 /** a sentence that ends like one — rule bullets usually carry their own period */
 function sentence(s: string): string {
   const t = s.trim();
@@ -119,7 +124,7 @@ function purposeClause(t: RelationTreasury): string | null {
 }
 
 function rulesLink(t: RelationTreasury): string | null {
-  return t.rulesPageId ? `(Rules → /p/${t.rulesPageId})` : null;
+  return t.rulesPageId ? `Rules: /p/${t.rulesPageId}` : null;
 }
 
 /** "85.4" — one decimal, so $304 of $1,000 reads 30.4% next to a "more than 30%" rule, not 30% */
@@ -263,7 +268,7 @@ async function roomHumans(roomId: string): Promise<Member[]> {
     .from(chatRoomMembers)
     .innerJoin(users, eq(users.id, chatRoomMembers.userId))
     .where(eq(chatRoomMembers.roomId, roomId))
-    .orderBy(asc(chatRoomMembers.joinedAt));
+    .orderBy(asc(chatRoomMembers.joinedAt), asc(chatRoomMembers.userId));
   return rows
     .filter((r) => !r.isAgent)
     .map((r) => ({ userId: r.userId, displayName: r.displayName, address: evmAddress(r.ainAddress) }));
@@ -345,10 +350,10 @@ function alsoClause(applied: TreasuryRule[], main: TreasuryRule | null, amountUs
       const bar = r.forbidden
         ? `the rules don't allow moving more than ${r.minSharePct}% at once`
         : `the rules require ${membersWord(r.approvals)} to move more than ${r.minSharePct}% at once`;
-      bits.push(`${usd(amountUsd)} would also be ${pct}% of our ${usd(balanceUsd)} — ${bar}`);
+      bits.push(`${usd(amountUsd)} is also ${pct}% of our ${usd(balanceUsd)} — ${bar}`);
       continue;
     }
-    bits.push(`it would also fall under “${r.text.replace(/\.$/, "")}”`);
+    bits.push(`it also falls under “${r.text.replace(/\.$/, "")}”`);
   }
   return bits.length ? `${capitalize(bits.join("; "))}.` : null;
 }
@@ -382,16 +387,17 @@ async function refuse(
     console.error("[treasury] could not record a blocked action:", e);
   }
   const where = cmd.toSelf
-    ? "to their own wallet"
+    ? `to ${asker.displayName}'s own wallet`
     : recipient
       ? `to ${recipient.label}${memoNote(cmd.memo, recipient.label)}`
       : cmd.memo
         ? `for ${cmd.memo}`
         : "";
   await appendTreasuryActivity(ctx.roomId, [
-    `⛔ Blocked: ${asker.displayName} asked me to send ${usd(cmd.amountUsd)}${where ? ` ${where}` : ""}. Rule: “${ruleText}”`,
+    `⛔ Refused: ${usd(cmd.amountUsd)}${where ? ` ${where}` : ""} — ${decision.rule ? `“${ruleText}”` : sentence(ruleText)}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a blocked action:", e));
 
+  // one thought per line — the chat bubble keeps line breaks
   const out = ["I won't do that."];
   out.push(decision.rule ? `Our treasury rules say: “${decision.rule.text}”` : sentence(decision.reason));
   const also = alsoClause(decision.applied, decision.rule, cmd.amountUsd, balanceUsd);
@@ -402,7 +408,7 @@ async function refuse(
   if (note) out.push(note);
   const link = rulesLink(t);
   if (link) out.push(link);
-  return out.join(" ");
+  return out.join("\n");
 }
 
 /** Why there is nowhere to send it — nothing is created. */
@@ -503,7 +509,7 @@ async function moneyReply(
       return `I started paying ${what} on my own, but couldn't confirm the transfer (${(e as Error).message}). Check the treasury panel before asking again.`;
     }
     if (run.executed)
-      return `✅ Paid ${what} on my own — our rules allow it: “${decision.rule.text}”${run.txHash ? ` (tx ${run.txHash})` : ""}${run.gasSponsored ? " · gas sponsored by the relayer" : ""}`;
+      return `✅ Paid ${what} on my own.\nOur rules allow it: “${decision.rule.text}”${run.txHash ? ` · tx ${run.txHash}` : ""}`;
     if (run.unconfirmedTx)
       return `I sent ${what} on my own (“${decision.rule.text}”), but couldn't confirm it yet (tx ${run.unconfirmedTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`;
     return (
@@ -522,18 +528,20 @@ async function moneyReply(
   });
   // the request stands even if the ledger line fails — the action row is the record
   await appendTreasuryActivity(ctx.roomId, [
-    `⏳ Requested by ${asker.displayName}: ${usd(cmd.amountUsd)} · ${base.memo} — needs ${humans(decision.required)} (“${decision.rule.text}”)`,
+    `📝 ${asker.displayName} asked: ${usd(cmd.amountUsd)} · ${base.memo} — ${toApprove(decision.required)}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a queued action:", e));
   const pct = sharePct(cmd.amountUsd, balanceUsd);
+  // what, why, what to do — one line each. How duplicates are caught is left
+  // for the moment it happens (the voided notice), not announced up front.
   const out = [
-    `Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
-    `This needs ${humans(decision.required)}. Our rules say: “${decision.rule.text}”`,
-    `Members with a vote: tap “Approve with World ID” in the treasury panel — each approval is a fresh World ID check, and one human counts once no matter how many accounts they have.`,
+    `⏳ Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
+    `Needs ${humans(decision.required)} — our rules: “${decision.rule.text}”`,
+    `Approve with World ID in the treasury panel above.`,
   ];
   out.push(...seatShortfall(t, members, seated, decision.required));
   const note = unadoptedNote(t);
   if (note) out.push(note);
-  return out.join(" ");
+  return out.join("\n");
 }
 
 /** "Only 2 of us have a vote so far — Alex, Bea: claim yours…" when the voters can't reach the bar yet. */
@@ -615,17 +623,18 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
     ...joined.map((n) => `+ ${n} votes`),
   ];
   await appendTreasuryActivity(ctx.roomId, [
-    `⏳ Requested by ${asker.displayName}: adopt ${memo} — needs ${humans(required)}${changes.length ? ` (${changes.join("; ")})` : ""}`,
+    `📝 ${asker.displayName} asked: adopt ${memo} — ${toApprove(required)}${changes.length ? ` (${changes.join("; ")})` : ""}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a ratification request:", e));
 
   const out = [
-    `Queued: adopting ${memo}.`,
+    `⏳ Queued: adopting ${memo}.`,
     changes.length ? `Changes: ${changes.join("; ")}.` : "",
-    `This needs ${humans(required)} — ${bar.charAt(0).toLowerCase()}${bar.slice(1)} Until then I keep following the version we adopted.`,
-    `Members with a vote: tap “Approve with World ID” in the treasury panel.`,
+    `Needs ${humans(required)} — ${bar.charAt(0).toLowerCase()}${bar.slice(1)}`,
+    "Until then I keep following the version we adopted.",
+    "Approve with World ID in the treasury panel above.",
     ...seatShortfall(t, members, seated, required),
   ];
-  return out.filter(Boolean).join(" ");
+  return out.filter(Boolean).join("\n");
 }
 
 // ── recurring buy ───────────────────────────────────────────────────────────
