@@ -1,7 +1,9 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  agentRoomStates,
   chatMessages,
   chatRoomBots,
   chatRooms,
@@ -18,6 +20,11 @@ import { describeTreasuryAction } from "@/lib/agent/treasury/summary";
 import { INVEST_CHAIN, investConfig } from "@/lib/agent/treasury/invest";
 import { RATIFY_KIND, RECURRING_RUN_KIND } from "@/lib/agent/treasury/types";
 import { displayBalance, ensureAgentWallet, fundTreasury, treasuryBalance } from "@/lib/agent/treasury/wallet";
+import { activityDayHeading } from "@/lib/agent/treasury/memory";
+import { okfDocMeta } from "@/lib/agent/okf-docs";
+import { profileForRoom } from "@/lib/agent/profiles";
+import { nodeExists, writePage } from "@/lib/okf-store";
+import { TOKYO_TALK_LINES, TREASURY_OPENING, tokyoTripRecord } from "@/lib/tokyo-trip-record";
 
 /**
  * The public /world page. Two copies of the Tokyo Trip room, both made by
@@ -173,9 +180,10 @@ let lastTopUp = 0;
 /**
  * "Start over" for the try-it room: votes, requests, approvals, World ID
  * bindings, the members' notifications and the visitors' chat go; the room, its
- * agent, the relation's doc and the founding adoption stay. Chat is cut at the
- * founding adoption plus a minute: the seed dates the friends' conversation
- * before it, and everything later was said by visitors or answered to them.
+ * agent and the founding adoption stay, and the relation's doc goes back to
+ * what the seed wrote. Chat is cut at the founding adoption plus a minute: the
+ * seed dates the friends' conversation before it, and everything later was
+ * said by visitors or answered to them.
  */
 export async function resetTryRoom(): Promise<{ status: "done" | "missing" | "too-soon"; room: DemoRoom | null }> {
   const now = Date.now();
@@ -205,7 +213,41 @@ export async function resetTryRoom(): Promise<{ status: "done" | "missing" | "to
     await db.update(users).set({ worldSub: null, worldVerifiedAt: null }).where(inArray(users.id, humanIds));
     await db.delete(notifications).where(inArray(notifications.userId, humanIds));
   }
+  await restoreTryRecord(room.roomId);
   return { status: "done", room };
+}
+
+/**
+ * The try-it room's doc as the seed left it. Visitors' requests append to its
+ * Meeting log and Action items (the pipeline) and to its Treasury Activity (the
+ * ledger), none of which lives in the rows Start over deletes, so each reset
+ * left the next visitor a doc full of other people's $180 requests. Purpose,
+ * Treasury Rules and Payees stay: only an adoption changes those.
+ */
+async function restoreTryRecord(roomId: string): Promise<void> {
+  const [state] = await db
+    .select({ sectionOkfPaths: agentRoomStates.sectionOkfPaths })
+    .from(agentRoomStates)
+    .where(eq(agentRoomStates.roomId, roomId));
+  const paths = (state?.sectionOkfPaths ?? {}) as Record<string, string>;
+  const profile = await profileForRoom(roomId);
+  // the seed's conversation: dated before everything a visitor could have said
+  const talk = await db
+    .select({ id: chatMessages.id, at: chatMessages.createdAt })
+    .from(chatMessages)
+    .where(eq(chatMessages.roomId, roomId))
+    .orderBy(asc(chatMessages.createdAt))
+    .limit(TOKYO_TALK_LINES);
+  for (const s of tokyoTripRecord(roomId, talk.map((m) => m.id), talk[0]?.at ?? new Date())) {
+    const rel = paths[s.key];
+    if (rel && nodeExists(rel)) writePage(rel, s.title, okfDocMeta(roomId, profile, s.key), s.blocks);
+  }
+  const activity = paths["treasury-activity"];
+  if (activity && nodeExists(activity))
+    writePage(activity, "Treasury Activity", okfDocMeta(roomId, profile, undefined, { type: "Memory" }), [
+      { id: randomUUID(), type: "heading1", content: { text: activityDayHeading(new Date()) }, position: 1 },
+      { id: randomUUID(), type: "bulleted_list", content: { text: TREASURY_OPENING }, position: 2 },
+    ]);
 }
 
 /** fundTreasury pays from this key; a deploy without one (ainmem.ainetwork.xyz) refills only when the seed is rerun. */
