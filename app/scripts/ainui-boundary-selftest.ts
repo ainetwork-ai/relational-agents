@@ -27,3 +27,11 @@ assert.equal(nodes[0].component, "Button");
 assert.equal(nodes[1].component, "Text");
 assert.equal(nodes[2].component, "Text");
 console.log("AIN-UI boundary checks passed: linked roots, drive identity, action allow-list and managed backups.");
+
+// Refresh must retain the folder returned by AIN-UI, not silently reopen the linked root.
+import { folderRefreshAction } from "../src/lib/ainui-folder-location";
+import { ainuiFolder, ainuiFile } from "ain-ui";
+const gallery = ainuiFolder({ driveId: "drive1", path: "family/shared/Sky Photos", items: [], env: { view: "grid" } });
+assert.deepEqual(folderRefreshAction(gallery)?.context, { drive_id: "drive1", path: "family/shared/Sky Photos", value: "grid", query: "" });
+assert.equal(folderRefreshAction(ainuiFile({ driveId: "drive1", path: "family/shared/photo.jpg", mime: "image/jpeg", size: 1, mtime: 1 })), null);
+console.log("Folder refresh retains the selected path and view; file previews do not change the parent folder.");

@@ -1,4 +1,5 @@
 "use client";
+import { folderRefreshAction } from "@/lib/ainui-folder-location";
 import { DriveFolderChat } from "./folder-chat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DriveSurface as Surface, AinuiButton } from "./surface";
@@ -18,6 +19,7 @@ function DriveSurface({ source, onPick }: Props) {
   const picker = useRef(onPick);
   useEffect(() => { picker.current = onPick; }, [onPick]);
   const isPicker = !!onPick;
+  const refreshAction = useRef<A2uiAction | null>(null);
   const pending = useRef(false);
   const generation = useRef(0);
   const run = useCallback(async (action?: A2uiAction) => {
@@ -35,8 +37,8 @@ function DriveSurface({ source, onPick }: Props) {
       if (!r.ok) throw new Error(data.error || "Could not open the folder");
       if (current === generation.current) {
         setMessages(data.messages);
-        if (!action && typeof data.link?.root === "string") setPath(data.link.root);
-        else if (action?.context?.is_dir === true && typeof action.context.path === "string") setPath(action.context.path);
+        const location = folderRefreshAction(data.messages);
+        if (location) { refreshAction.current = location; setPath(location.context!.path as string); }
       }
     } catch (e) { if (current === generation.current) setError((e as Error).message); }
     finally { if (current === generation.current) { pending.current = false; setBusy(false); } }
@@ -54,6 +56,6 @@ function DriveSurface({ source, onPick }: Props) {
     {busy && <p role="status" className="mt-2 text-xs text-neutral-500">Loading…</p>}
     {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
     {!isPicker && path !== null && <DriveFolderChat source={source} path={path} />}
-    <AinuiButton label="Refresh" disabled={busy} onClick={() => run()} />
+    <AinuiButton label="Refresh" disabled={busy} onClick={() => run(refreshAction.current ?? undefined)} />
   </div>;
 }
