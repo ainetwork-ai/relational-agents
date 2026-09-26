@@ -1,10 +1,8 @@
 # Integration debriefs — World ID (ETHGlobal Tokyo 2026, Continuity)
 
 Two surfaces, two debriefs, both built from the timestamped
-[integration log](integration-log.md). Times of first success are filled in
-from the log once the real services have answered; until then they read _TBD_
-rather than an estimate. (The log's own note explains which of its early times
-are approximate.)
+[integration log](integration-log.md); every time below is taken from it, in
+JST. (The log's own note explains which of its early times are approximate.)
 
 ## Why two surfaces
 
@@ -35,26 +33,57 @@ at that moment), counted by DISTINCT subs per action. Denied paths: cancelled at
 the IdP, same human from a second account, member without a vote, stale proof,
 expired request, policy violation (refused before any approval is requested).
 
-- **Time to first success:** _TBD from log_ (discovery → first validated id_token
-  from the sandbox; so far only the local mock has answered)
+- **Time to first success:** **6 h 24 min** from the sandbox's discovery document
+  answering (2026-09-25 22:40) to the first validated id_token from the sandbox —
+  an approval on the demo host (2026-09-26 05:04). The treasury was being built
+  in the same hours, so most of that is our own work. From the first client
+  registration (02:24) it was **2 h 40 min**: two more registrations, because
+  each deploy domain is its own identity sector (the last at 03:00), then the
+  deploy and the demo room on that host (live 03:36, seeded 03:58). In the
+  product, from the click on our confirmation page to back in the room: **4.8 s**;
+  the sandbox hop itself takes about 3 s.
 - **Friction:**
-  1. Client registration is interactive (portal login, 20-minute approval
-     window) and HTTPS-only redirects, so localhost cannot iterate; we built a
-     local mock with the same discovery shape to develop against.
+  1. Client registration is interactive — the world-id-agent-plugin MCP, then a
+     Portal approval (about 2 minutes once signed in; the 20-minute window was
+     not a constraint) — and redirects are HTTPS-only: a registration that also
+     listed an `http://localhost` redirect was refused with a bare
+     `invalid_request`. So localhost cannot iterate against the sandbox; we built
+     a local mock with the same discovery shape to develop against. Signing in
+     took two rounds (the first consent granted `world-id:read` only; the Portal
+     tools then asked for `developer-portal:manage`), and the plugin installs
+     into the default Claude config directory, so a session with
+     `CLAUDE_CONFIG_DIR` set did not see it.
   2. Freshness semantics are undocumented: whether `max_age=0` / `prompt=login`
-     force a re-verification in the sandbox, and whether `auth_time` is always
-     present. We fail closed — an id_token without `auth_time` counts as a stale
-     proof — so if the sandbox omits it, approvals will say so rather than pass
-     on `iat`.
+     force a new verification, and whether `auth_time` is always present. We
+     fail closed — an id_token without `auth_time` counts as a stale proof.
+     Measured since: the sandbox's id_tokens carry an `auth_time` from the
+     step-up itself, after the request (approvals are recorded only then) — but
+     no document promises it.
   3. The docs page for World ID for Agents lists no endpoints; we read
      `/.well-known/openid-configuration` directly. It advertises three token
      endpoint auth methods but not which one a registered client gets, so the
      method is pinned by configuration (`WORLD_TOKEN_AUTH_METHOD`).
+  4. A client's first redirect host becomes its identity sector, and pairwise
+     `sub`s derive from it: adding a second host to the client was refused with
+     `invalid_sector_identifier`. We registered three clients for three deploy
+     domains, and one human has a different `sub` on each. Pick the redirect
+     host before registering.
+  5. Not World's defect, but it cost about 2 hours of the last day: Node's
+     `fetch` gives each resolved address 250 ms to connect, and the sandbox's
+     CloudFront edges took ~300 ms from our host, so hops failed with
+     `ETIMEDOUT` while curl on the same machine succeeded — intermittently,
+     whenever the resolver returned a farther edge.
+     `--network-family-autoselection-attempt-timeout=3000` fixed it. When a
+     fetch fails where curl succeeds on the same machine, suspect the runtime's
+     connect policy before the network.
 - **Missing capability / docs:** the step-up cannot say what is being approved —
   the IdP screen is the same for "verify your account" and "approve $180 to the
   hotel", so the relying party has to show the action itself before sending the
-  user there (we added a confirmation page for exactly that). Docs: an endpoint
-  list and the freshness guarantees above.
+  user there (we added a confirmation page for exactly that). The sandbox
+  completes with no human action, with one fake identity per browser, so a demo
+  shows the relying party's checks but not the moment a person proves
+  presence. Docs: an endpoint list, the freshness guarantees above, and the
+  identity-sector rule.
 - **The one improvement with the greatest impact:** let the step-up request
   carry an authorization detail — what is being approved, e.g. RFC 9396
   `authorization_details` or a signed claim — shown on the IdP screen and echoed
