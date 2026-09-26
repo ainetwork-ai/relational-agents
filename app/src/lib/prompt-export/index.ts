@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { blocks, databases, pages, teamspaces, workspaceMembers } from "@/lib/db/schema";
 import { publicOrigin } from "@/lib/app-origin";
 import { collect, type Located } from "./collect";
-import { coversAsked, expandAliases, norm, parseRef, scoreTitle, titleCoverage } from "./input";
+import { coversAsked, expandAliases, idOf, isPromptPageTitle, norm, parseRef, scoreTitle, titleCoverage } from "./input";
 import type { FetchOptions, PromptContent, RenderedPrompt, RenderOptions } from "./model";
 import { renderPrompt } from "./render";
 import { createDbSource, TEAMSPACE_PREFIX, type DbSource } from "./source-db";
@@ -21,13 +21,13 @@ import { createDbSource, TEAMSPACE_PREFIX, type DbSource } from "./source-db";
  */
 
 export { renderPrompt } from "./render";
-export { parsePromptRequest, parseRef, findRefInText } from "./input";
+export { parsePromptRequest, parseRef, findRefInText, idOf, isPromptPageTitle, promptAsk } from "./input";
 export { PromptNotFound, fetchOptions } from "./collect";
 export type { PromptContent, RenderedPrompt, RenderOptions, FetchOptions } from "./model";
 
 export interface Readers {
   viewerIds: string[];
-  /** origin for page links; defaults to APP_ORIGIN / the last request's origin */
+  /** origin for page links; defaults to publicOrigin() (APP_ORIGIN, else relative links) */
   baseUrl?: string;
 }
 
@@ -59,6 +59,19 @@ export type Resolved =
   | { ambiguous: Candidate[] }
   | { none: true };
 
+/** An id → what it is, when every reader can see it. */
+async function locateId(id: string, src: DbSource): Promise<(Located & { title: string }) | null> {
+  const loc = await src.locate(id);
+  if (!loc) return null;
+  const visible =
+    loc.kind === "block"
+      ? await src.block(loc.id).then((b) => (b ? src.canSee("page", b.pageId) : false))
+      : await src.canSee(loc.kind === "database" ? "database" : "page", loc.id);
+  if (!visible) return null;
+  const title = loc.kind === "block" ? `Block ${loc.id}` : ((await src.title(loc.kind === "database" ? "database" : "page", loc.id)) ?? "");
+  return { ...loc, title };
+}
+
 /** An id, a link, or a title → what to export, among what every reader can see. */
 export async function resolveTarget(
   input: string,
@@ -66,18 +79,15 @@ export async function resolveTarget(
 ): Promise<Resolved> {
   const src = sourceFor(readers);
   const ref = parseRef(input);
-  if (ref.kind === "id") {
-    const loc = await src.locate(ref.id);
-    if (!loc) return { none: true };
-    const visible =
-      loc.kind === "block"
-        ? await src.block(loc.id).then((b) => (b ? src.canSee("page", b.pageId) : false))
-        : await src.canSee(loc.kind === "database" ? "database" : "page", loc.id);
-    if (!visible) return { none: true };
-    const title = loc.kind === "block" ? `Block ${loc.id}` : ((await src.title(loc.kind === "database" ? "database" : "page", loc.id)) ?? "");
-    return { found: { ...loc, title } };
+  const id = idOf(input);
+  if (id) {
+    const found = await locateId(id, src);
+    if (found) return { found };
+    // a uuid / link that is not there (or not for these readers) is not a title either
+    if (ref.kind === "id" || id.startsWith(TEAMSPACE_PREFIX)) return { none: true };
   }
-  return resolveByTitle(ref.query, readers, src);
+  // a bare OKF id that locates nothing may still be a one-word title
+  return resolveByTitle(ref.kind === "title" ? ref.query : input, readers, src);
 }
 
 /** Every page, database and teamspace in the workspaces whose title the query names,
@@ -95,7 +105,8 @@ export async function resolveByTitle(query: string, readers: Readers & { workspa
     .select({ id: pages.id, title: pages.title })
     .from(pages)
     .where(and(inArray(pages.workspaceId, ws), eq(pages.isArchived, false))))
-    consider("page", p.id, p.title);
+    // a prompt page the agent saved is output — "the Chuseok page" never means it
+    if (!isPromptPageTitle(p.title)) consider("page", p.id, p.title);
   for (const d of await db.select({ id: databases.id, title: databases.title }).from(databases).where(inArray(databases.workspaceId, ws)))
     consider("database", d.id, d.title);
   for (const t of await db.select({ id: teamspaces.id, name: teamspaces.name }).from(teamspaces).where(inArray(teamspaces.workspaceId, ws)))
@@ -178,6 +189,7 @@ export async function visibleTitles(readers: Readers & { workspaceIds: string[] 
     .orderBy(pages.position);
   for (const p of rows) {
     if (out.length >= cap) break;
+    if (isPromptPageTitle(p.title)) continue;
     if (await src.canSee("page", p.id)) out.push({ kind: "page", id: p.id, title: p.title });
   }
   return out;
@@ -188,8 +200,9 @@ export async function workspacesOf(userId: string): Promise<string[]> {
   return (await db.select({ id: workspaceMembers.workspaceId }).from(workspaceMembers).where(eq(workspaceMembers.userId, userId))).map((r) => r.id);
 }
 
-/** Locate an id and check the readers may see it. */
-export async function locateVisible(id: string, readers: Readers): Promise<(Located & { title: string }) | null> {
-  const r = await resolveTarget(id, { ...readers, workspaceIds: [] });
-  return "found" in r ? r.found : null;
+/** Locate an id (a uuid in any spelling or link, a bare OKF id, a teamspace) and check the
+ *  readers may see it. Never a title lookup: an id they cannot all see is simply not found. */
+export async function locateVisible(input: string, readers: Readers, src: DbSource = sourceFor(readers)): Promise<(Located & { title: string }) | null> {
+  const id = idOf(input);
+  return id ? locateId(id, src) : null;
 }

@@ -423,18 +423,21 @@ export async function respondToMessage(
     // what a family agent can do beyond answering: build a page from the
     // family's shared folders, or pay a gift over x402 (family-skills.ts)
     // (the prompt skill is code end to end, so it runs even with the model faked)
-    const matched = mentioned && room.workspaceId ? matchFamilySkill(message.text) : null;
+    // (the room and asker: the prompt skill may be waiting on this person's answer)
+    const matched =
+      mentioned && room.workspaceId && !treasuryReply ? matchFamilySkill(message.text, { roomId, askerId: message.authorId }) : null;
     const skill = matched === "prompt" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
-    if (treasuryReply) {
-      decision = { action: "reply", text: treasuryReply.text };
-    } else if (skill && room.workspaceId) {
+    // a skill's answer — null when it was not a request for it after all (the prompt
+    // skill hands a "maybe" back), and the agent answers as it would otherwise
+    let done: { text: string } | null = null;
+    if (skill && room.workspaceId) {
       const sources = skill === "prompt" ? [] : await roomSources(room, roomId, message).catch(() => []);
       const lang = langOf(message.text);
       const viewerIds = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
-      const done = await runFamilySkill(skill, {
+      done = await runFamilySkill(skill, {
         workspaceId: room.workspaceId,
         askerId: message.authorId,
         sources,
@@ -449,6 +452,10 @@ export async function respondToMessage(
           return { text: makeT(lang)("I stopped partway: {error}", { error: e.message }) };
         }
       );
+    }
+    if (treasuryReply) {
+      decision = { action: "reply", text: treasuryReply.text };
+    } else if (done) {
       decision = { action: "reply", text: done.text };
     } else if (mentioned && canPipeline && asksForPipeline(message.text) && process.env.AGENT_FAKE_LLM !== "1") {
       // a skill, not an answer: gather the linked call histories and build the page

@@ -22,7 +22,7 @@ import { decodeId, encodeId, isOkfId, okfDatabaseSnapshot, readNode, type Conten
 import { cleanTitle } from "@/lib/memory-parse";
 import type { RelatedSnapshots } from "@/lib/db-values";
 import type { Located, PromptSource, SourceDatabase, SourcePage } from "./collect";
-import { isUuid } from "./input";
+import { isUuid, TEAMSPACE_PREFIX } from "./input";
 import { mapBlock, nestBlocks, nestByDepth, rowPageId, rowProperties, rowTitle, schemaOf, type MapCtx, type ValueCtx } from "./map";
 import type { PBlock, PPage } from "./model";
 
@@ -44,7 +44,7 @@ import type { PBlock, PPage } from "./model";
  * The agent's own user is never a reader: it has no workspace role.
  */
 
-export const TEAMSPACE_PREFIX = "teamspace:";
+export { TEAMSPACE_PREFIX };
 
 export interface DbSourceOptions {
   /** the people who will read the result (at least one) */

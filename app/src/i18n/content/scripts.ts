@@ -46,3 +46,51 @@ export const PROMPT_EXPORT_CHECK = {
   scheduleTitle: "추석 일정 · 내려가는 길",
   longTitle: "가".repeat(40),
 } as const;
+
+/** prompt-export-chat.check.mts: Korean chat the prompt skill must read — or leave alone */
+export const PROMPT_EXPORT_CHAT_CHECK = {
+  /** questions and chat about prompts: never the skill */
+  notRequests: [
+    "@agent 이 앨범 만들 때 쓴 프롬프트 뭐야?",
+    "@agent 앨범 만들 때 어떤 프롬프트 썼어?",
+    "@agent 프롬프트가 뭐야?",
+    "@agent 무슨 프롬프트로 그렸어?",
+  ],
+  /** requests with the page named, and the title words left over */
+  requests: [
+    ["@agent 추석 페이지를 프롬프트로 바꿔줄래?", "추석"],
+    ["@agent 추석 페이지 좀 프롬프트로 만들어 줄 수 있어?", "추석"],
+    ["@agent 추석 페이지 가지고 프롬프트 만들어줘", "추석"],
+    ["@agent 추석 페이지를 프롬프트로 만들어 주라", "추석"],
+    ["@agent 서연이 페이지 프롬프트로 만들어줘", "서연이"],
+    ["@agent 가족 나들이 페이지를 프롬프트로 만들어줘", "가족 나들이"],
+  ],
+  /** the open page: "이거", "여기", "이 문서", or nothing but the request */
+  openPage: ["@agent 이거 프롬프트로 만들어줘", "여기 프롬프트로 바꿔줘", "@agent 이 문서 프롬프트로 만들어줘", "프롬프트로 만들어줘요"],
+  /** a title with no page word: a maybe, taken only if it names a page */
+  maybeTitle: ["@agent 추석 앨범을 프롬프트로 만들어줘", "추석 앨범"],
+  /** options: depth said with a particle, "at most" before it, and a limit */
+  depthMax: "@agent 추석 페이지 프롬프트로 만들어줘 깊이 최대 3",
+  depthParticle: "@agent 추석 페이지 프롬프트로 만들어줘 깊이는 2로",
+  depthLevels: "@agent 추석 페이지 프롬프트로 최대 3단계",
+  limitCount: "@agent 추석 페이지 프롬프트로 최대 200개",
+  oneFilePerPage: "@agent 추석 페이지 프롬프트로 페이지마다 파일 하나씩",
+  oneFile: "@agent 추석 페이지 프롬프트로 한 파일로",
+  chuseokWord: "추석",
+  /** answers to "Which one?" */
+  answers: [
+    ["2번", 1],
+    ["2번이요", 1],
+    ["두 번째", 1],
+    ["첫 번째 거요", 0],
+    ["세 번째로 해줘", 2],
+  ],
+  yes: ["응", "네 맞아요", "그거요"],
+  /** titles offered back: the album, the meeting, the hub */
+  choices: ["추석 앨범", "추석 밤 · 가족회의", "2026 우리 가족 추석"],
+  albumWord: "앨범",
+  hubTitle: "2026 우리 가족 추석",
+  promptPage: "AI 프롬프트 — 2026 우리 가족 추석",
+  /** a family skill's own request, right after "which one?" */
+  albumRequest: "@agent 제주 앨범 만들어줘",
+} as const;

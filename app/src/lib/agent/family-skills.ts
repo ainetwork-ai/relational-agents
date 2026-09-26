@@ -12,7 +12,7 @@ import { readExif, type PhotoExif } from "@/lib/exif";
 import { formatUsdc, giftValid, ledgerBalance, ledgerDriveOf, unlocked, type GiftContent } from "@/lib/gift";
 import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
-import { asksForPrompt } from "@/lib/prompt-export/input";
+import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk } from "@/lib/prompt-export/input";
 import { promptSkill } from "./prompt-skill";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
@@ -59,13 +59,37 @@ const SERVINGS_RE = new RegExp(String.raw`\d+\s*(${SERVINGS_UNITS.join("|")})`, 
 const SERVINGS_NUM_RE = new RegExp(String.raw`(\d+)\s*(${SERVINGS_UNITS.join("|")})`, "i");
 const SERVINGS_ACT = anyOf(W.servingsAct);
 
-export function matchFamilySkill(text: string): FamilySkill | null {
+/**
+ * The skill a message asks for. `from` (the room and the person asking) lets it answer a
+ * question the prompt skill asked that person there ("Which one? 1. … 2. …" → "2"); that
+ * question lasts one turn, so any other message from them takes it off the table.
+ *
+ * "prompt" is also returned for a sentence that only might be a prompt request ("turn
+ * the Chuseok album into a prompt", no page word): the skill takes it when the name is a
+ * page title the readers see, and otherwise hands it back (runFamilySkill → null).
+ */
+export function matchFamilySkill(text: string, from?: { roomId: string; askerId: string }): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
+  const ask = promptAsk(t);
+  const answers = from ? answersPendingPrompt(from.roomId, from.askerId, t) : false;
   // first: "make a prompt from the album page" is about the prompt, not the album
-  if (asksForPrompt(t)) return "prompt";
-  for (const { skill, topic, act } of SKILL_RE) if (topic.test(t) && act.test(t)) return skill;
-  if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping";
-  return null;
+  if (ask?.sure) return "prompt";
+  // "what prompt did you use to make this album?" is a question for the model, not "make an album"
+  if (asksAboutPrompt(t)) {
+    if (from) forgetPendingPrompt(from.roomId, from.askerId);
+    return null;
+  }
+  const other = (() => {
+    for (const { skill, topic, act } of SKILL_RE) if (topic.test(t) && act.test(t)) return skill;
+    if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping" as const;
+    return null;
+  })();
+  if (other) {
+    // "make a Jeju album" is the album skill, even right after "which one? 「Jeju album」…"
+    if (from) forgetPendingPrompt(from.roomId, from.askerId);
+    return other;
+  }
+  return answers || ask ? "prompt" : null;
 }
 
 /** The language to answer in: the one the request was written in. */
@@ -528,7 +552,9 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
   };
 }
 
-export async function runFamilySkill(skill: FamilySkill, ctx: SkillContext): Promise<SkillResult> {
+/** The skill's answer — or null when the prompt skill finds the message was not a request
+ *  for it after all (see matchFamilySkill); the agent then answers as it would anyway. */
+export async function runFamilySkill(skill: FamilySkill, ctx: SkillContext): Promise<SkillResult | null> {
   switch (skill) {
     case "shopping":
       return shopping(ctx);

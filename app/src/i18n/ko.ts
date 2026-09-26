@@ -1311,9 +1311,11 @@ export const ko: Record<string, string> = {
   "💾 Also saved to your aindrive: {path}": "💾 내 aindrive에도 저장했어요: {path}",
   "Not saved to your aindrive: that folder is shared with more people than this prompt is for.": "aindrive에는 저장하지 않았어요: 그 폴더는 이 프롬프트를 볼 사람들보다 더 많은 사람에게 공유돼 있어요.",
   "Couldn't save to your aindrive: {error}": "aindrive에 저장하지 못했어요: {error}",
-  "Which one? {list}": "어느 쪽인가요? {list}",
-  "Did you mean {list}? Say it again with that name, or paste the page's link.": "{list}을(를) 말씀하신 건가요? 그 이름으로 다시 말해 주거나 페이지 링크를 붙여 주세요.",
+  "Which one? Say its number or name, or paste the page's link.": "어느 쪽인가요? 번호나 이름으로 답해 주거나 페이지 링크를 붙여 주세요.",
+  "Did you mean 「{title}」? Say yes, or say it again with another name or paste the page's link.": "「{title}」을(를) 말씀하신 건가요? 맞으면 \"응\"이라고 답해 주세요. 아니면 다른 이름으로 다시 말하거나 페이지 링크를 붙여 주세요.",
   "Which page should I turn into a prompt? Say its name, paste its link, or ask from the agent panel while the page is open.": "어느 페이지를 프롬프트로 만들까요? 페이지 이름을 말하거나 링크를 붙여 주세요. 페이지를 연 채로 에이전트 패널에서 물어봐도 돼요.",
   "I couldn't find a page by that name that everyone here can see.": "여기 있는 모두가 볼 수 있는 페이지 중에 그 이름을 찾지 못했어요.",
+  "I couldn't find a page by that name.": "그 이름의 페이지를 찾지 못했어요.",
   "I couldn't open that page for everyone who will read this. Check the name or link — or ask me quietly for a copy only you can see.": "이 답을 볼 모두에게 그 페이지를 열어 줄 수 없어요. 이름이나 링크를 확인해 주세요. 나만 볼 사본이 필요하면 조용히 물어봐 주세요.",
+  "I can't open that page. Check the name or link.": "그 페이지를 열 수 없어요. 이름이나 링크를 확인해 주세요.",
 };
