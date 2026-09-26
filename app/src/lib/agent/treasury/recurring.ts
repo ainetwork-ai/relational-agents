@@ -6,6 +6,8 @@ import { chatRoomBots, treasuryActions, treasuryApprovals, users } from "@/lib/d
 import { createTreasuryAction, txLink, voters } from "./approvals";
 import { INVEST_CHAIN, investConfig, investViaUniswap, investedPosition, usdcForUsd, type InvestResult } from "./invest";
 import { appendTreasuryActivity, humanMemberIds, latestAdoption, loadRelationTreasury } from "./memory";
+import { ROUTE_WORDS, type SwapRoute } from "./swap-route";
+import { failureMarks, type FailureMarks } from "./uniswap-api";
 import { evaluateCommand } from "./policy";
 import {
   decideRun,
@@ -102,8 +104,8 @@ export function queuedLines(input: { record: RecurringBuyRecord; required: numbe
 }
 
 /** The room's one-line receipt after a real weekly buy; the explorer link is drawn short in chat. */
-export function boughtLine(run: { weeklyUsd: number; wethOut: string; txHash: string }, askedBy?: string): string {
-  return `Bought this week's ETH${askedBy ? ` at ${askedBy}'s request` : ""}: ${usd(run.weeklyUsd)} → ${wethShort(run.wethOut)} WETH · Uniswap v3 on Base · tx ${INVEST_CHAIN.explorer}/tx/${run.txHash}`;
+export function boughtLine(run: { weeklyUsd: number; wethOut: string; txHash: string; route: SwapRoute }, askedBy?: string): string {
+  return `Bought this week's ETH${askedBy ? ` at ${askedBy}'s request` : ""}: ${usd(run.weeklyUsd)} → ${wethShort(run.wethOut)} WETH · ${ROUTE_WORDS[run.route]} · tx ${INVEST_CHAIN.explorer}/tx/${run.txHash}`;
 }
 
 /** "0x1a2b3c4d…9f0e" — the terms' fingerprint as approvers and members see it */
@@ -601,7 +603,7 @@ export async function supersedeOlderAuthorities(
 
 export type RecurringRunResult =
   /** weeklyUsd in story dollars (the terms'); usdcIn / wethOut in whole tokens ("0.1", "0.0000254") */
-  | { outcome: "bought"; isoWeek: string; weeklyUsd: number; usdcIn: string; wethOut: string; txHash: string; txUrl: string }
+  | { outcome: "bought"; isoWeek: string; weeklyUsd: number; usdcIn: string; wethOut: string; txHash: string; txUrl: string; route: SwapRoute }
   | { outcome: "skipped"; isoWeek: string; reason: RecurringSkipReason }
   | { outcome: "rehearsal"; isoWeek: string; wouldBuyUsd: number }
   | { outcome: "none"; reason: "no-recurring-buy" };
@@ -665,12 +667,13 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
   const { terms } = authority.record;
   const isoWeek = decision.isoWeek;
   const base = { v: 1 as const, authorityId: authority.actionId, isoWeek, by, at: unixS(now) };
-  const skip = async (reason: RecurringSkipReason, sent?: `0x${string}`): Promise<RecurringRunResult> => {
+  const skip = async (reason: RecurringSkipReason, marks: FailureMarks = {}): Promise<RecurringRunResult> => {
+    const { txHash: sent, ...rest } = marks;
     // a skip carrying a hash is kept even when nobody asked: it occupies its week
-    if (by !== SCHEDULE || sent)
+    if (by !== SCHEDULE || sent || rest.orderHash)
       await recordRun(
         authority,
-        { ...base, outcome: "skipped", reason, ...(sent ? { txHash: sent, txUrl: `${INVEST_CHAIN.explorer}/tx/${sent}` } : {}) },
+        { ...base, outcome: "skipped", reason, ...(sent ? { txHash: sent, txUrl: `${INVEST_CHAIN.explorer}/tx/${sent}` } : {}), ...rest },
         now
       );
     return { outcome: "skipped", isoWeek, reason };
@@ -687,20 +690,23 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
 
   let bought: InvestResult;
   try {
-    bought = await investViaUniswap(terms.agentUserId, terms.weeklyUsd);
+    // this run's row can hold an order still open (orderHash), so the Trading API may answer with UniswapX
+    bought = await investViaUniswap(terms.agentUserId, terms.weeklyUsd, { allowOrders: true });
   } catch (err) {
-    const sent = sentTxHash(err);
+    const marks = failureMarks(err);
+    const sent = marks.txHash ?? sentTxHash(err);
+    const order = sent ? undefined : marks.orderHash;
     console.error(
-      `recurring: the ${isoWeek} buy of ${authority.actionId} failed${sent ? ` after sending tx ${sent}` : ""}: ${logLine(err)}`
+      `recurring: the ${isoWeek} buy of ${authority.actionId} failed${sent ? ` after sending tx ${sent}` : order ? ` after placing order ${order}` : ""}: ${logLine(err)}`
     );
+    const week = `Recurring buy, week of ${relationDay(weekStart(now))}`;
     if (sent)
-      await logActivity(
-        roomId,
-        `Recurring buy, week of ${relationDay(weekStart(now))}: swap sent, not completed · ${txLink(sent, INVEST_CHAIN.explorer)} — this week counts as used`
-      );
+      await logActivity(roomId, `${week}: swap sent, not completed · ${txLink(sent, INVEST_CHAIN.explorer)} — this week counts as used`);
+    else if (order)
+      await logActivity(roomId, `${week}: UniswapX order placed, not filled yet (order ${order}) — this week counts as used`);
     const message = (err as { message?: unknown } | null)?.message;
-    const short = !sent && typeof message === "string" && INSUFFICIENT_USDC.test(message);
-    return skip(short ? "insufficient-usdc" : "swap-failed", sent);
+    const short = !sent && !order && typeof message === "string" && INSUFFICIENT_USDC.test(message);
+    return skip(short ? "insufficient-usdc" : "swap-failed", { ...marks, txHash: sent, orderHash: order });
   }
 
   await recordRun(
@@ -712,12 +718,15 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
       wethOut: bought.wethOut.toString(),
       txHash: bought.txHash,
       txUrl: bought.txUrl,
+      route: bought.route,
+      ...(bought.requestId ? { requestId: bought.requestId } : {}),
+      ...(bought.fallbackReason ? { fallbackReason: bought.fallbackReason } : {}),
     },
     now
   );
   await logActivity(
     roomId,
-    `Recurring buy, week of ${relationDay(weekStart(now))}: ${usd(terms.weeklyUsd)} → ${wethShort(formatUnits(bought.wethOut, 18))} WETH · Uniswap v3 on Base${by === SCHEDULE ? "" : ` — asked by ${await displayName(by)}`} · ${txLink(bought.txHash, INVEST_CHAIN.explorer)}`
+    `Recurring buy, week of ${relationDay(weekStart(now))}: ${usd(terms.weeklyUsd)} → ${wethShort(formatUnits(bought.wethOut, 18))} WETH · ${ROUTE_WORDS[bought.route]}${by === SCHEDULE ? "" : ` — asked by ${await displayName(by)}`} · ${txLink(bought.txHash, INVEST_CHAIN.explorer)}`
   );
   return {
     outcome: "bought",
@@ -727,6 +736,7 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
     wethOut: formatUnits(bought.wethOut, 18),
     txHash: bought.txHash,
     txUrl: bought.txUrl,
+    route: bought.route,
   };
 }
 

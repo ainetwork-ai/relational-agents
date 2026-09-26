@@ -16,8 +16,14 @@ lists every Uniswap call of both with `file:line`.
   warning about period keys (a UTC-day key double-buys across a week boundary) became our ISO-week
   key and a pinned test.
 - **anvil fork of Base mainnet** for the test suite (`npm test`); **Base mainnet** with real funds for the demo.
-- Not used: the Trading API (no key on the day). Our `decisionOrigin` field (`autonomous` for a
-  standing mandate, `human_mediated` for a one-off) is shaped for `X-Agent-Info`.
+- **Trading API**, for the app's buy (`app/src/lib/agent/treasury/uniswap-api.ts`, from 2026-09-27):
+  `/check_approval` → `/quote` → `/swap` for CLASSIC, `/order` + `/orders` for UniswapX, with
+  `x-universal-router-version: 2.1.2` pinned and `X-Agent-Info` sent (`human_mediated`); the v3 path
+  above stays as the fallback while nothing has been sent. One CLASSIC buy has gone through it on
+  mainnet (0.1 USDC); that and the routing we measured are in `uniswap/README.md` ("Through the
+  Uniswap Trading API").
+  In `uniswap/` our `decisionOrigin` field (`autonomous` for a standing mandate, `human_mediated`
+  for a one-off) is shaped for the same header.
 
 ## What worked without friction
 
@@ -59,6 +65,23 @@ lists every Uniswap call of both with `file:line`.
 5. **Fill measurement.** A balance read before and after the swap counts anything else that
    credited the recipient in the same window. We decode the ERC-20 `Transfer` to the recipient out
    of the swap's own receipt instead. Worth stating in the skill as the way to record a fill.
+6. **Trading API: `permitData` has no `primaryType`.** viem's `signTypedData` (like most EIP-712
+   libraries) needs it, and the integration guide's `_signTypedData(domain, types, values)` example
+   is ethers v5's, which infers it. We take the one type no other type names (`PermitSingle`,
+   `PermitWitnessTransferFrom`). **Suggestion:** return `primaryType` next to `domain`, `types` and
+   `values`.
+7. **Trading API: a quote without a slippage setting.** The reference says one of
+   `slippageTolerance` or `autoSlippage` must be set; a `/quote` for 0.1 USDC → WETH on Base with
+   neither answered 200 with `slippage: 2.5` — a minimum 2.5% under the quote, five times the 0.5%
+   bound our direct path uses (measured 2026-09-27). We send `slippageTolerance` and check the
+   returned minimum against it before signing anything. **Suggestion:** reject the request as the
+   reference says, or state the default.
+8. **Trading API: `/check_approval` approves an unlimited amount.** For 0.1 USDC on Base it
+   answered `approve(Permit2, MaxUint256)` (measured 2026-09-27), while `/quote` takes
+   `permitAmount: "EXACT"` for the Permit2 side. An agent holding a group's pot should approve no
+   more than one buy, so we send our own `approve(Permit2, amountIn)` whenever `/check_approval`
+   says one is needed; after our live buy both allowances read 0. **Suggestion:** an `exact` option
+   on `/check_approval`, matching `permitAmount`.
 
 ## Links
 

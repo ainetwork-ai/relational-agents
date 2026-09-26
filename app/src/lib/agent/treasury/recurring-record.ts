@@ -1,4 +1,5 @@
 import { keccak256, toBytes } from "viem";
+import { isSwapRoute, type SwapRoute } from "./swap-route";
 import { TREASURY_TIME_ZONE } from "./types";
 
 /**
@@ -80,6 +81,14 @@ export interface RecurringRunRecord {
   wethOut?: string;
   txHash?: `0x${string}`;
   txUrl?: string;
+  /** a UniswapX order handed to the Trading API that had not filled when the run stopped watching */
+  orderHash?: `0x${string}`;
+  /** which way the buy went, or tried to */
+  route?: SwapRoute;
+  /** the Trading API's /quote requestId */
+  requestId?: string;
+  /** why a server with the Trading API key swapped directly — nothing had been sent */
+  fallbackReason?: string;
   /** userId who asked, or "schedule" */
   by: string;
   at: number;
@@ -298,7 +307,8 @@ export function parseRun(ruleText: string): RecurringRunRecord | null {
   if (r.reason !== undefined && !(isStr(r.reason) && SKIP_REASONS.has(r.reason))) return null;
   if (r.outcome === "skipped" && r.reason === undefined) return null;
   if (!isOptional(r.usdcIn, isUintString) || !isOptional(r.wethOut, isUintString)) return null;
-  if (!isOptional(r.txHash, isHash) || !isOptional(r.txUrl, isStr)) return null;
+  if (!isOptional(r.txHash, isHash) || !isOptional(r.txUrl, isStr) || !isOptional(r.orderHash, isHash)) return null;
+  if (!isOptional(r.route, isSwapRoute) || !isOptional(r.requestId, isStr) || !isOptional(r.fallbackReason, isStr)) return null;
   if (r.outcome === "bought" && r.txHash === undefined) return null;
   if (!isNonEmptyStr(r.by) || !isNum(r.at)) return null;
   const run: RecurringRunRecord = {
@@ -314,6 +324,10 @@ export function parseRun(ruleText: string): RecurringRunRecord | null {
   if (r.wethOut !== undefined) run.wethOut = r.wethOut;
   if (r.txHash !== undefined) run.txHash = r.txHash;
   if (r.txUrl !== undefined) run.txUrl = r.txUrl;
+  if (r.orderHash !== undefined) run.orderHash = r.orderHash;
+  if (r.route !== undefined) run.route = r.route;
+  if (r.requestId !== undefined) run.requestId = r.requestId;
+  if (r.fallbackReason !== undefined) run.fallbackReason = r.fallbackReason;
   return run;
 }
 
@@ -321,8 +335,8 @@ export function parseRun(ruleText: string): RecurringRunRecord | null {
  * May this authority buy now? The refusal order is part of the contract: a
  * stop outranks everything (the members said no), then the window, then the
  * rules/terms, and only then the once-a-week limit. A skip that carries a
- * txHash occupies its week like a buy — a broadcast swap that failed may still
- * have moved money.
+ * txHash or an orderHash occupies its week like a buy — a broadcast swap that
+ * failed, or an order not filled yet, may still have moved money.
  */
 export function decideRun(input: {
   record: RecurringBuyRecord;
@@ -339,7 +353,9 @@ export function decideRun(input: {
   if (nowS < record.terms.startsAt) return refuse("not-started");
   if (nowS >= record.terms.expiresAt) return refuse("expired");
   if (!rulesStillAllow || termsDigest(record.terms) !== record.digest.toLowerCase()) return refuse("rules-changed");
-  const occupied = runs.some((r) => r.isoWeek === isoWeek && (r.outcome === "bought" || r.txHash !== undefined));
+  const occupied = runs.some(
+    (r) => r.isoWeek === isoWeek && (r.outcome === "bought" || r.txHash !== undefined || r.orderHash !== undefined)
+  );
   if (occupied) return refuse("already-bought-this-week");
   return { ok: true, isoWeek };
 }

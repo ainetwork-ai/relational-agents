@@ -199,6 +199,13 @@ check("parseRun round-trips buys and skips", () => {
   assert.deepEqual(parseRun(JSON.stringify(bought)), bought);
   const skipped: RecurringRunRecord = { v: 1, authorityId: "act-1", isoWeek: "2026-W41", outcome: "skipped", reason: "insufficient-usdc", by: "schedule", at: 1 };
   assert.deepEqual(parseRun(JSON.stringify(skipped)), skipped);
+  // the route fields (uniswap-api.ts) ride along: a buy through the API, a direct buy after a fallback, an order still open
+  const viaApi = run({ route: "uniswap-api CLASSIC", requestId: "a9395818b2c0a3c3c103326d08594ebf" });
+  assert.deepEqual(parseRun(JSON.stringify(viaApi)), viaApi);
+  const fellBack = run({ route: "direct v3", fallbackReason: "/quote answered 404 NoRouteFoundError" });
+  assert.deepEqual(parseRun(JSON.stringify(fellBack)), fellBack);
+  const open = run({ outcome: "skipped", reason: "swap-failed", txHash: undefined, txUrl: undefined, orderHash: TX, route: "uniswap-api UniswapX" });
+  assert.deepEqual(parseRun(JSON.stringify(open)), JSON.parse(JSON.stringify(open)));
 });
 
 check("parseRun: null on anything malformed", () => {
@@ -220,6 +227,9 @@ check("parseRun: null on anything malformed", () => {
     { ...run({}), usdcIn: 20 },
     { ...run({}), by: "" },
     { ...run({}), at: "now" },
+    { ...run({}), route: "uniswap v4" },
+    { ...run({}), orderHash: "0x12" },
+    { ...run({}), requestId: 7 },
   ];
   for (const b of bad) {
     const text = typeof b === "string" ? b : JSON.stringify(b);
@@ -287,6 +297,9 @@ check("a skip with a txHash occupies the week; a skip without one does not", () 
   assert.equal(reason(decide({ runs: [noUsdc, failedBeforeBroadcast] })), "ok");
   // a buy last week does not occupy this week
   assert.equal(reason(decide({ runs: [run({ isoWeek: "2026-W39" }), failedBeforeBroadcast] })), "ok");
+  // a UniswapX order handed over and not filled yet may still fill: it holds the week too
+  const orderOpen = run({ outcome: "skipped", reason: "swap-failed", txHash: undefined, txUrl: undefined, usdcIn: undefined, wethOut: undefined, orderHash: TX });
+  assert.equal(reason(decide({ runs: [orderOpen] })), "already-bought-this-week");
 });
 
 check("refusals still report the week they were asked in", () => {
