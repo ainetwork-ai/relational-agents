@@ -1,6 +1,5 @@
 import { checkMandate } from "./mandate/index.js";
-
-const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+import { sameAddress } from "./address.js";
 
 // The bound handed to every quote. Not a mandate field yet: the family signs caps and a pair, not
 // how much slippage their agent may accept.
@@ -19,8 +18,8 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   // A mandate id names a mandate, it does not confer one. Without the owner check, a caller who
   // knows an id could spend under another family's mandate and have it filed under this agent.
   const m = mandateId
-    ? view.mandates.find((x) => x.id === mandateId && same(x.agent, account.address))
-    : view.mandates.find((x) => same(x.agent, account.address) && x.kind === "standing");
+    ? view.mandates.find((x) => x.id === mandateId && sameAddress(x.agent, account.address))
+    : view.mandates.find((x) => sameAddress(x.agent, account.address) && x.kind === "standing");
   if (!m) return { outcome: "no-mandate" };
 
   const intent = { chainId: chain.chainId, tokenIn: m.tokenIn, tokenOut: m.tokenOut,

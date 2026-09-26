@@ -1,6 +1,5 @@
 import { periodKey } from "./period.js";
-
-const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+import { sameAddress } from "../address.js";
 
 /**
  * May the agent do `intent` under mandate `m` right now? Pure; the ledger supplies `view`.
@@ -20,7 +19,7 @@ export function checkMandate(m, view, intent, now) {
   if (m.revokedAt) return no("revoked");
   if (nowSec >= m.expiresAt) return no("expired");
   if (!m.approval) return no("unapproved");
-  if (!same(intent.tokenIn, m.tokenIn) || !same(intent.tokenOut, m.tokenOut)) return no("pair-not-allowed");
+  if (!sameAddress(intent.tokenIn, m.tokenIn) || !sameAddress(intent.tokenOut, m.tokenOut)) return no("pair-not-allowed");
   if (intent.amountIn > m.perRunCap) return no("over-per-run-cap");
   const spent = view.spentByPeriod?.[m.id]?.[key] ?? 0n;
   if (spent + intent.amountIn > m.perPeriodCap) return no("over-per-period-cap");

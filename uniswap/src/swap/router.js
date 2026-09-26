@@ -1,5 +1,6 @@
 import { createPublicClient, createWalletClient, http, erc20Abi, parseEventLogs } from "viem";
 import { quoterV2Abi, swapRouter02Abi } from "./abi.js";
+import { sameAddress } from "../address.js";
 
 /**
  * Uniswap v3 through the periphery contracts, over any RPC the chain template names.
@@ -37,7 +38,7 @@ export function routerProvider(chain) {
     const { intent } = priced;
     const wallet = createWalletClient({ account, chain: chain.viemChain, transport: http(chain.rpc) });
     const decimalsOf = (addr) =>
-      Object.values(chain.tokens).find((t) => t.address.toLowerCase() === addr.toLowerCase())?.decimals ?? 18;
+      Object.values(chain.tokens).find((t) => sameAddress(t.address, addr))?.decimals ?? 18;
 
     // 1. allowance for the router — a plain ERC-20 approval, exactly the amount of this buy
     const approveHash = await wallet.writeContract({ address: intent.tokenIn, abi: erc20Abi,
@@ -62,8 +63,7 @@ export function routerProvider(chain) {
       //    swap would also count anything else that credited the recipient in the same window — two
       //    buys sharing a recipient would each report the other's fill, into the family's passbook.
       const credits = parseEventLogs({ abi: erc20Abi, logs: receipt.logs, eventName: "Transfer" })
-        .filter((log) => log.address.toLowerCase() === intent.tokenOut.toLowerCase()
-          && log.args.to.toLowerCase() === intent.recipient.toLowerCase());
+        .filter((log) => sameAddress(log.address, intent.tokenOut) && sameAddress(log.args.to, intent.recipient));
       if (credits.length === 0)
         throw new Error(`swap ${txHash} credited no ${intent.tokenOut} to ${intent.recipient}`);
       const amountOut = credits.reduce((sum, log) => sum + log.args.value, 0n);
