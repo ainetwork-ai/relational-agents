@@ -105,15 +105,15 @@ export function LinkForm({
 /** Everything in one linked folder. `api` is where its tree and files are
  *  served (`${api}/tree`, `${api}/file`); `onUnlink` adds an unlink button. */
 export function Browser({ api, title, onUnlink, unlinkLabel, managed }: {
-  api: string; title: string; onUnlink?: () => void; unlinkLabel?: string;
+  api: string; title?: string; onUnlink?: () => void; unlinkLabel?: string;
   managed?: Managed; rawUrl?: (path: string) => string;
 }) {
   const t = useT();
   return <div data-testid="aindrive-browser">
-    <div className="mb-2 flex items-center justify-between gap-2">
-      <AinuiText text={title} />
+    {(title || onUnlink) && <div className="mb-2 flex items-center justify-between gap-2">
+      {title && <AinuiText text={title} />}
       {onUnlink && <AinuiButton label={unlinkLabel ?? t("Unlink")} onClick={onUnlink} />}
-    </div>
+    </div>}
     <AinuiDriveBrowser source={api} />
     {managed && <p className="mt-2 text-xs text-neutral-500">{t("Backed-up pages are read-only here.")}</p>}
   </div>;

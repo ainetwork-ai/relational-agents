@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { AinuiButton, AinuiText } from "@/components/ainui/surface";
+import { Folder, File, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Browser, errorOf, SYNC_LABEL, type Managed, type SyncState } from "@/components/home/aindrive-panel";
 import { STATE_LABEL, driveState } from "@/components/sidebar/teamspace-drive";
@@ -130,10 +131,24 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
   const d = meta.drive;
   const state = driveState(d);
 
-  return <div data-testid="teamspace-drive" className="mx-auto max-w-5xl space-y-4 px-8 pb-16 pt-12">
-    <AinuiText text={`${meta.teamspaceName} · ${d.name}`} />
-    <AinuiText text={`aindrive · ${d.driveId}${d.root ? ` / ${d.root}` : ""}`} />
-    {!d.backup && <AinuiText text={fileInfo?.kind === "file" ? t("A file {who} shared with the {ts} teamspace. Members can open and download it; it stays on {who}'s drive.", { who: meta.linkedBy ?? t("Members"), ts: meta.teamspaceName }) : t("An aindrive folder {who} shared with the {ts} teamspace. Any member can open and edit it; changes go straight to {who}'s drive.", { who: meta.linkedBy ?? t("Members"), ts: meta.teamspaceName })} />}
+  const title = d.root.split("/").filter(Boolean).at(-1) || d.name;
+  const Icon = fileInfo?.kind === "file" ? File : Folder;
+  return <div data-testid="teamspace-drive" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-8 sm:pt-10">
+    <header className="mb-7">
+      <p className="mb-3 text-xs text-neutral-500">{meta.teamspaceName} <span aria-hidden="true" className="px-1.5">/</span> aindrive</p>
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 dark:bg-white/5 dark:text-neutral-400"><Icon size={23} strokeWidth={1.5} /></span>
+        <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">{title}</h1>
+      </div>
+      <details className="group mt-3 text-xs text-neutral-500">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md py-2 focus-visible:outline-2 focus-visible:outline-blue-500">{t("Folder details")}<ChevronDown size={13} className="transition-transform group-open:rotate-180" /></summary>
+        <div className="mt-2 space-y-3 rounded-lg bg-neutral-50 p-4 leading-relaxed dark:bg-white/5">
+          <p className="break-all">{d.driveId}{d.root ? ` / ${d.root}` : ""}</p>
+          {!d.backup && <p>{fileInfo?.kind === "file" ? t("A file {who} shared with the {ts} teamspace. Members can open and download it; it stays on {who}'s drive.", { who: meta.linkedBy ?? t("Members"), ts: meta.teamspaceName }) : t("An aindrive folder {who} shared with the {ts} teamspace. Any member can open and edit it; changes go straight to {who}'s drive.", { who: meta.linkedBy ?? t("Members"), ts: meta.teamspaceName })}</p>}
+          <AinuiButton label={t("Unlink")} onClick={unlink} />
+        </div>
+      </details>
+    </header>
     {d.backup && <section data-testid="teamspace-drive-backup" data-state={state} className="space-y-3 rounded-xl border p-4">
       <AinuiText text={`${t("Linked")} · ${t(STATE_LABEL[state])}`} />
       <AinuiText text={pending ? t("First sync running…") : d.lastBackupError ? t("Last sync failed: {error}", { error: d.lastBackupError }) : t("Last sync {time} · {n} files", { time: new Date(d.lastBackupAt!).toLocaleString(), n: d.lastBackupFiles ?? 0 })} />
@@ -146,7 +161,6 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
     </section>}
     {error && <p role="alert">{error}</p>}
     {fileInfo?.kind === "file" ? <FileShareCard linkId={id} driveId={d.driveId} path={d.root} info={fileInfo} onUnlocked={reload} /> : !fileInfo ? null : meta.available ?
-      <Browser key={d.lastBackupAt ?? "none"} api={`/api/aindrive/links/${id}`} title={`${d.driveId}${d.root ? ` / ${d.root}` : ""}`} managed={d.backup ? managed : undefined} /> : <AinuiText text={t("This folder is no longer offered on this server.")} />}
-    <AinuiButton label={t("Unlink")} onClick={unlink} />
+      <Browser key={d.lastBackupAt ?? "none"} api={`/api/aindrive/links/${id}`} managed={d.backup ? managed : undefined} /> : <AinuiText text={t("This folder is no longer offered on this server.")} />}
   </div>;
 }

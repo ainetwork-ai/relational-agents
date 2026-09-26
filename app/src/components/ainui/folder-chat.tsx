@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { MessageCircle, ChevronDown } from "lucide-react";
+import { useT } from "@/i18n/provider";
 import { AinuiFolderChat } from "ain-ui/react";
 import { readChatStream, type FolderChatAgent } from "ain-ui";
 import "ain-ui/styles.css";
@@ -8,6 +10,7 @@ export function DriveFolderChat({ source, path }: { source: string; path: string
   return <ScopedChat key={`${source}:${path}`} source={source} path={path} />;
 }
 function ScopedChat({ source, path }: { source: string; path: string }) {
+  const t = useT();
   const [agents, setAgents] = useState<FolderChatAgent[]>([]);
   const [error, setError] = useState("");
   const approved = useRef(new Set<string>());
@@ -19,7 +22,7 @@ function ScopedChat({ source, path }: { source: string; path: string }) {
     }).catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
   }, [source, path]);
-  return <details className="mt-4 rounded-lg border p-3"><summary>Folder chat</summary>
+  return <details className="group mt-4 rounded-xl border border-neutral-200/70 p-4 dark:border-white/10"><summary className="flex cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium focus-visible:outline-2 focus-visible:outline-blue-500"><MessageCircle size={16} strokeWidth={1.6} />{t("Folder chat")}<ChevronDown size={14} className="ml-auto text-neutral-400 transition-transform group-open:rotate-180" /></summary>
     {error && <p role="alert" className="text-sm text-neutral-500">{error}</p>}
     {agents.length > 0 && <AinuiFolderChat driveId={source} path={path} agents={agents} onSend={async turn => {
       if (!approved.current.has(turn.agentId)) {

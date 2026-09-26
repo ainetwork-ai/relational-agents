@@ -4,6 +4,8 @@
  *  missing here falls back to the English text. Check coverage with
  *  `node scripts/i18n-keys.mjs`. */
 export const ko: Record<string, string> = {
+  "Folder details": "폴더 정보",
+  "Folder chat": "폴더 채팅",
   "Korean": "한국어",
   "Assignee": "담당자",
   "Due": "마감일",

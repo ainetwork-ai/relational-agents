@@ -1,5 +1,6 @@
 "use client";
 import { folderRefreshAction } from "@/lib/ainui-folder-location";
+import { useT } from "@/i18n/provider";
 import { DriveFolderChat } from "./folder-chat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DriveSurface as Surface, AinuiButton } from "./surface";
@@ -12,6 +13,7 @@ export function AinuiDriveBrowser({ source, onPick }: Props) {
 }
 
 function DriveSurface({ source, onPick }: Props) {
+  const t = useT();
   const [messages, setMessages] = useState<A2uiMessage[]>([]);
   const [error, setError] = useState("");
   const [path, setPath] = useState<string | null>(null);
@@ -49,13 +51,15 @@ function DriveSurface({ source, onPick }: Props) {
     Promise.resolve().then(() => { if (!cancelled) void run(); });
     return () => { cancelled = true; generation.current = current + 1; };
   }, [run]);
-  return <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+  return <div className="min-w-0">
     <fieldset disabled={busy} className="min-w-0">
       <Surface messages={messages} onAction={run} />
     </fieldset>
     {busy && <p role="status" className="mt-2 text-xs text-neutral-500">Loading…</p>}
     {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+    <div className="mt-6 flex justify-end border-t border-neutral-200/70 pt-3 dark:border-white/10">
+      <AinuiButton label={t("Refresh")} disabled={busy} onClick={() => run(refreshAction.current ?? undefined)} className="text-xs text-neutral-500" />
+    </div>
     {!isPicker && path !== null && <DriveFolderChat source={source} path={path} />}
-    <AinuiButton label="Refresh" disabled={busy} onClick={() => run(refreshAction.current ?? undefined)} />
   </div>;
 }
