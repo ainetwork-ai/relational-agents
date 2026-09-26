@@ -1,5 +1,7 @@
 # Relation Treasury — AI manages the money, humans approve it
 
+*Part of **AINMEM — P2P Memory** (the ETHGlobal Tokyo 2026 submission). Relation Treasury is its World-track feature: the relation's shared money, held by the agent that already keeps its memory.*
+
 *ETHGlobal Tokyo 2026 · World · Continuity — **[Cont] Best Use of World ID for Agents** and
 **[Cont] Best IDKit Use Case**.*
 
