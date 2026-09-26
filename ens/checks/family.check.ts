@@ -4,7 +4,7 @@
 //   cd ens && npm run check
 import { checkAmount, formatUsdc, isSendRequest, parseSendRequest } from "../src/send-request";
 import { descendants, displayName, findNodeByAddress, matchesKinship, pickRecipients, type FamilyNode } from "../src/family-tree";
-import { markSent, signSendIntent, verifySendIntent, wasSent } from "../src/send-token";
+import { CONFIRM_GRACE_MS, markConfirmed, markSent, signSendIntent, verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "../src/send-token";
 import { decodeFunctionData, erc20Abi, getAddress } from "viem";
 import { prepareSend } from "../src/prepare";
 import { SEPOLIA_USDC } from "../src/config";
@@ -133,6 +133,13 @@ ok("sent: unknown", wasSent(tok) === null);
 markSent(tok, "0xabc");
 ok("sent: remembered", wasSent(tok) === "0xabc");
 ok("sent: other token unaffected", wasSent(signSendIntent(intent, SECRET, T0 + 1)) === null);
+ok("confirmed: not before markConfirmed", wasConfirmed(tok) === false);
+markConfirmed(tok);
+ok("confirmed: remembered", wasConfirmed(tok) === true);
+ok("confirmed: other token unaffected", wasConfirmed(signSendIntent(intent, SECRET, T0 + 1)) === false);
+ok("grace: expired link still confirmable", verifySendIntentForConfirm(tok, SECRET, T0 + 600_001) !== null);
+ok("grace: bounded", verifySendIntentForConfirm(tok, SECRET, T0 + 600_001 + CONFIRM_GRACE_MS) === null);
+ok("grace: still needs the secret", verifySendIntentForConfirm(tok, "another-secret", T0 + 600_001) === null);
 
 // ── prepareSend (fake chain) ────────────────────────────────────────────────
 const fake = (o: { verify?: boolean; to?: `0x${string}` | null } = {}) => ({

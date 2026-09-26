@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth/session";
 import { getT } from "@/i18n/server";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
-import { verifySendIntent, wasSent } from "@/lib/ens-family/send-token";
+import { verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "@/lib/ens-family/send-token";
 import { descendants, displayName } from "@/lib/ens-family/family-tree";
 import { SendCard } from "@/components/ens/send-card";
 
@@ -12,7 +12,9 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const { t: token = "" } = await searchParams;
   const session = await getSession();
   const chain = familyChain();
-  const intent = chain ? verifySendIntent(token, sendSecret()) : null;
+  const live = chain ? verifySendIntent(token, sendSecret()) : null;
+  // past its 10 minutes a link can no longer pay, but a transfer already made with it can still be checked
+  const intent = live ?? (chain ? verifySendIntentForConfirm(token, sendSecret()) : null);
   const fail = (msg: string) => (
     <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">
       {msg}
@@ -23,7 +25,7 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const read = await Promise.all([chain.resolveAddress(intent.name), chain.loadTree(), chain.balances(intent.from)]).catch(() => null);
   if (!read) return fail(t("I couldn't reach Sepolia just now. Try again in a moment."));
   const [fresh, tree, bal] = read;
-  if (!sentTx && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
+  if (!sentTx && live && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
     return fail(t("{name}'s address changed since the agent prepared this, so I stopped. Ask the agent again.", { name: intent.name }));
   const who = descendants(tree).find((d) => d.node.name === intent.name)?.node;
   return (
@@ -38,6 +40,8 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
       usdcMicro={bal.usdcMicro.toString()}
       ethWei={bal.ethWei.toString()}
       sentTx={sentTx}
+      confirmed={wasConfirmed(token)}
+      expired={!live}
     />
   );
 }

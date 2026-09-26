@@ -1,6 +1,6 @@
 // app/src/app/api/ens/send/confirm/route.ts
-// After grandma's wallet sent it: check the USDC Transfer on Sepolia, remember the link
-// as used, leave a receipt where she asked, and put a notification in the recipient's inbox.
+// After grandma's wallet sent it: spend the link on its hash, check the USDC Transfer on
+// Sepolia, then leave a receipt where she asked and a notification in the recipient's inbox.
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
@@ -11,12 +11,11 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
-import { markSent, verifySendIntent, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
+import { markConfirmed, markSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
 
 export const dynamic = "force-dynamic";
 
-// links whose confirm is running in this process; markSent waits until the writes landed,
-// so a failed write is retried by the next confirm instead of being skipped
+// links whose onchain check is running in this process, so two confirms never announce twice
 const g = globalThis as unknown as { __ensConfirming?: Set<string> };
 const confirming = (g.__ensConfirming ??= new Set<string>());
 
@@ -28,21 +27,27 @@ export async function POST(req: NextRequest) {
   if (typeof body.t !== "string" || typeof body.txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(body.txHash))
     return NextResponse.json({ error: "t and txHash required" }, { status: 422 });
 
-  const intent = verifySendIntent(body.t, sendSecret());
+  // an expired link may still be confirmed: the money already moved, this only records it
+  const intent = verifySendIntentForConfirm(body.t, sendSecret());
   if (!intent || intent.userId !== auth.user.id) return NextResponse.json({ error: "Not your link" }, { status: 403 });
-  if (wasSent(body.t)) return NextResponse.json({ ok: true });
+
+  // spend the link before waiting on Sepolia: if the check below fails or times out, a reload
+  // of /send still shows this hash instead of Send (ask the agent for a new link), never a second payment
+  const recorded = wasSent(body.t);
+  if (recorded && recorded.toLowerCase() !== body.txHash.toLowerCase())
+    return NextResponse.json({ error: "This link already has another transaction" }, { status: 409 });
+  if (!recorded) markSent(body.t, body.txHash);
+  if (wasConfirmed(body.t)) return NextResponse.json({ ok: true });
 
   const chain = familyChain();
   if (!chain) return NextResponse.json({ error: "ENS family not configured" }, { status: 422 });
-
-  const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
-  if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
-  if (wasSent(body.t)) return NextResponse.json({ ok: true });
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);
   try {
+    const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
+    if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
     await announce(intent, body.txHash);
-    markSent(body.t, body.txHash);
+    markConfirmed(body.t);
   } finally {
     confirming.delete(body.t);
   }

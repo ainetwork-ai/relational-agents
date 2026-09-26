@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
 import { useT } from "@/i18n/provider";
 import { formatUsdc } from "@/lib/ens-family/send-request";
@@ -19,17 +19,49 @@ interface Props {
   usdcMicro: string;
   ethWei: string;
   sentTx: string | null;
+  /** the server found the Transfer and announced it */
+  confirmed: boolean;
+  /** past the 10 minutes: no new payment, only a check of one already made */
+  expired: boolean;
+}
+
+// another tab that paid with this link hides Send here too
+const onStorage = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+};
+
+// the hash also lives in this browser, so a reload shows it even if the server never saw it
+const txKey = (token: string) => `ens-send:${token}`;
+function storedTx(token: string): string | null {
+  try {
+    return localStorage.getItem(txKey(token));
+  } catch {
+    return null;
+  }
+}
+function storeTx(token: string, hash: string) {
+  try {
+    localStorage.setItem(txKey(token), hash);
+  } catch {
+    // private mode or blocked storage: the server copy is recorded on confirm
+  }
 }
 
 export function SendCard(p: Props) {
   const t = useT();
   const amount = BigInt(p.amountMicro);
-  const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.sentTx ? "done" : "idle");
+  const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.confirmed ? "done" : "idle");
   const [tx, setTx] = useState<string | null>(p.sentTx);
   const [error, setError] = useState<string | null>(null);
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
+
+  // null until hydrated (Send stays off until this browser's copy was looked at), "" = none
+  const saved = useSyncExternalStore(onStorage, () => storedTx(p.token) ?? "", () => null);
+  const restored = saved !== null;
+  const knownTx = tx ?? (saved || null);
 
   // the confirm call only records what already happened on chain; a failure here is
   // retried as a confirm, never as a second transfer
@@ -63,6 +95,7 @@ export function SendCard(p: Props) {
       );
       return;
     }
+    storeTx(p.token, hash);
     setTx(hash);
     await confirm(hash);
   }
@@ -90,30 +123,34 @@ export function SendCard(p: Props) {
         {state === "done" ? (
           <p className="mt-8 text-sm text-green-700 dark:text-green-400" data-testid="send-done">
             {t("Sent.")}{" "}
-            {tx && (
-              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+            {knownTx && (
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${knownTx}`} target="_blank" rel="noreferrer">
                 {t("View on the explorer")}
               </a>
             )}
           </p>
-        ) : tx ? (
+        ) : knownTx ? (
           // the wallet already sent it: from here on only the confirmation can be retried
           <div className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-pending">
             <p>
               {t("Sent from your wallet.")}{" "}
-              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${knownTx}`} target="_blank" rel="noreferrer">
                 {t("View on the explorer")}
               </a>
             </p>
             <button
               data-testid="send-confirm-retry"
-              onClick={() => void confirm(tx)}
+              onClick={() => void confirm(knownTx)}
               disabled={state === "confirming"}
               className="mt-4 w-full rounded-xl border border-neutral-300 py-3 font-medium disabled:opacity-50 dark:border-neutral-600"
             >
               {state === "confirming" ? t("Checking…") : t("Check again")}
             </button>
           </div>
+        ) : p.expired ? (
+          <p className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-expired">
+            {t("This link has expired. Ask the agent again.")}
+          </p>
         ) : (
           <>
             {lowUsdc && <p className="mt-6 text-sm text-amber-700">{t("Your wallet has {have} USDC, less than this.", { have: formatUsdc(BigInt(p.usdcMicro)) })}</p>}
@@ -121,7 +158,7 @@ export function SendCard(p: Props) {
             <button
               data-testid="send-button"
               onClick={() => void send()}
-              disabled={state === "sending" || lowUsdc || noGas}
+              disabled={!restored || state === "sending" || lowUsdc || noGas}
               className="mt-8 w-full rounded-xl bg-neutral-900 py-4 text-lg font-semibold text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
               {state === "sending" ? t("Waiting for your wallet…") : t("Send")}

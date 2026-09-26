@@ -39,12 +39,30 @@ export function verifySendIntent(token: string, secret: string, now = Date.now()
   }
 }
 
-// One link pays once. Per process: a restart forgets, which the 10-minute expiry bounds.
-const g = globalThis as unknown as { __ensSent?: Map<string, string> };
+/** How long after expiry a link may still be confirmed: confirming moves no money, it only
+ *  records a transfer the wallet already made. */
+export const CONFIRM_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/** verifySendIntent with CONFIRM_GRACE_MS: for checking a transfer, never for starting one. */
+export function verifySendIntentForConfirm(token: string, secret: string, now = Date.now()): SendIntent | null {
+  return verifySendIntent(token, secret, now - CONFIRM_GRACE_MS);
+}
+
+// One link pays once. The hash is recorded the moment the wallet hands it over, before the
+// chain is asked, so the link is spent from then on; "confirmed" follows once the Transfer
+// was found and announced. Per process: a restart forgets, which the 10-minute expiry bounds.
+const g = globalThis as unknown as { __ensSent?: Map<string, string>; __ensConfirmed?: Set<string> };
 const sent = (g.__ensSent ??= new Map<string, string>());
+const confirmed = (g.__ensConfirmed ??= new Set<string>());
 export function markSent(token: string, txHash: string): void {
   sent.set(token, txHash);
 }
 export function wasSent(token: string): string | null {
   return sent.get(token) ?? null;
+}
+export function markConfirmed(token: string): void {
+  confirmed.add(token);
+}
+export function wasConfirmed(token: string): boolean {
+  return confirmed.has(token);
 }

@@ -517,14 +517,14 @@ git commit -m "ens: family tree selection by kinship, name and nickname"
 - Modify: `ens/checks/family.check.ts`
 
 **Interfaces:**
-- Produces: `interface SendIntent { userId: string; roomId: string; from: Address; name: string; to: Address; amountMicro: string; exp: number }`; `signSendIntent(intent: Omit<SendIntent, "exp">, secret: string, now?: number): string` (valid 10 minutes); `verifySendIntent(token: string, secret: string, now?: number): SendIntent | null`; `markSent(token, txHash)`; `wasSent(token): string | null`.
+- Produces: `interface SendIntent { userId: string; roomId: string; from: Address; name: string; to: Address; amountMicro: string; exp: number }`; `signSendIntent(intent: Omit<SendIntent, "exp">, secret: string, now?: number): string` (valid 10 minutes); `verifySendIntent(token: string, secret: string, now?: number): SendIntent | null`; `markSent(token, txHash)`; `wasSent(token): string | null`; `markConfirmed(token)`; `wasConfirmed(token): boolean`; `CONFIRM_GRACE_MS` (24 h); `verifySendIntentForConfirm(token, secret, now?)` (the same check with the grace, for confirming a transfer already made, never for starting one).
 
 - [ ] **Step 1: Write the failing checks**
 
 Add the import:
 
 ```ts
-import { markSent, signSendIntent, verifySendIntent, wasSent } from "../src/send-token";
+import { CONFIRM_GRACE_MS, markConfirmed, markSent, signSendIntent, verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "../src/send-token";
 ```
 
 Insert above the summary:
@@ -553,6 +553,13 @@ ok("sent: unknown", wasSent(tok) === null);
 markSent(tok, "0xabc");
 ok("sent: remembered", wasSent(tok) === "0xabc");
 ok("sent: other token unaffected", wasSent(signSendIntent(intent, SECRET, T0 + 1)) === null);
+ok("confirmed: not before markConfirmed", wasConfirmed(tok) === false);
+markConfirmed(tok);
+ok("confirmed: remembered", wasConfirmed(tok) === true);
+ok("confirmed: other token unaffected", wasConfirmed(signSendIntent(intent, SECRET, T0 + 1)) === false);
+ok("grace: expired link still confirmable", verifySendIntentForConfirm(tok, SECRET, T0 + 600_001) !== null);
+ok("grace: bounded", verifySendIntentForConfirm(tok, SECRET, T0 + 600_001 + CONFIRM_GRACE_MS) === null);
+ok("grace: still needs the secret", verifySendIntentForConfirm(tok, "another-secret", T0 + 600_001) === null);
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -603,14 +610,32 @@ export function verifySendIntent(token: string, secret: string, now = Date.now()
   }
 }
 
-// One link pays once. Per process: a restart forgets, which the 10-minute expiry bounds.
-const g = globalThis as unknown as { __ensSent?: Map<string, string> };
+/** How long after expiry a link may still be confirmed: confirming moves no money, it only
+ *  records a transfer the wallet already made. */
+export const CONFIRM_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/** verifySendIntent with CONFIRM_GRACE_MS: for checking a transfer, never for starting one. */
+export function verifySendIntentForConfirm(token: string, secret: string, now = Date.now()): SendIntent | null {
+  return verifySendIntent(token, secret, now - CONFIRM_GRACE_MS);
+}
+
+// One link pays once. The hash is recorded the moment the wallet hands it over, before the
+// chain is asked, so the link is spent from then on; "confirmed" follows once the Transfer
+// was found and announced. Per process: a restart forgets, which the 10-minute expiry bounds.
+const g = globalThis as unknown as { __ensSent?: Map<string, string>; __ensConfirmed?: Set<string> };
 const sent = (g.__ensSent ??= new Map<string, string>());
+const confirmed = (g.__ensConfirmed ??= new Set<string>());
 export function markSent(token: string, txHash: string): void {
   sent.set(token, txHash);
 }
 export function wasSent(token: string): string | null {
   return sent.get(token) ?? null;
+}
+export function markConfirmed(token: string): void {
+  confirmed.add(token);
+}
+export function wasConfirmed(token: string): boolean {
+  return confirmed.has(token);
 }
 ```
 
@@ -946,7 +971,7 @@ export async function prepareSend(
 - [ ] **Step 4: Run to verify pass**
 
 Run: `cd ens && npm run check && npm run typecheck`
-Expected: `77 passed, 0 failed`; typecheck prints nothing.
+Expected: `83 passed, 0 failed`; typecheck prints nothing.
 
 - [ ] **Step 5: Commit**
 
@@ -1725,11 +1750,10 @@ export async function sendUsdcTransfer(args: { from: Address; to: Address; amoun
 - [ ] **Step 5: Confirmation page and card**
 
 ```tsx
-// app/src/app/(app)/send/page.tsx
 import { getSession } from "@/lib/auth/session";
 import { getT } from "@/i18n/server";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
-import { verifySendIntent, wasSent } from "@/lib/ens-family/send-token";
+import { verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "@/lib/ens-family/send-token";
 import { descendants, displayName } from "@/lib/ens-family/family-tree";
 import { SendCard } from "@/components/ens/send-card";
 
@@ -1740,7 +1764,9 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const { t: token = "" } = await searchParams;
   const session = await getSession();
   const chain = familyChain();
-  const intent = chain ? verifySendIntent(token, sendSecret()) : null;
+  const live = chain ? verifySendIntent(token, sendSecret()) : null;
+  // past its 10 minutes a link can no longer pay, but a transfer already made with it can still be checked
+  const intent = live ?? (chain ? verifySendIntentForConfirm(token, sendSecret()) : null);
   const fail = (msg: string) => (
     <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">
       {msg}
@@ -1751,7 +1777,7 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const read = await Promise.all([chain.resolveAddress(intent.name), chain.loadTree(), chain.balances(intent.from)]).catch(() => null);
   if (!read) return fail(t("I couldn't reach Sepolia just now. Try again in a moment."));
   const [fresh, tree, bal] = read;
-  if (!sentTx && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
+  if (!sentTx && live && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
     return fail(t("{name}'s address changed since the agent prepared this, so I stopped. Ask the agent again.", { name: intent.name }));
   const who = descendants(tree).find((d) => d.node.name === intent.name)?.node;
   return (
@@ -1766,16 +1792,17 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
       usdcMicro={bal.usdcMicro.toString()}
       ethWei={bal.ethWei.toString()}
       sentTx={sentTx}
+      confirmed={wasConfirmed(token)}
+      expired={!live}
     />
   );
 }
 ```
 
 ```tsx
-// app/src/components/ens/send-card.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
 import { useT } from "@/i18n/provider";
 import { formatUsdc } from "@/lib/ens-family/send-request";
@@ -1794,17 +1821,49 @@ interface Props {
   usdcMicro: string;
   ethWei: string;
   sentTx: string | null;
+  /** the server found the Transfer and announced it */
+  confirmed: boolean;
+  /** past the 10 minutes: no new payment, only a check of one already made */
+  expired: boolean;
+}
+
+// another tab that paid with this link hides Send here too
+const onStorage = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+};
+
+// the hash also lives in this browser, so a reload shows it even if the server never saw it
+const txKey = (token: string) => `ens-send:${token}`;
+function storedTx(token: string): string | null {
+  try {
+    return localStorage.getItem(txKey(token));
+  } catch {
+    return null;
+  }
+}
+function storeTx(token: string, hash: string) {
+  try {
+    localStorage.setItem(txKey(token), hash);
+  } catch {
+    // private mode or blocked storage: the server copy is recorded on confirm
+  }
 }
 
 export function SendCard(p: Props) {
   const t = useT();
   const amount = BigInt(p.amountMicro);
-  const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.sentTx ? "done" : "idle");
+  const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.confirmed ? "done" : "idle");
   const [tx, setTx] = useState<string | null>(p.sentTx);
   const [error, setError] = useState<string | null>(null);
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
+
+  // null until hydrated (Send stays off until this browser's copy was looked at), "" = none
+  const saved = useSyncExternalStore(onStorage, () => storedTx(p.token) ?? "", () => null);
+  const restored = saved !== null;
+  const knownTx = tx ?? (saved || null);
 
   // the confirm call only records what already happened on chain; a failure here is
   // retried as a confirm, never as a second transfer
@@ -1838,6 +1897,7 @@ export function SendCard(p: Props) {
       );
       return;
     }
+    storeTx(p.token, hash);
     setTx(hash);
     await confirm(hash);
   }
@@ -1865,30 +1925,34 @@ export function SendCard(p: Props) {
         {state === "done" ? (
           <p className="mt-8 text-sm text-green-700 dark:text-green-400" data-testid="send-done">
             {t("Sent.")}{" "}
-            {tx && (
-              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+            {knownTx && (
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${knownTx}`} target="_blank" rel="noreferrer">
                 {t("View on the explorer")}
               </a>
             )}
           </p>
-        ) : tx ? (
+        ) : knownTx ? (
           // the wallet already sent it: from here on only the confirmation can be retried
           <div className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-pending">
             <p>
               {t("Sent from your wallet.")}{" "}
-              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${knownTx}`} target="_blank" rel="noreferrer">
                 {t("View on the explorer")}
               </a>
             </p>
             <button
               data-testid="send-confirm-retry"
-              onClick={() => void confirm(tx)}
+              onClick={() => void confirm(knownTx)}
               disabled={state === "confirming"}
               className="mt-4 w-full rounded-xl border border-neutral-300 py-3 font-medium disabled:opacity-50 dark:border-neutral-600"
             >
               {state === "confirming" ? t("Checking…") : t("Check again")}
             </button>
           </div>
+        ) : p.expired ? (
+          <p className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-expired">
+            {t("This link has expired. Ask the agent again.")}
+          </p>
         ) : (
           <>
             {lowUsdc && <p className="mt-6 text-sm text-amber-700">{t("Your wallet has {have} USDC, less than this.", { have: formatUsdc(BigInt(p.usdcMicro)) })}</p>}
@@ -1896,7 +1960,7 @@ export function SendCard(p: Props) {
             <button
               data-testid="send-button"
               onClick={() => void send()}
-              disabled={state === "sending" || lowUsdc || noGas}
+              disabled={!restored || state === "sending" || lowUsdc || noGas}
               className="mt-8 w-full rounded-xl bg-neutral-900 py-4 text-lg font-semibold text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
               {state === "sending" ? t("Waiting for your wallet…") : t("Send")}
@@ -1958,8 +2022,8 @@ git commit -m "app: send-by-name skill, nickname table, confirmation page and wa
 
 ```ts
 // app/src/app/api/ens/send/confirm/route.ts
-// After grandma's wallet sent it: check the USDC Transfer on Sepolia, remember the link
-// as used, leave a receipt where she asked, and put a notification in the recipient's inbox.
+// After grandma's wallet sent it: spend the link on its hash, check the USDC Transfer on
+// Sepolia, then leave a receipt where she asked and a notification in the recipient's inbox.
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
@@ -1970,12 +2034,11 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
-import { markSent, verifySendIntent, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
+import { markConfirmed, markSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
 
 export const dynamic = "force-dynamic";
 
-// links whose confirm is running in this process; markSent waits until the writes landed,
-// so a failed write is retried by the next confirm instead of being skipped
+// links whose onchain check is running in this process, so two confirms never announce twice
 const g = globalThis as unknown as { __ensConfirming?: Set<string> };
 const confirming = (g.__ensConfirming ??= new Set<string>());
 
@@ -1987,21 +2050,27 @@ export async function POST(req: NextRequest) {
   if (typeof body.t !== "string" || typeof body.txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(body.txHash))
     return NextResponse.json({ error: "t and txHash required" }, { status: 422 });
 
-  const intent = verifySendIntent(body.t, sendSecret());
+  // an expired link may still be confirmed: the money already moved, this only records it
+  const intent = verifySendIntentForConfirm(body.t, sendSecret());
   if (!intent || intent.userId !== auth.user.id) return NextResponse.json({ error: "Not your link" }, { status: 403 });
-  if (wasSent(body.t)) return NextResponse.json({ ok: true });
+
+  // spend the link before waiting on Sepolia: if the check below fails or times out, a reload
+  // of /send still shows this hash instead of Send (ask the agent for a new link), never a second payment
+  const recorded = wasSent(body.t);
+  if (recorded && recorded.toLowerCase() !== body.txHash.toLowerCase())
+    return NextResponse.json({ error: "This link already has another transaction" }, { status: 409 });
+  if (!recorded) markSent(body.t, body.txHash);
+  if (wasConfirmed(body.t)) return NextResponse.json({ ok: true });
 
   const chain = familyChain();
   if (!chain) return NextResponse.json({ error: "ENS family not configured" }, { status: 422 });
-
-  const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
-  if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
-  if (wasSent(body.t)) return NextResponse.json({ ok: true });
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);
   try {
+    const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
+    if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
     await announce(intent, body.txHash);
-    markSent(body.t, body.txHash);
+    markConfirmed(body.t);
   } finally {
     confirming.delete(body.t);
   }
@@ -2108,4 +2177,4 @@ Add a "Demo run" section to the spec (`ens/plan-family-namespace.md`): the date,
 ## Self-review notes
 
 - **Spec coverage:** flow steps 1–7 → Tasks 4, 5, 10, 11; safety rules → Task 4 (`verifyPath`), Task 5 (limits, refusals), Task 10 (re-resolve, balances, account check), Task 6 (only the person and the admin hold `ROLE_SET_ADDRESS`; the agent holds nothing); acceptance criteria 1–5 → Task 12 (criterion 5 is structural: the tree comes from the chain, so no DB row can redirect money, and `verifyPath` checks every hop); D1–D14 each map to a task (D13 → Tasks 2, 10 Step 1, 12 step 7; D14 → Tasks 1, 9).
-- **Automated coverage:** everything in `ens/src` except `chain.ts` is checked by `npm run check` (77 checks; `prepareSend` with a fake chain). `chain.ts`, the MCP server and the app UI are exercised live in Tasks 7, 8 and 12; the repo has no wallet test harness.
+- **Automated coverage:** everything in `ens/src` except `chain.ts` is checked by `npm run check` (83 checks; `prepareSend` with a fake chain). `chain.ts`, the MCP server and the app UI are exercised live in Tasks 7, 8 and 12; the repo has no wallet test harness.
