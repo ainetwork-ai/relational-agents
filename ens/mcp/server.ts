@@ -57,7 +57,7 @@ server.tool(
 
 server.tool(
   "ens_verify_transfer",
-  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`. status: match (it did), mismatch (mined, but reverted or no USDC left `from`: nothing was paid), different (USDC left `from`, but not as asked), pending (no receipt within 30s: ask again later).",
+  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`. status: match (it did), mismatch (mined, but reverted or no USDC left `from`: nothing was paid), different (USDC left `from`, but not as asked), pending (no receipt within 30s: the money may still move, so never prepare another transfer for it; ask again later).",
   { tx_hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), from: ADDRESS, to: ADDRESS, amount_usdc: z.string().regex(/^\d+(\.\d{1,6})?$/) },
   async (a) => {
     try {

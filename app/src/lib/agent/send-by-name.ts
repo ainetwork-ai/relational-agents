@@ -76,8 +76,10 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult | null>
   const r = await prepareSend({ text, askerAddress: me.address, tree, nicknames }, chain);
   if (r.kind === "ask" && ctx.roomId) {
     const amountMicro = parseSendRequest(text)?.amountMicro;
+    const now = Date.now();
+    for (const [k, v] of pendingSends) if (v.expires <= now) pendingSends.delete(k);
     if (amountMicro !== undefined)
-      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: Date.now() + PENDING_SEND_MS });
+      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: now + PENDING_SEND_MS });
   }
   if (r.kind === "ask") return { text: t("Who should get it: {names}?", { names: r.candidates.map(displayName).join(t(" or ")) }) + note };
   if (r.kind === "refuse") {

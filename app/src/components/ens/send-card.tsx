@@ -71,7 +71,8 @@ export function SendCard(p: Props) {
   // null until hydrated (Send stays off until this browser's copy was looked at), "" = none
   const saved = useSyncExternalStore(onStorage, () => storedTx(p.token) ?? "", () => null);
   const restored = saved !== null;
-  const knownTx = tx ?? (saved || null);
+  // this browser's copy first: another tab may have paid again after a mismatch freed the link
+  const knownTx = saved || tx;
 
   // the confirm call only records what already happened on chain; a failure here is
   // retried as a confirm, never as a second transfer

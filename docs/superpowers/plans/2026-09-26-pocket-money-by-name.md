@@ -1434,7 +1434,7 @@ server.tool(
 
 server.tool(
   "ens_verify_transfer",
-  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`. status: match (it did), mismatch (mined, but reverted or no USDC left `from`: nothing was paid), different (USDC left `from`, but not as asked), pending (no receipt within 30s: ask again later).",
+  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`. status: match (it did), mismatch (mined, but reverted or no USDC left `from`: nothing was paid), different (USDC left `from`, but not as asked), pending (no receipt within 30s: the money may still move, so never prepare another transfer for it; ask again later).",
   { tx_hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), from: ADDRESS, to: ADDRESS, amount_usdc: z.string().regex(/^\d+(\.\d{1,6})?$/) },
   async (a) => {
     try {
@@ -1767,8 +1767,10 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult | null>
   const r = await prepareSend({ text, askerAddress: me.address, tree, nicknames }, chain);
   if (r.kind === "ask" && ctx.roomId) {
     const amountMicro = parseSendRequest(text)?.amountMicro;
+    const now = Date.now();
+    for (const [k, v] of pendingSends) if (v.expires <= now) pendingSends.delete(k);
     if (amountMicro !== undefined)
-      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: Date.now() + PENDING_SEND_MS });
+      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: now + PENDING_SEND_MS });
   }
   if (r.kind === "ask") return { text: t("Who should get it: {names}?", { names: r.candidates.map(displayName).join(t(" or ")) }) + note };
   if (r.kind === "refuse") {
@@ -1986,7 +1988,8 @@ export function SendCard(p: Props) {
   // null until hydrated (Send stays off until this browser's copy was looked at), "" = none
   const saved = useSyncExternalStore(onStorage, () => storedTx(p.token) ?? "", () => null);
   const restored = saved !== null;
-  const knownTx = tx ?? (saved || null);
+  // this browser's copy first: another tab may have paid again after a mismatch freed the link
+  const knownTx = saved || tx;
 
   // the confirm call only records what already happened on chain; a failure here is
   // retried as a confirm, never as a second transfer
