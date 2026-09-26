@@ -13,7 +13,9 @@
  * the wallet and the terms' fingerprint are on the approval page itself.
  *
  * Also the room-chat marker: an agent message carrying a line
- * `[[a2ui:recurring-buy/<actionId>]]` shows that card in place of the line.
+ * `[[a2ui:recurring-buy/<actionId>]]` shows that card in place of the line (the
+ * send-by-name skill's `[[a2ui:send-check/<id>]]` / `[[a2ui:send/<id>]]` lines
+ * are parsed here too, so every chat draws both kinds the same way).
  *
  * Pure: no IO, safe on the client. Text is English source run through the
  * caller's `t`.
@@ -31,16 +33,23 @@ export const TREASURY_OPEN_ACTION = "ainmem.treasury.open";
 // ── the room-chat marker ────────────────────────────────────────────────────
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-const MARKER_LINE = new RegExp(`^\\s*\\[\\[a2ui:recurring-buy/(${UUID})\\]\\]\\s*$`, "i");
+const MARKER_LINE = new RegExp(`^\\s*\\[\\[a2ui:(recurring-buy|send-check|send)/(${UUID})\\]\\]\\s*$`, "i");
 
 export function recurringBuyMarker(actionId: string): string {
   return `[[a2ui:recurring-buy/${actionId}]]`;
 }
 
-/** A message's text as parts: plain text runs and the recurring-buy cards its marker lines name, in order. */
-export function splitA2uiMarkers(text: string): ({ kind: "text"; text: string } | { kind: "recurring-buy"; actionId: string })[] {
+/** One part of a message: a plain text run, a recurring-buy card, or one of the send-by-name
+ *  skill's cards (lib/agent/send-offer-surface.ts: "Is this Minjun?" = check, then send). */
+export type A2uiPart =
+  | { kind: "text"; text: string }
+  | { kind: "recurring-buy"; actionId: string }
+  | { kind: "send"; view: "check" | "send"; offerId: string };
+
+/** A message's text as parts: plain text runs and the cards its marker lines name, in order. */
+export function splitA2uiMarkers(text: string): A2uiPart[] {
   if (!text.includes("[[a2ui:")) return [{ kind: "text", text }];
-  const parts: ({ kind: "text"; text: string } | { kind: "recurring-buy"; actionId: string })[] = [];
+  const parts: A2uiPart[] = [];
   let run: string[] = [];
   const flush = () => {
     const joined = run.join("\n").replace(/^\n+|\n+$/g, "");
@@ -51,7 +60,9 @@ export function splitA2uiMarkers(text: string): ({ kind: "text"; text: string } 
     const m = line.match(MARKER_LINE);
     if (m) {
       flush();
-      parts.push({ kind: "recurring-buy", actionId: m[1].toLowerCase() });
+      const id = m[2].toLowerCase();
+      const kind = m[1].toLowerCase();
+      parts.push(kind === "recurring-buy" ? { kind: "recurring-buy", actionId: id } : { kind: "send", view: kind === "send-check" ? "check" : "send", offerId: id });
     } else run.push(line);
   }
   flush();

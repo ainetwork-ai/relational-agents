@@ -132,6 +132,37 @@ export const workspaceEns = pgTable("workspace_ens", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// "Send Minjun 1 USDC", asked in a chat: the two inline cards the send-by-name skill posts
+// ("Is this Minjun?" then Send) draw from this row (lib/agent/send-offer.ts). Recipient and
+// amount are the snapshot taken when the question was asked; `token` is the signed send
+// intent, minted when the asker says yes — the one /api/ens/send/confirm spends.
+export const ensSendOffers = pgTable(
+  "ens_send_offers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull(),
+    roomId: uuid("room_id").notNull(),
+    askerId: uuid("asker_id").notNull(),
+    fromAddress: text("from_address").notNull(),
+    ensName: text("ens_name").notNull(),
+    // the family's name for them (ENS alias, else the label) and their ENS avatar record
+    displayName: text("display_name").notNull(),
+    ensAvatar: text("ens_avatar"),
+    toAddress: text("to_address").notNull(),
+    amountMicro: text("amount_micro").notNull(), // decimal string, 6-decimal USDC units
+    // asking · declined · ready · waiting (MetaMask is open) · cancelled · failed · sent · done
+    phase: text("phase").default("asking").notNull(),
+    failReason: text("fail_reason"),
+    token: text("token"),
+    txHash: text("tx_hash"),
+    // one wallet request at a time: set while MetaMask is open
+    leaseUntil: timestamp("lease_until"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("ens_send_offers_room_asker_idx").on(t.roomId, t.askerId, t.createdAt)]
+);
+
 // ---------------------------------------------------------------------------
 // Workspace tables (plan.md schema)
 // ---------------------------------------------------------------------------

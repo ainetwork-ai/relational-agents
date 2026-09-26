@@ -12,6 +12,7 @@ import { sendSecret } from "@/lib/ens-chain";
 import { familyChainFor } from "@/lib/ens-workspace";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
+import { recordOfferTx } from "@/lib/agent/send-offer";
 import { markConfirmed, markSent, releaseSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,12 @@ export async function POST(req: NextRequest) {
   if (recorded && recorded.toLowerCase() !== body.txHash.toLowerCase())
     return NextResponse.json({ error: "This link already has another transaction" }, { status: 409 });
   if (!recorded) markSent(body.t, body.txHash);
-  if (wasConfirmed(body.t)) return NextResponse.json({ ok: true });
+  // the chat's Send card follows the same intent (lib/agent/send-offer.ts; a /send link has none)
+  await recordOfferTx(body.t, body.txHash, "sent");
+  if (wasConfirmed(body.t)) {
+    await recordOfferTx(body.t, body.txHash, "match");
+    return NextResponse.json({ ok: true });
+  }
 
   const chain = await familyChainFor(intent.workspaceId);
   if (!chain) return NextResponse.json({ error: "This workspace has no family names yet" }, { status: 422 });
@@ -49,14 +55,19 @@ export async function POST(req: NextRequest) {
     // mined, but reverted or with no USDC leaving her wallet: nothing was paid, so the link may pay again
     if (status === "mismatch") {
       releaseSent(body.t, body.txHash);
+      await recordOfferTx(body.t, body.txHash, "mismatch");
       return NextResponse.json({ error: "No USDC left the wallet in that transaction", reason: "mismatch" }, { status: 422 });
     }
     // USDC left her wallet, but not as this link prepared: the link stays spent on this hash
-    if (status === "different") return NextResponse.json({ error: "That transaction moved USDC differently", reason: "different" }, { status: 422 });
+    if (status === "different") {
+      await recordOfferTx(body.t, body.txHash, "different");
+      return NextResponse.json({ error: "That transaction moved USDC differently", reason: "different" }, { status: 422 });
+    }
     // no receipt yet: the money may still move, so the link stays spent on this hash
     if (status === "pending") return NextResponse.json({ error: "Not confirmed on Sepolia yet", reason: "pending" }, { status: 202 });
     await announce(intent, body.txHash);
     markConfirmed(body.t);
+    await recordOfferTx(body.t, body.txHash, "match");
   } finally {
     confirming.delete(body.t);
   }
