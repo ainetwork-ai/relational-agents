@@ -14,6 +14,7 @@ import { useT } from "@/i18n/provider";
 import { MembersModal } from "@/components/workspace/members-modal";
 import { useWorkspaceUiStore } from "@/stores/workspace-ui";
 import { initial } from "@/lib/glyph";
+import { clearOfflineCaches } from "@/lib/offline/caches";
 
 export interface ActiveWorkspace {
   id: string;
@@ -278,6 +279,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
             onClick={async () => {
               setOpen(false);
               await fetch("/api/auth/logout", { method: "POST" });
+              await clearOfflineCaches();
               router.push("/login");
               router.refresh();
             }}

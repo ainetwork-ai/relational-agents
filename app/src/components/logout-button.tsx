@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { clearOfflineCaches } from "@/lib/offline/caches";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -9,6 +10,7 @@ export function LogoutButton() {
       data-testid="logout-button"
       onClick={async () => {
         await fetch("/api/auth/logout", { method: "POST" });
+        await clearOfflineCaches();
         router.push("/login");
         router.refresh();
       }}
