@@ -172,7 +172,7 @@ little ETH in the agent's wallet on Base; the recurring buy spends real money on
 
 As a member, `GET /api/dm/rooms/<room>/treasury` says which is live: `"idpMode": "sandbox"` and
 `"seatMode": "world-id-v4"` are World; `"mock"` and `"dev-simulator"` are the local stand-ins,
-and the panel labels them "mock IdP" and "dev vote". Production never runs the mock unless
+and the panel labels the IdP "mock IdP" and rings a dev seat red (not counted). Production never runs the mock unless
 `WORLD_IDP=mock` is set on purpose, because anyone can claim any human there.
 
 ## What has been exercised

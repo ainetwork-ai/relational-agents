@@ -531,48 +531,61 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             )
           )}
 
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" data-testid="treasury-members">
-            <span className="mr-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">One human, one vote</span>
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="treasury-members">
             {status.members.map((m) => {
-              // by the seat's own proof, whatever mode the server runs: a
-              // simulator seat never shows as a World ID one on camera
-              const dev = m.seated && m.seatLevel === "dev-simulator";
+              // The ring around the face says where this member stands, by the
+              // seat's own proof whatever mode the server runs: green, a World
+              // ID vote that counts; red, a vote that does not count (a dev
+              // simulator seat is not a World ID proof; a member who joined
+              // after the adoption votes only once the group adopts them);
+              // grey, no vote yet.
+              const state = !m.seated ? "none" : m.seatLevel === "dev-simulator" || !m.voting ? "off" : "vote";
+              const ring =
+                state === "vote"
+                  ? "ring-emerald-500"
+                  : state === "off"
+                    ? "ring-red-500"
+                    : "ring-neutral-300 dark:ring-neutral-600";
               const avatar = avatarOf(m);
               return (
                 <span
                   key={m.userId}
                   data-testid="treasury-member"
+                  data-vote={state}
                   title={chipTitle(m)}
-                  className={`inline-flex items-center gap-1 rounded-full border py-0.5 pr-2 text-xs ${
-                    withAvatars ? "pl-0.5" : "pl-2"
-                  } ${
-                    !m.seated
-                      ? "border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"
-                      : dev
-                        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
-                  }`}
+                  className="inline-flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300"
                 >
-                  {withAvatars && (
-                    <span aria-hidden className="contents">
-                      <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatar }} size={18} />
+                  {withAvatars ? (
+                    <span
+                      aria-hidden
+                      className={`inline-flex rounded-full ring-2 ring-offset-1 ring-offset-white dark:ring-offset-neutral-900 ${ring}`}
+                    >
+                      <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatar }} size={22} />
                     </span>
+                  ) : (
+                    <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ring-2 ${ring}`} />
                   )}
                   <span className={m.userId === viewerId ? "font-medium" : undefined}>
                     {m.userId === viewerId ? youName(m.displayName) : m.displayName}
                   </span>
-                  <span className="opacity-80">· {!m.seated ? "no vote" : dev ? "dev vote" : "🌍 vote"}</span>
-                  {!m.voting && <span className="opacity-80">· joins at next adoption</span>}
                 </span>
               );
             })}
           </div>
-          {(status.seatMode === "dev-simulator" || status.members.some((m) => m.seatLevel === "dev-simulator")) && (
-            // on stage a seat chip must not pass for a World ID proof
-            <div data-testid="treasury-seat-dev-note" className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-              “dev vote” = claimed with the dev simulator — not a World ID proof
-            </div>
-          )}
+          <div data-testid="treasury-seat-dev-note" className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-neutral-400 dark:text-neutral-500">
+            <span>
+              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />
+              World ID vote
+            </span>
+            <span>
+              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />
+              not counted
+            </span>
+            <span>
+              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+              no vote
+            </span>
+          </div>
 
           {showClaim && (
             <div className="mt-3 rounded-md border border-dashed border-neutral-300 px-3 py-2 dark:border-neutral-700">

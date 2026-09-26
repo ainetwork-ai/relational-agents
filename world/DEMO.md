@@ -70,7 +70,7 @@ in the room between the final reset and the first take.
      names `client_secret_post`). Production never runs with `WORLD_IDP=mock`:
      anyone can claim any human there.
    - `"seatMode": "world-id-v4"` and **0** members with
-     `seatLevel: "dev-simulator"` — a dev seat shows as "dev vote" on screen.
+     `seatLevel: "dev-simulator"` — a dev seat shows a red ring (not counted), never a green one.
      Needs the Portal staging app (`WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`,
      `NEXT_PUBLIC_WORLD_ID_APP_ID` baked into the build).
    - `"balanceUsd": 1000`.
@@ -146,7 +146,7 @@ Caption: `Ten accounts. Still one human.` · `World ID · IDKit — Proof of Hum
 
 "Alex (2nd account)" tries to claim a sixth vote with Alex's own World ID →
 **"This human already has a vote in this relation — one human, one vote."**
-The chip stays `Alex (2nd account) · no vote`.
+Alex (2nd account)'s ring stays grey — no vote.
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 

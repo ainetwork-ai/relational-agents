@@ -460,7 +460,7 @@ const adoptedNow = await adoptFoundingRules({ roomId, agentUserId, requestedBy: 
 
 // ── seats ───────────────────────────────────────────────────────────────────
 
-// labelled "dev-simulator": the panel shows these as "dev vote", never as World ID
+// labelled "dev-simulator": the panel rings these red (not counted), never green as World ID
 if (PRESEAT)
   await db
     .insert(S.treasurySeats)
