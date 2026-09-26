@@ -26,20 +26,20 @@ the spend step: a fresh step-up per approval, one human counts once).
 Order: rehearsal → final reset → vote claims only → shoot. Nothing else happens
 in the room between the final reset and the first take.
 
-1. **Shoot on https://memory.ainetwork.ai, never on localhost.** The sandbox
-   IdP client's only registered redirect is memory.ainetwork.ai (localhost was
+1. **Shoot on https://ainmem.ainetwork.xyz, never on localhost.** The sandbox
+   IdP client's only registered redirect is ainmem.ainetwork.xyz (localhost was
    refused), so localhost is the mock IdP forever. The production build also
    has no Next.js dev indicator or error overlay — a `next dev` server draws
    the "N" button and an issue count in the corner of every frame. All UI fixes
    go out in one deploy before the final reset.
 2. **Final reset, on production's own data.** Run the seed against
-   memory.ainetwork.ai's DB, content root and `SESSION_SECRET` (inside the
+   ainmem.ainetwork.xyz's DB, content root and `SESSION_SECRET` (inside the
    prod container, or from a clean worktree with the prod env — the agent's
    wallet key is sealed under that secret; integration-log 2026-09-26 03:58):
 
    ```bash
    npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts \
-     --reset --no-preseat --app https://memory.ainetwork.ai
+     --reset --no-preseat --app https://ainmem.ainetwork.xyz
    ```
 
    → the six accounts, $1,000 in a new agent wallet, the relation's memory doc
@@ -77,7 +77,7 @@ in the room between the final reset and the first take.
 6. **Browsers.** One Chrome profile per person — Alex, Alex (2nd account),
    Chris, Dana — each in its own profile color, so the window frame changes
    when the laptop changes hands. Each profile signs in once with the demo
-   login and has a `lang=en` cookie on memory.ainetwork.ai. **1920×1080 window
+   login and has a `lang=en` cookie on ainmem.ainetwork.xyz. **1920×1080 window
    at 125% zoom** (CSS 1536×864), clean profiles (no bookmarks bar, no
    extensions), tabless app windows (Etherscan is the one tab), the sidebar on
    the Chats tab. Never open the agent dock, the inbox, Home or header tooltips
