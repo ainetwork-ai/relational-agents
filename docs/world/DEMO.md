@@ -1,6 +1,12 @@
 # Relation Treasury — demo script (3:00, human voiceover)
 
 **AI manages the money. Humans approve it.**
+
+**The problem the story answers.** Once an AI holds shared money, the question is no
+longer whether the friends trust each other but whether they can trust the AI: when it
+moves money, *who said yes?* Not an account, not a session, not someone's agent, not the
+AI itself — distinct humans, proven at that moment, and named in the record. Every scene
+answers one piece of that; the on-screen caption under each heading says which.
 Record the voice live (ETHGlobal: no AI narration). Screen: the Tokyo Trip room
 (chat left, treasury panel on top), switching members with the demo login.
 Scenes marked **[pre-record]** depend on outside services (the World IdP, the
@@ -38,7 +44,20 @@ chain) and are captured as separate takes; **[live]** scenes are deterministic.
    (one identity cannot bind two approvers, so Chris and Alex need two distinct
    sandbox World IDs).
 
-## 1 · The relation (0:00–0:25) [live — needs the Portal app]
+## 0 · The problem (0:00–0:12) [live]
+
+The Tokyo Trip room, panel collapsed: `Shared treasury · $1,000.00`.
+
+> "Five of us put $1,000 in one pot — and handed it to an AI. That raises a question we
+> never had with a human treasurer: if the AI moves our money, *who actually said yes?*
+> Not an account. Not a session. Not your agent. Not the AI itself. Real people, this
+> time. That's what we asked World for."
+
+Caption: `AI manages the money. Humans approve it.`
+
+## 1 · The relation (0:12–0:32) [live — needs the Portal app]
+
+Caption: `One unique human → one vote`
 
 The Tokyo Trip room: the chat where five friends agreed the rules, and the
 relation's memory doc beside it — **Treasury Rules** in plain sentences.
@@ -53,20 +72,36 @@ Alex taps **Claim your vote with World ID** (IDKit, Proof of Human).
 > "Before anyone can approve anything, they prove one thing: that they're a
 > unique human. Not who they are — just: one human, one vote."
 
-## 2 · The second account (0:25–0:40) [pre-record — needs the Portal app]
+## 2 · The second account (0:32–0:45) [pre-record — needs the Portal app]
+
+Caption: `Ten accounts. Still one human.`
 
 "Alex (2nd account)" tries to claim a sixth vote → **"This human already has
 a vote in this relation — one human, one vote."**
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 
-## 3 · Paying the hotel (0:40–1:30) [live + pre-record for the IdP hop]
+## 3 · Paying the hotel (0:45–1:30) [live + pre-record for the IdP hop]
+
+Caption: `Proven now, not this morning` → after the payment `Approved by two distinct humans`
 
 Alex: `@agent pay the hotel deposit, $180`
 
 Agent: *"Queued: $180 to Hotel Gracery Shinjuku (hotel deposit). This needs 2
 verified humans. Our rules say: “Shared expenses from $50 to $200: 2 verified
 members approve.”"* — a pending card appears: 0 / 2, with the payee's address.
+
+Over the pending card, before anyone approves (5 s):
+
+> "These days half the 'people' in a group chat are their agents. Chris's agent can read
+> this room — it can even click Approve. But it can't be Chris, in World App, right now.
+> So a click from an agent counts for nothing. Only humans move the money: not accounts,
+> not sessions, not agents — including ours."
+
+Caption: `Your agent can click. It can't be you.`
+
+(Said, not shown: the sandbox IdP uses fake identities and completes without a phone;
+in production the fresh proof comes from World App on the member's own phone.)
 
 Chris taps **Approve with World ID** → our confirmation page ($180.00, the
 hotel and its address, the rule, 0 of 2) → **Approve with World ID** → the
@@ -82,6 +117,8 @@ Chris, Alex (2 of 2 verified humans).** Etherscan tab (caption: *testnet — the
 
 ## 4 · Same human, one vote (1:30–1:50) [pre-record — the IdP hop; do not cut]
 
+Caption: `Same human twice counts once`
+
 Alex: `@agent pay the hotel for $150` → Alex approves (1 / 2). Alex switches to
 his 2nd account and approves with **his own** World ID →
 **"⛔ An approval was voided: the same human already approved from another
@@ -90,7 +127,9 @@ account."** The card stays at 1 / 2 and nothing is paid.
 > "Two accounts, one human — the second approval doesn't count, and the money
 > doesn't move."
 
-## 5 · Taking the pot home (1:50–2:35) [live — the climax]
+## 5 · Taking the pot home (1:50–2:30) [live — the climax]
+
+Caption: `The agent can't be talked into it`
 
 Alex: `@agent send $700 to my wallet`
 
@@ -105,11 +144,13 @@ not for anyone to take home.”"*
 > "It didn't ask for votes. It knew this isn't something our group does —
 > because we told it, and it remembers."
 
-## 6 · Why this needs World (2:35–3:00) [live]
+## 6 · Why this needs World (2:30–3:00) [live]
+
+Caption: `The record says which humans said yes — and nothing else about them`
 
 The Treasury Activity page in the memory doc: every payment, refusal and
 approver, written by the agent.
 
-> "Wallet proves ownership. World proves humanity. The relation agent connects
-> the two. AI manages the money — humans approve it. And that's how our
-> relation paid for our hotel."
+> "Wallet proves ownership. World proves humanity — and nothing more. The relation
+> agent connects the two: AI manages the money, verified humans approve it, and the
+> record says which ones. That's how our relation paid for our hotel."
