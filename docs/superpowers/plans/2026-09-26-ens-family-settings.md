@@ -152,7 +152,7 @@ export function suggestLabels(base: string, n = 6): string[] {
 ```
 
 - [ ] **Step 4:** `npm run check` → previous count + 11, 0 failed; `npm run typecheck` silent.
-  - *Done 2026-09-26 (111 → 124):* two extra checks beyond the 11 above — `checkLabel("ab--c")` is `invalid` (a double hyphen is refused, like ENSIP-15's reserved `xx--` labels), and `suggestLabels` filters its candidates through `checkLabel`, so a 31-character base yields only `<base>2`, `<base>3`… instead of over-long `-family`/`the-…s` labels. `labels.ts` is synced to `app/src/lib/ens-family/labels.ts`.
+  - *Done 2026-09-26 (111 → 126):* four extra checks beyond the 11 above — `checkLabel("ab--c")` is `invalid` (a double hyphen is refused, like ENSIP-15's reserved `xx--` labels), and `suggestLabels` filters its candidates through `checkLabel`, so a 31-character base yields only `<base>2`, `<base>3`… instead of over-long `-family`/`the-…s` labels; `suggestLabels` normalizes its base first (`"Lee"` → `lee-family`) and returns none for an invalid base. `labels.ts` is synced to `app/src/lib/ens-family/labels.ts`.
 - [ ] **Step 5: Commit** `ens/src/labels.ts`, `ens/checks/family.check.ts` — `feat: ens label rules for family names`.
 
 ---

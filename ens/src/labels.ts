@@ -18,10 +18,14 @@ export function checkLabel(input: string, opts: { min?: number } = {}): LabelChe
 
 /**
  * Candidate labels to try when `base` is taken — the caller keeps only the available ones.
- * Every candidate passes `checkLabel`, so a long base yields fewer than `n`.
+ * `base` is normalized like `checkLabel` does; an invalid base yields none. Every candidate
+ * passes `checkLabel` as returned, so a long base yields fewer than `n`.
  */
 export function suggestLabels(base: string, n = 6): string[] {
-  const candidates = [`${base}-family`, `the-${base}s`];
-  for (let i = 2; candidates.length < n + 2; i++) candidates.push(`${base}${i}`);
+  const checked = checkLabel(base);
+  if (!checked.ok) return [];
+  const b = checked.label;
+  const candidates = [`${b}-family`, `the-${b}s`];
+  for (let i = 2; candidates.length < n + 2; i++) candidates.push(`${b}${i}`);
   return candidates.filter((c) => checkLabel(c).ok).slice(0, n);
 }

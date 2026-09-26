@@ -225,6 +225,8 @@ ok("label: dot rejected", same(checkLabel("lee.kim"), { ok: false, reason: "inva
 ok("label: leading hyphen rejected", same(checkLabel("-lee"), { ok: false, reason: "invalid" }));
 ok("label: double hyphen rejected", same(checkLabel("ab--c"), { ok: false, reason: "invalid" }));
 ok("suggest: a long base only yields valid labels", same(suggestLabels("a".repeat(31), 2), ["a".repeat(31) + "2", "a".repeat(31) + "3"]));
+ok("suggest: base is normalized first", same(suggestLabels("Lee", 2), ["lee-family", "the-lees"]));
+ok("suggest: an invalid base yields none", same(suggestLabels("", 3), []) && same(suggestLabels("lee🙂", 3), []));
 ok("suggest: family-style candidates", same(suggestLabels("lee", 4), ["lee-family", "the-lees", "lee2", "lee3"]));
 
 console.log(`\n${passes} passed, ${fails} failed`);
