@@ -86,26 +86,25 @@ export async function membersByRoom(roomIds: string[]) {
 }
 
 /**
- * A room's messages as `userId` is allowed to see them: shared messages plus
- * only that user's own quiet exchanges with the agent.
+ * The messages `userId` may see: shared ones plus only that user's own quiet
+ * exchanges with the agent — the condition every read of chat messages for a
+ * person goes through (pnpm check:quiet).
  *
- * Lives here because two routes serve messages — the room detail GET and the
- * messages GET. When only one of them filtered, quiet messages appeared on
- * refresh and vanished on the next realtime refetch, leaking them to the
- * partner in between.
+ * Lives here because three routes read messages for a person — the room
+ * detail GET, the messages GET, and the room list (its last-message preview
+ * and unread count). When one of them skipped it, quiet messages leaked: on
+ * refresh until the next realtime refetch, and into every member's sidebar
+ * preview.
  */
+export function visibleTo(userId: string) {
+  return or(isNull(chatMessages.privateToUserId), eq(chatMessages.privateToUserId, userId));
+}
+
+/** A room's messages as `userId` is allowed to see them, oldest first. */
 export async function visibleRoomMessages(roomId: string, userId: string) {
   return db
     .select()
     .from(chatMessages)
-    .where(
-      and(
-        eq(chatMessages.roomId, roomId),
-        or(
-          isNull(chatMessages.privateToUserId),
-          eq(chatMessages.privateToUserId, userId)
-        )
-      )
-    )
+    .where(and(eq(chatMessages.roomId, roomId), visibleTo(userId)))
     .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
 }
