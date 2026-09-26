@@ -11,7 +11,7 @@ written — and because "three approved" means nothing if the three are one pers
 proves that each approval is a distinct human, present now. Every scene answers one piece of
 that; the caption under each heading says which.
 
-Record the voice live (ETHGlobal: no AI narration). Screen: the Tokyo Trip room
+Eight scenes in 3:00 — the timings are the re-budget for that; trim S1/S3 first if a take runs long. Record the voice live (ETHGlobal: no AI narration). Screen: the Tokyo Trip room
 (chat left, treasury panel on top), switching members by switching Chrome profiles.
 Scenes marked **[pre-record]** depend on outside services (the World IdP, the
 chain) and are captured as separate takes; **[live]** scenes are deterministic.
@@ -110,7 +110,7 @@ in the room between the final reset and the first take.
 | The Sepolia wait (scene 3) | `~40 s later on Sepolia` |
 | Etherscan (scene 3) | `Testnet — the "hotel" is the faucet account that funded the pot` |
 
-## 0 · The problem (0:00–0:15) [live]
+## 0 · The problem (0:00–0:12) [live]
 
 The Tokyo Trip room, panel collapsed: `Shared treasury · $1,000.00`.
 
@@ -122,7 +122,7 @@ The Tokyo Trip room, panel collapsed: `Shared treasury · $1,000.00`.
 
 Caption: `Shared money comes with an agreement. The wallet doesn't know it.` → `AI manages the money. Humans approve it.`
 
-## 1 · The relation (0:15–0:32) [live opening + pre-record for the IDKit step]
+## 1 · The relation (0:12–0:27) [live opening + pre-record for the IDKit step]
 
 Caption: `One unique human → one vote` · `World ID · IDKit — Proof of Human`
 
@@ -140,7 +140,7 @@ Alex taps **Claim your vote with World ID** (IDKit, Proof of Human) →
 > "Before anyone can approve anything, they prove one thing: that they're a
 > unique human. Not who they are — just: one human, one vote."
 
-## 2 · The second account (0:32–0:45) [pre-record — needs the Portal app]
+## 2 · The second account (0:27–0:37) [pre-record — needs the Portal app]
 
 Caption: `Ten accounts. Still one human.` · `World ID · IDKit — Proof of Human`
 
@@ -150,7 +150,7 @@ The chip stays `Alex (2nd account) · no vote`.
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 
-## 3 · Paying the hotel (0:45–1:30) [live request + pre-record for the IdP hops]
+## 3 · Paying the hotel (0:37–1:12) [live request + pre-record for the IdP hops]
 
 Caption: `Proven now, not this morning` · `World ID for Agents — fresh step-up` →
 after the payment `Approved by two distinct humans`
@@ -199,7 +199,46 @@ Etherscan tab (caption: *testnet — the "hotel" is the faucet account that fund
 > different humans, proven now. Then it paid, from its own wallet, and wrote it
 > into our memory."
 
-## 4 · One human, two laptops (1:30–1:50) [pre-record — all of it; no cut from the click to the voided line]
+## 3½ · Idle funds at work (1:12–1:45) [live request + pre-record for the three IdP hops]
+
+Caption: `Idle money works under our rules` → after the swap `Three humans said yes. The agent swapped.`
+
+Right after the deposit is paid the agent adds, unprompted:
+
+> 💡 After that we hold $816.03, and nothing else is due yet. $200 could work for
+> us instead of sitting idle — our rules say: “Investing idle funds: 3 verified
+> members approve.” If you want that, say: @agent invest $200 of the idle funds
+
+Alex: `@agent invest $200 of the idle funds`
+
+Agent: *"Queued: $200 to Savings (idle funds). This needs 3 verified humans. Our
+rules say: “Investing idle funds: 3 verified members approve.”…"* — a pending
+card, 0 / 3. The payee is the agent's own wallet: that is where the WETH will sit.
+
+Chris, Dana and Eli — three browsers, three humans — each tap **Approve with
+World ID** → the confirmation page ($200.00 to Savings (idle funds), *Paid to*
+the agent's address, the rule, none of 3 yet) → the World ID for Agents step-up →
+back in the room: **✅ Chris approved with World ID — 1 of 3 · fresh check at
+18:10, after this request** … 3 of 3.
+
+Then, with no further click: **📈 Invested $200 to Savings (idle funds) — 1 USDC
+→ 0.000371977 WETH via Uniswap v3 on Base (demo scale: $1 = 0.005 USDC).
+Approved by 3 verified humans: Chris, Dana, and Eli · tx 0x9af1…** The panel
+header gains **+ $199.72 invested**, priced through the same pool right now.
+basescan tab (caption: *demo scale — $200 in the story is 1 USDC on Base
+mainnet; the pot itself is testnet*).
+
+> "Money that just sits is money nobody decided about. The agent noticed and
+> asked — it can't move idle funds on its own. Three different humans, proven
+> now, said yes. Then it bought through Uniswap, from its own wallet, and wrote
+> down exactly what it got. Whether that's worth more at checkout is the
+> market's call; the panel just tells the truth."
+
+Measured 2026-09-26 on xyz: request → 3 approvals → swap mined, ~4 min with the
+hops; the swap itself 135k gas on Base, tx
+`0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b`.
+
+## 4 · One human, two laptops (1:45–2:00) [pre-record — all of it; no cut from the click to the voided line]
 
 Caption: `Same human twice counts once` · `World ID for Agents — fresh step-up`
 
@@ -222,7 +261,7 @@ the vote's nullifier (IDKit) and the approval's `sub` (World ID for Agents) are
 not linked, and a judge may call it out. What the scene proves is exactly what
 the line says: one human counts once per payment, whichever account they use.
 
-## 5 · Taking the pot home (1:50–2:30) [live — the climax]
+## 5 · Taking the pot home (2:00–2:25) [live — the climax]
 
 Caption: `The agent can't be talked into it`
 
@@ -239,7 +278,23 @@ Agent — no approval request at all, one thought per line:
 > "It didn't ask for votes. It knew this isn't something our group does —
 > because we told it, and it remembers."
 
-## 6 · Why this needs World (2:30–3:00) [live]
+## 5½ · The upgrade (2:25–2:45) [live]
+
+Caption: `What we agreed on was enough`
+
+Alex: `@agent pay the hotel upgrade, $150` → *"Queued: $150 to Hotel Gracery
+Shinjuku (hotel upgrade). This needs 2 verified humans…"* → Bea (her first
+approval on camera; she claimed her vote in scene 1) and Chris approve →
+**✅ Paid $150 to Hotel Gracery Shinjuku (hotel upgrade) — approved by Bea, Chris
+(2 of 2 verified humans). tx …**
+
+> "The deposit was paid. The raid was refused. The idle money is working. What's
+> left still covers the better room — so we took it. Not because the AI made
+> money: because it spent ours exactly the way we agreed."
+
+(Same path as scene 3; not yet rehearsed on xyz — a real Sepolia transfer.)
+
+## 6 · Why this needs World (2:45–3:00) [live]
 
 Caption: `The record says which humans said yes — and nothing else about them`
 

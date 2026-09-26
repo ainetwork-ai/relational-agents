@@ -41,10 +41,11 @@ listed only in the last section, as proposals; this document changes neither the
 | S3 The hotel deposit, $180 | I5, I2 (2), I8 confirmation page and step-up, I4 transfer, I12 activity | ✔ measured (confirmation click to room 4.8 s) |
 | S4 Same human, two accounts | I8 pairwise sub, I9 voided | ✔ |
 | S5 "$700 to my wallet" | I11, I2 (30%) | ✔ |
+| S3½ Idle funds at work | I13 hint, I5 `invest`, I2 (3), I8 ×3, I10 swap, I12 | ✔ measured (swap tx `0x9af1…`) |
+| S5½ The upgrade | I5, I2 (2), I8 ×2, I4 | ✔ path; scene not yet rehearsed |
 | S6 The record | I12 | ✔ |
 
-The script uses only what is implemented. Investing, Uniswap, AINDrive, x402 and the upgrade are not
-in the script yet (see §4).
+The script uses only what is implemented. AINDrive and x402 are not in the script (see §4).
 
 ### 2b. The concept doc `world_scenario.md`
 
@@ -75,8 +76,8 @@ in the script yet (see §4).
 
 | # | Proposal | Needs | Time | Risk |
 |---|---|---|---|---|
-| P1 | Add S3½ "idle funds at work": the 💡 proposal → `invest $200 of the idle funds` → 3 approvals (3 browsers) → the swap → the basescan tx and the "+ invested" figure | script and storyboard | 1 h | the number on screen is the market's |
-| P2 | Add S5½ "the upgrade": `pay the hotel upgrade, $150` → 2 approvals → paid | script only | 30 m | a real Sepolia transfer |
+| P1 | ~~Add S3½~~ — done 2026-09-26 (script + storyboard) | — | — | — |
+| P2 | ~~Add S5½~~ — in the script; rehearse once on xyz | rehearsal | 15 m | a real Sepolia transfer |
 | P3 | One closing line for x402 and AINDrive ("the same agent, the same rules, for files and paid resources") | script only | 5 m | none |
 | P4 | An AINDrive access-grant scene gated by World | a command, a World gate, the aindrive permission API | half a day+ | new code |
 | P5 | Monthly contributions | new code | — | not before the deadline |
