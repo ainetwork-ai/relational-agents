@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatMessages } from "@/lib/db/schema";
-import { requireRoomAccess } from "@/lib/chat-room-access";
+import { requireRoomAccess, visibleTo } from "@/lib/chat-room-access";
 import { maybeAutoRun } from "@/lib/agent/triggers";
 import type { RunResult } from "@/lib/agent/pipeline";
 
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   const messages = await db
     .select()
     .from(chatMessages)
-    .where(eq(chatMessages.roomId, roomId))
+    .where(and(eq(chatMessages.roomId, roomId), visibleTo(auth.user.id)))
     .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
   return NextResponse.json({ messages });
 }

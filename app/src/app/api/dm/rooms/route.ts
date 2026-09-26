@@ -13,7 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { toPublicUser, type PublicUser } from "@/lib/auth/public-user";
-import { membersByRoom, publishToRoomMembers, UUID_RE } from "@/lib/chat-room-access";
+import { membersByRoom, publishToRoomMembers, UUID_RE, visibleTo } from "@/lib/chat-room-access";
 import { relationshipRoomName } from "@/lib/auth/display-name";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
   const lastMessages = await db
     .selectDistinctOn([chatMessages.roomId])
     .from(chatMessages)
-    .where(inArray(chatMessages.roomId, roomIds))
+    .where(and(inArray(chatMessages.roomId, roomIds), visibleTo(meId)))
     .orderBy(chatMessages.roomId, desc(chatMessages.createdAt), desc(chatMessages.id));
   const lastByRoom = new Map(lastMessages.map((m) => [m.roomId, m]));
 
@@ -72,6 +72,7 @@ async function buildSummaries(meId: string, rooms: ChatRoom[]): Promise<DmRoomSu
     .where(
       and(
         inArray(chatMessages.roomId, roomIds),
+        visibleTo(meId),
         ne(chatMessages.authorId, meId),
         gt(
           chatMessages.createdAt,
