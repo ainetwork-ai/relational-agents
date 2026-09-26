@@ -126,7 +126,20 @@ export function worldDiscovery(cfg: WorldConfig): Promise<WorldDiscovery> {
   let hit = discoveryCache.get(cfg.issuer);
   if (!hit) {
     hit = (async () => {
-      const res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`, { cache: "no-store" });
+      // A cold cache right after a container start has met a resolver that is
+      // not ready yet ("fetch failed", EAI_AGAIN) and turned a member's step-up
+      // into "World ID isn't reachable". Three tries, a second apart, before
+      // giving up — the document is static, so retrying costs nothing.
+      let res: Response | null = null;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`, { cache: "no-store" });
+          break;
+        } catch (err) {
+          if (attempt >= 3) throw err;
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+        }
+      }
       if (!res.ok) throw new Error(`world discovery failed: ${res.status}`);
       const doc = (await res.json()) as WorldDiscovery;
       if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri)

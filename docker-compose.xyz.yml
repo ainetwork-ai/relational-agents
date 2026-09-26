@@ -25,6 +25,12 @@ services:
         NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
         NEXT_PUBLIC_WORLD_ID_ENV: ${NEXT_PUBLIC_WORLD_ID_ENV:-}
     restart: unless-stopped
+    # Resolve outside names ourselves: the host's stub resolver (one upstream, the
+    # LAN router) has answered EAI_AGAIN under load, and a World ID step-up that
+    # can't resolve sandbox.auth.world.org fails as "isn't reachable".
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       postgres:
         condition: service_healthy
