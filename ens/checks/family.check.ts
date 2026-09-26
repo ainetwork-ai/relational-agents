@@ -5,6 +5,9 @@
 import { checkAmount, formatUsdc, isSendRequest, parseSendRequest } from "../src/send-request";
 import { descendants, displayName, findNodeByAddress, matchesKinship, pickRecipients, type FamilyNode } from "../src/family-tree";
 import { markSent, signSendIntent, verifySendIntent, wasSent } from "../src/send-token";
+import { decodeFunctionData, erc20Abi, getAddress } from "viem";
+import { prepareSend } from "../src/prepare";
+import { SEPOLIA_USDC } from "../src/config";
 
 let fails = 0;
 let passes = 0;
@@ -130,6 +133,29 @@ ok("sent: unknown", wasSent(tok) === null);
 markSent(tok, "0xabc");
 ok("sent: remembered", wasSent(tok) === "0xabc");
 ok("sent: other token unaffected", wasSent(signSendIntent(intent, SECRET, T0 + 1)) === null);
+
+// ── prepareSend (fake chain) ────────────────────────────────────────────────
+const fake = (o: { verify?: boolean; to?: `0x${string}` | null } = {}) => ({
+  verifyPath: async () => o.verify ?? true,
+  resolveAddress: async (name: string) =>
+    o.to !== undefined ? o.to : (descendants(tree).find((d) => d.node.name === name)?.node.address ?? null),
+});
+const G = grandma.address!;
+const r1 = await prepareSend({ text: "send Minjun 20 USDC", askerAddress: G, tree }, fake());
+ok("prepare: ready", r1.kind === "ready" && r1.recipient.label === "minjun" && r1.amountMicro === 20_000_000n);
+if (r1.kind === "ready") {
+  ok("prepare: tx targets USDC", r1.tx.to === SEPOLIA_USDC && r1.tx.value === 0n && r1.tx.chainId === 11155111);
+  const call = decodeFunctionData({ abi: erc20Abi, data: r1.tx.data });
+  ok("prepare: tx is transfer(to, amount)", call.functionName === "transfer" && same(call.args, [getAddress(minjun.address!), 20_000_000n]));
+}
+ok("prepare: ask", (await prepareSend({ text: "send my grandchild 5 USDC", askerAddress: G, tree }, fake())).kind === "ask");
+ok("prepare: nobody", same(await prepareSend({ text: "send Great-aunt 5 USDC", askerAddress: G, tree }, fake()), { kind: "refuse", reason: "nobody" }));
+ok("prepare: not in family", same(await prepareSend({ text: "send Minjun 5 USDC", askerAddress: "0x00000000000000000000000000000000000000ff", tree }, fake()), { kind: "refuse", reason: "not-in-family" }));
+ok("prepare: too large", same(await prepareSend({ text: "send Minjun 500 USDC", askerAddress: G, tree }, fake()), { kind: "refuse", reason: "too-large" }));
+ok("prepare: no request", same(await prepareSend({ text: "send Minjun some money", askerAddress: G, tree }, fake()), { kind: "refuse", reason: "no-request" }));
+ok("prepare: path fails", (await prepareSend({ text: "send Minjun 5 USDC", askerAddress: G, tree }, fake({ verify: false }))).kind === "refuse");
+ok("prepare: no address", (await prepareSend({ text: "send Minjun 5 USDC", askerAddress: G, tree }, fake({ to: null }))).kind === "refuse");
+ok("prepare: nickname", (await prepareSend({ text: "send Junie 5 USDC", askerAddress: G, tree, nicknames: nick }, fake())).kind === "ready");
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
