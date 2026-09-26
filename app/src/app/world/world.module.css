@@ -572,18 +572,6 @@
   border-color: var(--w-ter);
 }
 
-.linkBtn {
-  display: inline-flex;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--w-coral-ink) !important;
-  text-decoration: none;
-}
-
-.linkBtn:hover {
-  text-decoration: underline;
-}
 
 .pill {
   margin: 0;
@@ -620,79 +608,7 @@
   color: #c22d3a;
 }
 
-/* ── the guided steps: one thing to do per card ── */
-.guide {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  counter-reset: step;
-}
-
-.step {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 14px;
-  background: var(--w-card);
-  border-radius: 20px;
-  padding: 18px 20px;
-  box-shadow: var(--w-shadow);
-  counter-increment: step;
-}
-
-.step::before {
-  content: counter(step);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--w-tint);
-  color: var(--w-coral-ink);
-  font-weight: 800;
-  font-size: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stepBody {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-
-.stepTitle {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.stepText {
-  margin: 0;
-  color: var(--w-sub);
-  max-width: 72ch;
-}
-
-.tryFoot {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.tryState {
-  background: var(--w-card);
-  border-radius: 16px;
-  padding: 14px 16px;
-  box-shadow: var(--w-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
+/* ── folded details (what to check) ── */
 .more {
   background: var(--w-card);
   border-radius: 16px;
@@ -779,20 +695,8 @@
 
 @media (max-width: 760px) {
   .liveGrid,
-  .tryGrid,
-  .tryFoot {
+  .tryGrid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .step {
-    grid-template-columns: 32px minmax(0, 1fr);
-    padding: 16px;
-  }
-
-  .step::before {
-    width: 28px;
-    height: 28px;
-    font-size: 14px;
   }
 }
 
