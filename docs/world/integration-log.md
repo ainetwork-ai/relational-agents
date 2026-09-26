@@ -172,3 +172,28 @@ Format: `JST time — surface — what happened`.
   browser: link → 303 → `https://ainmem.ainetwork.xyz/` signed in as Alex.
   Live: `ainmem_xyz-app:7dc7cd3`. Still to measure on xyz: a real vote through
   the simulator and a real IdP approval (time to first success on the demo host).
+- 2026-09-26 05:00 — both — **the panel no longer depends on the build**: the
+  xyz auto-deploy (cron, bare `docker build`, merged 04:29 as PR #16) had
+  replaced the compose-built image and the panel again said the app id was
+  missing. `1c7e0e4`: the treasury status carries `seatAppId` from the
+  server's env and the panel prefers it; `?as=…&returnTo=` lands a member in
+  the room. Auto-deployed 04:57→04:59:59.
+- 2026-09-26 05:04 — Agents — **first real IdP approval on the demo host**,
+  measured: Alex `@agent pay the hotel deposit, $180` → pending 0 / 2 → Chris
+  (a second browser) → our confirmation page → World ID Agents sandbox →
+  back with "Your approval was recorded with a fresh World ID verification",
+  1 / 2 · Chris. Confirmation-page click to room: **4.8 s**. What the sandbox
+  actually does (measured on plain verifications too): its page says
+  "Sandbox · Uses fake identities" and completes with no human action
+  (Preparing verification → Hello, human → redirect, ~3 s); one fake human
+  per browser (`__Host-idp-mock-identity` cookie) — Alex and Bea in separate
+  contexts got different pairwise subs, Alex-2nd in Bea's browser was refused
+  ("didn't check out"). So the same-human scene needs one browser, two
+  accounts; the two-human scene needs two browsers. FRICTION: (1) the first
+  Chris attempt failed with "World ID isn't reachable" — `EAI_AGAIN` from the
+  container's resolver during a heavy concurrent build; the host stub resolver
+  has a single upstream (192.168.1.1). Plan: `dns:` on the xyz service, and
+  a cached discovery document. (2) the seeded OKF doc files were owned by the
+  host user, so the container (uid 1001) got EACCES logging to Treasury
+  Activity — fixed with a+rw on the demo doc tree; the seed should chmod what
+  it writes when OKF_ROOT is a bind mount.
