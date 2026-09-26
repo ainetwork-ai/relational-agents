@@ -230,129 +230,265 @@
   color: var(--w-sec);
 }
 
-.liveGrid,
+/* the steps are the longer read */
 .tryGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 12px;
 }
 
-/* the steps are the longer read */
-.tryGrid {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+/* ── the demo video ── */
+.video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #000;
+  box-shadow: var(--w-shadow);
 }
 
-.balance {
-  margin: 0 0 18px;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+/* ── the recorded room, as a statement ── */
+.statement {
+  background: var(--w-card);
+  border-radius: 20px;
+  box-shadow: var(--w-shadow);
+  overflow: hidden;
 }
 
-.chips {
-  list-style: none;
-  margin: 0 0 18px;
-  padding: 0;
+.stHead {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--w-line);
 }
 
-.chip {
-  font-size: 13px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--w-hair);
-  color: var(--w-sub);
+.stPeople {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 
-.chipWorld {
-  background: var(--w-ok-bg);
-  color: var(--w-ok-ink);
-}
-
-.modes {
+.faces {
+  list-style: none;
   margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 12px;
-  font-size: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--w-line);
+  padding: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.modes dt {
+.face {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--w-hair);
+  vertical-align: middle;
+}
+
+.faceBlank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--w-sec);
 }
 
-.modes dd {
+/* the ring says how a member holds a vote, as in the room's panel */
+.ringWorld,
+.ringDev,
+.ringNone {
+  box-shadow:
+    0 0 0 2px var(--w-card),
+    0 0 0 4px var(--ring);
+}
+
+.ringWorld {
+  --ring: var(--w-ok);
+}
+
+.ringDev {
+  --ring: var(--w-wait);
+}
+
+.ringNone {
+  --ring: var(--w-line);
+}
+
+.stVotes {
   margin: 0;
+  max-width: 52ch;
+  font-size: 14px;
   color: var(--w-sub);
 }
 
-/* ── activity ── */
-.feed {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+.stVotes b {
+  color: var(--w-text);
 }
 
-.feedRow {
+.stPot {
+  margin-left: auto;
+  text-align: right;
+}
+
+.stPotLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--w-sec);
+}
+
+.stPotValue {
+  margin: 2px 0 0;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stPotNote {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--w-sec);
+}
+
+.ledgerDay {
+  margin: 0;
+  padding: 16px 24px 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--w-sec);
+}
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 6px;
+}
+
+.entry {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
-  column-gap: 10px;
-  padding: 10px 0;
+  grid-template-columns: 44px 32px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  padding: 14px 24px;
   border-bottom: 1px solid var(--w-hair);
 }
 
-.feedRow:last-child {
+.entry:last-child {
   border-bottom: 0;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 8px;
-  background: var(--w-ter);
-}
-
-.ok {
-  background: var(--w-ok);
-}
-
-.wait {
-  background: var(--w-wait);
-}
-
-.bad {
-  background: var(--w-bad);
-}
-
-.info {
-  background: var(--w-info);
-}
-
-.idle {
-  background: var(--w-ter);
-}
-
-.feedLine {
-  color: var(--w-text);
-  overflow-wrap: anywhere;
-}
-
-.feedMeta {
-  grid-column: 2;
+.entryTime {
+  padding-top: 6px;
   font-size: 13px;
   color: var(--w-sec);
   font-variant-numeric: tabular-nums;
 }
 
-.feedMeta a {
-  color: var(--w-info-ink);
+.entryFace {
+  width: 32px;
+  height: 32px;
+}
+
+.entryBody {
+  min-width: 0;
+}
+
+.entryTitle {
+  margin: 0;
+  font-weight: 700;
+  color: var(--w-text);
+  overflow-wrap: anywhere;
+}
+
+.entryPayee {
+  font-weight: 500;
+  color: var(--w-sub);
+}
+
+.entryMeta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--w-sec);
+}
+
+.entryMeta q {
+  color: var(--w-sub);
+}
+
+.approverFaces {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 6px;
+  vertical-align: -5px;
+}
+
+.entryRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.entryAmount {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--w-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.amountRefused {
+  color: var(--w-ter);
+  text-decoration: line-through;
+}
+
+.txLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--w-info-bg);
+  color: var(--w-info-ink) !important;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.txLink:hover {
+  background: #d6e8ff;
+}
+
+.refusedTag {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #feecee;
+  color: #c22d3a;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stFoot {
+  margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--w-line);
+  background: #fafbfc;
+  font-size: 13px;
+  color: var(--w-sec);
 }
 
 /* ── try it ── */
@@ -544,16 +680,6 @@
   gap: 10px;
 }
 
-.primaryOff {
-  display: inline-flex;
-  align-items: center;
-  padding: 12px 20px;
-  border-radius: 12px;
-  background: var(--w-hair);
-  color: var(--w-sec);
-  font-weight: 600;
-  cursor: default;
-}
 
 .secondaryBtn {
   display: inline-flex;
@@ -660,9 +786,57 @@
 }
 
 @media (max-width: 760px) {
-  .liveGrid,
   .tryGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stHead {
+    padding: 18px 16px;
+  }
+
+  .stPot {
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .ledgerDay {
+    padding: 14px 16px 0;
+  }
+
+  /* face beside everything; the time over the title, the amount and its link under the words */
+  .entry {
+    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-areas:
+      "face time"
+      "face body"
+      "face right";
+    row-gap: 2px;
+    padding: 14px 16px;
+  }
+
+  .entryFace {
+    grid-area: face;
+  }
+
+  .entryTime {
+    grid-area: time;
+    padding-top: 0;
+  }
+
+  .entryBody {
+    grid-area: body;
+  }
+
+  .entryRight {
+    grid-area: right;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+
+  .stFoot {
+    padding: 12px 16px;
   }
 }
 

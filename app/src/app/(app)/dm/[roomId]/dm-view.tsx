@@ -13,6 +13,7 @@ import { ConsentBanner } from "@/components/dm/consent-banner";
 import { TreasuryPanel } from "@/components/treasury/treasury-panel";
 import { A2uiSurface } from "@/components/a2ui/surface";
 import { splitA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
+import { sendOfferSrc } from "@/lib/agent/send-offer-surface";
 import { DissolveBanner } from "@/components/dm/dissolve-banner";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import { AgentSettings } from "@/components/dm/agent-settings";
@@ -1080,7 +1081,11 @@ export function DmView({
             const parts = m.text ? splitA2uiMarkers(m.text) : [];
             const texts = parts.flatMap((part) => (part.kind === "text" ? [part.text] : []));
             const cards = parts.flatMap((part) =>
-              part.kind === "recurring-buy" && firstCardAt.get(part.actionId) === i ? [part.actionId] : []
+              part.kind === "recurring-buy" && firstCardAt.get(part.actionId) === i
+                ? [{ key: part.actionId, src: `/api/treasury/${roomId}/surfaces/recurring-buy/${part.actionId}`, followsChat: false }]
+                : part.kind === "send"
+                  ? [{ key: `${part.view}-${part.offerId}`, src: sendOfferSrc(part.view, part.offerId), followsChat: true }]
+                  : []
             );
             const footer =
               m.recordedAt && !m.privateToUserId ? (
@@ -1162,10 +1167,12 @@ export function DmView({
                         {!cards.length && footer}
                       </div>
                     )}
-                    {/* the treasurer's card: a [[a2ui:recurring-buy/<id>]] line is drawn as that recurring buy, live */}
-                    {cards.map((actionId) => (
-                      <div key={actionId} className="mt-1.5 w-full">
-                        <A2uiSurface src={`/api/treasury/${roomId}/surfaces/recurring-buy/${actionId}`} />
+                    {/* a card line is drawn as that card, live: the treasurer's [[a2ui:recurring-buy/<id>]],
+                        the send skill's [[a2ui:send-check/<id>]] ("Is this Minjun?") and [[a2ui:send/<id>]] */}
+                    {cards.map((card) => (
+                      <div key={card.key} className="mt-1.5 w-full">
+                        {/* a send card follows the chat: a typed "yes" below it answers it */}
+                        <A2uiSurface src={card.src} refreshKey={card.followsChat ? messages.length : undefined} />
                       </div>
                     ))}
                     {cards.length > 0 && footer && <div className="px-1">{footer}</div>}

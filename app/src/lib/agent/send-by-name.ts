@@ -1,19 +1,19 @@
 // app/src/lib/agent/send-by-name.ts
 // "send Minjun 20 USDC": the ens-family core decides; this turns its answer into a reply
-// and, when ready, a signed link to approve the transfer in the asker's own wallet.
+// and, when ready, the inline "Is this Minjun?" card (then Send, in the same chat).
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { makeT } from "@/i18n/translate";
-import { sendSecret } from "@/lib/ens-chain";
 import { familyChainFor } from "@/lib/ens-workspace";
 import { linkedWallet } from "@/lib/wallet/linked";
 import { ensureNicknamesTable, loadNicknames } from "@/lib/ens-nicknames";
 import { prepareSend } from "@/lib/ens-family/prepare";
 import { displayName, findNodeByAddress, pickAnswer, pickRecipients, type FamilyNode } from "@/lib/ens-family/family-tree";
 import { formatUsdc, isSendRequest, kinshipOf, parseSendRequest } from "@/lib/ens-family/send-request";
-import { signSendIntent } from "@/lib/ens-family/send-token";
+import { createSendOffer } from "./send-offer";
+import { sendOfferMarker } from "./send-offer-surface";
 import type { SkillContext, SkillResult } from "./family-skills";
 
 // "Who should get it: Minjun or Seoyeon?" waits on that person in that room for 5 minutes:
@@ -96,17 +96,19 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult | null>
     }[r.reason];
     return { text: why + note };
   }
-  const token = signSendIntent(
-    { userId: ctx.askerId, workspaceId: ctx.workspaceId, roomId: ctx.roomId ?? "", from: me.address, name: r.recipient.name, to: r.to, amountMicro: r.amountMicro.toString() },
-    sendSecret()
-  );
-  return {
-    text:
-      t("Ready: {amount} USDC to {who} ({name}). Check it and send it from your wallet → /send?t={token}", {
-        amount: formatUsdc(r.amountMicro),
-        who: displayName(r.recipient),
-        name: r.recipient.name,
-        token,
-      }) + note,
-  };
+  // no link to another page: the chat asks "Is this Minjun?" with their photo and email, and
+  // after yes shows the Send button (lib/agent/send-offer.ts)
+  if (!ctx.roomId) return { text: t("Ask me in a chat, so I can show you who gets it before sending.") + note };
+  const offerId = await createSendOffer({
+    workspaceId: ctx.workspaceId,
+    roomId: ctx.roomId,
+    askerId: ctx.askerId,
+    from: me.address,
+    name: r.recipient.name,
+    displayName: displayName(r.recipient),
+    ensAvatar: r.recipient.avatar,
+    to: r.to,
+    amountMicro: r.amountMicro,
+  });
+  return { text: sendOfferMarker("check", offerId) + note };
 }
