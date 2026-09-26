@@ -226,7 +226,8 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                   <div className={styles.stepBody}>
                     <h3 className={styles.stepTitle}>See it refuse</h3>
                     <p className={styles.stepText}>
-                      <code>@agent send $700 to my wallet</code> is refused on the spot, citing the rule, and nobody is
+                      {/* an explicit space: the compiler drops a leading one from text that holds an entity */}
+                      <code>@agent send $700 to my wallet</code>{" "}is refused on the spot, citing the rule, and nobody is
                       asked to vote. Then, in Alex&apos;s browser, enter as <b>Alex (2nd account)</b>, the same person on a
                       second account, and claim a vote with the simulator identity Alex used. World ID gives the same
                       nullifier, so the claim is refused: this human already has a vote.
