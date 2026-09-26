@@ -76,16 +76,29 @@ export function SuggestionChips({ items, onPick, disabled }: { items: string[]; 
   );
 }
 
-/** "/p/<id>" in an answer is a page the agent made — a link, not text. */
+/**
+ * "/p/<id>" in an answer is a page the agent made, "/send?t=…" a transfer to review
+ * (the send-by-name skill), and an https url the explorer link on a receipt — links, not text.
+ */
 function Linked({ text, label }: { text: string; label: string }) {
-  const parts = text.split(/(\/p\/[0-9a-f-]{36})/g);
+  const t = useT();
+  const parts = text.split(/(\/p\/[0-9a-f-]{36}|\/send\?t=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|https:\/\/[^\s<>"')\]]*[^\s<>"')\].,;:!?])/g);
+  const linkClass = "font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400";
   return (
     <>
       {parts.map((part, i) =>
         /^\/p\/[0-9a-f-]{36}$/.test(part) ? (
-          <Link key={i} href={part} className="font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400">
+          <Link key={i} href={part} className={linkClass}>
             {label}
           </Link>
+        ) : /^\/send\?t=/.test(part) ? (
+          <Link key={i} href={part} className={linkClass} data-testid="send-link">
+            💸 {t("Review and send")}
+          </Link>
+        ) : /^https:\/\//.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={linkClass}>
+            {part}
+          </a>
         ) : (
           <Fragment key={i}>{part}</Fragment>
         )
@@ -276,7 +289,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                className={`max-w-[88%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                   mine ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100"
                 }`}
               >
