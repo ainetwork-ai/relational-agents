@@ -12,6 +12,7 @@ import { FileText } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import { ActivityFeed } from "./activity-feed";
 import { ApprovalsCard } from "./approvals-card";
+import { ContributionsCard } from "./contributions-card";
 import { Holdings } from "./holdings";
 import { RecurringCard } from "./recurring-card";
 import { useTreasuryRoomData } from "./room-data";
@@ -48,6 +49,7 @@ export function TreasuryHome() {
       <Holdings status={status} wallet={wallet} />
       <VoteClaimCard status={status} roomId={roomId} onSeated={reload} />
       <ApprovalsCard status={status} roomId={roomId} meId={me.id} now={at} />
+      <ContributionsCard />
       <ActivityFeed status={status} wallet={wallet} roomId={roomId} now={at} variant="transactions" limit={6} />
       <RecurringCard status={status} wallet={wallet} />
     </div>
