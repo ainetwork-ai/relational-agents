@@ -25,11 +25,8 @@ export type MetaMaskFailure =
   | "no-challenge" // the server had no challenge for this session
   | "invalid-signature"
   | "taken" // wallet-link: the wallet belongs to another account
-  | "has-other" // wallet-link: this account's address is a sign-in id that is not a wallet
-  | "has-verified" // wallet-link: this account has another proven wallet (retry with replace after a warning)
-  | "owns-family" // wallet-link: the proven wallet owns a family name of this account's workspace
+  | "has-other" // wallet-link: this account already has another proven wallet, or a sign-in id that is not a wallet
   | "changed" // wallet-link: the account's wallet changed meanwhile
-  | "chain-unavailable" // wallet-link: Sepolia could not be read for the family check
   | "network" // a request never got an answer
   | "failed"; // anything else
 
@@ -118,43 +115,25 @@ export async function signInWithMetaMask(
   }
 }
 
-export type LinkResult =
-  | { ok: true; address: string }
-  | { ok: false; error: string; reason: MetaMaskFailure; name?: string; current?: string };
+export type LinkResult = { ok: true; address: string } | { ok: false; error: string; reason: MetaMaskFailure };
 
 /** Prove a MetaMask address for the account signed in now; the session keeps its user.
- *  `pick: false` signs with the account MetaMask is on now instead of opening the account picker;
- *  `replace: true` replaces a proven wallet (only after the UI warned). `error` is English (for
- *  logs); `reason` is what a UI translates, with `name` (owns-family) and `current` (the old wallet). */
-export async function linkMetaMask(opts: { pick?: boolean; replace?: boolean } = {}): Promise<LinkResult> {
+ *  `pick: false` signs with the account MetaMask is on now instead of opening the account picker.
+ *  `error` is English (for logs); `reason` is what a UI translates. */
+export async function linkMetaMask(opts: { pick?: boolean } = {}): Promise<LinkResult> {
   const fallback = "Connecting MetaMask failed";
   try {
     const { address, signature } = await signChallengeWithMetaMask({ pick: opts.pick });
     const res = await fetch("/api/auth/wallet-link", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ signature, address, replace: opts.replace === true }),
+      body: JSON.stringify({ signature, address }),
     });
     const data = await res.json();
     if (!res.ok) {
-      const known: MetaMaskFailure[] = [
-        "taken",
-        "has-other",
-        "has-verified",
-        "owns-family",
-        "changed",
-        "chain-unavailable",
-        "no-challenge",
-        "invalid-signature",
-      ];
+      const known: MetaMaskFailure[] = ["taken", "has-other", "changed", "no-challenge", "invalid-signature"];
       const reason = known.includes(data.reason) ? (data.reason as MetaMaskFailure) : "failed";
-      return {
-        ok: false,
-        error: data.error || fallback,
-        reason,
-        name: typeof data.name === "string" ? data.name : undefined,
-        current: typeof data.current === "string" ? data.current : undefined,
-      };
+      return { ok: false, error: data.error || fallback, reason };
     }
     return { ok: true, address: data.address };
   } catch (err) {

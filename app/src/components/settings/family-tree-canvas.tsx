@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import type { Address } from "viem";
 import { useT } from "@/i18n/provider";
 import { ghostChildKey, ghostSpouseKey, layoutForest, type LaidOutCard } from "@/lib/ens-family/tree-layout";
-import { MUTED, short, type Candidate, type TreeNode } from "./family-ui";
+import { MUTED, type Candidate, type TreeNode } from "./family-ui";
 import { CARD_H, CARD_W, FamilyPersonCard } from "./family-person-card";
 import { AddMemberCard, FORM_W, type AddPhase } from "./add-member-card";
 
@@ -136,10 +136,7 @@ export function FamilyTreeCanvas({
   // an admin with a wallet that holds none of the family's registry roles sees no "+ Add" cards: say why
   const cannotAdd = ghosts && !all.some((n) => n.canAdd) && wallet ? (
     <p className={MUTED} data-testid="family-no-add">
-      {t("This wallet ({addr}) holds no roles on the registries of {root}, so it can't add people. The wallet that created {root} can.", {
-        addr: short(wallet),
-        root: tree.name,
-      })}
+      {t("Your wallet doesn't have permission to add family members.")}
     </p>
   ) : null;
 

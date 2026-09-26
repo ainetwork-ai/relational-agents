@@ -42,7 +42,6 @@ import {
   MUTED,
   PRIMARY,
   explain,
-  short,
   txUrl,
   usdcText,
   useDebounced,
@@ -51,7 +50,7 @@ import {
   type TreeNode,
 } from "./family-ui";
 import { FamilyTreeCanvas } from "./family-tree-canvas";
-import { WalletSection, shortAddress, walletGate } from "./family-wallet-section";
+import { WalletSection, walletGate } from "./family-wallet-section";
 
 // ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
 
@@ -63,8 +62,8 @@ interface Family {
   tree: TreeNode;
 }
 interface FamilyState {
-  /** address: the proven wallet (null until a signature proves one); linked: the 0x address the account lists */
-  me: { address: string | null; linked?: string | null; canEdit: boolean };
+  /** address: the proven wallet (null until a signature proves one) */
+  me: { address: string | null; canEdit: boolean };
   family: Family | null;
   /** admins only: workspace members with a linked wallet who are not in the tree */
   candidates: Candidate[];
@@ -154,7 +153,7 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
   }, [apply, workspaceId]);
 
   return (
-    <>
+    <div data-testid="family-panel" className="flex flex-col gap-9">
       <SettingsHeader title={t("Family names")} subtitle={t("Names for your family on Ethereum (Sepolia ENS), like grandma.lee.eth")} />
       {!state && !loadError && (
         <div className={`flex items-center gap-2 ${MUTED}`}>
@@ -176,7 +175,7 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
       {state && <PanelBody workspaceId={workspaceId} state={state} reload={load} />}
-    </>
+    </div>
   );
 }
 
@@ -189,7 +188,12 @@ function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state:
   const wallet = gate.kind === "ok" ? gate.wallet : null;
   return (
     <>
-      <WalletSection gate={gate} onLinked={() => reload()} refresh={live.refresh} />
+      {!me.canEdit && (
+        <p className={MUTED} data-testid="family-admin-only">
+          {t("Only workspace admins can manage family names.")}
+        </p>
+      )}
+      <WalletSection gate={gate} canEdit={me.canEdit} onLinked={() => reload()} refresh={live.refresh} />
       {!family && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={() => reload()} />}
       {family && (
         <FamilySection
@@ -205,11 +209,6 @@ function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state:
       {!family && !me.canEdit && (
         <p className={MUTED} data-testid="family-none">
           {t("This workspace has no family name yet.")}
-        </p>
-      )}
-      {!me.canEdit && (
-        <p className={MUTED} data-testid="family-admin-only">
-          {t("Only workspace admins can change family names.")}
         </p>
       )}
     </>
@@ -265,7 +264,7 @@ function CreateSection({ workspaceId, account, onCreated }: { workspaceId: strin
         setPhase("taken");
         return;
       }
-      setStopped(explain(err, t, account).message);
+      setStopped(explain(err, t).message);
       setPhase("paused");
     }
   }
@@ -458,10 +457,9 @@ function CreateForm({
         </span>
         <span className={MUTED}>
           {funds
-            ? t("About {n} approvals in MetaMask and a 1-minute wait · you need ≈ {need} Sepolia ETH ({addr} has {have})", {
+            ? t("About {n} approvals in MetaMask and a 1-minute wait · you need about {need} Sepolia ETH (you have {have})", {
                 n: CREATE_APPROVALS,
                 need: Number(formatEther(funds.need)).toFixed(4),
-                addr: shortAddress(account),
                 have: Number(formatEther(funds.have)).toFixed(4),
               })
             : t("About {n} approvals in MetaMask and a 1-minute wait", { n: CREATE_APPROVALS })}
@@ -486,7 +484,6 @@ function CreateForm({
         >
           {t("Create {name}", { name: local.ok ? `${local.label}.eth` : ".eth" })}
         </button>
-        <span className={MUTED}>{t("Wallet {addr}", { addr: short(account) })}</span>
       </div>
     </SettingsSection>
   );
@@ -752,7 +749,7 @@ function RenewForm({ label, wallet, onClose, onDone }: { label: string; wallet: 
       await onDone();
     } catch (err) {
       if (err instanceof NotRenewableError) setMessage(t("{name} is past its grace period and free again. Register it again to keep the family.", { name: `${label}.eth` }));
-      else setMessage(explain(err, t, wallet).message);
+      else setMessage(explain(err, t).message);
     } finally {
       setRunning(false);
     }

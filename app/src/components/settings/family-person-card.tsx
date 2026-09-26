@@ -1,7 +1,7 @@
 "use client";
 
 // One person on the family tree canvas (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Task 7b):
-// alias, full name (wrapping at the dots), relation badge, short address, ✓. Clicking it opens a popover
+// alias, full name (wrapping at the dots), relation badge, ✓. Clicking it opens a popover
 // that resolves the name live through the Universal Resolver — the proof the subname works.
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
@@ -82,7 +82,6 @@ export function FamilyPersonCard({ node, branch, fluid }: { node: TreeNode; bran
         </span>
         <span className="mt-auto flex items-center gap-1.5">
           <RelationBadge relation={node.relation} />
-          {node.address && <span className="font-mono text-[11px] text-neutral-400">{short(node.address)}</span>}
         </span>
       </button>
       {open && <ResolvePopover node={node} />}

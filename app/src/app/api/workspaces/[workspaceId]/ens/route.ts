@@ -167,9 +167,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       .filter((r): r is { userId: string; displayName: string; address: `0x${string}` } => !!r.address && !inTree.has(r.address));
   }
 
-  // me.address: the proven wallet (null until a signature proves one); me.linked: the 0x address the
-  // account lists, proven or not, so the panel can say "this account uses 0x…, MetaMask is on 0x…"
-  return NextResponse.json({ me: { address: m.wallet, linked: m.linked, canEdit }, family, candidates });
+  // me.address: the proven wallet (null until a signature proves one)
+  return NextResponse.json({ me: { address: m.wallet, canEdit }, family, candidates });
 }
 
 /** Is `<label>.<parent>` free? `parent` must be a name in this workspace's own tree. */

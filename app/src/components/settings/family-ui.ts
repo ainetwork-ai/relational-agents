@@ -47,7 +47,7 @@ export const displayOf = (n: Pick<TreeNode, "alias" | "label">) => n.alias ?? n.
 export function apiReasonText(reason: string | undefined, t: T, raw?: string): string {
   switch (reason) {
     case "no-wallet":
-      return t("Connect MetaMask to this account first.");
+      return t("Log in with your wallet first.");
     case "chain-unavailable":
       return t("Could not reach Sepolia right now. Try again in a moment.");
     case "exists":
@@ -65,47 +65,41 @@ export function apiReasonText(reason: string | undefined, t: T, raw?: string): s
   return t("The server refused this step. Try again in a moment.");
 }
 
-/** Why linking MetaMask failed (metamask-login's `reason`), translated; the English text only to the console. */
+/** Why logging in with the wallet failed (metamask-login's `reason`), in plain words; the English text only to the console. */
 export function linkFailureText(reason: MetaMaskFailure, t: T, raw: string): string {
   switch (reason) {
     case "no-wallet":
-      return t("MetaMask was not found in this browser.");
+      return t("Install MetaMask to manage family names.");
     case "no-account":
       return t("MetaMask has no account to connect.");
     case "rejected":
-      return t("You cancelled the request in MetaMask.");
+      return t("Login was cancelled.");
     case "no-challenge":
     case "invalid-signature":
       return t("The signature could not be checked. Try again.");
     case "taken":
-      return t("This wallet is already used by another account — pick another account in MetaMask.");
+      return t("This wallet is already used by another account. Log in to that account, or choose another wallet in MetaMask.");
     case "has-other":
-      return t("This account already uses another wallet.");
-    case "has-verified":
-      return t("This account already has another proven wallet.");
-    case "owns-family":
-      return t("The account's current wallet owns this workspace's family name and keeps control of it.");
+      return t("This wallet doesn't have permission to manage this family.");
     case "changed":
       return t("This account's wallet changed meanwhile. Try again.");
-    case "chain-unavailable":
-      return t("Could not reach Sepolia right now. Try again in a moment.");
     case "network":
       return t("Could not reach the server. Check your connection and try again.");
   }
-  console.warn("[family names] wallet link:", raw);
-  return t("Connecting MetaMask failed. Try again.");
+  console.warn("[family names] wallet login:", raw);
+  return t("Login failed. Try again.");
 }
 
 /** What to tell the admin when a run stops. `rejected`: the wallet's approval was declined (the tree
  *  card shows a short "Cancelled · Continue"); every stop can be continued. Server refusals are
  *  translated by reason (apiReasonText); a wallet's own English message only goes to the console. */
-export function explain(err: unknown, t: T, account: string): { message: string; rejected: boolean } {
+export function explain(err: unknown, t: T): { message: string; rejected: boolean } {
   if (err instanceof FamilyApiError) return { message: apiReasonText(err.reason, t, err.message), rejected: false };
   const w = err instanceof WalletSignatureError ? err : toWalletError(err);
   if (w.reason === "rejected") return { message: t("Cancelled — press Continue to pick up where you left off."), rejected: true };
   if (w.reason === "no-provider") return { message: t("MetaMask was not found in this browser."), rejected: false };
   if (w.reason === "no-account") return { message: t("MetaMask has no account to connect."), rejected: false };
-  if (w.message === "wrong-account") return { message: t("Switch MetaMask to {addr}, then press Continue.", { addr: short(account) }), rejected: false };
+  if (w.message === "wrong-account") return { message: t("Choose your wallet in MetaMask, then press Continue."), rejected: false };
   const cause = w.cause as { name?: string } | undefined;
   if (cause?.name === "ChainMismatchError") return { message: t("Switch MetaMask to Sepolia, then press Continue."), rejected: false };
   console.warn("[family names] run stopped:", w.message, w.cause);

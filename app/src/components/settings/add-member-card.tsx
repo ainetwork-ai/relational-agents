@@ -15,7 +15,7 @@ import type { T } from "@/i18n/translate";
 import { checkLabel } from "@/lib/ens-family/labels";
 import { AddressInTreeError, NameTakenError, type TxStep } from "@/lib/ens-family/issue";
 import { clearAdd, loadAdd, memberStepKeys, resolveName, runAddMember, type AddMemberInput, type SavedAdd } from "@/lib/wallet/ens-issue";
-import { BTN, INPUT, MUTED, PRIMARY, displayOf, explain, short, txUrl, useDebounced, type Candidate, type TreeNode } from "./family-ui";
+import { BTN, INPUT, MUTED, PRIMARY, displayOf, explain, txUrl, useDebounced, type Candidate, type TreeNode } from "./family-ui";
 import { CARD_H, CARD_W, RelationBadge, WrappedName } from "./family-person-card";
 
 export const FORM_W = 300;
@@ -173,11 +173,11 @@ export function AddMemberCard({
         return;
       }
       if (err instanceof AddressInTreeError) {
-        setFormError(t("{addr} already has a name in this family.", { addr: short(err.address) }));
+        setFormError(t("This person already has a name in this family."));
         setPhase("form");
         return;
       }
-      setStop(explain(err, t, account));
+      setStop(explain(err, t));
       setPhase("stopped");
     } finally {
       busy.current = false;
@@ -257,7 +257,7 @@ export function AddMemberCard({
   else
     line = resolved ? (
       <span className="text-xs text-green-700 dark:text-green-400" data-testid="family-add-resolved">
-        {t("✓ resolves to {addr}", { addr: short(resolved) })}
+        {t("✓ The name works")}
       </span>
     ) : (
       <span className="text-xs text-amber-600">{t("Registered — the name will resolve in a moment")}</span>
@@ -294,10 +294,7 @@ export function AddMemberCard({
         <span className="line-clamp-2 break-words font-mono text-[11px] leading-[14px] text-neutral-500">
           <WrappedName name={name} />
         </span>
-        <span className="flex items-center gap-1.5">
-          <RelationBadge relation={input.relation} />
-          <span className="font-mono text-[11px] text-neutral-400">{short(input.address)}</span>
-        </span>
+        <RelationBadge relation={input.relation} />
         {line}
       </div>
       {showSteps && !solid && <StepPopover keys={keys} steps={steps} running={phase === "running"} />}
@@ -478,7 +475,7 @@ function AddForm({
         <span className={MUTED}>{t("Who")}</span>
         {candidates.length === 0 ? (
           <span className="text-xs text-neutral-500" data-testid="family-add-no-candidates">
-            {t("Only people who connected MetaMask can be added. Ask them to open Settings → Family names and press Connect MetaMask.")}
+            {t("Only people who logged in with their wallet can be added. Ask them to open Settings → Family names and press Log in with your wallet.")}
           </span>
         ) : (
           <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto">
@@ -498,7 +495,6 @@ function AddForm({
                   {c.displayName.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="truncate text-neutral-800 dark:text-neutral-200">{c.displayName}</span>
-                <span className="ml-auto font-mono text-[11px] text-neutral-400">{short(c.address)}</span>
               </button>
             ))}
           </div>
@@ -520,7 +516,7 @@ function AddForm({
         {pasting && pasted.trim() && !addressOk && <span className="text-xs text-red-500">{t("Not an Ethereum address")}</span>}
         {inTree && (
           <span className="text-xs text-red-500" data-testid="family-add-in-tree">
-            {t("{addr} is already {name} in this family", { addr: short(address), name: displayOf(inTree) })}
+            {t("This address is already {name} in this family", { name: displayOf(inTree) })}
           </span>
         )}
       </div>
