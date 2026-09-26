@@ -319,3 +319,18 @@ Format: `JST time — surface — what happened`.
   #0) with Chris #3, Dana #2, Eli #1; recording room `1ebca8bc…` holds those
   four seats, Alex (#4) claims on camera. The e2e's same-human void is on
   Eli's account to match.
+- 2026-09-26 18:20 — both — **rehearsal of S3 → S3½ → S5 on xyz, with the
+  investment leaving the pot** (`2013c2a`). $180 deposit approved by Chris and
+  Alex → paid (`0x3dbfa4fe…`); the idle-funds proposal appeared on screen for
+  the first time ("After that we hold $815.52 … $200 could work for us");
+  "invest $200 of the idle funds" approved by Chris, Dana and Bea → swap on
+  Base `0x05c31157…209f` (1 USDC → 0.000371682 WETH) and $200 out of the pot
+  to the Savings address `0x4955…6419` on Sepolia `0xc105255b…3220`
+  (status 1). Header: `$610.86 · + $199.80 invested` — the pot no longer
+  counts the invested money. "send $500 to my wallet" → refused on the
+  personal-wallet rule, "$500 is also 81.9% of our $610.86" (the video's S5
+  moves from $700 to $500: $700 is 115% of what is left). FRICTION: another
+  session's merge redeployed xyz in the middle of the three approvals — the
+  third one had to be retried after the new container came up. Afterwards:
+  WETH unwound (`0xeee797a9…4c5f`), room reset to `673001c2…`, Bea/Chris/
+  Dana/Eli seated (`orb`, #0/#3/#2/#1), Alex unseated, $1,000, nothing invested.

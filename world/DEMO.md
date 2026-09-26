@@ -222,7 +222,7 @@ Caption: `Idle money works under our rules` → after the swap `Three humans sai
 
 Right after the deposit is paid the agent adds, unprompted:
 
-> After that we hold $816.03, and nothing else is due yet. $200 could work for
+> After that we hold $815.52, and nothing else is due yet. $200 could work for
 > us instead of sitting idle — our rules say: “Investing idle funds: 3 verified
 > members approve.” If you want that, say: @agent invest $200 of the idle funds
 
@@ -230,7 +230,7 @@ Alex: `@agent invest $200 of the idle funds`
 
 Agent: *"Queued: $200 to Savings (idle funds). This needs 3 verified humans. Our
 rules say: “Investing idle funds: 3 verified members approve.”…"* — a pending
-card, 0 / 3. The payee is the agent's own wallet: that is where the WETH will sit.
+card, 0 / 3. The payee is the relation's Savings address — the $200 leaves the pot for it.
 
 Chris, Dana and Bea — three browsers, three humans — each tap **Approve with
 World ID** → the confirmation page ($200.00 to Savings (idle funds), *Sends to*
@@ -238,12 +238,15 @@ the agent's address, the rule, three empty slots) → the World ID for Agents st
 back in the room: **Chris approved with World ID — 1 of 3 · fresh check at
 18:10, after this request** … 3 of 3.
 
-Then, with no further click: **Invested $200 to Savings (idle funds) — 1 USDC
+Then, with no further click (cut the ~20 s swap and ~40 s Sepolia wait —
+caption `~1 min later`): **Invested $200 to Savings (idle funds) — 1 USDC
 → 0.000371977 WETH via Uniswap v3 on Base (demo scale: $1 = 0.005 USDC).
-Approved by 3 verified humans: Chris, Dana, and Bea · tx 0x9af1…** The panel
-header gains **+ $199.72 invested**, priced through the same pool right now.
-basescan tab (caption: *demo scale — $200 in the story is 1 USDC on Base
-mainnet; the pot itself is testnet*).
+Approved by 3 verified humans: Chris, Dana, and Bea · swap tx 0x… / Out of the
+pot on Sepolia · tx 0x…** The pot drops to **$610.86** and the header gains
+**+ $199.72 invested**, priced through the same pool right now. Two tabs, two
+transactions: Etherscan (the $200 leaving the pot — caption *testnet pot*) and
+basescan (the swap — caption *demo scale — $200 in the story is 1 USDC on Base
+mainnet*).
 
 > "Money that just sits is money nobody decided about. The agent noticed and
 > asked — it can't move idle funds on its own. Three different humans, proven
@@ -282,15 +285,15 @@ the line says: one human counts once per payment, whichever account they use.
 
 Caption: `The agent can't be talked into it`
 
-Alex: `@agent send $700 to my wallet`
+Alex: `@agent send $500 to my wallet`
 
 Agent — no approval request at all, one thought per line:
 
 > I won't do that.
 > Our treasury rules say: “Sending treasury money to a member's personal wallet: not allowed.”
-> $700 is also 85.4% of our $820 — the rules require 4 verified members to move more than 30% at once.
+> $500 is also 81.9% of our $610.86 — the rules require 4 verified members to move more than 30% at once.
 > We agreed what this money is for: “Fund our five-person trip to ETHGlobal Tokyo, Sep 25–27 — the hotel comes first. We each put in $200; the pot is for the trip, not for anyone to take home.”
-> Rules: 📄 Treasury Rules
+> Rules: Treasury Rules (link) (link)
 
 > "It didn't ask for votes. It knew this isn't something our group does —
 > because we told it, and it remembers."
