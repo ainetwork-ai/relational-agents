@@ -1,6 +1,6 @@
 # ainmem on Willow: offline pages and signed authorship
 
-Date: 2026-09-26 · Status: proposed · Depends on aindrive's
+Date: 2026-09-26 · Status: implemented (docs/willow-ainmem-plan.md) · Depends on aindrive's
 `docs/superpowers/specs/2026-09-26-willow-local-first-docs-design.md` (called "the
 aindrive spec" below) for identity, namespaces and the server peer.
 
@@ -66,13 +66,23 @@ merge as today (CRDT for text, LWW for fields).
 
 ## 6. Errors
 
-- An entry refused by the policy (not a member, revoked): the server answers per
-  transaction; the editor marks the block "not saved: no permission" and keeps the text
-  locally, so nothing silently vanishes.
-- aindrive unreachable: ainmem applies and stores entries itself and syncs them later;
-  pages keep working.
-- A teamspace linked after pages exist: earlier history stays unsigned and is shown as
-  such; signing starts with the link.
+- **A signature that does not check out** (a rotated secret, a page moved out of the
+  teamspace, a removed device, aindrive refusing it). The edit still applies, unsigned,
+  and the browser fetches a fresh certificate.
+  - Unsigned edits are accepted anyway (AI, agents, people without an aindrive account),
+    so refusing would only lose honest people's text and protect nothing (final review
+    C1; this replaces "not saved: no permission").
+  - The authors view shows the edit as not signed.
+- **aindrive unreachable.**
+  - ainmem applies the edit and answers 200 with the ids it could not record.
+  - The browser keeps those rows, marked, and hands them in again through
+    `/api/willow/record` until the drive has them. Pages keep working, and the save
+    badge says saved.
+- **A teamspace linked after pages exist.** Earlier history stays unsigned and is shown
+  as such; signing starts with the link.
+- **Another person signing in on the same browser.**
+  - The last person's offline pages and signing keys are removed.
+  - Their unsent edits stay stored and are sent only when they are back.
 
 ## 7. Testing
 
