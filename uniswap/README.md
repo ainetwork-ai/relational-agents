@@ -244,9 +244,45 @@ exactly the 0.3 USDC total. Plan id
 The pull was sent from this package's own agent key, not the pot's: anyone may call `pull`, and the
 USDC still went only to the plan's pot.
 
-Not done yet: no app screen starts a plan. `node --test` runs its Foundry tests on a fork of Base
-mainnet — the real Permit2 and USDC — (`test/recurring-contribution.test.js` runs `forge test
---fork-url`) and skips without Foundry or a Base RPC.
+### In the app
+
+A member starts a plan from the Treasury page with their own wallet — three confirmations: exactly
+the plan's total to Permit2, the same total to this contract until the plan ends, then `start`. The
+plan's salt is the app's for that room member, so the page names them without a table. The agent
+collects the periods that are due — right after a member starts a plan, and before each weekly buy —
+one `pull` per plan after simulating it, and writes each to Treasury Activity. The Contributions tab
+reads everything from `plansOf(pot)` (by person × by month), and Activity lists every collected
+period as money in.
+
+| piece | where |
+|---|---|
+| the contract, Permit2 and USDC on Base, as the server and the browser use them | [`contribution-plan.ts:13`](../app/src/lib/agent/treasury/contribution-plan.ts#L13) |
+| the salt that names the room member who started a plan | [`contribution-plan.ts:56`](../app/src/lib/agent/treasury/contribution-plan.ts#L56) |
+| each period's state from `pulled` and `stoppedAt`: collected, due, missed, upcoming, stopped | [`contribution-plan.ts:106`](../app/src/lib/agent/treasury/contribution-plan.ts#L106) |
+| `plansOf(pot)`, then each member's Permit2 allowance, USDC allowance and balance in one multicall | [`contributions.ts:61`](../app/src/lib/agent/treasury/contributions.ts#L61) |
+| collecting: one room at a time, each pull simulated, then sent with an explicit nonce | [`contributions.ts:225`](../app/src/lib/agent/treasury/contributions.ts#L225), [`:270`](../app/src/lib/agent/treasury/contributions.ts#L270), [`:277`](../app/src/lib/agent/treasury/contributions.ts#L277) |
+| the weekly run collects before it buys; the room hears what came in | [`tools.ts:257`](../app/src/lib/agent/treasurer/tools.ts#L257), [`:270`](../app/src/lib/agent/treasurer/tools.ts#L270) |
+| the member's wallet: `USDC.approve(Permit2, exact)`, `Permit2.approve(USDC, contract, total, until)`, `start` | [`contribution-dialogs.tsx:208`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L208), [`:214`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L214), [`:217`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L217) |
+| the first period collected right after `start`, once the RPC lists the new plan | [`contribution-dialogs.tsx:264`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L264) |
+| `stop`, and the Permit2 allowance set to 0 | [`contribution-dialogs.tsx:502`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L502) |
+| every collected period in the Activity record | [`activity-model.ts:182`](../app/src/components/treasury-app/room/activity-model.ts#L182) |
+
+Run for real against the app on Base mainnet: a presenter signed in with MetaMask (a burner wallet)
+and started $20 a week for three weeks —
+[approve](https://basescan.org/tx/0x2c70f668bf18b715464e7d6542e3d74ddf786a747974092210d9a5f550cf650c) ·
+[Permit2 approve](https://basescan.org/tx/0x2c5338a0c9e3847c092cf20aeb290f355ccec2e82664fe0d7ffa2e4422e5e186) ·
+[start](https://basescan.org/tx/0x5211e354f451d01be9311154f9aec80291e2a25f4d2832f5fec09769ac23a8ce); three friends'
+first periods came in through the app's collect
+([Bea](https://basescan.org/tx/0xe96c1254eb76ccfb8c1b8039965250091afa930f1e05b4204986b4aa25148048) ·
+[Chris](https://basescan.org/tx/0xc85da642783dc88be1d62db3ab2549ad4ffaa4d630e1c0368d2107c7631e11ed) ·
+[Dana](https://basescan.org/tx/0xe5a2d9ef9da587e02330860092fb46c92916b393c7258fc812fe952f5510ced6)); asked in chat,
+the treasurer collected the presenter's first period and bought the week's ETH through the Trading
+API ([0x3b57b0a1…](https://basescan.org/tx/0x3b57b0a10de888be744be0d04398561eb0de69e5cc290aa481b58ad3743c15dc)).
+
+`node --test` runs the contract's Foundry tests on a fork of Base mainnet — the real Permit2 and
+USDC — (`test/recurring-contribution.test.js` runs `forge test --fork-url`) and skips without
+Foundry or a Base RPC; `app/scripts/contribution-plan-selftest.mts` checks the app's plan id against
+the mainnet one.
 
 Per-period pulls are an established pattern: Coinbase Spend Permissions (`SpendPermissionManager`)
 and MetaMask's `ERC20PeriodTransferEnforcer` enforce them for smart accounts. This contract does the
@@ -264,6 +300,7 @@ same for any wallet that has approved Permit2.
 | The recurring buy in the app, its Treasury page (the agent's wallet, holdings per chain, every swap), the treasurer agent (7 tools, AG-UI stream, A2UI cards) | **new, built 2026-09-26 during ETHGlobal Tokyo** |
 | `contracts/RecurringContribution.sol` — recurring contributions from members' wallets through Permit2, with Base-fork tests, deployed on Base mainnet | **new, built 2026-09-27 during ETHGlobal Tokyo** |
 | The app's buy through the Uniswap Trading API (`uniswap-api.ts`), the direct v3 path as its fallback | **new, built 2026-09-27 during ETHGlobal Tokyo** |
+| Members' recurring contributions in the app: start and stop from a member's wallet, the Contributions tab, the agent's collection, the Activity record | **new, built 2026-09-27 during ETHGlobal Tokyo** |
 | A scheduler that runs the week without a member asking; a Trading API provider in this package | not yet |
 
 ## Honest limits
