@@ -543,7 +543,24 @@ export const BlockEditor = forwardRef<
  // an old-style draft (the failed-save localStorage copy) is an edit the
  // server never saw: hand it to the queue instead of throwing it away
     void migrateLegacyDraft(pageId);
+ // In a teamspace linked to aindrive, every edit is signed by this browser's
+ // device key before it is stored (docs/willow-ainmem-plan.md Task 6). The
+ // answer is cached by the service worker, so signing works offline too.
+    let live = true;
+    if (!shareToken) {
+      void fetch(`/api/willow/page?pageId=${encodeURIComponent(pageId)}`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .then(async (w: { driveId?: string; teamspaceId?: string; userId?: string }) => {
+          if (!live || !w.driveId || !w.teamspaceId || !w.userId) return;
+          const { signerFor, transactionSigner } = await import("@/lib/willow/device");
+          const s = await signerFor(w.userId);
+          if (live && s) queue.setSigner(pageId, transactionSigner(s, w.driveId, w.teamspaceId));
+        })
+        .catch(() => {});
+    }
     return () => {
+      live = false;
+      queue.setSigner(pageId, null);
       offState();
       offAck();
     };
@@ -836,6 +853,10 @@ export const BlockEditor = forwardRef<
       blocksRef.current = next; // in step now, not one effect later (see above)
       return next;
     });
+ // the server's copy lacks what an earlier tab left unsent (a reload while
+ // offline): lay those back over it, or a reconnect's refetch would wipe them
+    const pending = await getTransactionQueue().foreignPendingFor(pageId);
+    if (pending.length) applyRemoteTransactionsRef.current(pending);
   }, [pageId]);
 
   useEffect(() => {
@@ -845,8 +866,17 @@ export const BlockEditor = forwardRef<
  // Mount sync: browser-back can hydrate from a stale router-cache RSC
  // snapshot (blocks added since that visit would be missing). Reconcile with
  // the server once; applyRemote's dirty/seq/focus guards keep S032 safe.
+ // Then replay what the server has not acknowledged yet (this tab's queue and
+ // what an earlier tab left in IndexedDB): a page opened from an older copy —
+ // a reload while saves fail, the service worker's offline snapshot — keeps
+ // the edits on screen. Text ops are idempotent, so ones already in the
+ // snapshot change nothing.
   useEffect(() => {
-    void applyRemoteRef.current();
+    void applyRemoteRef.current().then(async () => {
+      const pending = await queue.foreignPendingFor(pageId);
+      if (pending.length) applyRemoteTransactions(pending);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
  // Another client's save arrives as the transactions the server applied
@@ -869,6 +899,7 @@ export const BlockEditor = forwardRef<
     return { blockId, leftId: off > 0 ? liveIdAtPos(inst.items, off - 1) ?? "start" : "start" };
   };
 
+  const applyRemoteTransactionsRef = useRef<(txs: Transaction[]) => void>(() => {});
   const applyRemoteTransactions = useCallback((txs: Transaction[]) => {
     const active = document.activeElement as HTMLElement | null;
     const tid = active?.dataset?.testid;
@@ -961,6 +992,7 @@ export const BlockEditor = forwardRef<
     });
     if (deferred) needResyncRef.current = true;
   }, []);
+  applyRemoteTransactionsRef.current = applyRemoteTransactions;
 
   const resyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
  // A remote op we could not apply live (its origin was not in our items yet —

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveEditAccess } from "@/lib/pages/edit-access";
 import { applyTransactions } from "@/lib/transactions/apply";
+import { verifyAndForward } from "@/lib/willow/verify-save";
 import type { SaveError, SaveRequest, Transaction } from "@/lib/transactions/types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
   const byPage = new Map<string, Transaction[]>();
   const rejectedIds: string[] = [];
   const reasons: string[] = [];
+  // a signed edit applied here but not yet in its aindrive drive (unreachable)
+  let retryForDrive = false;
   for (const t of body.transactions) {
     if (!t || typeof t.pageId !== "string" || typeof t.id !== "string") {
       if (t && typeof t.id === "string") rejectedIds.push(t.id);
@@ -43,12 +46,20 @@ export async function POST(req: NextRequest) {
       reasons.push(`${pageId}: ${access.error}`);
       continue;
     }
+    // signed edits (a teamspace linked to aindrive): verified, recorded in the drive,
+    // and the signed payload is what applies (docs/willow-ainmem-plan.md Task 6)
+    const willow = await verifyAndForward(pageId, access.userId, transactions);
+    for (const r of willow.rejected) {
+      rejectedIds.push(r.id);
+      reasons.push(`${r.id}: ${r.reason}`);
+    }
+    if (willow.retry) retryForDrive = true;
     const result = await applyTransactions({
       pageId,
       userId: access.userId,
       workspaceId: access.workspaceId,
       clientId,
-      transactions,
+      transactions: willow.accepted.map(({ signed: _signed, ...t }) => t),
     });
     for (const r of result.rejected) {
       rejectedIds.push(r.id);
@@ -61,6 +72,11 @@ export async function POST(req: NextRequest) {
       { ...error(authProblem ? "UnauthorizedError" : "ValidationError", reasons.join("; ")), rejectedIds },
       { status: authProblem ? 403 : 422 }
     );
+  }
+  if (retryForDrive) {
+    // applied; the browser keeps them and sends them again (idempotent by id) so
+    // they reach the drive once aindrive answers
+    return NextResponse.json(error("ValidationError", "applied; not yet recorded in aindrive"), { status: 503 });
   }
   return NextResponse.json({});
 }

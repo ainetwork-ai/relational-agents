@@ -10,6 +10,7 @@ import { SearchModal } from "@/components/search-modal";
 import { PagePeek } from "@/components/page/page-peek";
 import { MobileNavToggle } from "@/components/sidebar/mobile-nav-toggle";
 import { ToastHost } from "@/components/toast-host";
+import { ServiceWorkerRegister } from "@/components/offline/sw-register";
 import { IncomingCallHost } from "@/components/call/incoming-call-host";
 import { AssistantDock } from "@/components/assistant/assistant-dock";
 import { FamilyFoldersHost } from "@/components/family/family-folders";
@@ -69,6 +70,7 @@ export default async function AppLayout({
       <main aria-label="Page content" className="flex-1 overflow-y-auto overscroll-contain">
         {children}
         <ToastHost />
+        <ServiceWorkerRegister />
       </main>
       {/* the round agent button, bottom right — opens the agent on the right */}
       <AssistantDock workspaceId={workspace?.id ?? null} />
