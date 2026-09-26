@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { AindriveError, cleanPath, hasServiceToken, linkAllowed, readFileBytes } from "@/lib/aindrive";
 import { getAccount, runAs, runAsOrService } from "@/lib/aindrive-account";
 import { sharedLinkFor } from "@/lib/aindrive-teamspace";
+import { mayOpen } from "@/lib/aindrive-file-sale";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,9 @@ export async function GET(req: NextRequest) {
   const shared = await sharedLinkFor(auth.user.id, driveId, path);
   if (!own && !shared && !(hasServiceToken() && linkAllowed({ driveId, root: dir })))
     return NextResponse.json({ error: "Connect your aindrive to view this file", needsAccount: true }, { status: 401 });
+  // a file shared on its own while on sale opens once bought (lib/aindrive-file-sale)
+  if (shared && shared.drive.root === path && !(await mayOpen(auth.user.id, shared.drive)))
+    return NextResponse.json({ error: "This file is on sale — buy it to open it", locked: true }, { status: 402 });
 
   let bytes: Buffer;
   try {

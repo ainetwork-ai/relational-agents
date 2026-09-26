@@ -8,6 +8,7 @@ import { CloudUpload, HardDrive } from "lucide-react";
 import { Browser, errorOf, SYNC_DOT, SYNC_LABEL, type Managed, type SyncState } from "@/components/home/aindrive-panel";
 import { STATE_DOT, STATE_LABEL, STATE_TEXT, driveState } from "@/components/sidebar/teamspace-drive";
 import { useT } from "@/i18n/provider";
+import { FileShareCard, type FileShareInfo } from "@/components/aindrive/file-share-card";
 
 interface SyncPage {
   id: string;
@@ -48,6 +49,19 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
   const reload = useCallback(() => setVersion((v) => v + 1), []);
   const [sync, setSync] = useState<SyncPage[] | null>(null);
   const [showPages, setShowPages] = useState(false);
+  // a link can be a single file (shared from aindrive's share sheet) — maybe on sale
+  const [fileInfo, setFileInfo] = useState<FileShareInfo | { kind: "folder" } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/aindrive/links/${id}/sale`)
+      .then((r) => (r.ok ? r.json() : { kind: "folder" }))
+      .then((d: FileShareInfo | { kind: "folder" }) => alive && setFileInfo(d))
+      .catch(() => alive && setFileInfo({ kind: "folder" }));
+    return () => {
+      alive = false;
+    };
+  }, [id, version]);
 
   useEffect(() => {
     let alive = true;
@@ -227,7 +241,9 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {/* 3. the folder: the backup and the drive's own files, told apart */}
-      {meta.available ? (
+      {fileInfo?.kind === "file" ? (
+        <FileShareCard linkId={id} driveId={d.driveId} path={d.root} info={fileInfo} onUnlocked={reload} />
+      ) : !fileInfo ? null : meta.available ? (
         <Browser
           // a finished backup changes what is in the folder — re-read the tree
           key={d.lastBackupAt ?? "none"}
