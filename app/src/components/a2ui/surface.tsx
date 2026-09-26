@@ -9,6 +9,8 @@
  *   approve → the World ID approval page for that action (comes back here)
  *   stop    → asks once, inline, then POSTs to the card's surface route, which
  *             answers with it redrawn
+ *   buy     → POSTs the same way, no question: the server buys this week's
+ *             share, skips or rehearses, and says which on the card
  *   open    → the Treasury page
  * Either `messages` (the treasurer's stream hands them over) or `src` (the
  * room chat fetches the card) — a card with `src` refetches when the tab
@@ -21,7 +23,7 @@ import { useT } from "@/i18n/provider";
 import { Check, Globe, Repeat, type LucideIcon } from "lucide-react";
 import { ChainBadge, UniswapBadge } from "@/components/chain/chain-badge";
 import type { A2uiComponent, A2uiMessage } from "@/lib/x402/a2ui";
-import { TREASURY_APPROVE_ACTION, TREASURY_OPEN_ACTION, TREASURY_STOP_ACTION } from "@/lib/agent/treasurer/surfaces";
+import { TREASURY_APPROVE_ACTION, TREASURY_BUY_ACTION, TREASURY_OPEN_ACTION, TREASURY_STOP_ACTION } from "@/lib/agent/treasurer/surfaces";
 
 /** nesting bound: a malformed surface that names itself as its own child must not recurse forever */
 const MAX_DEPTH = 12;
@@ -103,8 +105,8 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
   const [busy, setBusy] = useState<string | null>(null);
   // the Stop button asks once, in place, before it POSTs
   const [confirming, setConfirming] = useState<string | null>(null);
-  // a stop the server refused or never answered: said where the button was
-  const [stopFailed, setStopFailed] = useState<string | null>(null);
+  // an action the server refused or never answered: said where the button was
+  const [actionFailed, setActionFailed] = useState<string | null>(null);
 
   useEffect(() => {
     if (!src) return;
@@ -135,12 +137,12 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
   // a stop on a running buy ends it; on a request still waiting it cancels it
   const live = model.state === "live";
 
-  const stop = useCallback(
+  const post = useCallback(
     async (c: A2uiComponent, ev: ActionEvent) => {
       const url = src ?? surfaceUrl(ev.context);
       if (!url) return;
       setConfirming(null);
-      setStopFailed(null);
+      setActionFailed(null);
       setBusy(c.id);
       try {
         const res = await fetch(url, {
@@ -158,9 +160,9 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         });
         const data = (await res.json().catch(() => ({}))) as { messages?: A2uiMessage[] };
         if (Array.isArray(data.messages)) setFetched(data.messages);
-        else if (!res.ok) setStopFailed(c.id);
+        else if (!res.ok) setActionFailed(c.id);
       } catch {
-        setStopFailed(c.id);
+        setActionFailed(c.id);
       } finally {
         setBusy(null);
       }
@@ -183,11 +185,13 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         const room = ev.context.room_id;
         if (typeof room === "string") router.push(`/treasury/${encodeURIComponent(room)}`);
       } else if (ev.name === TREASURY_STOP_ACTION) {
-        setStopFailed(null);
+        setActionFailed(null);
         setConfirming(c.id);
+      } else if (ev.name === TREASURY_BUY_ACTION) {
+        void post(c, ev);
       }
     },
-    [router]
+    [router, post]
   );
 
   if (!messages) {
@@ -281,26 +285,26 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         const label = typeof c.child === "string" ? render(c.child, depth + 1) : null;
         const room = ev?.context.room_id;
         if (ev?.name === TREASURY_OPEN_ACTION && typeof room === "string" && pathname.startsWith(`/treasury/${room}`)) return null;
-        if (ev?.name === TREASURY_STOP_ACTION && (confirming === id || stopFailed === id))
+        if (ev?.name === TREASURY_STOP_ACTION && (confirming === id || actionFailed === id))
           return (
             <span key={id} data-testid="a2ui-stop-confirm" className="inline-flex h-8 items-center gap-2 text-sm">
-              <span className={stopFailed === id ? "text-red-700 dark:text-red-300" : "text-neutral-600 dark:text-neutral-300"}>
-                {stopFailed === id ? t("Couldn't stop it.") : live ? t("Stop it for good?") : t("Cancel it?")}
+              <span className={actionFailed === id ? "text-red-700 dark:text-red-300" : "text-neutral-600 dark:text-neutral-300"}>
+                {actionFailed === id ? t("Couldn't stop it.") : live ? t("Stop it for good?") : t("Cancel it?")}
               </span>
               <button
                 type="button"
                 data-testid="a2ui-stop-yes"
                 disabled={busy !== null}
-                onClick={() => void stop(c, ev)}
+                onClick={() => void post(c, ev)}
                 className={`rounded-lg px-2.5 py-1 font-medium transition-colors disabled:opacity-50 ${BUTTON_CLASS.danger} ${FOCUS}`}
               >
-                {stopFailed === id ? t("Try again") : live ? t("Yes, stop") : t("Yes, cancel")}
+                {actionFailed === id ? t("Try again") : live ? t("Yes, stop") : t("Yes, cancel")}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setConfirming(null);
-                  setStopFailed(null);
+                  setActionFailed(null);
                 }}
                 className={`rounded px-1 text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 ${FOCUS}`}
               >
@@ -321,7 +325,9 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
               ? ev?.name === TREASURY_APPROVE_ACTION
                 ? t("Opening World ID…")
                 : t("Working…")
-              : label}
+              : actionFailed === id && ev?.name === TREASURY_BUY_ACTION
+                ? t("Try again")
+                : label}
           </button>
         );
       }
