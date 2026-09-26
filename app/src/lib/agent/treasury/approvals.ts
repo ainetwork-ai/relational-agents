@@ -1142,6 +1142,7 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
         ? "world-id"
         : "dev-simulator",
     seatEnvironment: v4?.environment ?? null,
+    seatAppId: v4?.appId ?? null,
     seatAction: TREASURY_SEAT_ACTION,
     rpContext: worldIdRpContext(),
     idpMode: idpMode(),

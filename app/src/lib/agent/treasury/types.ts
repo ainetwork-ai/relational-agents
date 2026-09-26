@@ -259,6 +259,9 @@ export interface TreasuryStatus {
   seatMode: "world-id-v4" | "world-id" | "dev-simulator";
   /** IDKit environment for "world-id-v4" ("staging" = simulator.worldcoin.org); absent/null otherwise */
   seatEnvironment?: "production" | "staging" | "sandbox" | null;
+  /** IDKit app id for "world-id-v4", read by the server at runtime — the browser
+   *  bundle only carries NEXT_PUBLIC_WORLD_ID_APP_ID when the image was built with it */
+  seatAppId?: string | null;
   seatAction: string;
   rpContext: Record<string, unknown> | null;
   /** where the step-up goes: "sandbox" | "mock" | null (IdP not configured) */

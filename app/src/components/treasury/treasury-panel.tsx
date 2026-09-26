@@ -257,6 +257,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   );
 
   if (!status?.enabled) return null;
+  // The server reads NEXT_PUBLIC_WORLD_ID_APP_ID at runtime; this bundle has it
+  // only if the image was built with it (deployment.md §4.9). Prefer the server's.
+  const worldIdAppId = status.seatAppId ?? WORLD_ID_APP_ID;
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
   const history = status.actions
@@ -428,10 +431,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 what the agent asks to spend.
               </div>
               {status.seatMode === "world-id-v4" ? (
-                WORLD_ID_APP_ID.startsWith("app_") ? (
+                worldIdAppId.startsWith("app_") ? (
                   <SeatButton
                     roomId={roomId}
-                    appId={WORLD_ID_APP_ID as `app_${string}`}
+                    appId={worldIdAppId as `app_${string}`}
                     action={status.seatAction}
                     environment={status.seatEnvironment ?? WORLD_ID_ENV}
                     onClaimed={refresh}
@@ -444,9 +447,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     World ID isn&apos;t available in this build (NEXT_PUBLIC_WORLD_ID_APP_ID is missing).
                   </div>
                 )
-              ) : status.seatMode === "world-id" && WORLD_ID_APP_ID && rpContext ? (
+              ) : status.seatMode === "world-id" && worldIdAppId && rpContext ? (
                 <WorldIdButton
-                  appId={WORLD_ID_APP_ID}
+                  appId={worldIdAppId}
                   action={status.seatAction}
                   signal={roomId}
                   rpContext={rpContext}
