@@ -7,7 +7,7 @@ This folder is the World submission: this page, the [demo script](DEMO.md), the
 [integration debriefs](DEBRIEF.md) and the [timestamped integration log](integration-log.md)
 they are built from. The code lives in the workspace app ([`../app/`](../app/)), because the
 treasury is a feature of a relation's room rather than a package of its own;
-[The World pieces](#the-world-pieces) lists every World-facing part with its file and line.
+[The World pieces](#the-world-pieces) lists every World-facing part with its file and function.
 
 ## What this is
 
@@ -29,8 +29,12 @@ may do with it is written in the relation's memory doc as plain sentences:
 
 A money sentence in chat (`@agent pay the hotel deposit, $180`) is matched by shape, the rules
 are parsed by grammar and enforced by deterministic code, and every reply is a template that
-quotes the rule it followed. No model decides anything about money. World answers the one
-question the treasury asks of anyone: **is this a distinct human, present now?**
+quotes the rule it followed. Members can also ask the *treasurer*, a language-model agent with
+tools over the pot: the model picks which tool to call, never whether it may. Each tool
+re-checks the asker and the rules itself, a proposal only queues a request that World ID
+approvals must adopt, and its one spending tool runs inside a recurring buy the members have
+already adopted. No model decides anything about money. World answers the one question the
+treasury asks of anyone: **is this a distinct human, present now?**
 
 ## Two trust moments, two World surfaces
 
@@ -52,54 +56,74 @@ Before the IdP, the app shows its own confirmation page — amount, payee name a
 requester, the rule, who has approved so far — because the IdP screen cannot say what is being
 approved.
 
+## Approve once: a recurring buy
+
+The same approvals can adopt a standing authority instead of a single payment: *buy $X of WETH
+every week for N weeks* (1 to 52 weeks; USDC → WETH on Base, from the agent's own wallet). The
+bar is judged against the most the authority could ever spend — the weekly amount times the
+weeks — under the investment rule, so with the rules above it needs three distinct humans (four
+if it could ever move more than 30% of the pot), each approving once with a fresh World ID for
+Agents step-up. After that the agent buys at most once a week (Monday to Monday on the
+relation's clock) inside those terms, and any member can stop it without a vote, because
+stopping only narrows what the agent may do. Real money moves only when investing is configured
+and `TREASURY_RECURRING_REAL=1`; otherwise a run decides the same way and writes nothing. The
+pure rules are in [`recurring-record.ts`](../app/src/lib/agent/treasury/recurring-record.ts);
+proposal, adoption and the weekly runs are in
+[`recurring.ts`](../app/src/lib/agent/treasury/recurring.ts).
+
 ## What gets refused
 
 | Someone tries to… | What stops it | Where | Shown by |
 |---|---|---|---|
-| send the pot to a member's own wallet ("$700 to my wallet") | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts:196`](../app/src/lib/agent/treasury/policy.ts#L196), [`skill.ts:428`](../app/src/lib/agent/treasury/skill.ts#L428) | e2e scene e |
-| claim a second vote from a second account | the proof's nullifier already holds a vote in this relation: unique `(room, nullifier)`, answered with 409 | [`schema.ts:1377`](../app/src/lib/db/schema.ts#L1377), [`approvals.ts:355`](../app/src/lib/agent/treasury/approvals.ts#L355), [`seat/route.ts:126`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts#L126) | World ID simulator, 2026-09-26 01:53 (the e2e cannot make a proof headless) |
-| approve one payment twice as one human, from two accounts | the IdP's pairwise `sub` has already approved it: the second approval is voided and the count stays | [`approvals.ts:526`](../app/src/lib/agent/treasury/approvals.ts#L526) | e2e scene d |
-| approve on a sign-in from this morning | `auth_time` must be present and after the request; there is no `iat` fallback | [`approvals.ts:517`](../app/src/lib/agent/treasury/approvals.ts#L517) | e2e scene g |
-| approve without a vote, or from outside the relation | `not-seated`, `not-member` | [`approvals.ts:412`](../app/src/lib/agent/treasury/approvals.ts#L412) | e2e scene f |
-| cancel at the IdP and still count | `access_denied` comes back as cancelled; nothing is recorded | [`callback/route.ts:50`](../app/src/app/api/auth/world/callback/route.ts#L50) | e2e scene d |
-| replay a proof made for another relation, action or environment | verification pins the action, the signal (the room's id) and the environment before calling World | [`worldid-v4.ts:123`](../app/src/lib/worldid-v4.ts#L123) | code |
-| leave a request waiting | it lapses after 24 hours (`TREASURY_REQUEST_TTL_HOURS`) | [`approvals.ts:196`](../app/src/lib/agent/treasury/approvals.ts#L196) | code |
-| get paid after the rules, payees or balance changed | at quorum the request is judged again against what is in force now; a re-check only tightens | [`approvals.ts:756`](../app/src/lib/agent/treasury/approvals.ts#L756) | code |
-| get paid twice (two approvals landing together) | one atomic claim: `UPDATE … WHERE status = 'pending' AND decided_at IS NULL` | [`approvals.ts:867`](../app/src/lib/agent/treasury/approvals.ts#L867) | code |
+| send the pot to a member's own wallet ("$700 to my wallet") | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts`](../app/src/lib/agent/treasury/policy.ts) `evaluateCommand`, called from [`skill.ts`](../app/src/lib/agent/treasury/skill.ts) before anything is queued | e2e scene e |
+| claim a second vote from a second account | the proof's nullifier already holds a vote in this relation: the unique index `treasury_seats_room_nullifier`, answered with 409 | [`schema.ts`](../app/src/lib/db/schema.ts), [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `claimSeat`, [`seat/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts) | World ID simulator, 2026-09-26 01:53 (the e2e cannot make a proof headless) |
+| approve one payment twice as one human, from two accounts | the IdP's pairwise `sub` has already approved it: the second approval is voided and the count stays | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene d |
+| approve on a sign-in from this morning | `auth_time` must be present and after the request; there is no `iat` fallback | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene g |
+| approve without a vote, or from outside the relation | `not-seated`, `not-member` | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `approvalGate` | e2e scene f |
+| cancel at the IdP and still count | `access_denied` comes back as cancelled; nothing is recorded | [`callback/route.ts`](../app/src/app/api/auth/world/callback/route.ts) `GET` | e2e scene d |
+| replay a proof made for another relation, action or environment | verification pins the action, the signal (the room's id) and the environment before calling World | [`worldid-v4.ts`](../app/src/lib/worldid-v4.ts) `verifyIdKitV4` | code |
+| leave a request waiting | it lapses after 24 hours (`TREASURY_REQUEST_TTL_HOURS`) | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `isExpired` | code |
+| get paid after the rules, payees or balance changed | at quorum the request is judged again against what is in force now; a re-check only tightens | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recheck` | code |
+| get paid twice (two approvals landing together) | one atomic claim: `UPDATE … WHERE status = 'pending' AND decided_at IS NULL` | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `executeIfQuorum` | code |
+| talk the treasurer into spending | the model's say-so is never a permission: each tool re-checks the asker, and spending exists only inside an adopted recurring buy | [`treasurer/tools.ts`](../app/src/lib/agent/treasurer/tools.ts) | code |
 
 The e2e is [`app/e2e/treasury.check.mjs`](../app/e2e/treasury.check.mjs); its scenes are
-lettered a–g after a setup scene.
+lettered a–g after a setup scene. Pointers name the function rather than a line number, so they
+stay right while the code keeps moving.
 
 ## The World pieces
 
 | Piece | Where |
 |---|---|
-| IDKit v4 request with the `orbLegacy` preset and `signal` = the relation's id | [`seat-button.tsx:81`](../app/src/components/treasury/seat-button.tsx#L81), the widget at [`:145`](../app/src/components/treasury/seat-button.tsx#L145) |
-| A freshly signed `rp_context` for every request (`signRequest` with the Portal's RP signing key, 300 s TTL) | [`worldid-v4.ts:49`](../app/src/lib/worldid-v4.ts#L49), served by [`seat/rp-context/route.ts:26`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/rp-context/route.ts#L26) |
-| Verification at `developer.world.org/api/v4/verify/{rp_id}`, after checking action, signal and environment | [`worldid-v4.ts:123`](../app/src/lib/worldid-v4.ts#L123) |
-| One human, one vote per relation: `treasury_seats` unique on `(room, nullifier)` | [`schema.ts:1377`](../app/src/lib/db/schema.ts#L1377), [`approvals.ts:336`](../app/src/lib/agent/treasury/approvals.ts#L336) |
-| The verifier's "already verified" answer mapped to the same-human refusal | [`seat/route.ts:43`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts#L43) |
-| The step-up request: code flow with PKCE (S256), `state`, `nonce`, `max_age=0`, `prompt=login` | [`connect/route.ts:139`](../app/src/app/api/auth/world/connect/route.ts#L139) |
-| Our confirmation page in front of the IdP, served with `default-src 'none'` | [`connect/route.ts:42`](../app/src/app/api/auth/world/connect/route.ts#L42) |
-| id_token checks: JWKS signature, issuer, audience, algorithm, `nonce`; `auth_time` passed on, never `iat` | [`world.ts:273`](../app/src/lib/auth/world.ts#L273) |
-| Freshness against the request: `auth_time` after it was created, fail-closed | [`approvals.ts:517`](../app/src/lib/agent/treasury/approvals.ts#L517) |
-| Quorum = distinct pairwise `sub`s (`users.world_sub` is unique); the same human from another account is voided | [`approvals.ts:526`](../app/src/lib/agent/treasury/approvals.ts#L526), [`schema.ts:48`](../app/src/lib/db/schema.ts#L48) |
-| The callback, in order: state, token exchange, approval, execution | [`callback/route.ts:57`](../app/src/app/api/auth/world/callback/route.ts#L57) |
+| IDKit v4 request with the `orbLegacy` preset and `signal` = the relation's id | [`seat-button.tsx`](../app/src/components/treasury/seat-button.tsx) `orbLegacy({ signal: roomId })`, `IDKitRequestWidget` |
+| A freshly signed `rp_context` for every request (`signRequest` with the Portal's RP signing key, 300 s TTL) | [`worldid-v4.ts`](../app/src/lib/worldid-v4.ts) `signRpContext`, served by [`seat/rp-context/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/rp-context/route.ts) |
+| Verification at `developer.world.org/api/v4/verify/{rp_id}`, after checking action, signal and environment | [`worldid-v4.ts`](../app/src/lib/worldid-v4.ts) `verifyIdKitV4` |
+| One human, one vote per relation: `treasury_seats` unique on `(room, nullifier)` | [`schema.ts`](../app/src/lib/db/schema.ts) `treasury_seats_room_nullifier`, [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `claimSeat` |
+| The verifier's "already verified" answer mapped to the same-human refusal | [`seat/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts) `ALREADY_VERIFIED` |
+| The step-up request: code flow with PKCE (S256), `state`, `nonce`, `max_age=0`, `prompt=login` | [`connect/route.ts`](../app/src/app/api/auth/world/connect/route.ts) `startFlow` |
+| Our confirmation page in front of the IdP, served with `default-src 'none'` | [`connect/route.ts`](../app/src/app/api/auth/world/connect/route.ts) `GET`, `confirmPage` |
+| id_token checks: JWKS signature, issuer, audience, algorithm, `nonce`; `auth_time` passed on, never `iat` | [`world.ts`](../app/src/lib/auth/world.ts) `exchangeWorldCode` |
+| Freshness against the request: `auth_time` after it was created, fail-closed | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` |
+| Quorum = distinct pairwise `sub`s (`users.world_sub` is unique); the same human from another account is voided | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval`, [`schema.ts`](../app/src/lib/db/schema.ts) `worldSub` |
+| The callback, in order: state, token exchange, approval, execution | [`callback/route.ts`](../app/src/app/api/auth/world/callback/route.ts) `GET` |
+| A standing authority adopted by the same approvals: a recurring buy's quorum adopts its terms instead of paying | [`recurring.ts`](../app/src/lib/agent/treasury/recurring.ts) `proposeRecurringBuy`, [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `executeIfQuorum` → `adoptRecurringBuy` |
 | A local mock of the sandbox IdP with the same discovery shape, for development only | [`api/world-mock/`](../app/src/app/api/world-mock/) |
 
 ## Where the code is
 
 | Path | What |
 |---|---|
-| [`app/src/lib/agent/treasury/`](../app/src/lib/agent/treasury/) | `policy.ts` rules parser and evaluator · `match.ts` money-sentence matcher · `memory.ts` the relation's memory doc, adoption, Treasury Activity · `approvals.ts` requests, votes, approvals, quorum, execution · `wallet.ts` the agent's Sepolia wallet · `invest.ts` the Uniswap v3 swap on Base · `skill.ts` the agent's replies |
+| [`app/src/lib/agent/treasury/`](../app/src/lib/agent/treasury/) | `policy.ts` rules parser and evaluator · `match.ts` money-sentence matcher · `memory.ts` the relation's memory doc, adoption, Treasury Activity · `approvals.ts` requests, votes, approvals, quorum, execution · `wallet.ts` the agent's Sepolia wallet · `invest.ts` the Uniswap v3 swap on Base · `recurring-record.ts`, `recurring.ts` the recurring buy · `skill.ts` the agent's replies |
 | [`app/src/lib/worldid-v4.ts`](../app/src/lib/worldid-v4.ts) | IDKit v4: the RP signature, verification, canonical nullifiers |
 | [`app/src/lib/auth/world.ts`](../app/src/lib/auth/world.ts) | the World ID for Agents client: discovery, PKCE, token exchange, id_token verification |
 | [`app/src/app/api/auth/world/`](../app/src/app/api/auth/world/) | `connect` (the confirmation page, then the step-up) and `callback` |
 | [`app/src/app/api/dm/rooms/[roomId]/treasury/`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/) | the treasury status, `seat` (claiming a vote), `seat/rp-context` |
 | [`app/src/app/api/world-mock/`](../app/src/app/api/world-mock/) | the local mock IdP |
-| [`app/src/components/treasury/`](../app/src/components/treasury/) | `treasury-panel.tsx` (the panel above the chat), `seat-button.tsx` (the IDKit widget) |
+| [`app/src/components/treasury/`](../app/src/components/treasury/) | `treasury-panel.tsx` (the panel above the chat), `seat-button.tsx` (the IDKit widget), `recurring-buy-panel.tsx` |
+| [`app/src/lib/agent/treasurer/`](../app/src/lib/agent/treasurer/) | the treasurer: a language model with tools; each tool in `tools.ts` checks the asker itself |
+| [`app/src/app/(app)/treasury/`](../app/src/app/%28app%29/treasury/), [`app/src/components/treasury-app/`](../app/src/components/treasury-app/) | the treasury pages: every relation's shared money in one place, and per room the account, approvals, rules, activity and the treasurer |
 | [`app/src/lib/db/schema.ts`](../app/src/lib/db/schema.ts) | `treasury_actions`, `treasury_approvals`, `treasury_seats`, `users.world_sub` |
-| [`app/scripts/seed-tokyo-trip.mts`](../app/scripts/seed-tokyo-trip.mts), [`treasury-selftest.mts`](../app/scripts/treasury-selftest.mts), [`app/e2e/treasury.check.mjs`](../app/e2e/treasury.check.mjs) | the demo room, the parser and matcher checks, the end-to-end journey |
+| [`app/scripts/seed-tokyo-trip.mts`](../app/scripts/seed-tokyo-trip.mts), [`treasury-selftest.mts`](../app/scripts/treasury-selftest.mts), [`recurring-selftest.mts`](../app/scripts/recurring-selftest.mts), [`recurring-chat-selftest.mts`](../app/scripts/recurring-chat-selftest.mts), [`app/e2e/treasury.check.mjs`](../app/e2e/treasury.check.mjs) | the demo room; checks of the parser, the matcher and the recurring buy's rules, no chain; the end-to-end journey |
 
 ## Try it
 
@@ -126,6 +150,10 @@ With World instead of the stand-ins:
 |---|---|---|
 | World ID for Agents (sandbox IdP) | `WORLD_CLIENT_ID`, `WORLD_CLIENT_SECRET`, `WORLD_REDIRECT_URI` | a client registered for the deploy's HTTPS host; `WORLD_TOKEN_AUTH_METHOD=client_secret_post` if the registration says so |
 | IDKit (claiming votes) | `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `NEXT_PUBLIC_WORLD_ID_APP_ID`, `NEXT_PUBLIC_WORLD_ID_ENV=staging` | a Developer Portal app with its relying party registered and the action `treasury-seat`; staging proofs come from simulator.worldcoin.org |
+
+Investing, and with it the recurring buy, needs `TREASURY_INVEST=uniswap-base` and USDC plus a
+little ETH in the agent's wallet on Base; the recurring buy spends real money only with
+`TREASURY_RECURRING_REAL=1`.
 
 As a member, `GET /api/dm/rooms/<room>/treasury` says which is live: `"idpMode": "sandbox"` and
 `"seatMode": "world-id-v4"` are World; `"mock"` and `"dev-simulator"` are the local stand-ins,
@@ -185,15 +213,18 @@ Everything the table puts on the left predates it. The World commits since then:
 git log --oneline 4d4612d..main -- world docs/world docs/world-relation-treasury-scenario.md \
   app/src/lib/agent/treasury app/src/lib/auth/world.ts app/src/app/api/auth/world \
   app/src/app/api/world-mock app/src/lib/worldid-v4.ts 'app/src/app/api/dm/rooms/[roomId]/treasury' \
-  app/src/components/treasury app/scripts/seed-tokyo-trip.mts app/scripts/treasury-selftest.mts \
-  app/e2e/treasury.check.mjs app/public/demo/tokyo
+  app/src/components/treasury app/src/lib/agent/treasurer app/src/components/treasury-app \
+  'app/src/app/(app)/treasury' app/src/app/api/treasury app/scripts/seed-tokyo-trip.mts \
+  app/scripts/treasury-selftest.mts app/scripts/recurring-selftest.mts \
+  app/scripts/recurring-chat-selftest.mts app/e2e/treasury.check.mjs app/public/demo/tokyo
 ```
 
 On GitHub, the history of
 [the treasury](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/lib/agent/treasury) ·
 [the step-up](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/lib/auth/world.ts) ·
 [IDKit v4](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/lib/worldid-v4.ts) ·
-[the panel](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/components/treasury).
+[the panel](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/components/treasury) ·
+[the treasurer](https://github.com/ainetwork-ai/relational-agents/commits/main/app/src/lib/agent/treasurer).
 
 | Pre-existing | Built this weekend |
 |---|---|
@@ -201,6 +232,7 @@ On GitHub, the history of
 | Relation agents and their memory (July): [`provision.ts`](../app/src/lib/agent/provision.ts), [`respond.ts`](../app/src/lib/agent/respond.ts), OKF folders ([`okf-store.ts`](../app/src/lib/okf-store.ts), [`okf-docs.ts`](../app/src/lib/agent/okf-docs.ts)), demo login | World ID for Agents step-up: [`lib/auth/world.ts`](../app/src/lib/auth/world.ts), [`api/auth/world/*`](../app/src/app/api/auth/world/) (confirmation page, callback), the local mock IdP [`api/world-mock/*`](../app/src/app/api/world-mock/) |
 | AgentKit wallet wrapper ([`agentkit.ts`](../app/src/lib/agent/agentkit.ts), July); the songpyeon purchase demo ([`spend.ts`](../app/src/lib/agent/spend.ts), Sep 23 — it now refuses a treasury agent) | Claiming a vote with IDKit v4: [`lib/worldid-v4.ts`](../app/src/lib/worldid-v4.ts), the `treasury/seat` and `rp-context` routes, [`seat-button.tsx`](../app/src/components/treasury/seat-button.tsx) |
 | [`secret-box.ts`](../app/src/lib/secret-box.ts), the family wallet in [`gift.ts`](../app/src/lib/gift.ts) (Sep 25, before the treasury) | The panel ([`treasury-panel.tsx`](../app/src/components/treasury/treasury-panel.tsx)), the `treasury_*` tables and `users.world_sub`, the seed, selftest and e2e, this folder |
+| | The recurring buy ([`recurring.ts`](../app/src/lib/agent/treasury/recurring.ts), [`recurring-record.ts`](../app/src/lib/agent/treasury/recurring-record.ts)), the treasurer ([`treasurer/`](../app/src/lib/agent/treasurer/)) and the treasury pages ([`treasury-app/`](../app/src/components/treasury-app/)) — 2026-09-26, PR #30 |
 
 The July submission this continues — an agent that exists only after two verified humans
 consent, with World ID and AgentKit, run end to end on Sepolia — is kept in
