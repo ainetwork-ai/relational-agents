@@ -63,7 +63,9 @@ cd /mnt/newdata/git/relational-agents
 # Build the image from a clean worktree of origin/main — the shared checkout has other sessions' uncommitted files mixed in
 git fetch origin && TAG=$(git rev-parse --short origin/main)
 git worktree add -f /tmp/ainmem-build-$TAG origin/main
-docker build -t ainmem_xyz-app:$TAG /tmp/ainmem-build-$TAG/app && git worktree remove --force /tmp/ainmem-build-$TAG
+# Through compose, not a bare `docker build`: the compose file passes the NEXT_PUBLIC_* build args
+# (World ID app id) that are inlined into the browser bundle — a bare build ships them empty.
+APP_TAG=$TAG docker compose --env-file .env.xyz -f /tmp/ainmem-build-$TAG/docker-compose.xyz.yml build app && git worktree remove --force /tmp/ainmem-build-$TAG
 # Run from this directory (the volumes and .env.xyz live here)
 APP_TAG=$TAG docker compose --env-file .env.xyz -f docker-compose.xyz.yml up -d
 sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.xyz
