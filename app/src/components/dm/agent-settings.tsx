@@ -283,9 +283,9 @@ export function AgentSettings({
             className="mt-0.5"
           />
           <span>
-            {t("Whisper on questions")}
+            {t("Whisper during calls")}
             <span className="block text-xs text-neutral-500">
-              {t("When a question comes up, quietly tells only me what's in the history.")}
+              {t("During a call, when a question comes up, quietly tells only me what's in the history.")}
             </span>
           </span>
         </label>

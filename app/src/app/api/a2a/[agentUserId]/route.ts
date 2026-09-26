@@ -103,6 +103,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ agentUserI
  // acted on again: re-running it would repeat whatever it asked for ("pay the
  // hotel $40", twenty times). And only its author may echo it, into the room
  // it was said in — a message id is visible to every member, a voice is not.
+    // quiet:exempt — looks one message up by id to spot a redelivery; reads only its room and author, never its text
     const [existing] = await db
       .select({ roomId: chatMessages.roomId, authorId: chatMessages.authorId })
       .from(chatMessages)

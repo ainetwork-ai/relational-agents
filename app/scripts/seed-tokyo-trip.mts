@@ -13,6 +13,9 @@
  *     --no-fund  skip the Sepolia top-up of the treasury
  *     --no-preseat  seat nobody: with the Portal app configured, every seat on
  *                camera should be a real IDKit proof, not a seeded one
+ *     --join-alex2  invite "Alex (2nd account)" into the room after the
+ *                adoption — what scene 2 does on camera, for a take that
+ *                starts after it
  *     --app      base URL printed in the links (default http://localhost:36625)
  *
  * Makes, idempotently:
@@ -20,10 +23,14 @@
  *     { as: "tokyo-alex" } …): Alex, Bea, Chris, Dana, Eli, and
  *     "Alex (2nd account)" — the same human as Alex on a second account, the
  *     case one-human-one-seat exists for — each with a face from
- *     public/demo/tokyo/ (the room's agent too), joined in that order;
+ *     public/demo/tokyo/ (the room's agent too);
  *   - the "ETHGlobal Tokyo Team" workspace (Alex owns it, all six are members);
- *   - the "Tokyo Trip" room with its agent, and the chat where they agreed on
- *     the rules;
+ *   - the "Tokyo Trip" room of the five friends with its agent, and the chat
+ *     where they agreed on the rules. The 2nd account is not in the room: on
+ *     camera Alex invites it after the rules are adopted (Invite people) and it
+ *     asks for a vote with Alex's own World ID. --join-alex2 does that invite
+ *     here; --try keeps it in the room from the start, so /world visitors can
+ *     pick it;
  *   - the relation doc's treasury sections (Purpose, Treasury Rules, Payees,
  *     Treasury Activity) — what lib/agent/treasury/memory.ts reads;
  *   - the founding adoption of those Rules and Payees (the chat above is where
@@ -71,6 +78,7 @@ const TRY = process.argv.includes("--try");
 const RESET = process.argv.includes("--reset");
 const FUND = !process.argv.includes("--no-fund");
 const PRESEAT = !TRY && !process.argv.includes("--no-preseat");
+const JOIN_ALEX2 = !TRY && process.argv.includes("--join-alex2");
 const APP = (arg("app", "http://localhost:36625") as string).replace(/\/+$/, "");
 const WORKSPACE = TRY ? "ETHGlobal Tokyo Team (try it)" : "ETHGlobal Tokyo Team";
 const ROOM = "Tokyo Trip";
@@ -87,6 +95,8 @@ const PEOPLE: { key: Key; slug: string; name: string }[] = [
   { key: "eli", slug: `${PREFIX}-eli`, name: "Eli" },
   { key: "alex2", slug: `${PREFIX}-alex2`, name: "Alex (2nd account)" },
 ];
+/** in the room from the start — the 2nd account joins later (Alex's invite on camera, or --join-alex2), except in the try-it copy, where visitors pick it */
+const IN_ROOM = PEOPLE.filter((p) => TRY || p.key !== "alex2");
 /** seated by the seed; Alex and Bea claim theirs on stage, Alex's 2nd account never gets one */
 const PRESEATED: Key[] = ["chris", "dana", "eli"];
 
@@ -95,6 +105,10 @@ const PRESEATED: Key[] = ["chris", "dana", "eli"];
 const funderKey = (process.env.RELAYER_KEY ?? process.env.DEPLOYER_KEY ?? "").trim();
 if (!funderKey) throw new Error("set RELAYER_KEY or DEPLOYER_KEY in app/.env.local — the payee and the funding both come from it");
 const funder = privateKeyToAccount((funderKey.startsWith("0x") ? funderKey : `0x${funderKey}`) as `0x${string}`).address;
+// Savings is an address of its own, so an investment visibly leaves the pot
+// (a Sepolia transfer beside the Base swap). Derived from the funder's key, so
+// it is the same on every run and the funder can always sweep it back.
+const savings = privateKeyToAccount(keccak256(stringToBytes(`${funderKey}:tokyo-trip savings`))).address;
 
 // ── accounts ────────────────────────────────────────────────────────────────
 // demo-login `as` finds an account by ainAddress "demo:<slug>" and keeps its
@@ -118,6 +132,7 @@ for (const p of PEOPLE) {
   }
 }
 const humanIds = PEOPLE.map((p) => ids[p.key]);
+const roomHumanIds = IN_ROOM.map((p) => ids[p.key]);
 await db
   .update(S.users)
   .set({ worldSub: null, worldVerifiedAt: null })
@@ -270,29 +285,29 @@ if (!room)
     .returning();
 if (!room) throw new Error("could not create the room");
 const roomId = room.id;
-// Joined in PEOPLE order, a second apart: member lists sort by joinedAt, and a
-// single insert would give all six the same instant — the order was then the
+// Joined in IN_ROOM order, a second apart: member lists sort by joinedAt, and a
+// single insert would give them all the same instant — the order was then the
 // uuids', different on every reset. Just before now, so the chat above (dated
 // minutes ago) does not count as unread.
-const joinedFrom = Date.now() - (PEOPLE.length + 1) * 1000;
+const joinedFrom = Date.now() - (IN_ROOM.length + 1) * 1000;
 await db
   .insert(S.chatRoomMembers)
-  .values(humanIds.map((userId, i) => ({ roomId, userId, joinedAt: new Date(joinedFrom + i * 1000) })))
+  .values(roomHumanIds.map((userId, i) => ({ roomId, userId, joinedAt: new Date(joinedFrom + i * 1000) })))
   .onConflictDoNothing();
-const { agentUserId } = await provisionRoomAgent(room, humanIds, ids.alex);
+const { agentUserId } = await provisionRoomAgent(room, roomHumanIds, ids.alex);
 // A room seeded before that (or rerun) keeps its rows, so the order is set
-// again against the agent's join, which never moves: the six a second apart,
-// ending just before it — the same values on every run.
+// again against the agent's join, which never moves: the members a second
+// apart, ending just before it — the same values on every run.
 {
   const [agentMember] = await db
     .select({ at: S.chatRoomMembers.joinedAt })
     .from(S.chatRoomMembers)
     .where(and(eq(S.chatRoomMembers.roomId, roomId), eq(S.chatRoomMembers.userId, agentUserId)));
   const anchor = (agentMember?.at ?? new Date()).getTime();
-  for (const [i, p] of PEOPLE.entries())
+  for (const [i, p] of IN_ROOM.entries())
     await db
       .update(S.chatRoomMembers)
-      .set({ joinedAt: new Date(anchor - (PEOPLE.length - i) * 1000) })
+      .set({ joinedAt: new Date(anchor - (IN_ROOM.length - i) * 1000) })
       .where(and(eq(S.chatRoomMembers.roomId, roomId), eq(S.chatRoomMembers.userId, ids[p.key])));
 }
 // five friends running a trip fund read as a team, not a family: the business
@@ -399,7 +414,7 @@ const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks
     okfType: "Fact",
     blocks: [
       ["bulleted_list", `Hotel Gracery Shinjuku: ${funder}`],
-      ["bulleted_list", `Savings (idle funds): ${agentAddress}`],
+      ["bulleted_list", `Savings (idle funds): ${savings}`],
     ],
   },
   {
@@ -458,6 +473,15 @@ await db
 const { adoptFoundingRules } = await import("../src/lib/agent/treasury/approvals");
 const adoptedNow = await adoptFoundingRules({ roomId, agentUserId, requestedBy: ids.alex });
 
+// ── the second account joins (scene 2) ──────────────────────────────────────
+// After the adoption, as Alex's "Invite people" does it on camera: a member of
+// the room but not of the electorate — no vote until the relation adopts its
+// new membership, and no seat either, since its World ID is Alex's.
+if (JOIN_ALEX2) {
+  await db.insert(S.chatRoomMembers).values({ roomId, userId: ids.alex2 }).onConflictDoNothing();
+  await setOkfAcl(tree.rootPath, roomId, [...participants, ids.alex2]);
+}
+
 // ── seats ───────────────────────────────────────────────────────────────────
 
 // labelled "dev-simulator": the panel rings these red (not counted), never green as World ID
@@ -507,6 +531,8 @@ if (rt.policy.unparsed.length) {
 if (!rt.adoptedAt) {
   failed = true;
   console.warn("WARNING: the rules are not adopted — the agent will move no money");
+} else if (rt.proposal && JOIN_ALEX2 && rt.proposal.joined.length === 1 && !rt.proposal.added.length && !rt.proposal.removed.length) {
+  console.log("the 2nd account joined after the adoption (--join-alex2): in the room, no vote until the relation adopts its membership");
 } else if (rt.proposal) {
   console.warn(
     `NOTE: the doc differs from the adopted rules (${rt.proposal.added.length} added, ${rt.proposal.removed.length} removed, ${rt.proposal.joined.length} new member(s)) — the agent follows the adopted version; --reset starts over`
@@ -529,6 +555,7 @@ console.log(`
   doc        ${APP}/p/${okfDocPageId(tree.rootPath)}   (${tree.rootPath})
   rules      ${APP}/p/${rt.rulesPageId}   ${rt.policy.rules.length} rules, ${rt.policy.unparsed.length} unparsed · adopted ${rt.adoptedAt ?? "never"}${adoptedNow ? " (now)" : ""}
   payees     ${rt.payees.map((p) => `${p.name} → ${p.address}`).join(", ") || "none"}
+  members    ${IN_ROOM.map((p) => p.name).join(", ")}${JOIN_ALEX2 ? " + Alex (2nd account), joined after the adoption" : TRY ? "" : " — Alex (2nd account) is in the workspace, not the room"}
   seats      ${seated.map((s) => nameOf(s.userId)).join(", ") || "none"}
   logins     POST ${APP}/api/auth/demo-login { "as": "<slug>" }
 ${PEOPLE.map((p) => `               ${p.slug.padEnd(12)} ${p.name}`).join("\n")}`);

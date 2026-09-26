@@ -133,6 +133,14 @@ human carry different nullifiers, so accepting both would give one human two vot
      fields look authoritative but are inert here. The simulator itself was
      smooth: IDKit hands out a ready `simulator.worldcoin.org/?connect_url=…`
      link, and "Continue" returns a proof in seconds.
+  4. Staging proofs are gated, undocumented: after our first vote, verify
+     began refusing simulator proofs until the team opens a 24 h "staging
+     verification window" through the Portal MCP with a team API key, and
+     sends the window's token on every verify call
+     (`x-staging-verification-token`). The refusal names the tool; nothing
+     says where the key comes from, that the token is per call, or that the
+     window lapses — it cost the demo its vote step for an evening, and
+     expires again the day after judging.
 - **Missing capability / docs:** during the 3.0 → 4.0 migration there is no way
   to relate a human's 3.0 and 4.0 nullifiers, so "accept both" means tracking two
   nullifier spaces yourself; we pinned vote claims to one protocol instead. Also missing: a statement of

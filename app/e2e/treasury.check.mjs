@@ -290,7 +290,7 @@ async function scene(name, fn) {
 
 const ctx = {};
 
-await scene("setup: seeded room, six accounts, treasury on", async () => {
+await scene("setup: seeded room, five in it plus the 2nd account Alex invites, treasury on", async () => {
   for (const a of [alex, bea, chris, dana, eli, alex2, outsider]) await a.login();
   const { body } = await alex.json("/api/dm/rooms");
   const room = (body.rooms ?? []).find((r) => r.name === "Tokyo Trip");
@@ -322,6 +322,21 @@ await scene("setup: seeded room, six accounts, treasury on", async () => {
   assert(st.rules.includes(RULE_MID) && st.rules.includes(RULE_PERSONAL), "the demo rules are not all parsed");
   assert(st.adoptedAt, "the rules are not adopted — run the seed (--reset)");
   assert(!st.proposal, `the doc differs from the adopted rules: ${JSON.stringify(st.proposal)} — run the seed with --reset`);
+
+  // scene 2: the 2nd account is not one of the five — Alex invites it after
+  // the rules were adopted, so it is in the room but not in the electorate
+  if (!st.members.find((m) => m.userId === alex2.id)) {
+    const inv = await alex.json(`/api/dm/rooms/${roomId}/members`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: alex2.id }),
+    });
+    assert(inv.status === 201, `inviting the 2nd account: ${inv.status} ${JSON.stringify(inv.body)}`);
+    st = await status();
+  }
+  const second = st.members.find((m) => m.userId === alex2.id);
+  assert(second && second.voting === false, `the 2nd account should be in the room without a vote: ${JSON.stringify(second)}`);
+  assert(st.proposal && st.proposal.joined.length === 1 && !st.proposal.added.length, `joining should propose the new membership only: ${JSON.stringify(st.proposal)}`);
   ctx.address = st.address;
   ctx.activityId = pageId(pagePath(st.rulesPageId).replace(/Treasury Rules\.md$/, "Treasury Activity.md"));
   return `room ${roomId}, wallet ${st.address}, $${st.balanceUsd}, seat mode ${st.seatMode}`;
@@ -380,7 +395,7 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   assert(reply.includes(HOTEL), `reply does not name the payee: ${reply}`);
   // what / why / what to do, one line each — and the one-human twist is not given away
   const [what, why, todo] = reply.split("\n");
-  assert(what.startsWith(`⏳ Queued: $180 to ${HOTEL}`), `first line is not the queued payment: ${what}`);
+  assert(what.startsWith(`Queued: $180 to ${HOTEL}`), `first line is not the queued payment: ${what}`);
   assert(why === `Needs 2 verified humans — our rules: “${RULE_MID}”`, `second line is not the rule: ${why}`);
   assert(todo === "Approve with World ID in the treasury panel above.", `third line is not the call to approve: ${todo}`);
   assert(!/counts once/.test(reply), `reply announces the one-human rule up front: ${reply}`);
@@ -394,7 +409,7 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   ctx.action180 = a.id;
   ctx.payee180 = a.recipient.address;
   // the ledger line is written before the agent answers
-  const queued = `📝 Alex asked: $180 · ${a.memo} — needs 2 humans to approve`;
+  const queued = `Alex asked: $180 · ${a.memo} — needs 2 humans to approve`;
   const texts = await activityTexts();
   assert(texts.some((t) => t.includes(JSON.stringify(queued).slice(1, -1))), `no queued line in Treasury Activity: ${queued}`);
   return `action ${a.id}`;
@@ -441,7 +456,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   // announcements follow the settle by a moment
   const payout = await until(
     async () =>
-      (await agentLinesSince(alex, count0)).find((l) => l.startsWith(`✅ Paid $180 to ${HOTEL}`) && l.includes(a.txHash)),
+      (await agentLinesSince(alex, count0)).find((l) => l.startsWith(`Paid $180 to ${HOTEL}`) && l.includes(a.txHash)),
     15_000,
     "no payout notice in chat"
   );
@@ -457,7 +472,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   assert(lines.some((l) => approvedLine.test(l)), `no fresh 1-of-2 notice: ${lines.join(" | ")}`);
 
   const paidLine = await until(
-    async () => (await activityTexts()).find((t) => t.includes("✅ Paid $180") && t.includes(a.txHash)),
+    async () => (await activityTexts()).find((t) => t.includes("Paid $180") && t.includes(a.txHash)),
     15_000,
     "no activity line with the tx in Treasury Activity"
   );
@@ -507,7 +522,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   return `callback ${callbackMs}ms, executed ${execS}s later · tx ${a.txHash} · gas refund ${refundTx} · balance $${ctx.balanceBefore180} → $${balanceAfter}`;
 });
 
-await scene("d. $150 — Alex 1/2; his 2nd account as the same human is voided; Dana cancels", async () => {
+await scene("d. $150 — Alex 1/2; the same human on Eli's account is voided; the 2nd account has no say; Dana cancels", async () => {
   const before = new Set((await status()).actions.map((a) => a.id));
   const reply = await ask(alex, "@agent pay the hotel for $150");
   assert(reply.includes(`“${RULE_MID}”`) && /2 verified humans/.test(reply), `reply: ${reply}`);
@@ -518,35 +533,27 @@ await scene("d. $150 — Alex 1/2; his 2nd account as the same human is voided; 
   const one = await approve(alex, ctx.action150, { human: 1 });
   assert(one === "approved", `Alex: ?treasury=${one}`);
 
-  // the 2nd account is seated only for this approval and unseated after it, so
-  // the room is left as the demo needs it: that account has no vote (scene 2)
-  let seatedAlex2 = false;
-  if (sql && !(await status()).members.find((m) => m.userId === alex2.id)?.seated) {
-    await sql.query(
-      "insert into treasury_seats (room_id, user_id, nullifier_hash, verification_level) values ($1, $2, $3, 'dev-simulator') on conflict do nothing",
-      [roomId, alex2.id, `e2e:${alex2.id}`]
-    );
-    seatedAlex2 = true;
+  // scene 4: Alex's human verifying on Eli's laptop — Eli's seat is real
+  // (seeded), the account unbound, and the IdP hands back Alex's sub
+  {
+    const count0 = await messageCount();
+    const dup = await approve(eli, ctx.action150, { human: 1 });
+    assert(dup === "same-human", `Eli's account as Human 1: ?treasury=${dup}`);
+    const a1 = (await status()).actions.find((x) => x.id === ctx.action150);
+    assert(a1.status === "pending" && a1.approvals.length === 1, `after the same human: ${a1.status}, ${a1.approvals.length} approvals`);
+    const lines = await agentLinesSince(alex, count0);
+    assert(lines.some((l) => l.startsWith("An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
+    assert((await activityTexts()).some((t) => t.includes("An approval was voided")), "the voided approval is not in Treasury Activity");
+    if (sql) assert((await worldSubOf(eli.id)) === null, "Eli's account got bound to Alex's World ID");
+  }
+  // the 2nd account joined after the adoption: it is refused before any World
+  // ID check, and nothing binds to it
+  {
+    const out = await approve(alex2, ctx.action150, { human: 1 });
+    assert(out === "not-electorate", `2nd account, outside the electorate: ?treasury=${out}`);
+    if (sql) assert((await worldSubOf(alex2.id)) === null, "the 2nd account got bound to a World ID");
   }
   let a;
-  try {
-    const count0 = await messageCount();
-    const dup = await approve(alex2, ctx.action150, { human: 1 });
-    assert(dup === "same-human", `2nd account as Human 1: ?treasury=${dup}`);
-    a = (await status()).actions.find((x) => x.id === ctx.action150);
-    assert(a.status === "pending" && a.approvals.length === 1, `after the 2nd account: ${a.status}, ${a.approvals.length} approvals`);
-    const lines = await agentLinesSince(alex, count0);
-    assert(lines.some((l) => l.startsWith("⛔ An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
-    assert((await activityTexts()).some((t) => t.includes("⛔ An approval was voided")), "the voided approval is not in Treasury Activity");
-    if (sql) assert((await worldSubOf(alex2.id)) === null, "the 2nd account got bound to a World ID");
-  } finally {
-    if (seatedAlex2)
-      await sql.query("delete from treasury_seats where room_id = $1 and user_id = $2 and nullifier_hash = $3", [
-        roomId,
-        alex2.id,
-        `e2e:${alex2.id}`,
-      ]);
-  }
 
   const cancelled = await approve(dana, ctx.action150, { deny: true });
   assert(cancelled === "cancelled", `Dana cancel: ?treasury=${cancelled}`);
@@ -567,7 +574,7 @@ await scene("e. $700 to my wallet — refused on the rule, no approval asked, no
   assert(said[0] === "I won't do that." && said[1].includes(`“${RULE_PERSONAL}”`), `refusal lines: ${JSON.stringify(said)}`);
   assert(said.some((l) => /^\$700 is also \d+(\.\d)?% of our \$[\d,.]+ — /.test(l)), `no "$700 is also …%" line: ${JSON.stringify(said)}`);
   assert(said.some((l) => /^Rules: \/p\/[A-Za-z0-9_-]+$/.test(l)), `no rules link line: ${JSON.stringify(said)}`);
-  const refused = `⛔ Refused: $700 to Alex's own wallet — “${RULE_PERSONAL}”`;
+  const refused = `Refused: $700 to Alex's own wallet — “${RULE_PERSONAL}”`;
   assert(
     (await activityTexts()).some((t) => t.includes(JSON.stringify(refused).slice(1, -1))),
     `no refusal line in Treasury Activity: ${refused}`

@@ -15,7 +15,7 @@ lists every Uniswap call of both with `file:line`.
   token allowlist, dry run, kill switch) became the fields of an EIP-712 `SpendMandate`; its
   warning about period keys (a UTC-day key double-buys across a week boundary) became our ISO-week
   key and a pinned test.
-- **anvil fork of Base mainnet** for the 69-test suite; **Base mainnet** with real funds for the demo.
+- **anvil fork of Base mainnet** for the 70-test suite; **Base mainnet** with real funds for the demo.
 - Not used: the Trading API (no key on the day). Our `decisionOrigin` field (`autonomous` for a
   standing mandate, `human_mediated` for a one-off) is shaped for `X-Agent-Info`.
 

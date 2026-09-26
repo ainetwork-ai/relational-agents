@@ -45,6 +45,8 @@ const SUMMARY: Record<string, { page: string; bare: string }> = {
   consent: { page: "{actor}'s relationship agreement", bare: "{actor}'s relationship agreement" },
  // a reminder has no sender
   reminder: { page: "⏰ Reminder · {page}", bare: "⏰ Reminder" },
+  // pocket money by name: the body carries the amount and the explorer link
+  payment: { page: "{actor} sent you pocket money", bare: "{actor} sent you pocket money" },
 };
 
 const SUMMARY_FALLBACK = {

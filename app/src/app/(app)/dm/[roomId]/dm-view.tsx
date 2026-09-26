@@ -4,7 +4,7 @@ import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, Loader2, NotebookPen, TriangleAlert } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -139,6 +139,10 @@ export function DmView({
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  // Mentions lifted out of the text into chips (Notion draws a picked @mention
+  // as a pill). The chips are merged back in front of the text at send time,
+  // so the wire format — "@agent pay …" — is unchanged.
+  const [mentionChips, setMentionChips] = useState<DmUser[]>([]);
   const [authors, setAuthors] = useState<DmUser[]>([]);
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
@@ -212,6 +216,8 @@ export function DmView({
   }, [roomId, markReadLocal]);
 
   const loadedRef = useRef(false);
+  // set while leaving: the room's refetch answers 403 then, and that is the leave, not an error
+  const leavingRef = useRef(false);
   /** Check whether this room has the relationship agent (drives the header button). */
   const loadAgent = useCallback(async () => {
     // a dropped connection (tunnel blip, dev-server restart) says nothing about
@@ -224,6 +230,7 @@ export function DmView({
     try {
       const res = await fetch(`/api/dm/rooms/${roomId}`);
       if (!res.ok) {
+        if (leavingRef.current) return;
         setError(res.status === 404 ? t("Chat not found.") : t("You don't have access to this conversation."));
         setLoading(false);
         return;
@@ -390,7 +397,7 @@ export function DmView({
     room?.name || (others.length ? others.map((o) => o.displayName).join(", ") : t("(No participants)"));
 
   async function send(force = false) {
-    const text = input.trim();
+    const text = [mentionChips.map((u) => `@${handleOf(u)}`).join(" "), input.trim()].filter(Boolean).join(" ");
     if ((!text && pendingAtt.length === 0) || sending) return;
  // a draft contradicting the record gets stopped once. Force-send is the human's call.
     if (declined && !force) return;
@@ -413,6 +420,7 @@ export function DmView({
         return prev.some((m) => m.id === msg.id) ? prev : [...prev, msg];
       });
       setInput("");
+      setMentionChips([]);
       setPendingAtt([]);
       setQuiet(false); // one quiet question at a time — you opt in per message
       setGuard(null);
@@ -510,16 +518,23 @@ export function DmView({
       .slice(0, 6);
   }, [mentionCandidates, mentionQuery]);
 
-  /** Replace the "@query" under the caret with the picked handle. */
+  /** The handle "@" stands for — must match timeline's mentionHandle. */
+  const handleOf = (u: DmUser) => (u.isAgent ? "agent" : u.displayName.split(/\s+/)[0]);
+
+  function addChip(user: DmUser) {
+    setMentionChips((prev) => (prev.some((c) => c.id === user.id) ? prev : [...prev, user]));
+  }
+
+  /** Lift the "@query" under the caret out of the text and into a chip. */
   function pickMention(user: DmUser) {
     if (mentionStart === null) return;
-    const handle = user.isAgent ? "agent" : user.displayName.split(/\s+/)[0];
     const caret = composerRef.current?.selectionStart ?? input.length;
-    const next = `${input.slice(0, mentionStart)}@${handle} ${input.slice(caret)}`;
+    const next = `${input.slice(0, mentionStart)}${input.slice(caret).replace(/^\s+/, "")}`;
     setInput(next);
+    addChip(user);
     setMentionOpen(false);
     setMentionStart(null);
-    const pos = mentionStart + handle.length + 2;
+    const pos = mentionStart;
     requestAnimationFrame(() => {
       composerRef.current?.setSelectionRange(pos, pos);
       composerRef.current?.focus();
@@ -527,6 +542,17 @@ export function DmView({
   }
 
   function onInputChange(v: string) {
+    // A handle typed out in full and closed with a space ("@agent ") becomes a
+    // chip on the spot, without the menu. Only at the end of the text: that is
+    // where typing happens, and it keeps a pasted "@agent pay …" untouched.
+    const typed = /(^|\s)@([^\s@]+)\s$/.exec(v);
+    if (typed) {
+      const user = mentionCandidates.find((m) => handleOf(m).toLowerCase() === typed[2].toLowerCase());
+      if (user) {
+        v = v.slice(0, typed.index + typed[1].length);
+        addChip(user);
+      }
+    }
     setInput(v);
     // "@" at a word boundary opens the menu; whitespace in the query closes it.
     const caret = composerRef.current?.selectionStart ?? v.length;
@@ -595,16 +621,18 @@ export function DmView({
     setConfirmLeave(false);
  // Leaving used to be a "dissolution" that every member's wallet had to sign
  // (RelationDissolve). Wallets are gone, so it is a plain leave.
+    leavingRef.current = true;
     const res = await fetch(`/api/dm/rooms/${roomId}/members`, {
       method: "DELETE",
       headers: { "x-client-id": clientId },
     });
     if (!res.ok) {
+      leavingRef.current = false;
       show(t("Couldn't leave the chat"));
       return;
     }
     void loadRooms();
-    router.push("/");
+    router.replace("/");
   }
 
   /** Inviting the relationship agent = provisioning it (own key, A2A URL,
@@ -642,7 +670,7 @@ export function DmView({
       const data = await res.json().catch(() => ({}));
  // 200 = the seller served us, 402 = it took the payment question seriously and
  // said no. Both are the feature working; anything else is the feature broken.
-      if (res.ok) show(`${SELLER.name} served the agent — two verified humans, one agent 🥮`);
+      if (res.ok) show(`${SELLER.name} served the agent — two verified humans, one agent`);
       else if (res.status === 402)
         show(`${SELLER.name} refused: ${data?.seller?.body?.error ?? "not human-backed"}`);
       else show(`Purchase failed: ${data?.error ?? res.status}`);
@@ -680,10 +708,17 @@ export function DmView({
     // ...plus /p/<page-id> — the agent cites the relationship doc that way,
     // and a citation you cannot open is just noise. Page ids are base64url
     // (the OKF path encoded), not uuids, so the token class has to be wide.
-    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[A-Za-z0-9_-]{8,})/g);
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[A-Za-z0-9_-]{8,}|\/send\?t=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g);
     if (parts.length === 1) return text;
     const linkClass = "underline underline-offset-2 text-[#2383e2] dark:text-blue-400";
     return parts.map((part, i) => {
+      if (/^\/send\?t=/.test(part)) {
+        return (
+          <a key={i} href={part} className={linkClass} data-testid="send-link">
+            💸 {t("Review and send")}
+          </a>
+        );
+      }
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
       if (/^\/p\//.test(part)) {
         // the relationship doc (an OKF page — its id is a base64url path) is cited as
@@ -696,7 +731,8 @@ export function DmView({
         const section = isDoc ? okfSectionTitle(part.slice(3)) : null;
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 {section ?? (isDoc ? t("History") : t("Open page"))}
+            <FileText size={12} strokeWidth={1.75} aria-hidden className="mr-0.5 inline-block align-[-2px]" />
+            {section ?? (isDoc ? t("History") : t("Open page"))}
           </a>
         );
       }
@@ -905,7 +941,7 @@ export function DmView({
             data-tip={organizing ? t("Tidying up…") : t("Tidy up conversation now")}
             className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
           >
-            <Sparkles size={14} className={organizing ? "animate-pulse" : ""} />
+            <NotebookPen size={14} className={organizing ? "animate-pulse" : ""} />
           </button>
 
           <div className="relative">
@@ -987,7 +1023,10 @@ export function DmView({
       {variant !== "call" && (
         <>
           <ConsentBanner roomId={roomId} />
-          <TreasuryPanel roomId={roomId} />
+          <TreasuryPanel
+            roomId={roomId}
+            agent={agentMember ? { name: agentMember.displayName, avatarUrl: agentMember.avatarUrl } : null}
+          />
           <DissolveBanner roomId={roomId} />
         </>
       )}
@@ -1021,7 +1060,7 @@ export function DmView({
           </div>
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400" data-testid="dm-empty">
-            {t("No messages yet — say hello 👋")}
+            {t("No messages yet — say hello")}
           </p>
         ) : (
           messages.map((m, i) => {
@@ -1045,14 +1084,10 @@ export function DmView({
             );
             const footer =
               m.recordedAt && !m.privateToUserId ? (
-                <Link
-                  href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
-                  data-testid="dm-msg-recorded"
-                  className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
-                >
-                  <Sparkles size={10} />
+                <span data-testid="dm-msg-recorded" className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400">
+                  <FileCheck size={10} aria-hidden />
                   {t("Added to history")}
-                </Link>
+                </span>
               ) : m.privateToUserId ? (
                 <p
                   data-testid="dm-msg-private"
@@ -1201,7 +1236,10 @@ export function DmView({
           data-testid="dm-guard-card"
           className="mx-3 mb-2 space-y-1.5 rounded-lg border border-amber-300/80 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
         >
-          <div className="font-medium text-amber-800 dark:text-amber-300">{t("⚠️ Conflicts with history")}</div>
+          <div className="flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300">
+            <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+            {t("Conflicts with history")}
+          </div>
           <p className="text-neutral-700 dark:text-neutral-300">{guard?.reason}</p>
           {guard?.evidence?.map((e, i) => (
             <p key={i} className="text-neutral-500">
@@ -1328,17 +1366,42 @@ export function DmView({
           data-testid="dm-attach"
           aria-label={t("Attach image")}
           data-tip={t("Attach photo")}
-          disabled={uploading}
+          disabled={uploading || sending}
           onClick={() => fileRef.current?.click()}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 disabled:opacity-50 dark:hover:bg-neutral-800"
         >
           <ImagePlus size={18} />
         </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {mentionChips.length > 0 && (
+            <div data-testid="dm-mention-chips" className="flex flex-wrap gap-1 px-0.5">
+              {mentionChips.map((u) => (
+                <span
+                  key={u.id}
+                  data-testid="dm-mention-chip"
+                  className="inline-flex items-center gap-0.5 rounded-[3px] bg-[rgba(0,118,217,0.1)] py-0.5 pl-1.5 pr-1 text-[13px] font-medium leading-5 text-[rgb(38,74,114)] dark:bg-blue-500/15 dark:text-blue-300"
+                >
+                  @{handleOf(u)}
+                  <button
+                    type="button"
+                    aria-label={t("Remove {name}", { name: `@${handleOf(u)}` })}
+                    onClick={() => setMentionChips((prev) => prev.filter((c) => c.id !== u.id))}
+                    className="rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         <textarea
           ref={composerRef}
           data-testid="dm-composer-input"
           value={input}
           rows={1}
+          // while a message is on its way the draft holds still: what it clears is what was sent
+          readOnly={sending}
+          aria-busy={sending}
           placeholder={draftIsPrivate ? t("Ask the agent…") : t("Type a message…")}
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => (isComposingRef.current = true)}
@@ -1367,6 +1430,11 @@ export function DmView({
                 return;
               }
             }
+            if (e.key === "Backspace" && !input && mentionChips.length && !isComposingRef.current) {
+              e.preventDefault();
+              setMentionChips((prev) => prev.slice(0, -1));
+              return;
+            }
             if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
               e.preventDefault();
               void send();
@@ -1374,21 +1442,22 @@ export function DmView({
               e.currentTarget.blur();
             }
           }}
-          className={`max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-lg border px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 ${
+          className={`max-h-40 min-h-[2.25rem] w-full resize-none rounded-lg border px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 ${
             draftIsPrivate
               ? // dashed = this one is not going to the room
                 "border-dashed border-purple-300 bg-purple-50/40 focus:border-purple-400 dark:border-purple-700/70 dark:bg-purple-950/20 dark:focus:border-purple-500"
               : "border-neutral-200 bg-white focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
           }`}
         />
+        </div>
         <button
           type="submit"
           data-testid="dm-send"
           aria-label={t("Send message")}
-          disabled={sending || uploading || (!input.trim() && pendingAtt.length === 0)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 disabled:opacity-40"
+          disabled={sending || uploading || (!input.trim() && !mentionChips.length && pendingAtt.length === 0)}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 ${sending ? "" : "disabled:opacity-40"}`}
         >
-          <Send size={16} />
+          {sending ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Send size={16} />}
         </button>
       </form>
     </div>

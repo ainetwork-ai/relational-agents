@@ -14,6 +14,8 @@ import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
 import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk, saidAsPick } from "@/lib/prompt-export/input";
 import { promptSkill } from "./prompt-skill";
+import { isSendRequest, isSendWithoutAmount } from "@/lib/ens-family/send-request";
+import { answersPendingSend, sendByName } from "./send-by-name";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
 import { demoLang, familyDemo } from "@/i18n/content/demo-lang";
@@ -48,7 +50,7 @@ import {
  * pages and move money, and "maybe" is not a state either may be in.
  */
 
-export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt";
+export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt" | "send";
 
 const SKILL_RE = (["allowance", "todos", "album", "shopping"] as const).map((k) => ({
   skill: k,
@@ -73,6 +75,10 @@ const SERVINGS_ACT = anyOf(W.servingsAct);
  */
 export function matchFamilySkill(text: string, from?: { roomId: string; askerId: string }): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
+  // an amount in USDC with a send verb moves money: it is the send skill's, first
+  if (isSendRequest(t)) return "send";
+  // "Minjun", right after the send skill asked "Minjun or Seoyeon?"
+  if (from && answersPendingSend(from.roomId, from.askerId, t)) return "send";
   const ask = promptAsk(t);
   const answers = from ? answersPendingPrompt(from.roomId, from.askerId, t) : false;
   // first: "make a prompt from the album page" is about the prompt, not the album
@@ -92,6 +98,9 @@ export function matchFamilySkill(text: string, from?: { roomId: string; askerId:
     if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping" as const;
     return null;
   })();
+  // "send Minjun some money" (no amount) is the send skill's, which asks for one — after the
+  // skills above, so "give Seoyeon her pocket money, open the video" stays the allowance
+  if (!other && !answers && !ask && isSendWithoutAmount(t)) return "send";
   if (other) {
     // "make a Jeju album" is the album skill, even right after "which one? 「Jeju album」…"
     if (from) forgetPendingPrompt(from.roomId, from.askerId);
@@ -182,7 +191,7 @@ function offNote(ctx: SkillContext): string {
   const t = tOf(ctx);
   const names = off.map((o) => nm(ctx, o)).join(", ");
   return (
-    "\n⚠️ " +
+    "\n" +
     (off.length > 1
       ? t("{names}'s phones are off, so nothing from them is included — ask again once they're on.", { names })
       : t("{names}'s phone is off, so nothing from it is included — ask again once it's on.", { names }))
@@ -263,7 +272,7 @@ async function shopping(ctx: SkillContext): Promise<SkillResult> {
   const cook = nm(ctx, who(recipe));
   const body: NewBlock[] = [
     b.callout(
-      "🛒",
+      "🛒", // emoji:data — the callout's icon on the page the agent writes
       t("{who}'s {dish} recipe (makes {orig}) scaled to {n} servings.", { who: cook, dish: dishName, orig: plan.originalServings ?? "?", n: servings }) +
         (measure ? " " + t(`Measures like "a handful" are converted with grandma's measure table.`) : "")
     ),
@@ -277,7 +286,7 @@ async function shopping(ctx: SkillContext): Promise<SkillResult> {
     ...(measure ? [b.file(urlOf(measure), nameOf(measure.rel))] : []),
     ...(review ? [b.h2(t("Tried it")), b.file(urlOf(review), `${nameOf(review.rel)} — ${who(review)}`)] : []),
   ];
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "🛒", byUserId: ctx.askerId, blocks: body });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "🛒", byUserId: ctx.askerId, blocks: body }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -347,16 +356,16 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
   const title = `${out.title ?? C.meeting} — ${C.suffix}`;
   const body: NewBlock[] = [
     b.callout(
-      "🎙️",
+      "🎙️", // emoji:data — the callout's icon on the page the agent writes
       t("{n} to-dos from the recording on {who}'s phone ({file}).", { n: out.tasks.length, who: nm(ctx, who(pick.audio)), file: nameOf(pick.audio.rel) }) +
-        (ts.private ? " " + t("🤫 Only in this teamspace ({ts}) — family members outside it can't see it.", { ts: ts.name }) : "")
+        (ts.private ? " " + t("Only in this teamspace ({ts}) — family members outside it can't see it.", { ts: ts.name }) : "")
     ),
     b.database(dbId),
     b.h2(t("Recording")),
     b.file(urlOf(pick.audio), nameOf(pick.audio.rel)),
     b.file(urlOf(pick.text), nameOf(pick.text.rel)),
   ];
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "✅", byUserId: ctx.askerId, blocks: body });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "✅", byUserId: ctx.askerId, blocks: body }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -441,7 +450,7 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
   const place = (f: Found) => nameOf(f.rel).replace(/\.[^.]+$/, "").replace(/_/g, " ");
   const body: NewBlock[] = [
     b.callout(
-      "📸",
+      "📸", // emoji:data — the callout's icon on the page the agent writes
       (regionName
         ? t("{n} {region} photos from {phones}'s phones, gathered by when and where they were taken and sorted by day.", {
             n: pick.length,
@@ -484,7 +493,7 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
   const title = person
     ? t("{name}'s photo album", { name: nm(ctx, person) })
     : t("{region} trip album", { region: regionName || t("Family") });
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "📸", byUserId: ctx.askerId, blocks: body, fullWidth: true });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "📸", byUserId: ctx.askerId, blocks: body, fullWidth: true }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -523,7 +532,7 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
         : t("There's no pocket-money gift video yet."),
     };
   const { spec } = target.gift;
-  if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying 🙂") };
+  if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying.") };
   if (unlocked(target.gift))
     return { pageId: target.pageId, text: t("「{title}」 is already open → /p/{pageId}", { title: spec.title, pageId: target.pageId }) };
   if (spec.sale)
@@ -543,7 +552,7 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
   return {
     pageId: target.pageId,
     text:
-      t("🎁 Sent {name} ₩{krw} of pocket money ({usdc} USDC).", {
+      t("Sent {name} ₩{krw} of pocket money ({usdc} USDC).", {
         name: nm(ctx, spec.recipientName),
         krw: spec.amountKrw.toLocaleString(numLocale(ctx)),
         usdc: formatUsdc(spec.amount),
@@ -574,5 +583,7 @@ export async function runFamilySkill(skill: FamilySkill, ctx: SkillContext): Pro
       return allowance(ctx);
     case "prompt":
       return promptSkill(ctx);
+    case "send":
+      return sendByName(ctx);
   }
 }

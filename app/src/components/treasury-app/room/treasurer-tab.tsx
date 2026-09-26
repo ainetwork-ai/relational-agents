@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import { Bot } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { ActivityFeed } from "./activity-feed";
 import { useTreasuryRoomData } from "./room-data";
@@ -42,7 +43,7 @@ export function TreasurerTab() {
             <img src={agent.avatarUrl} alt="" className={styles.heroAvatar} />
           ) : (
             <span className={`${styles.heroAvatar} ${styles.agentMark}`} aria-hidden>
-              ✦
+              <Bot size={18} strokeWidth={1.75} />
             </span>
           )}
           <div>

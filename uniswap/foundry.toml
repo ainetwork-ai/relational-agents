@@ -1,0 +1,11 @@
+# Foundry, for contracts/ only: RecurringContribution and its tests on a fork of Base mainnet.
+# The package runs them through `node --test` (test/recurring-contribution.test.js).
+[profile.default]
+src = "contracts"
+test = "contracts/test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200

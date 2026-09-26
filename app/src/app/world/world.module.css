@@ -536,6 +536,234 @@
   background: var(--w-line);
 }
 
+/* ── hero actions and the live-status pill ── */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.primaryOff {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: var(--w-hair);
+  color: var(--w-sec);
+  font-weight: 600;
+  cursor: default;
+}
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: var(--w-card);
+  color: var(--w-text) !important;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--w-line);
+  box-shadow: var(--w-shadow);
+}
+
+.secondaryBtn:hover {
+  border-color: var(--w-ter);
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--w-coral-ink) !important;
+  text-decoration: none;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.pill {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.pillOk {
+  background: var(--w-ok-bg);
+  color: var(--w-ok-ink);
+}
+
+.pillWarn {
+  background: #fef3dc;
+  color: #a35a00;
+}
+
+.pillBad {
+  background: #feecee;
+  color: #c22d3a;
+}
+
+/* ── the guided steps: one thing to do per card ── */
+.guide {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  counter-reset: step;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
+  background: var(--w-card);
+  border-radius: 20px;
+  padding: 18px 20px;
+  box-shadow: var(--w-shadow);
+  counter-increment: step;
+}
+
+.step::before {
+  content: counter(step);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--w-tint);
+  color: var(--w-coral-ink);
+  font-weight: 800;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.stepText {
+  margin: 0;
+  color: var(--w-sub);
+  max-width: 72ch;
+}
+
+.tryFoot {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.tryState {
+  background: var(--w-card);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--w-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.more {
+  background: var(--w-card);
+  border-radius: 16px;
+  box-shadow: var(--w-shadow);
+}
+
+.moreSummary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-weight: 600;
+  color: var(--w-sub);
+  list-style: none;
+}
+
+.moreSummary::-webkit-details-marker {
+  display: none;
+}
+
+.moreSummary::before {
+  content: "▸ ";
+  color: var(--w-coral-ink);
+}
+
+.more[open] .moreSummary::before {
+  content: "▾ ";
+}
+
+.moreBody {
+  padding: 0 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── what to check ── */
+.tablewrap {
+  overflow-x: auto;
+  background: var(--w-card);
+  border-radius: 16px;
+  box-shadow: var(--w-shadow);
+}
+
+.table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--w-hair);
+}
+
+.table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--w-sec);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table a {
+  color: var(--w-info-ink);
+}
+
 /* ── footer ── */
 .footer {
   font-size: 13px;
@@ -551,8 +779,20 @@
 
 @media (max-width: 760px) {
   .liveGrid,
-  .tryGrid {
+  .tryGrid,
+  .tryFoot {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .step {
+    grid-template-columns: 32px minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .step::before {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
   }
 }
 

@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ChevronRight, X } from "lucide-react";
+import { Ban, Check, ChevronRight, Globe, Landmark, X } from "lucide-react";
 import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
+import { ToneIcon } from "@/components/treasury/tone-icon";
 import { UserAvatar } from "@/components/user-avatar";
 import { ADOPTED_RESULT, TREASURY_RESULT, countedLine, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
-import { ChainBadge } from "@/components/chain/chain-badge";
 import { useT } from "@/i18n/provider";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
@@ -55,7 +55,7 @@ function avatarOf(m: Member): string | null {
 const LOCAL_COPY: Record<string, Copy> = {
   "vote-claimed": {
     tone: "ok",
-    text: "🌍 Vote claimed — World ID confirmed you're a unique human. One human, one vote.",
+    text: "Vote claimed — World ID confirmed you're a unique human. One human, one vote.",
   },
   "vote-claimed-dev": { tone: "info", text: "Vote claimed with the dev simulator — not a World ID proof." },
 };
@@ -102,8 +102,8 @@ function memoOf(a: Action): string {
 }
 /** The history line's headline: a payment's amount and memo, or what a ratification adopts. */
 function titleOf(a: Action, amount: (n: number) => string): string {
-  if (a.kind === "recurring-buy") return `🔁 ${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
-  return a.kind === "ratify" ? `📜 Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
+  if (a.kind === "recurring-buy") return `${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
+  return a.kind === "ratify" ? `Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
 }
 const FILLER = new Set(["the", "a", "an", "for", "to", "of", "our", "and", "pay", "send", "book"]);
 function words(s: string): string[] {
@@ -202,7 +202,7 @@ function chipTitle(m: Member): string {
         ? "Vote claimed with the dev simulator — not a World ID proof"
         : `Vote claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""} — a unique human`,
   ];
-  if (m.worldVerified) lines.push("✓ World ID — this account has passed a fresh World ID check");
+  if (m.worldVerified) lines.push("World ID — this account has passed a fresh World ID check");
   if (!m.voting) lines.push("Joined after our rules were adopted — votes once the group adopts them again");
   return lines.join("\n");
 }
@@ -219,7 +219,13 @@ const toneClass: Record<ResultTone, string> = {
  * SQL, and a seat or an approval is only ever a World ID proof the server
  * checked — this panel never decides anything, it links to where trust is given.
  */
-export function TreasuryPanel({ roomId }: { roomId: string }) {
+/** The room's agent, as the room lists it: the panel is that agent's, and says so in its header. */
+export interface TreasuryPanelAgent {
+  name: string;
+  avatarUrl?: string | null;
+}
+
+export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?: TreasuryPanelAgent | null }) {
   // Snapshots carry their room so a room switch never shows the previous
   // room's wallet, without resetting state inside an effect.
   const [snap, setSnap] = useState<{ roomId: string; status: StatusView | null } | null>(null);
@@ -383,20 +389,12 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   const worldIdAppId = status.seatAppId ?? WORLD_ID_APP_ID;
   const viewerId = status.viewerId;
   const me = viewerId ? status.members.find((m) => m.userId === viewerId) : undefined;
-  const withAvatars = status.members.some((m) => avatarOf(m));
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
-  const history = status.actions
-    .filter((a) => a.status !== "pending")
-    .sort(newestFirst)
-    .slice(0, 5);
   const banner = bannerOf(result, status);
   // someone without a vote sees how to get one without looking for it
   const open = openOverride ?? (pending.length > 0 || banner !== null || !status.mySeated);
   const showClaim = !status.mySeated || holdClaim === roomId;
-  const scaleNote = `Testnet demo: $1 = ${new Intl.NumberFormat("en-US", { maximumSignificantDigits: 3 }).format(
-    status.usdPerEth > 0 ? 1 / status.usdPerEth : 0
-  )} SepETH`;
 
   return (
     <section
@@ -415,9 +413,18 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             aria-hidden
             className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform group-hover:text-neutral-600 ${open ? "rotate-90" : ""}`}
           />
-          <span aria-hidden>🏦</span>
-          <span data-testid="treasury-balance" className="flex items-baseline gap-1.5">
-            <span className="text-neutral-500 dark:text-neutral-400">Shared treasury</span>
+          {agent ? (
+            <span data-testid="treasury-agent" className="flex items-center gap-1.5" title={`${agent.name} holds this treasury and follows the rules the group adopted`}>
+              <UserAvatar user={{ displayName: agent.name, avatarUrl: agent.avatarUrl ?? null }} size={20} />
+              {/* on a phone the face stands for the agent, so the closed panel stays one line */}
+              <span className="font-medium max-md:sr-only">{agent.name}</span>
+              <span aria-hidden className="text-neutral-400 max-md:hidden">·</span>
+            </span>
+          ) : (
+            <Landmark size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-neutral-500 dark:text-neutral-400" />
+          )}
+          <span data-testid="treasury-balance" className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="text-neutral-500 max-md:sr-only dark:text-neutral-400">{t("Shared treasury")}</span>
             <span className="text-base font-semibold tabular-nums">
               {status.balanceUsd === null ? "—" : usd(status.balanceUsd)}
             </span>
@@ -441,14 +448,21 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           {t("Open treasury")}
           <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
         </Link>
+        {/* what was paid, refused and invested lives on the Treasury page's Activity tab, not under the chat;
+            on a phone "Open treasury" beside it is the one way there, so the closed panel stays one line */}
+        <Link
+          href={`/treasury/${roomId}/activity`}
+          data-testid="treasury-history-link"
+          className="inline-flex h-7 shrink-0 max-md:hidden items-center gap-0.5 whitespace-nowrap rounded-md px-1.5 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+        >
+          {t("History")}
+          <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
+        </Link>
         {!open && pending.length > 0 && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
             {pending.length} waiting for approval
           </span>
         )}
-        <span data-testid="treasury-slogan" className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
-          AI manages the money · humans approve it
-        </span>
       </div>
 
       {banner && (
@@ -457,6 +471,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           data-testid="treasury-result"
           className={`mt-2 flex items-start gap-2 rounded-md border px-3 py-2 ${toneClass[banner.tone]}`}
         >
+          <ToneIcon tone={banner.tone} />
           <span className="flex-1">{banner.text}</span>
           <button
             type="button"
@@ -471,42 +486,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
 
       {open && (
         // on a phone the open panel keeps to half the screen and scrolls inside, so the conversation stays in view
+        // the wallet, its chain and the rules page live on the Treasury page; here
+        // the room sees the agent, the pot, the votes and what waits for them
         <div data-testid="treasury-body" className="max-md:max-h-[50vh] max-md:overflow-y-auto max-md:overscroll-contain">
-          <div
-            data-testid="treasury-wallet"
-            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400"
-          >
-            <span>
-              Agent wallet{" "}
-              {status.address ? (
-                <a
-                  href={`${EXPLORER}/address/${status.address}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={`Agent wallet ${status.address}${status.balanceEth ? ` · holds ${status.balanceEth} SepETH` : ""} — open on Ethereum Sepolia Etherscan`}
-                  className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
-                >
-                  {short(status.address)}
-                </a>
-              ) : (
-                "—"
-              )}
-              {" · "}
-              <span title={scaleNote} className="cursor-help align-middle">
-                <ChainBadge chain="sepolia" />
-              </span>
-            </span>
-            {status.rulesPageId && (
-              <Link
-                href={`/p/${status.rulesPageId}`}
-                data-testid="treasury-rules-link"
-                className="ml-auto shrink-0 font-medium text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
-              >
-                📄 Our rules →
-              </Link>
-            )}
-          </div>
-
           {!status.adoptedAt ? (
             <div data-testid="treasury-unadopted" className={`mt-2 rounded-md border px-3 py-2 text-xs ${toneClass.bad}`}>
               These rules were never adopted, so the agent moves no money yet. Ask it “@agent adopt the rules” to put
@@ -538,7 +520,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             )
           )}
 
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="treasury-members">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2" data-testid="treasury-members">
             <span
               data-testid="treasury-votes-count"
               title="Members whose World ID vote counts, of everyone in the relation"
@@ -561,28 +543,18 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   : state === "off"
                     ? "ring-red-500"
                     : "ring-neutral-300 dark:ring-neutral-600";
-              const avatar = avatarOf(m);
+              // the face is the whole chip; the name and the reason are the tooltip
+              const name = m.userId === viewerId ? youName(m.displayName) : m.displayName;
               return (
                 <span
                   key={m.userId}
                   data-testid="treasury-member"
                   data-vote={state}
-                  title={chipTitle(m)}
-                  className="inline-flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300"
+                  title={`${name}\n${chipTitle(m)}`}
+                  aria-label={name}
+                  className={`inline-flex rounded-full ring-2 ring-offset-1 ring-offset-white dark:ring-offset-neutral-900 ${ring}`}
                 >
-                  {withAvatars ? (
-                    <span
-                      aria-hidden
-                      className={`inline-flex rounded-full ring-2 ring-offset-1 ring-offset-white dark:ring-offset-neutral-900 ${ring}`}
-                    >
-                      <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatar }} size={22} />
-                    </span>
-                  ) : (
-                    <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ring-2 ${ring}`} />
-                  )}
-                  <span className={m.userId === viewerId ? "font-medium" : undefined}>
-                    {m.userId === viewerId ? youName(m.displayName) : m.displayName}
-                  </span>
+                  <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatarOf(m) }} size={24} />
                 </span>
               );
             })}
@@ -622,7 +594,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   rpContext={rpContext}
                   disabled={claiming}
                   onVerified={claimSeat}
-                  label="🌍 Claim your vote with World ID"
+                  label="Claim your vote with World ID"
                 />
               ) : (
                 <button
@@ -630,9 +602,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   data-testid="treasury-seat-claim"
                   onClick={() => void claimSeat({})}
                   disabled={claiming}
-                  className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
                 >
-                  {claiming ? "Verifying…" : "🌍 Claim your vote (dev simulator)"}
+                  {!claiming && <Globe size={14} strokeWidth={1.75} aria-hidden />}
+                  {claiming ? "Verifying…" : "Claim your vote"}
                 </button>
               )}
             </div>
@@ -646,7 +619,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             >
               {seatError.sameHuman ? (
                 <>
-                  <div>⛔ {SAME_HUMAN_SEAT}</div>
+                  <div className="flex items-start gap-1.5">
+                    <Ban size={14} strokeWidth={1.75} aria-hidden className="mt-0.5 shrink-0" />
+                    {SAME_HUMAN_SEAT}
+                  </div>
                   {seatError.text !== SAME_HUMAN_SEAT && (
                     <div className="mt-0.5 text-xs font-normal opacity-80">{seatError.text}</div>
                   )}
@@ -740,7 +716,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                           title={`${p.displayName} approved with a fresh World ID check at ${clock(p.at)} (Tokyo)`}
                           className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
                         >
-                          ✓ {p.displayName} · <span className="tabular-nums">{clock(p.at)}</span>
+                          <Check size={12} strokeWidth={2.25} aria-hidden /> {p.displayName} · <span className="tabular-nums">{clock(p.at)}</span>
                         </span>
                       ) : (
                         <span
@@ -765,8 +741,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                       : "Paying on Sepolia — usually about 40 seconds. This updates when the payment confirms."}
                   </div>
                 ) : iApproved ? (
-                  <div data-testid="treasury-you-approved" className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-                    ✓ You approved — waiting for {humans(need - got)}.
+                  <div data-testid="treasury-you-approved" className="mt-3 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300">
+                    <Check size={14} strokeWidth={2.25} aria-hidden />
+                    You approved — waiting for {humans(need - got)}.
                   </div>
                 ) : !status.mySeated ? (
                   <div data-testid="treasury-no-vote" className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
@@ -793,9 +770,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                           )}`
                         )
                       }
-                      className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
                     >
-                      🌍 Approve with World ID
+                      <Globe size={14} strokeWidth={1.75} aria-hidden />
+                      Approve with World ID
                     </button>
                     <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                       Every approval gets its own check: World ID confirms a human is approving, right now.
@@ -817,72 +795,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
 
           <RecurringBuyPanel key={roomId} roomId={roomId} status={status} onChanged={refresh} />
 
-          {history.length > 0 && (
-            <ul className="mt-3 space-y-1 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800" data-testid="treasury-history">
-              {history.map((a) => (
-                <li key={a.id} data-testid="treasury-history-item" className="leading-relaxed">
-                  {a.status === "executed" && a.kind === "ratify" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">📜 Adopted {a.memo}</span>
-                  )}
-                  {a.status === "executed" && a.kind === "recurring-buy" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">📌 Adopted {a.memo}</span>
-                  )}
-                  {a.status === "unconfirmed" && (
-                    <span className="text-amber-700 dark:text-amber-300">
-                      ⏳ {usdShort(a.amountUsd)} · {memoOf(a)} — sent, not confirmed yet
-                      {a.txHash && (
-                        <>
-                          {" · tx "}
-                          <a
-                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono underline decoration-dotted underline-offset-2"
-                          >
-                            {short(a.txHash)}
-                          </a>
-                        </>
-                      )}{" "}
-                      · don&apos;t ask again until it settles
-                    </span>
-                  )}
-                  {a.status === "executed" && a.kind !== "ratify" && a.kind !== "recurring-buy" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">
-                      ✅ {usdShort(a.amountUsd)} · {memoOf(a)}
-                      {a.txHash && (
-                        <>
-                          {" · tx "}
-                          <a
-                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-600 dark:text-emerald-300"
-                          >
-                            {short(a.txHash)}
-                          </a>
-                        </>
-                      )}
-                    </span>
-                  )}
-                  {a.status === "blocked" && (
-                    <span className="text-red-700 dark:text-red-300">
-                      ⛔ {titleOf(a, usdShort)} — <span className="italic">“{a.ruleText}”</span>
-                    </span>
-                  )}
-                  {a.status === "failed" && (
-                    <span className="text-red-700 dark:text-red-300">
-                      ⚠️ {titleOf(a, usdShort)} — {a.error || "the transfer failed"}
-                    </span>
-                  )}
-                  {a.status === "cancelled" && (
-                    <span className="text-neutral-500 dark:text-neutral-400">
-                      ✖ {titleOf(a, usdShort)} · {a.error || "cancelled"}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
     </section>

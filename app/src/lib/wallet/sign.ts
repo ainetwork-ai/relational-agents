@@ -143,7 +143,7 @@ const KNOWN_CHAINS: Record<number, { chainName: string; rpcUrls: string[]; nativ
 };
 
 /** Switch the wallet to `chainId` (EIP-3326), adding it (EIP-3085) on 4902. */
-async function ensureChain(chainId: number): Promise<void> {
+export async function ensureChain(chainId: number): Promise<void> {
   const provider = getInjectedProvider();
   if (!provider) return;
   const hex = `0x${chainId.toString(16)}`;

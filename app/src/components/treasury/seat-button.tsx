@@ -8,6 +8,7 @@ import {
   type IDKitResult,
   type RpContext,
 } from "@worldcoin/idkit";
+import { Globe } from "lucide-react";
 import { STAGING_HINT } from "@/components/treasury/world-result-copy";
 
 export type SeatClaimError = { sameHuman: boolean; text: string };
@@ -88,7 +89,18 @@ export function SeatButton({
   const [open, setOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const seatedRef = useRef(false);
+  // whether the widget is on screen right now, for the success callback: IDKit 4
+  // may close its success screen (onOpenChange(false)) before onSuccess fires
+  const openRef = useRef(false);
   const preset = useMemo(() => orbLegacy({ signal: roomId }), [roomId]);
+  // the claim box stays mounted while the success screen shows, then the
+  // panel refreshes and lets it go; whichever comes first — the widget closing,
+  // or this — releases it
+  const release = () => {
+    if (!seatedRef.current) return;
+    seatedRef.current = false;
+    void onClaimed();
+  };
 
   const start = async () => {
     setStarting(true);
@@ -104,6 +116,7 @@ export function SeatButton({
         return;
       }
       seatedRef.current = false;
+      openRef.current = true;
       // one render with both set: the widget builds its request from the
       // rp_context present when it opens
       setRpContext(data as RpContext);
@@ -116,6 +129,7 @@ export function SeatButton({
   };
 
   const close = () => {
+    openRef.current = false;
     setOpen(false);
     // an rp_context is single-use; the next click signs a new one
     setRpContext(null);
@@ -149,10 +163,11 @@ export function SeatButton({
         disabled={starting || open}
         className={
           className ??
-          "mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+          "mt-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
         }
       >
-        {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "🌍 Claim your vote with World ID")}
+        {!starting && <Globe size={14} strokeWidth={1.75} aria-hidden />}
+        {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "Claim your vote with World ID")}
       </button>
       {environment === "staging" && (
         // a staging request shows a QR World App can't answer; the simulator is the only way in
@@ -174,23 +189,21 @@ export function SeatButton({
           environment={environment}
           open={open}
           onOpenChange={(next) => {
+            openRef.current = next;
             if (next) {
               setOpen(true);
               return;
             }
             close();
-            // refresh once the success screen is gone, so the panel does not
-            // swap the claim box out from under it
-            if (seatedRef.current) {
-              seatedRef.current = false;
-              void onClaimed();
-            }
+            release();
           }}
           handleVerify={handleVerify}
           onSuccess={() => {
             // only reached after handleVerify resolved: the server seated us
             seatedRef.current = true;
             onSeated?.();
+            if (!openRef.current) release();
+            else setTimeout(release, 10_000);
           }}
           onError={(code) => {
             // handleVerify already reported the server's refusal

@@ -1,0 +1,3 @@
+node_modules/
+# the real demo family (wallet addresses); the example is committed
+demo-family.json

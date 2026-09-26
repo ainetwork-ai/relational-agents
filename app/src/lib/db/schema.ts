@@ -38,6 +38,11 @@ export const users = pgTable("users", {
  // Google accounts have none and wallet accounts may lack googleSub/email;
  // the two login families coexist on this one table.
   ainAddress: text("ain_address").unique(),
+  // When a signature last proved this account controls ain_address (MetaMask link or sign-in).
+  // Null = unproven: seeded rows and older data carry addresses nobody ever signed for, so
+  // anything that acts as that wallet (Settings › Family names) uses verifiedWallet() instead.
+  // Every write of ain_address sets or clears this in the same statement.
+  walletVerifiedAt: timestamp("wallet_verified_at"),
   // aindrive identity ("<aindrive server>|<aindrive user id>") — set by
   // "Sign in with aindrive" and by connecting aindrive in-app, so either path lands
   // on the same account. Keyed on the aindrive id, never adopted by email.
@@ -114,6 +119,18 @@ export const inviteTokens = pgTable(
     index("invite_tokens_expires_idx").on(t.expiresAt),
   ]
 );
+
+// A workspace's family name in ENS (docs/superpowers/plans/2026-09-26-ens-family-settings.md).
+// One per workspace; the tree itself lives onchain.
+export const workspaceEns = pgTable("workspace_ens", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  rootName: text("root_name").notNull().unique(),
+  fromBlock: text("from_block").notNull(), // decimal string; bigint-safe
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // ---------------------------------------------------------------------------
 // Workspace tables (plan.md schema)

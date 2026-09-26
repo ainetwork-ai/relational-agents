@@ -395,7 +395,7 @@ async function refuse(
         ? `for ${cmd.memo}`
         : "";
   await appendTreasuryActivity(ctx.roomId, [
-    `⛔ Refused: ${usd(cmd.amountUsd)}${where ? ` ${where}` : ""} — ${decision.rule ? `“${ruleText}”` : sentence(ruleText)}`,
+    `Refused: ${usd(cmd.amountUsd)}${where ? ` ${where}` : ""} — ${decision.rule ? `“${ruleText}”` : sentence(ruleText)}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a blocked action:", e));
 
   // one thought per line — the chat bubble keeps line breaks
@@ -510,7 +510,7 @@ async function moneyReply(
       return `I started paying ${what} on my own, but couldn't confirm the transfer (${(e as Error).message}). Check the treasury panel before asking again.`;
     }
     if (run.executed)
-      return `✅ Paid ${what} on my own.\nOur rules allow it: “${decision.rule.text}”${run.txHash ? ` · tx ${run.txHash}` : ""}`;
+      return `Paid ${what} on my own.\nOur rules allow it: “${decision.rule.text}”${run.txHash ? ` · tx ${run.txHash}` : ""}`;
     if (run.unconfirmedTx)
       return `I sent ${what} on my own (“${decision.rule.text}”), but couldn't confirm it yet (tx ${run.unconfirmedTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`;
     return (
@@ -529,13 +529,13 @@ async function moneyReply(
   });
   // the request stands even if the ledger line fails — the action row is the record
   await appendTreasuryActivity(ctx.roomId, [
-    `📝 ${asker.displayName} asked: ${usd(cmd.amountUsd)} · ${base.memo} — ${toApprove(decision.required)}`,
+    `${asker.displayName} asked: ${usd(cmd.amountUsd)} · ${base.memo} — ${toApprove(decision.required)}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a queued action:", e));
   const pct = sharePct(cmd.amountUsd, balanceUsd);
   // what, why, what to do — one line each. How duplicates are caught is left
   // for the moment it happens (the voided notice), not announced up front.
   const out = [
-    `⏳ Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
+    `Queued: ${what}${decision.rule.minSharePct != null && pct != null ? ` — ${pct}% of our ${usd(balanceUsd)}` : ""}.`,
     `Needs ${humans(decision.required)} — our rules: “${decision.rule.text}”`,
     `Approve with World ID in the treasury panel above.`,
   ];
@@ -624,11 +624,11 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
     ...joined.map((n) => `+ ${n} votes`),
   ];
   await appendTreasuryActivity(ctx.roomId, [
-    `📝 ${asker.displayName} asked: adopt ${memo} — ${toApprove(required)}${changes.length ? ` (${changes.join("; ")})` : ""}`,
+    `${asker.displayName} asked: adopt ${memo} — ${toApprove(required)}${changes.length ? ` (${changes.join("; ")})` : ""}`,
   ]).catch((e: unknown) => console.error("[treasury] could not log a ratification request:", e));
 
   const out = [
-    `⏳ Queued: adopting ${memo}.`,
+    `Queued: adopting ${memo}.`,
     changes.length ? `Changes: ${changes.join("; ")}.` : "",
     `Needs ${humans(required)} — ${bar.charAt(0).toLowerCase()}${bar.slice(1)}`,
     "Until then I keep following the version we adopted.",
@@ -682,7 +682,7 @@ async function recurringRunReply(ctx: TreasuryCommandContext): Promise<string> {
       if (r.reason === "already-bought-this-week") return "Already bought this week.";
       // a failed swap may have sent a transaction: recurring.ts logged it, and it holds the week
       if (r.reason === "swap-failed")
-        return "⚠️ This week's swap didn't go through. If a transaction went out, Treasury Activity has it — check before asking again.";
+        return "This week's swap didn't go through. If a transaction went out, Treasury Activity has it — check before asking again.";
       return `Skipped this week: ${SKIP_REASON_TEXT[r.reason]}.`;
     case "rehearsal":
       return `Rehearsal: would buy ${usd(r.wouldBuyUsd)} of ETH this week — nothing moved.`;
@@ -696,8 +696,8 @@ async function recurringStopReply(ctx: TreasuryCommandContext): Promise<string> 
   const before = await recurringBuyStatus(ctx.roomId).catch(() => null);
   const r = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (!r.ok) return r.reason;
-  if (r.actionId === before?.pending?.actionId) return "✖ Cancelled the recurring buy request.";
-  return "⏹ Stopped the recurring buy.";
+  if (r.actionId === before?.pending?.actionId) return "Cancelled the recurring buy request.";
+  return "Stopped the recurring buy.";
 }
 
 async function recurringStatusReply(roomId: string): Promise<string> {
@@ -707,14 +707,14 @@ async function recurringStatusReply(roomId: string): Promise<string> {
     const l = s.live;
     const week = l.thisWeek === "bought" ? "bought this week" : l.thisWeek === "skipped" ? "skipped this week" : "not bought this week yet";
     out.push(
-      `🔁 Recurring buy: ${usd(l.weeklyUsd)} of ETH weekly · week ${l.weekIndex} of ${l.weeks} · ${week}.`,
+      `Recurring buy: ${usd(l.weeklyUsd)} of ETH weekly · week ${l.weekIndex} of ${l.weeks} · ${week}.`,
       `Bought ${l.boughtWeeks} of ${weeksWord(l.weeks)} (${usd(l.investedUsd)} → ${wethShort(l.wethOut)} WETH)${l.nextRunAt ? ` · next buy ${relationDay(l.nextRunAt)}` : ""}.`
     );
   }
   if (s.pending) {
     const p = s.pending;
     out.push(
-      `⏳ Waiting for approval: ${usd(p.weeklyUsd)} of ETH weekly for ${weeksWord(p.weeks)}, up to ${usd(p.exposureUsd)}.`,
+      `Waiting for approval: ${usd(p.weeklyUsd)} of ETH weekly for ${weeksWord(p.weeks)}, up to ${usd(p.exposureUsd)}.`,
       `${p.approvals} of ${p.required} verified humans so far — our rules: “${p.rule}”`
     );
   }

@@ -1,2 +1,5 @@
 .state/
 node_modules/
+# forge build output (foundry.toml)
+out/
+cache/

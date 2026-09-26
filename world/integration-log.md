@@ -232,3 +232,119 @@ Format: `JST time — surface — what happened`.
   sending the swap with its own gas limit. Earlier the same afternoon, the
   deposit ($180, Chris + Dana) executed the same way; the 💡 idle-funds hint
   did not post that time because the Base RPC call failed — now tolerated.
+- 2026-09-26 13:22 — IDKit — **staging verification window opened for the demo
+  host** with the team API key (`scripts/world-staging-window.mjs --env
+  .env.xyz`): open until 2026-09-27T13:22Z; token saved, xyz app recreated
+  (`091985f`) so it sends `x-staging-verification-token`. 13:28 — **first real
+  vote on ainmem.ainetwork.xyz**: Alex → Claim your vote with World ID → IDKit →
+  simulator ("Use the simulator", Human 1) → "🌍 Vote claimed — World ID
+  confirmed you're a unique human. One human, one vote." Seat stored as level
+  `orb`, nullifier `0x11a2…`, `seatMode: world-id-v4`. FRICTION: the window is
+  the one prerequisite nothing in the app can supply — it needs a team API key
+  and a human at a hidden prompt, closes after 24 h, and must be reopened
+  before judging if judges try the live page. A hand-built probe of
+  `/api/v4/verify` can't tell "window closed" from "bad proof" (schema is
+  validated first), so the only check is a real simulator vote.
+- 2026-09-26 14:20 — both — **recording state on xyz**: final reset
+  (`--reset --no-preseat`) → room `cb5d981f…`, $1,000 (funder topped up
+  $184, tx `0x764a…`), no votes, no dev votes; sign-in links regenerated.
+  The rehearsal's WETH would have shown "+ $199.73 invested" from scene 0,
+  so it was swapped back: 0.000372 WETH → 0.99865 USDC on Base, tx
+  `0xb995cb18…379f4` (round trip cost ≈ 0.14% + gas). FRICTION: publicnode
+  refused the quoter's eth_call as an "archive request" that it had served
+  an hour earlier — the app's primary Base RPC is now drpc, with publicnode
+  and mainnet.base.org as fallbacks. The panel's "N/6 votes" counts World ID
+  proofs only; seeded dev votes draw a red ring and count for nothing — the
+  three off-camera votes (simulator Human 3·4·5) are what turn it into 4/6.
+- 2026-09-26 14:30 — IDKit — **the off-camera votes are real now**: Chris,
+  Dana and Eli each claimed their seat in room `cb5d981f…` through the
+  simulator, driven by `scripts/world-sim-vote.mjs` (one fresh browser per
+  member; the "Use the simulator" link is read out of the IDKit widget's
+  shadow root and opened in a tab, because the widget's overlay intercepts
+  clicks). Seats stored as `orb` with three distinct nullifiers (`0x134b…`,
+  `0x0516…`, `0x173d…`); the panel reads **3/6 votes** and Alex still sees
+  "Claim your vote". FRICTION: the simulator is not "one human per browser"
+  — every fresh browser gets the same five fixed test identities (#0–#4)
+  with #4 active. The first attempt seated Chris on #4, i.e. on the very
+  nullifier `0x11a2…` Alex's own simulator produced at 13:28; the next
+  member on the default identity — and Alex on camera — would have been
+  refused as "already has a vote". That row was deleted and the three were
+  re-seated on #3/#2/#1; #4 (the default) stays Alex's, #0 is Bea's, and the
+  second-account scene keeps #4 on purpose. Every reset means re-running the
+  script three times.
+- 2026-09-26 21:2x → 2026-09-27 00:05 — IDKit — **World now gates staging proofs.**
+  A vote claim on ainmem.ainetwork.xyz came back from the simulator with
+  "Staging verification is not open for this app": since the 01:53 vote,
+  `/api/v4/verify` accepts staging (simulator) proofs only while the app's
+  team has opened a 24 h staging verification window (Portal MCP tool
+  `set_world_id_staging_verification`, authenticated with a team API key) AND
+  the verify call carries that window's token as
+  `x-staging-verification-token` (developer-portal
+  `web/api/v4/verify/staging-access.ts`; docs.world.org says nothing). Fixed
+  by `0c81747` (the header, from `WORLD_STAGING_VERIFICATION_TOKEN`) and
+  `a557801` (`scripts/world-staging-window.mjs`: opens the window with the key
+  at a hidden prompt and saves the token). Window opened 22:22 JST (expires
+  2026-09-27 22:22 JST). **Vote claim end to end again at 00:05 JST** on the
+  try-it room: click → IDKit → simulator Continue → verified → "🌍 Vote
+  claimed", 45 s, of which ~25 s waiting for the IDKit modal to open.
+  FRICTION for the debrief: the gate is undocumented; the refusal names the
+  tool but not where the key comes from (Team settings → API keys) nor that
+  the token must travel on every verify call; a window that lapses mid-event
+  silently breaks every staging integration; the Portal has no button for it.
+- 2026-09-26 16:50 — IDKit — **the second account now joins on camera**: the
+  five friends form the room (`seed-tokyo-trip.mts` seats no sixth member any
+  more; "Alex (2nd account)" stays a workspace member), and scene 2 starts
+  with Alex adding it from the room's **Invite people**. Verified on xyz end
+  to end: the invite menu lists the account, the panel goes to six faces with
+  "New members don't vote until the relation adopts its membership · + Alex
+  (2nd account) (would vote)", and the account's own claim on the same
+  simulator identity (#4) is refused with "This human already has a vote in
+  this relation — one human, one vote." — no seat, nothing bound.
+  `--join-alex2` reproduces that state for a take that starts after scene 2
+  (block 2); the e2e mirrors it (Alex invites the account in setup; the
+  same-human approval is Dana's laptop now, scene 4, and the second account is
+  refused as outside the electorate before any World ID check). FRICTION: the
+  deploy worktree's `app/.env.local` is a symlink to the shared dev env, so
+  one seed run reset the dev "Tokyo Trip" room instead of xyz — the xyz DB,
+  secret and content root must be passed inline. Two claims got a transient
+  `generic_error` from the staging verifier; the retry went through.
+  Recording state: room `1ebca8bc…`, $1,000, Chris/Dana/Eli seated (`orb`),
+  Alex and Bea unseated, nothing invested.
+- 2026-09-26 17:30 — both — **one block, shot in order**: shooting scene 4
+  in its own block (so that Dana reached it with no IdP step-up) showed
+  `$1,000.00` and no invested badge between scenes that show ~$616 and
+  "+ $199.72 invested". Scene 4's lent laptop is Eli's now and scene 3½'s
+  approvers are Chris, Dana and Bea, so nobody reaches scene 4 bound and the
+  whole video is one reset, S0 → S6. Bea's vote moved off camera (simulator
+  #0) with Chris #3, Dana #2, Eli #1; recording room `1ebca8bc…` holds those
+  four seats, Alex (#4) claims on camera. The e2e's same-human void is on
+  Eli's account to match.
+- 2026-09-26 18:20 — both — **rehearsal of S3 → S3½ → S5 on xyz, with the
+  investment leaving the pot** (`2013c2a`). $180 deposit approved by Chris and
+  Alex → paid (`0x3dbfa4fe…`); the idle-funds proposal appeared on screen for
+  the first time ("After that we hold $815.52 … $200 could work for us");
+  "invest $200 of the idle funds" approved by Chris, Dana and Bea → swap on
+  Base `0x05c31157…209f` (1 USDC → 0.000371682 WETH) and $200 out of the pot
+  to the Savings address `0x4955…6419` on Sepolia `0xc105255b…3220`
+  (status 1). Header: `$610.86 · + $199.80 invested` — the pot no longer
+  counts the invested money. "send $500 to my wallet" → refused on the
+  personal-wallet rule, "$500 is also 81.9% of our $610.86" (the video's S5
+  moves from $700 to $500: $700 is 115% of what is left). FRICTION: another
+  session's merge redeployed xyz in the middle of the three approvals — the
+  third one had to be retried after the new container came up. Afterwards:
+  WETH unwound (`0xeee797a9…4c5f`), room reset to `673001c2…`, Bea/Chris/
+  Dana/Eli seated (`orb`, #0/#3/#2/#1), Alex unseated, $1,000, nothing invested.
+- 2026-09-26 18:45 — both — **full rehearsal in shooting order on xyz, 13/13**
+  (room `673001c2…`): S1 Alex claims with simulator #4; S2 Alex invites the
+  second account (six faces, 5/6 votes, the adoption note) and its claim on
+  #4 is refused; S3 $180 approved by Chris and Alex → paid, then the
+  idle-funds proposal ("After that we hold $815.99"); S3½ approved by Chris,
+  Dana and Bea → swap `0x504a…4071` + out of the pot `0x32a7…96d7`, pot
+  $611.64 · $199.76 invested; S4 "pay the hotel upgrade, $150" → Alex 1 of 2,
+  Eli's account in Alex's browser → `same-human`, voided, still 1 of 2; S5
+  "$500 to my wallet" → refused, 81.7% of $611.64, nothing queued; S5½ Bea
+  approves the same card → paid `0x09db…f8d5` (Alex and Bea), pot $457.76;
+  S6 Treasury Activity lists every step in that order. 8 minutes of wall
+  clock for S3→S6 with every World hop. xyz autodeploy was held by the
+  other session's lock for the run — no redeploy this time. WETH unwound
+  afterwards (`0x15cf…d88a`).

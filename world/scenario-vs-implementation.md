@@ -40,7 +40,7 @@ listed only in the last section, as proposals; this document changes neither the
 | S2 The second account | I7 one human, one vote | ✔ |
 | S3 The hotel deposit, $180 | I5, I2 (2), I8 confirmation page and step-up, I4 transfer, I12 activity | ✔ measured (confirmation click to room 4.8 s) |
 | S4 Same human, two accounts | I8 pairwise sub, I9 voided | ✔ |
-| S5 "$700 to my wallet" | I11, I2 (30%) | ✔ |
+| S5 "$500 to my wallet" | I11, I2 (30%) | ✔ |
 | S3½ Idle funds at work | I13 hint, I5 `invest`, I2 (3), I8 ×3, I10 swap, I12 | ✔ measured (swap tx `0x9af1…`) |
 | S5½ The upgrade | I5, I2 (2), I8 ×2, I4 | ✔ path; scene not yet rehearsed |
 | S6 The record | I12 | ✔ |

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 
 export interface MentionPageItem {
   id: string;
@@ -203,7 +203,9 @@ export function MentionDropdown({
                 : "hover:bg-neutral-50 dark:hover:bg-neutral-700/60"
             }`}
           >
-            <span className="shrink-0">{item.icon ?? "📄"}</span>
+            <span className="shrink-0">
+              {item.icon ?? <FileText size={14} strokeWidth={1.75} aria-hidden className="text-neutral-400" />}
+            </span>
             <span className="truncate text-neutral-800 dark:text-neutral-200">{item.title}</span>
           </button>
         ))

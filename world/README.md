@@ -1,5 +1,7 @@
 # Relation Treasury — AI manages the money, humans approve it
 
+*Part of **AINMEM — P2P Memory** (the ETHGlobal Tokyo 2026 submission). Relation Treasury is its World-track feature: the relation's shared money, held by the agent that already keeps its memory.*
+
 *ETHGlobal Tokyo 2026 · World · Continuity — **[Cont] Best Use of World ID for Agents** and
 **[Cont] Best IDKit Use Case**.*
 
@@ -83,7 +85,7 @@ proposal, adoption and the weekly runs are in
 
 | Someone tries to… | What stops it | Where | Shown by |
 |---|---|---|---|
-| send the pot to a member's own wallet ("$700 to my wallet") | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts`](../app/src/lib/agent/treasury/policy.ts) `evaluateCommand`, called from [`skill.ts`](../app/src/lib/agent/treasury/skill.ts) before anything is queued | e2e scene e |
+| send the pot to a member's own wallet ("$500 to my wallet" in the video; "$700" in the try room) | the rule says *not allowed*: refused before anyone is asked, nothing is queued | [`policy.ts`](../app/src/lib/agent/treasury/policy.ts) `evaluateCommand`, called from [`skill.ts`](../app/src/lib/agent/treasury/skill.ts) before anything is queued | e2e scene e |
 | claim a second vote from a second account | the proof's nullifier already holds a vote in this relation: the unique index `treasury_seats_room_nullifier`, answered with 409 | [`schema.ts`](../app/src/lib/db/schema.ts), [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `claimSeat`, [`seat/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts) | World ID simulator, 2026-09-26 01:53 (the e2e cannot make a proof headless) |
 | approve one payment twice as one human, from two accounts | the IdP's pairwise `sub` has already approved it: the second approval is voided and the count stays | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene d |
 | approve on a sign-in from this morning | `auth_time` must be present and after the request; there is no `iat` fallback | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` | e2e scene g |
@@ -136,11 +138,14 @@ stay right while the code keeps moving.
 
 ## Try it
 
-In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). Pick a member and
-you are in the try-it copy of the room, signed in as them — on its treasury page (the account
-and the treasurer) or in the room chat; use a second browser or a private window for a second
-human. The copy is `seed-tokyo-trip.mts --try`: its own accounts, agent and wallet, so nothing
-done there reaches the recorded room.
+In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). The page opens
+with two actions — watch the demo, or try it in about two minutes — and a status line that says
+whether World is live and the staging window is open. "Try it" is five numbered steps with one
+button each: enter the room as Alex, claim a vote through the World ID Simulator, bring a second
+human as Chris in a private window, ask the agent to pay and approve from both, see it refuse.
+"What to check" maps each prize requirement to a step and to the code or document behind it.
+The room you enter is the try-it copy (`seed-tokyo-trip.mts --try`): its own accounts, agent and
+wallet, so nothing done there reaches the recorded room.
 
 Locally, against the mock IdP. Set up the app first ([Running it](../README.md#running-it)).
 The treasury also needs a key with a little Sepolia ETH (`RELAYER_KEY` or `DEPLOYER_KEY`): it

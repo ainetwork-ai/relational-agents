@@ -33,7 +33,7 @@ export function VoteClaimCard({ status, roomId, onSeated }: { status: TreasurySt
   if (claimed)
     return (
       <p className={`${styles.banner} ${styles.bannerOk}`} role="status" data-testid="treasury-room-vote-claimed">
-        {t("🌍 Vote claimed — World ID confirmed you're a unique human. One human, one vote.")}
+        {t("Vote claimed — World ID confirmed you're a unique human. One human, one vote.")}
       </p>
     );
   if (status.mySeated) return null;
@@ -79,7 +79,7 @@ export function VoteClaimCard({ status, roomId, onSeated }: { status: TreasurySt
             action={status.seatAction}
             environment={status.seatEnvironment ?? ENV}
             className={styles.btnDark}
-            labels={{ idle: t("🌍 Claim your vote with World ID"), starting: t("Starting World ID…"), stagingHint: t(STAGING_HINT) }}
+            labels={{ idle: t("Claim your vote with World ID"), starting: t("Starting World ID…"), stagingHint: t(STAGING_HINT) }}
             hintClassName={styles.cardSub}
             onSeated={() => setClaimed(true)}
             onClaimed={onSeated}
@@ -98,7 +98,7 @@ export function VoteClaimCard({ status, roomId, onSeated }: { status: TreasurySt
       )}
       {error && (
         <p className={`${styles.banner} ${styles.bannerBad}`} role="alert" data-testid="treasury-room-vote-error">
-          {error.sameHuman ? `⛔ ${t(SAME_HUMAN)}` : error.text}
+          {error.sameHuman ? `${t(SAME_HUMAN)}` : error.text}
         </p>
       )}
     </section>
