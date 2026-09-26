@@ -15,6 +15,7 @@ import { driveOnline, listDrives, listFiles } from "@/lib/aindrive";
 import { getAccount, runAs, runAsOrService } from "@/lib/aindrive-account";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
 import { ShareError, shareFolder } from "@/lib/aindrive-share";
+import { FOLDER_KEYWORDS } from "@/i18n/content/lib";
 
 /**
  * A family's folders in one teamspace: who is in it, which of their phone's
@@ -159,17 +160,21 @@ export interface Category {
   folders: { driveId: string; root: string }[];
 }
 
+/** Folder names matching any keyword (Korean or English) fall into the category. */
+const kw = (words: readonly string[]) => new RegExp(`(${words.join("|")})`, "i");
+
+/** `label` is an English i18n key — the family share page renders it with t(). */
 const CATEGORIES: { key: string; label: string; icon: string; match: RegExp; defaultOn: boolean }[] = [
-  { key: "photos", label: "사진·영상", icon: "📷", match: /(사진|앨범|영상|photo|camera|dcim|album|video)/i, defaultOn: true },
-  { key: "notes", label: "레시피·메모", icon: "📝", match: /(레시피|메모|요리|편지|일기|recipe|note|memo)/i, defaultOn: true },
-  { key: "voice", label: "녹음", icon: "🎙️", match: /(녹음|voice|record)/i, defaultOn: true },
-  { key: "plans", label: "일정·계획", icon: "📅", match: /(일정|계획|여행|추석|귀성|달력|벌초|plan|trip)/i, defaultOn: true },
-  { key: "health", label: "건강 기록", icon: "💊", match: /(건강|병원|약|health)/i, defaultOn: false },
-  { key: "money", label: "지갑·가계부", icon: "👛", match: /(지갑|가계부|관리비|wallet|money)/i, defaultOn: false },
+  { key: "photos", label: "Photos & videos", icon: "📷", match: kw(FOLDER_KEYWORDS.photos), defaultOn: true },
+  { key: "notes", label: "Recipes & notes", icon: "📝", match: kw(FOLDER_KEYWORDS.notes), defaultOn: true },
+  { key: "voice", label: "Recordings", icon: "🎙️", match: kw(FOLDER_KEYWORDS.voice), defaultOn: true },
+  { key: "plans", label: "Plans", icon: "📅", match: kw(FOLDER_KEYWORDS.plans), defaultOn: true },
+  { key: "health", label: "Health records", icon: "💊", match: kw(FOLDER_KEYWORDS.health), defaultOn: false },
+  { key: "money", label: "Wallet & budget", icon: "👛", match: kw(FOLDER_KEYWORDS.money), defaultOn: false },
 ];
 
 /** The person's own phone(s): top-level folders sorted into categories.
- *  Folders that fit none go to "그 밖의 폴더", off by default. */
+ *  Folders that fit none go to "Other folders", off by default. */
 export async function shareCategories(userId: string): Promise<{ drives: { id: string; name: string; online: boolean }[]; categories: Category[] }> {
   const drives = await runAs(userId, () => listDrives()).catch(() => []);
   const cats = new Map<string, Category>();
@@ -186,7 +191,7 @@ export async function shareCategories(userId: string): Promise<{ drives: { id: s
       if (!e.isDir || e.name.startsWith(".") || e.name.startsWith("ainmem-")) continue;
       const c = CATEGORIES.find((x) => x.match.test(e.name));
       if (c) put(c.key, c.label, c.icon, c.defaultOn, { driveId: d.id, root: e.name });
-      else put("other", "그 밖의 폴더", "📁", false, { driveId: d.id, root: e.name });
+      else put("other", "Other folders", "📁", false, { driveId: d.id, root: e.name });
     }
   }
   const order = [...CATEGORIES.map((c) => c.key), "other"];

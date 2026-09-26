@@ -74,7 +74,7 @@ export function connectAindrive(onStatus?: (s: "opening" | "waiting") => void): 
   return pairWithAindrive("/api/aindrive/account/connect", "/api/aindrive/account/poll", onStatus, true);
 }
 
-/** "aindrive로 로그인": the same approval, signing this browser in to the
+/** "Sign in with aindrive": the same approval, signing this browser in to the
  *  account behind the aindrive identity (made on first sign-in). */
 export function signInWithAindrive(onStatus?: (s: "opening" | "waiting") => void): Promise<boolean> {
   return pairWithAindrive("/api/auth/aindrive/start", "/api/auth/aindrive/poll", onStatus, false);

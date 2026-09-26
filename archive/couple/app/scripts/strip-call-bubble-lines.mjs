@@ -72,6 +72,6 @@ for (const dir of fs.readdirSync(ROOT)) {
 }
 
 console.log(
-  `\n${WRITE ? "제거함" : "제거 예정"}: ${totalRemoved}줄 (+ 딸린 Sources), 파일 ${touched.length}개`
+  `\n${WRITE ? "removed" : "would remove"}: ${totalRemoved} lines (+ attached Sources), ${touched.length} files`
 );
-if (!WRITE) console.log("실제로 지우려면 --write");
+if (!WRITE) console.log("pass --write to actually delete");

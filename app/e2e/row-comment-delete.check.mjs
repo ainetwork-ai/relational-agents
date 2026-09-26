@@ -1,17 +1,17 @@
-// 표의 댓글 배지를 눌러 연 카드(행 댓글 팝오버) 안에서 댓글을 지울 수 있는가.
+// Can a comment be deleted inside the card opened from a table's comment badge (the row comment popover)?
 //
-// comcom 제보(프로드): "데이터베이스 테이블의 댓글 아이콘 클릭하면 모달로 스레드 뜨는데,
-// 그 안의 ... 에서 삭제하기 하면 삭제가 안 된다."
+// comcom report (prod): "Clicking the comment icon in a database table opens the thread in a modal,
+// but choosing Delete from the ... in there does not delete it."
 //
-// 페이지 댓글 섹션에서는 되던 삭제가 이 카드에서만 죽어 있었다. 카드는 바깥을 누르면
-// 닫히는데(useDismiss), ⋯ 메뉴와 확인창은 document.body 로 포털된 **다른 층**이라
-// 거기를 누르는 것이 "바깥 클릭"으로 판정됐다 — 카드가 먼저 닫히며 메뉴·확인창을 품은
-// 컴포넌트가 사라지고, 삭제는 끝내 불리지 않는다. e2e/comment-delete.check.mjs 는 페이지
-// 섹션만 재서 이걸 놓쳤다.
+// Deletion that worked in the page comment section was dead only in this card. The card closes on an
+// outside click (useDismiss), and the ⋯ menu and the confirm are **other layers** portaled to document.body,
+// so clicking there counted as an "outside click" — the card closed first, the component holding the
+// menu·confirm went away, and delete was never called. e2e/comment-delete.check.mjs only measures the page
+// section and missed this.
 //
 //   [BASE_URL=…] [PAGE_ID=…] [USER_ID=…] node e2e/row-comment-delete.check.mjs
 //
-// 자기가 단 댓글 하나만 쓰고, 성공이든 실패든 끝나면 지운다.
+// Only uses one comment of its own, and removes it at the end whether it passes or fails.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
@@ -52,44 +52,44 @@ try {
   await badge.click();
   await popover().waitFor({ timeout: 20_000 });
   await page.waitForTimeout(700);
-  check("0. 표의 댓글 배지로 카드가 열린다", (await popover().count()) === 1);
+  check("0. the table's comment badge opens the card", (await popover().count()) === 1);
 
-  // 이 카드의 입력줄로 내 댓글을 하나 단다
+  // Post one comment of mine through this card's input row
   const input = popover().locator("[data-testid='comment-composer-input']");
   await input.click();
   await input.type(MARK, { delay: 10 });
   await page.keyboard.press("Enter");
   await page.waitForTimeout(1500);
   const ids = await stored();
-  check("1. 카드에서 댓글을 달았다", ids.length === 1, `stored=${ids.length}`);
+  check("1. posted a comment from the card", ids.length === 1, `stored=${ids.length}`);
   const id = ids[0];
   const row = popover().locator(`[data-testid='comment-row-${id}']`);
   await row.waitFor({ timeout: 10_000 });
 
-  // ⋯ → 삭제하기
+  // ⋯ → Delete
   await row.hover();
   await page.waitForTimeout(300);
   await page.locator(`[data-testid='comment-more-${id}']`).click();
   const menu = page.locator(`[data-testid='comment-menu-${id}']`);
   await menu.waitFor({ timeout: 5000 }).catch(() => {});
-  check("2. ⋯ 를 누르면 메뉴가 뜬다", (await menu.count()) === 1);
-  check("2. 메뉴를 여는 동안 카드는 열려 있다", (await popover().count()) === 1);
+  check("2. clicking ⋯ shows the menu", (await menu.count()) === 1);
+  check("2. the card stays open while the menu is open", (await popover().count()) === 1);
 
   await page.locator(`[data-testid='comment-delete-${id}']`).click().catch(() => {});
   await page.waitForTimeout(500);
   const confirm = page.locator(`[data-testid='comment-delete-confirm-${id}']`);
-  check("3. 삭제하기를 누르면 확인창이 뜬다", (await confirm.count()) === 1);
-  check("3. 삭제하기를 눌러도 카드가 닫히지 않는다", (await popover().count()) === 1);
+  check("3. clicking Delete shows the confirm", (await confirm.count()) === 1);
+  check("3. clicking Delete does not close the card", (await popover().count()) === 1);
 
-  // 삭제
+  // Delete
   await page.locator(`[data-testid='comment-delete-yes-${id}']`).click().catch(() => {});
   await page.waitForTimeout(1500);
-  check("4. 서버에서 댓글이 지워졌다", (await stored()).length === 0, `stored=${(await stored()).length}`);
-  check("4. 카드에서도 사라졌다", (await row.count()) === 0);
-  check("4. 확인창이 닫혔다", (await confirm.count()) === 0);
-  check("4. 카드는 여전히 열려 있다 (다른 댓글을 계속 볼 수 있게)", (await popover().count()) === 1);
+  check("4. the comment was deleted on the server", (await stored()).length === 0, `stored=${(await stored()).length}`);
+  check("4. and disappeared from the card", (await row.count()) === 0);
+  check("4. the confirm closed", (await confirm.count()) === 0);
+  check("4. the card is still open (so the other comments stay visible)", (await popover().count()) === 1);
 
-  // 취소 경로: 취소를 눌러도 카드는 닫히지 않는다
+  // Cancel path: clicking Cancel does not close the card either
   await input.click();
   await input.type(`${MARK} cancel`, { delay: 10 });
   await page.keyboard.press("Enter");
@@ -104,21 +104,21 @@ try {
     await page.waitForTimeout(400);
     await page.locator(`[data-testid='comment-delete-no-${cid}']`).click().catch(() => {});
     await page.waitForTimeout(500);
-    check("5. 취소하면 댓글이 남고 카드도 열려 있다",
+    check("5. cancelling keeps the comment and the card stays open",
       (await crow.count()) === 1 && (await popover().count()) === 1);
   } else {
-    check("5. 취소 검사용 댓글을 달았다", false);
+    check("5. posted the comment for the cancel check", false);
   }
 
-  // 카드 바깥을 누르면 여전히 닫힌다 (고치다 이걸 망가뜨리면 안 된다)
+  // Clicking outside the card still closes it (the fix must not break this)
   await page.mouse.click(40, 860);
   await page.waitForTimeout(500);
-  check("6. 카드 바깥을 누르면 카드는 닫힌다", (await popover().count()) === 0);
+  check("6. clicking outside the card closes it", (await popover().count()) === 0);
 
-  // 댓글이 하나뿐인 행에서 그 하나를 지우면: 배지가 사라지고, 배지에 매달린 카드도 닫힌다.
-  // (고치기 전에는 카드가 기준을 잃고 화면 왼쪽 위로 튀어 "아직 댓글이 없습니다"를 띄웠다)
+  // Deleting the only comment of a row: the badge disappears, and the card anchored to the badge closes too.
+  // (Before the fix the card lost its anchor, jumped to the top left of the screen and showed "No comments yet")
   {
-    // 화면에 보이는, 댓글이 하나도 없는 행을 골라 거기에 내 댓글을 딱 하나 단다
+    // Pick a visible row with no comments and post exactly one comment of mine on it
     const rowIds = await page.$$eval("[data-dbrow]", (els) =>
       els.filter((e) => !e.querySelector("[data-testid='comment-count-badge']"))
         .map((e) => e.getAttribute("data-testid").replace("db-row-", "")));
@@ -129,7 +129,7 @@ try {
       const n = (await pg.query("select count(*)::int n from comments where page_id::text=$1", [pid])).rows[0].n;
       if (n === 0) { sole = { rid, pid }; break; }
     }
-    check("7. 댓글 없는 행을 찾았다", !!sole);
+    check("7. found a row with no comments", !!sole);
     if (sole) {
       const r = await fetch(`${BASE}/api/pages/${sole.pid}/comments`, {
         method: "POST",
@@ -137,7 +137,7 @@ try {
         body: JSON.stringify({ body: `${MARK} sole` }),
       });
       const sid = (await pg.query("select id from comments where body=$1", [`${MARK} sole`])).rows[0]?.id;
-      check("7. 그 행에 댓글 하나를 달았다", r.ok && !!sid, `status=${r.status}`);
+      check("7. posted one comment on that row", r.ok && !!sid, `status=${r.status}`);
       await page.reload({ waitUntil: "domcontentloaded" });
       const soleBadge = page.locator(`[data-testid='db-row-${sole.rid}'] [data-testid='comment-count-badge']`).first();
       await soleBadge.waitFor({ timeout: 120_000 });
@@ -153,16 +153,16 @@ try {
       await page.waitForTimeout(400);
       await page.locator(`[data-testid='comment-delete-yes-${sid}']`).click().catch(() => {});
       await page.waitForTimeout(1500);
-      check("7. 마지막 댓글이 서버에서 지워졌다",
+      check("7. the last comment was deleted on the server",
         (await pg.query("select 1 from comments where id=$1", [sid])).rowCount === 0);
-      check("7. 배지가 사라진다", (await soleBadge.count()) === 0);
-      check("7. 카드도 닫힌다 (왼쪽 위로 튀지 않는다)", (await popover().count()) === 0);
+      check("7. the badge disappears", (await soleBadge.count()) === 0);
+      check("7. the card closes too (does not jump to the top left)", (await popover().count()) === 0);
     }
   }
 
-  check("Z. 페이지 오류 없음", errors.length === 0, errors.slice(0, 2).join(" | "));
+  check("Z. no page errors", errors.length === 0, errors.slice(0, 2).join(" | "));
 } catch (e) {
-  check("실행", false, String(e).slice(0, 300));
+  check("run", false, String(e).slice(0, 300));
 } finally {
   await pg.query("delete from comments where body like $1", [`${MARK}%`]).catch(() => {});
   await pg.end();

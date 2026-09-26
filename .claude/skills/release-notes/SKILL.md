@@ -1,60 +1,60 @@
 ---
 name: release-notes
-description: AINMem 배포 공지(슬랙)를 쓴다. 지난 배포 이미지와 이번 배포 이미지 사이의 커밋을 읽어, 사용자가 알아챌 큰 기능만 한 줄씩 "~할 수 있게 되었습니다" 어체로 정리한다. "배포 공지", "업데이트 안내", "릴리즈 노트", "이번 배포에 뭐 들어갔어" 같은 요청에 쓴다.
+description: Writes the AINMem deployment announcement for Slack. Reads the commits between the previous deployed image and the current one and lists only the big features a user would notice, one line each, in the "you can now …" register. Use for requests like "deployment announcement", "update notice", "release notes", "what went into this deploy".
 ---
 
-# AINMem 배포 공지 쓰기
+# Writing the AINMem deployment announcement
 
-슬랙에 올릴 배포 공지 초안을 만든다. 사람이 읽고 바로 붙여넣을 수 있는 짧은 글이 목표다.
+Draft the deployment announcement to post in Slack. The goal is a short text a person can read and paste as is. The announcement is written in the team's Slack language (Korean); take the wording of UI locations from the ko dictionary (`app/src/i18n/ko.ts`).
 
-## 1. 이번 배포 범위 찾기
+## 1. Find this deployment's range
 
-운영 이미지 태그는 `app-<커밋 7자리>` 다. 지금 떠 있는 것이 "이번", 그 직전 태그가 "지난"이다.
-
-```bash
-docker ps --format '{{.Names}} {{.Image}} {{.Status}}' | grep ainmem_prod_app   # 이번 배포
-docker images ainmem_prod --format '{{.Tag}} {{.CreatedAt}}' | head -5           # 직전 태그
-```
-
-사용자가 범위를 따로 말하면 그걸 쓴다. 운영 컨테이너가 안 보이면 추측하지 말고 어느 범위로 쓸지 묻는다.
+The production image tag is `app-<7-char commit>`. The one running now is "this", the tag right before it is "previous".
 
 ```bash
-git log --reverse --format='%h %ad %s' --date=short <지난>..<이번>
+docker ps --format '{{.Names}} {{.Image}} {{.Status}}' | grep ainmem_prod_app   # this deployment
+docker images ainmem_prod --format '{{.Tag}} {{.CreatedAt}}' | head -5           # the previous tag
 ```
 
-제목만으로 기능이 불분명한 커밋은 `git show --stat <커밋>` 과 본문으로 확인한다.
+If the user names a range, use that. If the production container is not visible, do not guess — ask which range to write for.
 
-## 2. 무엇을 넣나
-
-- **사용자가 화면에서 알아챌 새 기능이나 눈에 띄는 동작 변화만** 넣는다.
-- 같은 기능의 커밋 여러 개(측정 기록, 검사, 후속 수정)는 한 줄로 합친다.
-- 뺀다: 검사·문서·측정 기록만 있는 커밋, 내부 리팩터링, 권한·보안 내부 수정, 사용자가 모를 작은 버그 수정.
-- 이미 이전 배포에 나간 기능은 다시 쓰지 않는다.
-
-## 3. 어떻게 쓰나 (확정된 형식)
-
-- **기능마다 한 문장.** 하위 목록·세부 규칙·숫자·구현 이야기는 넣지 않는다.
-- 어체: **"<어디서> <무엇을 통해> <무엇을> 할 수 있게 되었습니다."**
-- **이모티콘을 쓰지 않는다.** 제목에도, 각 줄에도.
-- 위치를 말할 때는 사용자가 보는 이름 그대로 쓴다(`우측 상단 ⋯ 메뉴`, `'휴지통으로 이동'`).
-- 복사하기 쉽게 코드 블록 하나에 담는다.
-
-```
-AINMem 업데이트 안내 (M/D)
-
-- 페이지 우측 상단 ⋯ 메뉴에서 '휴지통으로 이동'을 통해 페이지를 삭제할 수 있게 되었습니다.
-- 페이지 댓글에서 @를 통해 원하는 사람을 언급할 수 있게 되었습니다.
-- 동영상 블록에서 동영상 파일을 직접 업로드할 수 있게 되었습니다.
+```bash
+git log --reverse --format='%h %ad %s' --date=short <previous>..<this>
 ```
 
-나쁜 예(너무 자세함 — 이렇게 쓰지 않는다):
+For commits whose title leaves the feature unclear, check `git show --stat <commit>` and the body.
+
+## 2. What goes in
+
+- **Only new features or noticeable behaviour changes a user would see on screen.**
+- Several commits for one feature (measurement notes, checks, follow-up fixes) collapse into one line.
+- Leave out: commits that are only checks, docs or measurement records; internal refactors; internal permission/security fixes; small bug fixes users would not notice.
+- Features that already shipped in a previous deployment are not repeated.
+
+## 3. How to write it (fixed format)
+
+- **One sentence per feature.** No sub-lists, detailed rules, numbers or implementation talk.
+- Register: **"In <where>, through <what>, you can now <do what>."** (in Korean, the polite "you can now …" ending).
+- **No emoji.** Not in the title, not in the lines.
+- Name locations exactly as the user sees them (the "⋯" menu top right, the 'Move to trash' entry — use the ko dictionary strings).
+- Put it in a single code block so it is easy to copy.
 
 ```
-💬 댓글 멘션
-• 댓글 입력칸에서 @를 입력해 워크스페이스 멤버를 멘션할 수 있게 되었습니다.
-• 이름·이메일 일부나 한글 초성으로도 사람을 찾을 수 있습니다.
+AINMem update notice (M/D)
+
+- In the ⋯ menu at the top right of a page, through 'Move to trash', you can now delete a page.
+- In page comments, through @, you can now mention the person you want.
+- In the video block, you can now upload a video file directly.
 ```
 
-## 4. 공지 밖에서 알려줄 것
+Bad example (too detailed — do not write like this):
 
-공지 본문 뒤에, 공지에는 넣지 않았지만 담당자가 알아야 할 **알려진 제약**이 있으면 한두 문장으로 따로 적는다(예: 새 기능에서 문의가 올 만한 미해결 동작). 없으면 적지 않는다.
+```
+💬 Comment mentions
+• In the comment box you can now type @ to mention a workspace member.
+• People can also be found by part of a name or email, or by Korean initial consonants.
+```
+
+## 4. What to say outside the announcement
+
+After the announcement body, if there is a **known limitation** the owner should know about that did not go into the announcement (for example an unresolved behaviour in a new feature that may draw questions), note it separately in a sentence or two. If there is none, write nothing.

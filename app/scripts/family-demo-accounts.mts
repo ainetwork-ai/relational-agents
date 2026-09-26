@@ -1,7 +1,7 @@
 /**
  * The family demo's three people, made real: each gets their own aindrive
  * account, their own folder served as an aindrive drive, and their own ainmem
- * account connected to it — exactly what "aindrive로 로그인" does in a browser.
+ * account connected to it — exactly what "Sign in with aindrive" does in a browser.
  *
  *   pnpm tsx scripts/family-demo-accounts.mts --data <dir> [--app http://localhost:3110]
  *     --data   folder holding grandma/ mom/ dad/ seoyeon/ (the files each person shares)
@@ -24,6 +24,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
+import { FAMILY_DEMO_ACCOUNTS } from "../src/i18n/content/scripts";
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -41,14 +42,7 @@ if (!DATA) {
 
 /** Who the demo family is: the folder they share, the drive's name on aindrive,
  *  and the name they go by in the workspace. */
-const FAMILY = [
-  { key: "grandma", name: "할머니", drive: "할머니의 부엌과 앨범" },
-  { key: "mom", name: "엄마", drive: "엄마의 살림" },
-  { key: "dad", name: "아빠", drive: "아빠의 기록" },
-  { key: "seoyeon", name: "서연", drive: "서연이 폰" },
-  // not in the family workspace at first — the demo invites him (가족 폴더 → 초대)
-  { key: "grandpa", name: "외할아버지", drive: "외할아버지 폰" },
-] as const;
+const FAMILY = FAMILY_DEMO_ACCOUNTS; // grandpa is not in the family workspace at first — the demo invites him
 
 fs.mkdirSync(HOME, { recursive: true, mode: 0o700 });
 const keysFile = path.join(HOME, "family-keys.json");
@@ -139,7 +133,7 @@ function startCli(key: string, folder: string, driveName: string, session: strin
   return `started (pid ${child.pid}, log ${path.join(home, "aindrive.log")})`;
 }
 
-/** ainmem: "aindrive로 로그인", approved as the person on aindrive. */
+/** ainmem: "Sign in with aindrive", approved as the person on aindrive. */
 async function ainmemSignIn(session: string): Promise<{ userId: string; cookie: string }> {
   const app = jar();
   const start = await fetch(`${APP}/api/auth/aindrive/start`, { method: "POST" });

@@ -3,7 +3,7 @@
 //   node e2e/created-time.check.mjs      # 0 = same, 1 = differs
 //
 // Compares the rendered text's shape and metrics against what was measured on
-// app.notion.com (e2e/fixtures/notion-created-time.json). It also reports the
+// app.notion.com (src/i18n/content/e2e-fixtures/notion-created-time.json). It also reports the
 // data gap — our seed gave every row the same creation minute — but does not
 // fail on it, because closing that needs a fresh read-only fetch of the
 // original's per-row created_time, which is not in the saved source data.
@@ -11,8 +11,9 @@ import fs from "node:fs";
 import { chromium } from "@playwright/test";
 import { sealData } from "iron-session";
 import pg from "pg";
+import { content } from "./i18n.mjs";
 
-const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-created-time.json", import.meta.url)));
+const FIX = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-created-time.json", import.meta.url)));
 const BASE = process.env.BASE ?? "http://localhost:3110";
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const val = (k) => env.match(new RegExp(`^${k}=(.+)$`, "m"))?.[1]?.trim();
@@ -57,7 +58,7 @@ const cells = await page.evaluate(`(() => {
   const out = [];
   for (const el of document.querySelectorAll('[data-testid^="db-cell-"]')) {
     const t = (el.innerText || "").trim();
-    if (!/^\\d{4}년|^\\d{1,2}\\/\\d{1,2}\\/\\d{4}/.test(t)) continue;
+    if (!/^\\d{4}${content.CREATED_TIME.yearSuffix}|^\\d{1,2}\\/\\d{1,2}\\/\\d{4}/.test(t)) continue;
     const cs = getComputedStyle(el);
     const cell = el.closest("[data-cellnav]");
     const r = el.getBoundingClientRect(), cr = cell?.getBoundingClientRect();
@@ -103,11 +104,11 @@ console.log(
     (spread[0].minutes <= 5 ? "  ← the seed's own clock, not the original's history (see _dataGap)" : "")
 );
 if (diffs.length) {
-  console.error("\n  ┌─ Created time 이 원본과 다릅니다 ───────────────");
+  console.error("\n  ┌─ Created time differs from the original ─────────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-created-time.json");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-created-time.json");
   console.error("  └────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("차이 0 — 형식·폰트·색·들여쓰기가 원본과 같습니다.");
+console.log("0 differences — format, font, color and indent match the original.");

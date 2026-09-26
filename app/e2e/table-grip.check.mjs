@@ -1,18 +1,19 @@
-// 표의 행·열 그립 — 회색 선 → 6점 버튼 → 클릭하면 파란색 + 드롭다운.
-// 원본에서 잰 값은 fixtures/notion-table-grip.json 에 있다(CDP 로 DOM 을 읽고,
-// 색은 전체 스크린샷 픽셀로 확인했다).
+// Table row/column grips — gray line → 6-dot button → click turns it blue + dropdown.
+// Values measured on the original are in src/i18n/content/e2e-fixtures/notion-table-grip.json (DOM read over CDP,
+// colors confirmed from full-screenshot pixels).
 //
 //   [BASE_URL=http://localhost:3110] [USER_ID=…] node e2e/table-grip.check.mjs
 //
-// 아직 없는 것: 메뉴의 `색`(셀 배경 저장이 필요하다)과 그립을 끌어 행·열 순서를
-// 옮기기. 그래서 메뉴 항목 대조는 원본 목록에서 `색`을 뺀 것과 맞춘다.
+// Not there yet: the menu's `Color` (needs cell background storage) and dragging a grip to
+// reorder rows/columns. So the menu item comparison matches the original list minus `Color`.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-table-grip.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-table-grip.json", import.meta.url), "utf8"));
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -23,13 +24,13 @@ const tableId = uuid(), beforeId = uuid();
 const CELLS = [["Alpha", "Beta", "Gamma"], ["one", "two", "three"], ["four", "five", "six"]];
 const created = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: "table-grip.check" }) }).then((r) => r.json());
 const pageId = created.page?.id ?? created.id;
-if (!pageId) { console.error("페이지를 못 만들었습니다:", created); process.exit(1); }
+if (!pageId) { console.error("Could not create the page:", created); process.exit(1); }
 const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { method: "PUT", headers: H, body: JSON.stringify({
   blocks: [
     { id: beforeId, type: "paragraph", content: { text: "before" }, parentBlockId: null, position: 1 },
     { id: tableId, type: "table", content: { table: { cells: CELLS, headerRow: false } }, parentBlockId: null, position: 2 },
   ], deletedIds: [], newIds: [beforeId, tableId] }) });
-if (!put.ok) { console.error("블록 저장 실패:", put.status, await put.text()); process.exit(1); }
+if (!put.ok) { console.error("Saving blocks failed:", put.status, await put.text()); process.exit(1); }
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -46,7 +47,7 @@ const eq = (label, got, want, tol = 1) => {
   const ok = typeof want === "number" && typeof got === "number" ? Math.abs(got - want) <= tol : JSON.stringify(got) === JSON.stringify(want);
   if (!ok) fails.push(`${label}: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
 };
-/** 측정된 원본 목록에 우리가 일부러 더한 항목을 끼운다 (§menu.ours) */
+/** Insert the items we deliberately added into the measured original list (§menu.ours) */
 const withOurs = (measured) => {
   const at = measured.indexOf(G.menu.ours.insertAfter) + 1;
   return [...measured.slice(0, at), ...G.menu.ours.items, ...measured.slice(at)];
@@ -131,52 +132,52 @@ const clearAll = async () => {
   await page.waitForTimeout(150);
 };
 
-// ── 1. 회색 선: 포인터가 있는 셀의 행·열만 ──────────────────────────
+// ── 1. Gray line: only the row/column of the cell under the pointer ──────────────────────────
 {
   await clearAll();
   await cell(1, 1).hover();
   await page.waitForTimeout(200);
   const st = await gripState();
-  eq("선: 포인터 열만 idle", st.col, ["off", "idle", "off"]);
-  eq("선: 포인터 행만 idle", st.row, ["off", "idle", "off"]);
+  eq("line: only pointer column idle", st.col, ["off", "idle", "off"]);
+  eq("line: only pointer row idle", st.row, ["off", "idle", "off"]);
   const s = await shape("col", 1);
-  eq("열 선 크기", `${s.line.w}x${s.line.h}`, `${G.line.col.w}x${G.line.col.h}`);
-  eq("열 선 색", s.line.bg, G.line.color);
-  eq("열 선 라운드", s.line.radius, `${G.line.radius}px`);
-  eq("열 선 흰 링", s.line.shadow, `${G.line.ring.color} 0px 0px 0px ${G.line.ring.width}px`);
+  eq("col line size", `${s.line.w}x${s.line.h}`, `${G.line.col.w}x${G.line.col.h}`);
+  eq("col line color", s.line.bg, G.line.color);
+  eq("col line radius", s.line.radius, `${G.line.radius}px`);
+  eq("col line white ring", s.line.shadow, `${G.line.ring.color} 0px 0px 0px ${G.line.ring.width}px`);
   const r = await shape("row", 1);
-  eq("행 선 크기", `${r.line.w}x${r.line.h}`, `${G.line.row.w}x${G.line.row.h}`);
+  eq("row line size", `${r.line.w}x${r.line.h}`, `${G.line.row.w}x${G.line.row.h}`);
 }
 
-// ── 2. 선 위 호버 → 6점 버튼 ─────────────────────────────────────
+// ── 2. Hover on the line → 6-dot button ─────────────────────────────────────
 {
   await page.locator(gripSel("col", 1)).hover();
   await page.waitForTimeout(200);
   const s = await shape("col", 1);
-  eq("열 그립 상태", s.state, "hover");
-  if (!s.btn) fails.push("열 6점 버튼: 없음"), checks++;
+  eq("col grip state", s.state, "hover");
+  if (!s.btn) fails.push("col 6-dot button: missing"), checks++;
   else {
-    eq("열 버튼 크기", `${s.btn.w}x${s.btn.h}`, `${G.button.col.w}x${G.button.col.h}`);
-    eq("열 버튼 배경", s.btn.bg, G.button.bg);
-    eq("열 버튼 테두리", s.btn.border, G.button.border);
-    eq("열 버튼 라운드", s.btn.radius, `${G.button.radius}px`);
-    eq("열 버튼 점 색", s.btn.fill, G.button.dot.color);
-    eq("열 버튼 글리프 16", s.btn.svg.w, 16);
-    eq("열 버튼 글리프 회전", s.btn.svg.rotate, "matrix(0, 1, -1, 0, 0, 0)");
-    eq("열 버튼 트랜지션", s.btn.transition, "opacity, transform 0.1s, 0.1s");
-    eq("열 버튼 aria-label", s.btn.label, "열 이동");
+    eq("col button size", `${s.btn.w}x${s.btn.h}`, `${G.button.col.w}x${G.button.col.h}`);
+    eq("col button background", s.btn.bg, G.button.bg);
+    eq("col button border", s.btn.border, G.button.border);
+    eq("col button radius", s.btn.radius, `${G.button.radius}px`);
+    eq("col button dot color", s.btn.fill, G.button.dot.color);
+    eq("col button glyph 16", s.btn.svg.w, 16);
+    eq("col button glyph rotation", s.btn.svg.rotate, "matrix(0, 1, -1, 0, 0, 0)");
+    eq("col button transition", s.btn.transition, "opacity, transform 0.1s, 0.1s");
+    eq("col button aria-label", s.btn.label, ko("Move column"));
   }
   await cell(2, 0).hover();
   await page.waitForTimeout(150);
   await page.locator(gripSel("row", 2)).hover();
   await page.waitForTimeout(200);
   const r = await shape("row", 2);
-  eq("행 버튼 크기", `${r.btn.w}x${r.btn.h}`, `${G.button.row.w}x${G.button.row.h}`);
-  eq("행 버튼 글리프 회전(없음)", r.btn.svg.rotate, "none");
-  eq("행 버튼 aria-label", r.btn.label, "행 이동");
+  eq("row button size", `${r.btn.w}x${r.btn.h}`, `${G.button.row.w}x${G.button.row.h}`);
+  eq("row button glyph rotation (none)", r.btn.svg.rotate, "none");
+  eq("row button aria-label", r.btn.label, ko("Move row"));
 }
 
-// ── 3. 클릭 → 열 전체 선택 + 파란 버튼 + 드롭다운 ──────────────────
+// ── 3. Click → whole column selected + blue button + dropdown ──────────────────
 {
   await clearAll();
   await cell(0, 0).hover();
@@ -184,51 +185,51 @@ const clearAll = async () => {
   await page.waitForTimeout(150);
   await page.locator(gripSel("col", 0)).click();
   await page.waitForTimeout(300);
-  eq("클릭: 열 전체 선택", await selRange(), `0,0,${CELLS.length - 1},0`);
+  eq("click: whole column selected", await selRange(), `0,0,${CELLS.length - 1},0`);
   const s = await shape("col", 0);
-  eq("클릭: 버튼 파란 배경", s.btn.bg, G.button.active.bg);
-  eq("클릭: 버튼 파란 테두리", s.btn.border, G.button.active.border);
-  eq("클릭: 점 흰색", s.btn.fill, G.button.active.dotColor);
+  eq("click: button blue background", s.btn.bg, G.button.active.bg);
+  eq("click: button blue border", s.btn.border, G.button.active.border);
+  eq("click: dots white", s.btn.fill, G.button.active.dotColor);
   const m = await menu();
-  if (!m) fails.push("클릭: 드롭다운 없음"), checks++;
+  if (!m) fails.push("click: no dropdown"), checks++;
   else {
-    eq("메뉴 폭", m.w, G.menu.width);
-    eq("메뉴 라운드", m.radius, `${G.menu.radius}px`);
-    eq("메뉴 그림자", m.shadow, G.menu.shadow);
-    eq("메뉴 배경", m.bg, G.menu.bg);
-    eq("메뉴 검색창", m.search?.ph, G.menu.search.placeholder);
-    eq("검색창 글자 크기", m.search?.fs, G.menu.searchArea.inputFontSize);
-    eq("목록 패딩", m.listPad, `${G.menu.listPad}px`);
-    eq("항목 간격", m.gap, `${G.menu.itemGap}px`);
-    eq("메뉴 항목(열) = 원본 + 우리 정렬", m.items.map((i) => i.label), withOurs(G.menu.col));
-    eq("항목 폭", m.items[0].w, G.menu.itemWidth);
-    eq("항목 높이", m.items[0].h, G.menu.itemHeight);
-    eq("항목 라운드", m.items[0].radius, `${G.menu.itemRadius}px`);
-    eq("항목 pitch", m.items[1].y - m.items[0].y, G.menu.itemPitch);
- // 아이콘 20 at +8, 라벨 at +36
+    eq("menu width", m.w, G.menu.width);
+    eq("menu radius", m.radius, `${G.menu.radius}px`);
+    eq("menu shadow", m.shadow, G.menu.shadow);
+    eq("menu background", m.bg, G.menu.bg);
+    eq("menu search box", m.search?.ph, G.menu.search.placeholder);
+    eq("search box font size", m.search?.fs, G.menu.searchArea.inputFontSize);
+    eq("list padding", m.listPad, `${G.menu.listPad}px`);
+    eq("item gap", m.gap, `${G.menu.itemGap}px`);
+    eq("menu items (col) = original + our Align", m.items.map((i) => i.label), withOurs(G.menu.col));
+    eq("item width", m.items[0].w, G.menu.itemWidth);
+    eq("item height", m.items[0].h, G.menu.itemHeight);
+    eq("item radius", m.items[0].radius, `${G.menu.itemRadius}px`);
+    eq("item pitch", m.items[1].y - m.items[0].y, G.menu.itemPitch);
+ // icon 20 at +8, label at +36
     const it = m.items[2];
-    eq("아이콘 크기", `${it.icon.w}x${it.icon.h}`, `${G.menu.item.iconBox}x${G.menu.item.iconBox}`);
-    eq("아이콘 x", it.icon.x - it.x, G.menu.item.iconDx);
-    eq("라벨 x", it.lbl.x - it.x, G.menu.item.labelDx);
-    eq("라벨 글자 크기", it.lbl.fs, G.menu.item.labelFontSize);
- // ⌘D · 색의 화살표 · 제목 행의 스위치
-    const dup = m.items.find((i) => i.label === "복제");
-    eq("⌘D 글자 크기", dup.short.fs, G.menu.shortcut.fontSize);
-    eq("⌘D 오른쪽 여백", dup.x + dup.w - (dup.short.x + dup.short.w), G.menu.item.accessoryInset);
-    const colorItem = m.items.find((i) => i.label === "색");
-    eq("색 화살표 크기", colorItem.chev.w, G.menu.chevron.size);
+    eq("icon size", `${it.icon.w}x${it.icon.h}`, `${G.menu.item.iconBox}x${G.menu.item.iconBox}`);
+    eq("icon x", it.icon.x - it.x, G.menu.item.iconDx);
+    eq("label x", it.lbl.x - it.x, G.menu.item.labelDx);
+    eq("label font size", it.lbl.fs, G.menu.item.labelFontSize);
+ // ⌘D · Color's arrow · the header row's switch
+    const dup = m.items.find((i) => i.label === ko("Duplicate"));
+    eq("⌘D font size", dup.short.fs, G.menu.shortcut.fontSize);
+    eq("⌘D right inset", dup.x + dup.w - (dup.short.x + dup.short.w), G.menu.item.accessoryInset);
+    const colorItem = m.items.find((i) => i.label === ko("Color"));
+    eq("Color arrow size", colorItem.chev.w, G.menu.chevron.size);
     const hdr = m.items[0];
-    eq("스위치 크기", `${hdr.sw.w}x${hdr.sw.h}`, `${G.menu.switch.w}x${G.menu.switch.h}`);
-    eq("스위치 꺼짐 색", hdr.sw.bg, G.menu.switch.off);
-    eq("스위치 손잡이", `${hdr.sw.knob.w}x${hdr.sw.knob.h}`, `${G.menu.switch.knob}x${G.menu.switch.knob}`);
-    eq("스위치 오른쪽 여백", hdr.x + hdr.w - (hdr.sw.x + hdr.sw.w), G.menu.item.accessoryInset);
+    eq("switch size", `${hdr.sw.w}x${hdr.sw.h}`, `${G.menu.switch.w}x${G.menu.switch.h}`);
+    eq("switch off color", hdr.sw.bg, G.menu.switch.off);
+    eq("switch knob", `${hdr.sw.knob.w}x${hdr.sw.knob.h}`, `${G.menu.switch.knob}x${G.menu.switch.knob}`);
+    eq("switch right inset", hdr.x + hdr.w - (hdr.sw.x + hdr.sw.w), G.menu.item.accessoryInset);
   }
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
-  eq("Escape 로 메뉴 닫힘", await menu(), null);
+  eq("Escape closes the menu", await menu(), null);
 }
 
-// ── 3b. `색` 서브메뉴 ───────────────────────────────────────────
+// ── 3b. `Color` submenu ───────────────────────────────────────────
 {
   await clearAll();
   await cell(0, 1).hover();
@@ -240,32 +241,32 @@ const clearAll = async () => {
   await page.waitForTimeout(300);
   const m = await menu();
   const S = G.colorSubmenu;
-  if (!m?.sub) fails.push("색 서브메뉴: 안 열림"), checks++;
+  if (!m?.sub) fails.push("Color submenu: did not open"), checks++;
   else {
-    eq("서브 폭", m.sub.w, S.width);
-    eq("서브 라운드", m.sub.radius, `${S.radius}px`);
-    eq("서브 섹션", m.sub.heads.map((h) => h.txt), S.sections);
-    eq("섹션 머리 글자", m.sub.heads[0].fs, S.sectionHeader.fontSize);
-    eq("섹션 머리 굵기", m.sub.heads[0].fw, S.sectionHeader.weight);
-    eq("색 개수", m.sub.rows.length, S.names.length * 2, 0);
+    eq("submenu width", m.sub.w, S.width);
+    eq("submenu radius", m.sub.radius, `${S.radius}px`);
+    eq("submenu sections", m.sub.heads.map((h) => h.txt), S.sections);
+    eq("section header font size", m.sub.heads[0].fs, S.sectionHeader.fontSize);
+    eq("section header weight", m.sub.heads[0].fw, S.sectionHeader.weight);
+    eq("color count", m.sub.rows.length, S.names.length * 2, 0);
     const first = m.sub.rows[0];
-    eq("색 항목 폭", first.w, S.itemW);
-    eq("색 항목 높이", first.h, S.itemH);
-    eq("스와치 크기", `${first.swatch.w}x${first.swatch.h}`, `${S.swatch.size}x${S.swatch.size}`);
-    eq("스와치 라운드", first.swatch.radius, `${S.swatch.radius}px`);
-    eq("색 라벨 x", first.labelDx, S.labelDx);
-    eq("색 항목 pitch", m.sub.rows[1].y - m.sub.rows[0].y, S.pitch);
+    eq("color item width", first.w, S.itemW);
+    eq("color item height", first.h, S.itemH);
+    eq("swatch size", `${first.swatch.w}x${first.swatch.h}`, `${S.swatch.size}x${S.swatch.size}`);
+    eq("swatch radius", first.swatch.radius, `${S.swatch.radius}px`);
+    eq("color label x", first.labelDx, S.labelDx);
+    eq("color item pitch", m.sub.rows[1].y - m.sub.rows[0].y, S.pitch);
   }
- // 파란 배경을 골라 열 전체에 칠해진다
+ // picking the blue background paints the whole column
   await page.locator('[data-testid="table-grip-opt-bg-blue"]').click();
   await page.waitForTimeout(500);
   const painted = await page.evaluate((tid) => [0, 1, 2].map((r) => {
     const w = document.querySelector(`[data-testid="table-cell-${tid}-${r}-1"]`).parentElement;
     return { cls: w.className.includes("hl-blue"), bg: getComputedStyle(w).backgroundColor };
   }), tableId);
-  eq("배경색: 열 전체에 칠해짐", painted.every((p) => p.cls), true);
-  eq("배경색: 다른 열은 그대로", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId), G.noCellFill.cellBackground);
- // 되돌린다
+  eq("background: whole column painted", painted.every((p) => p.cls), true);
+  eq("background: other columns unchanged", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId), G.noCellFill.cellBackground);
+ // revert
   await clearAll();
   await cell(0, 1).hover();
   await page.locator(gripSel("col", 1)).hover();
@@ -278,12 +279,12 @@ const clearAll = async () => {
   await page.waitForTimeout(400);
 }
 
-// ── 3d. 정렬 (원본에 없는, 우리가 더한 것 — §menu.ours) ───────────
+// ── 3d. Align (not in the original, our addition — §menu.ours) ───────────
 {
   const O = G.menu.ours.submenu;
   const alignOf = (r, c) => page.evaluate(({ tid, r, c }) => {
     const el = document.querySelector(`[data-testid="table-cell-${tid}-${r}-${c}"]`);
- // 브라우저 기본은 start/end 로 나온다 — 좌우로 정규화
+ // the browser default comes out as start/end — normalize to left/right
     const v = getComputedStyle(el.parentElement).textAlign;
     return v === "start" ? "left" : v === "end" ? "right" : v;
   }, { tid: tableId, r, c });
@@ -300,43 +301,43 @@ const clearAll = async () => {
   await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
   await page.waitForTimeout(300);
   const m = await menu();
-  if (!m?.sub) fails.push("정렬 서브메뉴: 안 열림"), checks++;
+  if (!m?.sub) fails.push("Align submenu: did not open"), checks++;
   else {
-    eq("정렬 서브 폭", m.sub.w, G.colorSubmenu.width);
-    eq("정렬 서브 라운드", m.sub.radius, `${G.colorSubmenu.radius}px`);
-    eq("정렬 섹션 제목", m.sub.heads.map((h) => h.txt), [O.title]);
-    eq("정렬 항목 3개", m.sub.rows.length, O.options.length, 0);
-    eq("정렬 항목 폭", m.sub.rows[0].w, G.colorSubmenu.itemW);
-    eq("정렬 항목 pitch", m.sub.rows[1].y - m.sub.rows[0].y, G.colorSubmenu.pitch);
-    eq("정렬 미리보기 타일", `${m.sub.rows[0].swatch.w}x${m.sub.rows[0].swatch.h}`, `${G.colorSubmenu.swatch.size}x${G.colorSubmenu.swatch.size}`);
+    eq("Align submenu width", m.sub.w, G.colorSubmenu.width);
+    eq("Align submenu radius", m.sub.radius, `${G.colorSubmenu.radius}px`);
+    eq("Align section title", m.sub.heads.map((h) => h.txt), [O.title]);
+    eq("Align has 3 items", m.sub.rows.length, O.options.length, 0);
+    eq("Align item width", m.sub.rows[0].w, G.colorSubmenu.itemW);
+    eq("Align item pitch", m.sub.rows[1].y - m.sub.rows[0].y, G.colorSubmenu.pitch);
+    eq("Align preview tile", `${m.sub.rows[0].swatch.w}x${m.sub.rows[0].swatch.h}`, `${G.colorSubmenu.swatch.size}x${G.colorSubmenu.swatch.size}`);
   }
-  eq("기본은 왼쪽", await alignOf(1, 1), "left");
- // 가운데 정렬을 열1 에 적용
+  eq("default is left", await alignOf(1, 1), "left");
+ // apply center alignment to column 1
   await page.locator('[data-testid="table-grip-opt-align-center"]').click();
   await page.waitForTimeout(450);
-  eq("열 정렬: 그 열이 가운데", await Promise.all([0, 1, 2].map((r) => alignOf(r, 1))), ["center", "center", "center"]);
-  eq("열 정렬: 다른 열은 그대로", await alignOf(0, 0), "left");
- // 행1 을 오른쪽 정렬 — 셀 격자라 열 정렬 위에 겹쳐진다
+  eq("col align: that column is centered", await Promise.all([0, 1, 2].map((r) => alignOf(r, 1))), ["center", "center", "center"]);
+  eq("col align: other columns unchanged", await alignOf(0, 0), "left");
+ // right-align row 1 — it is a per-cell grid, so it layers over the column alignment
   await openMenu("row", 1);
   await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
   await page.waitForTimeout(250);
   await page.locator('[data-testid="table-grip-opt-align-right"]').click();
   await page.waitForTimeout(450);
-  eq("행 정렬: 그 행이 오른쪽", await Promise.all([0, 1, 2].map((c) => alignOf(1, c))), ["right", "right", "right"]);
-  eq("행 정렬: 다른 행의 열 정렬은 유지", await alignOf(0, 1), "center");
- // 현재 값에 체크가 붙는다
+  eq("row align: that row is right", await Promise.all([0, 1, 2].map((c) => alignOf(1, c))), ["right", "right", "right"]);
+  eq("row align: other rows keep the column alignment", await alignOf(0, 1), "center");
+ // the current value gets a check mark
   await openMenu("col", 1);
   await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
   await page.waitForTimeout(250);
-  eq("현재 값 표시", await page.evaluate(() => document.querySelector('[data-testid="table-grip-opt-align-center"]')?.getAttribute("data-on")), "1");
+  eq("current value marked", await page.evaluate(() => document.querySelector('[data-testid="table-grip-opt-align-center"]')?.getAttribute("data-on")), "1");
   await page.keyboard.press("Escape");
   await page.waitForTimeout(150);
- // 새로고침 후에도 남는다
+ // survives a reload
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForSelector(`[data-testid="table-cell-${tableId}-0-0"]`);
   await page.waitForTimeout(600);
-  eq("새로고침 후에도 정렬 유지", await alignOf(0, 1), "center");
- // 되돌린다 (뒤 섹션들이 왼쪽 정렬을 기대한다)
+  eq("alignment kept after reload", await alignOf(0, 1), "center");
+ // revert (later sections expect left alignment)
   for (const [kind, i] of [["col", 1], ["row", 1]]) {
     await openMenu(kind, i);
     await page.locator('[data-testid="table-grip-menu-item-align"]').hover();
@@ -344,10 +345,10 @@ const clearAll = async () => {
     await page.locator('[data-testid="table-grip-opt-align-left"]').click();
     await page.waitForTimeout(400);
   }
-  eq("왼쪽으로 되돌림", await alignOf(1, 1), "left");
+  eq("reverted to left", await alignOf(1, 1), "left");
 }
 
-// ── 4. 행 그립 메뉴 ─────────────────────────────────────────────
+// ── 4. Row grip menu ─────────────────────────────────────────────
 {
   await clearAll();
   await cell(0, 0).hover();
@@ -355,14 +356,14 @@ const clearAll = async () => {
   await page.waitForTimeout(150);
   await page.locator(gripSel("row", 0)).click();
   await page.waitForTimeout(300);
-  eq("클릭: 행 전체 선택", await selRange(), `0,0,0,${CELLS[0].length - 1}`);
+  eq("click: whole row selected", await selRange(), `0,0,0,${CELLS[0].length - 1}`);
   const m = await menu();
-  eq("메뉴 항목(행) = 원본 + 우리 정렬", m?.items.map((i) => i.label), withOurs(G.menu.row));
+  eq("menu items (row) = original + our Align", m?.items.map((i) => i.label), withOurs(G.menu.row));
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
 }
 
-// ── 5. 어떤 그립이 켜지나 — 선택의 왼쪽위 셀 + 호버 셀 ─────────────
+// ── 5. Which grips light up — selection's top-left cell + hovered cell ─────────────
 {
   const dragCells = async (from, to) => {
     const a = await cell(from[0], from[1]).boundingBox(), b = await cell(to[0], to[1]).boundingBox();
@@ -382,20 +383,20 @@ const clearAll = async () => {
       await page.waitForTimeout(120);
       await page.locator(gripSel("col", t.gripCol)).click();
       await page.waitForTimeout(250);
-      await page.keyboard.press("Escape"); // 메뉴만 닫고 선택은 남긴다
+      await page.keyboard.press("Escape"); // close only the menu, keep the selection
       await page.mouse.move(20, 700);
       await page.waitForTimeout(250);
     } else if (t.hover === null) { await page.mouse.move(20, 700); await page.waitForTimeout(250); }
     else if (t.hover) { await cell(t.hover[0], t.hover[1]).hover(); await page.waitForTimeout(250); }
     const s = await litStr();
-    eq(`선 켜짐(${t.id}) 열`, s.cols, t.cols);
-    eq(`선 켜짐(${t.id}) 행`, s.rows, t.rows);
+    eq(`lines lit (${t.id}) cols`, s.cols, t.cols);
+    eq(`lines lit (${t.id}) rows`, s.rows, t.rows);
   }
   const bg = await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId);
-  eq("고른 셀에 배경 채움 없음", bg, G.noCellFill.cellBackground);
+  eq("no background fill on selected cells", bg, G.noCellFill.cellBackground);
 }
 
-// ── 5b. 그립을 끌어서 행·열 옮기기 ───────────────────────────────
+// ── 5b. Drag a grip to move rows/columns ───────────────────────────────
 {
   const texts = () => page.evaluate((tid) => {
     const rows = [];
@@ -444,34 +445,34 @@ const clearAll = async () => {
 
   const before = await texts();
   const mid = await dragGrip("col", 0, [0, 1], { checkMid: true });
-  if (!mid?.ghost) fails.push("열 이동: 따라오는 복사본 없음"), checks++;
+  if (!mid?.ghost) fails.push("col move: no following copy"), checks++;
   else {
-    eq("고스트 불투명도", mid.ghost.op, String(G.move.ghost.opacity));
-    eq("고스트 배경", mid.ghost.bg, G.move.ghost.bg);
-    eq("고스트 그림자", mid.ghost.shadow, G.move.ghost.shadow);
-    eq("고스트 테두리", mid.ghost.border, G.move.ghost.border.replace("solid ", "solid "));
+    eq("ghost opacity", mid.ghost.op, String(G.move.ghost.opacity));
+    eq("ghost background", mid.ghost.bg, G.move.ghost.bg);
+    eq("ghost shadow", mid.ghost.shadow, G.move.ghost.shadow);
+    eq("ghost border", mid.ghost.border, G.move.ghost.border.replace("solid ", "solid "));
   }
-  if (!mid?.bar) fails.push("열 이동: 드롭 표시선 없음"), checks++;
+  if (!mid?.bar) fails.push("col move: no drop indicator"), checks++;
   else {
-    eq("드롭 표시선 두께", mid.bar.w, G.move.dropBar.thickness);
-    eq("드롭 표시선 색", mid.bar.bg, G.move.dropBar.color);
+    eq("drop indicator thickness", mid.bar.w, G.move.dropBar.thickness);
+    eq("drop indicator color", mid.bar.bg, G.move.dropBar.color);
   }
   const after = await texts();
-  eq("열 이동 결과", after[0].join(","), [before[0][1], before[0][0], before[0][2]].join(","));
-  eq("열 이동 뒤에도 선택은 남는다", await selRange(), `0,1,${after.length - 1},1`);
+  eq("col move result", after[0].join(","), [before[0][1], before[0][0], before[0][2]].join(","));
+  eq("selection stays after col move", await selRange(), `0,1,${after.length - 1},1`);
 
   const b2 = await texts();
   await dragGrip("row", 0, [1, 0]);
   const a2 = await texts();
-  eq("행 이동 결과", a2.map((r) => r[0]).join(","), [b2[1][0], b2[0][0], b2[2][0]].join(","));
-  eq("행 이동 뒤에도 선택은 남는다", await selRange(), `1,0,1,${a2[0].length - 1}`);
+  eq("row move result", a2.map((r) => r[0]).join(","), [b2[1][0], b2[0][0], b2[2][0]].join(","));
+  eq("selection stays after row move", await selRange(), `1,0,1,${a2[0].length - 1}`);
 
-  // 같은 자리면 표시선이 뜨지 않는다
+  // no indicator when dropping on the same spot
   const same = await dragGrip("col", 1, [0, 1], { checkMid: true });
-  eq("같은 자리로 끌면 표시선 없음", same?.bar ?? null, null);
+  eq("no indicator when dragged to the same spot", same?.bar ?? null, null);
 }
 
-// ── 6. 메뉴 동작: 오른쪽에 삽입 / 콘텐츠 삭제 / 삭제 ────────────────
+// ── 6. Menu actions: Insert right / Clear contents / Delete ────────────────
 {
   const count = () => page.evaluate((tid) => {
     const ids = [...document.querySelectorAll(`[data-testid^="table-cell-${tid}-"]`)].map((e) => e.getAttribute("data-testid").split("-").slice(-2).map(Number));
@@ -488,26 +489,26 @@ const clearAll = async () => {
   await open("col", 1);
   await page.locator('[data-testid="table-grip-menu-item-after"]').click();
   await page.waitForTimeout(400);
-  eq("오른쪽에 삽입 → 열 4", (await count()).cols, 4);
+  eq("Insert right → 4 cols", (await count()).cols, 4);
   await open("col", 2);
   await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
   await page.waitForTimeout(400);
-  eq("삭제 → 열 3", (await count()).cols, 3);
+  eq("Delete → 3 cols", (await count()).cols, 3);
   await open("row", 1);
   await page.locator('[data-testid="table-grip-menu-item-clear"]').click();
   await page.waitForTimeout(500);
   const row1 = await page.evaluate((tid) => [0, 1, 2].map((c) => document.querySelector(`[data-testid="table-cell-${tid}-1-${c}"]`).innerText), tableId);
-  eq("콘텐츠 삭제 → 행이 빈다", row1.join("|"), "||");
+  eq("Clear contents → row is empty", row1.join("|"), "||");
   await open("row", 1);
   await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
   await page.waitForTimeout(400);
-  eq("삭제 → 행 2", (await count()).rows, 2);
+  eq("Delete → 2 rows", (await count()).rows, 2);
 }
 
-// ── 6b. 구조 편집이 색·정렬을 데리고 다니는지 (회귀) ──────────────
-// 한 번 틀렸다: `왼쪽에 삽입` 이 cells 만 밀어서, 색은 새 빈 열에 남고 원래 열이
-// 맨몸으로 오른쪽에 나왔다. 이제 모든 구조 편집이 lib/editor/table-data.ts 를
-// 지나가므로 격자가 같이 움직인다.
+// ── 6b. Structural edits carry color/alignment along (regression) ──────────────
+// It broke once: `Insert left` shifted only cells, so the color stayed on the new empty column and the
+// original column came out bare on the right. Now every structural edit goes through
+// lib/editor/table-data.ts, so the grids move together.
 {
   const grid = () => page.evaluate((tid) => {
     const rows = [];
@@ -540,48 +541,48 @@ const clearAll = async () => {
     await page.waitForTimeout(450);
   };
 
- // 열1 을 파란 배경 + 가운데로
+ // column 1 to blue background + center
   await open("col", 1);
   await pick("color", "bg-blue");
   await open("col", 1);
   await pick("align", "align-center");
   let g0 = await grid();
-  eq("셋업: 열1 만 파랑/가운데", g0[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
+  eq("setup: only col 1 blue/center", g0[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
 
- // 왼쪽에 삽입 → 새 열은 맨몸, 색은 원래 열과 함께 오른쪽으로
+ // Insert left → new column is bare, color moves right with the original column
   await open("col", 1);
   await page.locator('[data-testid="table-grip-menu-item-before"]').click();
   await page.waitForTimeout(500);
   let g = await grid();
-  eq("왼쪽에 삽입: 새 열(1)은 맨몸", g[0].split(" ")[1], "∅/-/left");
-  eq("왼쪽에 삽입: 색·정렬은 옮겨간 열(2)에", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
-  eq("왼쪽에 삽입: 텍스트도 그 열에", g[0].split(" ")[2].split("/")[0], g0[0].split(" ")[1].split("/")[0]);
+  eq("Insert left: new col (1) is bare", g[0].split(" ")[1], "∅/-/left");
+  eq("Insert left: color/align on the shifted col (2)", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
+  eq("Insert left: text is in that col too", g[0].split(" ")[2].split("/")[0], g0[0].split(" ")[1].split("/")[0]);
 
- // 오른쪽에 삽입 → 색은 제자리, 새 열이 오른쪽
+ // Insert right → color stays put, new column on the right
   await open("col", 2);
   await page.locator('[data-testid="table-grip-menu-item-after"]').click();
   await page.waitForTimeout(500);
   g = await grid();
-  eq("오른쪽에 삽입: 색은 열2 에 그대로", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
-  eq("오른쪽에 삽입: 새 열(3)이 맨몸", g[0].split(" ")[3], "∅/-/left");
+  eq("Insert right: color stays on col 2", g[0].split(" ")[2].split("/").slice(1).join("/"), "blue/center");
+  eq("Insert right: new col (3) is bare", g[0].split(" ")[3], "∅/-/left");
 
- // 복제 → 사본도 색·정렬을 가진다
+ // Duplicate → the copy has the color/alignment too
   await open("col", 2);
   await page.locator('[data-testid="table-grip-menu-item-duplicate"]').click();
   await page.waitForTimeout(500);
   g = await grid();
-  eq("복제: 사본도 파랑/가운데", g[0].split(" ")[3].split("/").slice(1).join("/"), "blue/center");
-  eq("복제: 내용까지 같다", g[0].split(" ")[3].split("/")[0], g[0].split(" ")[2].split("/")[0]);
+  eq("Duplicate: copy is blue/center too", g[0].split(" ")[3].split("/").slice(1).join("/"), "blue/center");
+  eq("Duplicate: same content too", g[0].split(" ")[3].split("/")[0], g[0].split(" ")[2].split("/")[0]);
 
- // 삭제 → 남은 열들의 색이 어긋나지 않는다
+ // Delete → remaining columns' colors do not shift out of place
   await open("col", 0);
   await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
   await page.waitForTimeout(500);
   g = await grid();
-  eq("삭제: 파란 열이 한 칸 왼쪽으로", g[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
-  eq("삭제: 그 왼쪽 열은 맨몸", g[0].split(" ")[0], "∅/-/left");
+  eq("Delete: blue col moves one to the left", g[0].split(" ")[1].split("/").slice(1).join("/"), "blue/center");
+  eq("Delete: the col to its left is bare", g[0].split(" ")[0], "∅/-/left");
 
- // 그립을 끌어 옮겨도 색이 따라간다
+ // dragging a grip carries the color along
   await clearAll();
   await cell(0, 1).hover();
   const grip = page.locator(gripSel("col", 1));
@@ -596,22 +597,22 @@ const clearAll = async () => {
   await page.mouse.up();
   await page.waitForTimeout(500);
   g = await grid();
-  eq("이동: 색·정렬이 함께 옮겨간다", g[0].split(" ")[last].split("/").slice(1).join("/"), "blue/center");
+  eq("move: color/align move along", g[0].split(" ")[last].split("/").slice(1).join("/"), "blue/center");
 
- // 행도 같은 규칙
+ // same rule for rows
   await open("row", 1);
   await pick("color", "bg-red");
   g0 = await grid();
-  eq("셋업: 행1 이 빨강", g0[1].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
+  eq("setup: row 1 is red", g0[1].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
   await open("row", 1);
   await page.locator('[data-testid="table-grip-menu-item-before"]').click();
   await page.waitForTimeout(500);
   g = await grid();
-  eq("위에 삽입: 새 행은 맨몸", g[1].split(" ").every((cellStr) => cellStr.endsWith("/-/left")), true);
-  eq("위에 삽입: 빨강은 아래 행으로", g[2].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
+  eq("Insert above: new row is bare", g[1].split(" ").every((cellStr) => cellStr.endsWith("/-/left")), true);
+  eq("Insert above: red moves to the row below", g[2].split(" ").every((cellStr) => cellStr.split("/")[1] === "red"), true);
 
- // 색·정렬을 원래대로 (뒤 섹션이 평범한 표를 본다)
- // 색은 셀 단위라 열을 전부 훑으면 모든 칸이 덮인다
+ // reset color/alignment (later sections see a plain table)
+ // color is per cell, so sweeping every column covers every cell
   const width = (await grid())[0].split(" ").length;
   for (let i = 0; i < width; i++) {
     await open("col", i);
@@ -619,12 +620,12 @@ const clearAll = async () => {
     await open("col", i);
     await pick("align", "align-left");
   }
-  eq("되돌림: 색·정렬 없음", (await grid()).join(" ").includes("/blue/") || (await grid()).join(" ").includes("/red/"), false);
+  eq("reverted: no color/alignment", (await grid()).join(" ").includes("/blue/") || (await grid()).join(" ").includes("/red/"), false);
 }
 
-// ── 7. 제목 토글: 첫 행·첫 열 그립에만, 각자 자기 축 ────────────
+// ── 7. Header toggle: only on the first row/column grip, each for its own axis ────────────
 {
-  /** 셀별 (굵음, 배경있음) 지도 */
+  /** per-cell (bold, has background) map */
   const look = () => page.evaluate((tid) => {
     const out = [];
     for (let r = 0; ; r++) {
@@ -662,40 +663,40 @@ const clearAll = async () => {
 
   await open("col", 1);
   let m = await menu();
-  eq("열1 메뉴에는 제목 토글이 없다", m.items.length, H.itemCountWithout + G.menu.ours.items.length, 0);
-  eq("열1 메뉴 첫 항목", m.items[0].label, "색");
+  eq("col 1 menu has no header toggle", m.items.length, H.itemCountWithout + G.menu.ours.items.length, 0);
+  eq("col 1 menu first item", m.items[0].label, ko("Color"));
   await page.keyboard.press("Escape");
 
   await open("col", 0);
   m = await menu();
-  eq("열0 메뉴에는 제목 토글이 있다", m.items.length, H.itemCountWith + G.menu.ours.items.length, 0);
-  eq("제목 토글 라벨", m.items[0].label, H.label);
+  eq("col 0 menu has the header toggle", m.items.length, H.itemCountWith + G.menu.ours.items.length, 0);
+  eq("header toggle label", m.items[0].label, H.label);
   await page.locator('[data-testid="table-grip-menu-item-header"]').click();
   await page.waitForTimeout(350);
   m = await menu();
-  eq("제목 토글 후에도 메뉴 열림", !!m, G.menu.switch.keepsMenuOpen);
-  eq("스위치 켜짐 색", m?.items[0].sw.bg, G.menu.switch.on);
+  eq("menu stays open after header toggle", !!m, G.menu.switch.keepsMenuOpen);
+  eq("switch on color", m?.items[0].sw.bg, G.menu.switch.on);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
-  eq("열0 토글 → 첫 열이 제목", await look(), map(await dim(), "col"));
+  eq("col 0 toggle → first col is header", await look(), map(await dim(), "col"));
   const hb = await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).backgroundColor, tableId);
-  eq("제목 셀 배경", hb, G.headerCell.bg);
-  eq("제목 셀 굵기", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).fontWeight, tableId), G.headerCell.fontWeight);
+  eq("header cell background", hb, G.headerCell.bg);
+  eq("header cell weight", await page.evaluate((tid) => getComputedStyle(document.querySelector(`[data-testid="table-cell-${tid}-0-0"]`).parentElement).fontWeight, tableId), G.headerCell.fontWeight);
 
   await open("row", 0);
   await page.locator('[data-testid="table-grip-menu-item-header"]').click();
   await page.waitForTimeout(350);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
-  eq("행0 토글 → 첫 행도 제목 (둘은 따로)", await look(), map(await dim(), "both"));
+  eq("row 0 toggle → first row is header too (independent)", await look(), map(await dim(), "both"));
 
- // 자리에 붙는다: 첫 행을 지우면 새 첫 행이 제목
+ // tied to the position: deleting the first row makes the new first row the header
   await open("row", 0);
   await page.locator('[data-testid="table-grip-menu-item-delete"]').click();
   await page.waitForTimeout(450);
-  eq("첫 행 삭제 후에도 새 첫 행이 제목", await look(), map(await dim(), "both"));
+  eq("after deleting first row the new first row is header", await look(), map(await dim(), "both"));
 
- // 첫 열을 오른쪽으로 옮겨도 제목은 자리에 남는다
+ // moving the first column right leaves the header in place
   await clearAll();
   await cell(0, 0).hover();
   const grip = page.locator(gripSel("col", 0));
@@ -707,9 +708,9 @@ const clearAll = async () => {
   for (let k = 1; k <= 10; k++) { await page.mouse.move(gb.x + gb.width / 2 + ((tb.x + tb.width / 2 - gb.x - gb.width / 2) * k) / 10, gb.y + gb.height / 2); await page.waitForTimeout(30); }
   await page.mouse.up();
   await page.waitForTimeout(500);
-  eq("첫 열을 옮겨도 제목은 자리에", await look(), map(await dim(), "both"));
+  eq("header stays in place when first col moves", await look(), map(await dim(), "both"));
 
- // 원래대로 (제목 둘 다 끄기)
+ // restore (turn both headers off)
   for (const kind of ["col", "row"]) {
     await open(kind, 0);
     await page.locator('[data-testid="table-grip-menu-item-header"]').click();
@@ -717,7 +718,7 @@ const clearAll = async () => {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
   }
-  eq("둘 다 끄면 평범해진다", (await look()).join("/").includes("G"), false);
+  eq("both off → plain table", (await look()).join("/").includes("G"), false);
 }
 
 
@@ -725,9 +726,9 @@ await browser.close();
 await fetch(`${BASE}/api/pages/${pageId}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 
 if (fails.length) {
-  console.log(`  ┌─ 표 그립이 원본과 다릅니다 (${fails.length}/${checks}) ─────`);
+  console.log(`  ┌─ table grips differ from the original (${fails.length}/${checks}) ─────`);
   for (const f of fails.slice(0, 40)) console.log(`  │ ${f}`);
   console.log("  └──────────────────────────────────────────");
   process.exit(1);
 }
-console.log(`표 행·열 그립(회색 선 → 6점 버튼 → 파란색 + 드롭다운) 원본과 일치 — ${checks}개 체크`);
+console.log(`table row/col grips (gray line → 6-dot button → blue + dropdown) match the original — ${checks} checks`);

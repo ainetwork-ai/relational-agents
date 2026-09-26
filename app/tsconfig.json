@@ -39,7 +39,11 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-suicheck/types/**/*.ts",
-    ".next-suicheck/dev/types/**/*.ts"
+    ".next-suicheck/dev/types/**/*.ts",
+    ".next-dev3110/types/**/*.ts",
+    ".next-dev3110/dev/types/**/*.ts",
+    ".next-buildcheck/types/**/*.ts",
+    ".next-buildcheck/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

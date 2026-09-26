@@ -1,13 +1,13 @@
 /**
- * `Range: bytes=…` 파싱 — 저장소 부분 읽기(`streamFile(bucket, key, range)`)의 입력을 만든다.
+ * Parses `Range: bytes=…` — builds the input for a partial storage read (`streamFile(bucket, key, range)`).
  *
- * 왜 필요한가: `<video>` 의 탐색(seek)과 iOS Safari 의 재생이 **206 Partial Content 를 전제**한다.
- * 200 으로 전체를 주면 사파리는 재생 자체를 거부하고, 다른 브라우저도 탐색이 안 된다.
- * 우리 `lib/files/storage.ts` 의 `streamFile` 은 처음부터 range 를 받았는데 어떤 라우트도
- * 넘기지 않았다(측정: `docs/notion-video.md` §4).
+ * Why it is needed: `<video>` seeking and iOS Safari playback **assume 206 Partial Content**.
+ * Serve the whole file as 200 and Safari refuses to play at all, and other browsers cannot seek.
+ * Our `streamFile` in `lib/files/storage.ts` accepted a range from the start, but no route
+ * ever passed one (measured: `docs/notion-video.md` §4).
  *
- * ainteams `backend/src/domain/shared/http-range.ts` 에서 가져왔다. 그쪽 주석의 경고를 그대로
- * 옮긴다 — **사본은 반드시 갈라진다.** 문법을 손볼 일이 생기면 두 곳을 같이 본다.
+ * Taken from ainteams `backend/src/domain/shared/http-range.ts`. Carrying over the warning in
+ * its comment as-is — **copies always drift apart.** If the grammar ever needs a fix, look at both places.
  */
 
 export interface ByteRange {
@@ -18,20 +18,20 @@ export interface ByteRange {
 }
 
 /**
- * RFC 7233 §2.1 의 단일 byte-range. **suffix 형(`bytes=-N`, 마지막 N 바이트)을 포함한다.**
+ * A single byte-range per RFC 7233 §2.1. **Includes the suffix form (`bytes=-N`, the last N bytes).**
  *
- * 반환 세 가지의 뜻이 다르다:
- *   - `ByteRange` — 그 구간으로 **206**.
- *   - `"unsatisfiable"` — 문법은 맞는데 만족 불가 → **416**.
- *   - `null` — 못 알아본 형식(다중 구간 등)이거나 헤더 없음 → **200 전체**.
+ * The three return values mean different things:
+ *   - `ByteRange` — **206** with that span.
+ *   - `"unsatisfiable"` — grammatically valid but cannot be satisfied → **416**.
+ *   - `null` — an unrecognised form (multiple ranges, etc.) or no header → **200 with the whole file**.
  *
- * `null` 과 `"unsatisfiable"` 을 가르는 이유: 해석조차 못 한 요청에 416 을 주면 재생이 아예
- * 안 되지만, 전체를 주면 느릴 뿐 동작한다. 반대로 문법이 맞는데 범위가 파일 밖이면 그건
- * 클라이언트가 알아야 하는 오류다.
+ * Why `null` and `"unsatisfiable"` are kept apart: answering 416 to a request we could not even
+ * parse breaks playback outright, whereas serving the whole file is merely slow but works. Conversely,
+ * a valid range that falls outside the file is an error the client needs to know about.
  *
- * suffix 를 지원하는 이유: mp4/mov 는 컨테이너 메타(`moov`)가 파일 **뒤**에 있어 플레이어가
- * `bytes=-65536` 으로 먼저 훑는다. 미지원으로 두면 그 요청마다 파일 **전체**가 나간다 —
- * Range 를 만든 목적과 정반대로 조용히 비싸진다.
+ * Why suffixes are supported: mp4/mov keep the container metadata (`moov`) at the **end** of the
+ * file, so players probe with `bytes=-65536` first. Leave it unsupported and every such request sends
+ * the **whole** file — silently expensive, the exact opposite of what Range is for.
  */
 export function parseByteRange(
   header: string | null | undefined,
@@ -39,7 +39,7 @@ export function parseByteRange(
 ): ByteRange | "unsatisfiable" | null {
   if (!header) return null;
   const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!m) return null; // 다중 구간 등 미지원 형식 → 전체를 준다
+  if (!m) return null; // unsupported form (multiple ranges, etc.) → serve the whole file
   const [, rawStart, rawEnd] = m;
   if (rawStart === "" && rawEnd === "") return "unsatisfiable"; // `bytes=-`
   if (!Number.isFinite(totalSize) || totalSize <= 0) return "unsatisfiable";
@@ -61,7 +61,7 @@ export function parseByteRange(
   return { start, end: Math.min(end, totalSize - 1) };
 }
 
-/** 416 에 실어야 하는 `Content-Range: bytes * /<total>`. */
+/** The `Content-Range: bytes * /<total>` a 416 has to carry. */
 export function unsatisfiableContentRange(totalSize: number): string {
   return `bytes */${Math.max(0, totalSize)}`;
 }

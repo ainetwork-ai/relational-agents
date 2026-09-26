@@ -6,7 +6,7 @@
  * ref. The portal node is not inside that ref, so the first mousedown on the
  * popover reads as "outside", the popover closes, and the click never reaches
  * the button. Nothing throws; the feature is just dead. That is what happened
- * to the person picker (docs/notion-projects-spec.md → 재보다 틀렸던 것들).
+ * to the person picker (docs/notion-projects-spec.md → the section on things we got wrong while measuring).
  *
  * The rule: a file that calls `createPortal` uses `useDismiss` (which takes the
  * portal ref too) rather than its own mousedown listener.
@@ -46,13 +46,13 @@ for (const file of walk(ROOT)) {
 }
 
 if (offenders.length) {
-  console.error("\n  ┌─ 포털 팝오버가 바깥클릭 감지를 직접 짜고 있습니다 ──────────");
+  console.error("\n  ┌─ A portalled popover hand-rolls its outside-click check ──");
   for (const o of offenders) console.error(`  │ ${o.file}:${o.line}`);
   console.error("  │");
-  console.error("  │ useDismiss(open, close, triggerRef, portalRef) 로 바꾸세요.");
-  console.error("  │ 포털 노드를 빼먹으면 팝오버 안 클릭이 '바깥'으로 판정되어");
-  console.error("  │ mousedown 에서 닫히고, 버튼 클릭이 도달하지 못합니다.");
+  console.error("  │ Switch it to useDismiss(open, close, triggerRef, portalRef).");
+  console.error("  │ Leaving out the portal node makes a click inside the popover count as 'outside',");
+  console.error("  │ so it closes on mousedown and the button click never arrives.");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`포털을 쓰는 컴포넌트 중 손으로 짠 바깥클릭 감지 없음 (${walk(ROOT).length}개 파일 검사)`);
+console.log(`No hand-rolled outside-click check among portal-using components (${walk(ROOT).length} files checked)`);

@@ -1,0 +1,359 @@
+{
+  "_": "Row/column grips of a Notion 'Table' block. Measured over CDP on the 2026-08-28 table test page, colors checked from full-screenshot pixels. The pixel blue differs from the CSS value because the capture is P3-encoded, so the CSS values are recorded.",
+  "line": {
+    "_": "Gray line visible only while the pointer is inside the table. Column lines sit centered on the table's top edge, row lines on its left edge.",
+    "color": "rgb(173, 169, 163)",
+    "radius": 4,
+    "ring": {
+      "_": "2px white border around the line — makes it look like it cuts the table rule",
+      "width": 2,
+      "color": "rgb(255, 255, 255)"
+    },
+    "col": {
+      "w": 18,
+      "h": 2
+    },
+    "row": {
+      "w": 2,
+      "h": 18
+    },
+    "showsFor": [
+      "the column and row of the cell under the pointer",
+      "the column and row of the **top-left cell** of a cell-range selection (not everything the range spans)",
+      "a row/column picked with a grip shows only that grip (row grip for a row selection, column grip for a column selection)",
+      "nothing lights up with just a caret"
+    ]
+  },
+  "button": {
+    "_": "Hovering the line turns it into a 6-dot button. aria-label is '열 이동'/'행 이동' (Move column / Move row) — it is also the handle you drag to reorder (reordering was out of scope this time).",
+    "col": {
+      "w": 22,
+      "h": 14
+    },
+    "row": {
+      "w": 14,
+      "h": 22
+    },
+    "radius": 4,
+    "bg": "rgb(255, 255, 255)",
+    "border": "1px solid rgb(230, 229, 227)",
+    "dot": {
+      "size": 2,
+      "color": "rgb(173, 169, 163)",
+      "gapAlong": 4.8,
+      "gapAcross": 4,
+      "count": 6,
+      "layoutCol": "3 cols x 2 rows",
+      "layoutRow": "2 cols x 3 rows"
+    },
+    "transition": "opacity 0.1s ease-in-out, transform 0.1s ease-in-out",
+    "active": {
+      "bg": "rgb(39, 131, 222)",
+      "border": "1px solid rgb(39, 131, 222)",
+      "dotColor": "rgb(255, 255, 255)"
+    }
+  },
+  "click": {
+    "_": "One press selects that whole column/row (a single 2px rgb(39,131,222) border), turns the button blue, and opens the dropdown.",
+    "selectsWholeColumn": true,
+    "selectsWholeRow": true,
+    "opensMenu": true
+  },
+  "menu": {
+    "width": 265,
+    "itemWidth": 257,
+    "itemHeight": 28,
+    "itemPitch": 29,
+    "itemRadius": 6,
+    "search": {
+      "placeholder": "작업을 검색하세요",
+      "fontSize": "14px",
+      "w": 229,
+      "h": 20
+    },
+    "col": [
+      "제목 행",
+      "색",
+      "왼쪽에 삽입",
+      "오른쪽에 삽입",
+      "복제",
+      "콘텐츠 삭제",
+      "삭제"
+    ],
+    "row": [
+      "제목 행",
+      "색",
+      "위에 삽입",
+      "아래에 삽입",
+      "복제",
+      "콘텐츠 삭제",
+      "삭제"
+    ],
+    "shortcut": {
+      "fontSize": "12px",
+      "color": "rgb(161, 158, 153)"
+    },
+    "height": {
+      "col": 258,
+      "row": 311,
+      "_": "the row menu has a 'Last edited' line at the bottom, so it is 53 taller"
+    },
+    "anchor": {
+      "col": {
+        "dxFromGripCenter": -9,
+        "dyFromTableTop": 11
+      },
+      "row": {
+        "dxFromTableLeft": 9,
+        "dyFromGripCenter": -8
+      }
+    },
+    "radius": 10,
+    "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+    "bg": "rgb(255, 255, 255)",
+    "searchArea": {
+      "h": 48,
+      "pad": "8px 4px 4px",
+      "rowH": 36,
+      "rowPad": "4px 8px",
+      "inputFontSize": "14px"
+    },
+    "listPad": 4,
+    "itemGap": 1,
+    "item": {
+      "iconBox": 20,
+      "iconDx": 8,
+      "labelDx": 36,
+      "labelFontSize": "14px",
+      "labelColor": "rgb(44, 44, 43)",
+      "accessoryInset": 8,
+      "hoverBg": "rgba(33, 27, 23, 0.05)"
+    },
+    "switch": {
+      "w": 30,
+      "h": 18,
+      "radius": 44,
+      "knob": 14,
+      "knobInset": 2,
+      "off": "rgba(135, 131, 120, 0.3)",
+      "on": "rgb(39, 131, 222)",
+      "keepsMenuOpen": true
+    },
+    "chevron": {
+      "size": 16,
+      "color": "rgb(142, 139, 134)"
+    },
+    "headerItem": {
+      "_": "The header toggle exists **only in the grip menus of the first row and first column** (the col 1 menu has 6 items). The col 0 grip toggle makes the first **column** a header, the row 0 grip toggle the first **row**. Notion labels both '제목 행' (Header row), verbatim.",
+      "label": "제목 행",
+      "onlyOnIndex0": true,
+      "colGripTogglesHeaderColumn": true,
+      "rowGripTogglesHeaderRow": true,
+      "independent": true,
+      "itemCountWithout": 6,
+      "itemCountWith": 7
+    },
+    "ours": {
+      "_": "Notion tables have no alignment — the column menu has 7 items and menu search has no '정렬' (Align) (measured). We added it **on purpose** at the user's request. Do not delete it to restore parity. The measured lists below stay as measured; comparisons assemble measured + ours.",
+      "insertAfter": "색",
+      "items": [
+        "정렬"
+      ],
+      "submenu": {
+        "_": "Uses the same box as the `색` (Color) submenu (220 wide · radius 10 · items 212×28 · pitch 29 · preview tile 26).",
+        "title": "정렬",
+        "options": [
+          "왼쪽",
+          "가운데",
+          "오른쪽"
+        ],
+        "default": "왼쪽",
+        "icons": [
+          "TextAlignStart",
+          "TextAlignCenter",
+          "TextAlignEnd"
+        ],
+        "storage": "TableData.align cell grid, left when absent. The markdown mirror can only express per-column alignment, so it uses each column's first-row value."
+      }
+    }
+  },
+  "noCellFill": {
+    "_": "Selecting cells by dragging leaves the cell background white — confirmed 3 times from full-screenshot pixels in a clean state (inside of selected cells 100% white). The light blue fill #E4EDFA appears only when the table is selected as a block (a sweep starting from the margin).",
+    "cellBackground": "rgba(0, 0, 0, 0)",
+    "blockSelectionFill": "rgb(228, 237, 250)"
+  },
+  "lit": {
+    "_": "Only a drag of 3+ cells tells 'whole range' from 'top-left + hover' apart. With 2×2 both rules give the same answer, which is how it was misread at first. cols/rows read from left/top, 1 = lit, 0 = off.",
+    "cases": [
+      {
+        "id": "drag-3-wide",
+        "drag": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "cols": "101",
+        "rows": "100"
+      },
+      {
+        "id": "then-hover",
+        "hover": [
+          2,
+          1
+        ],
+        "cols": "110",
+        "rows": "101"
+      },
+      {
+        "id": "pointer-out",
+        "hover": null,
+        "cols": "100",
+        "rows": "100"
+      },
+      {
+        "id": "drag-upleft",
+        "drag": [
+          [
+            2,
+            2
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "cols": "100",
+        "rows": "100"
+      },
+      {
+        "id": "drag-inner",
+        "drag": [
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            2
+          ]
+        ],
+        "cols": "011",
+        "rows": "011"
+      },
+      {
+        "id": "caret-only",
+        "click": [
+          1,
+          2
+        ],
+        "cols": "000",
+        "rows": "000"
+      },
+      {
+        "id": "grip-col",
+        "gripCol": 1,
+        "cols": "010",
+        "rows": "000"
+      }
+    ]
+  },
+  "move": {
+    "_": "Dragging a grip moves the row/column. That is why the aria-label is '열 이동'/'행 이동' (Move column / Move row).",
+    "threshold": "the indicator appears only once the pointer leaves the original row/column (nothing shown on the same spot)",
+    "ghost": {
+      "_": "A copy of the dragged row/column follows the pointer. Columns move only in x, rows only in y; the other axis stays put.",
+      "opacity": 0.9,
+      "bg": "rgb(255, 255, 255)",
+      "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px",
+      "border": "2px solid rgb(39, 131, 222)"
+    },
+    "dropBar": {
+      "_": "Bar marking the drop position. Moving forward: the end (right/bottom) edge of the target; moving back: its start (left/top) edge.",
+      "thickness": 3,
+      "color": "rgb(39, 131, 222)",
+      "spans": "table height/width + 2"
+    },
+    "commit": "spliced to the target index; the moved row/column stays selected"
+  },
+  "colorSubmenu": {
+    "_": "Second panel that opens beside the `색` (Color) row on hover. 10 text colors + 10 background colors.",
+    "width": 220,
+    "radius": 10,
+    "itemW": 212,
+    "itemH": 28,
+    "pitch": 29,
+    "swatch": {
+      "size": 26,
+      "radius": 6,
+      "letter": "A",
+      "letterFontSize": "16px",
+      "letterWeight": "500"
+    },
+    "labelDx": 42,
+    "sectionHeader": {
+      "fontSize": "12px",
+      "weight": "500",
+      "color": "rgb(125, 122, 117)"
+    },
+    "sections": [
+      "텍스트 색상",
+      "배경 색상"
+    ],
+    "names": [
+      "기본",
+      "회색",
+      "갈색",
+      "주황색",
+      "노란색",
+      "초록색",
+      "파란색",
+      "보라색",
+      "분홍색",
+      "빨간색"
+    ],
+    "textColors": {
+      "기본": "rgb(44, 44, 43)",
+      "회색": "rgb(125, 122, 117)",
+      "갈색": "rgb(159, 118, 90)",
+      "주황색": "rgb(210, 123, 45)",
+      "노란색": "rgb(203, 148, 52)",
+      "초록색": "rgb(80, 148, 110)",
+      "파란색": "rgb(56, 125, 201)",
+      "보라색": "rgb(154, 107, 180)",
+      "분홍색": "rgb(193, 76, 138)",
+      "빨간색": "rgb(207, 81, 72)"
+    },
+    "bgColors": {
+      "기본": "transparent",
+      "회색": "rgb(240, 239, 237)",
+      "갈색": "rgb(245, 237, 233)",
+      "주황색": "rgb(251, 235, 222)",
+      "노란색": "rgb(249, 243, 220)",
+      "초록색": "rgb(232, 241, 236)",
+      "파란색": "rgb(229, 242, 252)",
+      "보라색": "rgb(243, 235, 249)",
+      "분홍색": "rgb(250, 233, 241)",
+      "빨간색": "rgb(252, 233, 231)"
+    },
+    "ours": "Values use this app's own palette (globals.css .c-* / .hl-*) — 1–3 RGB off the measured values, and dark mode already exists."
+  },
+  "headerCell": {
+    "_": "How a header cell looks. Plain cells: no background + 400.",
+    "bg": "rgb(247, 246, 243)",
+    "fontWeight": "500",
+    "plainFontWeight": "400",
+    "followsPosition": "a table property, so it sticks to the position — delete the first row and the new first row becomes the header; move the first column and the new first column does"
+  },
+  "newTable": {
+    "_": "a table newly inserted via `표` (Table) in the slash menu",
+    "rows": 3,
+    "cols": 3,
+    "headerRow": false,
+    "headerCol": false
+  }
+}

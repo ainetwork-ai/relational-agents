@@ -1,0 +1,11 @@
+{
+  "_source": "Projects › on-going projects | Notion, 1728×992 — the rule row under the view tabs, measured over CDP 2026-08-27. Toggled by the toolbar Filter/Sort (필터/정렬) button and remembered per view.",
+  "toggle": { "hiddenByDefaultUntilPressed": true, "pressedBg": "rgba(33, 27, 23, 0.05)", "openRowHeight": 45, "closedRowHeight": 0 },
+  "tabsRow": { "h": 40, "activeTabOffset": 4, "toolbarButtonOffset": 6, "borderBottom": "none", "gapToTableWhenFolded": 0 },
+  "row": { "gapAboveFromTabs": 4, "gapBelowToTable": 0, "conjunctionControl": false, "h": 45, "strip": { "h": 40, "p": 8, "gap": 6 }, "wraps": false },
+  "chip": { "h": 24, "px": 8, "gap": 6, "radius": 32, "fontSize": 14, "lineHeight": 24, "color": "rgb(39, 131, 222)", "bg": "rgba(0, 124, 215, 0.094)", "iconH": 14, "labelMaxW": 180 },
+  "filterChip": { "typeIcon": 19.2, "nameWeight": 500, "valueWeight": 400, "text": "Status: In progress,Needs review" },
+  "separator": { "w": 1, "h": 24, "mx": 6, "color": "rgba(42, 28, 0, 0.07)" },
+  "addFilter": { "h": 24, "pl": 5, "pr": 9, "mr": 12, "radius": 12, "fontSize": 14, "color": "rgb(161, 158, 153)", "plusIconH": 14 },
+  "order": ["sorts", "separator", "filters", "+ 필터"]
+}

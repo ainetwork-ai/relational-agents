@@ -296,9 +296,9 @@ function RelationCell({ prop, row }: { prop: DbProperty; row: DbRow }) {
             className="popover-anim fixed z-50 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
           {!targetDbId ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">{t("먼저 대상 데이터베이스를 선택하세요")}</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("Select a target database first")}</div>
           ) : !snap || snap.rows.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-neutral-400">{t("연결할 행이 없습니다")}</div>
+            <div className="px-2 py-1 text-xs text-neutral-400">{t("No rows to link")}</div>
           ) : (
             snap.rows.map((tr) => (
               <button
@@ -438,7 +438,7 @@ function MultiSelectCell({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={t("검색 또는 생성…")}
+            placeholder={t("Search or create…")}
             className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
           />
           {options
@@ -464,7 +464,7 @@ function MultiSelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              {t("생성 “{q}”", { q })}
+              {t("Create “{q}”", { q })}
             </button>
           )}
           </div>,
@@ -523,7 +523,7 @@ function TextCell({
 }
 
 /**
- * Date cell. The cell itself is plain text in the column's `날짜 형식`;
+ * Date cell. The cell itself is plain text in the column's `Date format`;
  * everything else lives in the popover (./date-picker.tsx), which is the
  * original's, measured.
  */
@@ -565,7 +565,7 @@ function DateCell({
         {fmtDateRange(parts, fmt, dateOpts) ? (
  // one line, cut with an ellipsis rather than mid-glyph — the original nests
  // `white-space: nowrap; text-overflow: ellipsis; overflow: hidden` inside its
- // value cell, so a range wider than the cell reads "2025년 12월 22일 → 2026년…"
+ // value cell, so a range wider than the cell reads "December 22, 2025 → January…"
  // (e2e/fixtures/notion-row-props-band.json §truncate)
           <span className="min-w-0 truncate">{fmtDateRange(parts, fmt, dateOpts)}</span>
         ) : (
@@ -733,8 +733,8 @@ function UrlCell({
             }, 1200);
           }
         }}
-        aria-label={t("URL 복사")}
-        data-tip={t("링크 복사")}
+        aria-label={t("Copy URL")}
+        data-tip={t("Copy link")}
         className="shrink-0 rounded px-1 text-xs text-neutral-400 opacity-0 transition-opacity hover:text-neutral-600 group-hover/urlcell:opacity-100"
       >
         ⧉
@@ -742,7 +742,7 @@ function UrlCell({
       <button
         data-testid={`db-url-edit-${testid}`}
         onClick={() => setEditing(true)}
-        aria-label={t("URL 편집")}
+        aria-label={t("Edit URL")}
         className="ml-auto shrink-0 px-1 text-xs text-neutral-400 hover:text-neutral-600"
       >
         ✎
@@ -846,7 +846,7 @@ function SelectCell({
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder={current ? "" : t("옵션 선택 또는 생성")}
+                placeholder={current ? "" : t("Select or create an option")}
                 className="h-5 min-w-[40px] flex-1 bg-transparent text-[14px] leading-5 text-[rgb(44,44,43)] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
               />
             </div>
@@ -860,7 +860,7 @@ function SelectCell({
               }}
               className="flex h-7 w-full items-center rounded-[6px] px-2 text-left text-[14px] text-neutral-500 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
             >
-              {t("지우기")}
+              {t("Clear")}
             </button>
           )}
           {options
@@ -892,7 +892,7 @@ function SelectCell({
               }}
               className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
             >
-              {t("생성 “{q}”", { q })}
+              {t("Create “{q}”", { q })}
             </button>
           )}
           </div>,
@@ -938,13 +938,13 @@ function FilesCell({
             data-testid={`db-file-remove-${i}`}
             onClick={() => removeAt(i)}
             className="text-neutral-400 hover:text-red-500"
-            aria-label={t("파일 제거")}
+            aria-label={t("Remove file")}
           >
             ×
           </button>
         </span>
       ))}
-      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title={t("파일 업로드")}>
+      <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600" title={t("Upload file")}>
         ⬆
         <input
           data-testid={`${testid}-upload`}
@@ -968,7 +968,7 @@ function FilesCell({
           if (!isImeComposing(e) && e.key === "Enter") add();
         }}
         onBlur={add}
-        placeholder={t("파일 URL 추가…")}
+        placeholder={t("Add file URL…")}
         className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 text-xs outline-none dark:text-neutral-200"
       />
     </div>
@@ -995,7 +995,7 @@ function PersonCell({
  // several people per cell (the capture's `Assignee` holds two); the popover
  // toggles them rather than replacing the value
   const picked = personIds(value);
-  const people = personLabels(db.members, value);
+  const people = personLabels(db.members, value, t);
   const slug = testid.split("db-cell-")[1];
   const [query, setQuery] = useState("");
   const [anchor, setAnchor] = useState({ left: 0, top: 0, width: 235 });
@@ -1038,7 +1038,7 @@ function PersonCell({
   }
 
  // However many people a cell holds it stays one line and is simply clipped by
- // the column — the real table has no "N개 더 보기" in a cell (that pill is a
+ // the column — the real table has no "N more" in a cell (that pill is a
  // filter chip in the toolbar, which is where `target.html` has it).
   return (
     <div ref={ref} className="relative h-full w-full">
@@ -1093,7 +1093,7 @@ function PersonCell({
             className="popover-anim fixed z-50 flex flex-col overflow-hidden rounded-[6px] bg-white dark:bg-neutral-800"
           >
             {/* The bar: whoever is already in the cell, then the caret. The
-                original draws them as avatar + name + a 항목 제거 button, with
+                original draws them as avatar + name + a Remove item button, with
                 no pill behind them, and lets the input take what is left of
                 the line. Rows are 24 apart, the first at y=9, 10px at the
                 bottom — an empty bar is exactly 39 tall. */}
@@ -1110,7 +1110,7 @@ function PersonCell({
                     </span>
                     <button
                       data-testid={`db-person-${slug}-remove-${p.id}`}
-                      aria-label={t("항목 제거")}
+                      aria-label={t("Remove item")}
                       onClick={() => toggle(p.id)}
                       className="ml-[2px] flex h-5 w-5 items-center justify-center text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
@@ -1131,7 +1131,7 @@ function PersonCell({
                 box starts 10px under the bar and 12px in, so the text element —
                 not its padding — is what has to land there */}
             <div className="shrink-0 px-3 pt-[10px] text-[12px] leading-[14px]">
-              <span className="font-medium text-[rgb(125,122,117)]">{t("원하는 만큼 선택")}</span>
+              <span className="font-medium text-[rgb(125,122,117)]">{t("Select as many as you like")}</span>
             </div>
             <div className="mt-[9px] min-h-0 flex-1 overflow-y-auto">
             {candidates.map((m) => (
@@ -1144,8 +1144,8 @@ function PersonCell({
               >
                 <UserAvatar user={m} size={20} />
                 <span className="flex-1 truncate text-[14px] leading-5 text-[rgb(44,44,43)] dark:text-neutral-200">
-                  {m.displayName || m.email || t("이름 없음")}
-                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">{t("(나)")}</span>}
+                  {m.displayName || m.email || t("Unnamed")}
+                  {m.id === db.me && <span className="text-[rgb(125,122,117)]">{t("(You)")}</span>}
                 </span>
               </button>
             ))}

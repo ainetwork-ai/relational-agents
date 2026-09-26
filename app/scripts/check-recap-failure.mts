@@ -49,14 +49,14 @@ try {
   // AI_URL points at a closed port, so aiChat throws — the old code returned
   // quietly here and the two lines stayed claimed forever.
   const res = await writeCallRecap(ROOM, callId, inserted);
-  check("LLM 실패 시 기록하지 않는다", res.recorded === false);
+  check("does not record when the LLM fails", res.recorded === false);
 
   const after = await db
     .select()
     .from(callUtterances)
     .where(and(eq(callUtterances.callId, callId)));
   check(
-    "실패한 발화는 큐로 돌아간다",
+    "failed utterances go back to the queue",
     after.every((u) => u.processedAt === null),
     after.map((u) => String(u.processedAt)).join(", ")
   );
@@ -75,15 +75,15 @@ try {
       { ...inserted[1], roomId: unsigned.id },
     ]);
     const after = nodeExists(`${docRootTitle(unsigned.name, DEFAULT_PROFILE)}-${unsigned.id.slice(0, 6)}`);
-    check("미서명 방은 통화만으로 문서를 만들지 않는다", res.recorded === false && before === after,
-      `${unsigned.name}: 폴더 ${before ? "이미 있음" : "없음"} → ${after ? "생김" : "없음"}`);
+    check("an unsigned room does not create a document from a call alone", res.recorded === false && before === after,
+      `${unsigned.name}: folder ${before ? "already exists" : "none"} → ${after ? "created" : "none"}`);
   } else {
-    console.log("   (미서명 방이 없어 consent 게이트는 미검증)");
+    console.log("   (no unsigned room, so the consent gate is unverified)");
   }
 } finally {
   await db.delete(callUtterances).where(eq(callUtterances.callId, callId));
-  console.log("   probe 행 삭제 완료");
+  console.log("   probe rows deleted");
 }
 
-console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");
+console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

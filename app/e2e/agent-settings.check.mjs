@@ -111,12 +111,12 @@ for (const f of SECTIONS) {
   if (!before) continue; // nothing was in it to lose
   const now = bodyOf(f);
   check(
-    `${f} 내용 보존`,
+    `${f} content kept`,
     now.includes(before),
     `${before.length}B → ${now.length}B`
   );
 }
 
 await browser.close();
-console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");
+console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

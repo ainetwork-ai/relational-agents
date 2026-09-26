@@ -17,6 +17,7 @@ import {
   type Align, type CellField,
 } from "@/lib/editor/table-data";
 import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n";
 import { useEditor, type EBlock } from "./block-editor";
 
 /** Inline page links in cells: `[Label](/p/<uuid>)` renders as a mention chip
@@ -111,9 +112,9 @@ const MENU = {
  * cell colour survives dark mode like every other coloured text here. */
 const CELL_COLORS = ["default", "gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 type CellColor = (typeof CELL_COLORS)[number];
-const COLOR_KO: Record<CellColor, string> = {
-  default: "기본", gray: "회색", brown: "갈색", orange: "주황색", yellow: "노란색",
-  green: "초록색", blue: "파란색", purple: "보라색", pink: "분홍색", red: "빨간색",
+const COLOR_NAME: Record<CellColor, string> = {
+  default: "Default", gray: "Gray", brown: "Brown", orange: "Orange", yellow: "Yellow",
+  green: "Green", blue: "Blue", purple: "Purple", pink: "Pink", red: "Red",
 };
 
 type Cell = { r: number; c: number };
@@ -208,8 +209,8 @@ export function TableBlock({ block }: { block: EBlock }) {
   );
 
   // Every structural edit goes through lib/editor/table-data.ts so the colour,
-  // alignment and html grids move with the text. They did not, once: "왼쪽에
-  // 삽입" shifted only `cells`, so the colour stayed on the new blank column and
+  // alignment and html grids move with the text. They did not, once: "Insert
+  // left" shifted only `cells`, so the colour stayed on the new blank column and
   // the real one came out plain — it looked like the column was inserted right.
   function addRow() {
     commit(insertLine(table, "row", nRows));
@@ -228,7 +229,7 @@ export function TableBlock({ block }: { block: EBlock }) {
 
  // --- row/column operations behind the grip menu ---------------------------
 
-  /** insert a row/column at `at`, or a copy of `from` (복제) */
+  /** insert a row/column at `at`, or a copy of `from` (Duplicate) */
   function insertAt(kind: GripKind, at: number, from?: number) {
     setRange(null);
     commit(insertLine(table, kind, at, from));
@@ -239,7 +240,7 @@ export function TableBlock({ block }: { block: EBlock }) {
     commit(setLine(table, field, kind, i, value));
   }
 
-  /** blank every cell of a row / column, keeping its colour ("콘텐츠 삭제") */
+  /** blank every cell of a row / column, keeping its colour ("Clear contents") */
   function clearLine(kind: GripKind, i: number) {
     for (let r = 0; r < nRows; r++)
       for (let c = 0; c < nCols; c++) {
@@ -339,7 +340,7 @@ export function TableBlock({ block }: { block: EBlock }) {
   const prevCell = (r: number, c: number): Cell | null =>
     c > 0 ? { r, c: c - 1 } : r > 0 ? { r: r - 1, c: nCols - 1 } : null;
 
-  /** clear the text of every cell in the range (the original's "콘텐츠 삭제") */
+  /** clear the text of every cell in the range (the original's "Clear contents") */
   const clearRange = (g: CellRange) => {
     const { r1, c1, r2, c2 } = normalize(g);
     const copy = cells.map((row) => row.slice());
@@ -751,7 +752,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                       lit={litCols.has(c)}
                       hovered={gripHover?.kind === "col" && gripHover.i === c}
                       selected={gripSelected("col", c) || (gripMenu?.kind === "col" && gripMenu.i === c)}
-                      label={t("열 이동")}
+                      label={t("Move column")}
                       onEnter={() => setGripHover({ kind: "col", i: c })}
                       onLeave={() => setGripHover((g) => (g?.kind === "col" && g.i === c ? null : g))}
                       onPress={(e) => startGripDrag("col", c, e)}
@@ -765,7 +766,7 @@ export function TableBlock({ block }: { block: EBlock }) {
                       lit={litRows.has(r)}
                       hovered={gripHover?.kind === "row" && gripHover.i === r}
                       selected={gripSelected("row", r) || (gripMenu?.kind === "row" && gripMenu.i === r)}
-                      label={t("행 이동")}
+                      label={t("Move row")}
                       onEnter={() => setGripHover({ kind: "row", i: r })}
                       onLeave={() => setGripHover((g) => (g?.kind === "row" && g.i === r ? null : g))}
                       onPress={(e) => startGripDrag("row", r, e)}
@@ -856,7 +857,7 @@ export function TableBlock({ block }: { block: EBlock }) {
         <button
           data-testid={`table-add-col-${block.id}`}
           onClick={addCol}
-          aria-label={t("열 추가")}
+          aria-label={t("Add column")}
           className="ml-0.5 flex w-6 shrink-0 items-center justify-center self-stretch rounded text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <Plus size={14} />
@@ -867,7 +868,7 @@ export function TableBlock({ block }: { block: EBlock }) {
       <button
         data-testid={`table-add-row-${block.id}`}
         onClick={addRow}
-        aria-label={t("행 추가")}
+        aria-label={t("Add row")}
         className="mt-0.5 flex h-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         style={{ width: `calc(100% - 1.5rem)` }}
       >
@@ -1021,7 +1022,7 @@ type GripAction = "header" | "before" | "after" | "duplicate" | "clear" | "delet
  * The grip's dropdown, built to the measured original: a 265-wide panel with
  * 10px corners and a three-layer shadow, a search field on top, then 28-high
  * rows on a 29 pitch — 20px icon at 8, label at 36, and the row's accessory
- * (the header switch, `색`'s chevron, `복제`'s ⌘D) 8px in from the right.
+ * (the header switch, `Color`'s chevron, `Duplicate`'s ⌘D) 8px in from the right.
  * Toggling the header row leaves the menu open; every other row closes it.
  */
 function GripMenu({
@@ -1076,18 +1077,18 @@ function GripMenu({
     submenu?: boolean;
   }> = [
  // the toggle only exists on the first row's and first column's grips, and the
- // original labels it "제목 행" in both — even where it makes a header COLUMN
+ // original labels it "Header row" in both — even where it makes a header COLUMN
     ...(header == null
       ? []
-      : [{ key: "header" as const, label: t("제목 행"), Icon: Table2, toggle: true }]),
-    { key: "color", label: t("색"), Icon: Palette, submenu: true },
+      : [{ key: "header" as const, label: t("Header row"), Icon: Table2, toggle: true }]),
+    { key: "color", label: t("Color"), Icon: Palette, submenu: true },
  // ours, not the original's — see fixtures/notion-table-grip.json §menu.ours
-    { key: "align", label: t("정렬"), Icon: TextAlignStart, submenu: true },
-    { key: "before", label: col ? t("왼쪽에 삽입") : t("위에 삽입"), Icon: col ? ArrowLeft : ArrowUp },
-    { key: "after", label: col ? t("오른쪽에 삽입") : t("아래에 삽입"), Icon: col ? ArrowRight : ArrowDown },
-    { key: "duplicate", label: t("복제"), Icon: Copy, shortcut: "⌘D" },
-    { key: "clear", label: t("콘텐츠 삭제"), Icon: CircleX },
-    ...(canDelete ? [{ key: "delete" as GripAction, label: t("삭제"), Icon: Trash2 }] : []),
+    { key: "align", label: t("Sort"), Icon: TextAlignStart, submenu: true },
+    { key: "before", label: col ? t("Insert left") : t("Insert above"), Icon: col ? ArrowLeft : ArrowUp },
+    { key: "after", label: col ? t("Insert right") : t("Insert below"), Icon: col ? ArrowRight : ArrowDown },
+    { key: "duplicate", label: t("Duplicate"), Icon: Copy, shortcut: "⌘D" },
+    { key: "clear", label: t("Clear contents"), Icon: CircleX },
+    ...(canDelete ? [{ key: "delete" as GripAction, label: t("Delete"), Icon: Trash2 }] : []),
   ];
   const shown = query ? items.filter((i) => i.label.includes(query)) : items;
 
@@ -1113,7 +1114,7 @@ function GripMenu({
             data-testid={`table-grip-menu-search-${blockId}`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("작업을 검색하세요")}
+            placeholder={t("Search actions")}
  // the app's global :focus-visible ring would draw a box the original has not
             style={{ fontSize: 14, outline: "none" }}
             className="w-full bg-transparent text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100"
@@ -1197,22 +1198,24 @@ function GripMenu({
   );
 }
 
-/** `색`'s submenu: ten text colours then ten backgrounds, 220 wide with 26px
+/** `Color`'s submenu: ten text colours then ten backgrounds, 220 wide with 26px
  * swatches — the same two sections the original opens beside the row. */
 /** One submenu row: what to write, how to label it, what to show as its 26px
- * preview tile. The two callers (`색`, `정렬`) only build these — the panel
+ * preview tile. The two callers (`Color`, `Align`) only build these — the panel
  * itself knows nothing about colours or alignment. */
 type SubOption = { value: string; label: string; preview: React.ReactNode; previewClass?: string; on?: boolean };
 type SubSection = { field: CellField; title: string; options: SubOption[] };
 
-/** `색`'s two sections, in the original's order and wording. */
-function colorSections(t: (s: string) => string): SubSection[] {
+/** `Color`'s two sections, in the original's order and wording. */
+function colorSections(t: T): SubSection[] {
   return (["color", "bg"] as const).map((field) => ({
     field,
-    title: field === "color" ? t("텍스트 색상") : t("배경 색상"),
+    title: field === "color" ? t("Text color") : t("Background color"),
     options: CELL_COLORS.map((name) => ({
       value: name,
-      label: `${t(COLOR_KO[name])} ${field === "color" ? t("텍스트") : t("배경")}`,
+      label: field === "color"
+        ? t("{color} text", { color: t(COLOR_NAME[name]) })
+        : t("{color} background", { color: t(COLOR_NAME[name]) }),
       preview: field === "color" ? "A" : "",
       previewClass:
         field === "color"
@@ -1222,21 +1225,21 @@ function colorSections(t: (s: string) => string): SubSection[] {
   }));
 }
 
-/** `정렬` — ours. Left is the default and the original has no alignment at all. */
+/** `Align` — ours. Left is the default and the original has no alignment at all. */
 function alignSections(t: (s: string) => string, current: Align): SubSection[] {
   const ICON: Record<Align, typeof TextAlignStart> = {
     left: TextAlignStart,
     center: TextAlignCenter,
     right: TextAlignEnd,
   };
-  const KO: Record<Align, string> = { left: "왼쪽", center: "가운데", right: "오른쪽" };
+  const LABEL: Record<Align, string> = { left: "Left", center: "Center", right: "Right" };
   return [
     {
       field: "align",
-      title: t("정렬"),
+      title: t("Sort"),
       options: ALIGNS.map((a) => {
         const Icon = ICON[a];
-        return { value: a, label: t(KO[a]), preview: <Icon size={16} />, on: a === current };
+        return { value: a, label: t(LABEL[a]), preview: <Icon size={16} />, on: a === current };
       }),
     },
   ];
@@ -1245,7 +1248,7 @@ function alignSections(t: (s: string) => string, current: Align): SubSection[] {
 /**
  * The panel that opens beside a menu row. Same box as the original's colour
  * submenu (220 wide, 10px corners, 212×28 rows on a 29 pitch, 26px preview
- * tile) — `색` and `정렬` both render through it.
+ * tile) — `Color` and `Align` both render through it.
  */
 function GripSubmenu({
   blockId,

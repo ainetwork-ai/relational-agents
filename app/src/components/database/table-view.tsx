@@ -210,7 +210,7 @@ export function TableView({ view }: { view: DbView }) {
   const groupProp = db.properties.find(
     (p) => p.id === view.config.groupByPropertyId && isGroupable(p)
   );
-  const groups: RowGroup[] = buildGroups(visible, groupProp, db.members) ?? [
+  const groups: RowGroup[] = buildGroups(visible, groupProp, db.members, t) ?? [
     { key: NO_GROUP, label: "", rows: visible, preset: undefined },
   ];
  // collapse state lives in the view so it survives a reload, as in Notion
@@ -281,7 +281,7 @@ export function TableView({ view }: { view: DbView }) {
           data-testid="db-bulk-bar"
           className="popover-anim sticky left-0 top-0 z-30 mb-1 flex items-center gap-2 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white shadow-lg"
         >
-          <span data-testid="db-bulk-count">{t("{n}개 선택", { n: checked.size })}</span>
+          <span data-testid="db-bulk-count">{t("{n} selected", { n: checked.size })}</span>
           <button
             data-testid="db-bulk-delete"
             onClick={() => {
@@ -290,13 +290,13 @@ export function TableView({ view }: { view: DbView }) {
             }}
             className="rounded bg-white/20 px-2 py-0.5 hover:bg-white/30"
           >
-            {t("삭제")}
+            {t("Delete")}
           </button>
           <button
             data-testid="db-bulk-clear"
             onClick={() => setChecked(new Set())}
             className="ml-auto rounded px-1.5 py-0.5 hover:bg-white/20"
-            aria-label={t("선택 해제")}
+            aria-label={t("Deselect")}
           >
             ✕
           </button>
@@ -525,7 +525,7 @@ function HeaderRow({
 
 function AddRowButton({ testid, onClick }: { testid: string; onClick: () => void }) {
   const t = useT();
-  const label = t("새 {name}", { name: useDb().itemName });
+  const label = t("New {name}", { name: useDb().itemName });
   return (
     <button
       data-testid={testid}
@@ -575,7 +575,7 @@ function GroupSection({
 
  // a person section is headed by that person's own face
   const groupPerson =
-    groupProp.type === "person" ? personLabels(db.members, group.preset)[0] : undefined;
+    groupProp.type === "person" ? personLabels(db.members, group.preset, t)[0] : undefined;
 
  // a row added inside a section must carry that section's value
   const addToGroup = () =>
@@ -592,7 +592,7 @@ function GroupSection({
             data-testid={`db-group-toggle-${group.key}`}
             onClick={onToggle}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? t("열기") : t("닫기")}
+            aria-label={collapsed ? t("Open") : t("Close")}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
             <ChevronDown
@@ -621,7 +621,7 @@ function GroupSection({
             <button
               data-testid={`db-group-options-${group.key}`}
               onClick={() => setMenuOpen((v) => !v)}
-              aria-label={t("그룹 옵션 표시")}
+              aria-label={t("Show group options")}
               aria-expanded={menuOpen}
               className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
@@ -630,7 +630,7 @@ function GroupSection({
             <button
               data-testid={`db-group-add-${group.key}`}
               onClick={addToGroup}
-              aria-label={t("그룹에 새 {name} 추가", { name: db.itemName })}
+              aria-label={t("Add new {name} in group", { name: db.itemName })}
               className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <Plus size={14} />
@@ -643,7 +643,7 @@ function GroupSection({
               >
                 <GroupMenuItem
                   testid={`db-group-menu-collapse-all-${group.key}`}
-                  label={t("모든 그룹 접기")}
+                  label={t("Collapse all groups")}
                   onClick={() => {
                     setMenuOpen(false);
                     onCollapseAll();
@@ -651,7 +651,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-expand-all-${group.key}`}
-                  label={t("모든 그룹 펼치기")}
+                  label={t("Expand all groups")}
                   onClick={() => {
                     setMenuOpen(false);
                     onExpandAll();
@@ -659,7 +659,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-count-${group.key}`}
-                  label={t("그룹 개수 표시")}
+                  label={t("Show group count")}
                   checked={showCount}
                   onClick={() => {
                     setMenuOpen(false);
@@ -668,7 +668,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-hide-empty-${group.key}`}
-                  label={t("빈 그룹 숨기기")}
+                  label={t("Hide empty groups")}
                   checked={view.config.hideEmptyGroups ?? true}
                   onClick={() => {
                     setMenuOpen(false);
@@ -680,7 +680,7 @@ function GroupSection({
                 />
                 <GroupMenuItem
                   testid={`db-group-menu-ungroup-${group.key}`}
-                  label={t("그룹화 제거")}
+                  label={t("Remove grouping")}
                   onClick={() => {
                     setMenuOpen(false);
                     db.patchView({
@@ -730,8 +730,8 @@ function GroupMenuItem({
 }
 
 /** What a cell offers on hover — only what was actually measured on the
- * original (docs/notion-projects-spec.md). A cell WITH a value shows 댓글 at its
- * right edge (24×20, 7px in); date and number also show 클립보드에 복사;
+ * original (docs/notion-projects-spec.md). A cell WITH a value shows Comment at its
+ * right edge (24×20, 7px in); date and number also show Copy to clipboard;
  * `Created time`, read-only, shows the copy button alone. An EMPTY cell shows
  * nothing, and so does any type not in these lists — text, url, checkbox,
  * relation and the rest are unmeasured, and guessing at them is how the wrong
@@ -766,15 +766,15 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
 
   return (
     // These belong to the ONE cell the pointer is in, not to the row: the
-    // original shows 댓글 for the hovered COLUMN only, while 열기 (a row-level
+    // original shows Comment for the hovered COLUMN only, while Open (a row-level
     // action) is what follows the row. Keyed to /dbrow, every qualifying cell
     // in the row lit up at once.
     <div className="pointer-events-none absolute right-[7px] top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100">
       {canComment && (
         <button
           data-testid={`db-cell-comment-${row.id}-${prop.id}`}
-          aria-label={t("댓글")}
-          title={t("셀 댓글은 아직 없습니다")}
+          aria-label={t("Comments")}
+          title={t("Cell comments aren't available yet")}
           disabled
           className="flex h-5 w-6 cursor-not-allowed items-center justify-center rounded border border-neutral-200 bg-white text-neutral-300 shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-600"
         >
@@ -784,8 +784,8 @@ function CellActions({ prop, row }: { prop: DbProperty; row: DbRow }) {
       {canCopy && (
         <button
           data-testid={`db-cell-copy-${row.id}-${prop.id}`}
-          aria-label={t("클립보드에 복사")}
-          title={t("클립보드에 복사")}
+          aria-label={t("Copy to clipboard")}
+          title={t("Copy to clipboard")}
           onClick={copy}
           className="flex h-5 w-6 items-center justify-center rounded border border-neutral-200 bg-white text-neutral-500 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-700 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
         >
@@ -830,7 +830,7 @@ function HeaderTail() {
   );
 }
 
-/** The ⋯ beside it. In the original its tooltip is "속성 표시 또는 숨기기", and it
+/** The ⋯ beside it. In the original its tooltip is "Show or hide properties", and it
  *  opens exactly that list — so it opens ours (the same toggles the view
  *  settings panel carries), anchored to itself. */
 function PropertyVisibilityHeader() {
@@ -853,8 +853,8 @@ function PropertyVisibilityHeader() {
         ref={btnRef}
         data-testid="db-header-props"
         onClick={() => setOpen((v) => !v)}
-        aria-label={t("속성 표시 또는 숨기기")}
-        data-tip={t("속성 표시 또는 숨기기")}
+        aria-label={t("Show or hide properties")}
+        data-tip={t("Show or hide properties")}
         className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <MoreHorizontal size={16} />
@@ -868,7 +868,7 @@ function PropertyVisibilityHeader() {
             className="popover-anim fixed z-50 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
           >
             <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
-              {t("속성 표시 또는 숨기기")}
+              {t("Show or hide properties")}
             </p>
             {db.properties.map((p) => (
               <label
@@ -910,8 +910,8 @@ function AddPropertyHeader() {
         ref={btnRef}
         data-testid="db-add-prop"
         onClick={() => setOpen((v) => !v)}
-        aria-label={t("속성 추가")}
-        data-tip={t("속성 추가")}
+        aria-label={t("Add property")}
+        data-tip={t("Add property")}
         className="flex h-7 w-7 items-center justify-center rounded-md text-[#7d7a75] transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <Plus size={16} />
@@ -942,14 +942,14 @@ function AddPropertyHeader() {
 }
 
 const CALC_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "계산" },
-  { value: "count", label: "모두 카운트" },
-  { value: "count_values", label: "값 카운트" },
-  { value: "empty", label: "빈 값 카운트" },
-  { value: "sum", label: "합계" },
-  { value: "avg", label: "평균" },
-  { value: "min", label: "최소" },
-  { value: "max", label: "최대" },
+  { value: "", label: "Calculate" },
+  { value: "count", label: "Count all" },
+  { value: "count_values", label: "Count values" },
+  { value: "empty", label: "Count empty" },
+  { value: "sum", label: "Sum" },
+  { value: "avg", label: "Average" },
+  { value: "min", label: "Min" },
+  { value: "max", label: "Max" },
 ];
 
 function CalcCell({ view, prop, rows }: { view: DbView; prop: DbProperty; rows: DbRow[] }) {
@@ -1085,7 +1085,7 @@ function RowLine({
   const [commentsOpen, setCommentsOpen] = useState(false);
  // Deleting the last comment takes the badge away, and the card is anchored to
  // the badge — left open it lost its anchor and jumped to the top-left corner
- // showing "아직 댓글이 없습니다". No badge, no card: close it in the same render.
+ // showing "No comments yet". No badge, no card: close it in the same render.
   if (commentsOpen && commentCount === 0) setCommentsOpen(false);
   const badgeRef = useRef<HTMLSpanElement>(null);
   return (
@@ -1147,9 +1147,9 @@ function RowLine({
               };
               window.addEventListener("pointerup", onUp);
             }}
-            // the original's own words for this handle, read off it (our "열
-            // 메뉴" read as COLUMN menu, which is not what it opens)
-            aria-label={t("드래그하여 이동하고 클릭하여 메뉴를 여세요")}
+            // the original's own words for this handle, read off it (our "Column
+            // menu" read as COLUMN menu, which is not what it opens)
+            aria-label={t("Drag to move, click to open menu")}
             className="shrink-0 cursor-grab text-neutral-300 hover:text-neutral-500"
           >
             <GripVertical size={16} />
@@ -1159,7 +1159,7 @@ function RowLine({
             data-testid={`db-row-check-${row.id}`}
             checked={checked}
             onChange={() => onCheck?.()}
-            aria-label={t("행 선택")}
+            aria-label={t("Select row")}
             style={{ position: "absolute", left: -26 }}
             className="h-4 w-4 shrink-0 rounded-[3px] accent-blue-500"
           />
@@ -1167,7 +1167,7 @@ function RowLine({
       </div>
       {cols.map((p, i) =>
         p.type === "title" ? (
- // Title cell: hovering it reveals a "사이드 보기" button at the right edge
+ // Title cell: hovering it reveals a "Side peek" button at the right edge
  // opens the row's page (its full mapped content).
           <div
             key={p.id}
@@ -1193,7 +1193,7 @@ function RowLine({
               <button
                 data-testid={`db-row-expand-${row.id}`}
                 onClick={onToggle}
-                aria-label={collapsed ? t("하위 항목 펼치기") : t("하위 항목 접기")}
+                aria-label={collapsed ? t("Expand sub-items") : t("Collapse sub-items")}
                 className="ml-1 shrink-0 text-neutral-400 hover:text-neutral-600"
               >
                 <ChevronRight
@@ -1240,7 +1240,7 @@ function RowLine({
                 )?.focus()
               }
             />
-            {/* 열기, measured on the original's title cell: a white 55×24 pad
+            {/* Open, measured on the original's title cell: a white 55×24 pad
                 (radius 6, 2px padding, three-layer shadow) 5px from the cell's
                 right edge, holding a 51×20 button — icon 15px in
                 rgb(142,139,134), label 12px/500 in rgb(125,122,117), 6px apart.
@@ -1248,8 +1248,8 @@ function RowLine({
             <span
  // opacity-0 alone still intercepts clicks — disable pointer events until
  // hover so the invisible button never swallows a title click
- // /dbrow: 열기 belongs to the ROW — the original shows it whenever the pointer
- // is anywhere in the row, unlike 댓글/복사 which follow the cell. It was keyed
+ // /dbrow: Open belongs to the ROW — the original shows it whenever the pointer
+ // is anywhere in the row, unlike Comment/Copy which follow the cell. It was keyed
  // to /dbcell, a group the title cell does not even declare (it declares
  // /titlecell), so it never appeared at all.
               className="pointer-events-none absolute right-[5px] top-1/2 z-10 flex h-6 -translate-y-1/2 items-center rounded-[6px] bg-white p-[2px] opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:bg-neutral-800"
@@ -1261,22 +1261,22 @@ function RowLine({
               <button
                 data-testid={`db-title-open-${row.id}`}
                 onClick={() => db.openRow(row.id)}
-                aria-label={t("사이드 보기에서 열기")}
-                title={t("사이드 보기에서 열기")}
+                aria-label={t("Open in side peek")}
+                title={t("Open in side peek")}
                 className="flex h-5 items-center gap-1.5 rounded-[4px] px-1 text-[12px] font-medium leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-300 dark:hover:bg-neutral-700"
               >
                 <PanelRight size={15} className="text-[rgb(142,139,134)]" />
-                {t("열기")}
+                {t("Open")}
               </button>
             </span>
             {/* the row actions that used to sit in the gutter now hover here,
-                left of 열기 */}
+                left of Open */}
             <div className="pointer-events-none absolute right-14 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover/dbcell:pointer-events-auto group-hover/dbcell:opacity-100">
               <button
                 data-testid={`db-subitem-add-${row.id}`}
                 onClick={onAddSub}
-                aria-label={t("하위 항목 추가")}
-                title={t("하위 항목 추가")}
+                aria-label={t("Add sub-item")}
+                title={t("Add sub-item")}
                 className="text-neutral-300 hover:text-blue-500"
               >
                 <Plus size={13} />
@@ -1298,7 +1298,7 @@ function RowLine({
  // so a cell with five team chips is clipped rather than growing the row
  // relative: the hover actions are absolutely placed at this cell's right
  // edge. Without it they resolved against the row — 2,900px wide — and sat off
- // screen past the last column, which is why the 댓글 button never showed.
+ // screen past the last column, which is why the Comment button never showed.
             className={`group/dbcell relative flex h-[37px] shrink-0 items-center overflow-hidden ${
               i === 0 ? "" : "border-l border-neutral-100 dark:border-neutral-800"
             } ${frozenLefts[i] != null ? "sticky z-[2]" : ""}`}
@@ -1341,9 +1341,9 @@ function ColumnHeader({
   const [selfOpen, setSelfOpen] = useState(false);
   const headerBtn = useRef<HTMLButtonElement>(null);
   const headerPop = useRef<HTMLDivElement>(null);
- // the Status menu's 속성 편집 asks for THIS column's menu by id; derived rather
+ // the Status menu's Edit property asks for THIS column's menu by id; derived rather
  // than copied into state, so no effect has to sync the two. Status properties
- // route to the 속성 편집 sidebar (property-edit-panel.tsx) instead.
+ // route to the Edit property sidebar (property-edit-panel.tsx) instead.
   const open = selfOpen || (db.editingPropertyId === prop.id && prop.type !== "status");
  // portalled and placed: on a right-hand column this menu hung 94px past the
  // window, and inside the table's scroller it had nowhere to go
@@ -1435,7 +1435,7 @@ function ColumnHeader({
       <button
         data-testid={`db-col-drag-${prop.id}`}
         onPointerDown={onDragPointerDown}
-        aria-label={t("드래그하여 열 순서 변경")}
+        aria-label={t("Drag to reorder columns")}
         className="absolute right-0.5 top-1 z-10 cursor-grab text-neutral-300 opacity-0 transition-opacity hover:text-neutral-500 group-hover/col:opacity-100 dark:text-neutral-600"
       >
         <GripVertical size={11} />
@@ -1475,7 +1475,7 @@ function ColumnHeader({
           <MenuItem
             testid={`db-prop-rename-${prop.id}`}
             icon={<Pencil size={12} />}
-            label={t("이름 바꾸기")}
+            label={t("Rename")}
             onClick={() => {
               setOpen(false);
               setDraft(prop.name);
@@ -1485,20 +1485,20 @@ function ColumnHeader({
           <MenuItem
             testid={`db-prop-sort-asc-${prop.id}`}
             icon={<ArrowUp size={12} />}
-            label={t("오름차순 정렬")}
+            label={t("Sort ascending")}
             onClick={() => sortBy("asc")}
           />
           <MenuItem
             testid={`db-prop-sort-desc-${prop.id}`}
             icon={<ArrowDown size={12} />}
-            label={t("내림차순 정렬")}
+            label={t("Sort descending")}
             onClick={() => sortBy("desc")}
           />
           {prop.type !== "title" && (
             <MenuItem
               testid={`db-prop-delete-${prop.id}`}
               icon={<Trash2 size={12} />}
-              label={delArmed ? t("삭제할까요? 되돌릴 수 없습니다") : t("속성 삭제")}
+              label={delArmed ? t("Delete? This can't be undone") : t("Delete property")}
               danger
               onClick={() => {
                 if (!delArmed) {
@@ -1515,7 +1515,7 @@ function ColumnHeader({
             <MenuItem
               testid={`db-ai-autofill-${prop.id}`}
               icon={<span className="text-[11px]">✨</span>}
-              label={t("AI로 빈 셀 채우기")}
+              label={t("Fill empty cells with AI")}
               onClick={() => {
                 setOpen(false);
                 void aiAutofill(db, prop);
@@ -1558,7 +1558,7 @@ function PropTypeEditor({ prop }: { prop: DbProperty }) {
   const choices = TYPE_CHOICES.includes(prop.type) ? TYPE_CHOICES : [prop.type, ...TYPE_CHOICES];
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("유형")}</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("Type")}</label>
       <select
         data-testid={`db-prop-type-${prop.id}`}
         value={prop.type}
@@ -1595,7 +1595,7 @@ function DateConfigEditor({ prop }: { prop: DbProperty }) {
             })
           }
         />
-        {t("매년 반복 (캘린더)")}
+        {t("Repeats yearly (calendar)")}
       </label>
     </div>
   );
@@ -1608,27 +1608,27 @@ function NumberConfigEditor({ prop }: { prop: DbProperty }) {
   const cfg = prop.config;
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("형식")}</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("Format")}</label>
       <select
         data-testid={`db-number-format-${prop.id}`}
         value={cfg.numberFormat ?? "number"}
         onChange={(e) => db.updateProperty(prop.id, { config: { ...cfg, numberFormat: e.target.value } })}
         className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="number">{t("숫자")}</option>
-        <option value="percent">{t("퍼센트")}</option>
-        <option value="currency">{t("통화 (USD)")}</option>
-        <option value="comma">{t("쉼표로 구분")}</option>
+        <option value="number">{t("Number")}</option>
+        <option value="percent">{t("Percent")}</option>
+        <option value="currency">{t("Currency (USD)")}</option>
+        <option value="comma">{t("Separated by commas")}</option>
       </select>
-      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("다음과 같이 표시")}</label>
+      <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">{t("Show as")}</label>
       <select
         data-testid={`db-number-display-${prop.id}`}
         value={cfg.display ?? "number"}
         onChange={(e) => db.updateProperty(prop.id, { config: { ...cfg, display: e.target.value } })}
         className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="number">{t("숫자")}</option>
-        <option value="bar">{t("막대")}</option>
+        <option value="number">{t("Number")}</option>
+        <option value="bar">{t("Bar")}</option>
       </select>
     </div>
   );
@@ -1649,7 +1649,7 @@ function PropConfigEditor({ prop }: { prop: DbProperty }) {
     return (
       <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          {t("수식")}
+          {t("Formula")}
         </label>
         <input
           data-testid={`db-formula-config-${prop.id}`}
@@ -1694,7 +1694,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
   return (
     <div className="border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
       <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-        {t("관계 대상")}
+        {t("Related to")}
       </label>
       <select
         data-testid="relation-target-select"
@@ -1706,7 +1706,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
         }
         className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
       >
-        <option value="">{t("데이터베이스 선택…")}</option>
+        <option value="">{t("Select a database…")}</option>
         {dbs.map((d) => (
           <option key={d.id} value={d.id}>
             {d.title}
@@ -1762,7 +1762,7 @@ function RelationConfigEditor({ prop }: { prop: DbProperty }) {
               })();
             }}
           />
-          {t("관계 데이터베이스에 표시 (양방향)")}
+          {t("Show on related database (two-way)")}
         </label>
       )}
     </div>
@@ -1811,7 +1811,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
     >
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          {t("관계형")}
+          {t("Relational")}
         </label>
         <select
           data-testid={`db-rollup-relation-${prop.id}`}
@@ -1819,7 +1819,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ relationPropertyId: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="">{t("선택…")}</option>
+          <option value="">{t("Select…")}</option>
           {relationProps.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -1829,7 +1829,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          {t("속성")}
+          {t("Properties")}
         </label>
         <select
           data-testid={`db-rollup-target-${prop.id}`}
@@ -1837,7 +1837,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ targetPropertyId: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="">{t("선택…")}</option>
+          <option value="">{t("Select…")}</option>
           {targetProps.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -1847,7 +1847,7 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-medium uppercase text-neutral-400">
-          {t("계산")}
+          {t("Calculate")}
         </label>
         <select
           data-testid={`db-rollup-fn-${prop.id}`}
@@ -1855,9 +1855,9 @@ function RollupConfigEditor({ prop }: { prop: DbProperty }) {
           onChange={(e) => patch({ function: e.target.value })}
           className="w-full rounded border border-neutral-200 bg-white px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          <option value="sum">{t("합계")}</option>
-          <option value="count">{t("카운트")}</option>
-          <option value="avg">{t("평균")}</option>
+          <option value="sum">{t("Sum")}</option>
+          <option value="count">{t("Count (calc)")}</option>
+          <option value="avg">{t("Average")}</option>
         </select>
       </div>
     </div>

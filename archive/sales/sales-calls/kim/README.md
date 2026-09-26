@@ -1,4 +1,4 @@
-# 김민준의 Galaxy S25
+# Kim Minjun's Galaxy S25
 
-이 폴더는 김민준의 휴대폰(010-3317-2045)이 aindrive에 올리는 통화기록입니다.
-통화가 끝날 때마다 `통화기록/`에 한 건씩 마크다운으로 쌓입니다(요약 + 녹취).
+This folder holds the call records that Kim Minjun's phone (010-3317-2045) uploads to aindrive.
+Every time a call ends, one markdown file is added to `call-records/` (summary + transcript).

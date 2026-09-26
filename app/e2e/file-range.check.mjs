@@ -1,17 +1,20 @@
-// 동영상 재생의 전제 — 파일 프록시가 `Range` 를 206 으로 답하는가.
+// The premise of video playback — does the file proxy answer `Range` with 206.
 //
-// 왜 이게 검사거리인가: `<video>` 의 탐색(seek)과 iOS Safari 의 재생이 206 Partial
-// Content 를 전제한다. 200 으로 전체를 주면 사파리는 재생 자체를 거부한다. 우리는
-// ainteams 의 파일 스택을 포팅하면서 이 부분만 빠뜨렸었다 — `streamFile(bucket,key,range)`
-// 는 처음부터 부분 읽기를 받는데 어떤 라우트도 range 를 넘기지 않았다.
-// 측정·배경: docs/notion-video.md §4.
+// Why this is worth a check: `<video>` seeking and iOS Safari playback assume 206 Partial
+// Content. Given the whole file as a 200, Safari refuses to play at all. We left out only
+// this part when porting the ainteams file stack — `streamFile(bucket,key,range)` accepted
+// partial reads from the start, but no route passed a range.
+// Measurements and background: docs/notion-video.md §4.
 //
 //   [BASE_URL=…] [PAGE_ID=…] node e2e/file-range.check.mjs
 //
-// 자기가 올린 파일과 댓글만 쓰고 끝나면 지운다.
+// Uses only the files and comments it uploads, and deletes them at the end.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { Client } from "pg";
+import { content } from "./i18n.mjs";
+
+const C = content.FILE_RANGE;
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const ME = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
@@ -29,7 +32,7 @@ const check = (name, ok, detail = "") => {
   if (!ok) fails++;
 };
 
-// 재생 가능한 파일일 필요는 없다 — 재는 것은 HTTP 의미론이지 디코딩이 아니다.
+// It need not be a playable file — what is measured is HTTP semantics, not decoding.
 const SIZE = 4096;
 const BODY = Buffer.alloc(SIZE);
 for (let i = 0; i < SIZE; i++) BODY[i] = i % 251;
@@ -54,7 +57,7 @@ async function attach(up, name) {
     method: "POST",
     headers: { ...H, "content-type": "application/json" },
     body: JSON.stringify({
-      body: `range 검사용 (${name})`,
+      body: `${C.commentBody} (${name})`,
       blockId: null,
       attachments: [{ url: up.url, name, size: SIZE, mimeType: up.mimeType ?? undefined }],
     }),
@@ -73,71 +76,72 @@ const get = (id, range) =>
 try {
   const upVideo = await upload("clip.mp4", "video/mp4", BODY);
   fileId = await attach(upVideo, "clip.mp4");
-  check("0. 동영상 첨부를 만들었다", !!fileId, String(fileId));
+  check("0. made the video attachment", !!fileId, String(fileId));
 
-  // ── R1. Range 없이 ────────────────────────────────────────────────────────
+  // ── R1. without Range ─────────────────────────────────────────────────────
   {
     const r = await get(fileId);
     const buf = Buffer.from(await r.arrayBuffer());
-    check("R1. Range 없으면 200 전체", r.status === 200 && buf.length === SIZE, `status=${r.status} len=${buf.length}`);
-    check("R1. Accept-Ranges 를 알린다", r.headers.get("accept-ranges") === "bytes", String(r.headers.get("accept-ranges")));
-    check("R1. Content-Type 이 video/mp4", r.headers.get("content-type") === "video/mp4", String(r.headers.get("content-type")));
-    check("R1. 바이트가 올린 것과 같다", buf.equals(BODY));
+    check("R1. without Range, 200 with everything", r.status === 200 && buf.length === SIZE, `status=${r.status} len=${buf.length}`);
+    check("R1. announces Accept-Ranges", r.headers.get("accept-ranges") === "bytes", String(r.headers.get("accept-ranges")));
+    check("R1. Content-Type is video/mp4", r.headers.get("content-type") === "video/mp4", String(r.headers.get("content-type")));
+    check("R1. the bytes match what was uploaded", buf.equals(BODY));
   }
 
-  // ── R2. 앞에서 100바이트 ──────────────────────────────────────────────────
+  // ── R2. the first 100 bytes ───────────────────────────────────────────────
   {
     const r = await get(fileId, "bytes=0-99");
     const buf = Buffer.from(await r.arrayBuffer());
     check("R2. bytes=0-99 → 206", r.status === 206, `status=${r.status}`);
-    check("R2. Content-Range 가 맞다", r.headers.get("content-range") === `bytes 0-99/${SIZE}`, String(r.headers.get("content-range")));
-    check("R2. Content-Length 100 · 실제 100바이트", r.headers.get("content-length") === "100" && buf.length === 100, `len=${buf.length}`);
-    check("R2. 그 100바이트가 파일의 앞부분", buf.equals(BODY.subarray(0, 100)));
+    check("R2. Content-Range is right", r.headers.get("content-range") === `bytes 0-99/${SIZE}`, String(r.headers.get("content-range")));
+    check("R2. Content-Length 100 · actually 100 bytes", r.headers.get("content-length") === "100" && buf.length === 100, `len=${buf.length}`);
+    check("R2. those 100 bytes are the start of the file", buf.equals(BODY.subarray(0, 100)));
   }
 
-  // ── R3. suffix — mp4 의 moov 가 뒤에 있어 플레이어가 먼저 훑는 형태 ───────
+  // ── R3. suffix — the shape a player probes first when the mp4 moov is at the end ─
   {
     const r = await get(fileId, "bytes=-16");
     const buf = Buffer.from(await r.arrayBuffer());
-    check("R3. bytes=-16 (마지막 16바이트) → 206", r.status === 206, `status=${r.status}`);
-    check("R3. Content-Range 가 끝을 가리킨다", r.headers.get("content-range") === `bytes ${SIZE - 16}-${SIZE - 1}/${SIZE}`, String(r.headers.get("content-range")));
-    check("R3. 그 16바이트가 파일의 끝", buf.length === 16 && buf.equals(BODY.subarray(SIZE - 16)), `len=${buf.length}`);
+    check("R3. bytes=-16 (last 16 bytes) → 206", r.status === 206, `status=${r.status}`);
+    check("R3. Content-Range points at the end", r.headers.get("content-range") === `bytes ${SIZE - 16}-${SIZE - 1}/${SIZE}`, String(r.headers.get("content-range")));
+    check("R3. those 16 bytes are the end of the file", buf.length === 16 && buf.equals(BODY.subarray(SIZE - 16)), `len=${buf.length}`);
   }
 
-  // ── R4. 열린 끝 ───────────────────────────────────────────────────────────
+  // ── R4. open end ──────────────────────────────────────────────────────────
   {
     const r = await get(fileId, "bytes=4000-");
     const buf = Buffer.from(await r.arrayBuffer());
-    check("R4. bytes=4000- → 끝까지 206", r.status === 206 && buf.length === SIZE - 4000, `status=${r.status} len=${buf.length}`);
+    check("R4. bytes=4000- → 206 to the end", r.status === 206 && buf.length === SIZE - 4000, `status=${r.status} len=${buf.length}`);
   }
 
-  // ── R5. 파일 밖 ───────────────────────────────────────────────────────────
+  // ── R5. outside the file ──────────────────────────────────────────────────
   {
     const r = await get(fileId, `bytes=${SIZE}-`);
-    check("R5. 범위가 파일 밖이면 416", r.status === 416, `status=${r.status}`);
-    check("R5. 416 에 Content-Range: bytes */size", r.headers.get("content-range") === `bytes */${SIZE}`, String(r.headers.get("content-range")));
+    check("R5. 416 when the range is outside the file", r.status === 416, `status=${r.status}`);
+    check("R5. 416 carries Content-Range: bytes */size", r.headers.get("content-range") === `bytes */${SIZE}`, String(r.headers.get("content-range")));
   }
 
-  // ── R6. 못 알아본 형식은 416 이 아니라 전체 ───────────────────────────────
+  // ── R6. an unrecognised form gets everything, not 416 ─────────────────────
   {
     const r = await get(fileId, "bytes=0-9,20-29");
     const buf = Buffer.from(await r.arrayBuffer());
-    check("R6. 다중 구간은 200 전체로 답한다 (416 이 아니다)", r.status === 200 && buf.length === SIZE, `status=${r.status} len=${buf.length}`);
+    check("R6. multiple ranges are answered with a full 200 (not 416)", r.status === 200 && buf.length === SIZE, `status=${r.status} len=${buf.length}`);
   }
 
-  // ── R7. 이미지는 탐색할 것이 없다 ─────────────────────────────────────────
+  // ── R7. images have nothing to seek ───────────────────────────────────────
   {
     const upImg = await upload("dot.png", "image/png", BODY);
     imageId = await attach(upImg, "dot.png");
     const r = await get(imageId);
     await r.arrayBuffer();
-    check("R7. 이미지에는 Accept-Ranges 를 붙이지 않는다", r.headers.get("accept-ranges") === null, String(r.headers.get("accept-ranges")));
+    check("R7. no Accept-Ranges on images", r.headers.get("accept-ranges") === null, String(r.headers.get("accept-ranges")));
     const r2 = await get(imageId, "bytes=0-9");
     const b2 = Buffer.from(await r2.arrayBuffer());
-    check("R7. 그래도 요청이 오면 206 으로 답한다", r2.status === 206 && b2.length === 10, `status=${r2.status} len=${b2.length}`);
+    check("R7. still answers 206 when asked", r2.status === 206 && b2.length === 10, `status=${r2.status} len=${b2.length}`);
   }
 } catch (e) {
-  check("실행", false, String(e).slice(0, 300));
+  check("run", false
+, String(e).slice(0, 300));
 } finally {
   for (const id of madeComments) {
     await fetch(`${BASE}/api/comments/${id}`, { method: "DELETE", headers: H }).catch(() => {});

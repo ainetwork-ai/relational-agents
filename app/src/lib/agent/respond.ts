@@ -24,6 +24,7 @@ import { answerViewers, ownDriveSources, readableFile, sharedDriveSources, type 
 import { langOf, matchFamilySkill, runFamilySkill } from "./family-skills";
 import { handleTreasuryCommand } from "./treasury/skill";
 import { isAssistantRoom } from "./assistant-room";
+import { makeT } from "@/i18n/translate";
 import { runAsOrService } from "@/lib/aindrive-account";
 import {
   aindriveConfigured,
@@ -165,7 +166,7 @@ function contentWords(s: string): Set<string> {
   return new Set(
     s
       .toLowerCase()
-      .replace(/[^a-z0-9가-힣\s]/g, " ")
+      .replace(/[^a-z0-9\uAC00-\uD7A3\s]/g, " ")
       .split(/\s+/)
       .filter((w) => w.length > 2 && !STOPWORDS.has(w))
   );
@@ -425,7 +426,7 @@ export async function respondToMessage(
       const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text, lang }).catch(
         (e: Error) => {
           console.error(`[family-skill:${skill}] failed:`, e);
-          return { text: lang === "en" ? `I stopped partway: ${e.message}` : `하다가 멈췄어요: ${e.message}` };
+          return { text: makeT(lang)("I stopped partway: {error}", { error: e.message }) };
         }
       );
       decision = { action: "reply", text: done.text };
@@ -436,7 +437,7 @@ export async function respondToMessage(
         await post(line);
       }).catch((e) => {
         console.error("[sales-pipeline] failed:", e);
-        return { pageId: null, text: `파이프라인을 만들다 멈췄어요: ${(e as Error).message}` };
+        return { pageId: null, text: makeT("ko")("Stopped while building the pipeline: {error}", { error: (e as Error).message }) };
       });
       decision = { action: "reply", text: built.text };
     } else if (process.env.AGENT_FAKE_LLM === "1") {

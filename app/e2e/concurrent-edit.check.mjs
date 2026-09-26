@@ -1,13 +1,13 @@
-// 3단계 ③ — 두 탭이 같은 블록을 동시에 편집해도 실시간 수렴하는가 (docs/text-crdt-design §8).
+// Stage 3 ③ — do two tabs editing the same block at once converge in real time? (docs/text-crdt-design §8).
 //
 //   [BASE_URL=…] [USER_ID=…] node e2e/concurrent-edit.check.mjs
 //
-// 보장:
-//   1. 동시 입력 — 양쪽 화면이 실시간으로 같은 텍스트로 수렴하고, 모든 글자가 남고, 거절이 없다.
-//      (같은 지점 동시 삽입은 RGA 규칙대로 인터리브될 수 있으나, 유실 없이 수렴한다.)
-//   2. 원격 삽입이 내 캐럿을 밀지 않는다 — 내 왼쪽에 남이 넣어도 내 다음 입력은 내 자리에.
-//   3. 서식 — 한 탭의 굵게가 서버·양쪽에 반영.
-// dev 전용. 만든 페이지는 지운다.
+// Guarantees:
+//   1. Concurrent typing — both screens converge on the same text in real time, every character survives, no rejections.
+//      (Concurrent inserts at the same point may interleave per the RGA rules, but converge without loss.)
+//   2. A remote insert does not push my caret — if someone inserts to my left, my next keystroke still lands where I was.
+//   3. Formatting — one tab's bold reaches the server and both tabs.
+// dev only. Deletes the page it creates.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
@@ -51,34 +51,34 @@ const serverText = async () => (await (await api.get(`${BASE}/api/pages/${pageId
 const A = await open();
 const B = await open();
 
-// ── 1. 동시 입력 — 실시간 수렴, 무손실 ────────────────────────────────────
+// ── 1. Concurrent typing — real-time convergence, lossless ──────────────────
 await atEnd(A.page); await atEnd(B.page);
 await Promise.all([A.page.keyboard.type("111", { delay: 30 }), B.page.keyboard.type("222", { delay: 30 })]);
 await sleep(3500);
 let srv = await serverText(), aDom = "", bDom = "";
 for (let i = 0; i < 20; i++) { srv = await serverText(); aDom = await editable(A.page).innerText(); bDom = await editable(B.page).innerText(); if (aDom === srv && bDom === srv) break; await sleep(700); }
-check("1. 동시 입력 — 두 탭 화면이 서버와 수렴 (≤14s)", aDom === srv && bDom === srv, `A=${JSON.stringify(aDom)} B=${JSON.stringify(bDom)} srv=${JSON.stringify(srv)}`);
-check("1. 동시 입력 — 모든 글자 보존 (AB+111+222)", sorted(srv) === sorted("AB111222"), `server=${JSON.stringify(srv)} sorted=${sorted(srv)}`);
-check("1. 동시 입력 — 거절(422) 없음", rejects === 0, `rejects=${rejects}`);
+check("1. concurrent typing — both tabs converge with the server (≤14s)", aDom === srv && bDom === srv, `A=${JSON.stringify(aDom)} B=${JSON.stringify(bDom)} srv=${JSON.stringify(srv)}`);
+check("1. concurrent typing — every character kept (AB+111+222)", sorted(srv) === sorted("AB111222"), `server=${JSON.stringify(srv)} sorted=${sorted(srv)}`);
+check("1. concurrent typing — no rejections (422)", rejects === 0, `rejects=${rejects}`);
 
-// ── 2. 원격 삽입이 내 캐럿을 밀지 않는다 ──────────────────────────────────
+// ── 2. A remote insert does not push my caret ───────────────────────────────
 await editable(A.page).click(); await A.page.keyboard.press("Home"); await sleep(300);
 await editable(B.page).click(); await B.page.keyboard.press("Home"); await B.page.keyboard.type("Q", { delay: 20 });
 await sleep(2000); // A receives Q live; A's caret must stay before the old first char
 await A.page.keyboard.type("!", { delay: 20 });
 await sleep(2000);
 let srv2 = await serverText();
-check("2. 원격 삽입 후 내 입력이 내 캐럿(맨 앞)에", /^[!Q]{2}/.test(srv2) || srv2.startsWith("!"), `server=${JSON.stringify(srv2.slice(0, 8))}`);
+check("2. after a remote insert my typing lands at my caret (start)", /^[!Q]{2}/.test(srv2) || srv2.startsWith("!"), `server=${JSON.stringify(srv2.slice(0, 8))}`);
 for (let i = 0; i < 20; i++) { srv2 = await serverText(); if ((await editable(A.page).innerText()) === srv2 && (await editable(B.page).innerText()) === srv2) break; await sleep(700); }
-check("2. 여전히 두 탭 수렴 (≤14s)", (await editable(A.page).innerText()) === srv2 && (await editable(B.page).innerText()) === srv2, `A=${JSON.stringify((await editable(A.page).innerText()).slice(0,10))} B=${JSON.stringify((await editable(B.page).innerText()).slice(0,10))} srv=${JSON.stringify(srv2.slice(0,10))}`);
+check("2. both tabs still converge (≤14s)", (await editable(A.page).innerText()) === srv2 && (await editable(B.page).innerText()) === srv2, `A=${JSON.stringify((await editable(A.page).innerText()).slice(0,10))} B=${JSON.stringify((await editable(B.page).innerText()).slice(0,10))} srv=${JSON.stringify(srv2.slice(0,10))}`);
 
-// ── 3. 서식 ──────────────────────────────────────────────────────────────
+// ── 3. Formatting ────────────────────────────────────────────────────────────
 await editable(A.page).click(); await A.page.keyboard.press("End");
 await A.page.keyboard.down("Shift"); await A.page.keyboard.press("ArrowLeft"); await A.page.keyboard.press("ArrowLeft"); await A.page.keyboard.up("Shift");
 await A.page.keyboard.press("Control+b");
 await sleep(2500);
 const srv3html = (await (await api.get(`${BASE}/api/pages/${pageId}/blocks`)).json()).blocks.find((b) => b.id === B1)?.content.html;
-check("3. 굵게 → 서버 html 에 <b>", /<b>/.test(srv3html ?? ""), `html=${JSON.stringify((srv3html ?? "").slice(-24))}`);
+check("3. bold → <b> in the server html", /<b>/.test(srv3html ?? ""), `html=${JSON.stringify((srv3html ?? "").slice(-24))}`);
 
 await api.delete(`${BASE}/api/pages/${pageId}`);
 await A.c.close(); await B.c.close(); await browser.close();

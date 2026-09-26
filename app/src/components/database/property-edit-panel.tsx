@@ -13,7 +13,7 @@ import { PropertyTypeIcon } from "./property-type-icon";
 import { useT } from "@/i18n/provider";
 
 // ===========================================================================
-// 속성 편집 — the panel the Status menu's "속성 편집" row opens.
+// Edit property — the panel the Status menu's "Edit property" row opens.
 //
 // Every number was read off app.notion.com with the panel open (2026-08-10,
 // scratchpad/status-edit-capture/*): the original is NOT a popover but a
@@ -23,37 +23,37 @@ import { useT } from "@/i18n/provider";
 // viewport. Its left edge sits 387px left of the toolbar's right edge; the
 // content column is 290 wide and the rest is the panel's own right gutter.
 //
-//   0    header, 50 tall: ← 16px at x15, "속성 편집" 14px/600 at x43,
+//   0    header, 50 tall: ← 16px at x15, "Edit property" 14px/600 at x43,
 //        ✕ 20×20 circle (bg rgba(42,28,0,.07), 14px mark) at right x255
 //   54   name row: type icon in a 28×28 1px-bordered button at x13, then the
 //        name input in a 215×28 box — bg rgba(66,35,3,.03), ring
 //        rgba(28,19,1,.11), radius 6, ⓘ at its right edge
-//   98   유형 row 259×28 at x9: 20px icon, label, then "상태 ›" in
+//   98   Type row 259×28 at x9: 20px icon, label, then "Status ›" in
 //        rgb(161,158,153) — display only here; changing a type is not built
 //   137  group label row 251×20 at x13 (pad 0 8): 12px/500 rgb(125,122,117)
-//        + a 20×20 옵션 추가 button at its right edge
+//        + a 20×20 Add an option button at its right edge
 //   166  option rows 259×28 at x9, radius 6, hover rgba(33,27,23,.051):
 //        ⠿ 16px at x19 (drag to reorder), the chip at x43, then — on the
-//        default option — "기본" 12px/500 rgb(161,158,153), and › 16px at x244
+//        default option — "Default" 12px/500 rgb(161,158,153), and › 16px at x244
 //        · rows in a group stack with no gap; the next label comes 10px later
-//   ...  (+ 옵션 추가 swaps in a 28px row holding an input, "새 옵션을 입력하세요")
+//   ...  (+ Add an option swaps in a 28px row holding an input, "Type a new option")
 //   -132 fixed footer: 1px rule 258 wide at x17, then four 274×28 rows at x9 —
-//        콘텐츠 줄바꿈하기 (30×18 switch) · 다음과 같이 표시: 선택 › · 속성
-//        복제 · 속성 삭제 — and 8px under them
+//        Wrap content (30×18 switch) · Show as: Select › · Duplicate
+//        property · Delete property — and 8px under them
 //
 // Clicking an option opens a 220-wide menu at the pointer's x, dropping UP
 // when the space below runs out (measured: bottom lands on the row's top):
-// name input (all selected), 삭제, 기본으로 설정, 그룹화 → a 250-wide list of
-// the three groups with ✓ on the current one, a rule, "색", then 기본 + nine
+// name input (all selected), Delete, Set as default, Group → a 250-wide list of
+// the three groups with ✓ on the current one, a rule, "Color", then Default + nine
 // colours as 18×18 radius-4 swatches with ✓ on the current colour.
 //
-// What this panel does not do yet: change the property's type (유형 row) and
-// the "다음과 같이 표시" submenu — both render as the original draws them but
-// don't open anything. 콘텐츠 줄바꿈하기 persists to config.wrapContent only.
+// What this panel does not do yet: change the property's type (Type row) and
+// the "Show as" submenu — both render as the original draws them but
+// don't open anything. Wrap content persists to config.wrapContent only.
 // ===========================================================================
 
 const TEXT = "rgb(44, 44, 43)"; // --c-texPri
-const TEXT_TER = "rgb(161, 158, 153)"; // right-hand values, 기본 tag
+const TEXT_TER = "rgb(161, 158, 153)"; // right-hand values, Default tag
 const LABEL = "rgb(125, 122, 117)"; // group labels, section labels
 const ICON = "rgb(85, 83, 78)"; // menu row icons (burst icon measured)
 const ICON_SEC = "rgb(142, 139, 134)"; // drag handle, ✕ mark
@@ -66,28 +66,25 @@ const BLUE = "rgb(35, 131, 226)";
 const SHADOW =
   "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px";
 
-/** the original's Korean UI for the three canonical group names */
-const GROUP_LABEL: Record<string, string> = {
-  "To-do": "할 일",
-  "In progress": "진행 중",
-  Complete: "완료",
-};
+/** the three canonical group names — translated for display, anything else
+ *  (a renamed group) is shown as written */
+const GROUP_NAMES = ["To-do", "In progress", "Complete"];
 
 /** the colour menu, in the original's order. Swatch fill and its 1px inset ring
  * come from the chip tokens in `globals.css` (light + dark, both measured) —
- * the swatch for 기본 is NOT the default chip's bg (the chip paints like gray),
+ * the swatch for Default is NOT the default chip's bg (the chip paints like gray),
  * and in dark mode the ring is a separate, dimmer colour than the fill. */
 const COLOR_MENU: { key: string; label: string }[] = [
-  { key: "default", label: "기본" },
-  { key: "gray", label: "회색" },
-  { key: "brown", label: "갈색" },
-  { key: "orange", label: "주황색" },
-  { key: "yellow", label: "노란색" },
-  { key: "green", label: "초록색" },
-  { key: "blue", label: "파란색" },
-  { key: "purple", label: "보라색" },
-  { key: "pink", label: "분홍색" },
-  { key: "red", label: "빨간색" },
+  { key: "default", label: "Default" },
+  { key: "gray", label: "Gray" },
+  { key: "brown", label: "Brown" },
+  { key: "orange", label: "Orange" },
+  { key: "yellow", label: "Yellow" },
+  { key: "green", label: "Green" },
+  { key: "blue", label: "Blue" },
+  { key: "purple", label: "Purple" },
+  { key: "pink", label: "Pink" },
+  { key: "red", label: "Red" },
 ];
 
 // Notion's own artwork, copied path-for-path out of the captured panel/menu
@@ -159,12 +156,12 @@ export function PropertyEditPanel({
   const byId = (id: string) => options.find((o) => o.id === id);
   // a canonical group shows its Korean name (translated); anything else is
   // the user's own name and shows as typed
-  const groupLabel = (name: string) => (GROUP_LABEL[name] ? t(GROUP_LABEL[name]) : name);
+  const groupLabel = (name: string) => (GROUP_NAMES.includes(name) ? t(name) : name);
 
   // ---- placement: docked under the toolbar row, out to the window's edge ----
   // The original's -387 is measured against a toolbar NODE that includes the
   // page's 96px right margin (its sidebar bleeds with inset -96 / padding 96).
-  // Our view bar ends at the 새로 만들기 button, so the rule that survives the
+  // Our view bar ends at the New button, so the rule that survives the
   // translation is the visible one: the 290px menu column's right edge sits on
   // the toolbar's right edge (-291 = 290 + 1px border), and only the white
   // background continues to the window edge.
@@ -405,7 +402,7 @@ export function PropertyEditPanel({
           <div className="flex h-[50px] shrink-0 items-center pl-[10px] pr-4">
             <button
               data-testid="db-prop-edit-back"
-              aria-label={t("뒤로")}
+              aria-label={t("Back")}
               onClick={onClose}
               className="flex h-[22px] w-6 items-center justify-center rounded-[6px] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
             >
@@ -415,11 +412,11 @@ export function PropertyEditPanel({
               className="ml-2 flex-1 truncate text-[14px] font-semibold"
               style={{ color: TEXT }}
             >
-              {t("속성 편집")}
+              {t("Edit property")}
             </span>
             <button
               data-testid="db-prop-edit-close"
-              aria-label={t("닫기")}
+              aria-label={t("Close")}
               onClick={onClose}
               className="flex h-5 w-5 items-center justify-center rounded-full"
               style={{ background: RULE }}
@@ -444,7 +441,7 @@ export function PropertyEditPanel({
               >
                 <input
                   data-testid={`db-prop-edit-name-${prop.id}`}
-                  placeholder={t("속성 이름")}
+                  placeholder={t("Property name")}
                   defaultValue={prop.name}
                   key={`name-${prop.name}`}
                   onBlur={(e) => {
@@ -459,7 +456,7 @@ export function PropertyEditPanel({
               </div>
             </div>
 
-            {/* 유형 — display only; a type editor is not part of this panel yet */}
+            {/* Type — display only; a type editor is not part of this panel yet */}
             <div
               className="ml-2 mt-4 flex h-7 w-[259px] items-center rounded-[6px] pl-2 pr-2 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
               role="button"
@@ -467,10 +464,10 @@ export function PropertyEditPanel({
             >
               <Icon name="type" size={20} color={ICON} />
               <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                {t("유형")}
+                {t("Type")}
               </span>
               <span className="text-[14px]" style={{ color: TEXT_TER }}>
-                {t("상태")}
+                {t("Status")}
               </span>
               <span className="ml-[6px] flex items-center">
                 <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -493,7 +490,7 @@ export function PropertyEditPanel({
                     </span>
                     <button
                       data-testid={`db-prop-edit-add-option-${g.id}`}
-                      aria-label={t("옵션 추가")}
+                      aria-label={t("Add option")}
                       onClick={() => {
                         setAdding(g.id);
                         setAddDraft("");
@@ -518,7 +515,7 @@ export function PropertyEditPanel({
                           <input
                             data-testid={`db-prop-edit-add-input-${g.id}`}
                             autoFocus
-                            placeholder={t("새 옵션을 입력하세요")}
+                            placeholder={t("Type a new option")}
                             value={addDraft}
                             onChange={(e) => setAddDraft(e.target.value)}
                             onBlur={() => {
@@ -581,7 +578,7 @@ export function PropertyEditPanel({
                               className="mr-[6px] text-[12px] font-medium"
                               style={{ color: TEXT_TER }}
                             >
-                              {t("기본")}
+                              {t("Default")}
                             </span>
                           )}
                           <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -601,7 +598,7 @@ export function PropertyEditPanel({
               <div className="ml-2 flex h-7 w-[274px] items-center rounded-[6px] pl-2 pr-2 hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700">
                 <Icon name="wrap" size={20} color={ICON} />
                 <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                  {t("콘텐츠 줄바꿈하기")}
+                  {t("Wrap content")}
                 </span>
                 <button
                   data-testid={`db-prop-edit-wrap-${prop.id}`}
@@ -624,10 +621,10 @@ export function PropertyEditPanel({
               >
                 <Icon name="eye" size={20} color={ICON} />
                 <span className="ml-2 flex-1 text-[14px]" style={{ color: TEXT }}>
-                  {t("다음과 같이 표시:")}
+                  {t("Show as:")}
                 </span>
                 <span className="text-[14px]" style={{ color: TEXT_TER }}>
-                  {t("선택")}
+                  {t("Select")}
                 </span>
                 <span className="ml-[6px] flex items-center">
                   <Icon name="chevron" size={16} color={TEXT_TER} />
@@ -640,7 +637,7 @@ export function PropertyEditPanel({
               >
                 <Icon name="duplicate" size={20} color={ICON} />
                 <span className="ml-2 text-[14px]" style={{ color: TEXT }}>
-                  {t("속성 복제")}
+                  {t("Duplicate property")}
                 </span>
               </button>
               <button
@@ -653,7 +650,7 @@ export function PropertyEditPanel({
               >
                 <Icon name="trash" size={20} color={ICON} />
                 <span className="ml-2 text-[14px]" style={{ color: TEXT }}>
-                  {t("속성 삭제")}
+                  {t("Delete property")}
                 </span>
               </button>
             </div>
@@ -694,7 +691,7 @@ export function PropertyEditPanel({
             >
               <Icon name="trash" size={20} color={ICON} />
               <span className="text-[14px]" style={{ color: TEXT }}>
-                {t("삭제")}
+                {t("Delete")}
               </span>
             </button>
             <button
@@ -704,7 +701,7 @@ export function PropertyEditPanel({
             >
               <Icon name="flag" size={20} color={ICON} />
               <span className="text-[14px]" style={{ color: TEXT }}>
-                {t("기본으로 설정")}
+                {t("Set as default")}
               </span>
             </button>
             <div
@@ -718,7 +715,7 @@ export function PropertyEditPanel({
             >
               <Icon name="checkSquare" size={20} color={ICON} />
               <span className="flex-1 text-[14px]" style={{ color: TEXT }}>
-                {t("그룹화")}
+                {t("Group")}
               </span>
               <span className="text-[14px]" style={{ color: TEXT_TER }}>
                 {menuGroup ? groupLabel(menuGroup.name) : ""}
@@ -731,7 +728,7 @@ export function PropertyEditPanel({
             <div className="mx-3 mt-[9px] h-px" style={{ background: RULE }} />
             <div className="mx-3 mt-3 flex h-[14px] items-center">
               <span className="text-[12px] font-medium leading-[14px]" style={{ color: LABEL }}>
-                {t("색")}
+                {t("Color")}
               </span>
             </div>
             <div className="mt-[10px] flex flex-col gap-px">

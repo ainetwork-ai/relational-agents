@@ -1,7 +1,7 @@
 # Sales demo (archived)
 
-The 영업사원 demo: three salespeople's phones sync call history (markdown)
-into their own aindrive; asking the team agent "통합 sales pipeline 만들어줘"
+The sales-team demo: three salespeople's phones sync call history (markdown)
+into their own aindrive; asking the team agent to "build a unified sales pipeline"
 builds a pipeline database from them. Replaced by the family demo; kept for
 reference and not wired into package.json.
 

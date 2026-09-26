@@ -15,7 +15,7 @@ export interface SelectOption<V extends string> {
 }
 
 /** The dropdown at the right end of a settings row. Measured on the original's
- *  기본 설정 › 언어: button 28px tall, r6, 1px border, 14px text, chevron; the
+ *  Preferences › Language: button 28px tall, r6, 1px border, 14px text, chevron; the
  *  list is 216px wide with 43px two-line rows (docs/settings_my_settings.html). */
 export function SettingsSelect<V extends string>({
   value,

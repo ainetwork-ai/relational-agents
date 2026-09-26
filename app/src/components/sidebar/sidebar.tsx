@@ -169,7 +169,7 @@ export function Sidebar({
           }}
           onMouseEnter={() => setPeek(true)}
           className="fixed left-2 top-2 z-40 rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
-          aria-label={t("사이드바 열기")}
+          aria-label={t("Open sidebar")}
         >
           <PanelLeft size={18} />
         </button>
@@ -181,7 +181,7 @@ export function Sidebar({
           >
             {favorites.length > 0 && (
               <div className="mb-2">
-                <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("즐겨찾기")}</p>
+                <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("Favorites")}</p>
                 {favorites.map((p) => (
                   <a
                     key={p.id}
@@ -194,7 +194,7 @@ export function Sidebar({
                 ))}
               </div>
             )}
-            <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("개인 페이지")}</p>
+            <p className="px-2 py-1 text-xs font-medium text-neutral-400">{t("Private")}</p>
             {roots.map((p) => (
               <PageItem key={p.id} page={p} depth={0} />
             ))}
@@ -225,7 +225,7 @@ export function Sidebar({
         <button
           data-testid="mobile-nav-close"
           onClick={() => setMobileNavOpen(false)}
-          aria-label={t("메뉴 닫기")}
+          aria-label={t("Close menu")}
           className="absolute right-2 top-2 z-10 rounded-md p-1 text-neutral-400 hover:bg-neutral-200/60 md:hidden"
         >
           <PanelLeftClose size={16} />
@@ -249,7 +249,7 @@ export function Sidebar({
           data-testid="sidebar-collapse"
           onClick={() => setCollapsed(true)}
           className="ml-auto rounded p-1 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 group-hover/sidebar:opacity-100 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-          aria-label={t("사이드바 닫기")}
+          aria-label={t("Close sidebar")}
         >
           <PanelLeftClose size={16} />
         </button>
@@ -262,7 +262,7 @@ export function Sidebar({
       <div className="mb-1 flex items-center justify-between gap-0.5 px-1.5 pb-1">
         <div
           role="tablist"
-          aria-label={t("사이드바 섹션")}
+          aria-label={t("Sidebar sections")}
           className="flex min-w-0 items-center gap-0.5"
         >
           <a
@@ -275,8 +275,8 @@ export function Sidebar({
               setShowInbox(false);
               setTab("pages");
             }}
-            aria-label={t("홈")}
-            data-tip={t("홈")}
+            aria-label={t("Home")}
+            data-tip={t("Home")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <HomeIcon size={16} />
@@ -285,7 +285,7 @@ export function Sidebar({
             role="tab"
             data-testid="sidebar-tab-pages"
             aria-selected={activeTab === "pages"}
-            aria-label={t("페이지")}
+            aria-label={t("Page")}
             onClick={() => {
               setShowInbox(false);
               setTab("pages");
@@ -297,13 +297,13 @@ export function Sidebar({
             }`}
           >
             <FileText size={16} className="shrink-0" />
-            {activeTab === "pages" && showTabLabels && t("페이지")}
+            {activeTab === "pages" && showTabLabels && t("Page")}
           </button>
           <button
             role="tab"
             data-testid="sidebar-tab-chats"
             aria-selected={activeTab === "chats"}
-            aria-label={t("채팅")}
+            aria-label={t("Chats")}
             onClick={() => {
               setShowInbox(false);
               setTab("chats");
@@ -315,11 +315,11 @@ export function Sidebar({
             }`}
           >
             <MessageCircle size={16} className="shrink-0" />
-            {activeTab === "chats" && showTabLabels && t("채팅")}
+            {activeTab === "chats" && showTabLabels && t("Chats")}
             {dmUnread > 0 && (
               <span
                 data-testid="sidebar-chats-unread"
-                aria-label={t("읽지 않은 메시지 {n}개", { n: dmUnread })}
+                aria-label={t("{n} unread messages", { n: dmUnread })}
                 className={`flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-[3px] text-[9px] font-semibold text-white ${
                   activeTab === "chats" && showTabLabels ? "" : "absolute -top-0.5 -right-0.5"
                 }`}
@@ -330,7 +330,7 @@ export function Sidebar({
             {aiChatsUnread > 0 && (
               <span
                 data-testid="chats-tab-unread-badge"
-                aria-label={t("읽지 않은 채팅 {n}개", { n: aiChatsUnread })}
+                aria-label={t("{n} unread chats", { n: aiChatsUnread })}
                 className={`flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-[3px] text-[9px] font-semibold text-white ${
                   activeTab === "chats" && showTabLabels ? "" : "absolute -bottom-0.5 -right-0.5"
                 }`}
@@ -349,8 +349,8 @@ export function Sidebar({
           <button
             data-testid="sidebar-search"
             onClick={() => setSearchOpen(true)}
-            aria-label={t("검색")}
-            data-tip={t("검색 (Ctrl+K)")}
+            aria-label={t("Search")}
+            data-tip={t("Search (Ctrl+K)")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <SearchIcon size={16} />
@@ -358,8 +358,8 @@ export function Sidebar({
           <button
             data-testid="sidebar-compose"
             onClick={() => void newPage()}
-            aria-label={t("새 페이지")}
-            data-tip={t("새 페이지")}
+            aria-label={t("New page")}
+            data-tip={t("New page")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <SquarePen size={16} />
@@ -372,7 +372,7 @@ export function Sidebar({
       ) : activeTab === "chats" ? (
         <ChatsPanel />
       ) : (
-      <nav aria-label={t("페이지")} className="flex-1 overflow-y-auto px-2 pb-4">
+      <nav aria-label={t("Page")} className="flex-1 overflow-y-auto px-2 pb-4">
         <TeamspacesSection workspaceId={workspace?.id ?? null} />
         <AindriveSection />
         {shared.length > 0 && (
@@ -382,7 +382,7 @@ export function Sidebar({
               onClick={toggleShared}
               className="block px-2 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
-              {t("공유됨")}
+              {t("Shared")}
             </button>
             {!sharedCollapsed && shared.map((p) => (
               <a
@@ -404,7 +404,7 @@ export function Sidebar({
               onClick={toggleFavs}
               className="block px-2 py-1 text-left text-xs font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
-              {t("즐겨찾기")}
+              {t("Favorites")}
             </button>
             {!favsCollapsed && favorites.map((p) => (
               <div
@@ -424,7 +424,7 @@ export function Sidebar({
                   data-testid={`favorite-remove-${p.id}`}
                   onClick={() => updatePage(p.id, { isFavorite: false })}
                   className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-300/60 hover:text-neutral-600 group-hover/fav:flex dark:hover:bg-neutral-700"
-                  aria-label={t("즐겨찾기에서 제거")}
+                  aria-label={t("Remove from Favorites")}
                 >
                   <StarOff size={12} />
                 </button>
@@ -441,15 +441,15 @@ export function Sidebar({
               className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
               data-testid="private-section-label"
             >
-              {t("개인 페이지")}
+              {t("Private")}
             </h3>
             <div className="flex items-center gap-0.5">
-              <SectionMenu testId="private-section-menu" label={t("개인 페이지")} />
+              <SectionMenu testId="private-section-menu" label={t("Private")} />
               <button
                 data-testid="sidebar-new-page"
                 onClick={newPage}
                 className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
-                aria-label={t("페이지 추가")}
+                aria-label={t("Add a page")}
               >
                 <Plus size={14} />
               </button>
@@ -466,7 +466,7 @@ export function Sidebar({
               ))}
             </div>
           ) : roots.length === 0 ? (
-            <p className="px-2 py-1 text-xs text-neutral-400">{t("페이지가 없습니다")}</p>
+            <p className="px-2 py-1 text-xs text-neutral-400">{t("No pages")}</p>
           ) : (
             sortRows(roots, sidebarSort).map((p) => <PageItem key={p.id} page={p} depth={0} />)
           )}
@@ -481,7 +481,7 @@ export function Sidebar({
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <Trash2 size={15} />
-          {t("휴지통")}
+          {t("Trash")}
         </button>
         <button
           data-testid="add-page-button"
@@ -489,7 +489,7 @@ export function Sidebar({
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <FileText size={15} />
-          {t("새 페이지")}
+          {t("New page")}
         </button>
         <ImportButton />
 

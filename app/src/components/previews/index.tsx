@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import clsx from "clsx";
 import { Download } from "lucide-react";
+import { useT } from "@/i18n/provider";
 import { previewKindFor, type PreviewKind } from "@/lib/preview-kind";
 import type { PreviewSource } from "./types";
 import { bytesLoader } from "./use-preview-bytes";
@@ -41,6 +42,7 @@ export function FilePreview({
   /** false when the host already shows the name and a download (a file block) */
   header?: boolean;
 }) {
+  const t = useT();
   const { name, url, size } = src;
   // One memoized fetch per file; keyed on url so a new file never reuses bytes.
   const source = useMemo<PreviewSource>(() => ({ name, url, size: size ?? 0, bytes: bytesLoader(url) }), [name, url, size]);
@@ -65,8 +67,8 @@ export function FilePreview({
           href={url}
           download={name}
           className="shrink-0 p-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200"
-          title="다운로드"
-          aria-label={`${name} 다운로드`}
+          title={t("Download")}
+          aria-label={t("Download {name}", { name })}
         >
           <Download className="w-4 h-4" />
         </a>

@@ -105,7 +105,7 @@ function MdImage({
         data-testid="md-image-fallback"
         className="my-1 flex min-h-16 items-center justify-center rounded-md border border-dashed border-neutral-300 p-3 text-xs text-neutral-500 dark:border-neutral-600 dark:text-neutral-400"
       >
-        {alt || t("이미지를 불러올 수 없습니다")}
+        {alt || t("Couldn't load image")}
       </div>
     );
   }
@@ -328,7 +328,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
             onClick={() => setCollapsed((v) => !v)}
             className="rounded px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
           >
-            {collapsed ? t("펼치기") : t("접기")}
+            {collapsed ? t("Expand") : t("Collapse")}
           </button>
           <button
             type="button"
@@ -336,7 +336,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
             onClick={handleCopy}
             className="rounded px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
           >
-            {copied ? t("복사됨") : t("복사")}
+            {copied ? t("Copied") : t("Copy")}
           </button>
         </div>
       </div>
@@ -485,12 +485,12 @@ function renderBlock(
 
 export function MarkdownContent({ content }: { content: string }) {
   const blocks = parseBlocks(content);
- // 라이트박스는 메시지당 하나만 열리므로 블록 트리 바깥(형제)에 렌더 —
- // <p> 안에 <div>를 중첩하는 무효 HTML을 피한다.
+ // only one lightbox opens per message, so it renders outside the block tree (as a sibling) —
+ // avoiding the invalid HTML of a <div> nested inside a <p>.
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const t = useT();
   return (
-    // min-w-0 + overflow-wrap:anywhere: 긴 URL/토큰이 가로 스크롤을 만들지 않고 줄바꿈되게 한다.
+    // min-w-0 + overflow-wrap:anywhere: long URLs/tokens wrap instead of causing horizontal scroll.
     <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
       {blocks.map((b, idx) => renderBlock(b, idx, (src, alt) => setLightbox({ src, alt })))}
       {lightbox && (
@@ -510,7 +510,7 @@ export function MarkdownContent({ content }: { content: string }) {
           <button
             type="button"
             data-testid="md-lightbox-close"
-            aria-label={t("닫기")}
+            aria-label={t("Close")}
             onClick={(e) => {
               e.stopPropagation();
               setLightbox(null);

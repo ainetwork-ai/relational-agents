@@ -15,7 +15,6 @@ const NONE = "none";
 // Status option groups: columns are ordered by band and labelled with it.
 const GROUP_ORDER: Record<string, number> = { todo: 0, in_progress: 1, complete: 2 };
 // legacy group names come back in English from statusGroupOf — display only
-const GROUP_KO: Record<string, string> = { "To-do": "할 일", "In progress": "진행 중", Complete: "완료" };
 export function BoardView({ view }: { view: DbView }) {
   const db = useDb();
   const t = useT();
@@ -45,7 +44,7 @@ export function BoardView({ view }: { view: DbView }) {
     return (
       <div>
         <div className="py-2 text-sm text-neutral-400">
-          {t("보드를 그룹화할 선택 또는 상태 속성을 고르세요.")}
+          {t("Choose a select or status property to group the board by.")}
         </div>
       </div>
     );
@@ -61,7 +60,7 @@ export function BoardView({ view }: { view: DbView }) {
       : groupProp.config.options ?? [];
   const columns = [
     ...ordered.map((o) => ({ id: o.id, name: o.name, color: o.color, group: o.group })),
-    { id: NONE, name: t("{name} 없음", { name: groupProp.name }), color: "gray", group: undefined as string | undefined },
+    { id: NONE, name: t("No {name}", { name: groupProp.name }), color: "gray", group: undefined as string | undefined },
   ];
 
   const rowsIn = (colId: string) =>
@@ -111,7 +110,7 @@ export function BoardView({ view }: { view: DbView }) {
   }
 
   const cardTitle = (r: DbRow) =>
-    (titleProp && (r.values[titleProp.id] as string)) || t("제목 없음");
+    (titleProp && (r.values[titleProp.id] as string)) || t("Untitled");
 
   return (
     <div>
@@ -135,7 +134,7 @@ export function BoardView({ view }: { view: DbView }) {
                   data-testid={`db-board-group-${col.id}`}
                   className="ml-auto text-[10px] uppercase tracking-wide text-neutral-300 dark:text-neutral-600"
                 >
-                  {t(GROUP_KO[statusGroupOf(groupProp, col.id)!] ?? statusGroupOf(groupProp, col.id)!)}
+                  {t(statusGroupOf(groupProp, col.id)!)}
                 </span>
               )}
             </div>
@@ -197,7 +196,7 @@ export function BoardView({ view }: { view: DbView }) {
                 }
                 className="flex items-center gap-1 rounded px-1 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
-                <Plus size={12} /> {t("새 {name}", { name: db.itemName })}
+                <Plus size={12} /> {t("New {name}", { name: db.itemName })}
               </button>
             </div>
           </div>

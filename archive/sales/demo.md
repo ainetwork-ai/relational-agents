@@ -1,107 +1,119 @@
 ---
-title: Demo — 누리소프트 영업팀, 폰 세 대의 통화기록이 하나의 파이프라인으로
+title: "Demo — Nurisoft Sales Team: three phones' call logs become one pipeline"
 ---
 
-# 폰 세 대의 통화기록이, 한마디에 하나의 영업 파이프라인이 된다
+# Three phones' call logs become one sales pipeline, with a single sentence
 
-**영업사원 세 사람의 폰이 통화가 끝날 때마다 통화기록을 각자의 aindrive에 올린다.
-그 세 폴더를 팀스페이스에 연결해 두면, 팀 채팅에서 에이전트에게 "통합 sales
-pipeline 만들어줘" 한마디로 거래처별 파이프라인이 만들어진다.**
+**Three salespeople's phones upload their call history to their own aindrive every time a call
+ends. Connect those three folders to the teamspace, and in the team chat a single message to the
+agent — "build a unified sales pipeline" — creates a pipeline broken down by account.**
 
-영업 현황은 늘 사람 머릿속과 각자의 폰에 흩어져 있다. 대한물산은 김 대리가 처음
-통화했고 협상은 팀장이 하고 있어서, 누구 폰을 봐도 절반만 보인다. 이 데모는 그
-흩어진 통화가 한 장의 파이프라인이 되는 과정을 보여준다.
+Sales status is always scattered across people's heads and their individual phones. Daehan
+Trading was first contacted by Assistant Manager Kim, and the negotiation is now being handled by
+the team lead, so looking at either phone alone only shows half the picture. This demo shows how
+those scattered calls become a single pipeline.
 
-## 등장인물과 그들의 폰(aindrive)
+## The cast and their phones (aindrive)
 
-| 사람 | aindrive 계정 | 폰 = 드라이브 | 통화기록 |
+| Person | aindrive account | Phone = drive | Call history |
 |---|---|---|---|
-| 👔 박지훈 팀장 | 지갑 계정 | 「박지훈 폰 · Galaxy Z Fold7」 | 대한물산 제안·협상, 태양건설, 청솔병원, 한결물류 실사 일정 — 7건 |
-| 👩‍💼 이서연 과장 | 지갑 계정 | 「이서연 폰 · iPhone 16」 | 서진푸드 계약까지 4건, 미래정밀, 한결물류, 치과 예약(개인) — 9건 |
-| 🧑‍💼 김민준 대리 | 지갑 계정 | 「김민준 폰 · Galaxy S25」 | 대한물산 발굴, 서진푸드 기술 지원, 오션마켓, 그린팜, 엄마(개인) — 8건 |
+| 👔 Team Lead Park Jihoon | wallet account | "Park Jihoon's phone · Galaxy Z Fold7" | Daehan Trading proposal/negotiation, Taeyang Construction, Cheongsol Hospital, Hangyeol Logistics site-visit schedule — 7 calls |
+| 👩‍💼 Manager Lee Seoyeon | wallet account | "Lee Seoyeon's phone · iPhone 16" | 4 calls through the Seojin Foods contract, Miraejeongmil, Hangyeol Logistics, dentist appointment (personal) — 9 calls |
+| 🧑‍💼 Assistant Manager Kim Minjun | wallet account | "Kim Minjun's phone · Galaxy S25" | Daehan Trading lead sourcing, Seojin Foods technical support, Ocean Market, Green Farm, mom (personal) — 8 calls |
 
-통화기록은 한 건에 마크다운 파일 하나: `통화기록/2026-09-23 11-20 정우성 (대한물산 구매팀장).md`.
-앞머리에 기기·발신/수신·상대·번호·시작 시각·통화시간, 본문에 요약과 녹취가 있다
-(원본: `app/demo/sales-calls/`).
+Each call is one markdown file: `call-history/2026-09-23 11-20 Jeong Woosung (Daehan Trading
+Purchasing Manager).md`. The header holds device, outgoing/incoming, counterpart, number, start
+time, and call duration; the body holds a summary and the transcript (source:
+`app/demo/sales-calls/`).
 
-세 사람 모두 ainmem에 "aindrive로 로그인"으로 들어오고, 로그인 바로 다음 화면
-**"어떤 aindrive 폴더를 팀과 공유할까요?"** 에서 자기 폰 드라이브를 골라 "영업 1팀"
-팀스페이스에 공유한다(내 드라이브 목록은 aindrive MCP `list_drives`로, 내 것인지 확인도
-MCP로 내 계정 권한으로). 공유된 폴더는 팀원 모두가 사이드바 팀스페이스와 **+ → aindrive에서
-가져오기**의 "팀스페이스에 공유된 폴더"에서 열어 볼 수 있다 — 읽기는 공유한 사람의 권한으로,
-aindrive에 직접 들어가면 여전히 남의 드라이브는 열리지 않는다. 나중에 폴더를 더 공유하려면
-사이드바 AINDRIVE의 **팀과 공유**.
+All three sign in to ainmem via "Sign in with aindrive," and right after sign-in the screen
+**"Which aindrive folder would you like to share with the team?"** lets each of them pick their
+phone's drive and share it with the "Sales Team 1" teamspace (their own drive list comes from the
+aindrive MCP's `list_drives`, and ownership is also checked via the MCP under their own account's
+permissions). The shared folder can then be opened by any teammate from the sidebar teamspace and
+from **+ → Import from aindrive**'s "Folders shared with the teamspace" — read access follows the
+sharer's permissions, and going into aindrive directly still won't open someone else's drive.
+Sharing more folders later is done from the sidebar AINDRIVE's **Share with team**.
 
-## 준비 (한 번)
+## Setup (once)
 
 ```bash
 cd app
-# 1) 세 사람: aindrive 계정(지갑) + 폰 드라이브(aindrive CLI) + ainmem 계정
-pnpm demo:sales:accounts     # --data 기본값 demo/sales-calls
-# 2) 워크스페이스 "누리소프트 영업팀": 팀스페이스, 폰 세 대 연결, 홈 페이지, 팀 채팅 + 에이전트
-pnpm demo:sales              # 다시 만들 때는 --reset
+# 1) Three people: aindrive account (wallet) + phone drive (aindrive CLI) + ainmem account
+pnpm demo:sales:accounts     # --data defaults to demo/sales-calls
+# 2) Workspace "Nurisoft Sales Team": teamspace, three phones connected, home page, team chat + agent
+pnpm demo:sales              # use --reset to rebuild
 ```
 
-키와 드라이브 폴더, CLI 로그는 `~/.ainmem-demo/`(`sales-keys.json`, `sales/drives/<kim|lee|park>/`,
-`sales/cli/<key>/aindrive.log`)에 있다. `DEMO_LOGIN_ADDRESS`가 설정돼 있으면 "데모 계정으로
-시작"이 박지훈 팀장으로 들어간다.
+Keys, drive folders, and CLI logs live in `~/.ainmem-demo/` (`sales-keys.json`,
+`sales/drives/<kim|lee|park>/`, `sales/cli/<key>/aindrive.log`). If `DEMO_LOGIN_ADDRESS` is set,
+"Start with demo account" signs in as Team Lead Park Jihoon.
 
-파이프라인은 **미리 만들어 두지 않는다** — 데모에서 에이전트에게 시키는 것이 핵심이다.
+The pipeline is **not pre-built** — having the agent build it live is the point of the demo.
 
-## 데모 순서 (약 3분)
+## Demo flow (about 3 minutes)
 
-### 0:00 · 영업 1팀 홈 — 폰 세 대가 연결된 팀스페이스
-**영업 1팀 홈**에 세 사람의 최근 통화가 aindrive 링크로 걸려 있다. 하나를 열면 요약과
-녹취가 미리보기로 뜬다. 팀스페이스의 aindrive 표시를 누르면 세 폰이 연결돼 있는 게 보인다.
-> "통화기록은 각자의 폰(aindrive)에 있다. 연결만 했을 뿐이다."
+### 0:00 · Sales Team 1 home — the teamspace with three phones connected
+**Sales Team 1 Home** has the three people's recent calls linked in via aindrive. Opening one
+shows a preview of the summary and transcript. Clicking the teamspace's aindrive indicator shows
+the three phones connected.
+> "The call history lives on each person's phone (aindrive). We've only connected them."
 
-### 0:40 · 팀 채팅 — "@agent 통합 sales pipeline 만들어줘"
-**영업 1팀** 대화방. 대리는 대한물산이 어떻게 됐는지 모르고, 과장은 서진푸드 계약을
-자랑하고, 팀장은 한 번에 보자고 한다. 팀장이 입력한다:
+### 0:40 · Team chat — "@agent build a unified sales pipeline"
+The **Sales Team 1** chat room. The assistant manager doesn't know how Daehan Trading turned out,
+the manager is bragging about the Seojin Foods contract, and the team lead wants to see it all at
+once. The team lead types:
 
 ```
-@agent 통합 sales pipeline 만들어줘
+@agent build a unified sales pipeline
 ```
 
-에이전트가 먼저 "aindrive 3곳에서 통화기록 24건을 찾았어요" 하고, 한 건씩 읽은 뒤
-결과를 올린다(로컬 모델 기준 1분 안팎):
+The agent first says "Found 24 calls across 3 aindrive drives," reads them one by one, and then
+posts the result (roughly a minute with a local model):
 
-- 통화 24건 → 거래처 8곳, **영업과 무관한 통화 2건(엄마, 치과)은 제외**
-- 협상: 태양건설 1.5억, 대한물산 1.08억 · 제안: 오션마켓 · 니즈 파악: 한결물류, 미래정밀, 그린팜
-- 계약 완료: 서진푸드 4,800만 · 보류: 청솔병원
+- 24 calls → 8 accounts, **2 calls unrelated to sales excluded (mom, dentist)**
+- Negotiation: Taeyang Construction 150M, Daehan Trading 108M · Proposal: Ocean Market · Needs
+  assessment: Hangyeol Logistics, Miraejeongmil, Green Farm
+- Contract closed: Seojin Foods 48M · On hold: Cheongsol Hospital
 
-### 1:40 · 통합 Sales Pipeline 페이지
-답의 링크를 누르면 팀스페이스에 **통합 Sales Pipeline** 페이지가 있다.
-- **단계별 보드**: 카드마다 금액·담당·다음 액션·기한. 대한물산 카드에는 김민준·박지훈이
-  함께 담당으로 — 두 사람의 폰에 나뉘어 있던 통화가 한 줄이 됐다.
-- **대시보드**: 거래처 수, 예상 금액 합계, 단계별 막대·도넛.
-- **다가오는 일정**: 9/29 미래정밀 데모부터 10/7 태양건설 임원 PT까지 할 일로.
-- **근거 통화기록**: 거래처마다 토글 안에 원본 통화 파일(aindrive 링크). 모든 숫자에 출처가 있다.
-> "누구도 표를 채우지 않았다. 통화가 곧 파이프라인이다."
+### 1:40 · Unified Sales Pipeline page
+Clicking the link in the reply opens the **Unified Sales Pipeline** page in the teamspace.
+- **Stage board**: each card shows amount, owner, next action, and deadline. The Daehan Trading
+  card lists both Kim Minjun and Park Jihoon as owners — calls that had been split across their
+  two phones are now one line.
+- **Dashboard**: account count, total projected amount, bar/donut charts by stage.
+- **Upcoming schedule**: from the 9/29 Miraejeongmil demo through the 10/7 Taeyang Construction
+  executive presentation, as to-dos.
+- **Source calls**: each account has a toggle with the original call files (aindrive links) inside
+  — every number has a source.
+> "No one filled out a spreadsheet. The calls are the pipeline."
 
-### 2:30 · 새 통화가 들어오면
-김 대리 폰이 방금 끝난 통화를 올린 상황을 만든다:
+### 2:30 · When a new call comes in
+Simulate Assistant Manager Kim's phone just having uploaded a call that ended moments ago:
 
 ```bash
-cp "app/demo/sales-calls-new/kim/"*.md ~/.ainmem-demo/sales/drives/kim/통화기록/
+cp "app/demo/sales-calls-new/kim/"*.md ~/.ainmem-demo/sales/drives/kim/call-history/
 ```
 
-다시 "@agent 파이프라인 업데이트해줘". 같은 페이지가 다시 만들어지고, 그린팜이
-니즈 파악(800만)에서 **제안 900만 원**으로 옮겨 간다. 데모가 끝나면 그 파일을 지우면
-처음 상태로 돌아간다.
+Say "@agent update the pipeline" again. The same page is rebuilt, and Green Farm moves from needs
+assessment (8M) to **proposal, 9M**. Deleting that file after the demo returns things to the
+starting state.
 
-### 2:50 · 마무리 — 파일에서 aindrive로
-페이지에서 **+** 를 누르면 메뉴 맨 위가 **aindrive에서 가져오기**다. 고르면 바로 aindrive
-파일 선택 창이 열리고, 내 폰뿐 아니라 "팀스페이스에 공유된 폴더"로 팀원 폰의 통화 파일도
-고를 수 있다. 파일은 복사가 아니라 링크로 들어간다. 팀스페이스의 OKF 백업은
-박지훈 폰의 `ainmem-영업-1팀-…/` 폴더에 쌓인다 — 파이프라인 페이지도 함께.
+### 2:50 · Wrap-up — from a file to aindrive
+On the page, pressing **+** shows **Import from aindrive** at the top of the menu. Selecting it
+opens the aindrive file picker right away, and it lets you pick not just your own phone's files
+but also, via "Folders shared with the teamspace," a teammate's phone's call files. Files are
+brought in as links, not copies. The teamspace's OKF backup accumulates in Park Jihoon's phone's
+`ainmem-sales-team-1-…/` folder — the pipeline page along with it.
 
-## 확인 포인트
+## Things to check
 
-- 세 폰의 통화가 모두 읽힌다(각 폴더는 연결한 사람의 계정으로)
-- 개인 통화는 파이프라인에 들어가지 않는다
-- 여러 사람이 통화한 거래처는 한 줄로 합쳐지고 담당에 모두 나온다
-- 다시 요청하면 같은 페이지가 갱신된다(채팅의 링크가 계속 유효)
-- `+` 메뉴의 첫 항목이 aindrive에서 가져오기다
-- aindrive로 로그인하면 공유할 폴더를 고르는 화면이 나온다(이미 모두 공유했으면 건너뜀)
-- 팀원이 공유한 폴더는 가져오기 창에서 열리고, 공유되지 않은 남의 드라이브는 열리지 않는다
+- All three phones' calls are read (each folder under the account of the person who connected it)
+- Personal calls do not go into the pipeline
+- Accounts multiple people called are merged into one line, with everyone listed as an owner
+- Asking again refreshes the same page (the link in the chat stays valid)
+- The first item in the `+` menu is "Import from aindrive"
+- Signing in with aindrive shows the screen for picking which folder to share (skipped if
+  everything is already shared)
+- Folders a teammate has shared open in the import picker; someone else's unshared drive still
+  doesn't open

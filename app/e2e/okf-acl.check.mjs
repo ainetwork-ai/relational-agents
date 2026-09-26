@@ -104,7 +104,7 @@ let failed = 0;
 const row = (name, mStatus, sStatus, sLeak, ok) => {
   if (!ok) failed++;
   console.log(
-    `${ok ? "PASS" : "FAIL"}  ${name.padEnd(28)} ${MEMBER}=${String(mStatus).padEnd(4)} ${STRANGER}=${String(sStatus).padEnd(4)}${sLeak ? "  ← 내용 노출!" : ""}`
+    `${ok ? "PASS" : "FAIL"}  ${name.padEnd(28)} ${MEMBER}=${String(mStatus).padEnd(4)} ${STRANGER}=${String(sStatus).padEnd(4)}${sLeak ? "  ← content leaked!" : ""}`
   );
 };
 
@@ -143,7 +143,7 @@ const after = await (
 const same =
   JSON.stringify((after.blocks ?? []).map((b) => b.content)) ===
   JSON.stringify(cur.blocks.map((b) => b.content));
-row("문서 무손상 확인", cur.blocks.length, (after.blocks ?? []).length, false, same);
+row("document intact", cur.blocks.length, (after.blocks ?? []).length, false, same);
 
 // A write path that keeps the blocks but drops the frontmatter still destroys
 // the document: relation-agent refuses one with no `type`.
@@ -155,7 +155,7 @@ const nodeAfter = await (
 const meta = nodeAfter.meta ?? {};
 const contractKept =
   stable(meta) === metaBefore && meta.type === "Memory" && Boolean(meta.relationId);
-row("계약 프론트매터 보존", meta.type ?? "없음", meta.relationId ? "relationId ✓" : "없음", false, contractKept);
+row("contract frontmatter kept", meta.type ?? "none", meta.relationId ? "relationId ✓" : "none", false, contractKept);
 
-console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");
+console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

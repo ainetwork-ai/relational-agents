@@ -1,4 +1,5 @@
 import type { TreasuryCommand, TreasuryKind } from "./types";
+import { TREASURY_KO as KO } from "@/i18n/content/agent";
 
 /**
  * Chat → treasury command, by sentence shape. A false positive here moves
@@ -28,8 +29,10 @@ const ADOPT =
   /^(?:adopt|ratify|accept)\s+(?:the\s+|our\s+)?(?:new\s+|updated\s+|edited\s+|changed\s+|current\s+)?(?:treasury\s+)?(?:rules|payees|members|membership|changes|rules and payees|payees and rules)\b[\s.!]*$/i;
 
 /** words that ask for money to move, in any tense — mentionsMoney's half of "a money sentence" */
-const MONEY_VERB =
-  /\b(?:pay|paid|paying|send|sent|sending|transfer\w*|book\w*|reserve\w*|buy|bought|buying|purchas\w*|withdr[ae]w\w*|invest\w*|move|moved|moving|spend|spent|spending|give|gave|giving|deposit\w*|cover\w*|reimburs\w*|refund\w*|tip)\b|보내|송금|결제|지불|출금|투자|예약|구매/i;
+const MONEY_VERB = new RegExp(
+  String.raw`\b(?:pay|paid|paying|send|sent|sending|transfer\w*|book\w*|reserve\w*|buy|bought|buying|purchas\w*|withdr[ae]w\w*|invest\w*|move|moved|moving|spend|spent|spending|give|gave|giving|deposit\w*|cover\w*|reimburs\w*|refund\w*|tip)\b|` + KO.moneyVerbs.join("|"),
+    "i"
+  );
 
 const EXPENSE_VERBS = new Set(["pay", "book", "reserve", "buy", "purchase", "cover", "spend", "deposit"]);
 const TRANSFER_VERBS = new Set(["send", "transfer", "give"]);
@@ -40,9 +43,12 @@ const SEND_ME = /^(?:send|give|transfer|pay)\s+me(?:\s+back)?\b/i;
 /** money coming INTO the treasury is not ours to move out */
 const INTO_TREASURY = /\b(?:in|into|to)\s+(?:the|our)\s+(?:treasury|shared wallet|pot|fund|kitty)\b/i;
 
-const KO_TO_SELF = /내\s?지갑|내\s?계좌|나한테|나에게/;
-const KO_REQUEST = /(?:줘|주세요|줄래|주라|주겠니)[.!?~\s]*$/;
-const KO_HEDGE = /말고|하지\s?마|취소|나중에|내일|어제|이미|했어|했다|냈어|보냈어|하면|이면/;
+const KO_TO_SELF = new RegExp(KO.toSelf.join("|"));
+const KO_REQUEST = new RegExp(String.raw`(?:${KO.requestEndings.join("|")})[.!?~\s]*$`);
+const KO_HEDGE = new RegExp(KO.hedge.join("|"));
+const KO_STATUS = new RegExp(KO.status.join("|"));
+const KO_EXPENSE = new RegExp(KO.expense.join("|"));
+const HANGUL = /[\uAC00-\uD7A3]/;
 
 interface Amounts {
   values: number[];
@@ -57,7 +63,7 @@ const AMOUNT_RES: { re: RegExp; dollarSign?: boolean }[] = [
   { re: new RegExp(String.raw`\$\s?${NUM}`, "g"), dollarSign: true },
   { re: new RegExp(String.raw`\busd\s?${NUM}`, "gi"), dollarSign: true },
   { re: new RegExp(String.raw`(?<![\d,.])${NUM}\s?(?:dollars?|bucks|usd)\b`, "gi") },
-  { re: new RegExp(String.raw`(?<![\d,.])${NUM}\s?달러`, "g") },
+  { re: new RegExp(String.raw`(?<![\d,.])${NUM}\s?${KO.dollar}`, "g") },
 ];
 
 function findAmounts(t: string): Amounts {
@@ -109,7 +115,7 @@ function withoutAmounts(t: string, spans: [number, number][]): string {
   let s = t;
   for (const [a, b] of merged.reverse()) {
     const before = s.slice(0, a).replace(/(?:\b(?:for|of|at|worth|costing|about|around)\s+|,\s*)$/i, "");
-    s = `${before} ${s.slice(b).replace(/^\s?(?:dollars?|bucks|usd|달러)\b/i, "")}`;
+    s = `${before} ${s.slice(b).replace(new RegExp(String.raw`^\s?(?:dollars?|bucks|usd|${KO.dollar})\b`, "i"), "")}`;
   }
   return s;
 }
@@ -142,7 +148,7 @@ function isStatus(t: string): boolean {
     /\btreasury status\b|^treasury\s*\??$|^status\s*\??$/.test(s) ||
     /\bhow much (?:money )?(?:do we have|have we got|is left|is in (?:the|our) (?:treasury|wallet|pot))\b/.test(s) ||
     /\bwhat(?:'s| is) in (?:the|our) treasury\b/.test(s) ||
-    /잔액|잔고/.test(s)
+    KO_STATUS.test(s)
   );
 }
 
@@ -192,20 +198,20 @@ function matchKorean(t: string, raw: string): TreasuryCommand | null {
 
   let kind: TreasuryKind | null = null;
   let toSelf = false;
-  if (KO_TO_SELF.test(t) || /출금/.test(t)) {
+  if (KO_TO_SELF.test(t) || t.includes(KO.withdraw)) {
     kind = "withdrawal";
     toSelf = true;
-  } else if (/투자/.test(t)) kind = "investment";
-  else if (/보내|송금|결제|지불|내\s?줘|예약|사\s?줘|구매|계산/.test(t)) kind = "expense";
+  } else if (t.includes(KO.invest)) kind = "investment";
+  else if (KO_EXPENSE.test(t)) kind = "expense";
   if (!kind) return null;
 
   const memo = tidyMemo(
     withoutAmounts(t, amounts.spans)
       .replace(KO_TO_SELF, " ")
-      .replace(/(?:공금|모임\s?통장|통장|지갑)(?:에서|으로|로)?/g, " ")
-      .replace(/\S*(?:줘|주세요|줄래|주라|주겠니)[.!?~\s]*$/, " ")
+      .replace(new RegExp(KO.source, "g"), " ")
+      .replace(new RegExp(String.raw`\S*(?:${KO.requestEndings.join("|")})[.!?~\s]*$`), " ")
       .split(/\s+/)
-      .map((w) => w.replace(/(?:에게|한테|으로|에|을|를)$/, ""))
+      .map((w) => w.replace(new RegExp(`${KO.particles}$`), ""))
       .join(" ")
   );
   return money(kind, amountUsd, memo, toSelf, raw);
@@ -242,7 +248,7 @@ export function matchTreasuryCommand(text: string, agentName?: string): Treasury
   if (!t) return null;
   if (ADOPT.test(t)) return { kind: "adopt", raw };
 
-  const cmd = matchEnglish(t, raw) ?? (/[가-힣]/.test(t) ? matchKorean(t, raw) : null);
+  const cmd = matchEnglish(t, raw) ?? (HANGUL.test(t) ? matchKorean(t, raw) : null);
   if (cmd) return cmd;
   // a balance question moves nothing, so it may be matched loosely — but not
   // when an amount is on the table: that is a money sentence we didn't read

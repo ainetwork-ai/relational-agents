@@ -5,14 +5,15 @@ import { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 /**
  * Enter while an IME is composing means "settle this syllable", not "send".
  *
- * Typing 댓글 and pressing Enter once used to post TWICE — first the whole
- * text, then, a millisecond later, just the last syllable:
+ * Typing a Korean word and pressing Enter once used to post TWICE — first the
+ * whole text, then, a millisecond later, just the last syllable (the logged
+ * pair is kept as IME_DOUBLE_SEND_EXAMPLE in @/i18n/content/components):
  *
- *   06:28:44.091  댓끌
- *   06:28:44.095  끌
+ *   06:28:44.091  <whole word, last syllable still composing>
+ *   06:28:44.095  <last syllable>
  *
  * because the keypress arrives as two keydowns. The first carries keyCode 229
- * with `isComposing` true (the IME asking to commit 글); our handler read the
+ * with `isComposing` true (the IME asking to commit the last syllable); our handler read the
  * field, sent it and cleared it. The IME then wrote the syllable it had been
  * composing back into the now-empty field, and the second keydown — an
  * ordinary Enter — sent that leftover as a second comment. Latin text never

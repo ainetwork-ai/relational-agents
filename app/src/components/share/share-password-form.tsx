@@ -38,7 +38,7 @@ export function SharePasswordForm({ token }: { token: string }) {
       >
         <p className="text-3xl">🔒</p>
         <h1 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-          {t("이 페이지는 비밀번호로 보호되어 있습니다")}
+          {t("This page is password protected")}
         </h1>
         <input
           autoFocus
@@ -46,12 +46,12 @@ export function SharePasswordForm({ token }: { token: string }) {
           data-testid="share-pw-input"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
-          placeholder={t("비밀번호 입력")}
+          placeholder={t("Enter password")}
           className="rounded-md border border-neutral-200 px-3 py-1.5 text-sm outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         />
         {error && (
           <p data-testid="share-pw-error" className="text-xs text-red-500">
-            {t("비밀번호가 틀렸습니다. 다시 시도하세요.")}
+            {t("Incorrect password. Please try again.")}
           </p>
         )}
         <button
@@ -60,7 +60,7 @@ export function SharePasswordForm({ token }: { token: string }) {
           disabled={busy}
           className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
         >
-          {busy ? t("확인 중…") : t("계속")}
+          {busy ? t("Checking…") : t("Continue")}
         </button>
       </form>
     </main>

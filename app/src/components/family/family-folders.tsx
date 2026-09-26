@@ -56,7 +56,7 @@ const initial = (name: string) => name.trim().slice(0, 1) || "?";
 const inviteUrl = (token: string) => `${window.location.origin}/family/${token}`;
 
 /**
- * "👪 가족 폴더 3/4" — in a teamspace page's header. Says at a glance how many
+ * "👪 Family folders 3/4" — in a teamspace page's header. Says at a glance how many
  * of the family have shared their phone here, and whether a phone is off.
  */
 export function FamilyFoldersPill({ teamspaceId }: { teamspaceId: string | null | undefined }) {
@@ -70,11 +70,11 @@ export function FamilyFoldersPill({ teamspaceId }: { teamspaceId: string | null 
     <button
       data-testid="family-folders-pill"
       onClick={() => openFamilySheet(teamspaceId)}
-      title={t("가족 폴더")}
+      title={t("Family folders")}
       className="mr-1 flex items-center gap-1.5 rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
     >
       <Users size={12} />
-      {t("가족 폴더 {n}/{total}", { n: sharing, total })}
+      {t("Family folders {n}/{total}", { n: sharing, total })}
       <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-amber-400" : sharing ? "bg-emerald-500" : "bg-neutral-300"}`} />
     </button>
   );
@@ -118,7 +118,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
     }).catch(() => null);
     const d = (await r?.json().catch(() => ({}))) as { invite?: { name: string; token: string }; error?: string } | undefined;
     setBusy(false);
-    if (!r?.ok || !d?.invite) return setNote(d?.error ?? t("초대 링크를 만들지 못했어요."));
+    if (!r?.ok || !d?.invite) return setNote(d?.error ?? t("Couldn't create the invite link."));
     setMade(d.invite);
     setName("");
     reload();
@@ -129,7 +129,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
     setSyncing(true);
     const r = await fetch(`/api/aindrive/links/${data.backup.id}/backup`, { method: "POST" }).catch(() => null);
     setSyncing(false);
-    setNote(r?.ok ? t("백업했어요.") : t("백업하지 못했어요."));
+    setNote(r?.ok ? t("Backed up.") : t("Backup failed."));
     window.dispatchEvent(new Event(FAMILY_CHANGED));
   }
 
@@ -137,7 +137,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
         role="dialog"
-        aria-label={t("가족 폴더")}
+        aria-label={t("Family folders")}
         data-testid="family-folders-sheet"
         className="flex h-full w-full max-w-md flex-col bg-white shadow-xl dark:bg-neutral-900"
       >
@@ -145,26 +145,26 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
           <Users size={16} className="text-neutral-500" />
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
             {data?.teamspace.icon ? `${data.teamspace.icon} ` : ""}
-            {data?.teamspace.name ?? ""} · {t("가족 폴더")}
+            {data?.teamspace.name ?? ""} · {t("Family folders")}
           </h2>
-          <button onClick={onClose} aria-label={t("닫기")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+          <button onClick={onClose} aria-label={t("Close")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
             <X size={16} />
           </button>
         </div>
         <p className="px-5 pt-3 text-xs text-neutral-500">
-          {t("가족 각자의 폰(aindrive)에서 고른 폴더가 이 공간에 공유돼요. 파일은 각자의 폰에 그대로 있고, 에이전트와 가족이 함께 봐요.")}
+          {t("Folders each family member picks on their phone (aindrive) are shared here. Files stay on each phone; the family and the agent see them together.")}
         </p>
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
-          {!data && <p className="text-sm text-neutral-400">{t("불러오는 중…")}</p>}
+          {!data && <p className="text-sm text-neutral-400">{t("Loading…")}</p>}
           <ul className="space-y-2">
             {data?.members.map((m) => {
               const on = m.folders.filter((f) => f.online).length;
               const status = !m.folders.length
-                ? { dot: "bg-neutral-300", text: t("아직 폴더를 공유하지 않았어요") }
+                ? { dot: "bg-neutral-300", text: t("Hasn't shared a folder yet") }
                 : on === m.folders.length
-                  ? { dot: "bg-emerald-500", text: t("연결됨 · 폰 켜짐") }
-                  : { dot: "bg-amber-400", text: t("연결됨 · 폰 꺼짐 — 지금은 읽을 수 없어요") };
+                  ? { dot: "bg-emerald-500", text: t("Connected · phone on") }
+                  : { dot: "bg-amber-400", text: t("Connected · phone off — can't be read right now") };
               return (
                 <li key={m.userId} data-testid={`family-member-${m.name}`} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
                   <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">
                         {m.name}
-                        {m.me && <span className="ml-1 text-xs font-normal text-neutral-400">({t("나")})</span>}
+                        {m.me && <span className="ml-1 text-xs font-normal text-neutral-400">({t("me")})</span>}
                       </p>
                       <p className="flex items-center gap-1 text-[11px] text-neutral-500">
                         <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} /> {status.text}
@@ -186,7 +186,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                         onClick={onClose}
                         className="shrink-0 rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
                       >
-                        {m.folders.length ? t("폴더 더 공유") : t("내 폴더 공유하기")}
+                        {m.folders.length ? t("Share more") : t("Share my folders")}
                       </Link>
                     )}
                   </div>
@@ -199,7 +199,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                         >
                           <HardDrive size={10} className="text-neutral-400" />
                           {f.root || f.name}
-                          {f.backup && <span className="text-[10px] text-blue-600 dark:text-blue-400">· {t("백업")}</span>}
+                          {f.backup && <span className="text-[10px] text-blue-600 dark:text-blue-400">· {t("backup")}</span>}
                         </span>
                       ))}
                     </div>
@@ -215,13 +215,13 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">{i.name}</p>
-                    <p className="text-[11px] text-neutral-500">○ {t("초대함 · 승인 기다리는 중")}</p>
+                    <p className="text-[11px] text-neutral-500">○ {t("Invited · waiting for approval")}</p>
                   </div>
                   <button
                     onClick={() => setMade({ name: i.name, token: i.token })}
                     className="flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300"
                   >
-                    <QrCode size={11} /> {t("링크·QR")}
+                    <QrCode size={11} /> {t("Link · QR")}
                   </button>
                 </div>
               </li>
@@ -233,10 +233,10 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
           ) : (
             <div className="mt-4 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800/50">
               <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-800 dark:text-neutral-100">
-                <UserPlus size={14} /> {t("가족 초대하기")}
+                <UserPlus size={14} /> {t("Invite family")}
               </p>
               <p className="mb-2 text-[11px] text-neutral-500">
-                {t("링크나 QR을 받은 가족이 폰에서 한 번 승인하고, 공유할 폴더만 고르면 끝이에요.")}
+                {t("They open the link or QR on their phone, approve once, pick what to share — done.")}
               </p>
               <div className="flex gap-2">
                 <input
@@ -244,7 +244,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && void invite()}
-                  placeholder={t("누구를 초대할까요? (예: 외할아버지)")}
+                  placeholder={t("Who's joining? (e.g. Grandpa)")}
                   className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900"
                 />
                 <button
@@ -253,7 +253,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                   disabled={busy || !name.trim()}
                   className="shrink-0 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
                 >
-                  {t("초대 링크 만들기")}
+                  {t("Create invite link")}
                 </button>
               </div>
             </div>
@@ -263,13 +263,13 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-neutral-200 p-3 text-xs text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
               <HardDrive size={13} className="text-neutral-400" />
               <span className="min-w-0 flex-1">
-                {t("이 공간 백업 → {name}", { name: data.backup.name })}
+                {t("This space backs up to → {name}", { name: data.backup.name })}
                 <span className="block text-[11px] text-neutral-400">
                   {data.backup.error
-                    ? t("마지막 백업 실패")
+                    ? t("Last backup failed")
                     : data.backup.lastBackupAt
-                      ? t("마지막 백업 {time}", { time: new Date(data.backup.lastBackupAt).toLocaleString() })
-                      : t("아직 백업 전")}
+                      ? t("Last backup {time}", { time: new Date(data.backup.lastBackupAt).toLocaleString() })
+                      : t("Not backed up yet")}
                 </span>
               </span>
               <button
@@ -277,7 +277,7 @@ function FamilyFoldersSheet({ teamspaceId, onClose }: { teamspaceId: string; onC
                 disabled={syncing}
                 className="flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
               >
-                <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> {t("지금 백업")}
+                <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> {t("Back up now")}
               </button>
             </div>
           )}
@@ -302,11 +302,11 @@ function InviteCard({ name, token, onDone }: { name: string; token: string; onDo
       alive = false;
     };
   }, [url]);
-  const message = t("{name}, 우리 가족 공간에 초대해요. 폰에서 열고 승인만 누르면 돼요: {url}", { name, url });
+  const message = t("{name}, you're invited to our family space. Open this on your phone and tap approve: {url}", { name, url });
   return (
     <div data-testid="family-invite-card" className="mt-4 rounded-lg border border-neutral-200 p-4 text-center dark:border-neutral-700">
-      <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{t("{name}께 보낼 초대", { name })}</p>
-      <p className="mb-3 text-[11px] text-neutral-500">{t("폰 카메라로 QR을 찍거나, 링크를 카톡·문자로 보내세요.")}</p>
+      <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{t("Invite for {name}", { name })}</p>
+      <p className="mb-3 text-[11px] text-neutral-500">{t("Scan the QR with a phone camera, or send the link by message.")}</p>
       {qr ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img data-testid="family-invite-qr" src={qr} alt="" className="mx-auto h-44 w-44 rounded" />
@@ -324,18 +324,18 @@ function InviteCard({ name, token, onDone }: { name: string; token: string; onDo
           }}
           className="flex items-center gap-1 rounded-md border border-neutral-200 px-2.5 py-1 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          <Copy size={12} /> {copied ? t("복사했어요") : t("메시지 복사")}
+          <Copy size={12} /> {copied ? t("Copied it") : t("Copy message")}
         </button>
         {typeof navigator !== "undefined" && "share" in navigator && (
           <button
             onClick={() => void navigator.share({ text: message }).catch(() => {})}
             className="flex items-center gap-1 rounded-md border border-neutral-200 px-2.5 py-1 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
           >
-            <Send size={12} /> {t("보내기")}
+            <Send size={12} /> {t("Send")}
           </button>
         )}
         <button onClick={onDone} className="rounded-md px-2.5 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-          {t("닫기")}
+          {t("Close")}
         </button>
       </div>
     </div>

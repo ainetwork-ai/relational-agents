@@ -20,9 +20,15 @@ import { runAsOrService } from "@/lib/aindrive-account";
 import { aindrivePublicBase, listTree, notUserFolder, parseLink, readFile, type AindriveLink } from "@/lib/aindrive";
 import { aindriveFileUrl } from "@/lib/aindrive-url";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
+import { SALES, anyOf } from "@/i18n/content/agent";
+import { makeT } from "@/i18n/translate";
+
+/** The sales demo answers (and writes its page) in Korean. */
+const t = makeT("ko");
 
 /**
- * "통합 sales pipeline 만들어줘": the agent's one skill that builds rather than
+ * "Build the integrated sales pipeline" (SALES_PIPELINE_EXAMPLE in @/i18n/content/agent):
+ * the agent's one skill that builds rather than
  * answers.
  *
  * Every salesperson's phone syncs its call history into their own aindrive
@@ -37,22 +43,28 @@ import { visibleTeamspace } from "@/lib/aindrive-teamspace";
  * they are now.
  */
 
-export const PIPELINE_TITLE = "통합 Sales Pipeline";
+export const PIPELINE_TITLE = SALES.title;
 
+const ST = SALES.stages;
 const STAGES = [
-  { name: "리드", color: "gray" },
-  { name: "니즈 파악", color: "blue" },
-  { name: "제안", color: "purple" },
-  { name: "협상", color: "orange" },
-  { name: "계약 완료", color: "green" },
-  { name: "보류", color: "red" },
+  { name: ST.lead, color: "gray" },
+  { name: ST.discovery, color: "blue" },
+  { name: ST.proposal, color: "purple" },
+  { name: ST.negotiation, color: "orange" },
+  { name: ST.won, color: "green" },
+  { name: ST.onHold, color: "red" },
 ] as const;
 type Stage = (typeof STAGES)[number]["name"];
-const OPEN: Stage[] = ["리드", "니즈 파악", "제안", "협상"];
+const OPEN: Stage[] = [ST.lead, ST.discovery, ST.proposal, ST.negotiation];
+const ASK_TOPIC = anyOf(SALES.askTopic);
+const ASK_ACT = anyOf(SALES.askAct);
+const CALL_WORD = anyOf(SALES.callWords);
+const WON_WORD = new RegExp(SALES.wonWords.join("|"), "i");
+const ON_HOLD_WORD = new RegExp(SALES.onHoldWords.join("|"), "i");
 
 /** Asked to build (or refresh) the pipeline. */
 export function asksForPipeline(text: string): boolean {
-  return /(파이프\s*라인|pipeline)/i.test(text) && /(만들|생성|정리|업데이트|갱신|새로|build|create|make|update|refresh)/i.test(text);
+  return ASK_TOPIC.test(text) && ASK_ACT.test(text);
 }
 
 interface CallFile {
@@ -88,7 +100,7 @@ const EXTRACT_CONCURRENCY = 4;
  *  the teamspace's own OKF backup (ainmem-<teamspace>-…/), which can land in
  *  the same drive and would feed the pipeline its own previous output. */
 function looksLikeCall(path: string): boolean {
-  return /\.md$/i.test(path) && /(통화|call)/i.test(path) && !/readme\.md$/i.test(path) && !/(^|\/)ainmem-/.test(path);
+  return /\.md$/i.test(path) && CALL_WORD.test(path) && !/readme\.md$/i.test(path) && !/(^|\/)ainmem-/.test(path);
 }
 
 /** `key: value` lines of a leading --- block. */
@@ -104,7 +116,7 @@ function frontMatter(text: string): Record<string, string> {
 
 function callDate(file: CallFile): string {
   const fm = frontMatter(file.text);
-  const from = fm["시작"] ?? fm["date"] ?? fm["started"] ?? file.path.split("/").pop() ?? "";
+  const from = fm[SALES.fm.started] ?? fm["date"] ?? fm["started"] ?? file.path.split("/").pop() ?? "";
   return from.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
 }
 
@@ -116,7 +128,7 @@ async function inBatches<T, R>(items: T[], size: number, fn: (t: T) => Promise<R
 
 function asStage(v: unknown): Stage {
   const s = typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
-  return (STAGES.find((x) => x.name === s)?.name ?? (/계약|성사|won/i.test(s) ? "계약 완료" : /보류|연기|실패|lost/i.test(s) ? "보류" : "리드")) as Stage;
+  return (STAGES.find((x) => x.name === s)?.name ?? (WON_WORD.test(s) ? ST.won : ON_HOLD_WORD.test(s) ? ST.onHold : ST.lead)) as Stage;
 }
 
 function asDate(v: unknown): string | null {
@@ -137,14 +149,14 @@ async function extract(file: CallFile): Promise<CallFacts | null> {
         role: "system",
         content:
           "You read one phone call record from a salesperson's phone and pull out the sales facts. " +
-          `The call happened on ${date || "an unknown date"}; resolve relative dates ("다음 주 화요일", "10월 2일") against it, in YYYY-MM-DD.\n` +
+          `The call happened on ${date || "an unknown date"}; resolve relative dates (${SALES.examples.relativeDates.map((d) => `"${d}"`).join(", ")}) against it, in YYYY-MM-DD.\n` +
           "Output JSON only:\n" +
-          '{"sales":true,"company":"<the customer company, short name, e.g. 대한물산>","contact":"<customer person and role>",' +
-          `"stage":"<one of: ${STAGES.map((s) => s.name).join(" | ")}>","amount":<the latest amount in KRW as an integer (1억 800만 원 → 108000000), or null>,` +
+          `{"sales":true,"company":"<the customer company, short name, e.g. ${SALES.examples.company}>","contact":"<customer person and role>",` +
+          `"stage":"<one of: ${STAGES.map((s) => s.name).join(" | ")}>","amount":<the latest amount in KRW as an integer (${SALES.examples.amount} → 108000000), or null>,` +
           '"product":"<what is being sold, short>","nextAction":"<the next step agreed, short Korean>","nextActionDate":"<YYYY-MM-DD or null>","summary":"<one short Korean sentence>"}\n' +
           'A personal or non-sales call (family, a dentist, a delivery) → {"sales":false}.\n' +
-          "Stage guide: 리드 = first contact or interest only; 니즈 파악 = needs/budget being discussed, a demo or visit being set up; " +
-          "제안 = a proposal or quote has been sent/explained; 협상 = price or terms being negotiated; 계약 완료 = signed or confirmed; 보류 = postponed or lost.",
+          `Stage guide: ${ST.lead} = first contact or interest only; ${ST.discovery} = needs/budget being discussed, a demo or visit being set up; ` +
+          `${ST.proposal} = a proposal or quote has been sent/explained; ${ST.negotiation} = price or terms being negotiated; ${ST.won} = signed or confirmed; ${ST.onHold} = postponed or lost.`,
       },
       { role: "user", content: file.text.slice(0, CALL_CHARS) },
     ],
@@ -162,14 +174,14 @@ async function extract(file: CallFile): Promise<CallFacts | null> {
   }
   if (j.sales === false) return null;
   // the model said nothing usable: the front matter still names who was called
-  const org = fm["소속"] ?? fm["company"] ?? "";
+  const org = fm[SALES.fm.company] ?? fm["company"] ?? "";
   const company = asText(j.company, 60) || org.split(/\s+/)[0] || "";
   if (!company) return null;
   const amount = typeof j.amount === "number" && Number.isFinite(j.amount) && j.amount > 0 ? Math.round(j.amount) : null;
   return {
     sales: true,
     company,
-    contact: asText(j.contact, 80) || [fm["상대"], org].filter(Boolean).join(" · "),
+    contact: asText(j.contact, 80) || [fm[SALES.fm.contact], org].filter(Boolean).join(" · "),
     stage: asStage(j.stage),
     amount,
     product: asText(j.product, 80),
@@ -181,7 +193,8 @@ async function extract(file: CallFile): Promise<CallFacts | null> {
   };
 }
 
-const norm = (s: string) => s.replace(/\s+|\(주\)|㈜|주식회사/g, "").toLowerCase();
+const COMPANY_NOISE = new RegExp(`\\s+|${SALES.companyForms.join("|")}`, "g");
+const norm = (s: string) => s.replace(COMPANY_NOISE, "").toLowerCase();
 
 interface Deal {
   company: string;
@@ -224,14 +237,14 @@ function mergeDeals(facts: CallFacts[]): Deal[] {
     });
   }
   // closest to closing first; what is on hold goes last
-  const order = (s: Stage) => (s === "보류" ? -1 : STAGES.findIndex((x) => x.name === s));
+  const order = (s: Stage) => (s === ST.onHold ? -1 : STAGES.findIndex((x) => x.name === s));
   return deals.sort((a, b) => order(b.stage) - order(a.stage) || (b.amount ?? 0) - (a.amount ?? 0));
 }
 
 const won = (n: number) =>
   n >= 100_000_000
-    ? `${(n / 100_000_000).toFixed(n % 100_000_000 ? 2 : 0).replace(/\.?0+$/, "")}억 원`
-    : `${Math.round(n / 10_000).toLocaleString("ko-KR")}만 원`;
+    ? t("₩{n} × 100M", { n: (n / 100_000_000).toFixed(n % 100_000_000 ? 2 : 0).replace(/\.?0+$/, "") })
+    : t("₩{n} × 10K", { n: Math.round(n / 10_000).toLocaleString("ko-KR") });
 
 /** The call files of every drive linked into the teamspaces that everyone
  *  who will read the answer can see — a private teamspace's calls must not
@@ -298,19 +311,20 @@ async function writePage(
   );
 
   const [database] = await db.insert(databases).values({ workspaceId, title: PIPELINE_TITLE, createdBy: askerId }).returning();
+  const PR = SALES.props;
   const stageOptions = STAGES.map((s) => ({ id: crypto.randomUUID(), name: s.name, color: s.color }));
   const defs: { name: string; type: DbProperty["type"]; config?: DbProperty["config"] }[] = [
-    { name: "거래처", type: "title" },
-    { name: "단계", type: "select", config: { options: stageOptions } },
-    { name: "예상 금액", type: "number", config: { numberFormat: "comma" } },
-    { name: "담당", type: "person" },
-    { name: "고객 담당자", type: "text" },
-    { name: "제품", type: "text" },
-    { name: "다음 액션", type: "text" },
-    { name: "기한", type: "date" },
-    { name: "마지막 통화", type: "date" },
-    { name: "통화 수", type: "number" },
-    { name: "요약", type: "text" },
+    { name: PR.company, type: "title" },
+    { name: PR.stage, type: "select", config: { options: stageOptions } },
+    { name: PR.amount, type: "number", config: { numberFormat: "comma" } },
+    { name: PR.owner, type: "person" },
+    { name: PR.contact, type: "text" },
+    { name: PR.product, type: "text" },
+    { name: PR.nextAction, type: "text" },
+    { name: PR.due, type: "date" },
+    { name: PR.lastCall, type: "date" },
+    { name: PR.calls, type: "number" },
+    { name: PR.summary, type: "text" },
   ];
   const props = await db
     .insert(dbProperties)
@@ -325,51 +339,51 @@ async function writePage(
         createdBy: askerId,
         updatedBy: askerId,
         values: {
-          [P("거래처")]: d.company,
-          [P("단계")]: stageOptions.find((o) => o.name === d.stage)!.id,
-          [P("예상 금액")]: d.amount,
-          [P("담당")]: d.owners,
-          [P("고객 담당자")]: d.contact,
-          [P("제품")]: d.product,
-          [P("다음 액션")]: d.nextAction,
-          [P("기한")]: d.nextActionDate ? { start: d.nextActionDate } : null,
-          [P("마지막 통화")]: d.lastCall ? { start: d.lastCall } : null,
-          [P("통화 수")]: d.calls.length,
-          [P("요약")]: d.summary,
+          [P(PR.company)]: d.company,
+          [P(PR.stage)]: stageOptions.find((o) => o.name === d.stage)!.id,
+          [P(PR.amount)]: d.amount,
+          [P(PR.owner)]: d.owners,
+          [P(PR.contact)]: d.contact,
+          [P(PR.product)]: d.product,
+          [P(PR.nextAction)]: d.nextAction,
+          [P(PR.due)]: d.nextActionDate ? { start: d.nextActionDate } : null,
+          [P(PR.lastCall)]: d.lastCall ? { start: d.lastCall } : null,
+          [P(PR.calls)]: d.calls.length,
+          [P(PR.summary)]: d.summary,
         },
       }))
     );
   await db.insert(dbViews).values([
     {
       databaseId: database.id,
-      name: "단계별 보드",
+      name: SALES.views.board,
       type: "board" as const,
       // a card is who, how much and what next — the rest is one click away
       config: {
-        groupByPropertyId: P("단계"),
-        hiddenProperties: ["단계", "고객 담당자", "제품", "마지막 통화", "통화 수", "요약"].map(P),
+        groupByPropertyId: P(PR.stage),
+        hiddenProperties: [PR.stage, PR.contact, PR.product, PR.lastCall, PR.calls, PR.summary].map(P),
       },
       position: 1,
     },
     {
       databaseId: database.id,
-      name: "전체 표",
+      name: SALES.views.table,
       type: "table" as const,
-      config: { calcs: { [P("예상 금액")]: "sum", [P("통화 수")]: "sum" } },
+      config: { calcs: { [P(PR.amount)]: "sum", [P(PR.calls)]: "sum" } },
       position: 2,
     },
-    { databaseId: database.id, name: "기한 달력", type: "calendar" as const, config: { calendarDatePropertyId: P("기한") }, position: 3 },
+    { databaseId: database.id, name: SALES.views.calendar, type: "calendar" as const, config: { calendarDatePropertyId: P(PR.due) }, position: 3 },
     {
       databaseId: database.id,
-      name: "대시보드",
+      name: SALES.views.dashboard,
       type: "dashboard" as const,
       config: {
         widgets: [
-          { id: crypto.randomUUID(), kind: "counter", title: "거래처", width: 1, aggregate: "count" },
-          { id: crypto.randomUUID(), kind: "counter", title: "예상 금액 합계", width: 1, aggregate: "sum", aggregatePropertyId: P("예상 금액") },
-          { id: crypto.randomUUID(), kind: "bar", title: "단계별 거래처", width: 2, groupByPropertyId: P("단계"), aggregate: "count" },
-          { id: crypto.randomUUID(), kind: "donut", title: "단계별 금액", width: 2, groupByPropertyId: P("단계"), aggregate: "sum", aggregatePropertyId: P("예상 금액") },
-          { id: crypto.randomUUID(), kind: "board", title: "보드", width: 2, groupByPropertyId: P("단계") },
+          { id: crypto.randomUUID(), kind: "counter", title: SALES.widgets.companies, width: 1, aggregate: "count" },
+          { id: crypto.randomUUID(), kind: "counter", title: SALES.widgets.amountSum, width: 1, aggregate: "sum", aggregatePropertyId: P(PR.amount) },
+          { id: crypto.randomUUID(), kind: "bar", title: SALES.widgets.companiesByStage, width: 2, groupByPropertyId: P(PR.stage), aggregate: "count" },
+          { id: crypto.randomUUID(), kind: "donut", title: SALES.widgets.amountByStage, width: 2, groupByPropertyId: P(PR.stage), aggregate: "sum", aggregatePropertyId: P(PR.amount) },
+          { id: crypto.randomUUID(), kind: "board", title: SALES.widgets.board, width: 2, groupByPropertyId: P(PR.stage) },
         ],
       },
       position: 4,
@@ -378,12 +392,12 @@ async function writePage(
 
   const open = deals.filter((d) => OPEN.includes(d.stage));
   const openSum = open.reduce((s, d) => s + (d.amount ?? 0), 0);
-  const wonSum = deals.filter((d) => d.stage === "계약 완료").reduce((s, d) => s + (d.amount ?? 0), 0);
+  const wonSum = deals.filter((d) => d.stage === ST.won).reduce((s, d) => s + (d.amount ?? 0), 0);
   const who = drives.map((d) => `${names.get(d.linkedBy ?? "") ?? d.name}`).join(" · ");
   const base = aindrivePublicBase();
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = deals
-    .filter((d) => d.nextActionDate && d.nextActionDate >= today && d.stage !== "보류")
+    .filter((d) => d.nextActionDate && d.nextActionDate >= today && d.stage !== ST.onHold)
     .sort((a, b) => (a.nextActionDate ?? "").localeCompare(b.nextActionDate ?? ""));
 
   const body: NewBlock[] = [
@@ -392,24 +406,31 @@ async function writePage(
       content: {
         icon: "📞",
         text:
-          `${who}의 폰이 aindrive에 올린 통화기록 ${calls}건을 읽어, 영업 통화 ${facts.length}건을 거래처 ${deals.length}곳으로 묶었어요. ` +
-          `진행 중 ${open.length}건 ${won(openSum)}, 계약 완료 ${won(wonSum)}. ` +
-          `같은 거래처를 여러 사람이 통화했으면 한 줄로 합치고, 가장 최근 통화가 단계를 정합니다.`,
+          t("Read {calls} call records that {who}'s phones uploaded to aindrive and grouped {sales} sales calls into {deals} customers.", {
+            who,
+            calls,
+            sales: facts.length,
+            deals: deals.length,
+          }) +
+          " " +
+          t("{open} in progress, {openSum}; won {wonSum}.", { open: open.length, openSum: won(openSum), wonSum: won(wonSum) }) +
+          " " +
+          t("When several people called the same customer they are merged into one row, and the latest call sets the stage."),
       },
     },
     { type: "database", content: { databaseId: database.id } },
-    { type: "heading2", content: { text: "다가오는 일정" } },
+    { type: "heading2", content: { text: t("Upcoming dates") } },
     ...(upcoming.length
       ? upcoming.map((d) => ({
           type: "todo" as const,
           content: { text: `${d.nextActionDate} · ${d.company} — ${d.nextAction} (${d.owners.map((o) => names.get(o) ?? "").join(", ")})`, checked: false },
         }))
-      : [{ type: "paragraph" as const, content: { text: "잡혀 있는 다음 일정이 없어요." } }]),
-    { type: "heading2", content: { text: "근거 통화기록" } },
-    { type: "paragraph", content: { text: "모든 줄은 아래 통화에서 나왔어요. 파일은 각자의 aindrive에 그대로 있고, 여기에는 링크만 걸려 있습니다." } },
+      : [{ type: "paragraph" as const, content: { text: t("No next dates are scheduled.") } }]),
+    { type: "heading2", content: { text: t("Source call records") } },
+    { type: "paragraph", content: { text: t("Every row came from the calls below. The files stay in each person's aindrive; only links are here.") } },
     ...deals.map((d) => ({
       type: "toggle" as const,
-      content: { text: `${d.company} — ${d.stage}${d.amount ? ` · ${won(d.amount)}` : ""} · 통화 ${d.calls.length}건`, expanded: false },
+      content: { text: `${d.company} — ${d.stage}${d.amount ? ` · ${won(d.amount)}` : ""} · ${t("{n} calls", { n: d.calls.length })}`, expanded: false },
       children: d.calls.map((c) => ({
         type: "file" as const,
         content: {
@@ -460,30 +481,40 @@ export async function buildSalesPipeline(
   viewerIds: string[],
   progress?: (line: string) => Promise<void>
 ): Promise<PipelineResult> {
-  if (!workspaceId) return { pageId: null, text: "이 대화방은 워크스페이스에 속해 있지 않아서 연동된 aindrive를 찾을 수 없어요." };
+  if (!workspaceId) return { pageId: null, text: t("This chat room isn't part of a workspace, so I can't find a linked aindrive.") };
   const { teamspaceId, drives, files, failed } = await gatherCalls(workspaceId, [...new Set([askerId, ...viewerIds])]);
   if (!teamspaceId || !files.length)
     return {
       pageId: null,
       text:
-        "연동된 aindrive에서 통화기록을 찾지 못했어요. 팀스페이스에 각자의 폰 통화기록 폴더(aindrive)를 연결하면 거기서 모아 파이프라인을 만들게요." +
-        (failed.length ? ` (열지 못한 폴더: ${failed.join(", ")})` : ""),
+        t("I couldn't find call records in the linked aindrive. Link each person's phone call-history folder (aindrive) to a teamspace and I'll build the pipeline from there.") +
+        (failed.length ? " " + t("(folders I couldn't open: {list})", { list: failed.join(", ") }) : ""),
     };
-  await progress?.(`aindrive ${drives.length}곳(${drives.map((d) => d.name).join(", ")})에서 통화기록 ${files.length}건을 찾았어요. 한 건씩 읽고 거래처별로 정리하는 중…`);
+  await progress?.(
+    t("Found {files} call records in {n} aindrive folders ({names}). Reading them one at a time and sorting by customer…", {
+      n: drives.length,
+      names: drives.map((d) => d.name).join(", "),
+      files: files.length,
+    })
+  );
   const facts = (await inBatches(files, EXTRACT_CONCURRENCY, extract)).filter((f): f is CallFacts => f !== null);
   const deals = mergeDeals(facts);
   const { pageId, open, openSum, wonSum, upcoming } = await writePage(workspaceId, teamspaceId, askerId, deals, facts, files.length, drives);
   const skipped = files.length - facts.length;
   const lines = [
-    `통합 Sales Pipeline을 만들었어요 → /p/${pageId}`,
-    `통화 ${files.length}건 → 거래처 ${deals.length}곳${skipped ? ` (영업과 무관한 통화 ${skipped}건은 뺐어요)` : ""}.`,
-    `진행 중 ${open.length}건 ${won(openSum)} · 계약 완료 ${won(wonSum)}`,
+    t("Built the {title} → /p/{pageId}", { title: PIPELINE_TITLE, pageId }),
+    t("{calls} calls → {deals} customers", { calls: files.length, deals: deals.length }) +
+      (skipped ? " " + t("(left out {n} calls unrelated to sales)", { n: skipped }) : "") +
+      ".",
+    t("{open} in progress {openSum} · won {wonSum}", { open: open.length, openSum: won(openSum), wonSum: won(wonSum) }),
     ...STAGES.map((s) => {
       const ds = deals.filter((d) => d.stage === s.name);
       return ds.length ? `- ${s.name}: ${ds.map((d) => `${d.company}${d.amount ? `(${won(d.amount)})` : ""}`).join(", ")}` : "";
     }).filter(Boolean),
-    ...(upcoming.length ? [`가장 가까운 일정: ${upcoming[0].nextActionDate} ${upcoming[0].company} — ${upcoming[0].nextAction}`] : []),
-    ...(failed.length ? [`(열지 못한 폴더: ${failed.join(", ")})`] : []),
+    ...(upcoming.length
+      ? [t("Next up: {date} {company} — {action}", { date: upcoming[0].nextActionDate ?? "", company: upcoming[0].company, action: upcoming[0].nextAction })]
+      : []),
+    ...(failed.length ? [t("(folders I couldn't open: {list})", { list: failed.join(", ") })] : []),
   ];
   return { pageId, text: lines.join("\n") };
 }

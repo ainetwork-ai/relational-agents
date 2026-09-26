@@ -18,7 +18,7 @@ import { CommentList, CommentComposer } from "./comment-thread";
  */
 export function PageCommentSection({
   pageId,
- // pressing the 댓글 label puts the caret in the composer; the composer itself
+ // pressing the Comments label puts the caret in the composer; the composer itself
  // is always there
   autoFocus = false,
 }: {
@@ -38,7 +38,7 @@ export function PageCommentSection({
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
  // The composer is there from the start, comments or none: a page with an
- // empty thread still shows your avatar and 댓글 추가. Its box is the
+ // empty thread still shows your avatar and Add a comment. Its box is the
  // original's `8px 4px 12px 0` (e2e/fixtures/notion-row-comments.json —
  // inline.emptyState).
   return (

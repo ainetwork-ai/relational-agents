@@ -231,7 +231,7 @@ export function parseMarkdown(
     if (t === "") { prevPlain = null; i++; continue; }
     {
       const ind = indentOf(line);
- // `- ` 뒤에 내용이 없는 빈 항목도 리스트다 — writer 가 빈 글머리를 그렇게 쓴다
+ // an empty item with nothing after `- ` is still a list item — that is how the writer emits an empty bullet
       const isList = /^([-*](\s|$)|\d+\.(\s|$))/.test(t);
       while (openList.length && ind < openList[openList.length - 1]) openList.pop();
       if (isList) {

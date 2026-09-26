@@ -1,149 +1,149 @@
-# 노션의 들여쓰기(중첩) — 실측 (2026-09-10)
+# Notion's indentation (nesting) — measurements (2026-09-10)
 
-우리 에디터의 Tab/Shift+Tab/Enter/Backspace 중첩 동작을 노션과 같게 만들기 위한 기준값.
-전부 `app.notion.com` 에 골든셋 크롬으로 붙어 **실제 키를 눌러** 잰 것이다. 원 데이터는
-`scratchpad/nind-*.jsonl`(잰 스크립트 `scratchpad/nind-*.mjs`, 헬퍼 `scratchpad/nindent-lib.mjs`).
-대조는 `node e2e/indent.check.mjs` — 이 문서의 표가 그 스크립트의 기대값이다.
+Reference values for making our editor's Tab/Shift+Tab/Enter/Backspace nesting behavior match Notion.
+All of it was measured by attaching the golden-set Chrome to `app.notion.com` and **pressing real keys**. Raw data is in
+`scratchpad/nind-*.jsonl` (measurement scripts `scratchpad/nind-*.mjs`, helper `scratchpad/nindent-lib.mjs`).
+The comparison is `node e2e/indent.check.mjs` — the tables in this document are that script's expected values.
 
-측정은 **내가 만든 하위 페이지**에서 했다. 스크래치 페이지(`3c8d8655…`)는 다른 세션도
-열어 두는 곳이라 거기서 타이핑하지 않는다. 아래 §7 에 그때 밟은 함정을 적어 뒀다.
+Measurements were taken on **sub-pages I created myself**. The scratch page (`3c8d8655…`) is kept open by other
+sessions too, so we don't type there. §9 below records the pitfalls hit along the way.
 
-## 1. 한 줄 요약 — "한 번 들여쓰면 그 아래는 계속 들여쓴 상태"
+## 1. One-line summary — "once you indent, everything below stays indented"
 
-| # | 상황 | 노션 | 고치기 전 우리 |
+| # | Situation | Notion | Ours before the fix |
 |---|---|---|---|
-| T1–T3 | 캐럿이 앞·중간·끝, 어디에 있어도 Tab | 블록이 한 단 들어가고 **캐럿은 같은 글자에 남는다**(탭 문자 없음) | 들어가지만 캐럿이 **맨 앞으로** 튀었다 |
-| T4 | 들여쓴 블록 끝에서 Enter, 계속 | 새 블록이 **같은 깊이**로 계속 생긴다 | 같음 ✓ |
-| T5 | 들여쓴 **빈 문단**에서 Enter | 내려가지 않는다. 같은 깊이의 빈 줄이 하나 더 | 같음 ✓ |
-| T5b | 들여쓴 **빈 리스트 항목**에서 Enter | **한 단 내려가고 리스트를 유지**한다. 깊이 0 에서 다시 Enter → 문단 | 깊이 그대로 문단으로 바뀌어, Shift+Tab 없이는 못 빠져나왔다 |
-| T6 | 잎에서 Shift+Tab | 한 단 나와 **former 부모 바로 뒤**에 선다 | 같지만 position 이 부모와 **겹쳐** 순서가 실행마다 달라졌다 |
-| T6b | 가운데 자식에서 Shift+Tab | **뒤에 남은 형제들을 자기 자식으로 데려간다** | 형제가 옛 부모에 남아 **화면 순서가 뒤바뀌었다** |
-| T12 | 자식 있는 블록에서 Shift+Tab | 자식은 그대로 아래에 붙어 함께 나온다 | 같음(position 문제만) |
-| T13 | **자식 있는 블록 끝에서 Enter** | 새 블록이 **바로 아래 형제**로 생기고 **자식이 새 블록으로 옮겨간다** | 새 블록이 서브트리 **아래**, 부모 깊이로 생겼다 |
-| T13b/c | 리스트·중첩에서 같은 상황 | 같은 규칙 | 같은 문제 |
-| T14/T14b | 블록 중간에서 Enter(분할) | 두 쪽 다 같은 깊이. **자식은 뒤쪽(새 블록)** | 자식이 앞쪽에 남았다 |
-| T7/T7b | 들여쓴 **문단** 맨 앞 Backspace | **한 단 내려간다**(한 번에 한 단), 깊이 0 에서 위와 합쳐진다 | 앞 형제와 합쳐지거나(둘째 자식), **아무 일도 안 났다**(첫 자식) |
-| T7c | 들여쓴 **리스트** 맨 앞 Backspace | ① 글머리만 떨어진다(깊이 유지) ② 한 단 내려간다 ③ 합쳐진다 | ①만 맞고 그다음이 없었다 |
-| T7d | 들여쓴 **제목** 맨 앞 Backspace | ① 한 단 내려간다(제목 유지) ② 위와 합쳐진다 | 제목이 먼저 문단으로 바뀌었다 |
-| T28 | 자식 있는 블록 맨 앞 Backspace(깊이 0) | 위와 합쳐지고 **자식은 최상위로 올라와 바로 뒤에 선다** | 자식이 고아가 되어 **화면에서 사라졌다**(저장은 됨) |
-| T8/T26 | 첫 블록, 또는 첫 자식에서 Tab | 아무 일도 없다 | 같음 ✓ |
-| T15 | **블록(halo) 선택**에서 Tab/Shift+Tab | 선택한 블록이 **모두** 한 단 움직이고 **선택이 유지**된다 | 아무 일도 없었다(Tab 이 브라우저로 새어 포커스만 옮겼다) |
-| T16/T16b | **두 블록에 걸친 텍스트 선택**에서 Tab | 걸친 블록이 **모두** 움직이고 **선택도 그대로** | 캐럿이 있는 한 블록만 움직이고 선택이 사라졌다 |
-| T23 | **코드 블록 안**에서 Tab | **탭 문자**가 들어간다(블록은 그대로) | 블록이 들여쓰기 됐다 |
-| T25 | Shift+Tab 뒤 캐럿 | 같은 글자에 남는다(offset 3 → 3) | 맨 앞으로 튀었다 |
+| T1–T3 | Tab with the caret at the start, middle, or end — anywhere | The block moves in one level and **the caret stays on the same character** (no tab character) | It moved in, but the caret **jumped to the start** |
+| T4 | Enter at the end of an indented block, repeatedly | New blocks keep appearing **at the same depth** | Same ✓ |
+| T5 | Enter in an indented **empty paragraph** | It doesn't outdent. One more empty line at the same depth | Same ✓ |
+| T5b | Enter in an indented **empty list item** | It **outdents one level and stays a list**. Enter again at depth 0 → paragraph | It turned into a paragraph at the same depth; you couldn't get out without Shift+Tab |
+| T6 | Shift+Tab on a leaf | It comes out one level and sits **right after the former parent** | Same, but its position **collided** with the parent, so the order varied between runs |
+| T6b | Shift+Tab on a middle child | **It takes the remaining following siblings as its own children** | The siblings stayed under the old parent and **the on-screen order was flipped** |
+| T12 | Shift+Tab on a block with children | The children stay attached below and come out with it | Same (only the position problem) |
+| T13 | **Enter at the end of a block with children** | The new block is created as the **immediately following sibling** and **the children move to the new block** | The new block was created **below** the subtree, at the parent's depth |
+| T13b/c | Same situation in lists / nesting | Same rule | Same problem |
+| T14/T14b | Enter in the middle of a block (split) | Both halves at the same depth. **Children go to the back half (the new block)** | The children stayed with the front half |
+| T7/T7b | Backspace at the start of an indented **paragraph** | **It outdents one level** (one level at a time); at depth 0 it merges with the block above | It merged with the previous sibling (second child), or **nothing happened** (first child) |
+| T7c | Backspace at the start of an indented **list item** | ① Only the bullet is dropped (depth kept) ② it outdents one level ③ it merges | Only ① was right; the rest didn't exist |
+| T7d | Backspace at the start of an indented **heading** | ① It outdents one level (stays a heading) ② it merges with the block above | The heading turned into a paragraph first |
+| T28 | Backspace at the start of a block with children (depth 0) | It merges with the block above and **the children move up to the top level, right after it** | The children were orphaned and **disappeared from the screen** (they were still saved) |
+| T8/T26 | Tab on the first block, or on a first child | Nothing happens | Same ✓ |
+| T15 | Tab/Shift+Tab with a **block (halo) selection** | **All** selected blocks move one level and **the selection is kept** | Nothing happened (Tab leaked to the browser and just moved focus) |
+| T16/T16b | Tab with a **text selection spanning two blocks** | **All** spanned blocks move and **the selection stays as-is** | Only the block with the caret moved and the selection was lost |
+| T23 | Tab **inside a code block** | A **tab character** is inserted (the block stays put) | The block was indented |
+| T25 | Caret after Shift+Tab | Stays on the same character (offset 3 → 3) | Jumped to the start |
 
-## 2. 어느 타입이 들여쓰기 되나 / 자식을 받나
+## 2. Which types can be indented / which accept children
 
-- **들여쓰기 되는 타입(T21)**: 문단·제목1/2/3·글머리·번호·할 일·토글·인용 — 전부 된다.
-  (구분선은 캐럿이 없어 키로는 못 누른다. 코드는 T23 대로 탭 문자가 들어간다.)
-- **자식을 받는 타입(T22)**: 문단·글머리·번호·할 일·토글·인용·콜아웃.
-  **못 받는 타입**: 제목1/2/3, 코드, 구분선 — 앞 형제가 이것이면 Tab 이 아무 일도 하지 않는다.
-  (제목은 2026-08-26 `cases-notion.json` 의 `heading1/enter_tab` 과 2026-09-10 T22 에서 두 번 확인.)
-- 컨테이너 안에서도 규칙은 같다(T19 콜아웃, T20 토글): 앞 형제 밑으로 한 단 더 들어간다.
+- **Types that can be indented (T21)**: paragraph, heading 1/2/3, bulleted, numbered, to-do, toggle, quote — all of them.
+  (A divider has no caret, so it can't be triggered by keys. In code, a tab character is inserted per T23.)
+- **Types that accept children (T22)**: paragraph, bulleted, numbered, to-do, toggle, quote, callout.
+  **Types that don't**: heading 1/2/3, code, divider — if the previous sibling is one of these, Tab does nothing.
+  (Headings were confirmed twice: `heading1/enter_tab` in `cases-notion.json` on 2026-08-26, and T22 on 2026-09-10.)
+- The rule is the same inside containers (T19 callout, T20 toggle): the block goes one more level in, under the previous sibling.
 
-## 3. 기하 — 깊이마다 얼마나 들어가나 (반영됨)
+## 3. Geometry — how far each depth indents (applied)
 
-블록 박스 왼쪽 x 를 깊이별로 잰 값(1100px 창, 본문 폭 566):
+Left x of the block box, measured per depth (1100px window, content width 566):
 
-| 부모 타입 | 자식 한 단당 | 잰 값 |
+| Parent type | Per child level | Measured |
 |---|---|---|
-| 문단·제목·인용 | **+30px** | 366 → 396 → 426 → … → 936 (깊이 19까지 일정, 상한 없음) |
-| 글머리·번호·할 일·토글 | **+32px** | 366 → 398 → 430 → 462 → 494 |
-| 콜아웃 | 자식 텍스트가 콜아웃 텍스트와 **같은 x** | 콜아웃 366(텍스트 417) → 자식 박스 411(텍스트 417) |
+| Paragraph, heading, quote | **+30px** | 366 → 396 → 426 → … → 936 (constant up to depth 19, no cap) |
+| Bulleted, numbered, to-do, toggle | **+32px** | 366 → 398 → 430 → 462 → 494 |
+| Callout | The child's text is at **the same x** as the callout's text | Callout 366 (text 417) → child box 411 (text 417) |
 
-- 우리는 **깊이 × 24px** 한 가지로 그렸다. 이제 부모 타입으로 갈라 30/32 를 쓴다
-  (`indentStep()` in `lib/editor/indent.ts`). 들여쓰기 px 은 `BlockRow` 의 `indentPx`
-  로 흐르고, halo(`indentPx-4`)와 거터(`indentPx-58`)가 같은 값을 쓴다.
-- 토글의 자식은 **토글 박스에서 32px**(=토글 텍스트와 같은 x). 전에는 이미 패딩이 들어간
-  박스 안에서 `(depth+1)*24` 를 또 얹어 깊이 1 의 토글에서 84px 로 어긋났다. 이제 래퍼가
-  32px 을 대고 자식의 들여쓰기는 그 래퍼 기준 0 에서 다시 시작한다(콜아웃도 같은 방식).
-- 리스트 **마커는 깊이마다 바뀐다** — 주기는 3, 그리고 **같은 종류 리스트 조상 수**로 센다
-  (문단 밑에 들여쓴 글머리는 여전히 `•` 였다 — T21):
+- We used to draw a single **depth × 24px**. Now we branch on the parent type and use 30/32
+  (`indentStep()` in `lib/editor/indent.ts`). The indent px flows into `BlockRow`'s `indentPx`,
+  and the halo (`indentPx-4`) and gutter (`indentPx-58`) use the same value.
+- A toggle's children sit **32px from the toggle box** (= the same x as the toggle's text). Previously, inside a box
+  that already had padding, we added `(depth+1)*24` on top, so a toggle at depth 1 was off by 84px. Now the wrapper
+  applies 32px and the children's indentation restarts from 0 relative to that wrapper (callouts work the same way).
+- List **markers change with depth** — the cycle is 3, counted by **the number of list ancestors of the same kind**
+  (a bullet indented under a paragraph was still `•` — T21):
 
-| 깊이 | 글머리 | 번호 |
+| Depth | Bulleted | Numbered |
 |---|---|---|
 | 0 | `•` | `1.` `2.` |
 | 1 | `◦` | `a.` `b.` |
 | 2 | `▪` | `i.` `ii.` |
-| 3 | `•` (3단 주기) | `1.` (3단 주기) |
+| 3 | `•` (3-level cycle) | `1.` (3-level cycle) |
 
-  구현 `lib/editor/list-markers.ts` + `listLevel()`. 섞인 중첩(글머리 밑 번호 등)에서
-  주기를 무엇으로 세는지는 재지 못해, 같은 종류만 세는 모델로 뒀다.
+  Implemented in `lib/editor/list-markers.ts` + `listLevel()`. We couldn't measure what the cycle counts in mixed
+  nesting (numbered under bulleted, etc.), so we left it on the same-kind-only model.
 
-## 4. 저장·동기화에서 확인한 것
+## 4. What we verified in saving and sync
 
-- 들여쓰기는 `parentBlockId` + `position` 두 필드가 함께 바뀐다. 우리 SSE 적용부가
-  `position` 을 버려서 **다른 탭에서는 부모만 바뀌고 순서는 옛것**이 됐다 → 고침.
-- 내어쓰기의 새 position 을 **부모를 바꾼 뒤** 계산해 부모와 같은 값이 나왔다 →
-  형제 순서가 `Array.sort` 의 tie 처리에 맡겨져 같은 입력이 두 가지 순서로 그려졌다.
-  이제 움직인 형제 목록을 **1..n 정수로 다시 번호**한다(부동소수 붕괴도 같이 막는다).
-- 병합으로 지워지는 블록의 자식을 아무도 다시 붙이지 않아 **고아**가 됐다. 루트는
-  `parentBlockId === null` 로만 모으므로 고아는 렌더되지 않는다 = 화면에서 사라지고
-  저장에는 남는다 → T28 대로 지워진 블록 자리로 올린다.
+- Indentation changes two fields together: `parentBlockId` + `position`. Our SSE apply step dropped
+  `position`, so **in other tabs only the parent changed and the order stayed stale** → fixed.
+- The new position for an outdent was computed **after changing the parent**, yielding the same value as the parent →
+  sibling order was left to `Array.sort`'s tie handling, and the same input was drawn in two different orders.
+  Now we **renumber the moved sibling list as integers 1..n** (which also prevents floating-point collapse).
+- Nobody reattached the children of a block deleted by a merge, so they became **orphans**. Roots are gathered only by
+  `parentBlockId === null`, so orphans aren't rendered = they vanish from the screen but remain in storage
+  → per T28, they are lifted into the deleted block's place.
 
-## 5. 우리가 반영한 규칙과 그 코드
+## 5. The rules we applied and their code
 
-| 규칙 | 코드 |
+| Rule | Code |
 |---|---|
-| 들여쓰기/내어쓰기 트리 수술, 형제 흡수, 번호 재부여 | `app/src/lib/editor/indent.ts` |
-| Tab/Shift+Tab(단일·블록선택·텍스트선택) | `block-editor.tsx` `nest()` |
-| Enter 가 자식을 새 블록에 넘김 | `block-editor.tsx` `splitBlock` + `moveChildren` |
-| 빈 리스트 항목 Enter → 한 단 내림 | `block-editor.tsx` `splitBlock` |
-| 맨 앞 Backspace 순서(리스트 서식 → 깊이 → 병합) | `block-editor.tsx` `handleBackspaceAtStart` |
-| 병합 시 자식 올리기 | `indent.ts` `liftChildren` |
-| 코드 블록의 Tab = 탭 문자 | `block-editor.tsx` `onKeyDown` |
-| 깊이가 바뀐 뒤 캐럿 유지 | `block-row.tsx` 텍스트 동기화를 `useLayoutEffect` 로 + `block-editor.tsx` pendingFocus 재시도 |
-| 맨 앞 Backspace 정책(제목은 즉시 병합, 코드는 무동작, 첫 블록은 제목으로) | `block-editor.tsx` `handleBackspaceAtStart` + `STYLE_DROP`, `page-view.tsx` `onMergeIntoTitle` |
-| 마크다운 들여쓰기 읽기 | `lib/memory-parse.ts` `parseMarkdown`·`parentIdsByDepth` |
-| 마크다운 들여쓰기 쓰기 | `lib/memory-parse.ts` `blocksToMarkdown`·`treeOrder`, `lib/md-mirror.ts`, `lib/okf-store.ts` |
+| Indent/outdent tree surgery, sibling adoption, renumbering | `app/src/lib/editor/indent.ts` |
+| Tab/Shift+Tab (single, block selection, text selection) | `block-editor.tsx` `nest()` |
+| Enter hands children over to the new block | `block-editor.tsx` `splitBlock` + `moveChildren` |
+| Enter on an empty list item → outdent one level | `block-editor.tsx` `splitBlock` |
+| Backspace-at-start order (list style → depth → merge) | `block-editor.tsx` `handleBackspaceAtStart` |
+| Lift children on merge | `indent.ts` `liftChildren` |
+| Tab in a code block = tab character | `block-editor.tsx` `onKeyDown` |
+| Keep the caret after the depth changes | `block-row.tsx` text sync moved to `useLayoutEffect` + `block-editor.tsx` pendingFocus retry |
+| Backspace-at-start policy (headings merge immediately, code does nothing, first block goes into the title) | `block-editor.tsx` `handleBackspaceAtStart` + `STYLE_DROP`, `page-view.tsx` `onMergeIntoTitle` |
+| Reading Markdown indentation | `lib/memory-parse.ts` `parseMarkdown`·`parentIdsByDepth` |
+| Writing Markdown indentation | `lib/memory-parse.ts` `blocksToMarkdown`·`treeOrder`, `lib/md-mirror.ts`, `lib/okf-store.ts` |
 
-## 6. 맨 앞 Backspace 정책 — 타입별 실측 (2026-09-10 2차)
+## 6. Backspace-at-start policy — measured per type (2026-09-10, round 2)
 
-`PREV` 라는 문단 아래에 그 타입 블록을 두고 **맨 앞에서** Backspace 를 누른 것
-(`scratchpad/nind-M1.jsonl` A_*), 그리고 같은 블록이 **페이지의 첫 블록**일 때(B_*).
+A block of each type placed under a paragraph named `PREV`, with Backspace pressed **at the very start**
+(`scratchpad/nind-M1.jsonl` A_*), and the same block when it is **the first block on the page** (B_*).
 
-| 블록 | 1번째 Backspace | 2번째 | 우리(고친 뒤) |
+| Block | 1st Backspace | 2nd | Ours (after the fix) |
 |---|---|---|---|
-| 문단 | 위와 합쳐진다 | 글자 삭제 | 같음 |
-| 제목1·2·3 | **위와 합쳐진다**(스타일을 안 벗는다) | 글자 삭제 | 같음 — 전에는 문단으로 바꿔 한 번 더 눌러야 했다 |
-| 인용 | 스타일만 벗는다(문단, 제자리) | 합쳐진다 | 같음 |
-| 글머리·번호·할 일·토글 | 스타일만 벗는다 | 합쳐진다 | 같음 |
-| 코드 | **아무 일도 없다** | 아무 일도 없다 | 같음 — 전에는 코드 내용이 위 블록에 합쳐졌다 |
-| (아무 타입) 들여쓰여 있으면 | 한 단 내려온다 (제목은 제목 그대로) | 위 규칙대로 | 같음 |
-| **페이지 첫 블록**(위에 아무것도 없음) | 텍스트가 **페이지 제목**으로 가고 블록이 사라진다 | — | 같음 — 전에는 아무 일도 없었다 |
+| Paragraph | Merges with the block above | Deletes a character | Same |
+| Heading 1/2/3 | **Merges with the block above** (does not drop the style) | Deletes a character | Same — previously it turned into a paragraph and needed one more press |
+| Quote | Only drops the style (paragraph, in place) | Merges | Same |
+| Bulleted, numbered, to-do, toggle | Only drops the style | Merges | Same |
+| Code | **Nothing happens** | Nothing happens | Same — previously the code content was merged into the block above |
+| (any type) when indented | Outdents one level (a heading stays a heading) | Per the rules above | Same |
+| **First block on the page** (nothing above) | The text goes into the **page title** and the block disappears | — | Same — previously nothing happened |
 
-첫 블록 → 제목은 URL 로도 확인했다: 측정 페이지의 주소가 `…/YYYYYYYYYYYYYYY-3d7d8655…` 로
-바뀌었다(제목이 그 텍스트로 채워졌다). 제목이 없는 표면(행 피크·공유 보기)에는 이 동작을
-주지 않는다 — `onMergeIntoTitle` 을 넘기지 않으면 예전처럼 아무 일도 하지 않는다.
+First block → title was also confirmed via the URL: the measurement page's address changed to `…/YYYYYYYYYYYYYYY-3d7d8655…`
+(the title was filled with that text). Surfaces without a title (row peek, shared view) don't get this behavior —
+if `onMergeIntoTitle` isn't passed, it does nothing, as before.
 
-## 7. 마크다운의 들여쓰기 — 들어올 때와 나갈 때 (2026-09-10 2차)
+## 7. Markdown indentation — coming in and going out (2026-09-10, round 2)
 
-### 들어올 때(붙여넣기) — 한 단은 "부모 마커 폭"
+### Coming in (paste) — one level is "the parent marker's width"
 
-| 붙여넣은 것 | 노션 | 우리(고친 뒤) |
+| What was pasted | Notion | Ours (after the fix) |
 |---|---|---|
-| `- a` / `  - b`(2칸) | b 가 한 단 아래 | 같음 |
-| `- a` / `\t- b`(탭) | 한 단 아래 | 같음(탭 = 4칸) |
-| `1. a` / `  1. b`(2칸) | **안 들어간다**(`1. ` 의 내용은 3칸에서 시작) | 같음 |
-| `1. a` / `   1. b`(3칸) | 한 단 아래 | 같음 |
-| `- [ ] a` / `  - [ ] b`(2칸) | 한 단 아래 | 같음 |
-| 리스트보다 깊게 들여쓴 **일반 줄** | 그 항목의 **자식 블록** | 같음 |
-| 리스트 없이 들여쓴 문단들(빈 줄 없이) | 한 블록의 줄바꿈으로 합쳐진다 | 같음 |
-| **빈 줄 뒤** 4칸 들여쓴 줄 | **들여쓰기 코드 블록** | 같음 |
+| `- a` / `  - b` (2 spaces) | b one level below | Same |
+| `- a` / `\t- b` (tab) | One level below | Same (tab = 4 spaces) |
+| `1. a` / `  1. b` (2 spaces) | **Not nested** (the content of `1. ` starts at column 3) | Same |
+| `1. a` / `   1. b` (3 spaces) | One level below | Same |
+| `- [ ] a` / `  - [ ] b` (2 spaces) | One level below | Same |
+| A **plain line** indented deeper than the list | A **child block** of that item | Same |
+| Indented paragraphs with no list (no blank lines) | Merged into one block with line breaks | Same |
+| A line indented 4 spaces **after a blank line** | **Indented code block** | Same |
 
-읽는 규칙은 `parseMarkdown`(`lib/memory-parse.ts`)에 있고, 깊이를 부모 id 로 바꾸는 곳은
-`parentIdsByDepth` 하나다 — 붙여넣기·AI 삽입·MCP·OKF 파일이 모두 그걸 쓴다.
+The reading rules live in `parseMarkdown` (`lib/memory-parse.ts`), and the single place that converts depth to a
+parent id is `parentIdsByDepth` — paste, AI insertion, MCP, and OKF files all use it.
 
-### 나갈 때(내보내기) — 리스트 밑에서만 4칸
+### Going out (export) — 4 spaces only under lists
 
-**리스트가 아닌 부모의 자식은 들여쓰지 않는다.** 노션도 그렇다(M6 실측): 문단 밑에 들여쓴
-자식 문단을 복사하면 `PA⏎⏎PB` — 계층이 마크다운에서 그냥 사라진다. 들여써서 내보내면
-오히려 **코드 블록**이 된다(M5: 노션은 빈 줄 뒤 4칸 들여쓴 줄을 들여쓰기 코드로 읽는다).
-인용의 자식은 노션이 `> ` 안에 넣는다 — 우리는 평평하게 쓴다(계층은 잃지만 타입은 안 바뀐다).
+**Children of a non-list parent are not indented.** Notion does the same (measured in M6): copying a child paragraph
+indented under a paragraph gives `PA⏎⏎PB` — the hierarchy simply disappears in Markdown. Exporting it indented would
+instead turn it into a **code block** (M5: Notion reads a line indented 4 spaces after a blank line as indented code).
+Notion puts a quote's children inside `> ` — we write them flat (the hierarchy is lost but the type doesn't change).
 
-### 리스트 밑 — 한 단 4칸
+### Under lists — 4 spaces per level
 
-노션이 중첩을 복사할 때의 `text/plain`(`scratchpad/nind-M3-clipboard.json`):
+The `text/plain` Notion produces when copying nesting (`scratchpad/nind-M3-clipboard.json`):
 
 ```
 - b1
@@ -159,164 +159,161 @@
     tkid
 ```
 
-한 단 **4칸**, 할 일은 `- [ ]  `(상자 뒤 **두 칸**), 토글은 **글머리**로 나간다. 빈 줄은
-**리스트 항목 사이에는 없고**, 리스트가 아닌 블록의 앞뒤에 하나씩 — 그 자리의 들여쓰기를
-달고 — 들어간다(위의 8칸·4칸 짜리 빈 줄). 우리도 **글자 하나까지 같게** 쓴다: 위 구조를
-우리 블록으로 세워 내보내면 노션이 복사해 준 문자열과 완전히 일치한다
-(`e2e/markdown-nesting.check.mjs` 의 "내보낸 마크다운이 원본과 글자 하나까지 같다").
-그래서 **왕복**도 성립한다 — 노션이 쓴 것을 우리가 읽어도, 우리가 쓴 것을 우리가 읽어도
-같은 트리다.
+**4 spaces** per level, to-dos as `- [ ]  ` (**two spaces** after the box), and toggles are exported as **bullets**.
+Blank lines are **not placed between list items**; one goes before and after each non-list block — carrying that
+position's indentation (the 8-space and 4-space blank lines above). We write it **identically, down to the character**:
+if we build the structure above out of our blocks and export it, it matches the string Notion copied exactly
+(the check in `e2e/markdown-nesting.check.mjs` asserting that the exported Markdown is identical to the original down
+to the character). So the **round trip** holds too — whether we read what Notion wrote or read what we wrote,
+we get the same tree.
 
-고친 세 경로:
-- `.md` 다운로드(`api/pages/[pageId]/export`) — `position` 하나로 정렬해 자식이 최상위 사이에
-  섞이던 것을 `treeOrder()` 로 문서 순서로 바꿨다.
-- md-mirror — 자식을 따라 들어가는 분기가 토글뿐이라 문단·글머리의 자식이 **파일에 없었다**.
-  이제 모든 블록이 재귀하고 한 단 4칸을 붙인다. 토글은 `<details>` 대신 글머리로 쓴다.
-- OKF 파일 저장소 — `parentBlockId: null` 로 평평하게 만들던 두 함수(`parsedToBlocks`,
-  `blocksToParsed`)가 이제 깊이 ↔ 부모 id 를 서로 옮긴다.
+The three paths we fixed:
+- `.md` download (`api/pages/[pageId]/export`) — it sorted by `position` alone, so children got mixed in among
+  top-level blocks; now it uses `treeOrder()` for document order.
+- md-mirror — the only branch that descended into children was for toggles, so children of paragraphs and bullets
+  were **missing from the file**. Now every block recurses and gets 4 spaces per level. Toggles are written as bullets
+  instead of `<details>`.
+- OKF file store — the two functions that flattened everything to `parentBlockId: null` (`parsedToBlocks`,
+  `blocksToParsed`) now translate depth ↔ parent id in both directions.
 
-### 7-1. 왕복에서 내용이 상하던 것들 (2026-09-10 3차)
+### 7-1. Things that corrupted content on a round trip (2026-09-10, round 3)
 
-감사에서 나온 마크다운 왕복 결함들. 파일이 곧 저장소인 OKF 페이지에서는 이 하나하나가
-**저장 → 읽기 한 번에 내용이 바뀌는** 경로였다. 전부 `e2e/markdown-nesting.check.mjs` 에
-검사를 붙였다.
+Markdown round-trip defects found in the audit. On OKF pages, where the file is the storage, each of these was a path
+where **content changed after a single save → read**. Checks for all of them were added to
+`e2e/markdown-nesting.check.mjs`.
 
-| 무엇이 | 어떻게 됐었나 | 지금 |
+| What | What used to happen | Now |
 |---|---|---|
-| 리스트 항목 바로 밑의 평문 줄 | 별도 문단이 됐다 | 그 항목 안으로 접힌다 — 노션도 그렇다(M2c: `1. num-B` + `para-A` + `para-B` 가 한 항목) |
-| 항목 안의 줄바꿈 | 그 항목의 **마커 칸**에 실려, 밑의 중첩이 통째로 평평해졌다 | **내용 칸**에 싣고, 마커처럼 생긴 줄은 `\` 로 막는다 |
-| 마커처럼 생긴 문단(`- x`, `# y`, `---`, `1. z`, 파이프로 시작하는 줄) | 글머리·제목·구분선·번호·표로 돌아왔다 | `\-` 처럼 역슬래시로 쓰고 읽을 때 벗긴다(CommonMark) |
-| 표 셀 안의 줄바꿈 | 행이 거기서 끊겼다 | `<br>` 로 쓰고 읽을 때 되돌린다 |
-| 표 셀 안의 이스케이프된 파이프 | 읽을 때 셀이 둘로 갈렸다 | 역슬래시 파이프를 알아보고 한 셀로 읽는다 |
-| 전부 빈 표 행 | 구분선으로 오인돼 사라졌다 | 대시가 하나라도 있어야 구분선 |
-| 파이프 하나뿐인 문단 | 표로 읽혀 사라졌다 | 파이프가 둘 이상이어야 표 |
-| 표의 열 정렬 | `.md` 로 나갈 때 버려졌다 | `:---:` / `---:` 로 쓴다(미러는 원래 했다) |
-| 코드 본문 안의 ``` | 거기서 블록이 닫히고 뒤가 날아갔다 | 본문의 최장 백틱보다 하나 긴 펜스로 연다 |
-| 코드·수식 본문 | 인라인 마크다운 변환이 돌아 백틱이 `<code>` 로 바뀌었다 | 그 두 타입은 그대로 둔다 |
-| 미러: `100. ` 항목의 자식 | 4칸이라 형제로 돌아왔다 | 마커 폭(5칸)만큼 |
-| 미러: 콜아웃 아이콘 | 항상 💡 로 덮어썼다 | 블록의 아이콘 그대로 |
-| 미러: 수식 | `$$` 없이 나가 문단이 됐다 | `$$` 로 감싼다 |
-| 미러: 하위 페이지 링크·파일 | 아예 빠졌다 | `[page](/p/…)` · `[이름](url)` 로 쓴다 |
+| A plain-text line directly under a list item | Became a separate paragraph | Folded into that item — Notion does the same (M2c: `1. num-B` + `para-A` + `para-B` are one item) |
+| Line breaks inside an item | Were placed in that item's **marker column**, flattening all nesting below | Placed in the **content column**; lines that look like markers are escaped with `\` |
+| Paragraphs that look like markers (`- x`, `# y`, `---`, `1. z`, lines starting with a pipe) | Came back as bullets, headings, dividers, numbered items, or tables | Written with a backslash like `\-` and stripped on read (CommonMark) |
+| Line breaks inside a table cell | The row was cut there | Written as `<br>` and restored on read |
+| Escaped pipes inside a table cell | The cell was split in two on read | Backslash-pipe is recognized and read as one cell |
+| An entirely empty table row | Mistaken for the delimiter row and dropped | A delimiter row requires at least one dash |
+| A paragraph with only one pipe | Read as a table and dropped | A table requires two or more pipes |
+| Table column alignment | Dropped when exported to `.md` | Written as `:---:` / `---:` (the mirror already did this) |
+| ``` inside a code body | The block closed there and the rest was lost | Opened with a fence one longer than the longest backtick run in the body |
+| Code and equation bodies | Inline Markdown conversion ran and backticks became `<code>` | Those two types are left as-is |
+| Mirror: children of a `100. ` item | At 4 spaces they came back as siblings | Indented by the marker width (5 spaces) |
+| Mirror: callout icon | Always overwritten with 💡 | The block's own icon |
+| Mirror: equations | Exported without `$$`, becoming paragraphs | Wrapped in `$$` |
+| Mirror: sub-page links and files | Omitted entirely | Written as `[page](/p/…)` · `[name](url)` |
 
-아직 남긴 것: **빈 문단은 마크다운에 자리가 없다**(노션도 빈 줄로 내보내고 다시 읽으면
-사라진다). 파일이 곧 저장소인 OKF 페이지에서는 빈 줄 하나가 저장·읽기 한 번에 없어진다 —
-노션과 같게 두는 쪽을 골랐다.
+Left as-is: **empty paragraphs have no place in Markdown** (Notion also exports them as blank lines, and they vanish
+when read back). On OKF pages, where the file is the storage, one empty line disappears per save/read cycle —
+we chose to match Notion.
 
-## 8. 2차에서 함께 드러난 것들 (리뷰 + 실측으로 고침)
+## 8. Other things uncovered in round 2 (fixed via review + measurement)
 
-들여쓰기를 고치다 같은 경로에서 나온 결함들. 전부 dev 에서 재현하고 고쳤다.
+Defects that surfaced on the same code paths while fixing indentation. All were reproduced on dev and fixed.
 
-| 무엇 | 증상 | 고친 곳 |
+| What | Symptom | Where it was fixed |
 |---|---|---|
-| **붙여넣기가 첫 줄을 잃었다** | 빈 문단에 `A⏎⏎B` 를 붙이면 **A 가 사라졌다**(화면·저장 모두). 블록 타입이 바뀌는 경우(제목·글머리)는 멀쩡해 보였다 | `block-editor.tsx` 붙여넣기 흡수 — 이 코드베이스는 프로그램이 텍스트를 넣을 때 **`content.html` 도 같이** 넣어야 한다(`block-diff.ts:190` 이 html 로 문자 연산을 만든다). text 만 넣으면 "전부 지움" 으로 계산됐다 |
-| OKF 파일 저장이 평평해졌다 | 파일에서 중첩을 읽어 화면엔 계단이 보이는데, 저장하면 파일의 들여쓰기가 지워졌다 | `transactions/apply.ts` 가 `parentBlockId` 를 안 넘기고 있었다 |
-| 중첩된 코드·수식이 왕복마다 4칸씩 자랐다 | 쓸 때는 들여쓰고 읽을 때는 안 벗겼다 | `memory-parse.ts` 펜스/`$$` 본문에 `dedent` |
-| 블록 안 줄바꿈이 계층을 끊었다 | Shift+Enter 로 만든 둘째 줄이 0칸에 찍혀 그 뒤 중첩이 전부 풀렸다 | writer 가 이어지는 줄도 같은 들여쓰기로 |
-| 미러가 부모 없는 블록을 빠뜨렸다 | 부모 행이 사라졌거나 순환이면 그 블록이 파일에서 통째로 빠졌다(.md 라우트는 살린다) | `md-mirror.ts` 가 못 닿은 것을 뒤에 싣는다 |
-| 파일 페이지의 PDF 가 평평했다 | 같은 페이지의 `.md` 와 에디터는 계단인데 PDF 만 평평 | `export-pdf` 가 depth → `parentBlockId` 로 옮긴다 |
-| 긴 붙여넣기의 position 붕괴 | 매 줄이 중간값을 잡아 54줄쯤에서 순서가 무너졌다 | 붙여넣은 뒤 형제를 정수로 다시 번호 |
-| 워크스페이스 내보내기(zip)가 500 | 미러 실행이 겹쳐 디렉터리가 통째로 바뀌는 순간 zip 이 파일을 못 읽었다 | `md-mirror` 실행을 워크스페이스별로 직렬화 + 남은 `.tmp-*` 청소, zip 은 사라진 파일을 건너뛴다 |
-| `---` 로 시작하는 마크다운 | 프론트매터로 오인해 다음 `---` 까지 먹었다 | 붙여넣기(`noTitle`)에서는 프론트매터를 보지 않는다 |
-| 빈 글머리(`- `) | 다시 읽으면 `-` 라는 문단이 됐다 | 빈 항목도 리스트로 |
-| 제목 없는 화면(행 피크·공유) | 제목으로 합칠 곳이 없어 Backspace 가 죽은 키가 됐다 | 그 화면에서는 예전처럼 스타일을 벗는다 |
+| **Paste lost the first line** | Pasting `A⏎⏎B` into an empty paragraph **made A disappear** (both on screen and in storage). Cases where the block type changed (heading, bullet) looked fine | Paste absorption in `block-editor.tsx` — in this codebase, when a program inserts text it must **also set `content.html`** (`block-diff.ts:190` builds character operations from the html). Setting only text was computed as "delete everything" |
+| OKF file saves were flattened | Nesting was read from the file and shown as a staircase on screen, but saving erased the file's indentation | `transactions/apply.ts` wasn't passing `parentBlockId` |
+| Nested code and equations grew 4 spaces per round trip | Indented on write but not stripped on read | `dedent` on fenced/`$$` bodies in `memory-parse.ts` |
+| Line breaks within a block broke the hierarchy | The second line made with Shift+Enter was written at column 0, undoing all nesting after it | The writer indents continuation lines by the same amount |
+| The mirror dropped blocks without a parent | If the parent row was gone or there was a cycle, the block was dropped from the file entirely (the .md route keeps them) | `md-mirror.ts` appends whatever it couldn't reach at the end |
+| PDFs of file pages were flat | The `.md` and the editor for the same page showed a staircase, but only the PDF was flat | `export-pdf` translates depth → `parentBlockId` |
+| Position collapse on long pastes | Each line took the midpoint, and the order broke down around line 54 | Renumber siblings as integers after pasting |
+| Workspace export (zip) returned 500 | Overlapping mirror runs swapped out the whole directory, and at that moment the zip couldn't read files | Serialize `md-mirror` runs per workspace + clean up leftover `.tmp-*`; the zip skips files that have disappeared |
+| Markdown starting with `---` | Mistaken for front matter, swallowing everything up to the next `---` | Front matter is not considered on paste (`noTitle`) |
+| Empty bullet (`- `) | Read back as a paragraph containing `-` | Empty items are also lists |
+| Screens without a title (row peek, shared) | With no title to merge into, Backspace became a dead key | On those screens it drops the style, as before |
 
-## 8-1. 아직 다른 점 (알고 남긴 것)
+## 8-1. Remaining differences (known and left)
 
-- **리스트가 아닌 부모의 자식은 마크다운에서 계층을 잃는다** — 노션도 같다(M6). 파일이 곧
-  저장소인 OKF 페이지에서는 문단의 자식이 저장·읽기 한 번에 형제가 된다.
-- **콜아웃의 첫 자식 Backspace**: 노션은 콜아웃 앞 블록과 합치고 콜아웃을 없앤다. 우리
-  콜아웃은 자기 텍스트를 들고 있는 모델이라 경로가 다르다 — 우리는 스타일을 벗는다.
-- **토글은 마크다운으로 나가면 글머리가 된다**(노션도 그렇다). 파일이 곧 저장소인 OKF
-  페이지에서는 저장·읽기를 한 번 돌 때마다 토글이 글머리로 바뀐다.
-- 첫 블록을 **제목으로 합칠 때** 블록 삭제는 트랜잭션 큐(재시도·오프라인 보장)로 나가지만
-  제목은 페이지 PATCH 한 번으로 나간다(제목 편집이 원래 그렇다). 그 PATCH 가 실패하면
-  화면의 제목은 남아도 새로 고치면 그 글자가 사라진다 — 제목 저장 전반의 성질이라
-  이번에 별도 장치를 만들지 않았다.
+- **Children of a non-list parent lose their hierarchy in Markdown** — Notion does the same (M6). On OKF pages, where
+  the file is the storage, a paragraph's children become siblings after one save/read cycle.
+- **Backspace on a callout's first child**: Notion merges it with the block before the callout and removes the callout.
+  Our callout is a model that holds its own text, so the path differs — we drop the style.
+- **Toggles become bullets when exported to Markdown** (Notion does the same). On OKF pages, where the file is the
+  storage, a toggle turns into a bullet on every save/read cycle.
+- When **merging the first block into the title**, the block deletion goes through the transaction queue (retries,
+  offline guarantees), but the title goes out as a single page PATCH (that's how title editing already works). If that
+  PATCH fails, the title stays on screen but the text disappears on reload — this is a property of title saving in
+  general, so we didn't build a separate mechanism for it this time.
 
-## 8-2. 접힌 토글과 "자식을 못 받는 타입" — 3차 실측 (2026-09-10)
+## 8-2. Folded toggles and "types that don't accept children" — round 3 measurements (2026-09-10)
 
-감사에서 나온 네 가지를 원본에서 다시 쟀다(스크립트 `scratchpad/nind-41-M7.mjs`,
-`nind-49-M8.mjs`, `nind-54-M10.mjs`, 원 데이터 `scratchpad/nind-M7·M8·M9·M10.jsonl`).
-측정은 사이드바 `새 페이지` 로 만든 **내 개인 페이지**에서 했다.
+Four items from the audit were re-measured against the original (scripts `scratchpad/nind-41-M7.mjs`,
+`nind-49-M8.mjs`, `nind-54-M10.mjs`, raw data `scratchpad/nind-M7·M8·M9·M10.jsonl`).
+Measurements were taken on **my own private page** created with the sidebar's `New page` button.
 
-| # | 상황 | 노션 | 고치기 전 우리 |
+| # | Situation | Notion | Ours before the fix |
 |---|---|---|---|
-| M7 S2 | 앞 형제가 **접힌 토글**일 때 Tab | 토글이 **펴지고** 그 마지막 자식이 된다 | 접힌 토글 안으로 들어가 **화면에서 사라지고** 캐럿이 죽었다(그 뒤 타이핑이 전부 버려졌다) |
-| M7 S1 | **접힌 토글** 제목 **끝**에서 Enter | 바로 아래 **형제 토글**이 생기고 숨은 자식은 토글 안에 그대로 | 숨은 자식이 새 블록으로 옮겨가 **접어 둔 서브트리가 쏟아졌다** |
-| M10 D1 | **접힌 토글** 제목 **가운데**에서 Enter | 토글 둘로 갈라지고 자식은 **앞쪽**에 남는다 | 같은 문제 |
-| M7 S3 | 자식을 못 받는 타입(제목)에서 Shift+Tab | 뒤 형제를 **안 데려간다** — 형제는 옛 부모에 남고 제목은 그 서브트리 **뒤**에 선다 | 제목이 형제를 자식으로 데려가, Tab 으로는 만들 수 없는 트리가 생겼다 |
-| M8 S5 | **접힌 토글**에서 Shift+Tab | 뒤 형제를 **데려간다**(접힌 채라 화면에는 안 보인다) | — |
+| M7 S2 | Tab when the previous sibling is a **folded toggle** | The toggle **unfolds** and the block becomes its last child | It went inside the folded toggle, **disappeared from the screen**, and the caret died (all typing afterwards was discarded) |
+| M7 S1 | Enter at the **end** of a **folded toggle**'s title | A **sibling toggle** is created right below, and the hidden children stay inside the toggle | The hidden children moved to the new block, **spilling out the folded subtree** |
+| M10 D1 | Enter in the **middle** of a **folded toggle**'s title | The toggle splits in two and the children stay with the **front** half | Same problem |
+| M7 S3 | Shift+Tab on a type that doesn't accept children (heading) | It does **not adopt** following siblings — they stay under the old parent and the heading sits **after** that subtree | The heading adopted the siblings as children, producing a tree that Tab could never create |
+| M8 S5 | Shift+Tab on a **folded toggle** | It **adopts** the following siblings (they're folded, so they aren't visible on screen) | — |
 
-반영: `lib/editor/indent.ts` 의 `unfold()`(Tab 이 받는 쪽 토글을 편다)와
-`NO_CHILDREN` 흡수 금지, `block-editor.tsx` `splitBlock` 의 `foldedToggle`
-(형제 토글 + 자식 유지). 대조는 `node e2e/indent.check.mjs` 의
+Applied: `unfold()` in `lib/editor/indent.ts` (Tab unfolds the receiving toggle) and the `NO_CHILDREN` adoption ban,
+and `foldedToggle` in `block-editor.tsx` `splitBlock` (sibling toggle + children kept). The comparisons are
 `tab_into_folded_toggle` · `enter_on_folded_toggle` · `shift_tab_heading_no_adopt` ·
-`shift_tab_folded_toggle_adopts`.
+`shift_tab_folded_toggle_adopts` in `node e2e/indent.check.mjs`.
 
-한 가지 더: 트리를 셀 때 노션은 블록이 빠져나간 자리에 **`innerHTML` 이 빈 껍데기
-`<div class="notion-bulleted_list-block">`** 를 남긴다. 새로 고쳐도 남아 있어서 처음엔
-"Shift+Tab 이 빈 글머리를 만든다"로 잘못 읽었다 — 트리를 읽을 때 `innerHTML === ""` 인
-노드는 걸러야 한다(§9 에도 적어 둔 규칙의 구체적인 사례).
+One more thing: when counting the tree, Notion leaves behind an **empty shell
+`<div class="notion-bulleted_list-block">` with an empty `innerHTML`** where a block moved out. It survives a reload,
+so at first we misread it as "Shift+Tab creates an empty bullet" — nodes with `innerHTML === ""` must be filtered out
+when reading the tree (a concrete instance of the rule also noted in §9).
 
-## 8-3. 편집기 쪽 나머지 (2026-09-10 3차)
+## 8-3. The rest on the editor side (2026-09-10, round 3)
 
-들여쓰기와 같은 경로에 있던 것들. 노션에서 잴 일이 아니라 **우리 쪽 결함**이라 재현해서
-고쳤고, 검사는 `e2e/indent.check.mjs`·`e2e/markdown-nesting.check.mjs` 에 있다.
+Things on the same code paths as indentation. These aren't things to measure in Notion but **defects on our side**,
+so we reproduced and fixed them; the checks are in `e2e/indent.check.mjs` and `e2e/markdown-nesting.check.mjs`.
 
-- **Enter 의 position 이 53번째쯤 붙었다.** 새 줄은 다음 형제와의 간격 가운데를 쓰는데,
-  그 간격을 계속 반으로 접으면 배정도 실수가 더 나눌 자리를 잃는다. 그때 가운데 값은
-  간격의 **한쪽 끝으로 반올림**된다 — 자기 자신일 때도 있고 **다음 형제일 때도 있다**.
-  어느 쪽이든 두 줄이 같은 position 이 되고 순서는 `Array.sort` 의 tie 처리에 맡겨진다.
-  이제 양쪽 끝을 다 보고, 걸리면 그 형제 목록을 1..n 정수로 다시 번호 매긴다.
-  (검사 `enter_many_positions_stay_distinct` — Enter 60번 뒤 마지막 줄이 그대로
-  마지막이고 position 62개가 전부 다르다. 낮은 쪽만 보던 첫 수정은 이 검사에서
-  걸렸다: 53번째 Enter 가 **다음 블록 위에 정확히 겹쳤다**.)
-- **글자를 담지 않는 앞 블록(구분선·이미지·`column_list`)을 Backspace 로 지울 때** 그
-  자식을 아무도 다시 붙이지 않아 서브트리가 통째로 화면에서 사라졌다(저장에는 남는다 —
-  §4 의 고아와 같은 모양). 이제 지워지는 자리로 올린다.
-- **Enter 직후에 친 글자가 Enter 와 같은 되돌리기 묶음**에 들어가, ⌘Z 한 번이 새 줄과
-  거기 친 글자를 같이 지웠다. 타이핑은 **타이핑끼리만** 묶는다(구조를 바꾼 조작은 묶음을
-  끊는다).
-- **블록 가운데에 붙여넣으면 뒤쪽 조각의 서식이 사라졌다.** 캐럿에서 평문으로 잘랐기
-  때문이다. 이제 양쪽을 DOM 범위로 복제해 굵게·기울임·코드·링크가 둘 다 남는다.
-  (복제다 — 예전처럼 잘라내면 캐럿이 맨 앞일 때 블록이 비어버린다.)
-- **글자가 있는 블록의 맨 앞에 붙여넣으면** 빈 블록이 위에 남았다. 이제 붙여넣은 것이
-  그 블록 **위로** 들어가고 블록은 자기 글자와 **id** 를 지킨다(그 id 를 가리키는 댓글·
-  링크가 살아 있어야 한다).
-- **빈 글머리·빈 제목에 붙여넣으면** 그 빈 줄이 위에 남았다. 문단일 때만 흡수하던 조건을
-  타입과 무관하게 바꿨다.
-- **`mailto:`·`tel:`·`#앵커` 링크가 붙여넣기에서 label 만 남고 주소를 잃었다.** 앱이 따라갈
-  수 있는 주소 목록에 넣었다(워크스페이스 내보내기용 상대 `.md` 경로는 그대로 접는다).
-- **검사 쪽 흔들림 두 가지도 같이 잡았다.** (1) 블록의 글자가 DOM 에 올라오기 전에 캐럿을
-  놓으면 `end` 가 offset 0 이 된다(자식 노드가 없다) — Enter 가 맨 앞에서 갈라져 시나리오가
-  엉뚱한 걸 잰다. `caretReady()` 로 글자가 보일 때까지 기다린다. (2) 저장은 500ms 배치로
-  나가므로 방금 누른 키의 트랜잭션이 큐에 있는 동안 **직전 상태가 두 번 연속 같게** 읽힌다 —
-  `persisted()` 가 그걸 "저장된 진실"로 돌려줘 `halo_tab` 이 Shift+Tab 전 트리를 보고
-  실패했다. 이제 처음 두 번은 같아도 믿지 않는다.
+- **Enter positions stuck together around the 53rd press.** A new line takes the midpoint of the gap to the next
+  sibling, and if that gap keeps getting halved, double-precision floats run out of room to divide further. At that
+  point the midpoint is **rounded to one end of the gap** — sometimes to the block itself, and **sometimes to the next
+  sibling**. Either way, two lines end up with the same position and the order is left to `Array.sort`'s tie handling.
+  Now we check both ends and, on a hit, renumber that sibling list as integers 1..n.
+  (Check `enter_many_positions_stay_distinct` — after 60 Enters, the last line is still last and all 62 positions are
+  distinct. The first fix, which only checked the low end, was caught by this check: the 53rd Enter **landed exactly
+  on top of the next block**.)
+- **When Backspace deleted a preceding block that holds no text (divider, image, `column_list`)**, nobody reattached
+  its children, so the entire subtree vanished from the screen (it remained in storage — the same shape as the orphans
+  in §4). Now they are lifted into the deleted block's place.
+- **Characters typed right after Enter were in the same undo group as the Enter**, so a single ⌘Z removed both the
+  new line and what was typed on it. Typing is now grouped **only with other typing** (structural operations break the group).
+- **Pasting into the middle of a block lost the formatting of the back half.** That was because we split at the caret
+  as plain text. Now both halves are cloned as DOM ranges, so bold, italic, code, and links survive on both sides.
+  (It's a clone — cutting it out as before would leave the block empty when the caret was at the start.)
+- **Pasting at the start of a block with text** left an empty block above. Now the pasted content goes **above** that
+  block, and the block keeps its text and its **id** (comments and links pointing to that id must stay alive).
+- **Pasting into an empty bullet or empty heading** left that empty line above. The condition that only absorbed
+  paragraphs was changed to be type-independent.
+- **`mailto:`, `tel:`, and `#anchor` links kept only their label and lost their address on paste.** They were added
+  to the list of addresses the app can follow (relative `.md` paths for workspace export are still collapsed).
+- **We also fixed two sources of flakiness in the checks.** (1) If the caret is placed before the block's text reaches
+  the DOM, `end` becomes offset 0 (there are no child nodes) — Enter splits at the start and the scenario measures the
+  wrong thing. `caretReady()` now waits until the text is visible. (2) Saves go out in 500ms batches, so while the
+  transaction for the key just pressed is still queued, **the previous state reads the same twice in a row** —
+  `persisted()` returned that as "the saved truth," and `halo_tab` saw the pre-Shift+Tab tree and failed.
+  Now the first two identical reads are not trusted.
 
-## 9. 잴 때 밟은 함정 (다음 사람용)
+## 9. Pitfalls hit while measuring (for the next person)
 
-- 스크래치 페이지는 **다른 세션도 열어 둔다.** 거기서 `Backspace` 를 반복해 페이지를
-  비우려 하다가 **내가 만든 하위 페이지 칩까지 지워 휴지통으로 보냈다**(빨간 배너가 뜨고
-  그 페이지는 읽기 전용이 된다 → `contenteditable="true"` 가 0개). 측정용 페이지는 따로
-  만들고, 지우는 건 그 페이지 하나만.
-- **측정 페이지는 사이드바 `새 페이지` 로 만든다**(3차에서 자리잡은 방법). 스크래치 페이지에
-  `/page` 를 치면 거기에 줄이 남는다. 절차: `Target.createTarget({newWindow:true})` 로 내 창을
-  만들고 → 사이드바 `aria-label="새 페이지"`(좌상단) 클릭 → 뜨는 메뉴에서 `페이지` 클릭 →
-  제목을 친다. ⌘N 은 웹 앱에서 안 먹는다(브라우저가 가져간다).
-- **갓 만든 빈 페이지에는 본문 블록이 없다** — `.notion-page-content [contenteditable="true"]`
-  가 0개다. 제목에서 Enter 로는 잘 안 생기고, **본문 영역 위쪽(콘텐츠 박스 top+30)을 클릭**하면
-  첫 블록이 생긴다. 그전까지는 타이핑이 아무 데도 안 들어간다(마커가 안 들어가 시나리오가 죽는다).
-- 휴지통으로 보내진 페이지는 **읽기 전용**이고 위에 빨간 배너가 뜬다. 예전 측정 페이지를
-  다시 쓰려다 여기서 막혔다 — 사람이 정리했을 수 있으니 되살리지 말고 새로 만든다.
-- `[contenteditable]` 로 텍스트를 찾으면 **`contenteditable="false"` 인 마커·플레이스홀더**가
-  먼저 잡힌다. `[contenteditable="true"]` 로 찾아야 리스트 항목의 텍스트가 제대로 나온다.
-- 노션은 리스트 항목마다 **자식 컨테이너 같은 빈 블록 요소**를 하나 더 그린다. 트리를 셀 때
-  마커도 텍스트도 없는 항목은 걸러야 한다.
-- 마크다운 단축(`1. `, `- `, `# `)은 **실제 키 이벤트**로 쳐야 걸린다. `Input.insertText` 나
-  잘못된 `code`/`keyCode`(예: `.` 을 `Period`/190 없이 보내면 점이 빠진다)면 변환되지 않는다.
-- **붙여넣기를 재려면** 실제 클립보드(`execCommand('copy')` + ⌘V)는 노션 본문에 안 들어간다.
-  포커스된 편집 영역에 `new ClipboardEvent('paste', { clipboardData })` 를 직접 dispatch 하면
-  노션의 마크다운 파서가 그대로 돈다(2026-09-10 M2c 에서 확인).
-- 창이 다른 창에 **완전히 가리면** `Input.*` 가 응답하지 않는다(`visibilityState: hidden`).
-  `Browser.setWindowBounds` 로 겹치지 않는 자리를 주고, 멈추면 재활성화 후 재시도.
+- The scratch page is **kept open by other sessions too.** Trying to empty it by repeatedly pressing `Backspace`,
+  I **deleted even the chip of the sub-page I had created and sent it to the trash** (a red banner appears and that page
+  becomes read-only → zero `contenteditable="true"` elements). Create a separate page for measurements, and only delete that one page.
+- **Create measurement pages with the sidebar's `New page`** (the method settled on in round 3). Typing `/page` on the
+  scratch page leaves a line there. Procedure: create your own window with `Target.createTarget({newWindow:true})` →
+  click the sidebar's `aria-label` "New page" button (top left; in the Korean UI this is the `New page` label from the
+  ko dictionary) → click `Page` in the menu that appears → type the title. ⌘N doesn't work in the web app (the browser takes it).
+- **A freshly created empty page has no body block** — there are zero `.notion-page-content [contenteditable="true"]`.
+  Enter from the title doesn't reliably create one; **clicking near the top of the body area (content box top+30)**
+  creates the first block. Until then, typing goes nowhere (the markers don't get entered and the scenario dies).
+- Pages sent to the trash are **read-only** and show a red banner at the top. I got stuck here trying to reuse an old
+  measurement page — a person may have cleaned it up, so don't restore it; create a new one.
+- Searching for text with `[contenteditable]` first matches **markers and placeholders with `contenteditable="false"`**.
+  Search with `[contenteditable="true"]` to get list item text correctly.
+- Notion draws **one extra empty block element, like a child container**, for each list item. When counting the tree,
+  filter out items that have neither a marker nor text.
+- Markdown shortcuts (`1. `, `- `, `# `) only trigger when typed as **real key events**. With `Input.insertText` or a
+  wrong `code`/`keyCode` (e.g. sending `.` without `Period`/190 drops the period), they are not converted.
+- **To measure paste**, the real clipboard (`execCommand('copy')` + ⌘V) doesn't get into Notion's body.
+  Dispatching `new ClipboardEvent('paste', { clipboardData })` directly on the focused editable area runs Notion's
+  Markdown parser as-is (confirmed in M2c on 2026-09-10).
+- When a window is **completely covered** by another window, `Input.*` stops responding (`visibilityState: hidden`).
+  Give it a non-overlapping position with `Browser.setWindowBounds`, and if it stalls, reactivate and retry.

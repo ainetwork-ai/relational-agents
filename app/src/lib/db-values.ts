@@ -8,7 +8,11 @@ import type {
   ViewFilter,
 } from "@/lib/db/schema";
 import type { PublicUser } from "@/lib/auth/public-user";
+import type { T } from "@/i18n/translate";
 import { evalFormula, rollupValue } from "@/lib/db-computed";
+
+/** English passthrough for callers that do not pass the UI translator. */
+const idT: T = (k, vars) => (vars ? k.replace(/\{(\w+)\}/g, (m, v) => (v in vars ? String(vars[v]) : m)) : k);
 
 /** Operators offered for each property type in the filter builder (the full
  * operator set per type). */
@@ -254,7 +258,7 @@ export function withinRange(token: unknown): [string, string] {
  */
 export const OPTION_COLORS: Record<string, string> = {
   // Notion stores `default` and `gray` as two different colours (both appear in
-  // e2e/fixtures/notion-option-colors.json); their chips paint the same today,
+  // src/i18n/content/e2e-fixtures/notion-option-colors.json); their chips paint the same today,
   // but the property editor's colour menu shows them as two rows.
   default: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
   gray: "bg-[#E3E2E0] text-[#32302C] dark:bg-[#5A5A5A] dark:text-[#D4D4D4]",
@@ -542,9 +546,10 @@ function compareValues(a: unknown, b: unknown, prop?: DbProperty): number {
 export function groupRowsBy(
   rows: DbRow[],
   prop: DbProperty | undefined,
-  members: PublicUser[] = []
+  members: PublicUser[] = [],
+  t: T = idT
 ): RowGroup[] | null {
-  return buildGroups(rows, prop, members);
+  return buildGroups(rows, prop, members, t);
 }
 
 /** Column order belongs to the VIEW, not the database — the original Projects
@@ -600,7 +605,7 @@ export function isGroupable(p: DbProperty): boolean {
 }
 
 /** One group-by section. `preset` is the value a row created inside the section
- * must carry so it lands in that section (Notion's "그룹에 새 페이지 추가"). */
+ * must carry so it lands in that section (Notion's "Add a page to the group"). */
 export interface RowGroup {
   key: string;
   label: string;
@@ -617,7 +622,8 @@ export interface RowGroup {
 export function buildGroups(
   rows: DbRow[],
   prop: DbProperty | undefined,
-  members: PublicUser[] = []
+  members: PublicUser[] = [],
+  t: T = idT
 ): RowGroup[] | null {
   if (!prop) return null;
   const none = (label: string, has: (v: unknown) => boolean): RowGroup => ({
@@ -629,8 +635,8 @@ export function buildGroups(
 
   if (prop.type === "checkbox") {
     return [
-      { key: "true", label: "체크됨", rows: rows.filter((r) => r.values[prop.id] === true), preset: true },
-      { key: "false", label: "체크 안 됨", rows: rows.filter((r) => r.values[prop.id] !== true), preset: false },
+      { key: "true", label: t("Checked"), rows: rows.filter((r) => r.values[prop.id] === true), preset: true },
+      { key: "false", label: t("Unchecked"), rows: rows.filter((r) => r.values[prop.id] !== true), preset: false },
     ];
   }
 
@@ -650,11 +656,11 @@ export function buildGroups(
       })),
       ...orphans.map((id) => ({
         key: id,
-        label: "알 수 없는 사용자",
+        label: t("Unknown user"),
         rows: forPerson(id),
         preset: [id] as unknown,
       })),
-      none(`${prop.name} 없음`, (v) => personIds(v).length > 0),
+      none(t("No {name}", { name: prop.name }), (v) => personIds(v).length > 0),
     ];
   }
 
@@ -671,7 +677,7 @@ export function buildGroups(
     }
     return [
       ...[...byValue].map(([v, rs]) => ({ key: v, label: v, rows: rs, preset: v as unknown })),
-      none(`${prop.name} 없음`, (v) => String(v ?? "").trim() !== ""),
+      none(t("No {name}", { name: prop.name }), (v) => String(v ?? "").trim() !== ""),
     ];
   }
 
@@ -688,7 +694,7 @@ export function buildGroups(
         rows: rows.filter((r) => ids(r.values[prop.id]).includes(o.id)),
         preset: [o.id] as unknown,
       })),
-      none(`${prop.name} 없음`, (v) => ids(v).length > 0),
+      none(t("No {name}", { name: prop.name }), (v) => ids(v).length > 0),
     ];
   }
 
@@ -699,12 +705,12 @@ export function buildGroups(
       rows: rows.filter((r) => r.values[prop.id] === o.id),
       preset: o.id as unknown,
     })),
-    none(`${prop.name} 없음`, (v) => !!v && opts.some((o) => o.id === v)),
+    none(t("No {name}", { name: prop.name }), (v) => !!v && opts.some((o) => o.id === v)),
   ];
 }
 
 /** A person cell holds *several* people — `Assignee` in the capture carries two,
- * and a cell with more than it can show ends in "N개 더 보기". Cells written
+ * and a cell with more than it can show ends in "N more". Cells written
  * before that were single ids, so every reader normalizes through here. */
 export function personIds(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && !!x);
@@ -721,13 +727,14 @@ export function personLabel(members: PublicUser[], id: unknown): string {
  * matches has neither, and falls back to the unknown-user label). */
 export function personLabels(
   members: PublicUser[],
-  v: unknown
+  v: unknown,
+  t: T = idT
 ): { id: string; label: string; avatarUrl: string | null }[] {
   return personIds(v).map((id) => {
     const member = members.find((m) => m.id === id);
     return {
       id,
-      label: member?.displayName ?? "알 수 없는 사용자",
+      label: member?.displayName ?? t("Unknown user"),
       avatarUrl: member?.avatarUrl ?? null,
     };
   });

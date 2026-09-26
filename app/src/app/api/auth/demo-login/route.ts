@@ -6,6 +6,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { workspaceMembers, workspaces } from "@/lib/db/schema";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { toPublicUser } from "@/lib/auth/public-user";
+import { FAMILY } from "@/i18n/content/family-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,8 @@ export const dynamic = "force-dynamic";
  * `demo:<slug>`) — for DM demos/e2e needing two accounts in one browser.
  * Wallet addresses are 0x…-shaped, so the `demo:` namespace can't collide.
  *
- * With `member`, logs into one of the demo account's family by name (할머니,
- * 아빠, 서연 — people who share a workspace the demo account owns), landing in
+ * With `member`, logs into one of the demo account's family by name (Grandma,
+ * Dad, Seoyeon — people who share a workspace the demo account owns), landing in
  * that workspace. GET lists who can be picked.
  */
 
@@ -105,8 +106,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ user: toPublicUser(user) });
     }
 
-   // The demo world hangs off one specific account (엄마 — who made the
-   // family workspace "우리 가족" and linked her aindrive folder into it, beside
+   // The demo world hangs off one specific account (Mom — who made the
+   // family workspace (FAMILY_WORKSPACE_NAME in i18n/content/family-demo) and linked her aindrive folder into it, beside
    // grandma's and dad's; scripts/seed-family-demo.mts). DEMO_LOGIN_ADDRESS points
    // "Try the demo" straight at that account so the demo opens with its
    // workspaces instead of a fresh empty one. There is no second-best account
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
    // creation, so a user-picked cover is never overwritten
     const user = await loginUser(
       configured.toLowerCase(),
-      "엄마",
+      FAMILY.mom.ko,
       "/covers/home-cover-family.jpg"
     );
     return NextResponse.json({ user: toPublicUser(user) });

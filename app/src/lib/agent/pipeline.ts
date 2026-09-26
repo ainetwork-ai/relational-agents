@@ -25,6 +25,7 @@ import {
 } from "./okf-docs";
 import { parseEdits, type DocEdit, type TimelineEvent } from "./parse-edits";
 import { profileForRoom, sectionMenu, type RelationshipProfile } from "./profiles";
+import { CASUAL_DISH_EXAMPLE } from "@/i18n/content/agent";
 
 /** Source deep-link prefix. Rooms live at /dm/[roomId]; /agent-lab has no
  *  per-room route, so provenance links pointed at a 404. */
@@ -176,7 +177,7 @@ async function llmEdits(
           `Photos shared in the chat are part of the record. When a message has one, write what it actually shows, then embed it as ![caption](the image url exactly as given — do not alter the path). ` +
           `The image must sit on its own line with nothing before it — a leading "- " turns it into a bullet and the photo stops rendering.\n` +
           `Write entries someone can answer questions from later: name the food, place, and people plainly, and say what the members did. ` +
-          `Casual or misspelled wording is not a proper noun — "할머니표 송편" is songpyeon grandma makes, not a person or a brand. When a word is ambiguous, trust the photo over the spelling.`,
+          `Casual or misspelled wording is not a proper noun — "${CASUAL_DISH_EXAMPLE}" is songpyeon grandma makes, not a person or a brand. When a word is ambiguous, trust the photo over the spelling.`,
       },
       {
         role: "user" as const,
@@ -213,7 +214,7 @@ const hhmm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
  * The formal Timeline template — the agent writes events in it directly:
  *
  *   # 2026-08-04                ← event date (h1)
- *   ## 추석 전날 — 송편 빚기 …   ← short title (h2)
+ *   ## Day before Chuseok — songpyeon …   ← short title (h2)
  *   > 🌕 detail plain text      ← callout (the event kind's icon)
  *   ### 14:02 ~                 ← per shared photo: message time (h3)
  *   [image]                     ←   then the photo, LLM caption preserved

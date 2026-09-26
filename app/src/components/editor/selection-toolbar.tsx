@@ -32,40 +32,25 @@ import { useEditor } from "./block-editor";
 import { TURN_INTO } from "./block-row";
 import { useT } from "@/i18n/provider";
 
-/** Korean display names for the TURN_INTO entries (their labels live in
- * block-row and are English); anything unmapped falls back to that label. */
-const TURN_INTO_KO: Record<string, string> = {
-  paragraph: "텍스트",
-  heading1: "제목1",
-  heading2: "제목2",
-  heading3: "제목3",
-  bulleted_list: "글머리 기호 목록",
-  numbered_list: "번호 매기기 목록",
-  todo: "할 일 목록",
-  toggle: "토글 목록",
-  quote: "인용",
-  callout: "콜아웃",
-  code: "코드",
-};
-
-/** Korean color names for the palette's aria-labels (class names stay English). */
-const COLOR_KO: Record<string, string> = {
-  gray: "회색",
-  brown: "갈색",
-  orange: "주황색",
-  yellow: "노란색",
-  green: "초록색",
-  blue: "파란색",
-  purple: "보라색",
-  pink: "분홍색",
-  red: "빨간색",
+/** English color names for the palette's aria-labels — t() keys (class names
+ * stay the raw ids). */
+const COLOR_NAME: Record<string, string> = {
+  gray: "Gray",
+  brown: "Brown",
+  orange: "Orange",
+  yellow: "Yellow",
+  green: "Green",
+  blue: "Blue",
+  purple: "Purple",
+  pink: "Pink",
+  red: "Red",
 };
 
 interface ToolbarState {
   x: number;
   y: number;
   /** selection lives in a table cell — the cell has no block id, so the
-   * actions that need one (AI, 전환, 댓글) are not offered there */
+   * actions that need one (AI, Turn into, Comment) are not offered there */
   inCell?: boolean;
 }
 
@@ -264,7 +249,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
       <div className="flex items-center p-1">
         {!state.inCell && <ToolButton
           testid="format-ask-ai"
-          label={t("AI에게 요청")}
+          label={t("Ask AI")}
           onClick={() => {
             const sel = window.getSelection();
             const host = (sel?.anchorNode instanceof Element
@@ -280,11 +265,11 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         {!state.inCell && <div className="relative">
           <ToolButton
             testid="format-turninto"
-            label={t("전환")}
+            label={t("Turn into")}
             onClick={() => setTurnOpen((v) => !v)}
           >
             <span className="flex items-center gap-0.5 px-0.5 text-xs text-neutral-500">
-              {t("전환")} <ChevronDown size={11} />
+              {t("Turn into")} <ChevronDown size={11} />
             </span>
           </ToolButton>
           {turnOpen && (
@@ -308,31 +293,31 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
                   }}
                   className="block w-full px-3 py-1 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                 >
-                  {t(TURN_INTO_KO[opt.type] ?? opt.label)}
+                  {t(opt.label)}
                 </button>
               ))}
             </div>
           )}
         </div>}
         {!state.inCell && <div className="mx-0.5 h-4 w-px bg-neutral-200 dark:bg-neutral-700" />}
-        <ToolButton testid="format-bold" label={t("굵게 (Ctrl+B)")} onClick={() => exec("bold")}>
+        <ToolButton testid="format-bold" label={t("Bold (Ctrl+B)")} onClick={() => exec("bold")}>
           <Bold size={14} />
         </ToolButton>
-        <ToolButton testid="format-italic" label={t("기울임꼴 (Ctrl+I)")} onClick={() => exec("italic")}>
+        <ToolButton testid="format-italic" label={t("Italic (Ctrl+I)")} onClick={() => exec("italic")}>
           <Italic size={14} />
         </ToolButton>
-        <ToolButton testid="format-underline" label={t("밑줄 (Ctrl+U)")} onClick={() => exec("underline")}>
+        <ToolButton testid="format-underline" label={t("Underline (Ctrl+U)")} onClick={() => exec("underline")}>
           <Underline size={14} />
         </ToolButton>
-        <ToolButton testid="format-strike" label={t("취소선")} onClick={() => exec("strikeThrough")}>
+        <ToolButton testid="format-strike" label={t("Strikethrough")} onClick={() => exec("strikeThrough")}>
           <Strikethrough size={14} />
         </ToolButton>
-        <ToolButton testid="format-code" label={t("코드 (Ctrl+E)")} onClick={() => exec("code")}>
+        <ToolButton testid="format-code" label={t("Code (Ctrl+E)")} onClick={() => exec("code")}>
           <Code size={14} />
         </ToolButton>
         <ToolButton
           testid="format-link"
-          label={t("링크 (Ctrl+K)")}
+          label={t("Link (Ctrl+K)")}
           onClick={() => {
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
@@ -346,7 +331,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         </ToolButton>
         <ToolButton
           testid="format-unlink"
-          label={t("링크 제거")}
+          label={t("Remove link")}
           onClick={() => {
             const sel = window.getSelection();
             const host = sel?.anchorNode
@@ -365,14 +350,14 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
         </ToolButton>
         <ToolButton
           testid="format-color"
-          label={t("텍스트 및 배경 색상")}
+          label={t("Text and background color")}
           onClick={() => setColorOpen((v) => !v)}
         >
           <Palette size={14} />
         </ToolButton>
         {!state.inCell && <ToolButton
           testid="format-comment"
-          label={t("댓글")}
+          label={t("Comments")}
           onClick={() => {
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
@@ -396,7 +381,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
                   wrapColor(`c-${c}`);
                   setColorOpen(false);
                 }}
-                aria-label={t("{color} 텍스트", { color: t(COLOR_KO[c] ?? c) })}
+                aria-label={t("{color} text", { color: t(COLOR_NAME[c] ?? c) })}
                 className={`flex h-5 w-5 items-center justify-center rounded text-xs font-semibold c-${c} hover:bg-neutral-100 dark:hover:bg-neutral-700`}
               >
                 A
@@ -412,7 +397,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
                   wrapColor(`hl-${c}`);
                   setColorOpen(false);
                 }}
-                aria-label={t("{color} 배경", { color: t(COLOR_KO[c] ?? c) })}
+                aria-label={t("{color} background", { color: t(COLOR_NAME[c] ?? c) })}
                 className={`h-5 w-5 rounded border border-neutral-200 hl-${c} dark:border-neutral-600`}
               />
             ))}
@@ -424,7 +409,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
           <input
             ref={linkRef}
             data-testid="format-link-input"
-            placeholder={t("링크를 붙여넣고 Enter를 누르세요")}
+            placeholder={t("Paste a link and press Enter")}
             onKeyDown={(e) => {
               if (!isImeComposing(e) && e.key === "Enter") {
                 const v = (e.target as HTMLInputElement).value.trim();
@@ -441,7 +426,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
           <input
             ref={commentRef}
             data-testid="comment-range-input"
-            placeholder={t("선택 영역에 댓글 달기…")}
+            placeholder={t("Comment on selection…")}
             onKeyDown={(e) => {
               if (!isImeComposing(e) && e.key === "Enter") submitRangeComment((e.target as HTMLInputElement).value);
               if (e.key === "Escape") setCommentOpen(false);
@@ -454,7 +439,7 @@ export function SelectionToolbar({ container }: { container: React.RefObject<HTM
             onClick={() => submitRangeComment(commentRef.current?.value ?? "")}
             className="shrink-0 rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white hover:bg-blue-600"
           >
-            {t("보내기")}
+            {t("Send")}
           </button>
         </div>
       )}

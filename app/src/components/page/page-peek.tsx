@@ -9,7 +9,7 @@ import { PageView } from "./page-view";
 /**
  * Notion's center peek: a page opened OVER whatever you were reading instead
  * of navigating to it. Creating a sub-page from the sidebar lands here — the
- * header names the destination ("추가 대상 🏠 팀스페이스 홈"), ⤢ promotes it to a
+ * header names the destination ("Add to 🏠 Teamspace Home"), ⤢ promotes it to a
  * full page, and Esc / the backdrop / ✕ dismiss it.
  *
  * Geometry follows the reference capture (docs/page_add_popup.html): inset 72px

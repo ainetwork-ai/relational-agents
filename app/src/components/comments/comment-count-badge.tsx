@@ -25,7 +25,7 @@ export const CommentCountBadge = forwardRef<
       role="button"
       tabIndex={0}
       data-testid="comment-count-badge"
-      aria-label={t("댓글 열기")}
+      aria-label={t("Open comments")}
       onClick={(e) => {
         e.stopPropagation();
         onOpen();

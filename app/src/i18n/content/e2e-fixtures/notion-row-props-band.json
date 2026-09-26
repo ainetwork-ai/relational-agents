@@ -1,0 +1,399 @@
+{
+  "note": "2026-08-28 measured on the original (Projects) — the pinned property band's 'what shows · several people · width · peek vs full page'. Geometry (label 24 / value 30 / gap 8 / arrow 32) is in notion-row-props.json; only what does not overlap is measured here. Measuring scripts: scratchpad/m-band-{0-cases,1-set,5-widths,6-peek,7-arrows,8-step-chip}.mjs, raw data scratchpad/band-{cases,set,widths,peek-widths,chips}.json.",
+  "tolerance": 2,
+  "set": {
+    "note": "All 33 rows show the same 4 (TL·Assignee·End date·Evaluation) in the same order. An empty value keeps its place as 'Empty', and nothing changes per row. It differs from the table's column order (Status·Project name·TL·Assignee·Start date·End date·Evaluation·Effort) and from the property panel's order (Start date·Evaluator·Team·Created time·Effort·Status·Sec.8 Deadline·Action·Bonus·Class·Law Firm·Notes) — i.e. not 'the first N' but a list chosen per database.",
+    "properties": [
+      "TL",
+      "Assignee",
+      "End date",
+      "Evaluation"
+    ],
+    "perRow": false,
+    "emptyKeepsSlot": true,
+    "panelHasPinned": false,
+    "configuredBy": "Click a property label → menu (Rename · Edit property · Comment · Delete property · Customize layout) → Customize layout: an editor that moves properties between the title block (band) and the property group (panel) and orders them. 'Apply to all pages' applies it to the whole database.",
+    "labelMenuItems": [
+      "이름 바꾸기",
+      "속성 편집",
+      "댓글",
+      "속성 삭제",
+      "레이아웃 사용자 지정"
+    ],
+    "labelMenu": {
+      "width": 220,
+      "height": 168
+    }
+  },
+  "width": {
+    "note": "The content sets the item width — the value stayed the same across window widths and surfaces (peek/full page) (identical for 1000·1200·1500·1800 × peek·full page). When the label is longer than the value, the label sets it (empty End date 90.6 = label width). Measured examples below.",
+    "rule": "clamp(max(label ink width, value ink width), 80, 200)",
+    "min": 80,
+    "max": 200,
+    "labelInk": {
+      "TL": 51.7,
+      "Assignee": 106.7,
+      "End date": 90.6,
+      "Evaluation": 99.9
+    },
+    "samples": [
+      {
+        "case": "TL empty (label 51.7 < 80)",
+        "name": "TL",
+        "item": 80
+      },
+      {
+        "case": "End date empty",
+        "name": "End date",
+        "item": 90.6
+      },
+      {
+        "case": "Evaluation empty",
+        "name": "Evaluation",
+        "item": 99.9
+      },
+      {
+        "case": "1 person 'BSebastian'",
+        "name": "TL",
+        "item": 110.6,
+        "chip": 98.6
+      },
+      {
+        "case": "6 people 'Bobae Jeon' + 5",
+        "name": "Assignee",
+        "item": 135,
+        "chip": 100
+      },
+      {
+        "case": "date+time '2026년 4월 2일 15:00'",
+        "name": "End date",
+        "item": 170.9
+      },
+      {
+        "case": "long select 'Strongly Exceeds Expectation' (cap)",
+        "name": "Evaluation",
+        "item": 200
+      }
+    ]
+  },
+  "people": {
+    "note": "With two or more people, even when there is room left (item 135 < cap 200), only the first person's chip is drawn and the rest become '+ N'. Same for 2·3·4·5·6 people. 4px between chip and badge; value height is 31 only when there is a +N (badge 21 + 5 above and below).",
+    "chipsShown": 1,
+    "overflowText": "+ {N}",
+    "gapChipToBadge": 4,
+    "chip": {
+      "height": 20,
+      "radius": 6,
+      "fontSize": 14,
+      "lineHeight": "21px",
+      "weight": 400,
+      "color": "rgb(44, 44, 43)",
+      "avatar": 20,
+      "avatarRadius": "100%",
+      "avatarGap": 6,
+      "avatarGapNote": "The name follows 6px right of the avatar (original margin-inline-end: 6px) — table cells are the same."
+    },
+    "badge": {
+      "width": 19,
+      "height": 21,
+      "fontSize": 14,
+      "lineHeight": "21px",
+      "weight": 400,
+      "color": "rgb(44, 44, 43)",
+      "background": "none"
+    },
+    "valueHeight": {
+      "plain": 30,
+      "withOverflow": 31,
+      "note": "A person value is one chip (20) + 5/5 = 30, or 31 with a `+ N` badge (21). On the same original row: a single person = 30, two or more = 31."
+    },
+    "cases": [
+      {
+        "people": 2,
+        "text": "SUBIN YOO + 1",
+        "item": 134.3
+      },
+      {
+        "people": 3,
+        "text": "chanho lee + 2",
+        "item": 131.2
+      },
+      {
+        "people": 4,
+        "text": "Yoojin Ko + 3",
+        "item": 120.3
+      },
+      {
+        "people": 5,
+        "text": "jiyoung yang + 4",
+        "item": 142.6
+      },
+      {
+        "people": 6,
+        "text": "Bobae Jeon + 5",
+        "item": 135
+      }
+    ]
+  },
+  "surface": {
+    "note": "The band's own rules are the same on both surfaces. Only 'how much is visible' differs — the content column widths differ, so the track overflows at different points. Peek width = max(564, window×0.5), content inset 76 left and right, the band starts 2px right of the title and is content width − 2 wide.",
+    "peek": {
+      "widthFraction": 0.5,
+      "minWidth": 564,
+      "insetX": 76,
+      "bandOffsetFromTitle": 2,
+      "measured": [
+        {
+          "win": 900,
+          "peek": 564,
+          "band": 394
+        },
+        {
+          "win": 1128,
+          "peek": 564,
+          "band": 394
+        },
+        {
+          "win": 1200,
+          "peek": 600,
+          "band": 430
+        },
+        {
+          "win": 1500,
+          "peek": 750,
+          "band": 580
+        },
+        {
+          "win": 1800,
+          "peek": 900,
+          "band": 730
+        }
+      ]
+    },
+    "full": {
+      "columnMax": 720,
+      "measured": [
+        {
+          "win": 1000,
+          "band": 521
+        },
+        {
+          "win": 1200,
+          "band": 718
+        },
+        {
+          "win": 1500,
+          "band": 718
+        },
+        {
+          "win": 1800,
+          "band": 718
+        }
+      ]
+    },
+    "bandWidthNote": "At the same peek width, a row whose body is short enough to have no vertical scrollbar had a 445 band, and a row with one had 430 — a scrollbar (16) difference, not a rule difference."
+  },
+  "arrows": {
+    "note": "Independent of hover — shown on overflow, and the side that has reached the end is visibility:hidden/opacity 0. One click scrolls by (visible width − 200); if less than that remains, it only goes to the end.",
+    "hoverGated": false,
+    "step": "clientWidth - 200",
+    "stepEvidence": [
+      {
+        "clientW": 394,
+        "scrollW": 643,
+        "click1": 194,
+        "click2": 54.5,
+        "end": 249
+      },
+      {
+        "clientW": 430,
+        "scrollW": 643,
+        "click1": 212.5,
+        "note": "남은 213 로 클램프"
+      },
+      {
+        "clientW": 621,
+        "scrollW": 641,
+        "click1": 21.5,
+        "note": "남은 20 로 클램프"
+      }
+    ],
+    "hiddenStyle": {
+      "visibility": "hidden",
+      "opacity": 0
+    }
+  },
+  "truncate": {
+    "note": "When a value hits the 200 cap it is shortened with an ellipsis rather than cut mid-text. The original value cell is overflow:hidden, and the text wrapper inside it is white-space:nowrap · text-overflow:ellipsis · overflow:hidden. On a row whose End date is a range ('AI Network web 1page launch'; 2 of the original's 33 rows are ranges), '2025년 12월 22일 → 2026년 2월 26일' (real width 232.3) shrank to 188 with a '…'. The value is a range because the value itself is start+end, and the original shows the same row as a range too — there is no rule that draws only the end date because it is End date.",
+    "valueCell": {
+      "overflow": "hidden",
+      "borderRadius": 4,
+      "paddingInline": 6,
+      "paddingBlockDate": 4,
+      "paddingBlockSelect": 5,
+      "minHeight": 30,
+      "paddingBlockNote": "Only date value cells are 4/4, the rest (select·person) 5/5 — a 21px line plus 4 gives 30, with 5 it gives 31 (original 30). Confirmed 2026-08-28 on this row ('X 관리 + Telegram EN/KR (Round 1)')."
+    },
+    "textWrapper": {
+      "whiteSpace": "nowrap",
+      "textOverflow": "ellipsis",
+      "overflow": "hidden",
+      "lineHeight": 1.5
+    },
+    "sample": {
+      "case": "End date 범위",
+      "full": "2025년 12월 22일 → 2026년 2월 26일",
+      "inkWidth": 232.3,
+      "shownWidth": 188,
+      "item": 200
+    },
+    "selectChip": "Evaluation's chip shrinks the same way (nowrap/ellipsis is nested all the way into the chip)"
+  },
+  "label": {
+    "note": "2026-08-28 original label button measured (row 'X 관리 + Telegram EN/KR (Round 1)'): height 24 · radius 6 · side padding 6 · the icon is a 16px glyph in an 18px box (x6, no transform) · text 26 from the label's left (=6+18+2), 3 from the icon's right edge. 13px/500.",
+    "height": 24,
+    "radius": 6,
+    "paddingX": 6,
+    "iconBox": 18,
+    "iconGlyph": 16,
+    "iconX": 6,
+    "textX": 26,
+    "gapIconToText": 3,
+    "widths": {
+      "TL": 51.7,
+      "Assignee": 106.7,
+      "End date": 90.6,
+      "Evaluation": 99.9
+    },
+    "widthNote": "Label width = 32 + text width. Our text renders 4–5px narrower at the same 13px/500 (a font difference, not specific to the band). Only Assignee is 18px wider, because the original attaches a property description (ⓘ) icon to the label — a feature we do not have."
+  },
+  "labelMenu": {
+    "note": "2026-08-28 measured on the original (the TL label of row 'X 관리 + Telegram EN/KR (Round 1)'). The label is a role=cell·aria-haspopup=dialog button and on hover gets the same wash as the value cell (rgba(33,27,23,0.051)). The menu opens 1px below the label, aligned to its left.",
+    "width": 220,
+    "height": 168,
+    "radius": 10,
+    "gapBelowLabel": 1,
+    "alignsToLabelLeft": true,
+    "items": [
+      "이름 바꾸기",
+      "속성 편집",
+      "댓글",
+      "속성 삭제",
+      "레이아웃 사용자 지정"
+    ],
+    "itemHeight": 28,
+    "itemWidth": 212,
+    "itemRadius": 6,
+    "itemGap": 1,
+    "gapAcrossSeparator": 9,
+    "fontSize": 14,
+    "fontWeight": 400,
+    "color": "rgb(44, 44, 43)",
+    "iconSize": 20,
+    "iconX": 8,
+    "textX": 36,
+    "separatorsAfter": [
+      "댓글",
+      "속성 삭제"
+    ],
+    "separatorColor": "rgba(42, 28, 0, 0.07)",
+    "hoverBackground": "rgba(33, 27, 23, 0.051)",
+    "icons": {
+      "이름 바꾸기": "pencil",
+      "속성 편집": "sliders",
+      "댓글": "commentFilled",
+      "속성 삭제": "trash",
+      "레이아웃 사용자 지정": "layout"
+    },
+    "ours": "Comment (property comments) is a feature we do not have, so it is drawn disabled."
+  },
+  "editPopover": {
+    "note": "'Rename' and 'Edit property' open the same popover — with the name selected. 290×253, radius 10, the same 3-layer shadow as the picker.",
+    "width": 290,
+    "height": 253,
+    "radius": 10,
+    "shadow": "rgba(25,25,25,0.05) 0 20px 24px, rgba(25,25,25,0.027) 0 5px 8px, rgba(42,28,0,0.07) 0 0 0 1px",
+    "nameField": {
+      "typeIconBox": 28,
+      "typeIconX": 12,
+      "inputX": 54,
+      "height": 20,
+      "fontSize": 14,
+      "infoIconX": 256.7,
+      "infoIconSize": 15.3
+    },
+    "rows": [
+      "유형 사람",
+      "제한 제한 없음",
+      "기본값 기본값 없음",
+      "알림 사용자만",
+      "속성 복제",
+      "속성 삭제"
+    ],
+    "rowHeight": 28,
+    "rowWidth": 274,
+    "rowX": 8,
+    "rowRadius": 6,
+    "rowIconSize": 20,
+    "rowIconX": 8,
+    "chevronX": 250,
+    "rowY": [
+      56,
+      85,
+      114,
+      143,
+      188,
+      217
+    ],
+    "ours": "Limit · Default value · Notify · Duplicate property and ⓘ exist in the original but are features we do not have, so they are drawn disabled. Type only shows its value and does not change it."
+  },
+  "panelLabelMenu": {
+    "note": "2026-08-28 measured — the property panel's (details) labels are the same button (role=cell·aria-haspopup) and open in the same place (aligned to the label's left, 1px below) but **the items differ**: instead of the band's Comment there are Property visibility · Duplicate property, and Delete moves into that group. Box and item metrics equal the band menu's (220 wide · 28×212 · icon 20 at x8 · text x36 · radius 6).",
+    "width": 220,
+    "height": 197,
+    "items": [
+      "이름 바꾸기",
+      "속성 편집",
+      "속성 표시 여부",
+      "속성 복제",
+      "속성 삭제",
+      "레이아웃 사용자 지정"
+    ],
+    "itemY": [
+      4,
+      33,
+      70,
+      99,
+      128,
+      165
+    ],
+    "separatorsAfter": [
+      "속성 편집",
+      "속성 삭제"
+    ],
+    "labelTextX": 30,
+    "visibilitySubmenu": {
+      "note": "Opens on hovering Property visibility. The panel is attached to the window's right, so it opened to the left — right edge at the parent menu's left +4, top 33 above the pressed row. Checkmark on the current value.",
+      "width": 180,
+      "height": 94,
+      "radius": 10,
+      "items": [
+        "항상 표시",
+        "비어있을 때 숨기기",
+        "항상 숨기기"
+      ],
+      "itemHeight": 28,
+      "itemWidth": 172,
+      "itemY": [
+        4,
+        33,
+        62
+      ],
+      "textX": 8,
+      "checkX": 148,
+      "current": "항상 표시",
+      "dxRightOfParentLeft": 4,
+      "dyFromRow": -33
+    }
+  }
+}

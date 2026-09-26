@@ -1,66 +1,77 @@
-# ainmem — 여러 세션이 같이 일할 때의 규칙
+# ainmem — rules for when several sessions work together
 
-이 레포는 사람과 에이전트 여러 세션이 **동시에** 만진다. 아래는 그래서 생긴 규칙들이다.
-전부 실제로 한 번씩 터진 것들이라, 취향이 아니라 사고 기록에 가깝다.
+Humans and agents touch this repo in several sessions **at the same time**. These rules come from that.
+Every one of them has actually blown up once, so they read more like an incident log than a matter of taste.
 
-## dev 서버는 한 대만 — `scripts/dev.sh`
+## One dev server only — `scripts/dev.sh`
 
 ```bash
-scripts/dev.sh            # 없으면 띄우고, 있으면 그걸 쓴다
-scripts/dev.sh status     # 누가 어디에 떠 있고 로그가 어디인지
+scripts/dev.sh            # starts one if none is running, otherwise reuses it
+scripts/dev.sh status     # who is running where, and where the log is
 scripts/dev.sh logs -f
-scripts/dev.sh restart    # 이 레포의 서버일 때만 움직인다
+scripts/dev.sh restart    # only acts when the server belongs to this repo
 ```
 
-- **직접 `pnpm dev` 하지 말 것.** 세션마다 띄우면 포트를 서로 뺏고, 뺏긴 쪽은 조용히
-  죽는다(`ELIFECYCLE`). 브라우저는 죽은 서버를 계속 두드리며 "컴파일 중"에서 멈춘
-  것처럼 보인다.
-- 포트 **3110**, 빌드 디렉터리 **`.next-dev3110`**(기본 `.next`를 쓰면 다른 세션의
-  prod/e2e 빌드를 덮는다), 로그/pid 는 레포 밖 `~/.ainmem-dev/`.
-- **접속은 `http://localhost:3110`.** `127.0.0.1`과 LAN 주소는 Next 에게 다른
-  오리진이라 `next.config.ts`의 `allowedDevOrigins`에 없으면 `/_next/*`가 막히고,
-  페이지가 하이드레이션 없이 영원히 "컴파일 중"으로 남는다.
-- 남의 서버를 죽이지 말 것. `stop`/`restart`는 프로세스의 cwd 가 이 레포일 때만 움직인다.
+- **Do not run `pnpm dev` directly.** When every session starts its own, they steal each other's port,
+  and the loser dies silently (`ELIFECYCLE`). The browser keeps hitting the dead server and looks
+  stuck at "compiling".
+- Port **3110**, build directory **`.next-dev3110`** (using the default `.next` overwrites another
+  session's prod/e2e build), logs/pid outside the repo in `~/.ainmem-dev/`.
+- **Connect via `http://localhost:3110`.** To Next, `127.0.0.1` and the LAN address are different
+  origins; unless they are in `allowedDevOrigins` in `next.config.ts`, `/_next/*` is blocked and the
+  page stays at "compiling" forever without hydrating.
+- Do not kill other people's servers. `stop`/`restart` only act when the process's cwd is this repo.
 
-### 재시작했으면 포트 포워딩부터 의심한다
+### After a restart, suspect port forwarding first
 
-브라우저는 VS Code 원격 포워딩을 통해 붙는다. 서버를 새로 띄우면 **옛 포워딩이 죽은
-프로세스를 가리킨 채 남아**, 브라우저가 에러 없이 몇 분씩 스피너만 돈다. 터널이 SOCKS
-프록시면 구글 같은 다른 사이트까지 같이 멈춘다. 자주 발생한다.
+The browser connects through VS Code remote port forwarding. When you start a new server, **the old
+forward stays pointing at the dead process**, and the browser spins for minutes with no error. If the
+tunnel is a SOCKS proxy, other sites such as Google hang too. This happens often.
 
-- 서버 쪽은 멀쩡해 보인다(`/api/health` 200, 부하 0) — 그래서 앱 버그로 오해하기 쉽다.
-- 한 줄 판별: 서버에서 `ss -tn | grep :3110`. **0건이면 브라우저가 서버에 닿지도 못한 것**이라
-  앱에서 찾을 원인이 없다.
-- 조치: VS Code 하단 PORTS 탭에서 3110 재포워딩(또는 Reload Window). 우회 확인은
-  `http://192.168.1.194:3110`.
+- The server side looks fine (`/api/health` 200, zero load), so it is easy to mistake for an app bug.
+- One-line check: on the server, `ss -tn | grep :3110`. **Zero results means the browser never reached
+  the server**, so there is no cause to find in the app.
+- Fix: re-forward 3110 in the PORTS tab at the bottom of VS Code (or Reload Window). To confirm via a
+  bypass, use `http://192.168.1.194:3110`.
 
-## 커밋은 내가 만진 파일만
+## Commit only the files you touched
 
-`git commit -a` / `git add -A` 금지. 워킹트리에는 **다른 세션이 편집 중인 파일**이
-섞여 있다. 한 번은 그렇게 남의 미완성 변경이 커밋에 딸려 들어가, 컴포넌트를 부르는
-쪽만 커밋되고 컴포넌트 자체는 untracked 로 남아 HEAD 가 깨진 적이 있다.
-경로를 하나씩 `git add <path>` 할 것.
+No `git commit -a` / `git add -A`. The working tree contains **files other sessions are in the middle
+of editing**. Once, that pulled someone else's unfinished change into a commit: only the caller of a
+component got committed while the component itself stayed untracked, and HEAD was broken.
+`git add <path>` one path at a time.
 
-## 스키마는 손으로 민다
+## Push schema by hand
 
-`drizzle-kit push`는 DB 하나씩, 사람이 판단해서(docs/deployment.md §3.6). 부팅 로그와
-`/api/health`(503), `pnpm db:check`가 무엇이 모자란지 알려준다. dev DB 는
+`drizzle-kit push` is done one DB at a time, with a human deciding (docs/deployment.md §3.6). The boot
+log, `/api/health` (503), and `pnpm db:check` tell you what is missing. The dev DB is
 `localhost:5434`.
 
-## Projects 작업의 기준은 원본이다 — 못 보면 멈춘다
+## Projects work is measured against the original — if you can't see it, stop
 
-`ComCom > Projects` 를 노션과 **똑같이** 만드는 일에서, "됐다"의 기준은 판단이 아니라
-**원본과 잰 값의 차이 0** 이다. 그래서 원본에 못 붙으면 작업이 아니라 **중지**다.
+When making `ComCom > Projects` **identical** to Notion, "done" is not a judgment call but **zero
+difference from values measured on the original**. So if you cannot attach to the original, the
+outcome is not work but a **stop**.
 
 ```bash
-cd app && node e2e/golden.check.mjs   # 0 = 잴 수 있다 / 1 = 멈추고 사람에게 부탁
+cd app && node e2e/golden.check.mjs   # 0 = can measure / 1 = stop and ask a human
 ```
 
-붙는 절차(맥에서 크롬 + `ssh -R`), 원본을 건드리지 않기 위한 규칙, 지금 있는 대조
-스크립트 목록은 `docs/notion-golden-set.md`. 빨간불일 때 추론으로 메우고 UI 를 고치는
-것이 이 레포에서 가장 많은 되돌림을 만든 원인이다.
+How to attach (Chrome on the Mac + `ssh -R`), the rules for not touching the original, and the list
+of existing comparison scripts are in `docs/notion-golden-set.md`. Filling the gap with inference and
+changing the UI while the light is red is the single biggest source of reverts in this repo.
 
-## 노션 캡처는 `docs/*.html`
+## Notion captures live in `docs/*.html`
 
-무엇을 따라 만드는지가 거기 있다. 커밋되지 않는다(대용량 + 사내 데이터). 어떤 화면의
-어떤 상태인지는 `docs/notion-captures.md` 참고.
+That is what we are copying. They are not committed (large, and internal company data). Which state
+of which screen each one is: see `docs/notion-captures.md`.
+
+## No Korean outside `app/src/i18n/`
+
+English is the source language of everything in this repo: code, comments, docs, scripts, e2e. Korean is an
+i18n option, and it lives only under `app/src/i18n/` — `ko.ts` (English key → Korean) for UI text reached
+through `t()` / `getT()` / `makeT()`, and `content/*.ts` for data that is Korean by nature (demo names,
+seeded file paths, keyword lists, Notion golden-set fixtures). A Korean literal anywhere else is a bug;
+`grep -rnP '[\x{AC00}-\x{D7A3}]' . --exclude-dir=node_modules --exclude-dir=i18n --exclude='*.html'`
+should return nothing, and `node app/scripts/i18n-keys.mjs` lists keys with no Korean yet.
+

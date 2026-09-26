@@ -24,8 +24,8 @@ import { useIntlLocale, useT } from "@/i18n/provider";
 
 // ===========================================================================
 // The menu behind a row's ⠿ handle. Its items are the original's, read off the
-// row menu there: 즐겨찾기에 추가 · 아이콘 편집 · 속성 편집 · 다음에서 열기 ·
-// 댓글 ⌘⇧M · 링크 복사 · 복제 ⌘D · 옮기기 ⌘⇧P · 휴지통으로 이동 Del, and the
+// row menu there: Add to Favorites · Edit icon · Edit property · Open in ·
+// Comment ⌘⇧M · Copy link · Duplicate ⌘D · Move to ⌘⇧P · Move to Trash Del, and the
 // last-edited line at the bottom. What we can't do yet is present but disabled,
 // with the reason on hover, rather than missing.
 // ===========================================================================
@@ -81,14 +81,14 @@ export function RowMenu({
       <Item
         testid="row-menu-favorite"
         icon={<Star size={15} />}
-        label={t("즐겨찾기에 추가")}
-        disabled={t("행 즐겨찾기는 아직 없습니다")}
+        label={t("Add to Favorites")}
+        disabled={t("No favorited rows yet")}
       />
       <div className="relative">
         <Item
           testid="row-menu-icon"
           icon={<Smile size={15} />}
-          label={t("아이콘 편집")}
+          label={t("Edit icon")}
           onClick={() => setIconOpen((v) => !v)}
           trailing={icon ?? undefined}
         />
@@ -111,7 +111,7 @@ export function RowMenu({
       <Item
         testid="row-menu-properties"
         icon={<SlidersHorizontal size={15} />}
-        label={t("속성 편집")}
+        label={t("Edit property")}
         onClick={() => {
           db.openRow(row.id);
           onClose();
@@ -120,7 +120,7 @@ export function RowMenu({
       <Item
         testid="row-menu-open"
         icon={<PanelRight size={15} />}
-        label={t("사이드 보기")}
+        label={t("Side Peek")}
         onClick={() => {
           db.openRow(row.id);
           onClose();
@@ -130,36 +130,36 @@ export function RowMenu({
       <Item
         testid="row-menu-comment"
         icon={<MessageSquare size={15} />}
-        label={t("댓글")}
+        label={t("Comments")}
         shortcut="⌘⇧M"
-        disabled={t("행 댓글은 아직 없습니다")}
+        disabled={t("No row comments yet")}
       />
       <Item
         testid="row-menu-copy-link"
         icon={<LinkIcon size={15} />}
-        label={t("링크 복사")}
+        label={t("Copy link")}
         onClick={pageId ? copyLink : undefined}
-        disabled={pageId ? undefined : t("이 행에는 아직 페이지가 없습니다")}
+        disabled={pageId ? undefined : t("No pages in this row yet")}
       />
       <Item
         testid="row-menu-duplicate"
         icon={<Copy size={15} />}
-        label={t("복제")}
+        label={t("Duplicate")}
         shortcut="⌘D"
         onClick={duplicate}
       />
       <Item
         testid="row-menu-move"
         icon={<CornerUpRight size={15} />}
-        label={t("옮기기")}
+        label={t("Move")}
         shortcut="⌘⇧P"
-        disabled={t("다른 데이터베이스로 옮기기는 아직 없습니다")}
+        disabled={t("Moving to another database isn't available yet")}
       />
       <Divider />
       <Item
         testid="row-menu-delete"
         icon={<Trash2 size={15} />}
-        label={t("휴지통으로 이동")}
+        label={t("Move to Trash")}
         shortcut="Del"
         danger
         onClick={() => {
@@ -169,7 +169,7 @@ export function RowMenu({
       />
       {(editedBy || editedAt) && (
         <div className="mt-1 border-t border-neutral-100 px-3 pb-1 pt-1.5 text-[11px] leading-tight text-neutral-400 dark:border-neutral-700">
-          {editedBy && <div>{t("{name} 최종 편집", { name: editedBy })}</div>}
+          {editedBy && <div>{t("Last edited by {name}", { name: editedBy })}</div>}
           {editedAt && <div>{editedAt}</div>}
         </div>
       )}

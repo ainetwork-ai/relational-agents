@@ -22,7 +22,7 @@ export function ImportButton() {
   async function submit() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setError(t("워크스페이스 내보내기 .zip 파일을 먼저 선택하세요"));
+      setError(t("Select a workspace export .zip file first"));
       return;
     }
     setBusy(true);
@@ -34,12 +34,12 @@ export function ImportButton() {
       const res = await fetch("/api/import", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? t("가져오기 실패"));
+        setError(data.error ?? t("Import failed"));
       } else {
         setResult(data as ImportResult);
       }
     } catch {
-      setError(t("가져오기 실패"));
+      setError(t("Import failed"));
     } finally {
       setBusy(false);
     }
@@ -57,7 +57,7 @@ export function ImportButton() {
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <Download size={15} />
-        {t("가져오기")}
+        {t("Import")}
       </button>
 
       {open && (
@@ -71,10 +71,10 @@ export function ImportButton() {
             className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-700 dark:bg-neutral-800"
           >
             <h2 className="mb-1 text-base font-semibold text-neutral-800 dark:text-neutral-100">
-              {t("내보낸 파일 가져오기")}
+              {t("Import exported file")}
             </h2>
             <p className="mb-4 text-xs text-neutral-500 dark:text-neutral-400">
-              {t("워크스페이스 내보내기")} <code>.zip</code> {t("(Markdown & CSV) 파일을 올리면 그 안의 페이지와 데이터베이스가 콘텐츠 트리에 추가됩니다.")}
+              {t("Export workspace")} <code>.zip</code> {t("Upload a (Markdown & CSV) file and the pages and databases inside it will be added to your content tree.")}
             </p>
 
             <input
@@ -93,13 +93,13 @@ export function ImportButton() {
 
             {result ? (
               <div data-testid="import-result" className="mb-3 rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                <strong>{result.name}</strong>{t("을(를) 가져왔습니다: 페이지 {pages}개, 데이터베이스 {databases}개", { pages: result.pages, databases: result.databases })}
+                <strong>{result.name}</strong>{t("Imported: {pages} pages, {databases} databases", { pages: result.pages, databases: result.databases })}
                 <button
                   data-testid="import-done"
                   onClick={() => window.location.reload()}
                   className="mt-2 block rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
                 >
-                  {t("사이드바에서 보기")}
+                  {t("Show in sidebar")}
                 </button>
               </div>
             ) : (
@@ -109,7 +109,7 @@ export function ImportButton() {
                   disabled={busy}
                   className="rounded-md px-3 py-1.5 text-sm text-neutral-500 hover:bg-neutral-100 disabled:opacity-50 dark:hover:bg-neutral-700"
                 >
-                  {t("취소")}
+                  {t("Cancel")}
                 </button>
                 <button
                   data-testid="import-submit"
@@ -117,7 +117,7 @@ export function ImportButton() {
                   disabled={busy}
                   className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {busy ? t("가져오는 중…") : t("가져오기")}
+                  {busy ? t("Importing…") : t("Import")}
                 </button>
               </div>
             )}

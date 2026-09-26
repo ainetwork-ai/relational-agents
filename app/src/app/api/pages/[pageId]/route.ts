@@ -382,7 +382,7 @@ export async function DELETE(
 
   if (permanent) {
     await db.delete(pages).where(inArray(pages.id, ids));
- // "영구 삭제" has no restore to protect, and a row left behind would point
+ // "Delete permanently" has no restore to protect, and a row left behind would point
  // its `__page` at an id that no longer exists — take the record too.
     if (rows.length)
       await db.delete(dbRows).where(

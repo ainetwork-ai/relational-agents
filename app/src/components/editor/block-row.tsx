@@ -39,9 +39,9 @@ const HANDLE_TOP: Record<string, number> = { paragraph: 8, heading1: 39.5, headi
 
 function BlockRowInner({ block, depth, indentPx = 0, parentType }: { block: EBlock; depth: number; indentPx?: number; parentType?: string; hasChildren?: boolean; subtree?: EBlock[] }) {
   const editor = useEditor();
- // 원본(2026-08-25 실측): 리스트류(글머리·번호·할일·토글)는 항목 상하 1px, 단 리스트
- // 런의 첫 항목만 상단 6px — 앞 형제가 리스트류가 아닐 때. 블록 사이 gap 은 0 이고
- // 여백은 전부 블록 자신의 padding 이다.
+ // Original (measured 2026-08-25): list-like blocks (bullet, number, to-do, toggle) get 1px above and below each item, except
+ // the first item of a list run gets 6px on top — when the previous sibling is not list-like. The gap between blocks is 0 and
+ // all spacing is the block's own padding.
   const sibs = editor.childrenOf(block.parentBlockId ?? null);
   const prev = sibs[sibs.findIndex((b) => b.id === block.id) - 1];
   const listRun = LIST_RUN.has(block.type);
@@ -51,12 +51,12 @@ function BlockRowInner({ block, depth, indentPx = 0, parentType }: { block: EBlo
   const nested = !!parentType && LIST_RUN.has(parentType);
   const listFirst = !nested && !(prev && LIST_RUN.has(prev.type));
   const next = sibs[sibs.findIndex((b) => b.id === block.id) + 1];
- // …그리고 런의 마지막 항목은 하단 6 (단독 항목 = 6+28+6 = 40). 둘 다 이웃으로 정해진다.
+ // …and the last item of a run gets 6 at the bottom (a lone item = 6+28+6 = 40). Both are decided by the neighbours.
   const listLast = !nested && !(next && LIST_RUN.has(next.type));
- // 거터(+, 6점)의 세로 위치: 원본은 24px 컨트롤을 첫 텍스트 줄(line box)의 중앙에
- // 맞춘다 — 문단 8, H1 39.5, H2 31.6, H3 25, 리스트 첫 항목 8 / 이후 3, 인용 8.
+ // Vertical position of the gutter (+, six dots): the original centres its 24px controls on the first text line (line box)
+ // — paragraph 8, H1 39.5, H2 31.6, H3 25, list first item 8 / later 3, quote 8.
   const handleTop = HANDLE_TOP[block.type] ?? (listRun ? (listFirst ? 8 : 3) : 2);
- // 하이라이트의 상하 inset 은 min(2px, 그 쪽 padding): 리스트 항목은 1px 패딩이라 1.
+ // The highlight's top/bottom inset is min(2px, that side's padding): list items have 1px padding, so 1.
   const halo = { top: listRun && !listFirst ? 1 : 2, bottom: listRun && !listLast ? 1 : 2 };
 
  // A columns layout renders its column children side-by-side; each column
@@ -353,25 +353,25 @@ function ChildPageBody({ block }: { block: EBlock }) {
   );
 }
 
-/** The 전환 submenu, in the original's order and words (measured 2026-09-09 on
- * the ⠿ menu of a text block: 텍스트 · 제목1-4 · 페이지 · 글머리 기호 목록 ·
- * 번호 매기기 목록 · 할 일 목록 · 토글 목록 · 코드 · 인용 · 콜아웃 · 수학 공식 블록 ·
- * 동기화 블록 · 토글 제목1-4 · 2~5개의 열). Ours lists the types we have. Labels
+/** The Turn into submenu, in the original's order and words (measured 2026-09-09 on
+ * the ⠿ menu of a text block: Text · Heading 1-4 · Page · Bulleted list ·
+ * Numbered list · To-do list · Toggle list · Code · Quote · Callout · Block equation ·
+ * Synced block · Toggle heading 1-4 · 2-5 columns). Ours lists the types we have. Labels
  * are t() keys. */
 export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
-  { type: "paragraph", label: "텍스트" },
-  { type: "heading1", label: "제목1" },
-  { type: "heading2", label: "제목2" },
-  { type: "heading3", label: "제목3" },
-  { type: "child_page", label: "페이지" },
-  { type: "bulleted_list", label: "글머리 기호 목록" },
-  { type: "numbered_list", label: "번호 매기기 목록" },
-  { type: "todo", label: "할 일 목록" },
-  { type: "toggle", label: "토글 목록" },
-  { type: "code", label: "코드" },
-  { type: "quote", label: "인용" },
-  { type: "callout", label: "콜아웃" },
-  { type: "equation", label: "수학 공식 블록" },
+  { type: "paragraph", label: "Text" },
+  { type: "heading1", label: "Heading 1" },
+  { type: "heading2", label: "Heading 2" },
+  { type: "heading3", label: "Heading 3" },
+  { type: "child_page", label: "Page" },
+  { type: "bulleted_list", label: "Bulleted list" },
+  { type: "numbered_list", label: "Numbered list" },
+  { type: "todo", label: "To-do list" },
+  { type: "toggle", label: "Toggle list" },
+  { type: "code", label: "Code" },
+  { type: "quote", label: "Quote" },
+  { type: "callout", label: "Callout" },
+  { type: "equation", label: "Block equation" },
 ];
 
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
@@ -382,7 +382,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
   const [open, setOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
   const turnRef = useRef<HTMLDivElement>(null);
-  /** the 표 section's `정렬` submenu (ours — the original has no alignment) */
+  /** the Table section's `Align` submenu (ours — the original has no alignment) */
   const [alignOpen, setAlignOpen] = useState(false);
   const alignRef = useRef<HTMLDivElement>(null);
   const [commentOpen, setCommentOpen] = useState(false);
@@ -405,9 +405,9 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
  // the submenus are portalled too — all count as inside
   }, ref, menuRef, alignRef, turnRef);
 
- // The 전환 submenu: portalled (the menu scrolls, so an in-flow child was
+ // The Turn into submenu: portalled (the menu scrolls, so an in-flow child was
  // clipped to nothing — "Turn into does nothing"), placed beside the menu
- // with its top on the 전환 row, kept inside the window. Measured on the
+ // with its top on the Turn into row, kept inside the window. Measured on the
  // original: the panel opens on HOVER, sits at menu.right − 4px, 220 wide,
  // 28px rows, same 10px radius and shadow as the menu.
   useEffect(() => {
@@ -426,7 +426,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
     if (pb.bottom > window.innerHeight - margin) panel.style.top = `${Math.max(margin, window.innerHeight - margin - pb.height)}px`;
   }, [turnOpen, block.id]);
 
- // place the 정렬 submenu beside its row and keep it in the window
+ // place the Align submenu beside its row and keep it in the window
   useEffect(() => {
     if (!alignOpen) return;
     const panel = alignRef.current;
@@ -473,7 +473,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
         onClick={() => {
  // Measured on the original: on an EMPTY line the ⠿ click opens the block
  // type picker straight away (the same panel the + opens, with the filter
- // placeholder) — there is nothing to act on, so 전환 is the whole menu.
+ // placeholder) — there is nothing to act on, so Turn into is the whole menu.
           const empty = block.type === "paragraph" && (block.content.text ?? "").trim() === "";
           if (empty) {
             editor.insertBelow(block.id); // reuses this empty line and opens the picker on it
@@ -510,7 +510,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             ref={menuRef}
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
- // hovering any other row folds the 전환 panel; the pointer travelling into
+ // hovering any other row folds the Turn into panel; the pointer travelling into
  // the (portalled) panel itself fires nothing here, so it stays open
             onMouseOver={(e) => {
               if (turnOpen && !(e.target as HTMLElement).closest("[data-turn-into]")) setTurnOpen(false);
@@ -523,29 +523,29 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             const align: Align | null = raw == null ? null : ((raw === "default" ? "left" : raw) as Align);
             return (
               <>
-                {/* Measured: the original opens this menu on a table with a 표
-                    section on top — 데이터베이스로 전환 / 너비에 맞추기 /
-                    제목 행 / 제목 열 (both labelled "제목 행" there, and told
+                {/* Measured: the original opens this menu on a table with a Table
+                    section on top — Turn into database / Fit to width /
+                    Header row / Header column (both labelled "Header row" there, and told
                     apart only by their icon). Ours carries the two header
-                    toggles plus 정렬, which the original does not have.
+                    toggles plus Align, which the original does not have.
                     e2e/fixtures/notion-table-block-menu.json */}
                 <div
                   data-testid={`block-table-section-${block.id}`}
                   className="px-3 pb-0.5 pt-1 text-xs font-medium text-neutral-500 dark:text-neutral-400"
                 >
-                  {t("표")}
+                  {t("Table")}
                 </div>
                 <MenuToggle
                   testid={`block-table-headerrow-${block.id}`}
                   icon={<PanelTop size={13} />}
-                  label={t("제목 행")}
+                  label={t("Header row")}
                   on={!!table.headerRow}
                   onClick={() => editor.updateTable(block.id, { ...table, headerRow: !table.headerRow })}
                 />
                 <MenuToggle
                   testid={`block-table-headercol-${block.id}`}
                   icon={<PanelLeft size={13} />}
-                  label={t("제목 열")}
+                  label={t("Header column")}
                   on={!!table.headerCol}
                   onClick={() => editor.updateTable(block.id, { ...table, headerCol: !table.headerCol })}
                 />
@@ -553,7 +553,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
                   <MenuBtn
                     testid={`block-table-align-${block.id}`}
                     icon={<TextAlignStart size={13} />}
-                    label={t("정렬")}
+                    label={t("Sort")}
                     onClick={() => setAlignOpen((v) => !v)}
                   />
                   {/* portalled: the menu box scrolls (overflow-y-auto), and an
@@ -579,7 +579,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
                           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                         >
                           {a === "left" ? <TextAlignStart size={13} /> : a === "center" ? <TextAlignCenter size={13} /> : <TextAlignEnd size={13} />}
-                          <span className="flex-1">{t(a === "left" ? "왼쪽" : a === "center" ? "가운데" : "오른쪽")}</span>
+                          <span className="flex-1">{t(a === "left" ? "Left" : a === "center" ? "Center" : "Right")}</span>
                           {align === a && <Check size={12} className="text-neutral-400" />}
                         </button>
                       ))}
@@ -594,7 +594,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-delete-${block.id}`}
             icon={<Trash2 size={13} />}
-            label={t("삭제")}
+            label={t("Delete")}
             danger
             onClick={() => {
               setOpen(false);
@@ -604,7 +604,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-duplicate-${block.id}`}
             icon={<Copy size={13} />}
-            label={t("복제")}
+            label={t("Duplicate")}
             onClick={() => {
               setOpen(false);
               editor.duplicateBlock(block.id);
@@ -613,7 +613,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-copylink-${block.id}`}
             icon={<Link2 size={13} />}
-            label={t("블록 링크 복사")}
+            label={t("Copy link to block")}
             onClick={() => {
               setOpen(false);
               void copyText(
@@ -624,7 +624,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
           <MenuBtn
             testid={`block-comment-${block.id}`}
             icon={<MessageSquare size={13} />}
-            label={locale === "en" ? "Comment" : t("댓글")}
+            label={locale === "en" ? "Comment" : t("Comments")}
             onClick={() => {
               setOpen(false);
               setTurnOpen(false);
@@ -635,7 +635,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
             <MenuBtn
               testid={`block-turninto-${block.id}`}
               icon={<Repeat size={13} />}
-              label={t("전환")}
+              label={t("Turn into")}
               onClick={() => setTurnOpen((v) => !v)}
             />
           </div>
@@ -738,9 +738,9 @@ function CodeBlock({ block }: { block: EBlock }) {
   const overlayRef = useRef<HTMLPreElement>(null);
 
   return (
-    // 원본(2026-08-26 실측): wrapper 8, 컨테이너 r10 bg rgba(66,35,3,.03) 에 24/22 패딩,
-    // 그 안에서 편집 영역이 12/12 — 한 줄 코드가 108.4. 언어·복사는 hover 때만
-    // 컨테이너 위에 뜨고, 캡션은 있을 때만 자리를 차지한다.
+    // Original (measured 2026-08-26): wrapper 8, container r10 bg rgba(66,35,3,.03) with 24/22 padding,
+    // and inside it the editing area 12/12 — a one-line code block is 108.4. Language and copy float over the
+    // container only on hover, and the caption takes space only when there is one.
     <div className="w-full px-0.5 py-2">
     <div className="group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06]">
       <div className="absolute left-3 right-3 top-2 flex items-center justify-between opacity-0 transition-opacity group-hover/code:opacity-100">
@@ -849,7 +849,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
       data-color={color}
       className="w-full px-0.5 py-2"
     >
-    {/* 원본(2026-08-26 실측): 82 = 8 + (1+12 + 6+28+6 + 12+1) + 8 */}
+    {/* Original (measured 2026-08-26): 82 = 8 + (1+12 + 6+28+6 + 12+1) + 8 */}
     <div className={`group/callout relative w-full rounded-[10px] border border-transparent p-3 ${calloutBg(color)}`}>
       <div className="flex w-full items-start">
       {icon !== null && (
@@ -872,8 +872,8 @@ function CalloutBlock({ block }: { block: EBlock }) {
         className="m-1.5 px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
       />
       )}
-      {/* 원본(2026-09-10 실측): 콜아웃의 자식 텍스트는 콜아웃 자기 텍스트와 같은 x
-          (366/417 → 자식 411/417). 우리 자식은 6px 왼쪽에서 시작했다. */}
+      {/* Original (measured 2026-09-10): a callout's child text sits at the same x as the callout's own text
+          (366/417 → child 411/417). Our children used to start 6px to the left. */}
       {children.length > 0 && (
         <div className="pl-1.5">
           {children.map((c) => (
@@ -920,7 +920,7 @@ function CalloutBlock({ block }: { block: EBlock }) {
   );
 }
 
-/** A menu row with a switch on the right — the original's 제목 행/열 rows.
+/** A menu row with a switch on the right — the original's Header row/column rows.
  * Track 30×18 (radius 44), knob 14, on = rgb(39,131,222): measured. */
 function MenuToggle({
   testid,
@@ -1031,8 +1031,8 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
       return <ImageBody block={block} />;
 
     case "video":
-     // 동영상만 따로 — 원본은 여기서 `업로드 / 링크` 팝오버를 연다(docs/notion-video.md).
-     // bookmark·embed 는 URL 뿐이라 예전 경로 그대로 둔다.
+     // Video is separate — the original opens the `Upload / Link` popover here (docs/notion-video.md).
+     // bookmark and embed are URL-only, so they keep the old path.
       return (
         <VideoBody
           blockId={block.id}
@@ -1140,19 +1140,19 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
               className="flex-1 px-1.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
             />
           </div>
-          {/* 원본(2026-09-10 실측): 토글의 자식은 토글 텍스트와 같은 x — 박스에서 32px.
-              자식 자신의 들여쓰기는 이 래퍼를 기준(0)으로 다시 시작한다. 전에는 이미
-              패딩이 들어간 박스 안에서 (depth+1)*24 를 또 얹어 깊이마다 어긋났다. */}
+          {/* Original (measured 2026-09-10): a toggle's children sit at the same x as the toggle text — 32px from the box.
+              A child's own indent restarts from this wrapper (0). Before, we added (depth+1)*24 again inside a box
+              that already had padding, so every level drifted. */}
           {expanded && (
             <div className="ml-8">
               {children.length === 0 ? (
                 <button
                   data-testid="toggle-add-inside"
                   onClick={() => editor.addInsideToggle(block.id)}
- // 원본(2026-08-26 실측): 빈 토글의 안내 행은 40px — 문단 한 줄과 같은 키
+ // Original (measured 2026-08-26): an empty toggle's hint row is 40px — the same height as one paragraph line
                   className="ml-1 flex h-10 items-center rounded px-0.5 text-base text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  {t("빈 토글입니다. 클릭하거나 블록을 내부로 드래그하세요.")}
+                  {t("Empty toggle. Click or drag blocks inside.")}
                 </button>
               ) : (
                 children.map((c) => <BlockRow key={c.id} block={c} depth={depth + 1} indentPx={0} parentType={block.type} hasChildren={editor.blocks.some((x) => x.parentBlockId === c.id)} />)
@@ -1235,13 +1235,13 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
 
     default:
       return (
- // 원본(2026-08-26 실측): 리스트 항목 안에 중첩된 문단은 30 = 1 + 28 + 1
+ // Original (measured 2026-08-26): a paragraph nested in a list item is 30 = 1 + 28 + 1
         <div className={inList ? "w-full py-[1px]" : "w-full py-1.5"}>
           <Editable
             block={block}
  // one rule decides the empty line's hint, the dictionary decides the language:
  // the type menu open on this line → the filter hint, otherwise the usual one
-            placeholder={t(editor.slashBareBlockId === block.id ? "필터링 기준을 입력하세요." : "명령어는 '/'를 입력하세요.")}
+            placeholder={t(editor.slashBareBlockId === block.id ? "Type to filter…" : "Press '/' for commands")}
             bare={editor.slashBareBlockId === block.id}
             className="w-full px-0.5 py-0.5 text-base leading-6 text-neutral-800 dark:text-neutral-200"
           />

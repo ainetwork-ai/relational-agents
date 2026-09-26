@@ -14,7 +14,7 @@ export interface TimelineEvent {
   kind: string;
   /** YYYY-MM-DD; when absent the writer falls back to the message date. */
   date?: string;
-  /** short event title, e.g. "추석 전날 — 할머니 댁에서 송편 빚기" */
+  /** short event title, e.g. "Day before Chuseok — making songpyeon at grandma's" */
   title?: string;
 }
 

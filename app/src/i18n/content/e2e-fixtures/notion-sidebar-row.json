@@ -1,0 +1,10 @@
+{
+  "_source": "hovered the page row (Projects) in the app.notion.com sidebar, 2026-08-06. Read-only.",
+  "row": { "w": 239, "h": 30 },
+  "buttons": [
+    { "label": "열기", "role": "expand arrow — normally where the page icon sits", "size": 20, "icon": 12, "radius": "4px" },
+    { "label": "삭제, 복제 등…", "role": "⋯ menu", "size": 20, "icon": 16, "radius": "4px" },
+    { "label": "하위 페이지 추가", "role": "+", "size": 20, "icon": 16, "radius": "4px" }
+  ],
+  "absent": { "grip": "there is no six-dot (⠿) grip — reordering is done by dragging the row itself" }
+}

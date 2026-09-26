@@ -109,7 +109,7 @@ export async function runAsOrService<T>(userId: string | null | undefined, fn: (
 // ── pairing (device approval) ───────────────────────────────────────────────
 
 interface Pending {
-  /** who is connecting; null = a sign-in ("aindrive로 로그인") with no one yet */
+  /** who is connecting; null = a sign-in ("Sign in with aindrive") with no one yet */
   userId: string | null;
   server: string;
   linkId: string;
@@ -170,7 +170,7 @@ export interface AindriveIdentity {
 
 /** Stores `token` as the person's aindrive account, and records the aindrive
  *  identity on them (unless another account here already holds it), so a later
- *  "aindrive로 로그인" lands on this same account. */
+ *  "Sign in with aindrive" lands on this same account. */
 export async function saveAccount(userId: string, server: string, token: string, who: AindriveIdentity): Promise<AindriveAccount> {
   const row = {
     server,

@@ -1,0 +1,393 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects', 2026-08-27. Read-only: scrolling · one click on a comment badge · Escape.",
+  "_note": "In the table a row with comments gets an icon+count badge inside the title cell, right after the title. Clicking the badge opens that row page's comments in a popover anchored below the title cell. Not a side panel.",
+  "badge": {
+    "role": "button",
+    "ariaLabel": "Open comments",
+    "w": 33.56,
+    "h": 20,
+    "radius": "4px",
+    "padding": "0px 5px 0px 2px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "bgOpen": "rgba(33, 27, 23, 0.051)",
+    "fs": "12px",
+    "fw": "400",
+    "lineHeight": "14.4px",
+    "color": "rgb(44, 44, 43)",
+    "cursor": "pointer",
+    "gapAfterTitle": 5,
+    "icon": {
+      "size": 16,
+      "fill": "rgb(142, 139, 134)",
+      "marginInlineEnd": 3,
+      "viewBox": "0 0 16 16",
+      "name": "commentFilledSmall"
+    },
+    "hiddenWhenZero": true,
+    "rowH": 37
+  },
+  "popover": {
+    "w": 480,
+    "radius": "10px",
+    "bg": "rgb(255, 255, 255)",
+    "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+    "padding": "0px",
+    "insetTop": 14,
+    "insetLeft": 14
+  },
+  "comment": {
+    "avatar": {
+      "size": 24,
+      "radius": "100%"
+    },
+    "textColumnLeftInset": 46,
+    "author": {
+      "fs": "14px",
+      "fw": "500",
+      "color": "rgb(44, 44, 43)"
+    },
+    "date": {
+      "fs": "12px",
+      "fw": "400",
+      "color": "rgb(161, 158, 153)",
+      "gapAfterAuthor": 6
+    },
+    "body": {
+      "fs": "14px",
+      "fw": "400",
+      "color": "rgb(44, 44, 43)",
+      "lineHeight": "20px"
+    },
+    "mention": {
+      "fs": "14px",
+      "color": "rgb(125, 122, 117)"
+    },
+    "authorTopToBodyTop": 34.5,
+    "_derived": "The skeleton of one comment (values that came out the same in both the popover and inline): the name line is 24 high like the avatar (name 21 centered inside it, avatar top +1.5), the body right below it — body top = avatar top + 24. 16 between comments, so one step is 64.",
+    "authorTopFromAvatarTop": 1.5,
+    "bodyTopFromAvatarTop": 24,
+    "headerRowH": 24,
+    "gapBetweenComments": 16,
+    "pitch": 64,
+    "_anomaly": "Only the **first** comment in the popover had its body 12 lower (pitch 76). The other three and the three inline are all 24/64, so that 12 is treated as an exception, not the rule — the reason was not found."
+  },
+  "inline": {
+    "_source": "When a row page is opened (same for peek and full page). Not a side panel but inside the body, between the property band and the content.",
+    "container": {
+      "cls": "notion-page-view-discussion",
+      "overflowY": "visible",
+      "maxHeight": "none"
+    },
+    "_overflow": "No inner scroll. As comments grow the section just gets longer and the page scrolls.",
+    "avatarLeft": 0,
+    "textColumnLeftInset": 32,
+    "author": {
+      "fs": "14px",
+      "fw": "500",
+      "lh": "21px",
+      "color": "rgb(44, 44, 43)"
+    },
+    "date": {
+      "fs": "12px",
+      "fw": "400",
+      "lh": "16px",
+      "color": "rgb(161, 158, 153)"
+    },
+    "body": {
+      "fs": "14px",
+      "fw": "400",
+      "lh": "20px",
+      "color": "rgb(44, 44, 43)"
+    },
+    "avatarPitch": 64,
+    "composerButtons": [
+      {
+        "label": "파일 첨부",
+        "w": 24,
+        "h": 24,
+        "radius": "6px"
+      },
+      {
+        "label": "멘션하려는 사용자, 페이지, 날짜를 입력하세요.",
+        "w": 24,
+        "h": 24,
+        "radius": "6px"
+      },
+      {
+        "label": "댓글 보내기",
+        "w": 24,
+        "h": 24,
+        "radius": "6px"
+      }
+    ],
+    "composerButtonPitch": 30,
+    "_whichPagesHaveIt": "The comment section is only on **database row pages**. Four were compared on the original on 2026-08-27:",
+    "surfaces": [
+      {
+        "page": "행 페이지 · 댓글 있음",
+        "commentLabel": 1,
+        "discussion": 1,
+        "composer": 1
+      },
+      {
+        "page": "행 페이지 · 댓글 없음",
+        "commentLabel": 1,
+        "discussion": 1,
+        "composer": 1
+      },
+      {
+        "page": "풀페이지 데이터베이스(Projects)",
+        "commentLabel": 0,
+        "discussion": 0,
+        "composer": 0
+      },
+      {
+        "page": "일반 페이지(속성 없음)",
+        "commentLabel": 0,
+        "discussion": 0,
+        "composer": 0
+      }
+    ],
+    "_composerAlwaysThere": "Even with no comments the input UI is there from the start — my avatar + `Add a comment` + 3 buttons. The first measurement on 2026-08-27 misread it as 0 because it measured as soon as `.notion-frame` appeared, before the discussion attached. What is visible on screen is the reference.",
+    "emptyState": {
+      "discussionH": 47,
+      "innerPadding": "8px 4px 12px 0px",
+      "avatar": {
+        "x": 0,
+        "y": 8,
+        "size": 24
+      },
+      "input": {
+        "x": 29.5,
+        "y": 7.5,
+        "h": 27,
+        "padding": "2.5px",
+        "fs": "14px",
+        "lh": "20px",
+        "color": "rgb(44, 44, 43)",
+        "placeholder": "댓글 추가"
+      },
+      "buttonsY": 8,
+      "buttonsRightAligned": true,
+      "sendOpacityWhenEmpty": "0.4"
+    }
+  },
+  "collapse": {
+    "_source": "Counted by opening the 18 commented rows in the All Projects view one by one as peeks (2026-08-28). Comment counts were taken from the author profile links (a[href*='/profiles/']) — some comments have images in the body, so counting img is wrong.",
+    "rule": "Up to 3 all show; from 4 on only **the first and the last** stay and the rest fold into one line. The number on the line is always total − 2.",
+    "showAllUpTo": 3,
+    "shownWhenCollapsed": 2,
+    "hiddenIsTotalMinus": 2,
+    "label": "답글 {n}개 더 보기",
+    "observed": [
+      {
+        "total": 1,
+        "rendered": 1,
+        "hidden": 0
+      },
+      {
+        "total": 2,
+        "rendered": 2,
+        "hidden": 0
+      },
+      {
+        "total": 3,
+        "rendered": 3,
+        "hidden": 0
+      },
+      {
+        "total": 4,
+        "rendered": 2,
+        "hidden": 2
+      },
+      {
+        "total": 5,
+        "rendered": 2,
+        "hidden": 3
+      },
+      {
+        "total": 8,
+        "rendered": 2,
+        "hidden": 6
+      },
+      {
+        "total": 9,
+        "rendered": 2,
+        "hidden": 7
+      },
+      {
+        "total": 11,
+        "rendered": 2,
+        "hidden": 9
+      }
+    ],
+    "_samples": "1: 3 rows · 2: 4 rows · 3: 5 rows · 4/5/8/11: 1 row each · 9: 2 rows = all 18 rows",
+    "button": {
+      "x": 24,
+      "h": 28,
+      "gapAbove": 8,
+      "gapBelow": 8,
+      "fs": "14px",
+      "fw": "400",
+      "lh": "16.8px",
+      "color": "rgb(125, 122, 117)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "radius": "6px",
+      "cursor": "pointer"
+    },
+    "expand": "Clicking expands everything and the line disappears. No way to collapse again was found in the original — it is one-way.",
+    "unmeasured": [
+      "This collapsing is the rule for the **in-page comment section**. It does not apply to the popover opened by the table badge — the popover is a card and cannot grow like a page, so it shows everything and scrolls inside. The popover-side rule was never measured because CDP clicks did not open the popover of a long row.",
+      "The button's hover background — used rgba(33,27,23,0.051), same as elsewhere in the app",
+      "The English wording — the docs/en captures do not have this line"
+    ]
+  },
+  "clip": {
+    "_source": "Clicked the `Attach file` button in the original comment input row (2026-08-28). The file chooser was intercepted with CDP `Page.setInterceptFileChooserDialog` and nothing was picked — nothing was uploaded to the original.",
+    "opens": "The native file chooser. No menu in between.",
+    "fileChooserMode": "selectMultiple",
+    "inputAccept": null,
+    "inputMultiple": true,
+    "unmeasured": [
+      "How picked files stand in the input row before sending — picking a file makes Notion upload it right away, leaving traces in the original. Not done."
+    ],
+    "attachmentRendering": {
+      "_source": "Comments on the 0G proposal writing page (2026-08-28). Measured by opening comments that each had 3 images and xlsx·hwp·pdf·pptx·zip attached. inDiscussion=true — inside a comment, not the page body.",
+      "image": {
+        "_rule": "Boxed in 240×240. The longer side hits 240 and the ratio is kept — why a tall image does not stretch to its real size.",
+        "maxWidth": "240px",
+        "maxHeight": "240px",
+        "objectFit": "contain",
+        "borderRadius": "8px",
+        "observed": [
+          {
+            "natural": "512x180",
+            "rendered": "240x85.7"
+          },
+          {
+            "natural": "2048x2731",
+            "rendered": "180.5x240"
+          },
+          {
+            "natural": "1000x100",
+            "rendered": "240x48"
+          }
+        ],
+        "_note": "1000x100 coming out as 240x48 does not fit the ratio (240x24) — the images are transformed by Notion's CDN, so naturalWidth/Height are not the original dimensions. The box rule itself is the same for all three."
+      },
+      "file": {
+        "_rule": "No icon, border or background. Just two lines, name and size.",
+        "name": {
+          "fs": "14px",
+          "fw": "500",
+          "lh": "18px",
+          "color": "rgb(44, 44, 43)"
+        },
+        "size": {
+          "fs": "12px",
+          "fw": "400",
+          "lh": "15px",
+          "color": "rgb(125, 122, 117)"
+        },
+        "rowH": 33,
+        "icon": null,
+        "border": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px",
+        "sizeFormat": "binary units · 1 decimal — 12.7 KiB / 14.4 MiB / 65.8 MiB",
+        "observedTypes": [
+          "xlsx",
+          "hwp",
+          "pdf",
+          "pptx",
+          "zip"
+        ]
+      }
+    },
+    "ourDeviation": {
+      "_note": "Where we differ from the original — intended. Extensions are not blocked.",
+      "html": "html/htm/xhtml/svg/js/mjs attach with name·size·content all intact, but are stored on disk renamed to .txt. public/uploads is the same origin as ours, so as .html the <script> inside would run on our origin (stored XSS — even with an httpOnly session cookie the browser sends it along by itself, so it can act as that person). The link's download attribute hands it back under the original name, so the receiving experience is the same."
+    }
+  },
+  "mention": {
+    "_note": "Not a chip. Inline text with background·radius·padding all 0; only the @ glyph is fainter.",
+    "at": {
+      "color": "color(srgb 0.490196 0.478431 0.458824 / 0.6)"
+    },
+    "name": {
+      "color": "rgb(125, 122, 117)",
+      "fs": "14px",
+      "fw": "400",
+      "lh": "20px"
+    },
+    "bg": "rgba(0, 0, 0, 0)",
+    "radius": "0px",
+    "padding": "0px",
+    "avatarInText": false,
+    "canMention": "people · pages · dates (aria-label of the input row's @ button)"
+  },
+  "contents": {
+    "_note": "What goes into a comment — only what was confirmed in the original.",
+    "text": "The body is a contenteditable rich editor (one per comment).",
+    "mention": "Person mentions confirmed (@Bobae Jeon @DiDi). The input row says pages·dates are possible too.",
+    "attachment": "The input row has an `Attach file` button — images included.",
+    "authorLink": "The author name is an a tag to /profiles/..., body color with no underline.",
+    "unverified": [
+      "Whether URLs in the body auto-link — not seen, the original has no comment with a link",
+      "How a comment with an attached image is drawn — there is no such comment"
+    ]
+  },
+  "composer": {
+    "cls": "notion-discussion-input",
+    "h": 35,
+    "padding": "8px 16px 0px 16px",
+    "avatar": 24,
+    "placeholder": "댓글 추가",
+    "trailingButtons": [
+      "첨부",
+      "@",
+      "보내기"
+    ]
+  },
+  "rowsWithComments": [
+    {
+      "title": "조달청 나라장터 과제 탐색",
+      "n": 3
+    },
+    {
+      "title": "카카오페이 증권챗봇 디자인 맞추기",
+      "n": 1
+    },
+    {
+      "title": "객실예약 기획 및 UX",
+      "n": 1
+    },
+    {
+      "title": "소버린 AI 관련 아티클 시리즈 기획 및 홈페이지 게재",
+      "n": 4
+    },
+    {
+      "title": "AIN Telegram / Twitter 관리 7월",
+      "n": 2
+    },
+    {
+      "title": "S Pin 파트너쉽 PoC 비용 확보",
+      "n": 2
+    },
+    {
+      "title": "슬랙노션 Issue 관리 체계 도입 (Multica)",
+      "n": 3
+    },
+    {
+      "title": "[8월] 동아사이언스 UCP AP2 미국출장",
+      "n": 1
+    }
+  ],
+  "unmeasured": [
+    "How the popover is placed below the cell (flipping · screen edge handling)",
+    "Resolve·reply UI — not visible on either surface",
+    "Very many comments (5 or more) — the workspace maxes out at 4, so truncation·show-more was not seen. Inline did not truncate up to 4 and just grew",
+    "Max height of a long thread in the popover — the card cannot exceed the window, so we use an inner scroll at 420 (not a measured value)",
+    "Comment position on a plain page (not a database row) — only measured on row pages; matched assuming it uses the same section"
+  ]
+}

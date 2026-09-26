@@ -1,0 +1,97 @@
+{
+  "note": "2026-08-27 measured on the original (Projects row '조달청 나라장터 과제 탐색'), window 1200x900. Side peek and full page share the same property block: title → Show details toggle → pinned property band (TL·Assignee·End date·Evaluation) → comments → body. Measuring scripts: scratchpad/m-rowprops-{1,2,3,4}.mjs, results scratchpad/rowprops-*.json. The toggle is always visible in both peek and full page (re-measured 2026-08-27: right after opening, before hover, and after moving the mouse away, all y158.4, 28px; the band is 54 below the title = 4+28+12+10). The first reading of 'peek shows it only on hover' was a snapshot taken before the peek had finished drawing. Value cell height 30 (person 31), label 24, item min 80/max 200, gap 8. Clicking the Evaluation value opens a 300px menu at the value cell's top-left -1/-1, items 28px (292 wide).",
+  "tolerance": 2,
+  "peek": {
+    "width": 600,
+    "titleFontSize": 32,
+    "titleLineHeight": 38.4,
+    "insetL": 76,
+    "toggleHoverOnly": false
+  },
+  "full": {
+    "titleFontSize": 40,
+    "titleLineHeight": 48,
+    "contentWidth": 720,
+    "toggleHoverOnly": false
+  },
+  "toggle": {
+    "height": 28,
+    "fontSize": 14,
+    "color": "rgb(142, 139, 134)",
+    "paddingX": 8,
+    "radius": 6,
+    "gapBelowTitle": 4,
+    "gapToBand": 22
+  },
+  "band": {
+    "height": 55,
+    "gap": 8,
+    "itemMinWidth": 80,
+    "itemMaxWidth": 200,
+    "labelHeight": 24,
+    "valueHeight": 30,
+    "valuePadX": 6,
+    "valuePadY": 5,
+    "valueRadius": 4,
+    "labelFontSize": 13,
+    "labelWeight": 500,
+    "labelColor": "rgb(125, 122, 117)",
+    "labelPadX": 6,
+    "labelRadius": 6,
+    "iconSize": 14,
+    "iconScale": 1.2,
+    "emptyColor": "rgb(161, 158, 153)",
+    "emptyFontSize": 14,
+    "emptyLineHeight": 20,
+    "arrow": {
+      "size": 32,
+      "offsetY": 11.5,
+      "overhang": 4
+    },
+    "iconRenderedSize": 16.8
+  },
+  "comments": {
+    "gapAboveRow": 24,
+    "rowHeight": 24,
+    "fontSize": 13,
+    "weight": 500,
+    "color": "rgb(125, 122, 117)",
+    "textInsetX": 8,
+    "dividerBelowSection": true,
+    "contentPadTop": 8
+  },
+  "menu": {
+    "width": 300,
+    "offsetX": -1,
+    "offsetY": -1,
+    "radius": 6,
+    "itemHeight": 28,
+    "itemWidth": 292
+  },
+  "sidebar": {
+    "note": "On the full page, Show details opens a 385px panel on the window's right (notion-update-sidebar, 1px left border); the header 'Properties' 13px/500 grey sits 28px from the panel's left, y=47 (top bar 44 + 3). The body layout shrinks 930→545 and the column re-centres inside it (title 353).",
+    "width": 385,
+    "headerInsetX": 28,
+    "headerTop": 47,
+    "layoutShrinksBy": 385
+  },
+  "peekDetails": {
+    "note": "2026-08-27 Show details in the peek (windows 1000/1100/1200/1300/1400/1500/1800): a 280 panel + 1 divider appears on the right inside the peek and the peek widens to the left by as much, so the body column stays the same (564→844). Exception: at window 1200 it is 800 (= window-400, body 520) whether the remembered width is 564 or 600. At 1100 it is 844 (no cap) → read as a cap only when window-400 is 800 or more. The header 'Properties' is 28 from the panel's left, y 47.",
+    "panelWidth": 280,
+    "divider": 1,
+    "capMargin": 400,
+    "capMin": 800,
+    "headerInsetX": 28,
+    "headerTop": 47
+  },
+  "panelClose": {
+    "note": "2026-08-27 panel close: 24×24 button, 20px double chevron (arrowChevronDoubleForward) rgb(142,139,134), y=10 (inside the top bar). Peek: appears only while the panel (or the top bar) is hovered, first in the top bar's right group, radius 6. Full page: always visible, panel left +9, radius 9999. Clicking closes the panel and the toggle goes back to 'Show details'.",
+    "size": 24,
+    "iconSize": 20,
+    "color": "rgb(142, 139, 134)",
+    "top": 10,
+    "peekRadius": 6,
+    "fullRadius": 9999,
+    "fullInsetX": 9
+  }
+}

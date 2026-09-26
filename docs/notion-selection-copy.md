@@ -1,127 +1,135 @@
-# 노션 드래그 선택 · 복사 — 측정 (2026-09-09)
+# Notion drag selection · copy — measurements (2026-09-09)
 
-comcom 제보: "prod에서 드래그해서 ⌘C 하니까 복사가 안 되고, 드래그할 때 선택됨 표시도 노션과 다르다."
-원본을 CDP 로 **실제 마우스 드래그**해 잰 것. 읽기 전용(드래그·Escape·⌘C, 그리고 주입한
-`<textarea>` 에 ⌘V 로 클립보드를 읽음 — 노션 본문에는 아무것도 붙이지 않음). 잰 페이지:
-`Uncommon Gallery`(이미지 있음), `노션 Project Page 개발 문서`(단일 열 목록). 스크립트:
-세션 scratchpad `m9-select.mjs`, `m11-select.mjs`, `m12-A.mjs`; 원자료 `notion-selection-measure-*.json(l)`.
+Report from comcom: "On prod, dragging and pressing ⌘C doesn't copy anything, and the selected-state indication while dragging
+also differs from Notion." Measured on the original using **real mouse drags** via CDP. Read-only (drag, Escape, ⌘C, and reading
+the clipboard by ⌘V into an injected `<textarea>` — nothing was pasted into Notion content). Pages measured:
+`Uncommon Gallery` (has images), and a Korean-titled "Notion Project Page development docs" page (single-column list). Scripts:
+session scratchpad `m9-select.mjs`, `m11-select.mjs`, `m12-A.mjs`; raw data `notion-selection-measure-*.json(l)`.
 
-## 1. 선택 모델 — 두 가지 상태, 전환 조건
+## 1. Selection model — two states and the transition conditions
 
-| 시작 | 끌어간 곳 | 결과 상태 | 표시 |
+| start | dragged to | resulting state | indication |
 |---|---|---|---|
-| A 텍스트 안 | 같은 블록 안 | **텍스트 선택**(네이티브) | `::selection` `rgba(35,131,226,0.28)` |
-| B·C 텍스트 안 | 다른 텍스트 블록(2·3개) | **텍스트 선택이 블록을 넘어 이어짐** — 블록 선택으로 바뀌지 않음 | 같은 파란 텍스트 하이라이트, halo 없음 |
-| H 텍스트 안 | 마지막 블록을 지나 아래 여백까지 | 여전히 텍스트 선택 | 〃 |
-| D 텍스트 안 | **이미지(비텍스트 블록)에 닿음** | **블록 선택으로 전환** — 이미지를 품은 블록(부모 불릿)이 통째로 선택 | halo |
-| E 여백(본문 열 바깥) | 블록 위로 스윕(위→아래, 아래→위 둘 다) | **블록 선택**, 드래그 중 halo 가 실시간으로 늘어남. 러버밴드 사각형 요소는 **없음** | halo |
-| F 이미지 클릭 | — | 블록 선택 | halo |
-| G 텍스트에 캐럿 → Escape | — | halo 0. 복사하면 **페이지 전체**가 나옴(페이지 블록이 선택된 것으로 보임) — 확정 아님 | — |
+| A inside text | within the same block | **text selection** (native) | `::selection` `rgba(35,131,226,0.28)` |
+| B·C inside text | another text block (2–3 blocks) | **text selection continues across blocks** — does not switch to block selection | same blue text highlight, no halo |
+| H inside text | past the last block into the bottom margin | still text selection | same as above |
+| D inside text | **touches an image (non-text block)** | **switches to block selection** — the block containing the image (the parent bullet) is selected as a whole | halo |
+| E margin (outside the content column) | sweep over blocks (both top→bottom and bottom→top) | **block selection**; the halo grows live during the drag. There is **no** rubber-band rectangle element | halo |
+| F click on image | — | block selection | halo |
+| G caret in text → Escape | — | 0 halos. Copying yields **the whole page** (the page block appears to be selected) — not conclusive | — |
 
-- **핵심**: 텍스트에서 시작한 드래그는 텍스트 블록만 지나는 동안 **끝까지 텍스트 선택**이다.
-  블록 선택으로 넘어가는 건 (1) 비텍스트 블록에 닿을 때, (2) 여백에서 시작할 때, (3) 비텍스트 블록 클릭.
-- 우리 앱은 텍스트 드래그가 **다른 블록에 들어가는 순간 블록 선택으로 전환**한다(`block-editor.tsx`
-  `onEditorMouseDown`) — B·C·H 에서 노션과 다름.
+- **Key point**: a drag that starts in text remains a **text selection to the end** as long as it only passes over text blocks.
+  It switches to block selection only (1) when it touches a non-text block, (2) when it starts in the margin, (3) on clicking a
+  non-text block.
+- Our app **switches to block selection the moment a text drag enters another block** (`block-editor.tsx`
+  `onEditorMouseDown`) — differs from Notion in B·C·H.
 
-## 2. 블록 선택 표시(halo) — 계산된 스타일
+## 2. Block selection indication (halo) — computed styles
 
-`.notion-selectable-halo`(각 선택 블록 안에 절대 배치되는 오버레이):
+`.notion-selectable-halo` (an overlay absolutely positioned inside each selected block):
 
-| 속성 | 값 |
+| property | value |
 |---|---|
 | background | `rgba(35, 131, 226, 0.14)` |
 | border-radius | `4px` |
-| border / box-shadow | 없음 |
-| inset | 위 1–2px · 좌우 2px · 아래 1–2px (블록 유형별: 이미지 `2px`, 불릿 `1px 2px 2px`, 번호목록 `2px 2px 1px`) |
+| border / box-shadow | none |
+| inset | top 1–2px · left/right 2px · bottom 1–2px (by block type: image `2px`, bullet `1px 2px 2px`, numbered list `2px 2px 1px`) |
 
-우리 앱: `bg-blue-100/80 ring-1 ring-inset ring-blue-300/70` — 색·ring 둘 다 다름.
+Our app: `bg-blue-100/80 ring-1 ring-inset ring-blue-300/70` — both color and ring differ.
 
-텍스트 선택 색 `::selection`: `rgba(35, 131, 226, 0.28)` (우리 앱: 브라우저 기본).
+Text selection color `::selection`: `rgba(35, 131, 226, 0.28)` (our app: browser default).
 
-## 3. ⌘C 가 클립보드에 넣는 것
+## 3. What ⌘C puts on the clipboard
 
-| 상태 | `text/plain` | `text/html` | 내부 포맷 |
+| state | `text/plain` | `text/html` | internal format |
 |---|---|---|---|
-| A 한 블록 안 일부 텍스트 | 선택한 글자 그대로 | 글자 그대로(태그 없음) + `<!-- notionvc -->` | `text/_notion-text-production` `{blockType, editing, selection:{startIndex,endIndex}, action:"copy"}` |
-| B·C·H 블록을 넘는 텍스트 | **마크다운**: `### 제목`, `- 불릿`, `1. 번호`, 들여쓰기 4칸으로 자식 표현, 블록 사이 빈 줄 | 시맨틱 HTML: `<h3>`, `<ul><li>`, `<ol start="2">`, 링크 `<a href>` 유지, 중첩 `<ul>` | `text/_notion-multi-text-production` `{blockSelection:{blocks:[{blockId, blockSubtree…}]}}` (부분 텍스트 반영) |
-| D·E·F 블록 선택 | 마크다운, **자식 블록 포함**(들여쓰기), 이미지는 `!파일명` | 시맨틱 HTML, 이미지 `<p><img src alt></p>`, 중첩 리스트 | `text/_notion-blocks-v3-production` `{blocks:[{blockId, blockSubtree:{__version__:3, block:{…}}}]}` (자식 서브트리 포함) |
+| A partial text within one block | the selected characters as is | the characters as is (no tags) + `<!-- notionvc -->` | `text/_notion-text-production` `{blockType, editing, selection:{startIndex,endIndex}, action:"copy"}` |
+| B·C·H text spanning blocks | **Markdown**: `### Heading`, `- bullet`, `1. number`, children expressed by 4-space indentation, blank line between blocks | semantic HTML: `<h3>`, `<ul><li>`, `<ol start="2">`, links kept as `<a href>`, nested `<ul>` | `text/_notion-multi-text-production` `{blockSelection:{blocks:[{blockId, blockSubtree…}]}}` (reflects partial text) |
+| D·E·F block selection | Markdown, **including child blocks** (indented), images as `!filename` | semantic HTML, images `<p><img src alt></p>`, nested lists | `text/_notion-blocks-v3-production` `{blocks:[{blockId, blockSubtree:{__version__:3, block:{…}}}]}` (including child subtrees) |
 
-항상 함께: `text/_notion-page-source-production` `{id, table:"block", spaceId}`.
+Always included: `text/_notion-page-source-production` `{id, table:"block", spaceId}`.
 
-우리 앱: 블록 선택 상태에서 ⌘C 를 **처리하지 않는다**(선택 모드 키 처리는 화살표·Delete·⌘D·Escape 만,
-`block-editor.tsx` ~1834-1865). 선택 시 caret 을 blur 하므로 브라우저 기본 복사도 비어 있다 → 제보 그대로.
-붙여넣기 쪽은 이미 `text/_notion-blocks-*` 와 HTML 을 블록 트리로 받는다(`onPaste`).
+Our app: **does not handle** ⌘C in block-selection state (selection-mode key handling covers only arrows, Delete, ⌘D and Escape,
+`block-editor.tsx` ~1834-1865). Selection blurs the caret, so the browser's default copy is empty too → exactly as reported.
+The paste side already accepts `text/_notion-blocks-*` and HTML as a block tree (`onPaste`).
 
-## 4. 반영 (2026-09-09, `e2e/selection-copy.check.mjs` 로 시나리오별 검증)
+## 4. Applied (2026-09-09, verified per scenario with `e2e/selection-copy.check.mjs`)
 
-| 시나리오 | 노션(측정) | 우리 앱 — 반영 전 | 반영 후 |
+| scenario | Notion (measured) | our app — before | after |
 |---|---|---|---|
-| A 블록 안 텍스트 드래그 | 텍스트 선택, `::selection` 0.28 | 텍스트 선택, 색은 브라우저 기본 | 텍스트 선택, **0.28** |
-| B·C·H 블록을 넘는 텍스트 드래그 | 텍스트 선택 유지, 복사=마크다운+시맨틱 HTML | **블록 선택으로 전환**, ⌘C 무반응 | **텍스트 선택 유지**(첫 블록에 갇히지 않음), 복사=`1. …`/`<ol><li>`+내부 트리 |
-| D 텍스트 → 이미지 | 블록 선택(halo) | 블록 선택 후 mouseup 의 click 이 선택을 지움 | 블록 선택 유지, 복사에 이미지 포함 |
-| E 여백 마퀴 | 블록 선택, halo 실시간 | 여백은 에디터 밖이라 **텍스트 선택** | 블록 선택, halo |
-| F 이미지 클릭 | 블록 선택 | 아무 일 없음 | 블록 선택, 복사=`![](url)`/`<img>` |
-| halo | `rgba(35,131,226,0.14)` r4 ring 없음 | `bg-blue-100/80` + ring | **동일** |
-| ⌘C 블록 선택 | md + html + `_notion-blocks-v3` | 아무 것도 안 됨 | md + html + `text/_ainmem-blocks-v1`(붙여넣기가 먼저 읽음), ⌘X = 복사+삭제 |
-| 블록을 넘는 선택에 Backspace/타이핑 | 양끝 삭제 후 첫·끝 블록 병합 | 브라우저가 포커스 블록만 편집 | 병합(끝 블록에 자식 있으면 유지), ⌘Z 복원 |
+| A text drag within a block | text selection, `::selection` 0.28 | text selection, browser default color | text selection, **0.28** |
+| B·C·H text drag across blocks | stays text selection, copy = Markdown + semantic HTML | **switches to block selection**, ⌘C does nothing | **stays text selection** (not trapped in the first block), copy = `1. …`/`<ol><li>` + internal tree |
+| D text → image | block selection (halo) | block selection, then the click from mouseup clears it | block selection kept, copy includes the image |
+| E margin marquee | block selection, live halo | the margin is outside the editor, so **text selection** | block selection, halo |
+| F image click | block selection | nothing happens | block selection, copy = `![](url)`/`<img>` |
+| halo | `rgba(35,131,226,0.14)` r4, no ring | `bg-blue-100/80` + ring | **identical** |
+| ⌘C in block selection | md + html + `_notion-blocks-v3` | does nothing | md + html + `text/_ainmem-blocks-v1` (read first by paste), ⌘X = copy + delete |
+| Backspace/typing on a cross-block selection | delete both ends, then merge first and last blocks | browser edits only the focused block | merge (children of the last block are kept), ⌘Z restores |
 
-구현 메모:
-- **크롬은 드래그 선택을 시작한 editing host 안으로 제한**한다. 노션은 페이지 전체를 감싸는 `contenteditable`
-  (`div.whenContentEditable`)로 편집 루트를 하나로 만든다. 우리는 텍스트에서 시작한 press 동안만 에디터 루트에
-  `contenteditable=true` 를 주고 release 에 되돌린 뒤 leaf 에 포커스를 돌려준다(선택은 문서의 것이라 살아남음).
-- `Selection.containsNode`/`toString` 은 포커스 host 로 잘린다 — 블록을 넘는 선택은 `Range` 로 다룬다.
-- press 와 release 가 다른 행이면 브라우저가 공통 조상에 `click` 을 쏘고 행의 onClick 이 선택을 지우던 것을 삼킴.
-- 측정 안 한 것(그래서 단정하지 않은 것): 드래그 시작 임계 픽셀, Escape 의 정확한 의미(G 불확정), 러버밴드
-  시각 요소(관측상 없음). A 의 `text/html` 은 브라우저 기본(노션은 태그 없는 텍스트) — 그대로 둠.
+Implementation notes:
+- **Chrome restricts a drag selection to the editing host where it started.** Notion makes a single editing root with a
+  `contenteditable` that wraps the whole page (`div.whenContentEditable`). We set `contenteditable=true` on the editor root only
+  during a press that starts in text, revert it on release, and return focus to the leaf (the selection belongs to the document,
+  so it survives).
+- `Selection.containsNode`/`toString` are clipped to the focused host — cross-block selections are handled via `Range`.
+- When press and release are on different rows, the browser fires `click` on the common ancestor and the row's onClick used to
+  clear the selection; that click is now swallowed.
+- Not measured (and therefore not asserted): the pixel threshold for starting a drag, the exact meaning of Escape (G
+  inconclusive), a rubber-band visual element (none observed). A's `text/html` is the browser default (Notion's is untagged
+  text) — left as is.
 
-## 5. 선택 해제 규칙 (2026-09-09 실측, 최상위 텍스트 블록 2~3개를 여백 마퀴로 선택한 뒤)
+## 5. Deselection rules (measured 2026-09-09, after selecting 2–3 top-level text blocks with a margin marquee)
 
-comcom: "드래그 후 여백을 클릭하면 해제되어야 하는데 안 된다. 해제 범위의 정의가 중요하고, 여러 개 선택 후 한 개를
-클릭하면 그것만 선택될 수도 있다." 규칙 행렬을 세워 노션 원본에서 하나씩 실측(`m14-deselect.mjs`, `m15-halo-deselect.mjs`,
-원자료 `notion-deselect.jsonl`, `notion-halo-deselect.jsonl`).
+comcom: "After dragging, clicking the margin should deselect, but it doesn't. Defining the deselection scope matters, and after
+selecting several, clicking one might select only that one." We built a rule matrix and measured each on the Notion original
+(`m14-deselect.mjs`, `m15-halo-deselect.mjs`, raw data `notion-deselect.jsonl`, `notion-halo-deselect.jsonl`).
 
-| # | 동작 | 노션 | 우리 앱 — 반영 전 | 반영 후 |
+| # | action | Notion | our app — before | after |
 |---|---|---|---|---|
-| S1 | 왼쪽 여백 클릭 | **해제**, 그 줄 블록에 캐럿 | 유지(제보) | 해제 + 그 줄 블록 시작에 캐럿 |
-| S2 | 오른쪽 여백 클릭 | 해제, 그 줄 블록에 캐럿(≈1초 뒤) | 유지 | 해제 + 그 줄 블록 끝에 캐럿 |
-| S3 | 선택 안 된 블록 텍스트 클릭 | 해제, 거기 캐럿 | 같음 | 같음 |
-| S4 | **선택된** 블록 텍스트 클릭 | 해제, 거기 캐럿 ("그것만 선택"이 아님) | 같음 | 같음 |
-| S5 | 선택된 행의 텍스트 오른쪽 빈 곳 클릭 | 해제, 그 블록에 캐럿 | 같음 | 같음 |
-| S6 | Shift+클릭(다른 블록 텍스트) | 해제, 캐럿(범위 확장 없음) | 범위 확장 | 텍스트 위: 해제+캐럿. 패딩 위: 범위 확장 |
-| S7 | ⌘+클릭(다른 블록 텍스트) | 해제, 캐럿(토글 없음) | 해제 | 같음 |
-| S8 | Escape | 해제(캐럿 없음) | 같음 | 같음 |
-| S9 | ⌘+클릭(선택된 블록 텍스트) | 해제, 캐럿 | 같음 | 같음 |
-| S10 | 블록의 **텍스트 아닌 패딩** 클릭(블록 위 가장자리) | **그 블록만 단독 선택** | 해제 | 그 블록만 선택 |
-| S11 | 마지막 블록 아래 빈 곳 클릭 | 해제, 마지막 블록에 캐럿 | 유지 | 해제(+꼬리 문단 포커스) |
-| S12 | 선택된 블록의 ⠿ 거터 클릭 | **선택 유지** | 해제 | 유지(거터·핸들은 건드리지 않음) |
-| T1 | 블록 넘는 텍스트 선택 + 여백 클릭 | 선택 사라짐(캐럿 없음) | 선택 유지 | 사라짐 + 그 줄에 캐럿 |
-| T2 | 텍스트 선택 + 다른 텍스트 클릭 | 거기 캐럿 | 같음 | 같음 |
-| T3 | 텍스트 선택 + Escape | 캐럿으로 접힘(페이지 블록) | 블록 halo + 선택 잔존 | 선택 시작점 캐럿으로 접힘 |
-| G | 캐럿 상태에서 Escape | 그 블록 선택 | 같음 | 같음 |
-| ⌘A | 블록 선택 상태에서 ⌘A | 최상위 블록 전부 선택(자식은 부모 halo가 덮음) | — | (미구현) |
+| S1 | click left margin | **deselect**, caret in that line's block | kept (as reported) | deselect + caret at the start of that line's block |
+| S2 | click right margin | deselect, caret in that line's block (after ≈1 second) | kept | deselect + caret at the end of that line's block |
+| S3 | click text of an unselected block | deselect, caret there | same | same |
+| S4 | click text of a **selected** block | deselect, caret there (not "select only that one") | same | same |
+| S5 | click empty space right of a selected row's text | deselect, caret in that block | same | same |
+| S6 | Shift+click (text of another block) | deselect, caret (no range extension) | extends range | on text: deselect + caret. On padding: extend range |
+| S7 | ⌘+click (text of another block) | deselect, caret (no toggle) | deselect | same |
+| S8 | Escape | deselect (no caret) | same | same |
+| S9 | ⌘+click (text of a selected block) | deselect, caret | same | same |
+| S10 | click a block's **non-text padding** (top edge of the block) | **select only that block** | deselect | select only that block |
+| S11 | click empty space below the last block | deselect, caret in the last block | kept | deselect (+ focus the trailing paragraph) |
+| S12 | click the ⠿ gutter of a selected block | **selection kept** | deselect | kept (gutter and handle are left alone) |
+| T1 | cross-block text selection + click margin | selection disappears (no caret) | selection kept | disappears + caret on that line |
+| T2 | text selection + click other text | caret there | same | same |
+| T3 | text selection + Escape | collapses to caret (page block) | block halo + leftover selection | collapses to a caret at the selection start |
+| G | Escape in caret state | selects that block | same | same |
+| ⌘A | ⌘A in block-selection state | selects all top-level blocks (children covered by the parent halo) | — | (not implemented) |
 
-- 해제 범위의 정의: **텍스트를 클릭하면 어디든 해제**(수정자 무관), **여백·아래 빈 곳 클릭도 해제**. 유지되는 곳은 ⠿ 거터만.
-  "하나만 선택"은 텍스트가 아닌 **블록 패딩**을 클릭했을 때다.
-- 측정 함정 둘: (1) 크롬 백그라운드 탭은 rAF 가 멈춰 노션의 드래그 처리가 이벤트마다 수 초 지연된다 — `Page.bringToFront`
-  후 잴 것. (2) 마퀴 시작점이 우리 앱의 ⠿/+ 거터 버튼(블록 왼쪽 ~20–45px) 위면 드래그가 아니라 버튼이 눌린다 — 여백은 그 바깥.
+- Definition of the deselection scope: **clicking text anywhere deselects** (regardless of modifiers), and **clicking the margin or
+  the empty space below also deselects**. The only place where selection is kept is the ⠿ gutter.
+  "Select just one" happens when clicking a block's **padding**, not its text.
+- Two measurement pitfalls: (1) in a background Chrome tab rAF is paused, so Notion's drag handling lags several seconds per
+  event — measure after `Page.bringToFront`. (2) If the marquee starts over our app's ⠿/+ gutter buttons (~20–45px left of the
+  block), a button gets pressed instead of dragging — the margin is outside that.
 
-## 6. halo 기하 (2026-09-09, ⌘A 로 15개 블록 동시 측정 + 인접 2블록 정밀 측정)
+## 6. Halo geometry (2026-09-09, 15 blocks measured at once with ⌘A + precise measurement of 2 adjacent blocks)
 
-| 블록 | halo inset (top/left/right/bottom) | 인접 halo 사이 간격 |
+| block | halo inset (top/left/right/bottom) | gap between adjacent halos |
 |---|---|---|
-| text(문단) | 2 / 2 / 2 / 2 | text↔text **4px** |
+| text (paragraph) | 2 / 2 / 2 / 2 | text↔text **4px** |
 | bulleted_list | 1 / 2 / 2 / 1 | list↔list **2px** |
-| numbered_list | 1 / 2 / 2 / 1, 단 text 와 맞닿는 쪽은 2 | text↔list 4px |
+| numbered_list | 1 / 2 / 2 / 1, but 2 on the side touching text | text↔list 4px |
 
-블록 박스 720×40(텍스트 708 + 좌우 6) 안쪽에 절대 배치된 오버레이(`position:absolute; inset`), `rgba(35,131,226,0.14)`,
-radius 4px, border/shadow 없음, `pointer-events:none`, `z-index:81`, `transition: opacity .2s`. **선택된 부모의 자식은 halo 가
-없다**(부모 halo 가 서브트리를 덮음). 우리 앱은 행 전체를 배경색으로 칠해 인접 선택이 한 덩어리로 보였고, 자식 행마다
-halo 가 겹쳤다 → 오버레이(2px inset, 목록 1px 상하, 이웃 유형에 따라 2px)로 바꾸고 선택된 조상이 있으면 그리지 않음.
-검증 `e2e/deselect.check.mjs` (G·S1–S11·T1–T3).
+An overlay absolutely positioned inside the 720×40 block box (708 text + 6 left/right) (`position:absolute; inset`),
+`rgba(35,131,226,0.14)`, radius 4px, no border/shadow, `pointer-events:none`, `z-index:81`, `transition: opacity .2s`.
+**Children of a selected parent have no halo** (the parent halo covers the subtree). Our app painted the whole row with a
+background color, so adjacent selections looked like one lump, and halos overlapped on every child row → changed to an overlay
+(2px inset, 1px top/bottom for lists, 2px depending on neighbour type), not drawn when a selected ancestor exists.
+Verification: `e2e/deselect.check.mjs` (G·S1–S11·T1–T3).
 
-## 7. 재는 법
+## 7. How to measure
 
-- 노션: 골든셋 탭 하나에 `Input.setInterceptDrags` 켜고 마우스 이벤트로 드래그. **주의** — 페이지 로드 후 첫
-  1–2회 상호작용은 하이드레이션 전에 삼켜진다(A1·warmup 실패가 그것). 준비 대기(마우스 이벤트 왕복 <300ms) 후 잴 것.
-  큰 페이지에선 마우스 이벤트 1개가 ~5초 걸려 드래그 하나가 46–86초.
-- 우리 앱: `app/e2e/selection-copy.measure.mjs` 가 같은 시나리오를 dev 에서 재고 JSON 을 낸다.
+- Notion: in one golden-set tab, enable `Input.setInterceptDrags` and drag with mouse events. **Caution** — the first 1–2
+  interactions after page load are swallowed before hydration (that is what the A1 and warmup failures were). Wait until ready
+  (mouse-event round trip <300ms) before measuring. On large pages a single mouse event takes ~5 seconds, so one drag takes
+  46–86 seconds.
+- Our app: `app/e2e/selection-copy.measure.mjs` measures the same scenarios on dev and outputs JSON.

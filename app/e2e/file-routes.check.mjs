@@ -1,12 +1,12 @@
-// 프록시 라우트 — 바이트가 나가는 유일한 문.
+// Proxy routes — the only door bytes go out through.
 //
-// 이 두 갈래가 업로드 allowlist 의 html/svg 허용 **근거**다:
-//   download  언제나 Content-Disposition: attachment · 제네릭 타입
-//   stream    isStreamableMedia 를 통과한 미디어만 인라인, 나머지는 415
-// 여기가 무너지면 첨부된 html 이 우리 오리진 문서로 렌더돼 세션이 털린다.
+// These two branches are the **grounds** for allowing html/svg in the upload allowlist:
+//   download  always Content-Disposition: attachment · generic type
+//   stream    inline only for media that passes isStreamableMedia, 415 for the rest
+// If this breaks, an attached html renders as a document on our origin and the session is stolen.
 //
-// 접근 권한은 댓글 → 페이지를 따라간다. 남의 파일은 403 이 아니라 **404** 여야 한다
-// (존재를 알려주지 않는다).
+// Access follows comment → page. Someone else's file must be **404**, not 403
+// (existence is not revealed).
 //
 //   [BASE_URL=…] [ROW_PAGE_ID=…] [USER_ID=…] [OTHER_USER_ID=…] node e2e/file-routes.check.mjs
 
@@ -14,6 +14,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { sealData } from "iron-session";
 import { Client } from "pg";
+import { content } from "./i18n.mjs";
+
+const C = content.FILE_ROUTES;
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.ROW_PAGE_ID ?? "27b5c5e5-467c-4620-bde7-8d087e8a9875";
@@ -30,12 +33,12 @@ const { rows: hasTable } = await pg.query(
   "select 1 from information_schema.tables where table_name='files'"
 );
 if (!hasTable.length) {
-  console.error("\n  files 테이블이 없습니다 — 이 DB 에 스키마를 먼저 밀어주세요.\n");
+  console.error("\n  There is no files table — push the schema to this DB first.\n");
   await pg.end();
   process.exit(1);
 }
 
- // 실제 바이트를 디스크에 두고(이관 전 경로) 그것을 가리키는 files 행을 만든다
+ // put real bytes on disk (the pre-migration path) and make a files row pointing at them
 const dir = path.join(process.cwd(), "public", "uploads");
 fs.mkdirSync(dir, { recursive: true });
 const made = [];
@@ -52,7 +55,7 @@ async function addFile(name, bytes, mime, commentId) {
 
 const { rows: cRows } = await pg.query(
   "insert into comments (page_id, block_id, parent_id, author_id, body) values ($1,null,null,$2,$3) returning id",
-  [PAGE_ID, USER_ID, "첨부 라우트 검사"]
+  [PAGE_ID, USER_ID, C.commentBody]
 );
 const commentId = cRows[0].id;
 
@@ -71,50 +74,51 @@ const htmlId = await addFile(
 const get = (url) => fetch(`${BASE}${url}`, { headers: { cookie: `rm-session=${cookie}` }, redirect: "manual" });
 const d = [];
 
- // 1) download — 무엇이든 첨부로만
+ // 1) download — anything, only as an attachment
 for (const [label, id] of [["png", pngId], ["html", htmlId]]) {
   const r = await get(`/api/files/${id}/download`);
-  if (!r.ok) { d.push(`${label} download 가 ${r.status} 입니다`); continue; }
+  if (!r.ok) { d.push(`${label} download is ${r.status}`); continue; }
   const cd = r.headers.get("content-disposition") ?? "";
   const ct = r.headers.get("content-type") ?? "";
-  if (!/^attachment/.test(cd)) d.push(`${label} download 의 disposition 이 "${cd}" 입니다 — attachment 여야 합니다`);
-  if (/text\/html|image\/svg/.test(ct)) d.push(`${label} download 가 ${ct} 로 나갑니다 — 문서로 렌더될 수 있습니다`);
-  if ((r.headers.get("x-content-type-options") ?? "") !== "nosniff") d.push(`${label} download 에 nosniff 가 없습니다`);
+  if (!/^attachment/.test(cd)) d.push(`${label} download disposition is "${cd}" — it should be attachment`);
+  if (/text\/html|image\/svg/.test(ct)) d.push(`${label} download goes out as ${ct} — it could render as a document`);
+  if ((r.headers.get("x-content-type-options") ?? "") !== "nosniff") d.push(`${label} download has no nosniff`);
 }
 
- // 2) stream — 미디어만
+ // 2) stream — media only
 const sPng = await get(`/api/files/${pngId}/stream`);
-if (!sPng.ok) d.push(`png stream 이 ${sPng.status} 입니다 — 이미지는 인라인이어야 합니다`);
+if (!sPng.ok) d.push(`png stream is ${sPng.status} — images must be inline`);
 else {
-  if ((sPng.headers.get("content-type") ?? "") !== "image/png") d.push(`png stream 의 타입이 ${sPng.headers.get("content-type")} 입니다`);
-  if ((sPng.headers.get("content-disposition") ?? "") !== "inline") d.push("png stream 이 inline 이 아닙니다");
+  if ((sPng.headers.get("content-type") ?? "") !== "image/png") d.push(`png stream type is ${sPng.headers.get("content-type")}`);
+  if ((sPng.headers.get("content-disposition") ?? "") !== "inline") d.push("png stream is not inline");
 }
 const sHtml = await get(`/api/files/${htmlId}/stream`);
 if (sHtml.status !== 415)
-  d.push(`html stream 이 ${sHtml.status} 입니다 — 415 여야 합니다. 인라인으로 나가면 우리 오리진에서 실행됩니다`);
+  d.push(`html stream is ${sHtml.status} — it should be 415. Served inline, it runs on our origin`);
 
- // 3) 없는 id, 그리고 로그인 안 한 요청
+ // 3) a missing id, and a request without login
 const missing = await get(`/api/files/${crypto.randomUUID()}/download`);
-if (missing.status !== 404) d.push(`없는 파일이 ${missing.status} 입니다 — 404 여야 합니다`);
+if (missing.status !== 404) d.push(`a missing file is ${missing.status} — it should be 404`);
 const anon = await fetch(`${BASE}/api/files/${pngId}/download`, { redirect: "manual" });
-if (anon.status < 400) d.push(`비로그인 요청이 ${anon.status} 로 통과했습니다`);
+if (anon.status < 400) d.push(`a logged-out request got through with ${anon.status}`);
 
- // 4) 댓글을 지우면 파일 행도 같이 간다 (고아 판정을 한 쿼리로 하려는 이유)
+ // 4) deleting the comment takes the file rows with it (so orphans can be found in one query)
 await pg.query("delete from comments where id=$1", [commentId]);
 const { rows: left } = await pg.query("select count(*)::int n from files where comment_id=$1", [commentId]);
-if (left[0].n !== 0) d.push(`댓글을 지웠는데 files 행이 ${left[0].n}개 남았습니다 — cascade 가 걸려 있어야 합니다`);
+if (left[0].n !== 0) d.push(`the comment was deleted but ${left[0].n} files rows remain — there should be a cascade`);
 const after = await get(`/api/files/${pngId}/download`);
-if (after.status !== 404) d.push(`행이 사라졌는데 여전히 ${after.status} 로 받아집니다`);
+if (after.status !== 404) d.push(`the row is gone but it still downloads with ${after.status}`);
 
 await pg.end();
 for (const f of made) fs.rmSync(f, { force: true });
 
 if (d.length) {
-  console.error("\n  ┌─ 파일 프록시 라우트가 계약과 다릅니다 ────────────────────");
+  console.error("\n  ┌─ The file proxy routes differ from the contract ─────────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 이 계약이 allowed-types 의 html/svg 허용 근거입니다");
+  console.error("  │ This contract is the grounds for allowing html/svg in allowed-types");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("프록시 라우트 OK — download 는 언제나 attachment, stream 은 미디어만(html 415), 비로그인·없는 id 는 404, 댓글 삭제 시 cascade");
+console.log("proxy routes OK — download is always attachment, stream is media only (html 415), logged-out/missing id is 404, cascade on comment delete");
+

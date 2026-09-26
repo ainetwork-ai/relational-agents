@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   listPages,
@@ -39,6 +39,13 @@ import {
   type AindriveLink,
 } from "@/lib/aindrive";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
+import { canSeeGift, findGift, giftValid, type GiftContent } from "@/lib/gift";
+import { blocks as blockRows, pages as pageRows } from "@/lib/db/schema";
+import { announceGift } from "@/lib/gift-announce";
+import { A2UI_META_KEY, A2UI_MIME, actionToGift, parseA2uiAction } from "@/lib/x402/a2ui";
+import { payGift } from "@/lib/x402/pay";
+import { giftSurfaceFor, giftSurfaceInput } from "@/lib/x402/surface";
+import { getT } from "@/i18n/server";
 import { db } from "@/lib/db";
 import {
   agentAccessTokens,
@@ -881,6 +888,88 @@ const handler = createMcpHandler(
         }
       }
     );
+
+    // ── gifts behind x402 (lib/x402) ─────────────────────────────────────
+    // Each result carries the gift's A2UI surface in _meta (UI-only) and as an
+    // application/a2ui+json resource, the way aindrive's tools do, so one
+    // renderer (aindrive's MCP Apps view, CopilotKit) draws both. A click on
+    // the surface comes back as a2ui_action — the same tool aindrive offers.
+    const withSurface = (text: string, structured: Record<string, unknown>, surface: unknown, surfaceId: string) => ({
+      content: [
+        { type: "text" as const, text },
+        { type: "resource" as const, resource: { uri: `a2ui://ainmem/${surfaceId}`, mimeType: A2UI_MIME, text: JSON.stringify(surface) } },
+      ],
+      structuredContent: structured,
+      _meta: { [A2UI_META_KEY]: surface },
+    });
+    server.tool(
+      "list_gifts",
+      "Gifts behind x402 in the caller's workspace — files their makers keep unshared, opened by paying pocket money to them. Each carries its A2UI surface.",
+      {},
+      async () => {
+        const me = currentUserId();
+        if (!me) return err("sign in first");
+        const rows = await db
+          .select({ content: blockRows.content, pageId: blockRows.pageId, workspaceId: pageRows.workspaceId })
+          .from(blockRows)
+          .innerJoin(pageRows, eq(pageRows.id, blockRows.pageId))
+          .where(sql`${blockRows.content}->'gift' is not null`);
+        const gifts: { gift: GiftContent; pageId: string }[] = [];
+        for (const r of rows) {
+          const g = (r.content as { gift?: unknown }).gift;
+          if (giftValid(g) && (await canSeeGift(me, r.workspaceId))) gifts.push({ gift: g, pageId: r.pageId });
+        }
+        const out = [];
+        for (const g of gifts) out.push({ ...(await giftSurfaceInput(g.gift, me)), pageId: g.pageId });
+        return json({ gifts: out });
+      }
+    );
+    server.tool(
+      "gift_surface",
+      "One gift as an A2UI v0.9 surface (locked: preview + pay button; open: the video + receipt), as the caller sees it.",
+      { gift_id: z.string() },
+      async ({ gift_id }) => {
+        const me = currentUserId();
+        if (!me) return err("sign in first");
+        const surface = await giftSurfaceFor(gift_id, me, await getT());
+        if (!surface) return err("gift not found");
+        return withSurface(`gift ${gift_id}`, { gift_id }, surface, `ainmem-gift-${gift_id}`);
+      }
+    );
+    server.tool(
+      "pay_gift",
+      "Pay for a gift over x402 as the caller (402 → sign with their wallet → settle → unlock) and return the opened surface.",
+      { gift_id: z.string() },
+      async ({ gift_id }) => payAsCaller(gift_id)
+    );
+    server.tool(
+      "a2ui_action",
+      "Handle an A2UI user action from an ainmem surface (a button click in the rendered UI). Pass the renderer's action object; returns the next surface.",
+      { action: z.object({}).passthrough() },
+      async ({ action }) => {
+        const a = parseA2uiAction(action);
+        const want = a ? actionToGift(a) : { error: "missing action" };
+        if ("error" in want) return err(want.error);
+        return payAsCaller(want.giftId);
+      }
+    );
+    async function payAsCaller(giftId: string) {
+      const me = currentUserId();
+      if (!me) return err("sign in first");
+      const found = await findGift(giftId);
+      if (!found || !(await canSeeGift(me, found.workspaceId))) return err("gift not found");
+      const surfaceId = `ainmem-gift-${giftId}`;
+      if (found.gift.spec.recipientUserId === me) {
+        const s = await giftSurfaceFor(giftId, me, await getT(), "You can watch your own video without pocket money");
+        return withSurface("your own gift — no payment needed", { gift_id: giftId, unlocked: true }, s, surfaceId);
+      }
+      const r = await payGift(me, giftId);
+      if (r.ok && !r.already) await announceGift(found.workspaceId, me, r.spec, r.receipt).catch(() => {});
+      const s = await giftSurfaceFor(giftId, me, await getT(), r.ok ? undefined : r.error);
+      return r.ok
+        ? withSurface(`paid over x402 (${r.settlement ?? "settled"}) · receipt ${r.receipt}`, { gift_id: giftId, unlocked: true, receipt: r.receipt, settlement: r.settlement ?? null }, s, surfaceId)
+        : { ...withSurface(`not paid: ${r.error}`, { gift_id: giftId, unlocked: false, error: r.error }, s, surfaceId), isError: true };
+    }
   },
   {},
   {

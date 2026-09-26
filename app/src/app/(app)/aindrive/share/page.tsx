@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AindriveShare } from "@/components/aindrive/aindrive-share";
 
-/** The step after "aindrive로 로그인" (and sidebar → aindrive → 팀과 공유):
+/** The step after "Sign in with aindrive" (and sidebar → aindrive → Share with team):
  *  pick which of your aindrive folders the team sees, then go on. */
 export default function AindriveSharePage() {
   return (

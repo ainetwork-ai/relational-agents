@@ -1,9 +1,0 @@
-{
-  "measuredAt": "2026-08-27",
-  "source": "app.notion.com Projects, .notion-sidebar-container / .notion-frame",
-  "viewport": { "w": 1728, "h": 992 },
-  "width": 270,
-  "x": 0,
-  "frameStartsAt": 270,
-  "note": "노션은 이 폭을 localStorage `KeyValueStore2:sidebar` 에 {expanded,width} 로 들고 있고, 재던 날 값이 270 이었다. 폭이 접힘 상태를 겸하지 않는다 — 접기는 expanded 플래그가 따로 한다."
-}

@@ -15,7 +15,7 @@ import { CommentRow, CommentComposer } from "./comment-thread";
  * (e2e/fixtures/notion-row-comments.json — popover / comment / composer)
  *
  * Not the side panel we had. The panel is a different surface with a header,
- * bordered thread cards and 해결 buttons; the original shows none of that
+ * bordered thread cards and Resolve buttons; the original shows none of that
  * here — just avatar, name, date, body, repeated.
  */
 export function RowCommentPopover({
@@ -64,7 +64,7 @@ export function RowCommentPopover({
           — the badge would not open under CDP on a row long enough to tell. */}
       <div className="max-h-[420px] overflow-y-auto px-[14px] pt-[14px]">
         {comments.length === 0 && (
-          <p className="pb-3 text-[14px] text-neutral-400">{t("아직 댓글이 없습니다.")}</p>
+          <p className="pb-3 text-[14px] text-neutral-400">{t("No comments yet.")}</p>
         )}
         {comments.map((c) => (
           <CommentRow key={c.id} comment={c} pageId={pageId} />

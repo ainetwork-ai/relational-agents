@@ -1,44 +1,46 @@
-// 기본 블록의 세로 여백·간격, 헤딩 상단 여백, 거터(+/6점) 위치, 6점 클릭 하이라이트
-// 면적을 원본 수치(fixtures/notion-block-spacing.json)와 대조한다.
+// Compares basic blocks' vertical padding/gaps, heading top margin, gutter (+/6-dot) position, and the
+// 6-dot click highlight area with the original's numbers (src/i18n/content/e2e-fixtures/notion-block-spacing.json).
 //
-// 스스로 페이지를 만들고(POST /api/pages + PUT blocks) 재고 나서 보관함으로 보낸다.
-// 블록 시퀀스는 이웃 관계를 일부러 섞는다 — 리스트 첫 항목 규칙(앞이 리스트류가
-// 아닐 때만 상단 6px)은 이웃이 있어야 잴 수 있다. 각 블록마다 박스 4 + gap 1 +
-// 거터 4 + 하이라이트 4 = 13 체크, 헤딩은 타이포 3 체크가 더 붙는다.
+// Creates its own page (POST /api/pages + PUT blocks), measures, then sends it to the archive.
+// The block sequence mixes neighbors on purpose — the first-list-item rule (6px on top only when the
+// previous block is not list-like) can only be measured with neighbors. Per block: box 4 + gap 1 +
+// gutter 4 + highlight 4 = 13 checks; headings get 3 more typography checks.
 //
 //   [BASE_URL=http://localhost:3110] [USER_ID=…] node e2e/block-spacing.check.mjs
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { content } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-block-spacing.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-block-spacing.json", import.meta.url), "utf8"));
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
 const H = { cookie: `rm-session=${cookie}`, "content-type": "application/json" };
 
+const C = content.BLOCK_SPACING;
 const LIST = new Set(["bulleted_list", "numbered_list", "todo", "toggle"]);
 const SEQ = [
-  ["paragraph", "텍스트"], ["heading1", "제목1"], ["paragraph", "텍스트"], ["heading2", "제목2"],
-  ["paragraph", "텍스트"], ["heading3", "제목3"], ["paragraph", "텍스트"], ["heading1", "제목1"],
-  ["heading2", "제목2"], ["heading3", "제목3"], ["bulleted_list", "글머리1"], ["bulleted_list", "글머리2"],
-  ["numbered_list", "번호1"], ["numbered_list", "번호2"], ["todo", "할일1"], ["todo", "할일2"],
-  ["toggle", "토글"], ["quote", "인용"], ["paragraph", "텍스트"], ["bulleted_list", "글머리"],
-  ["toggle", "토글"], ["paragraph", "텍스트"], ["toggle", "토글"], ["quote", "인용"],
-  ["numbered_list", "번호"], ["heading2", "제목2"], ["todo", "할일"], ["heading1", "제목1"],
-  ["bulleted_list", "글머리"], ["quote", "인용"],
-  ["divider", ""], ["paragraph", "텍스트"], ["code", "code"], ["callout", "콜아웃"], ["paragraph", "텍스트"],
+  ["paragraph", C.text], ["heading1", C.heading1], ["paragraph", C.text], ["heading2", C.heading2],
+  ["paragraph", C.text], ["heading3", C.heading3], ["paragraph", C.text], ["heading1", C.heading1],
+  ["heading2", C.heading2], ["heading3", C.heading3], ["bulleted_list", C.bullet1], ["bulleted_list", C.bullet2],
+  ["numbered_list", C.number1], ["numbered_list", C.number2], ["todo", C.todo1], ["todo", C.todo2],
+  ["toggle", C.toggle], ["quote", C.quote], ["paragraph", C.text], ["bulleted_list", C.bullet],
+  ["toggle", C.toggle], ["paragraph", C.text], ["toggle", C.toggle], ["quote", C.quote],
+  ["numbered_list", C.number], ["heading2", C.heading2], ["todo", C.todo], ["heading1", C.heading1],
+  ["bulleted_list", C.bullet], ["quote", C.quote],
+  ["divider", ""], ["paragraph", C.text], ["code", "code"], ["callout", C.callout], ["paragraph", C.text],
 ];
 const uuid = () => crypto.randomUUID();
 const created = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: "block-spacing.check" }) }).then((r) => r.json());
 const pageId = created.page?.id ?? created.id;
-if (!pageId) { console.error("페이지를 못 만들었습니다:", created); process.exit(1); }
+if (!pageId) { console.error("Could not create the page:", created); process.exit(1); }
 const blocks = SEQ.map(([type, text], i) => ({ id: uuid(), type, content: type === "todo" ? { text, checked: false } : type === "toggle" ? { text, expanded: true } : type === "code" ? { text, language: "plain" } : type === "callout" ? { text, icon: "💡" } : type === "divider" ? {} : { text }, parentBlockId: null, position: i + 1 }));
-for (const b of blocks) if (b.type === "toggle") blocks.push({ id: uuid(), type: "paragraph", content: { text: "안" }, parentBlockId: b.id, position: 1 });
+for (const b of blocks) if (b.type === "toggle") blocks.push({ id: uuid(), type: "paragraph", content: { text: C.toggleChild }, parentBlockId: b.id, position: 1 });
 const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { method: "PUT", headers: H, body: JSON.stringify({ blocks, deletedIds: [], newIds: blocks.map((b) => b.id) }) });
-if (!put.ok) { console.error("블록 저장 실패:", put.status, await put.text()); process.exit(1); }
+if (!put.ok) { console.error("Saving blocks failed:", put.status, await put.text()); process.exit(1); }
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -85,7 +87,7 @@ for (const [i, b] of tops.entries()) {
   }
   if (m.prevBottom != null) eq(`${tag} gap from prev`, m.top - m.prevBottom, G.gap);
   if (G.type[b.type]) { const t = G.type[b.type]; eq(`${tag} font-size`, m.fs, t.fontSize); eq(`${tag} line-height`, m.lh, t.lineHeight); eq(`${tag} font-weight`, m.fw, t.fontWeight); }
- // 거터: hover → +와 6점의 위치/크기
+ // gutter: hover → position/size of + and the 6-dot
   await page.locator(sel).hover({ position: { x: 80, y: 6 } }); await page.waitForTimeout(120);
   const grip = await page.locator(`[data-testid="block-handle-${b.id}"]`).boundingBox();
   const plus = await page.locator(`[data-testid="block-add-below-${b.id}"]`).boundingBox();
@@ -94,7 +96,7 @@ for (const [i, b] of tops.entries()) {
     eq(`${tag} grip dx`, grip.x - m.left, G.gutter.grip.dx); eq(`${tag} grip dy`, grip.y - m.top, G.gutter.dy[role]);
     eq(`${tag} grip size`, `${grip.width}x${grip.height}`, `${G.gutter.grip.w}x${G.gutter.grip.h}`);
     eq(`${tag} plus dx`, plus.x - m.left, G.gutter.plus.dx);
- // 6점 클릭 → 하이라이트 면적
+ // 6-dot click → highlight area
     await page.locator(`[data-testid="block-handle-${b.id}"]`).click(); await page.waitForTimeout(150);
     const halo = await page.evaluate((sel) => { const el = document.querySelector(sel); const h = el.querySelector('[data-testid^="block-halo-"]'); if (!h) return null; const r = el.getBoundingClientRect(); const hr = h.getBoundingClientRect(); const s = getComputedStyle(h); return { t: hr.top - r.top, b: r.bottom - hr.bottom, l: hr.left - r.left, rr: r.right - hr.right, bg: s.backgroundColor, radius: s.borderRadius }; }, sel);
     if (!halo) fails.push(`${tag}: no halo on grip click`);
@@ -111,10 +113,10 @@ await browser.close();
 await fetch(`${BASE}/api/pages/${pageId}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 
 if (fails.length) {
-  console.log(`  ┌─ 블록 여백/거터/하이라이트가 원본과 다릅니다 (${fails.length}/${checks}) ─────`);
+  console.log(`  ┌─ block spacing/gutter/highlight differs from the original (${fails.length}/${checks}) ─────`);
   for (const f of fails.slice(0, 40)) console.log(`  │ ${f}`);
   if (fails.length > 40) console.log(`  │ … ${fails.length - 40} more`);
   console.log("  └────────────────────────────────────────────────");
   process.exit(1);
 }
-console.log(`블록 여백·헤딩 상단 여백·거터·하이라이트 원본과 일치 — ${checks}개 체크, ${tops.length}개 블록`);
+console.log(`block spacing, heading top margin, gutter and highlight match the original — ${checks} checks, ${tops.length} blocks`);

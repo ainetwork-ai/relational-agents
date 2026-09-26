@@ -58,7 +58,7 @@ import { DbCtx, useDb, type DbApi } from "./db-context";
 /** One row of the view tab's menu, in the original's proportions: a 28px row
  *  inset 4px from the panel edge, 8px inner padding, 6px radius, a 20px icon
  *  slot and a 14px label. `soon` marks what this app cannot do yet — rendered
- *  disabled with the reason as the tooltip, like the 시작하기 row. */
+ *  disabled with the reason as the tooltip, like the Get started row. */
 function TabMenuItem({
   testid,
   icon,
@@ -123,8 +123,8 @@ function DbExpandButton({ databaseId }: { databaseId: string }) {
     <button
       data-testid="db-open-fullpage"
       onClick={() => void openFullPage()}
-      aria-label={t("전체 페이지로 열기")}
-      data-tip={t("전체 페이지로 열기")}
+      aria-label={t("Open as full page")}
+      data-tip={t("Open as full page")}
       className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
     >
       <Maximize size={14} />
@@ -154,12 +154,12 @@ function DbSourceControls() {
           onClick={() => setPickerOpen((v) => !v)}
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <LinkIcon size={12} /> {t("연결")}
+          <LinkIcon size={12} /> {t("Connect")}
         </button>
         {pickerOpen && (
           <div className="popover-anim absolute right-0 top-8 z-40 max-h-56 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
             <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400">
-              {t("데이터베이스 연결")}
+              {t("Connect database")}
             </p>
             {db.allDatabases.map((d) => (
               <button
@@ -168,7 +168,7 @@ function DbSourceControls() {
                 onClick={() => void linkDb(d.id)}
                 className="w-full truncate rounded px-2 py-1 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
               >
-                {d.title || t("제목 없음")}
+                {d.title || t("Untitled")}
               </button>
             ))}
           </div>
@@ -194,7 +194,7 @@ function TemplateMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
       >
-        <Plus size={12} /> {t("템플릿")}
+        <Plus size={12} /> {t("Templates")}
       </button>
       {open && (
         <div
@@ -202,7 +202,7 @@ function TemplateMenu() {
           className="popover-anim absolute right-0 top-8 z-40 w-64 rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
         >
           {templates.length === 0 && (
-            <p className="px-2 py-1 text-xs text-neutral-400">{t("템플릿이 아직 없습니다")}</p>
+            <p className="px-2 py-1 text-xs text-neutral-400">{t("No templates yet")}</p>
           )}
           {templates.map((tpl) => (
             <div
@@ -214,7 +214,7 @@ function TemplateMenu() {
                 <input
                   data-testid={`db-cell-${tpl.id}-${titleProp.id}`}
                   defaultValue={String(tpl.values[titleProp.id] ?? "")}
-                  placeholder={t("템플릿 이름")}
+                  placeholder={t("Template name")}
                   onBlur={(e) => db.updateRow(tpl.id, { [titleProp.id]: e.target.value })}
                   className="min-w-0 flex-1 rounded border border-neutral-200 bg-transparent px-1.5 py-1 text-xs outline-none dark:border-neutral-600 dark:text-neutral-200"
                 />
@@ -230,14 +230,14 @@ function TemplateMenu() {
                     db.updateRow(other.id, { __default: null });
                   db.updateRow(tpl.id, { __default: making ? true : null });
                 }}
-                title={t("새 행의 기본 템플릿으로 사용")}
+                title={t("Set as default template for new rows")}
                 className={`shrink-0 rounded px-1.5 py-1 text-xs ${
                   tpl.values.__default
                     ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"
                     : "text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 }`}
               >
-                {t("기본")}
+                {t("Default")}
               </button>
               <button
                 data-testid={`db-add-row-template-${tpl.id}`}
@@ -249,7 +249,7 @@ function TemplateMenu() {
                 }}
                 className="shrink-0 rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white hover:bg-blue-600"
               >
-                {t("사용")}
+                {t("Use")}
               </button>
             </div>
           ))}
@@ -258,7 +258,7 @@ function TemplateMenu() {
             onClick={() => void db.addRow({ __template: true })}
             className="mt-1 flex w-full items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> {t("새 템플릿")}
+            <Plus size={12} /> {t("New template")}
           </button>
         </div>
       )}
@@ -267,38 +267,38 @@ function TemplateMenu() {
 }
 
 export const PROP_TYPES: { type: PropertyType; label: string }[] = [
-  { type: "text", label: "텍스트" },
-  { type: "number", label: "숫자" },
-  { type: "select", label: "선택" },
-  { type: "multi_select", label: "다중 선택" },
-  { type: "status", label: "상태" },
-  { type: "date", label: "날짜" },
-  { type: "person", label: "사람" },
-  { type: "checkbox", label: "체크박스" },
+  { type: "text", label: "Text" },
+  { type: "number", label: "Number" },
+  { type: "select", label: "Select" },
+  { type: "multi_select", label: "Multi-select" },
+  { type: "status", label: "Status" },
+  { type: "date", label: "Date" },
+  { type: "person", label: "Person" },
+  { type: "checkbox", label: "Checkbox" },
   { type: "url", label: "URL" },
-  { type: "relation", label: "관계형" },
-  { type: "formula", label: "수식" },
-  { type: "rollup", label: "롤업" },
-  { type: "email", label: "이메일" },
-  { type: "phone", label: "전화번호" },
-  { type: "files", label: "파일과 미디어" },
-  { type: "created_time", label: "생성 일시" },
-  { type: "last_edited_time", label: "최종 편집 일시" },
-  { type: "created_by", label: "생성자" },
-  { type: "last_edited_by", label: "최종 편집자" },
+  { type: "relation", label: "Relational" },
+  { type: "formula", label: "Formula" },
+  { type: "rollup", label: "Rollup" },
+  { type: "email", label: "Email" },
+  { type: "phone", label: "Phone" },
+  { type: "files", label: "Files & media" },
+  { type: "created_time", label: "Created time" },
+  { type: "last_edited_time", label: "Last edited time" },
+  { type: "created_by", label: "Created by" },
+  { type: "last_edited_by", label: "Last edited by" },
 ];
 
 /** the Add-view list's labels, by view type (display only — the type string
  *  itself is what gets stored) */
 const VIEW_TYPE_LABEL: Record<string, string> = {
-  table: "표",
-  board: "보드",
-  list: "리스트",
-  gallery: "갤러리",
-  calendar: "캘린더",
-  timeline: "타임라인",
-  chart: "차트",
-  dashboard: "대시보드",
+  table: "Table",
+  board: "Board",
+  list: "List",
+  gallery: "Gallery",
+  calendar: "Calendar",
+  timeline: "Timeline",
+  chart: "Chart",
+  dashboard: "Dashboard",
 };
 
 export function DatabaseBlock({
@@ -352,7 +352,7 @@ export function DatabaseBlock({
   const [addViewOpen, setAddViewOpen] = useState(false);
   const addViewBtn = useRef<HTMLButtonElement>(null);
   const addViewPop = useRef<HTMLDivElement>(null);
- // the blue 새로 만들기 button's caret: the original opens a template menu there
+ // the blue New button's caret: the original opens a template menu there
   const [newMoreOpen, setNewMoreOpen] = useState(false);
   const newMoreBtn = useRef<HTMLButtonElement>(null);
   const newMorePop = useRef<HTMLDivElement>(null);
@@ -366,7 +366,7 @@ export function DatabaseBlock({
   const [openedNewRow, setOpenedNewRow] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [filterUiOpen, setFilterUiOpen] = useState(false);
- // The rule row under the tabs is folded until 필터/정렬 is pressed, and the
+ // The rule row under the tabs is folded until Filter/Sort is pressed, and the
  // choice sticks per view (the original keeps it across reloads; we keep it in
  // localStorage). Read after mount so the server and first client render agree.
   const [rulesRowOpenByView, setRulesRowOpenByView] = useState<Record<string, boolean>>({});
@@ -392,7 +392,7 @@ export function DatabaseBlock({
  // View-tab overflow: tabs that don't fit collapse behind an
  // "N more" dropdown. Widths come from an invisible measurement row.
   const tabsAreaRef = useRef<HTMLDivElement | null>(null);
-  // the view-tabs/toolbar row — the 속성 편집 sidebar docks against its
+  // the view-tabs/toolbar row — the Edit property sidebar docks against its
   // bottom-right corner, as the original docks under its sticky toolbar
   const viewBarRef = useRef<HTMLDivElement | null>(null);
   const tabsMeasureRef = useRef<HTMLDivElement | null>(null);
@@ -585,7 +585,7 @@ export function DatabaseBlock({
  // made *inside* a row doesn't get one. See docs/notion-icon-policy.md.
       const iconSeed: Record<string, unknown> =
         hostIconRef.current && !values.__template ? { __icon: hostIconRef.current } : {};
- // a status property's 기본 option (속성 편집's "기본으로 설정") pre-fills new
+ // a status property's Default option (Edit property's "Set as default") pre-fills new
  // rows — the original's new pages never start with an empty Status
       const statusSeed: Record<string, unknown> = {};
       for (const p of propsRef.current) {
@@ -600,7 +600,7 @@ export function DatabaseBlock({
       if (!res.ok) return null;
       const { row } = await res.json();
       setRows((prev) => [...prev, row]);
- // Notion opens what you just made: 새로 만들기 (and a group's 새 프로젝트 row)
+ // Notion opens what you just made: New (and a group's New project row)
  // lands in the side peek, ready to be named. A sub-item or a template
  // definition is not an entry you were about to write, so it stays put.
       if (!parentRowId && !seeded.__template) {
@@ -625,7 +625,7 @@ export function DatabaseBlock({
         if (!isUuidDb) return refreshSnapshot();
       });
       if (gone)
-        useToastStore.getState().show(t("행을 삭제했습니다"), {
+        useToastStore.getState().show(t("Row deleted"), {
           onUndo: async () => {
  // re-create with the same values (a fresh id — references aside,
  // the CONTENT comes back, which is what undo is for)
@@ -745,7 +745,7 @@ export function DatabaseBlock({
       await fetch(`/api/databases/${databaseId}/views/${viewId}`, { method: "DELETE" });
       void refreshSnapshot();
       if (gone)
-        useToastStore.getState().show(t("\"{name}\" 보기를 삭제했습니다", { name: gone.name }), {
+        useToastStore.getState().show(t("Deleted view \"{name}\"", { name: gone.name }), {
           onUndo: async () => {
             const res = await fetch(`/api/databases/${databaseId}/views`, {
               method: "POST",
@@ -1031,7 +1031,7 @@ export function DatabaseBlock({
       rows,
       members,
       me,
-      itemName: database?.itemName || t("페이지"),
+      itemName: database?.itemName || t("Page"),
       fullPage: !!fullPage,
       icon: fullPage ? hostPageIcon : null,
       allDatabases,
@@ -1203,7 +1203,7 @@ export function DatabaseBlock({
               {v.id === activeView.id && (
                 <span
                   role="button"
-                  aria-label={t("보기 작업")}
+                  aria-label={t("View actions")}
                   data-testid={`db-view-tabmenu-${v.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1215,10 +1215,10 @@ export function DatabaseBlock({
               )}
               {/* The tab's menu, as the original builds it (user-supplied DOM
                   capture): a 220px dialog under the tab, items in sections
-                  split by hairlines — 이름 바꾸기 / 다음과 같이 표시 / 보기 편집 /
-                  데이터베이스 ‖ 보기 링크 복사 ‖ 보기 복제 / 보기 삭제 ‖ 캘린더에서
-                  관리하기. What this app cannot do yet stays visible but
-                  disabled, with the reason as the tooltip (the 시작하기 row's
+                  split by hairlines — Rename / Show as / Edit view /
+                  Database ‖ Copy link to view ‖ Duplicate view / Delete view ‖
+                  Manage in Calendar. What this app cannot do yet stays visible but
+                  disabled, with the reason as the tooltip (the Get started row's
                   rule): dropping rows would misrepresent both this app and
                   the design being copied. */}
               {tabMenuViewId === v.id &&
@@ -1239,7 +1239,7 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-rename-${v.id}`}
                       icon={<Pencil size={18} />}
-                      label={t("이름 바꾸기")}
+                      label={t("Rename")}
                       onClick={() => {
                         setTabMenuViewId(null);
                         setViewNameDraft(v.name);
@@ -1249,24 +1249,24 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-showas-${v.id}`}
                       icon={<Paintbrush size={18} />}
-                      label={t("다음과 같이 표시")}
-                      soon={t("보기 타입 변경은 아직 없습니다 — +로 새 보기를 추가하세요")}
+                      label={t("Show as")}
+                      soon={t("Changing view type isn't available yet — add a new view with +")}
                       right={<ChevronRight size={14} className="shrink-0 text-neutral-400" />}
                     />
                     <TabMenuItem
                       testid={`db-view-edit-${v.id}`}
                       icon={<SlidersHorizontal size={18} />}
-                      label={t("보기 편집")}
-                      soon={t("여기서는 아직 못 엽니다 — 툴바의 보기 설정을 쓰세요")}
+                      label={t("Edit view")}
+                      soon={t("Can't open here yet — use view settings in the toolbar")}
                     />
                     <TabMenuItem
                       testid={`db-view-source-${v.id}`}
                       icon={<DatabaseGlyph size={18} />}
-                      label={t("데이터베이스")}
-                      soon={t("원본 데이터베이스로 이동은 아직 없습니다")}
+                      label={t("Database")}
+                      soon={t("Go to source database isn't available yet")}
                       right={
                         <span className="flex min-w-0 shrink items-center gap-1 text-xs text-neutral-400">
-                          <span className="truncate">{database.title || t("제목 없음")}</span>
+                          <span className="truncate">{database.title || t("Untitled")}</span>
                           <ChevronRight size={14} className="shrink-0" />
                         </span>
                       }
@@ -1276,15 +1276,15 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-copylink-${v.id}`}
                       icon={<LinkIcon size={18} />}
-                      label={t("보기 링크 복사")}
-                      soon={t("보기 링크는 아직 없습니다")}
+                      label={t("Copy view link")}
+                      soon={t("View links aren't available yet")}
                     />
                   </div>
                   <div className="flex flex-col border-t border-neutral-100 py-1 dark:border-neutral-700/60">
                     <TabMenuItem
                       testid={`db-view-duplicate-${v.id}`}
                       icon={<CopyIcon size={18} />}
-                      label={t("보기 복제")}
+                      label={t("Duplicate view")}
                       onClick={() => {
                         setTabMenuViewId(null);
                         void duplicateView(v.id);
@@ -1293,8 +1293,8 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-delete-${v.id}`}
                       icon={<Trash2 size={18} />}
-                      label={t("보기 삭제")}
-                      soon={tabViews.length <= 1 ? t("마지막 보기는 삭제할 수 없습니다") : undefined}
+                      label={t("Delete view")}
+                      soon={tabViews.length <= 1 ? t("The last view can't be deleted") : undefined}
                       onClick={
                         tabViews.length > 1
                           ? () => {
@@ -1309,8 +1309,8 @@ export function DatabaseBlock({
                     <TabMenuItem
                       testid={`db-view-calendar-${v.id}`}
                       icon={<CalendarDays size={18} />}
-                      label={t("캘린더에서 관리하기")}
-                      soon={t("캘린더 연동은 아직 없습니다")}
+                      label={t("Manage in calendar")}
+                      soon={t("No calendar integration yet")}
                     />
                   </div>
                 </div>,
@@ -1328,7 +1328,7 @@ export function DatabaseBlock({
                 // overflow button has no caret
                 className="flex h-8 items-center whitespace-nowrap rounded-[20px] px-2.5 text-[14px] leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.03)] dark:text-neutral-400 dark:hover:bg-neutral-800"
               >
-                {t("{n}개 더 보기", { n: tabViews.length - visibleTabCount })}
+                {t("Show {n} more", { n: tabViews.length - visibleTabCount })}
               </button>
               {moreTabsOpen && (
                 <div className="popover-anim absolute left-0 top-8 z-40 flex w-44 flex-col rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
@@ -1372,8 +1372,8 @@ export function DatabaseBlock({
               ref={addViewBtn}
               data-testid="db-add-view"
               onClick={() => setAddViewOpen((v) => !v)}
-              aria-label={t("보기 추가")}
-              data-tip={t("보기 추가")}
+              aria-label={t("Add view")}
+              data-tip={t("Add view")}
               className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
               <Plus size={12} />
@@ -1414,8 +1414,8 @@ export function DatabaseBlock({
                 ref={viewMenuBtn}
                 data-testid="db-view-menu"
                 onClick={() => setViewMenuOpen((v) => !v)}
-                aria-label={t("보기 옵션")}
-                data-tip={t("보기 작업 더 보기")}
+                aria-label={t("View options")}
+                data-tip={t("More view actions")}
                 className="rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 ⋯
@@ -1443,15 +1443,15 @@ export function DatabaseBlock({
  // 80px in the original for this label — a minimum, so a longer one still fits
                 className="flex min-w-[80px] items-center justify-center px-3 text-[14px] font-medium leading-5 text-white transition-colors hover:bg-[rgb(35,118,199)]"
               >
-                {/* the toolbar's primary reads 새로 만들기 in the original; the
-                    item name (새 프로젝트) is what a GROUP's add-row says */}
-                {t("새로 만들기")}
+                {/* the toolbar's primary reads New in the original; the
+                    item name (New project) is what a GROUP's add-row says */}
+                {t("New")}
               </button>
               <span className="w-px bg-white/25" aria-hidden="true" />
               <button
                 ref={newMoreBtn}
                 data-testid="db-new-row-more"
-                aria-label={t("추가 옵션 더 보기")}
+                aria-label={t("More options")}
                 onClick={() => setNewMoreOpen((v) => !v)}
                 className="flex w-6 items-center justify-center text-white/80 transition-colors hover:bg-[rgb(35,118,199)] hover:text-white"
               >
@@ -1466,14 +1466,14 @@ export function DatabaseBlock({
                   style={{ visibility: "hidden" }}
                   className="popover-anim fixed z-50 w-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
                 >
- {/* the original's caret menu, read off it: a 템플릿 heading, the database's
-     own templates under its name, then 기본 → 비어 있음, then 새 템플릿 */}
-                  <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">{t("템플릿")}</p>
+ {/* the original's caret menu, read off it: a Templates heading, the database's
+     own templates under its name, then Default → Empty, then New template */}
+                  <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">{t("Templates")}</p>
                   <p className="truncate px-3 pb-0.5 text-[11px] text-neutral-400">
-                    {database.title || t("데이터베이스")}
+                    {database.title || t("Database")}
                   </p>
                   {rows.filter((r) => r.values.__template).length === 0 && (
-                    <p className="px-3 pb-1 text-[13px] text-neutral-400">{t("템플릿이 아직 없습니다")}</p>
+                    <p className="px-3 pb-1 text-[13px] text-neutral-400">{t("No templates yet")}</p>
                   )}
                   {rows.filter((r) => r.values.__template).map((tpl) => (
                     <button
@@ -1491,11 +1491,11 @@ export function DatabaseBlock({
                       <FileText size={15} className="shrink-0 text-neutral-400" />
                       <span className="truncate">
                         {String(tpl.values[properties.find((p) => p.type === "title")?.id ?? ""] ?? "") ||
-                          t("제목 없는 템플릿")}
+                          t("Untitled template")}
                       </span>
                     </button>
                   ))}
-                  <p className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium text-neutral-400">{t("기본")}</p>
+                  <p className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium text-neutral-400">{t("Default")}</p>
                   <button
                     data-testid="db-new-empty"
                     onClick={() => {
@@ -1505,7 +1505,7 @@ export function DatabaseBlock({
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                   >
                     <FileText size={15} className="shrink-0 text-neutral-400" />
-                    {t("비어 있음")}
+                    {t("Empty")}
                   </button>
                   <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
                   <button
@@ -1517,7 +1517,7 @@ export function DatabaseBlock({
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-neutral-500 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
                   >
                     <Plus size={15} className="shrink-0 text-neutral-400" />
-                    {t("새 템플릿")}
+                    {t("New template")}
                   </button>
                 </div>,
                 document.body
@@ -1527,8 +1527,8 @@ export function DatabaseBlock({
               <button
                 data-testid="db-add-prop"
                 onClick={() => setAddPropOpen((v) => !v)}
-                aria-label={t("속성 추가")}
-                data-tip={t("속성 추가")}
+                aria-label={t("Add property")}
+                data-tip={t("Add property")}
                 className="flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <Plus size={14} />
@@ -1557,13 +1557,13 @@ export function DatabaseBlock({
 
         {/* editable database description. A full-page database's description is
             the PAGE's — it renders above the view tabs under the title, behind
-            설명 표시 / 설명 숨기기 (page-view.tsx). Inline databases keep it here. */}
+            Show description / Hide description (page-view.tsx). Inline databases keep it here. */}
         {!fullPage && (
         <input
           data-testid="db-description"
           defaultValue={database.description ?? ""}
           key={`desc-${database.description ?? ""}`}
-          placeholder={t("설명 추가…")}
+          placeholder={t("Add a description…")}
           onBlur={(e) => {
             const v = e.target.value;
             if (v === (database.description ?? "")) return;
@@ -1586,20 +1586,20 @@ export function DatabaseBlock({
             data-testid="view-draft-bar"
             className="mt-1 flex items-center gap-2 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
           >
-            <span>{t("보기가 변경됨 — 나에게만 표시됩니다")}</span>
+            <span>{t("View changed — only visible to you")}</span>
             <button
               data-testid="view-draft-save"
               onClick={() => void saveDraft()}
               className="rounded bg-blue-500 px-2 py-0.5 font-medium text-white hover:bg-blue-600"
             >
-              {t("모두에게 저장")}
+              {t("Save for everyone")}
             </button>
             <button
               data-testid="view-draft-reset"
               onClick={resetDraft}
               className="rounded px-1.5 py-0.5 text-blue-600 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/40"
             >
-              {t("재설정")}
+              {t("Reset")}
             </button>
           </div>
         )}
@@ -1632,7 +1632,7 @@ export function DatabaseBlock({
             }}
           />
         )}
-        {/* 속성 편집 — the sidebar the Status menu's footer opens. Only status
+        {/* Edit property — the sidebar the Status menu's footer opens. Only status
             properties get it; every other type keeps the column-header menu. */}
         {(() => {
           const editing = properties.find((p) => p.id === editingPropertyId);

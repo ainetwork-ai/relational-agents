@@ -195,6 +195,40 @@ async function callTool(name: string, args: Record<string, unknown>, timeout = C
   return res.structuredContent ?? text;
 }
 
+/** The tool names aindrive's MCP offers to the current account — how this app
+ *  notices a capability aindrive grew (x402 payment tools, say) without a
+ *  deploy. Cached per token for a few minutes; empty when aindrive is not
+ *  reachable, so callers treat "absent" as "not yet". */
+const TOOLS_TTL_MS = 5 * 60_000;
+const toolsCache = new Map<string, { at: number; names: Set<string> }>();
+export async function listToolNames(): Promise<Set<string>> {
+  const cfg = config();
+  if (!cfg) return new Set();
+  const key = `${cfg.server} ${cfg.token}`;
+  const hit = toolsCache.get(key);
+  if (hit && Date.now() - hit.at < TOOLS_TTL_MS) return hit.names;
+  let client = clients().get(key);
+  if (!client) {
+    client = connect(cfg);
+    clients().set(key, client);
+  }
+  try {
+    const res = await (await client).listTools(undefined, { timeout: CALL_TIMEOUT_MS });
+    const names = new Set(res.tools.map((t) => t.name));
+    toolsCache.set(key, { at: Date.now(), names });
+    return names;
+  } catch {
+    clients().delete(key);
+    return new Set();
+  }
+}
+
+/** Calls an aindrive MCP tool by name with a raw argument object — for tools
+ *  this app knows only by convention (see lib/x402/aindrive). */
+export function callAindriveTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<unknown> {
+  return callTool(name, args, timeout);
+}
+
 // ── operations (paths are link-relative) ────────────────────────────────────
 
 export async function listDrives(): Promise<{ id: string; name: string }[]> {

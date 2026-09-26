@@ -1,0 +1,79 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects' table view, 2026-08-06. Read-only per docs/notion-golden-set.md §3: horizontal wheel scrolling to paint the Evaluation/Team/Status columns, computed styles read off the painted chips, and ONE Evaluation cell clicked to open its option list (measured, then Escape — no option was picked). Numbers are px.",
+  "_why": "The chip is not one shape. A select/multi-select value is a 4px-radius chip; a status value is a 10px pill with a dot. We drew everything as the pill, because the only thing measured before was the Status menu.",
+
+  "select": {
+    "_of": "Evaluation (select) and Team (multi_select), identical in a cell and in the option list",
+    "height": 20,
+    "radius": "4px",
+    "paddingLeft": 6,
+    "paddingRight": 6,
+    "fontSize": 14,
+    "lineHeight": 20,
+    "fontWeight": 400,
+    "dot": false,
+    "whiteSpace": "nowrap",
+    "textOverflow": "ellipsis"
+  },
+
+  "status": {
+    "_of": "Status (status) in a cell — matches e2e/fixtures/notion-status-dropdown.json",
+    "height": 20,
+    "radius": "10px",
+    "paddingLeft": 7,
+    "paddingRight": 9,
+    "fontSize": 14,
+    "lineHeight": 20,
+    "fontWeight": 400,
+    "dot": true,
+    "dotSize": 8,
+    "dotGap": 5
+  },
+
+  "cell": {
+    "_of": "a multi_select cell holding two chips (Team)",
+    "height": 37,
+    "padding": 0,
+    "firstChipInsetLeft": 8,
+    "firstChipInsetTop": 8,
+    "gapBetweenChips": 8
+  },
+
+  "colors": {
+    "_note": "Notion paints translucent overlays, hence the alpha. Sampled where each was on screen: red/purple/yellow/green/brown/blue from the Evaluation option list, orange/pink from Team cells, gray from the Status menu fixture.",
+    "red": { "bg": "rgba(206, 24, 0, 0.165)", "text": "rgb(109, 53, 49)", "seenAs": "Superb, inbody, Agent Commerce" },
+    "purple": { "bg": "rgba(92, 0, 163, 0.14)", "text": "rgb(85, 59, 105)", "seenAs": "Strongly Exceeds Expectation" },
+    "yellow": { "bg": "rgba(209, 156, 0, 0.282)", "text": "rgb(101, 81, 33)", "seenAs": "Exceeds Expectations, 카카오페이증권" },
+    "green": { "bg": "rgba(0, 96, 38, 0.157)", "text": "rgb(42, 83, 60)", "seenAs": "Meets Expectations" },
+    "brown": { "bg": "rgba(127, 51, 0, 0.157)", "text": "rgb(88, 68, 55)", "seenAs": "Need Improvement" },
+    "blue": { "bg": "rgba(0, 118, 217, 0.204)", "text": "rgb(38, 74, 114)", "seenAs": "NA, Donga Science, In progress" },
+    "orange": { "bg": "rgba(196, 88, 0, 0.204)", "text": "rgb(106, 66, 34)", "seenAs": "Walkerhill AI Guide" },
+    "pink": { "bg": "rgba(183, 0, 78, 0.153)", "text": "rgb(104, 53, 78)", "seenAs": "Uncommon Membership" },
+    "gray": { "bg": "rgba(28, 19, 1, 0.11)", "text": "rgb(73, 72, 70)", "seenAs": "Status menu (notion-status-dropdown.json)" }
+  },
+
+  "colorsDark": {
+    "_source": "app.notion.com Projects 'All Projects' table, 2026-09-09, dark theme via CDP Emulation.setEmulatedMedia(prefers-color-scheme: dark) on a dedicated tab (the workspace setting stays untouched, other tabs stay light). Chip bg/text read off Evaluation/Status cells, the Status property editor's option rows, and the option submenu's colour list (18px swatch fill = chip bg, swatch color = chip text, label names the key). Dots read off the five status colours on screen and were identical to light; brown/orange/purple/pink dots are ASSUMED unchanged (no status option carries them) — not measured.",
+    "_why": "The chip carried light literals only; in dark mode that was rgb(73,72,70) text on a 0.11 dark overlay over rgb(25,25,25) — unreadable. Notion flips both the overlay (bright, higher alpha) and the label (near-white tints).",
+    "pageBg": "rgb(25, 25, 25)",
+    "menuBg": "rgb(37, 37, 37)",
+    "default": { "bg": "rgba(255, 252, 235, 0.306)", "text": "rgb(240, 239, 237)", "dot": "rgb(142, 139, 134)", "swatch": "rgba(255, 255, 243, 0.082)", "ring": "rgba(255, 255, 235, 0.1)", "seenAs": "Not started (chip paints like gray; swatch is its own)" },
+    "gray": { "bg": "rgba(255, 252, 235, 0.306)", "text": "rgb(240, 239, 237)", "dot": "rgb(142, 139, 134)", "swatch": "rgba(255, 252, 235, 0.306)", "ring": "rgba(255, 255, 235, 0.1)", "seenAs": "colour menu Gray" },
+    "brown": { "bg": "rgba(255, 184, 132, 0.365)", "text": "rgb(245, 237, 233)", "swatch": "rgba(255, 184, 132, 0.365)", "ring": "rgba(255, 177, 129, 0.192)", "seenAs": "Need Improvement, colour menu Brown" },
+    "orange": { "bg": "rgba(255, 143, 71, 0.482)", "text": "rgb(251, 235, 222)", "swatch": "rgba(255, 143, 71, 0.482)", "ring": "rgba(255, 147, 75, 0.28)", "seenAs": "colour menu Orange" },
+    "yellow": { "bg": "rgba(255, 188, 53, 0.46)", "text": "rgb(249, 243, 220)", "dot": "rgb(216, 163, 47)", "swatch": "rgba(255, 188, 53, 0.46)", "ring": "rgba(255, 205, 75, 0.24)", "seenAs": "Exceeds Expectations, Needs review" },
+    "green": { "bg": "rgba(113, 255, 175, 0.337)", "text": "rgb(232, 241, 236)", "dot": "rgb(70, 161, 113)", "swatch": "rgba(113, 255, 175, 0.337)", "ring": "rgba(108, 255, 172, 0.157)", "seenAs": "Meets Expectations, Hold, Done" },
+    "blue": { "bg": "rgba(81, 166, 255, 0.494)", "text": "rgb(229, 242, 252)", "dot": "rgb(39, 131, 222)", "swatch": "rgba(81, 166, 255, 0.494)", "ring": "rgba(67, 155, 255, 0.24)", "seenAs": "In progress, Donga Science" },
+    "purple": { "bg": "rgba(208, 147, 255, 0.427)", "text": "rgb(243, 235, 249)", "swatch": "rgba(208, 147, 255, 0.427)", "ring": "rgba(200, 125, 255, 0.2)", "seenAs": "AIN Branding" },
+    "pink": { "bg": "rgba(255, 133, 192, 0.427)", "text": "rgb(250, 233, 241)", "swatch": "rgba(255, 133, 192, 0.427)", "ring": "rgba(255, 103, 177, 0.23)", "seenAs": "AINSpace" },
+    "red": { "bg": "rgba(255, 116, 105, 0.525)", "text": "rgb(252, 233, 231)", "dot": "rgb(229, 100, 88)", "swatch": "rgba(255, 116, 105, 0.525)", "ring": "rgba(255, 104, 92, 0.24)", "seenAs": "AI Network, Deprecated" }
+  },
+
+  "swatchLight": {
+    "_of": "the property editor's colour menu in the light theme (scratchpad/status-edit-capture/option-submenu-nodes.json, 2026-08-10): 18×18 radius-4, fill = chip bg, plus a 1px inset ring of the same colour; only Default differs — fill rgba(42, 28, 0, 0.07), ring rgba(28, 19, 1, 0.11)",
+    "default": { "swatch": "rgba(42, 28, 0, 0.07)", "ring": "rgba(28, 19, 1, 0.11)" },
+    "others": "swatch = ring = colors[key].bg"
+  },
+
+  "_mismatch": "Our copy of the Evaluation option 'Need Improvement' is stored as color 'orange', but the original paints it brown (rgba(127,51,0,.157)); the original's actual orange is rgba(196,88,0,.204), seen on Team. The option's stored colour came in with the import, so the fix belongs there, not in the chip."
+}

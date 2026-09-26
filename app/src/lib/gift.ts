@@ -8,10 +8,10 @@ import { blocks, pages, users, workspaceMembers } from "@/lib/db/schema";
 import { hasDrive, readFile, readFileBytes, writeFile } from "@/lib/aindrive";
 import { runAs } from "@/lib/aindrive-account";
 import { seal, stamp, stampOk, unseal } from "@/lib/secret-box";
-import { selfOrigin } from "@/lib/app-origin";
+import { LEDGER } from "@/i18n/content/family-demo";
 
 /**
- * A gift behind x402: a file someone keeps unshared on their own device (서연's
+ * A gift behind x402: a file someone keeps unshared on their own device (Seoyeon's
  * video for grandma), offered on a page as a locked block. Paying the asking
  * price — pocket money, to the person who made it — opens it.
  *
@@ -22,10 +22,13 @@ import { selfOrigin } from "@/lib/app-origin";
  * PAYMENT-RESPONSE.
  *
  * Settlement here is the family ledger: the debit and the credit are written
- * as rows into the payer's and the recipient's own aindrive (지갑/용돈_장부.csv,
- * 지갑/받은_용돈.csv), over MCP, as each of them. The signature is real and
- * checked; no chain is touched — this environment has no funded wallet. A
- * facilitator that settles on Base would replace `settle` and nothing else.
+ * as rows into the payer's and the recipient's own aindrive (the out/in ledger
+ * CSVs, LEDGER in i18n/content/family-demo), over MCP, as each of them. The signature is real and
+ * checked; no chain is touched — this environment has no funded wallet.
+ *
+ * That is one *provider*. lib/x402 holds the provider layer: the family
+ * ledger (here) and aindrive, whose x402 tools sign and settle for real the
+ * moment aindrive offers them. The wire in this file does not change.
  */
 
 // ── the offer ───────────────────────────────────────────────────────────────
@@ -176,19 +179,21 @@ export interface PaymentRequirements {
   extra: Record<string, unknown>;
 }
 
-export function requirementsFor(g: GiftSpec): PaymentRequirements {
+/** The 402's terms. `settlement` names the provider the payer must sign with
+ *  (lib/x402) and `payTo` is that provider's wallet for the recipient. */
+export function requirementsFor(g: GiftSpec, via: { settlement: string; payTo: string } = { settlement: "family-ledger", payTo: g.payTo }): PaymentRequirements {
   return {
     scheme: "exact",
     network: GIFT_NETWORK,
     asset: GIFT_ASSET,
     amount: g.amount,
-    payTo: g.payTo,
+    payTo: via.payTo,
     maxTimeoutSeconds: 300,
     extra: {
       assetTransferMethod: "eip3009",
       name: "USDC",
       version: "2",
-      settlement: "family-ledger",
+      settlement: via.settlement,
       display: { krw: g.amountKrw, usdc: formatUsdc(g.amount), recipient: g.recipientName },
     },
   };
@@ -287,9 +292,9 @@ export async function verifyPayment(p: PaymentPayload | null, req: PaymentRequir
 
 // ── settlement: the family ledger, in the family's own aindrive ─────────────
 
-export const LEDGER_OUT = "지갑/용돈_장부.csv";
-export const LEDGER_IN = "지갑/받은_용돈.csv";
-const LEDGER_HEAD = "날짜,내용,상대,금액(원),잔액(원),영수증";
+export const LEDGER_OUT = LEDGER.out;
+export const LEDGER_IN = LEDGER.in;
+const LEDGER_HEAD = LEDGER.head;
 const usedNonces = new Set<string>();
 
 function parseLedger(text: string): string[][] {
@@ -322,16 +327,16 @@ export async function settle(
   const rows = parseLedger(text);
   const balance = rows.length ? Number(rows[rows.length - 1][4]) || 0 : 0;
   if (rows.some((r) => r[5] === receipt)) return { error: "this authorization was already used" };
-  if (balance < g.amountKrw) return { error: `잔액이 부족해요 (잔액 ${balance.toLocaleString("ko-KR")}원)` };
+  if (balance < g.amountKrw) return { error: `Not enough balance (balance ₩${balance.toLocaleString("ko-KR")})` };
   const today = new Date().toISOString().slice(0, 10);
   const clean = (s: string) => s.replace(/,\s*/g, " ").replace(/\n/g, " ");
-  const out = [LEDGER_HEAD, ...rows.map((r) => r.join(",")), [today, clean(`용돈 · ${g.title}`), clean(g.recipientName), -g.amountKrw, balance - g.amountKrw, receipt].join(",")];
+  const out = [LEDGER_HEAD, ...rows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(g.recipientName), -g.amountKrw, balance - g.amountKrw, receipt].join(",")];
   await runAs(payer.userId, () => writeFile(link, LEDGER_OUT, out.join("\n") + "\n"));
   const inLink = { driveId: recipientDriveId, root: "" };
   const inText = await runAs(g.recipientUserId, () => readFile(inLink, LEDGER_IN)).catch(() => "");
   const inRows = parseLedger(inText);
   const inBal = inRows.length ? Number(inRows[inRows.length - 1][4]) || 0 : 0;
-  const inOut = [LEDGER_HEAD, ...inRows.map((r) => r.join(",")), [today, clean(`용돈 · ${g.title}`), clean(payer.name), g.amountKrw, inBal + g.amountKrw, receipt].join(",")];
+  const inOut = [LEDGER_HEAD, ...inRows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(payer.name), g.amountKrw, inBal + g.amountKrw, receipt].join(",")];
   await runAs(g.recipientUserId, () => writeFile(inLink, LEDGER_IN, inOut.join("\n") + "\n"));
   usedNonces.add(nonce);
   return { receipt };
@@ -359,36 +364,4 @@ export async function ledgerDriveOf(userId: string): Promise<string | null> {
   const { listDrives } = await import("@/lib/aindrive");
   const drives = await runAs(userId, () => listDrives()).catch(() => []);
   return drives[0]?.id ?? null;
-}
-
-export type PayOutcome =
-  | { ok: true; receipt: string; already?: boolean; unlock: GiftUnlock | null; spec: GiftSpec }
-  | { ok: false; status: number; error: string };
-
-/**
- * Pays for a gift the x402 way, as `payerId`, over HTTP against the gift's own
- * resource: ask → 402 PAYMENT-REQUIRED → sign → retry with PAYMENT-SIGNATURE →
- * 200 PAYMENT-RESPONSE. The same round trip any x402 client makes.
- */
-export async function payGift(payerId: string, giftId: string, origin?: string): Promise<PayOutcome> {
-  const base = selfOrigin(origin);
-  const get = (headers: Record<string, string> = {}) =>
-    fetch(`${base}/api/gift/${encodeURIComponent(giftId)}`, { headers, cache: "no-store" });
-  const first = await get();
-  if (first.status === 200) {
-    const found = await findGift(giftId);
-    return found ? { ok: true, receipt: found.gift.unlock?.receipt ?? "", already: true, unlock: found.gift.unlock ?? null, spec: found.gift.spec } : { ok: false, status: 404, error: "gift not found" };
-  }
-  if (first.status !== 402) return { ok: false, status: first.status, error: `unexpected ${first.status}` };
-  const required = unb64<{ accepts?: PaymentRequirements[]; resource?: { url: string } }>(first.headers.get("PAYMENT-REQUIRED") ?? "");
-  const req = required?.accepts?.[0];
-  if (!req) return { ok: false, status: 502, error: "no payment requirements in the 402" };
-  const wallet = await walletOf(payerId);
-  const payment = await signPayment(wallet.key, req, required?.resource?.url ?? "");
-  const paid = await get({ "PAYMENT-SIGNATURE": b64(payment) });
-  const body = (await paid.json().catch(() => ({}))) as { error?: string; receipt?: string };
-  if (!paid.ok) return { ok: false, status: paid.status, error: body.error ?? `payment refused (${paid.status})` };
-  const found = await findGift(giftId);
-  if (!found) return { ok: false, status: 404, error: "gift not found" };
-  return { ok: true, receipt: body.receipt ?? "", unlock: found.gift.unlock ?? null, spec: found.gift.spec };
 }

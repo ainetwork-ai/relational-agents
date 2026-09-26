@@ -1,13 +1,13 @@
-// 풀페이지 데이터베이스 페이지의 머리 — 커버 높이, 컨트롤 줄, 아이콘+제목 줄, 설명.
+// The head of a full-page database page — cover height, controls row, icon+title row, description.
 //
-// 원본(Projects)에서는 아이콘(36×36)이 제목과 **한 줄**에 있고, 패딩 가장자리에서
-// 아이콘 +8 / 제목 박스 +44(안쪽 8) / 설명 박스 +0(안쪽 12) 이다. 우리는 아이콘을
-// 제목 위에 78px 로 올리고 둘 다 +44, 설명은 +8 에 두고 있었다. 커버도 30vh 였는데
-// 원본의 DB 페이지 커버는 20vh 다.
+// In the original (Projects) the icon (36×36) is on **one line** with the title, and from the
+// padding edge it is icon +8 / title box +44 (inner 8) / description box +0 (inner 12). We put
+// the icon 78px above the title with both at +44, and the description at +8. The cover was
+// also 30vh, while the original's DB page cover is 20vh.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] [USER_ID=…] node e2e/db-page-header.check.mjs
 //
-// 읽기 전용: 페이지를 열어 좌표만 읽는다. 페이지에 아이콘·커버·설명이 있어야 잰다.
+// Read-only: opens the page and only reads coordinates. The page needs an icon, cover and description to measure.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
@@ -17,7 +17,7 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf"; // Projects (dev DB)
 const USER_ID = process.env.USER_ID ?? "933e2985-5b0e-4d94-8942-dfc1eb228f08";
 
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-db-page-header.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-db-page-header.json", import.meta.url), "utf8"));
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -63,30 +63,30 @@ const got = await page.evaluate(() => {
 await browser.close();
 
 if (got.missing) {
-  console.error(`이 페이지에는 잴 것이 빠져 있습니다: ${JSON.stringify(got.missing)} (아이콘·커버·설명이 있는 DB 페이지를 PAGE_ID 로 주세요)`);
+  console.error(`this page is missing things to measure: ${JSON.stringify(got.missing)} (pass a DB page with an icon, cover and description as PAGE_ID)`);
   process.exit(1);
 }
 
 const d = [];
 const cmp = (label, ours, theirs, tol = 0.5) => {
-  if (Math.abs(ours - theirs) > tol) d.push(`${label}: 우리 ${ours} / 노션 ${theirs}`);
+  if (Math.abs(ours - theirs) > tol) d.push(`${label}: ours ${ours} / Notion ${theirs}`);
 };
-cmp("상단바 높이(커버 y)", got.topbarHeight, G.topbarHeight);
-cmp("커버 높이", got.coverHeight, G.coverHeight);
-for (const k of Object.keys(G.controls)) cmp(`컨트롤 줄 ${k}`, got.controls[k], G.controls[k]);
-for (const k of Object.keys(G.icon)) cmp(`아이콘 ${k}`, got.icon[k], G.icon[k]);
-cmp("제목 줄 y", got.title.y, G.titleRow.y);
-cmp("제목 줄 h", got.title.h, G.titleRow.h);
-for (const k of Object.keys(G.title)) cmp(`제목 ${k}`, got.title[k], G.title[k]);
-for (const k of Object.keys(G.desc)) cmp(`설명 ${k}`, got.desc[k], G.desc[k]);
-cmp("설명→뷰 탭 간격", got.tabsGapBelowDesc, G.tabsGapBelowDesc);
+cmp("top bar height (cover y)", got.topbarHeight, G.topbarHeight);
+cmp("cover height", got.coverHeight, G.coverHeight);
+for (const k of Object.keys(G.controls)) cmp(`controls row ${k}`, got.controls[k], G.controls[k]);
+for (const k of Object.keys(G.icon)) cmp(`icon ${k}`, got.icon[k], G.icon[k]);
+cmp("title row y", got.title.y, G.titleRow.y);
+cmp("title row h", got.title.h, G.titleRow.h);
+for (const k of Object.keys(G.title)) cmp(`title ${k}`, got.title[k], G.title[k]);
+for (const k of Object.keys(G.desc)) cmp(`description ${k}`, got.desc[k], G.desc[k]);
+cmp("description→view tabs gap", got.tabsGapBelowDesc, G.tabsGapBelowDesc);
 
 if (d.length) {
-  console.error("\n  ┌─ DB 페이지 머리가 원본과 다릅니다 ───────────────────────────");
+  console.error("\n  ┌─ DB page head differs from the original ─────────────────────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-db-page-header.json");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-db-page-header.json");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`아이콘 +${got.icon.x}, 제목 +${got.title.x}(pl ${got.title.pl}), 설명 +${got.desc.x}(pl ${got.desc.pl}), 커버 ${got.coverHeight}px — 원본과 일치 (뷰 탭 +${got.viewbarX})`);
+console.log(`icon +${got.icon.x}, title +${got.title.x}(pl ${got.title.pl}), description +${got.desc.x}(pl ${got.desc.pl}), cover ${got.coverHeight}px — matches the original (view tabs +${got.viewbarX})`);

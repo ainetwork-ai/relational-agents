@@ -47,18 +47,18 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
- // z above a peek (z-50) rather than behind it: 댓글 opens from inside one
+ // z above a peek (z-50) rather than behind it: Comments opens from inside one
     <aside
       data-testid="comment-thread-panel"
       className="popover-anim fixed right-0 top-0 z-[60] flex h-full w-[340px] flex-col border-l border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
     >
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-700 dark:border-neutral-800 dark:text-neutral-200">
         <MessageSquare size={16} />
-        {isPage ? t("댓글") : t("블록 댓글")}
+        {isPage ? t("Comments") : t("Block comments")}
         <button
           data-testid="comment-thread-close"
           onClick={close}
-          aria-label={t("댓글 닫기")}
+          aria-label={t("Close comments")}
           className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800"
         >
           <X size={15} />
@@ -67,7 +67,7 @@ export function CommentThreadPanel({ pageId }: { pageId: string }) {
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
         {roots.length === 0 && (
-          <p className="text-sm text-neutral-400">{t("아직 댓글이 없습니다.")}</p>
+          <p className="text-sm text-neutral-400">{t("No comments yet.")}</p>
         )}
         {roots.map((root) => (
           <ThreadCard
@@ -126,7 +126,7 @@ function ThreadCard({
             onClick={() => setResolved(pageId, root.id, false)}
             className="text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
           >
-            {t("다시 열기")}
+            {t("Reopen")}
           </button>
         ) : (
           <button
@@ -134,7 +134,7 @@ function ThreadCard({
             onClick={() => setResolved(pageId, root.id, true)}
             className="flex items-center gap-1 text-xs font-medium text-blue-500 hover:text-blue-700"
           >
-            <Check size={12} /> {t("해결")}
+            <Check size={12} /> {t("Resolve")}
           </button>
         )}
       </div>
@@ -159,7 +159,7 @@ function ThreadCard({
           value={draft}
           onChange={setDraft}
           onSubmit={() => void submitReply()}
-          placeholder={t("답글…")}
+          placeholder={t("Reply…")}
           className="min-w-0 flex-1 rounded border border-neutral-300 bg-transparent px-2 py-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"
         />
         <button
@@ -167,7 +167,7 @@ function ThreadCard({
           onClick={() => void submitReply()}
           className="rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600"
         >
-          {t("답글")}
+          {t("Reply")}
         </button>
       </div>
     </div>
@@ -187,17 +187,17 @@ function CommentBubble({
   const members = useWorkspaceMembers();
   return (
     <div data-testid={`comment-item-${comment.id}`} className="group/comment relative">
-      {/* the same author-only ⋯ → 삭제하기 as the in-page rows. This panel is
+      {/* the same author-only ⋯ → Delete as the in-page rows. This panel is
           also rendered on public /share links, where there is no signed-in
           user — CommentActions draws nothing without one. */}
       <CommentActions comment={comment} pageId={pageId} />
       <div className="flex items-center gap-2 text-xs text-neutral-500">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">
-          {comment.author?.displayName ?? t("누군가")}
+          {comment.author?.displayName ?? t("Someone")}
         </span>
         {comment.resolved && !reply && (
           <span className="text-[11px] uppercase tracking-wide text-green-600">
-            {t("해결됨")}
+            {t("Resolved")}
           </span>
         )}
       </div>
@@ -232,7 +232,7 @@ function NewComment({ pageId, anchor }: { pageId: string; anchor: string }) {
         value={draft}
         onChange={setDraft}
         onSubmit={() => void submit()}
-        placeholder={t("댓글 추가…")}
+        placeholder={t("Add comment…")}
         className="flex-1 rounded-md border border-neutral-300 bg-transparent px-3 py-1.5 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-blue-400 dark:border-neutral-600 dark:text-neutral-200"
       />
       <button
@@ -240,7 +240,7 @@ function NewComment({ pageId, anchor }: { pageId: string; anchor: string }) {
         onClick={() => void submit()}
         className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600"
       >
-        {t("댓글")}
+        {t("Comments")}
       </button>
     </div>
   );

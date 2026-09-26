@@ -6,11 +6,11 @@ import { useT } from "@/i18n/provider";
 import { PINNED_COUNT, splitPinned } from "./pinned";
 
 /**
- * 레이아웃 사용자 지정 — which properties sit above the body (the pinned band)
- * and which go in the 속성 panel, and in what order the band reads.
+ * Customize layout — which properties sit above the body (the pinned band)
+ * and which go in the Properties panel, and in what order the band reads.
  *
  * The original reaches the same choice through a fuller layout editor (drag a
- * property between the 제목 block and the 속성 그룹, then 모든 페이지에 적용);
+ * property between the Title block and the property group, then Apply to all pages);
  * this is the part of it the row page actually depends on. It exists so the
  * original's own arrangement (TL · Assignee · End date · Evaluation, in that
  * order) is something you can produce here rather than something we hardcode.
@@ -81,7 +81,7 @@ export function CustomizeLayoutList() {
   return (
     <>
       <div className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
-        {t("페이지 상단에 표시할 속성")}
+        {t("Properties to show at the top of the page")}
       </div>
       {ordered.map(({ p, i }) => {
         const on = isOn(p, i);
@@ -107,7 +107,7 @@ export function CustomizeLayoutList() {
                   <button
                     key={dir}
                     data-testid={`db-peek-pin-${dir < 0 ? "up" : "down"}-${p.id}`}
-                    aria-label={dir < 0 ? t("왼쪽으로 이동") : t("오른쪽으로 이동")}
+                    aria-label={dir < 0 ? t("Move left") : t("Move right")}
                     disabled={dir < 0 ? rank <= 0 : rank >= pinned.length - 1}
                     onClick={() => move(p, dir)}
                     className="flex h-5 w-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-30 dark:hover:bg-neutral-700"

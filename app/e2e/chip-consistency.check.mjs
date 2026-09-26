@@ -5,7 +5,7 @@
 // things on one screen. There is one `OptionChip` now — this check is what
 // keeps it that way, by measuring the SAME option in the cell and in the menu
 // and comparing them to each other (and the menu's chip to the numbers read
-// off app.notion.com, in fixtures/notion-status-dropdown.json).
+// off app.notion.com, in src/i18n/content/e2e-fixtures/notion-status-dropdown.json).
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] [USER_ID=…] [PROP_ID=…] \
 //     node e2e/chip-consistency.check.mjs
@@ -22,7 +22,7 @@ const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
 const PROP_ID = process.env.PROP_ID ?? "18a19305-1988-4ea4-815f-266855ac997f"; // Status
 
 const G = JSON.parse(
-  fs.readFileSync(new URL("./fixtures/notion-status-dropdown.json", import.meta.url), "utf8"),
+  fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-status-dropdown.json", import.meta.url), "utf8"),
 );
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret =
@@ -95,37 +95,37 @@ await page.keyboard.press("Escape");
 await browser.close();
 
 const diffs = [];
-if (!inCell) diffs.push(`셀에 칩이 없습니다 (값 "${value}")`);
-if (!inMenu) diffs.push("메뉴에 칩이 없습니다");
+if (!inCell) diffs.push(`no chip in the cell (value "${value}")`);
+if (!inMenu) diffs.push("no chip in the menu");
 
 if (inCell && inMenu) {
   const walk = (a, b, path = "") => {
     for (const k of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) {
       const av = a?.[k], bv = b?.[k];
       if (av && typeof av === "object") walk(av, bv, `${path}${k}.`);
-      else if (String(av) !== String(bv)) diffs.push(`${path}${k}: 셀 ${av} / 메뉴 ${bv}`);
+      else if (String(av) !== String(bv)) diffs.push(`${path}${k}: cell ${av} / menu ${bv}`);
     }
   };
   walk(inCell, inMenu);
 
   // and the shared shape is still the original's, not just self-consistent
-  if (inCell.h !== G.chip.h) diffs.push(`칩 높이: 우리 ${inCell.h} / 노션 ${G.chip.h}`);
+  if (inCell.h !== G.chip.h) diffs.push(`chip height: ours ${inCell.h} / Notion ${G.chip.h}`);
   if (inCell.radius !== G.chip.radius)
-    diffs.push(`칩 radius: 우리 ${inCell.radius} / 노션 ${G.chip.radius}`);
+    diffs.push(`chip radius: ours ${inCell.radius} / Notion ${G.chip.radius}`);
   if (inCell.label?.fs !== G.chip.labelFs)
-    diffs.push(`칩 라벨 크기: 우리 ${inCell.label?.fs} / 노션 ${G.chip.labelFs}`);
+    diffs.push(`chip label size: ours ${inCell.label?.fs} / Notion ${G.chip.labelFs}`);
   if (inCell.dot?.size !== G.chip.dotSize)
-    diffs.push(`칩 점 크기: 우리 ${inCell.dot?.size} / 노션 ${G.chip.dotSize}`);
+    diffs.push(`chip dot size: ours ${inCell.dot?.size} / Notion ${G.chip.dotSize}`);
 }
 
 if (diffs.length) {
-  console.error("\n  ┌─ 칩이 자리마다 다릅니다 ──────────────────────────────────");
+  console.error("\n  ┌─ The chip differs from place to place ────────────────────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 칩은 components/database/option-chip.tsx 하나뿐이어야 합니다.");
+  console.error("  │ There must be only one chip: components/database/option-chip.tsx.");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
 console.log(
-  `칩 일치 — "${value}"가 셀과 메뉴에서 같은 모양 (h${inCell.h} radius${inCell.radius} 점${inCell.dot?.size ?? "없음"} ${inCell.label?.fs})`,
+  `chips match — "${value}" has the same shape in the cell and the menu (h${inCell.h} radius${inCell.radius} dot${inCell.dot?.size ?? "none"} ${inCell.label?.fs})`,
 );

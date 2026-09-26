@@ -13,52 +13,58 @@ verify: BASE_URL=http://localhost:<port> node e2e/dashboard-chart.check.mjs
 status: pending
 ---
 
-# 차트 위젯 — 시계열 선/캔들 + 행 마커
+# Chart widget — time-series line/candles + row markers
 
-## 무엇
+## What
 
-새 위젯 kind `"chart"`. 아무 날짜 속성(x) × 아무 숫자 속성(y)으로:
+A new widget kind `"chart"`. Any date property (x) × any number property (y):
 
-- **선 모드**: 행을 시간순 점으로 이은 시계열.
-- **캔들 모드**: 행을 시간 버킷(시간/일/주)으로 묶어 버킷 안 값들의
-  시/고/저/종(OHLC)을 파생 — 가격 데이터가 아니어도 "버킷 안 분포 요약"으로
-  동작. 상승 초록/하락 빨강.
-- **마커(옵션)**: select/status 속성을 고르면 각 행이 옵션 색 점으로 찍히고
-  범례가 붙는다 (예: buy/sell, 문의 유형).
+- **Line mode**: a time series connecting rows as points in time order.
+- **Candle mode**: groups rows into time buckets (hour/day/week) and derives the
+  open/high/low/close (OHLC) of the values in each bucket — it works as a
+  "distribution summary within a bucket" even when the data is not prices.
+  Up is green, down is red.
+- **Markers (optional)**: pick a select/status property and each row is drawn as
+  a dot in its option color, with a legend attached (e.g. buy/sell, inquiry type).
 
-SVG 직접 렌더, 차트 라이브러리 없음.
+Rendered directly as SVG; no chart library.
 
-## 왜
+## Why
 
-대시보드에 시간 축 위젯이 없었다(bar/donut은 범주 집계뿐). 범용으로 설계해
-어떤 DB든 날짜+숫자만 있으면 붙는다.
+The dashboard had no time-axis widget (bar/donut only aggregate by category).
+It is designed to be generic, so it attaches to any DB that has a date and a number.
 
-## 변경 상세
+## Change details
 
-- `DashWidget`: `kind`에 `"chart"`, 필드 `xPropertyId` `yPropertyId`
+- `DashWidget`: adds `"chart"` to `kind`, plus fields `xPropertyId` `yPropertyId`
   `chartType?: "line"|"candles"` `bucket?: "hour"|"day"|"week"`
-  `markerPropertyId` 추가 (jsonb 안, DB 마이그레이션 없음).
-- `dashboard-view.tsx`: `BUCKET_MS` 상수, `renderChart()`(지오메트리·그리드
-  3줄·y 라벨 compact 포맷·시간 라벨은 범위<2일이면 HH:MM), KINDS/BODY/
-  widgetTitle/addWidget 기본값(w2, line, 첫 날짜·숫자 속성) 반영. 편집 모드
-  셀렉트: `db-dashw-charttype|x|y|bucket|marker-<id>` (bucket은 캔들일 때만).
-- svg 요소 어트리뷰트: `data-chart-line` `data-chart-candle`
-  `data-chart-marker` (+`<title>` 툴팁) — check가 이걸로 센다.
-- i18n 키: `차트` `{name} 차트` `캔들` `시간별` `일별` `주별` `마커 없음`
-  `{name} 마커` `날짜 속성과 숫자 속성이 필요합니다.`
-  (**`선`은 en.ts에 이미 있음 — 중복 추가하면 TS1117**).
+  `markerPropertyId` (inside jsonb, no DB migration).
+- `dashboard-view.tsx`: `BUCKET_MS` constant, `renderChart()` (geometry, 3 grid
+  lines, compact-format y labels, time labels as HH:MM when the range is < 2 days),
+  and KINDS/BODY/widgetTitle/addWidget defaults (w2, line, first date and number
+  property). Edit-mode selects:
+  `db-dashw-charttype|x|y|bucket|marker-<id>` (bucket only for candles).
+- svg element attributes: `data-chart-line` `data-chart-candle`
+  `data-chart-marker` (+ `<title>` tooltip) — the check counts these.
+- i18n keys (with ko dictionary entries): `Chart` `{name} chart` `Candles`
+  `Hourly` `Daily` `Weekly` `No markers` `{name} markers`
+  `Needs a date property and a number property.`
+  (**`Line` already exists in en.ts — adding it again causes TS1117**).
 
-## 검증
+## Verification
 
-check가 3일치 5행 임시 DB로: 선 path 1개+마커 5개 → 캔들(일별) 3개
-(1일차 상승 초록·2일차 하락 빨강) → 마커 색 개수 → 마커 해제 0개 →
-시간별 캔들 5개 → x/y 셀렉트 옵션 존재. 끝나면 삭제.
+The check uses a temporary DB with 5 rows over 3 days: 1 line path + 5 markers →
+3 candles (daily) (day 1 up green, day 2 down red) → count of marker colors →
+0 after clearing markers → 5 hourly candles → x/y select options exist. Deleted
+at the end.
 
-## 함정
+## Pitfalls
 
-- **캔들 x 도메인은 버킷 경계로 스냅해야 한다** (`floor(t0/b)*b` ~
-  `(floor(t1/b)+1)*b`). 원시 체결 시각 범위로 잡으면 짧은 버스트 데이터에서
-  버킷 중심이 캔버스 밖으로 나가 캔들이 안 보인다 — 실제로 겪은 버그.
-- viewBox 폭은 위젯 너비에 비례(`PLOT_W` 맵 — [depth-widget](2026-09-25-depth-widget.md)
-  커밋에서 도입). depth를 같이 옮기면 자동 해결, chart만 옮기면 W=560 고정도 동작은 함.
-- y 라벨 왼쪽 여백 L은 62 필요(44면 "2,500.15"가 잘림).
+- **The candle x-domain must snap to bucket boundaries** (`floor(t0/b)*b` to
+  `(floor(t1/b)+1)*b`). If you take the raw fill-time range, bucket centers fall
+  off the canvas for short bursts of data and the candles disappear — a bug we
+  actually hit.
+- The viewBox width scales with widget width (the `PLOT_W` map — introduced in the
+  [depth-widget](2026-09-25-depth-widget.md) commit). Porting depth along with it
+  resolves this automatically; if you port chart alone, a fixed W=560 still works.
+- The y-label left margin L needs to be 62 (at 44, "2,500.15" gets clipped).

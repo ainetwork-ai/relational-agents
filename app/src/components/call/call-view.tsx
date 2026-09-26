@@ -10,6 +10,7 @@ import { adoptCallMedia, CALL_MEDIA_CONSTRAINTS } from "@/lib/call-prewarm";
 import { DmView } from "@/app/(app)/dm/[roomId]/dm-view";
 import { DmAvatar } from "@/components/dm/dm-avatar";
 import type { DmUser } from "@/stores/dm-rooms";
+import { LOCALE_NATIVE } from "@/i18n/locales";
 
 interface CallSdp {
   type: string;
@@ -84,7 +85,7 @@ const ICE_SERVERS: RTCIceServer[] = [
  * engine listens for AND, by elimination, what the speaker's own subtitle is
  * translated into: speak Korean, read English; speak English, read Korean. */
 const LANGS = [
-  { code: "ko-KR", label: "한국어", other: "en", otherTag: "EN" },
+  { code: "ko-KR", label: LOCALE_NATIVE.ko, other: "en", otherTag: "EN" },
   { code: "en-US", label: "English", other: "ko", otherTag: "KO" },
 ] as const;
 const STT_LANG_KEY = "call-stt-lang";

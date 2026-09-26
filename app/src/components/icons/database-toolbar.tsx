@@ -14,7 +14,7 @@ export function FilterIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** arrowUpDown — the toolbar's 정렬 (16×16) */
+/** arrowUpDown — the toolbar's Sort (16×16) */
 export function SortIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden viewBox="0 0 16 16" width={16} height={16} fill="currentColor" {...props}>
@@ -32,7 +32,7 @@ export function ChevronSmallIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** plusSmall — the + of `+ 필터` (9.2×14, cropped) */
+/** plusSmall — the + of `+ Filter` (9.2×14, cropped) */
 export function PlusSmallIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden viewBox="2.74 0 10.52 16" width={9.2} height={14} fill="currentColor" {...props}>

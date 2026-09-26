@@ -178,7 +178,7 @@ function cssAnchor(
   const gap = opts.gap ?? 4;
  // `cover` pickers REPLACE the cell rather than hang under it — the original's
  // Status menu starts at the cell's own top-left (measured: −1,−1, see
- // e2e/fixtures/notion-status-dropdown.json). Sending those through
+ // src/i18n/content/e2e-fixtures/notion-status-dropdown.json). Sending those through
  // anchor(bottom) put them 40px below the cell.
   panel.style.top = opts.cover ? "anchor(top)" : `calc(anchor(bottom) + ${gap}px)`;
   panel.style.bottom = "auto";

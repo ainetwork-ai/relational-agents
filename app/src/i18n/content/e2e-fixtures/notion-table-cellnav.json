@@ -1,0 +1,74 @@
+{
+  "_": "Values measured directly on a Notion 'Table' (simple table) block over CDP. 2026-08-28, table test page (3cad8655…), a 3x3 table + one paragraph after it.",
+  "table": {
+    "cells": [["Alpha", "Beta", "Gamma"], ["one", "two", "three"], ["four", "five", "six"]],
+    "after": "after"
+  },
+  "geometry": {
+    "_": "A freshly inserted empty table. The 3 columns split the 720 body width exactly (240 = 720/3).",
+    "cellWidth": 240,
+    "cellMinHeight": 35,
+    "border": "rgb(230, 229, 227) 1px",
+    "selectorPill": {
+      "_": "Gray grips visible only while hovering the table. Columns at -2px above the table, rows at -2px left of it.",
+      "col": { "w": 18, "h": 6, "dy": -2, "bg": "rgb(173, 169, 163)", "borderWidth": 2 },
+      "row": { "w": 6, "h": 18, "dx": -2, "bg": "rgb(173, 169, 163)", "borderWidth": 2 }
+    },
+    "selection": {
+      "_": "The same single border for the caret's cell and for a dragged range. No background fill. 1px larger than the union so it sits on the cell borders.",
+      "borderWidth": 2,
+      "borderColor": "rgb(39, 131, 222)",
+      "borderRadius": 2,
+      "background": "rgba(0, 0, 0, 0)",
+      "insetFromUnion": -1,
+      "handle": {
+        "_": "Handle shown only for range selections. Vertical middle of the selection's right edge.",
+        "w": 6, "h": 12, "bg": "rgb(255, 255, 255)", "borderWidth": 2, "borderColor": "rgb(39, 131, 222)"
+      }
+    }
+  },
+  "nav": [
+    { "id": "right-at-end",       "from": [1, 1], "caret": "end",   "key": "ArrowRight",  "cell": [1, 2], "offset": 0 },
+    { "id": "right-mid",          "from": [1, 2], "caret": "start", "key": "ArrowRight",  "cell": [1, 2], "offset": 1 },
+    { "id": "left-at-start",      "from": [1, 2], "caret": "start", "key": "ArrowLeft",   "cell": [1, 1], "offset": 3 },
+    { "id": "left-mid",           "from": [1, 1], "caret": "end",   "key": "ArrowLeft",   "cell": [1, 1], "offset": 2 },
+    { "id": "right-row-wrap",     "from": [0, 2], "caret": "end",   "key": "ArrowRight",  "cell": [1, 0], "offset": 0 },
+    { "id": "left-row-wrap",      "from": [1, 0], "caret": "start", "key": "ArrowLeft",   "cell": [0, 2], "offset": 5 },
+    { "id": "down",               "from": [1, 1], "caret": "end",   "key": "ArrowDown",   "cell": [2, 1], "offset": 4 },
+    { "id": "up",                 "from": [2, 1], "caret": "end",   "key": "ArrowUp",     "cell": [1, 1], "offset": 3 },
+    { "id": "up-first-row",       "from": [0, 1], "caret": "end",   "key": "ArrowUp",     "outside": true },
+    { "id": "down-last-row",      "from": [2, 1], "caret": "end",   "key": "ArrowDown",   "outside": true },
+    { "id": "right-last-cell",    "from": [2, 2], "caret": "end",   "key": "ArrowRight",  "outside": true, "offset": 0 },
+    { "id": "left-first-cell",    "from": [0, 0], "caret": "start", "key": "ArrowLeft",   "outside": true },
+    { "id": "tab",                "from": [1, 1], "caret": "end",   "key": "Tab",         "cell": [1, 2], "offset": 5 },
+    { "id": "shift-tab",          "from": [1, 2], "caret": "end",   "key": "Shift+Tab",   "cell": [1, 1], "offset": 3 },
+    { "id": "tab-row-wrap",       "from": [0, 2], "caret": "end",   "key": "Tab",         "cell": [1, 0], "offset": 3 },
+    { "id": "shift-tab-row-wrap", "from": [1, 0], "caret": "start", "key": "Shift+Tab",   "cell": [0, 2], "offset": 5 },
+    { "id": "tab-last-cell",      "from": [2, 2], "caret": "end",   "key": "Tab",         "cell": [2, 2], "offset": 3, "rows": 3 }
+  ],
+  "wrapped": {
+    "_": "When a cell wraps to two lines, vertical arrows first move between the lines in the cell. Text is 'two ' + 70 characters.",
+    "text": "two wrapped text long enough to become two lines in this cell hopefully yes",
+    "cellHeight": 75,
+    "downStaysInCell": true,
+    "upStaysInCell": true
+  },
+  "select": [
+    { "id": "escape-selects-cell",  "from": [1, 1], "key": "Escape",           "range": [[1, 1], [1, 1]], "domSelection": "none" },
+    { "id": "shift-right-extends",  "from": [0, 0], "caret": "end", "key": "Shift+ArrowRight", "range": [[0, 0], [0, 1]], "domSelection": "none" },
+    { "id": "shift-down-extends",   "from": [0, 0], "caret": "end", "keys": ["Shift+ArrowRight", "Shift+ArrowDown"], "range": [[0, 0], [1, 1]], "domSelection": "none" }
+  ],
+  "drag": [
+    { "id": "cross-cell", "_": "A drag across cells does not select text — it becomes a cell-range selection.",
+      "from": [0, 0], "to": [1, 1], "range": [[0, 0], [1, 1]], "domSelection": "none", "toolbar": false },
+    { "id": "in-cell",    "_": "A drag within one cell is just a text selection, and the format toolbar appears.",
+      "cell": [1, 1], "domSelection": "text", "toolbar": true }
+  ],
+  "columnMenu": {
+    "_": "Menu shown when you press a grip to pick a column, then press again. Notion has no alignment (center etc.) item.",
+    "items": ["제목 행", "색", "왼쪽에 삽입", "오른쪽에 삽입", "복제", "콘텐츠 삭제", "삭제"],
+    "width": 265,
+    "hasAlign": false
+  },
+  "cellMenu": { "items": ["색", "콘텐츠 삭제"], "width": 265 }
+}

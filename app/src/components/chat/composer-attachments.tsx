@@ -38,7 +38,7 @@ export function useComposerAttachments() {
     for (const file of Array.from(files)) {
       const result = await uploadResumable(file);
       if (!result) {
-        setError(t("\"{name}\"을(를) 업로드할 수 없습니다", { name: file.name }));
+        setError(t("Can't upload \"{name}\"", { name: file.name }));
         continue;
       }
       setAttachments((prev) => [
@@ -124,7 +124,7 @@ export function AttachButton({
         data-testid="composer-attach-btn"
         onClick={onOpen}
         disabled={disabled}
-        aria-label={t("파일 첨부")}
+        aria-label={t("Attach file")}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <Paperclip size={15} />
@@ -187,7 +187,7 @@ export function AttachmentsList({
                 type="button"
                 data-testid="attachment-remove"
                 onClick={() => onRemove(a.id)}
-                aria-label={t("{name} 제거", { name: a.name })}
+                aria-label={t("Remove {name}", { name: a.name })}
                 className="rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700"
               >
                 <X size={12} />

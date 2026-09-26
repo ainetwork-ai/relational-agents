@@ -754,7 +754,7 @@ export interface DbMeta {
   views?: DbMetaView[];
   /** editable text under the DB title */
   description?: string;
-  /** 설명 표시 / 설명 숨기기; absent = never toggled (shows if there is text) */
+  /** Show description / Hide description; absent = never toggled (shows if there is text) */
   descriptionVisible?: boolean;
 }
 

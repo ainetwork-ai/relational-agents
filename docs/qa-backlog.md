@@ -1,20 +1,20 @@
-# AINMem QA 백로그 — #qa-ainmem 조사 (2026-09-09)
+# AINMem QA backlog — #qa-ainmem investigation (2026-09-09)
 
-comcom 워크스페이스 `#qa-ainmem` 채널(ainteams)에 올라온 제보를 코드·prod DB로 조사한 것.
-각 항목은 **증상(제보자 말) → 원인(코드 근거) → 로그/DB에서 확인법 → 상태 → 고칠 방향**으로 적었다.
-조사 출처: ainteams prod DB(읽기 전용, 채널 `07e982cc-8e38-4008-a568-b6e5bbffba74`), ainmem 코드,
-ainmem prod DB/컨테이너 로그.
+Reports posted to the `#qa-ainmem` channel (ainteams) of the comcom workspace, investigated against the code and the prod DB.
+Each item is written as **symptom (reporter's words) → cause (code evidence) → how to confirm in logs/DB → status → fix direction**.
+Sources: ainteams prod DB (read-only, channel `07e982cc-8e38-4008-a568-b6e5bbffba74`), ainmem code,
+ainmem prod DB/container logs.
 
-우선순위: **P1** 데이터 유실·핵심 편집 불가 / **P2** 흔한 편집 불편 / **P3** 요청·개선.
+Priority: **P1** data loss·core editing blocked / **P2** common editing friction / **P3** request·improvement.
 
-## 조회 관리 (중복 등록 방지)
+## Tracking (avoiding duplicate entries)
 
-이 문서는 채널을 다시 조회할 때 같은 내용을 또 등록하지 않도록 **처리 지점(워터마크)** 과 각 항목의
-**출처 메시지 id** 를 함께 관리한다.
+So that re-reading the channel does not register the same thing twice, this document tracks the **processing point (watermark)** and each item's
+**source message id** together.
 
-- **채널**: comcom / `#qa-ainmem` · `channel_id = 07e982cc-8e38-4008-a568-b6e5bbffba74` (workspace `08040167-0a63-4a3f-bbe7-b49161b96e37`)
-- **처리 지점(watermark)**: `2026-09-09 03:58:22` (message `dbc78446-dedb-4596-a370-c3c1b1eabc31`) 까지 반영함.
-- **다음 조회 방법**: 이 시각 이후 것만 본다 —
+- **Channel**: comcom / `#qa-ainmem` · `channel_id = 07e982cc-8e38-4008-a568-b6e5bbffba74` (workspace `08040167-0a63-4a3f-bbe7-b49161b96e37`)
+- **Processing point (watermark)**: processed up to `2026-09-09 03:58:22` (message `dbc78446-dedb-4596-a370-c3c1b1eabc31`).
+- **How to query next time**: look only at messages after that time —
   ```sql
   select id, created_at, user_id, content
   from messages
@@ -23,223 +23,223 @@ ainmem prod DB/컨테이너 로그.
     and created_at > '2026-09-09 03:58:22'
   order by created_at;
   ```
-  새로 나온 것만 QA 항목으로 추가하고, 워터마크를 최신 처리분으로 갱신한다. 아래 "출처 메시지 id" 에
-  이미 있는 id 는 다시 등록하지 않는다.
-- **이미 반영된 출처 메시지 id**: `da4c03f4`(QA-6), `ea1015d1`(QA-2), `bdb0733d`(QA-3), `7bfda286`(QA-4),
+  Add only new messages as QA items, and move the watermark to the latest processed message. Ids already listed under
+  "source message id" below are not registered again.
+- **Source message ids already processed**: `da4c03f4`(QA-6), `ea1015d1`(QA-2), `bdb0733d`(QA-3), `7bfda286`(QA-4),
   `bd3f869c`(QA-8), `c327376b`·`1f3ba8eb`(QA-1), `337adabc`(QA-5), `7e2eae79`(QA-7).
 
 ---
 
-## QA-1 · 저장 실패로 편집 유실 (P1) — **고침, 배포됨**
+## QA-1 · Edits lost because saving failed (P1) — **fixed, deployed**
 
-- **제보**: 지영(Jiyoung UX) 9/8 04:09 "혜민님이 토요일에 수정한 페이지가 저장이 안 되고 날아간 것 같습니다. 방문객 KPI 수치 등등 채워뒀는데 복구 안 되나요." Finn·혜민 확인.
-- **출처 메시지**: `c327376b(지영 제보), 1f3ba8eb(현정 결론 예약메시지)`
-- **채널/페이지/유저**: #qa-ainmem · `ainmem.ainetwork.ai/p/cf791d88-4108-41dd-87f6-435bd36072b7`("2026 언커먼 아트마켓 (Frieze x Kiaf 기간) (copy)") · 작성 혜민(hyemin kwak), 원본 페이지 `d77a3139…`.
-- **원인(확인)**: 자동저장이 키 입력마다 **문서 전체**를 PUT하고, `keepalive` 사용 여부를 문자 수(< 60,000)로 판정했는데 크롬의 keepalive 한도 64KiB는 **UTF-8 바이트** 기준. 한글은 1자=3바이트라 약 53k자에서 65KB를 넘어 크롬이 요청을 보내기 전에 거부. 코드는 이를 "오프라인"으로 해석해 localStorage 초안만 남기고 24시간 뒤 삭제 → 서버에 한 번도 도착하지 못함.
-- **로그/DB 확인법**: `page_snapshots`에서 해당 페이지가 9/3 이후 스냅샷 없음. `blocks` PUT 본문을 재구성하면 65,379바이트(64KiB 초과). 혜민 크롬 LevelDB 사본에는 삭제 tombstone만 남아 복구 불가(값이 compaction으로 지워진 뒤).
-- **상태**: 원인·경로 수정 배포 완료(저장 프로토콜 재작성, `docs/save-protocol-target.md`). 그 페이지의 토요일 내용 자체는 복구 불가(서버·백업·브라우저 어디에도 없음).
-- **후속**: 없음. 재발 방지는 QA-2와 같은 저장 재작성으로 커버.
+- **Report**: Jiyoung (Jiyoung UX) 9/8 04:09 "It looks like the page Hyemin edited on Saturday didn't save and got wiped. We had filled in the visitor KPI numbers and so on — can it be recovered?" Confirmed by Finn·Hyemin.
+- **Source messages**: `c327376b (Jiyoung's report), 1f3ba8eb (Hyeonjeong's scheduled conclusion message)`
+- **Channel/page/user**: #qa-ainmem · `ainmem.ainetwork.ai/p/cf791d88-4108-41dd-87f6-435bd36072b7` ("2026 Uncommon Art Market (Frieze x Kiaf period) (copy)") · author Hyemin (hyemin kwak), original page `d77a3139…`.
+- **Cause (confirmed)**: autosave PUT the **whole document** on every keystroke and decided whether to use `keepalive` by character count (< 60,000), but Chrome's 64KiB keepalive limit is measured in **UTF-8 bytes**. Korean is 3 bytes per character, so at about 53k characters it passed 65KB and Chrome rejected the request before sending it. The code interpreted that as "offline", kept only a localStorage draft, and deleted it 24 hours later → it never reached the server.
+- **How to confirm in logs/DB**: `page_snapshots` has no snapshot of that page after 9/3. Reconstructing the `blocks` PUT body gives 65,379 bytes (over 64KiB). The copy of Hyemin's Chrome LevelDB holds only deletion tombstones, so recovery is impossible (the values were removed by compaction).
+- **Status**: fix for the cause and path deployed (save protocol rewritten, `docs/save-protocol-target.md`). The Saturday content of that page itself cannot be recovered (it is not on the server, in backups, or in the browser).
+- **Follow-up**: none. Recurrence prevention is covered by the same save rewrite as QA-2.
 
-## QA-2 · 다른 사람 편집이 다른 컴퓨터에 반영 안 됨 + "오프라인" 메시지 (P1) — **고침, 배포됨**
+## QA-2 · Other people's edits not showing on another computer + "offline" message (P1) — **fixed, deployed**
 
-- **제보**: 지영 9/8 00:02 "다른 유저가 페이지를 편집했을 때 다른 컴퓨터로 확인하면 반영이 안 됨. 저번주 혜민님이 편집해두신 걸 오늘 제 컴퓨터엔 안 뜸. 그리고 오프라인 상태 메시지가 뜸."
-- **출처 메시지**: `ea1015d1`
-- **원인(확인)**: 두 갈래. (a) "오프라인" 배지는 QA-1과 같은 keepalive 바이트 초과로 저장이 거부된 결과. (b) 반영 안 됨 = 그 편집이 애초에 서버에 도착하지 못했거나(=QA-1), 도착했어도 실시간 팬아웃/동기화가 약했던 것.
-- **상태**: 저장을 글자 단위 CRDT 연산 + IndexedDB 큐 + 서버 팬아웃(SSE)으로 재작성해 배포. 두 탭이 같은 블록을 동시에 고쳐도 실시간 수렴하고, 유실이 없다. `e2e/concurrent-edit.check.mjs`로 검증.
-- **후속**: 실사용에서 두 사람 동시 편집을 함께 확인해볼 것(권장).
+- **Report**: Jiyoung 9/8 00:02 "When another user edits a page, it isn't reflected when checked from a different computer. What Hyemin edited last week doesn't show up on my computer today. And an offline status message appears."
+- **Source message**: `ea1015d1`
+- **Cause (confirmed)**: two branches. (a) The "offline" badge was the result of saves being rejected for exceeding the keepalive byte limit, same as QA-1. (b) Not reflected = the edit never reached the server in the first place (= QA-1), or it did but real-time fan-out/sync was weak.
+- **Status**: saving was rewritten and deployed as character-level CRDT operations + an IndexedDB queue + server fan-out (SSE). Even when two tabs edit the same block simultaneously they converge in real time without loss. Verified with `e2e/concurrent-edit.check.mjs`.
+- **Follow-up**: check two people editing simultaneously in real use (recommended).
 
-## QA-3 · 워크스페이스 전환 시 페이지가 섞임 (P1) — **원인 확정 (페이지 열람에 활성 워크스페이스 가드 없음)**
+## QA-3 · Pages get mixed up when switching workspaces (P1) — **cause confirmed (page viewing has no active-workspace guard)**
 
-- **제보**: 지영 9/8 00:04 "컴컴 워크스페이스 ↔ 개인 워크스페이스를 오갈 때 서로 페이지가 섞임. 선택된 워크스페이스는 개인용인데 컴컴 스페이스의 내용이 뜬다든지."
-- **출처 메시지**: `bdb0733d`
-- **먼저 배제한 후보(코드 확인)**: (1) 클라이언트 캐시 잔존 아님 — `usePagesStore.load()`는 맵을 통째로 교체(`stores/pages.ts:83-89`). (2) 전환 순서 정상 — 스위처가 `/api/workspaces/switch`를 await 후 `load()`·`router.push`·`router.refresh()`(`sidebar/workspace-switcher.tsx:96-121`). (3) 사이드바(`/api/pages`)는 활성 워크스페이스로 엄격히 걸린다 — `eq(pages.workspaceId, workspaceId)`(`api/pages/route.ts:26-28`).
-- **한 번 잘못 짚었다가 철회한 원인**: 처음엔 "OKF 파일 페이지가 워크스페이스에 안 묶여 누출된다"고 봤으나, **prod의 OKF 루트가 비어 있다**(호스트 `deploy/okf-content/`·컨테이너 `/data/okf` 모두 0개, 2026-09-09 확인). prod 페이지는 전부 Postgres라 OKF 누출은 **이 prod의 실제 원인이 아니다**. (OKF의 `inThisWorkspace`가 관계 문서만 거르는 건 사실이나, OKF가 채워지기 전엔 무증상인 잠복 버그다 — 아래 별도 기록.)
-- **원인(확정)**: **페이지 열람 경로가 "활성 워크스페이스"를 검사하지 않는다.** `/p/<id>`(`app/(app)/p/[pageId]/page.tsx:83-102`)는 페이지를 id로 불러와 **그 페이지 워크스페이스의 멤버인지만** 확인하고(`workspaceMembers`), 그 페이지가 **현재 선택(active)한 워크스페이스 소속인지는 비교하지 않는다.** 제보자는 컴컴 멤버이므로, 활성 워크스페이스가 개인이어도 컴컴 페이지를 열면 본문이 그대로 렌더된다 — 헤더(사이드바)는 개인, 본문은 컴컴 = "섞임". 컴컴 페이지 URL로 가는 경로는 즐겨찾기·최근·브레드크럼·멘션 링크, 또는 컴컴 페이지를 열어둔 채 전환·뒤로가기.
-- **로그/DB 확인법**: 개인 워크스페이스 선택 상태에서 `/p/<컴컴-page-id>`를 열어 본문이 뜨는지(뜨면 재현). `pages.workspace_id`와 세션 `activeWorkspaceId`가 다른데 열리는지.
-- **상태**: **해결(코드 반영, dev 검증)** — `508d0b9`(페이지가 워크스페이스를 결정) + 다음 커밋(사이드바 fetch를 그 워크스페이스로). URL은 `/p/<id>` 그대로. 구현: `proxy.ts`가 `/p/*` 요청 경로를 레이아웃에 전달 → 레이아웃이 그 페이지의 워크스페이스(멤버 검증)로 사이드바를 **첫 페인트부터** 그림 → 페이지 라우트가 세션 활성값과 다르면 `FollowPageWorkspace`(클라이언트)가 `/api/workspaces/switch`로 세션을 따라오게 하고 `router.refresh()` → `/api/pages`·`/api/teamspaces`는 멤버 검증된 `?workspaceId=`를 받아 사이드바가 세션이 아닌 자기 워크스페이스를 요청. 검증 `e2e/workspace-follows-page.check.mjs`: 활성=A로 B 페이지 하드로드 → SSR 헤더 B, 트리 B(A 트리 노출 0ms), 세션 B, switch POST 1회; A로 되돌아가는 하드로드, A→B 소프트 네비게이션도 동일. 페이지 오류 0.
-- **노션 측정(2026-09-09, CDP, golden.check 통과; 1차 측정의 추론을 2차에서 실측으로 교정)**. 계정 hyeonjj@comcom.ai 는 ComCom·개인("HyeonJeong Jun의 Notion")·게스트 워크스페이스를 가짐. 탭 1개로 실제 전환·네비게이션을 수행하고 원상복구:
-  1. **페이지 id가 권위, 워크스페이스는 페이지에서 파생.** 개인 워크스페이스를 활성으로 둔 상태에서 ComCom 페이지 URL을 직접 열자 **본문과 사이드바(하단 전환기 "ComCom", 팀스페이스 목록)가 모두 ComCom으로 바뀜.** 확인창·오류 없음. 즉 "어느 워크스페이스가 활성인가"는 지금 보는 페이지가 결정한다.
-  2. **URL의 워크스페이스 슬러그는 선택적 장식이다.** ComCom은 슬러그가 있어 `/p/comcom/<id>`, 개인 워크스페이스는 슬러그가 없어 **`/p/<id>`**(관측 `/p/353adf31…`). 1차 측정에서 "항상 URL에 워크스페이스가 있다"고 한 것은 **틀림**.
-  3. **틀린 슬러그·슬러그 없는 URL은 페이지 id로 교정된다.** `/p/<다른값>/<comcom page id>` → `/p/comcom/<id>`로 리다이렉트. 레거시 `notion.so/<id>` → `app.notion.com/p/comcom/<id>`로 리다이렉트, 크롬도 ComCom.
-  4. **워크스페이스 표시 위치**: 팀 워크스페이스(ComCom)는 사이드바 **맨 아래 왼쪽** 전환기("ComCom ⌄"), 개인 워크스페이스는 사이드바 **맨 위**("HyeonJeong Jun의 Notion"). 상단 브레드크럼은 **팀스페이스 → 부모 페이지 → 페이지**이며 워크스페이스는 들어가지 않는다("현정 테스트"는 팀스페이스 — 1차 측정에서 워크스페이스라 한 것은 틀림).
-  - 결론: 노션에 "헤더는 A, 본문은 B" 불일치가 없는 이유는 **URL 세그먼트가 아니라 "페이지를 열면 그 페이지의 워크스페이스가 활성이 된다"는 규칙** 때문이다. 우리 앱은 페이지 열람 시 활성 워크스페이스를 페이지에서 파생하지 않아 어긋난다.
-- **고칠 방향(재측정 기반)**: 동형 구현 = **페이지 열람 시 `page.workspaceId`를 활성 워크스페이스로 삼고, 사이드바·헤더를 그것으로 렌더.** 첫 페인트는 서버(layout이 요청 경로의 페이지 → 워크스페이스를 알아 사이드바를 맞게 그림), 소프트 네비게이션은 클라이언트가 `/api/workspaces/switch`로 세션을 따라오게 하고 `router.refresh()`. URL에 워크스페이스 세그먼트를 넣는 것은 노션에서도 선택적 슬러그(ainmem엔 슬러그 개념이 없음)이므로 필수가 아니며, 넣을 경우 구 URL(슬랙 공유·저장된 멘션 링크 `/p/<id>`) 호환 리다이렉트를 영구 유지해야 한다. 설계 세부는 별도 계획(라우트 재구성·미들웨어 `x-pathname`·클라이언트 reconcile·링크 40곳 이관 순서) 참조.
-- **별도(잠복) 버그**: `api/pages/route.ts`의 OKF 병합에서 `inThisWorkspace()`가 관계 문서만 워크스페이스로 거르고 일반 OKF 콘텐츠는 `if (!m) return true`로 전 워크스페이스 통과 + `okfSyntheticPage`가 현재 워크스페이스 id를 박음(`route.ts:140-163`). **OKF가 채워지면** 사이드바에도 같은 섞임이 생긴다. OKF를 실제로 쓰기 시작하기 전 함께 정리 필요.
+- **Report**: Jiyoung 9/8 00:04 "When going back and forth between the ComCom workspace and the personal workspace, pages get mixed up. For example, the selected workspace is the personal one but ComCom space content shows up."
+- **Source message**: `bdb0733d`
+- **Candidates ruled out first (code checked)**: (1) not leftover client cache — `usePagesStore.load()` replaces the whole map (`stores/pages.ts:83-89`). (2) switch order is correct — the switcher awaits `/api/workspaces/switch` and then does `load()`·`router.push`·`router.refresh()` (`sidebar/workspace-switcher.tsx:96-121`). (3) the sidebar (`/api/pages`) is strictly scoped to the active workspace — `eq(pages.workspaceId, workspaceId)` (`api/pages/route.ts:26-28`).
+- **A cause we suggested once and retracted**: at first we thought "OKF file pages are not bound to a workspace and leak", but **the OKF root in prod is empty** (0 files on both the host `deploy/okf-content/` and the container `/data/okf`, checked 2026-09-09). All prod pages are Postgres, so OKF leakage is **not the actual cause in this prod**. (It is true that OKF's `inThisWorkspace` only filters relation documents, but it is a latent bug with no symptoms until OKF is populated — recorded separately below.)
+- **Cause (confirmed)**: **the page viewing path does not check the "active workspace".** `/p/<id>` (`app/(app)/p/[pageId]/page.tsx:83-102`) loads the page by id and checks **only whether the user is a member of that page's workspace** (`workspaceMembers`); it **does not compare whether the page belongs to the currently selected (active) workspace.** The reporter is a ComCom member, so even with the personal workspace active, opening a ComCom page renders its body as-is — header (sidebar) personal, body ComCom = "mixed up". Ways to reach a ComCom page URL: favorites·recents·breadcrumbs·mention links, or switching/going back while a ComCom page is open.
+- **How to confirm in logs/DB**: with the personal workspace selected, open `/p/<comcom-page-id>` and see if the body renders (if so, reproduced). Whether it opens even though `pages.workspace_id` differs from the session's `activeWorkspaceId`.
+- **Status**: **resolved (code landed, verified on dev)** — `508d0b9` (the page decides the workspace) + the next commit (sidebar fetch uses that workspace). The URL stays `/p/<id>`. Implementation: `proxy.ts` passes the `/p/*` request path to the layout → the layout draws the sidebar **from the first paint** with that page's workspace (membership-checked) → if the page route differs from the session's active value, `FollowPageWorkspace` (client) makes the session follow via `/api/workspaces/switch` and calls `router.refresh()` → `/api/pages`·`/api/teamspaces` accept a membership-checked `?workspaceId=` so the sidebar requests its own workspace rather than the session's. Verification `e2e/workspace-follows-page.check.mjs`: hard-load a B page with active=A → SSR header B, tree B (A tree shown for 0ms), session B, 1 switch POST; the hard load back to A and the A→B soft navigation behave the same. 0 page errors.
+- **Notion measurement (2026-09-09, CDP, golden.check passing; inferences from the first round corrected by real measurement in the second)**. The account hyeonjj@comcom.ai has ComCom, a personal ("HyeonJeong Jun's Notion"), and a guest workspace. Actual switching and navigation were done in one tab and then restored:
+  1. **The page id is authoritative; the workspace is derived from the page.** With the personal workspace active, opening a ComCom page URL directly **switched both the body and the sidebar (bottom switcher "ComCom", teamspace list) to ComCom.** No confirmation dialog or error. In other words, "which workspace is active" is decided by the page you are viewing.
+  2. **The workspace slug in the URL is optional decoration.** ComCom has a slug, so `/p/comcom/<id>`; the personal workspace has no slug, so **`/p/<id>`** (observed `/p/353adf31…`). The first-round claim that "the URL always contains the workspace" was **wrong**.
+  3. **A wrong slug or a slugless URL is corrected by the page id.** `/p/<other value>/<comcom page id>` → redirects to `/p/comcom/<id>`. Legacy `notion.so/<id>` → redirects to `app.notion.com/p/comcom/<id>`, and the chrome is ComCom too.
+  4. **Where the workspace is shown**: a team workspace (ComCom) is the switcher at the **bottom left** of the sidebar ("ComCom ⌄"); the personal workspace is at the **top** of the sidebar ("HyeonJeong Jun's Notion"). The top breadcrumb is **teamspace → parent page → page** and does not include the workspace ("Hyeonjeong Test" is a teamspace — calling it a workspace in the first round was wrong).
+  - Conclusion: Notion has no "header A, body B" mismatch not because of a URL segment but because of **the rule "opening a page makes that page's workspace active"**. Our app does not derive the active workspace from the page when viewing it, so they diverge.
+- **Fix direction (based on re-measurement)**: isomorphic implementation = **when viewing a page, take `page.workspaceId` as the active workspace and render the sidebar·header with it.** First paint on the server (the layout knows the request path's page → workspace and draws the right sidebar); on soft navigation the client makes the session follow via `/api/workspaces/switch` and calls `router.refresh()`. Putting a workspace segment into the URL is an optional slug even in Notion (ainmem has no slug concept), so it is not required; if added, compatibility redirects for old URLs (Slack shares·saved mention links `/p/<id>`) must be kept forever. For design details see the separate plan (route restructuring·middleware `x-pathname`·client reconcile·migration order of 40 links).
+- **Separate (latent) bug**: in the OKF merge in `api/pages/route.ts`, `inThisWorkspace()` filters only relation documents by workspace, while plain OKF content passes for every workspace via `if (!m) return true` + `okfSyntheticPage` stamps the current workspace id (`route.ts:140-163`). **Once OKF is populated**, the same mix-up will appear in the sidebar. Needs cleanup before OKF is actually used.
 
-## QA-4 · 페이지(하위 페이지) 블록을 만들면 그 아래에 입력이 안 됨 (P1) — **해결**
+## QA-4 · After creating a page (sub-page) block, you cannot type below it (P1) — **resolved**
 
-- **제보**: 지영 9/8 00:11 "페이지 하나 만들었더니 그 상태에서 입력이 안 되는 채로 멈춤. 텍스트는 자유롭게 입력되는데, 페이지 하나를 생성하면 그 밑으로는 텍스트 입력이 안 되는 이슈."
-- **출처 메시지**: `7bfda286`
-- **원인(확인)**: 한 줄을 하위 페이지로 바꾸면 그 블록이 **편집 불가한 링크 칩**(`ChildPageBody`, `block-row.tsx:970`)이 되는데, **그 뒤에 빈 문단이 생기지 않는다**(`block-editor.tsx:910-928`의 child_page 변환은 블록 타입만 바꾸고 뒤 문단을 추가하지 않음). 하위 페이지가 문서의 마지막 블록이면 캐럿을 아래에 둘 편집 대상이 없어 입력이 막힌다. 빈 시작 안내(EmptyPageStarter)는 `blocks.length === 1`일 때만 뜬다(`block-editor.tsx:2820~`).
-- **로그/DB 확인법**: 문제 페이지의 `blocks`에서 마지막 블록 `type='child_page'`이고 그 뒤 문단 블록이 없음.
-- **상태**: 해결 (`beb4b78` 다음 커밋). 두 곳을 고침 — (1) 슬래시로 하위 페이지를 만들 때 그 블록이 마지막이면 뒤에 빈 문단을 자동 추가하고 캐럿을 옮긴다. (2) 마지막 블록이 편집 불가(하위 페이지·이미지·구분선·표)여서 캐럿이 없을 때, 그 아래 빈 영역을 클릭하면 빈 문단을 추가해 그리로 들어간다(노션과 동일한 어포던스). image·divider·table이 끝에 와도 같은 경로로 빠져나온다.
-- **고칠 방향**: (반영 완료) `block-editor.tsx` child_page 변환에 trailing 문단 추가 + bare-canvas onClick에서 편집 불가 tail일 때 문단 추가.
+- **Report**: Jiyoung 9/8 00:11 "After creating a page, it freezes in a state where I can't type. Text can be typed freely, but once a page is created, text input below it doesn't work."
+- **Source message**: `7bfda286`
+- **Cause (confirmed)**: turning a line into a sub-page makes that block a **non-editable link chip** (`ChildPageBody`, `block-row.tsx:970`), but **no empty paragraph is created after it** (the child_page conversion in `block-editor.tsx:910-928` only changes the block type and does not add a following paragraph). If the sub-page is the last block of the document, there is no editable target to put the caret below, so input is blocked. The empty-page starter (EmptyPageStarter) only appears when `blocks.length === 1` (`block-editor.tsx:2820~`).
+- **How to confirm in logs/DB**: in the problem page's `blocks`, the last block is `type='child_page'` with no paragraph block after it.
+- **Status**: resolved (the commit after `beb4b78`). Two fixes — (1) when creating a sub-page with slash, if the block is last, an empty paragraph is auto-added after it and the caret moves there. (2) when the last block is non-editable (sub-page·image·divider·table) and there is no caret, clicking the empty area below adds an empty paragraph and enters it (same affordance as Notion). Ending with an image·divider·table escapes via the same path.
+- **Fix direction**: (landed) add a trailing paragraph to the child_page conversion in `block-editor.tsx` + add a paragraph in the bare-canvas onClick when the tail is non-editable.
 
-## QA-5 · 글 쓰고 화면을 나가면 적은 내용이 사라짐 (P1) — **대체로 커버됨, 확인 필요**
+## QA-5 · Content you wrote disappears when you leave the screen (P1) — **mostly covered, needs confirmation**
 
-- **제보**: Bobae Jeon 9/9 00:46 "저 지금 글 쓰고 화면 나가면 자꾸 적은 내용 사라져요."
-- **출처 메시지**: `337adabc`
-- **원인(코드 확인)**: 시점이 저장 재작성(1단계 큐, 9/8 15:05 배포) **이후**다. 큐는 편집마다 트랜잭션을 **먼저 IndexedDB에 커밋한 뒤** 전송하고(`editor/transaction-queue.ts:199-217`), 미전송분은 다음 세션이 회수한다(orphan adoption, `:350-390`). 옛 `flush on unmount`는 큐 도입으로 제거됨. 따라서 커밋된 편집은 네비게이션으로 유실되지 않아야 한다. 남은 실질 위험은 두 가지로 좁혀진다:
-  1. 제보자 브라우저가 **배포 전 옛 코드**를 캐시(포트 포워딩·서비스워커·강새로고침 전).
-  2. **갓 만든 페이지의 첫 편집**을 페이지 생성 서버 왕복 완료 전에 떠나, 트랜잭션이 아직 없는 페이지/블록을 가리켜 서버가 영구 거부하는 특정 경로.
-- **로그/DB 확인법**: 제보자에게 페이지 id·브라우저·앱 버전 확인. 해당 페이지의 `transactions`/`blocks`에 그 편집이 남았는지. IndexedDB `TransactionStore`에 미확인 트랜잭션이 남아 있었는지.
-- **상태**: 대체로 저장 재작성으로 커버. **재현·버전 확인 필요**.
-- **고칠 방향**: 재현되면 (2)의 "새 페이지 첫 편집" 경로만 수정(페이지 생성 확정 전 편집을 큐가 보류·재시도). 아니면 배포 후 강새로고침 안내.
+- **Report**: Bobae Jeon 9/9 00:46 "When I write something and leave the screen, what I wrote keeps disappearing."
+- **Source message**: `337adabc`
+- **Cause (code checked)**: the timing is **after** the save rewrite (phase-1 queue, deployed 9/8 15:05). The queue **commits each edit's transaction to IndexedDB first** and then sends it (`editor/transaction-queue.ts:199-217`), and unsent items are adopted by the next session (orphan adoption, `:350-390`). The old `flush on unmount` was removed with the queue. So committed edits should not be lost by navigation. The remaining real risks narrow to two:
+  1. The reporter's browser had cached the **old pre-deploy code** (port forwarding·service worker·before a hard refresh).
+  2. A specific path where one leaves **the first edit of a freshly created page** before the page-creation server round-trip finishes, so the transaction points to a page/block that does not exist yet and the server rejects it permanently.
+- **How to confirm in logs/DB**: ask the reporter for page id·browser·app version. Whether the edit remains in that page's `transactions`/`blocks`. Whether unacknowledged transactions were left in IndexedDB `TransactionStore`.
+- **Status**: mostly covered by the save rewrite. **Reproduction·version check needed**.
+- **Fix direction**: if reproduced, fix only the "first edit of a new page" path in (2) (the queue holds·retries edits made before page creation is confirmed). Otherwise, advise a hard refresh after deploys.
 
-## QA-6 · 블록을 드래그해 옮기면 항상 "열 나누기"가 됨 (P2) — **해결**
+## QA-6 · Dragging a block to move it always creates "columns" (P2) — **resolved**
 
-- **제보**: Finn 9/7 07:28 "드래그해서 옮길 때 무조건 열나누기가 됩니다."
-- **출처 메시지**: `da4c03f4`
-- **원인(확인)**: 드롭 판정이 대상 블록 폭의 **좌우 각 25%**(합쳐서 폭의 50%)를 "가장자리"로 보고 열(column)을 만든다(`block-editor.tsx:2410-2411`: `relX < 0.25 ? "left" : relX > 0.75 ? "right" : undefined`). 노션은 가장자리 밴드가 수 px로 훨씬 좁다. 폭의 절반이 열 분할 구역이라 보통의 재정렬 드롭도 열 나누기로 빠지기 쉽다.
-- **로그/DB 확인법**: 드래그한 페이지의 `blocks`에 의도치 않은 `column_list`/`column` 블록이 생김.
-- **상태**: 해결 (`beb4b78`). 가장자리 밴드를 폭 비율(좌우 25%)에서 고정 픽셀 `min(64px, 폭의 15%)`로 좁혔다. 넓은 블록에서 열 분할 구역은 좌우 64px씩뿐이고 나머지 넓은 중앙은 보통의 행 재정렬로 떨어진다.
-- **고칠 방향**: (반영 완료) `block-editor.tsx` `onDragOverRow`.
+- **Report**: Finn 9/7 07:28 "When I drag to move something, it always splits into columns."
+- **Source message**: `da4c03f4`
+- **Cause (confirmed)**: the drop test treated **25% on each side** of the target block's width (50% of the width combined) as "edges" and created columns (`block-editor.tsx:2410-2411`: `relX < 0.25 ? "left" : relX > 0.75 ? "right" : undefined`). Notion's edge band is only a few px, much narrower. With half the width being a column-split zone, ordinary reorder drops easily fell into column splits.
+- **How to confirm in logs/DB**: unintended `column_list`/`column` blocks appear in the dragged page's `blocks`.
+- **Status**: resolved (`beb4b78`). The edge band was narrowed from a width ratio (25% each side) to a fixed pixel `min(64px, 15% of width)`. On wide blocks, the column-split zones are just 64px on each side, and the wide center falls into ordinary row reordering.
+- **Fix direction**: (landed) `block-editor.tsx` `onDragOverRow`.
 
-## QA-7 · Projects "My" 탭에서 클릭해도 안 열림 (P2) — **해결 (원인 확정, dev 검증)**
+## QA-7 · Clicking does nothing in the Projects "My" tab (P2) — **resolved (cause confirmed, verified on dev)**
 
-- **제보**: Finn 9/9 01:40 "프로젝트 my tab에서는 클릭해도 안 열립니다." (앞서 "연관 가능"이라 적었던 9/8 04:13 "요 페이지만 상단에 이렇게 뜹니다"는 **지영님의 QA-1 페이지 관련 메시지**(`5cafdba4`)로 QA-7과 무관 — 정정.)
-- **출처 메시지**: `7e2eae79`
-- **원인(확정)**: prod의 Projects 데이터베이스(`4b087b9f…`)에서 "My"는 **board 뷰**(`db_views 7a0bce0c…`, TL·Assignee·Sherpa에 `is_me` 필터, Status로 그룹)다. 보드 카드에는 **열기 경로가 없었다**: `board-view.tsx`의 `onCardPointerDown`이 드래그만 처리해, 포인터가 움직이지 않은 클릭도 pointerup에서 "같은 열에 드롭"으로 처리 → `openRow`를 부르지 않아 아무 일도 없고, 바뀌지 않은 값을 `updateRow`로 다시 쓰기까지 했다. 표·갤러리·타임라인 뷰는 `db.openRow`를 부르므로 다른 탭에선 열렸다 — "My 탭에서만" 안 열린 이유.
-- **상태**: 해결. 눌러서 5px 이상 움직이지 않으면 **클릭 → `openRow`(사이드 피크)**, 움직이면 드래그, 원래 열에 다시 놓으면 쓰기 없음. 검증 `e2e/board-card-open.check.mjs`(dev, amy 계정, My 보드 카드 55개): 클릭 → 피크 열림·쓰기 0, 같은 열 안 드래그 → 피크 안 열림·쓰기 0, 페이지 오류 0. 수정 전 코드로 같은 검사를 돌리면 1a가 실패한다(아래 커밋 메시지).
-- **노션과의 정합**: 노션 보드도 클릭=열기, 드래그=이동. 드래그 판정 픽셀 임계값은 원본에서 실제 카드를 드래그해야 잴 수 있어(골든셋 규칙상 드래그 금지) **측정하지 않고** 5px 통상값을 썼다 — 필요하면 별도 측정.
-- **원인(후보, 경로 추적함)**: 행 열기는 모든 뷰가 공유하는 한 경로다 — `db.openRow(rowId)` → `rowsRef.current`(뷰 필터와 무관한 **전체 행 목록**)에서 행을 찾고 → `ensureRowPage`(없으면 `__page` 생성) → `setOpenRowId`로 **row-peek 오버레이**를 연다(`database/database-block.tsx:651-659,532-544,1607`). 즉 네비게이션이 아니라 오른쪽 사이드 오버레이가 뜨는 구조. openRow는 전체 목록에서 찾으므로 "특정 탭에서만 안 열림"은 openRow 자체가 아니라 그 뷰에서 **클릭이 openRow에 도달하지 못하는 것**(예: 그룹/카드의 다른 핸들러·`stopPropagation`, 또는 그 탭이 데이터베이스 뷰가 아니라 별도 "my" 집계 화면)일 가능성이 크다. 코드만으로는 어느 뷰의 어떤 "my" 탭인지 특정 불가.
-- **로그/DB 확인법**: 그 탭의 뷰 종류(`db_views`의 `kind`), 클릭 시 콘솔 에러, 클릭이 `db-title-open-<rowId>` 버튼을 거치는지 행 전체를 거치는지, `openRowId` state가 세팅되는데 오버레이가 안 뜨는지(=RowPeek 쪽) 아니면 아예 세팅이 안 되는지(=클릭 미도달). Finn 9/8 04:13 첨부 이미지 미열람 — 그 배너가 어떤 상태인지 확인 필요.
-- **상태**: 미해결. 경로는 좁혔으나 **재현·이미지 확인 필요**(어느 Projects 페이지·어느 탭·콘솔 로그).
+- **Report**: Finn 9/9 01:40 "In the projects my tab, clicking doesn't open anything." (The 9/8 04:13 "Only this page shows up like this at the top", previously noted as "possibly related", is **a message about Jiyoung's QA-1 page** (`5cafdba4`) and unrelated to QA-7 — corrected.)
+- **Source message**: `7e2eae79`
+- **Cause (confirmed)**: in the prod Projects database (`4b087b9f…`), "My" is a **board view** (`db_views 7a0bce0c…`, `is_me` filters on TL·Assignee·Sherpa, grouped by Status). Board cards **had no open path**: `onCardPointerDown` in `board-view.tsx` only handled dragging, so even a click where the pointer did not move was handled on pointerup as a "drop into the same column" → `openRow` was never called so nothing happened, and it even rewrote the unchanged value with `updateRow`. Table·gallery·timeline views call `db.openRow`, so it opened in other tabs — which is why it failed "only in the My tab".
+- **Status**: resolved. Press without moving 5px or more → **click → `openRow` (side peek)**; moving → drag; dropping back in the original column → no write. Verification `e2e/board-card-open.check.mjs` (dev, amy account, 55 cards on the My board): click → peek opens·0 writes, drag within the same column → no peek·0 writes, 0 page errors. Running the same check against the pre-fix code fails 1a (see the commit message).
+- **Alignment with Notion**: Notion boards also do click = open, drag = move. The drag threshold in pixels can only be measured by actually dragging a card in the original (dragging is forbidden by the golden-set rules), so it was **not measured** and the usual 5px was used — measure separately if needed.
+- **Cause (candidate, path traced)**: opening a row is one path shared by all views — `db.openRow(rowId)` → finds the row in `rowsRef.current` (the **full row list**, independent of view filters) → `ensureRowPage` (creates `__page` if missing) → opens the **row-peek overlay** via `setOpenRowId` (`database/database-block.tsx:651-659,532-544,1607`). That is, it is not navigation but a right-side overlay. Since openRow searches the full list, "doesn't open only in a certain tab" is likely not openRow itself but **the click never reaching openRow** in that view (e.g. another handler on the group/card·`stopPropagation`, or that tab being a separate "my" aggregate screen rather than a database view). From the code alone we could not tell which "my" tab of which view.
+- **How to confirm in logs/DB**: that tab's view kind (`kind` in `db_views`), console errors on click, whether the click goes through the `db-title-open-<rowId>` button or the whole row, whether the `openRowId` state is set but the overlay does not appear (= RowPeek side) or it is never set (= click not reaching). Finn's 9/8 04:13 attached image not viewed — need to check what state that banner is.
+- **Status**: unresolved. The path is narrowed but **reproduction·image check needed** (which Projects page·which tab·console logs).
 
-## QA-9 · 드래그 선택 후 ⌘C 복사가 안 됨 + 선택 표시가 노션과 다름 (P1) — **해결 (측정 기반, dev 검증)**
+## QA-9 · ⌘C after drag selection does not copy + selection styling differs from Notion (P1) — **resolved (measurement-based, verified on dev)**
 
-- **제보**: comcom(현정) 9/9 채팅, prod 에서 직접 확인 — "드래그해서 cmd c 하니까 복사가 안 되는데? 드래그할 때 선택됨 표시도 노션과 다르고." (채널 메시지 아님 — 출처 id 없음)
-- **원인(확인)**: (1) 블록 선택 모드의 키 처리에 ⌘C/⌘X 가 없고 caret 을 blur 하므로 브라우저 기본 복사도 비어 있었다. (2) 텍스트 드래그가 다른 블록에 들어가는 즉시 블록 선택으로 바뀌었다(노션은 텍스트 선택 유지). (3) 선택 표시 `bg-blue-100/80 + ring`(노션 `rgba(35,131,226,0.14)` r4, ring 없음). (4) 여백 마퀴는 에디터 밖이라 텍스트 선택이 되고, 이미지 클릭은 선택이 안 됐다.
-- **측정**: 노션 원본에서 실제 드래그로 7개 시나리오 측정 → `docs/notion-selection-copy.md`.
-- **상태**: 해결. 커밋 "Block clipboard…" + "Drag selection and ⌘C like the original…". 검증 `e2e/selection-copy.check.mjs`(A·B·C·H·E·D·F + Backspace 병합/⌘Z) 전부 통과, `save-protocol`·`concurrent-edit` 회귀 통과.
-- **후속 제보(9/9, prod 확인 후)**: (a) "드래그 후 여백을 클릭해도 해제되지 않는다 — 해제 범위를 정의해서 측정", (b) "노션은 여러 블록을 선택하면 블록 사이가 나뉘어 표시된다 — 디자인 규칙을 정확히", (c) 드래그 중 `-bottom-0.5 … bg-blue-500` 표시선이 생긴다.
-  - (a) 노션에서 해제 규칙 행렬 16개를 실측(`docs/notion-selection-copy.md` §5): 텍스트 클릭은 어디든 해제+캐럿, 여백·아래 빈 곳 클릭도 해제(그 줄 블록에 캐럿), Escape 해제; 예외는 블록 **패딩** 클릭 → 그 블록만 선택, ⠿ 거터 클릭 → 유지. 그대로 반영.
-  - (b) halo 기하 실측(§6): 블록 박스 안 2px inset 오버레이(목록 항목은 상하 1px, 텍스트 블록과 맞닿는 쪽 2px), 인접 halo 간격 4px(텍스트)/2px(목록), 선택된 부모의 자식은 halo 없음. 행 배경색 → 오버레이로 교체.
-  - (c) 블록 드래그가 행 밖에서 끝나면 `draggingId`/`dropTarget` 이 남아 표시선이 고정되고 이후 텍스트 드래그에도 반응하던 버그. `dragend`/`drop` 에서 정리하고, 드롭 표시는 우리 블록 드래그 마커(`application/x-ainmem-block`)가 있을 때만.
-  - 검증 `e2e/deselect.check.mjs`(G 기하 + S1–S11 + T1–T3), `selection-copy.check.mjs` 재통과.
+- **Report**: comcom (Hyeonjeong) 9/9 chat, confirmed directly on prod — "I dragged and pressed cmd c but nothing copied? And the selected-state styling while dragging is different from Notion too." (Not a channel message — no source id)
+- **Cause (confirmed)**: (1) the key handling in block selection mode had no ⌘C/⌘X and blurred the caret, so the browser's default copy was empty too. (2) a text drag switched to block selection as soon as it entered another block (Notion keeps the text selection). (3) selection styling `bg-blue-100/80 + ring` (Notion: `rgba(35,131,226,0.14)` r4, no ring). (4) the margin marquee was outside the editor so it became a text selection, and clicking an image did not select it.
+- **Measurement**: 7 scenarios measured with real drags on the Notion original → `docs/notion-selection-copy.md`.
+- **Status**: resolved. Commits "Block clipboard…" + "Drag selection and ⌘C like the original…". Verification `e2e/selection-copy.check.mjs` (A·B·C·H·E·D·F + Backspace merge/⌘Z) all pass, `save-protocol`·`concurrent-edit` regressions pass.
+- **Follow-up reports (9/9, after checking on prod)**: (a) "clicking the margin after a drag does not deselect — define the deselect scope and measure it", (b) "when multiple blocks are selected, Notion shows them split between blocks — get the design rule exactly", (c) a `-bottom-0.5 … bg-blue-500` indicator line appears during drag.
+  - (a) Measured a 16-case deselect rule matrix in Notion (`docs/notion-selection-copy.md` §5): clicking text anywhere deselects + caret, clicking the margin·empty space below also deselects (caret in the block on that line), Escape deselects; exceptions are clicking a block's **padding** → selects just that block, clicking the ⠿ gutter → kept. Applied as-is.
+  - (b) Measured the halo geometry (§6): a 2px inset overlay inside the block box (list items 1px top and bottom, 2px on the side touching a text block), 4px gap between adjacent halos (text)/2px (lists), children of a selected parent have no halo. Row background color → replaced with an overlay.
+  - (c) A bug where, if a block drag ended outside a row, `draggingId`/`dropTarget` remained so the indicator line stuck and reacted to later text drags. Cleaned up on `dragend`/`drop`, and the drop indicator is shown only when our block-drag marker (`application/x-ainmem-block`) is present.
+  - Verification `e2e/deselect.check.mjs` (G geometry + S1–S11 + T1–T3), `selection-copy.check.mjs` passes again.
 
-## QA-10 · ⠿ 메뉴의 맨 아래 "Turn into" 가 작동하지 않음 (P2) — **해결 (노션 측정, dev 검증)**
+## QA-10 · "Turn into" at the bottom of the ⠿ menu does not work (P2) — **resolved (Notion measured, verified on dev)**
 
-- **제보**: comcom(현정) 9/9 채팅 — "빈 줄에 커서를 댔을 때 나타나는 좌측 버튼 둘 중 점 6개 버튼의 하위 메뉴 맨 아래 turn into 가 작동 안 함."
-- **노션 측정(테스트 페이지 + Project Page 문서, CDP)**: (1) **빈 줄**에서 ⠿ 클릭 → 액션 메뉴가 아니라 **블록 유형 선택기**(+ 와 같은 패널: 필터 입력 "필터링 기준을 입력하세요.", 추천/기본 블록/미디어, 메뉴 닫기 esc)가 바로 열림. (2) 내용 있는 블록에서 ⠿ 클릭 → 전환 · 색 · 블록 링크 복사 ⌘⌃L · 복제 ⌘D · 옮기기 ⌘⇧P · 삭제 Del · 댓글 ⌘⇧M · 편집 내용 제안 · 여기에서 발표 · AI에게 질문하기 · 스킬 (폭 265, 행 28px, radius 10px). **전환은 호버만으로** 오른쪽에 패널(menu.right−4px, 폭 220, 행 28px): 텍스트 · 제목1~4 · 페이지 · 글머리 기호 목록 · 번호 매기기 목록 · 할 일 목록 · 토글 목록 · 코드 · 인용 · 콜아웃 · 수학 공식 블록 · 동기화 블록 · 토글 제목1~4 · 2~5개의 열. 원자료 `scratchpad/notion-handle-menu*.json`.
-- **원인(확인)**: 두 겹. (a) 하위 메뉴가 스크롤되는 메뉴 컨테이너(`overflow-y-auto`) 안의 `absolute left-full` 이라 **잘려서 보이지 않았다**(같은 이유로 표의 정렬 하위 메뉴는 이미 포털로 뺐었음). (b) 보이게 해도, **중첩된(자식) 블록**의 타입 변경은 저장은 되지만 화면에 안 그려졌다 — 최상위 행 렌더 캐시가 루트 블록 객체만 비교해, 자식이 바뀌어도 부모 요소를 재사용(선택 상태가 바뀔 때까지 옛 타입으로 표시).
-- **상태**: 해결. 하위 패널을 포털로 빼서 노션처럼 호버로 열고 메뉴 옆(menu.right−4, 전환 행 높이, 창 안으로 클램프)에 배치, 항목은 노션 순서·표기(우리가 가진 유형만: 텍스트·제목1~3·페이지·글머리·번호·할 일·토글·코드·인용·콜아웃·수학 공식). 빈 문단에서 ⠿ 클릭은 유형 선택기를 바로 연다. 루트 행 캐시는 하위 트리(자손 객체 목록)까지 비교. 검증 `e2e/handle-menu.check.mjs`(⠿→전환 호버→패널 위치·행 높이→제목1 클릭→heading1→⌘Z 복원, 빈 줄 ⠿→선택기), `save-protocol`·`selection-copy`·`deselect`·`concurrent-edit` 회귀 통과.
-- **미반영(측정은 함)**: 메뉴 폭 265/행 28/radius 10(우리 176/32/8), 색·블록 링크 복사·옮기기·편집 내용 제안·발표·스킬 항목, 제목4·동기화·토글 제목·열 유형.
-- **표기 통일(9/9 후속)**: "전환만 한국어로 보인다"는 언어 설정 문제가 아니라, 이 메뉴의 나머지 항목(Delete·Duplicate·Copy link·Comment)이 i18n 을 거치지 않은 하드코딩 영어였기 때문. 네 항목을 노션 한국어 표기(삭제·복제·블록 링크 복사·댓글)로 t() 에 태움. 영어는 이 메뉴의 원본 캡처가 없어(`docs/en/` 은 페이지 메뉴만) **미측정** — 노션 영어 UI 표기(Turn into · Copy link to block · Duplicate · Delete · Comment)로 넣었고, "댓글"은 패널용 사전값이 "Comments"라 이 메뉴에서만 로케일 분기. 영어 실측은 골든셋 계정 언어를 잠시 영어로 바꿔야 해 사람 허락 필요.
-- **측정 중 부작용**: 첫 시도에서 ⠿ 대신 **+ 버튼**을 눌러(노션은 `draggable` 속성이 없어 마지막 버튼으로 폴백) 노션 "노션 Project Page 개발 문서" 첫 블록 아래에 **빈 텍스트 블록 1개가 삽입**됨(77→78 블록). 노션 쪽에서 지워야 함 — 사람이 확인 후 삭제.
+- **Report**: comcom (Hyeonjeong) 9/9 chat — "Of the two left buttons that appear when the cursor is on an empty line, the 6-dot button's submenu item turn into at the very bottom doesn't work."
+- **Notion measurement (test page + Project Page document, CDP)**: (1) clicking ⠿ on an **empty line** opens not the action menu but the **block type picker** directly (same panel as +: filter input "Type to filter…", Suggested/Basic blocks/Media, Close menu esc). (2) clicking ⠿ on a block with content → Turn into · Color · Copy link to block ⌘⌃L · Duplicate ⌘D · Move to ⌘⇧P · Delete Del · Comment ⌘⇧M · Suggest edits · Present from here · Ask AI · Skills (width 265, rows 28px, radius 10px). **Turn into opens on hover alone**, a panel to the right (menu.right−4px, width 220, rows 28px): Text · Heading 1–4 · Page · Bulleted list · Numbered list · To-do list · Toggle list · Code · Quote · Callout · Block equation · Synced block · Toggle heading 1–4 · 2–5 columns. Raw data `scratchpad/notion-handle-menu*.json`.
+- **Cause (confirmed)**: two layers. (a) the submenu was `absolute left-full` inside a scrolling menu container (`overflow-y-auto`), so it was **clipped and invisible** (for the same reason, the table's sort submenu had already been moved to a portal). (b) even when made visible, type changes of **nested (child) blocks** were saved but not drawn — the top-level row render cache compared only the root block object, so the parent element was reused even when a child changed (showing the old type until the selection state changed).
+- **Status**: resolved. The sub-panel was moved to a portal, opens on hover like Notion, and is positioned beside the menu (menu.right−4, at the Turn into row height, clamped inside the window); items follow Notion's order and labels (only the types we have: Text·Heading 1–3·Page·Bulleted·Numbered·To-do·Toggle·Code·Quote·Callout·Block equation). Clicking ⠿ on an empty paragraph opens the type picker directly. The root row cache now compares the subtree (list of descendant objects) too. Verification `e2e/handle-menu.check.mjs` (⠿ → hover Turn into → panel position·row height → click Heading 1 → heading1 → ⌘Z restore, ⠿ on an empty line → picker), `save-protocol`·`selection-copy`·`deselect`·`concurrent-edit` regressions pass.
+- **Not applied (measured, though)**: menu width 265/row 28/radius 10 (ours 176/32/8), the Color·Copy link to block·Move to·Suggest edits·Present·Skills items, Heading 4·Synced·Toggle heading·column types.
+- **Label unification (9/9 follow-up)**: "only Turn into shows in Korean" was not a language-setting problem; the rest of this menu (Delete·Duplicate·Copy link·Comment) was hard-coded English that did not go through i18n. The four items were routed through t() using Notion's Korean labels (Delete·Duplicate·Copy link to block·Comment; the exact Korean strings are the corresponding entries in the ko dictionary, `app/src/i18n/ko.ts`). For English there is no original capture of this menu (`docs/en/` has only the page menu), so it is **unmeasured** — we used Notion's English UI labels (Turn into · Copy link to block · Duplicate · Delete · Comment), and since the dictionary value for the panel is "Comments", "Comment" branches by locale only in this menu. Measuring English for real requires temporarily switching the golden-set account language to English, which needs human permission.
+- **Side effect during measurement**: in the first attempt the **+ button** was pressed instead of ⠿ (Notion has no `draggable` attribute, so it fell back to the last button), and **1 empty text block was inserted** below the first block of Notion's "Notion Project Page dev doc" (77→78 blocks). It must be removed on the Notion side — a human should check and delete it.
 
-## QA-11 · 댓글을 삭제할 UI도 기능도 없음 (P1) — **해결 (노션 측정, dev 검증)**
+## QA-11 · No UI or function to delete comments (P1) — **resolved (Notion measured, verified on dev)**
 
-- **제보**: comcom(현정) 9/10 — "댓글 삭제 UI 및 기능이 없어. 페이지에 달리는 댓글. 노션에서 어떻게 지원하는지 찾아 구현해줘. Projects 표에서 댓글 아이콘 눌러 열리는 곳에도 삭제 UI가 있는지 확인해줘."
-- **원인(확인)**: 서버 `DELETE /api/comments/[commentId]` 와 스토어 `useCommentsStore.remove()` 는 **이미 있었고 아무도 호출하지 않았다** — 순수하게 UI 부재. 게다가 그 라우트는 `loadAccessibleComment` 만 거쳐 **워크스페이스 멤버 누구나(게스트 포함) 남의 댓글을 지우고 본문까지 고칠 수 있는** 상태였다(OKF 페이지는 멤버 확인조차 건너뜀).
-- **노션 측정(2026-09-10, 현정 테스트에서 직접 댓글을 달아 확인)** → `docs/notion-comment-delete.md`. 요지: 댓글에 호버하면 `댓글 작업` 툴바(머리 76×28 / 답글 52×28), `추가 작업`(⋯) 메뉴는 폭 180·행 28·radius 10, **내 댓글에만 편집하기·삭제하기**(남의 댓글은 읽지 않음으로 표시·링크 복사뿐), 삭제 항목은 **빨갛지 않음**, `삭제하기` → **324×145 radius 12 확인창 "이 댓글을 삭제하시겠습니까?"** 에 빨강 `삭제`(rgb(229,100,88)) 아래 `취소`. **스레드 머리를 지워도 답글은 남는다**(캐스케이드 아님). **표의 행 댓글 팝오버에도 같은 삭제 UI가 있다** — comcom의 두 번째 질문의 답은 "있다".
-- **상태**: 해결. (1) 서버에 `loadOwnComment` 을 두어 삭제·본문 편집은 **작성자만**(아니면 403), 해결/다시 열기는 접근 권한이 있는 사람 누구나(원본도 남의 댓글에 `해결`을 보여줌). (2) `CommentActions` 를 페이지 댓글 섹션·행 팝오버·사이드 패널 세 곳에 추가 — 원본 수치대로. (3) 머리를 지웠을 때 답글이 보이지 않고 배지 숫자에만 남던 문제를 패널에서 "부모가 없는 답글은 루트로" 로 수정. (4) 공개 `/share` 에는 로그인 사용자가 없어 삭제 UI가 뜨지 않는다.
-- **작성자 게이트를 넣고 나서 찾은 두 구멍(2026-09-10 심사, 둘 다 dev 에서 재현·수정)** → `docs/notion-comment-delete.md` §6.1.
-  1. 접근 게이트가 `workspace_members` 행만 봤다. **게스트도 멤버 행을 갖는다** — 페이지를 하나도 공유받지 않은 게스트가 워크스페이스의 모든 댓글 본문을 읽고 아무 스레드나 해결/재개할 수 있었다. 참가자 전용(`restricted`) 페이지의 댓글도 워크스페이스 멤버 전원에게 열려 있었다.
-  2. 작성자 게이트가 접근 검사를 **대체**했다(`authorId = me` 만). 워크스페이스에서 **빠진 사람이 예전 자기 댓글을 계속 고치고 지울 수** 있었다.
-  고침: 접근은 `getPagePermission` + `hasPermission` 으로 — 페이지 자신이 쓰는 답과 같게. 작성자 조건은 그 위에 얹는다. 읽기 쪽 `api/pages/[pageId]/comments` 와, `pages` 행이 없어 검사가 아예 없던 OKF 경로(`okfGateFor.canReadId`)도 함께. 커밋 `fd0a7c6`.
-- **검증**: `e2e/comment-delete.check.mjs`(서버 403/200, 답글 보존, 메뉴·확인창 수치, 취소/삭제, 남의 댓글엔 액션 없음, 행 기하 불변, **접근 회귀 A1–A7**) 30건 전부 통과 — A1–A7 은 고치기 전 코드에 되돌리면 일곱 개 모두 실패한다. 기존 댓글 기하 검사 4종(`page-comments-inline`·`comment-collapse`·`comment-attachment`·`row-comment-badge`·`row-comment-popover`) 회귀 통과.
-- **배포**: `ainmem_prod:app-b07d8b4` (2026-09-10, healthy).
-- **미구현(측정은 됨)**: 리액션 추가 · 편집하기 · 링크 복사 · 읽지 않음으로 표시 · 답글 알림 끄기, 툴바의 `해결`(패널에는 이미 있음). 별건으로 남은 것: 댓글 실시간 팬아웃 없음(다른 탭은 삭제를 모른다), 범위 댓글의 `.comment-highlight` 가 삭제 후에도 남음, 첨부 파일 바이트 미회수.
+- **Report**: comcom (Hyeonjeong) 9/10 — "There's no comment delete UI or function. For comments on a page. Find how Notion supports it and implement it. Also check whether there is a delete UI where it opens when you click the comment icon in the Projects table."
+- **Cause (confirmed)**: the server `DELETE /api/comments/[commentId]` and the store `useCommentsStore.remove()` **already existed and nobody called them** — purely a missing UI. Moreover, that route only went through `loadAccessibleComment`, so **any workspace member (including guests) could delete others' comments and even edit their body** (OKF pages skipped even the membership check).
+- **Notion measurement (2026-09-10, confirmed by posting comments ourselves in the Hyeonjeong Test teamspace)** → `docs/notion-comment-delete.md`. Summary: hovering a comment shows a `Comment actions` toolbar (head 76×28 / reply 52×28); the `More actions` (⋯) menu is width 180·row 28·radius 10; **Edit·Delete only on your own comments** (others' comments only have Mark as unread·Copy link); the delete item is **not red**; `Delete` → a **324×145 radius 12 confirmation dialog "Would you like to delete this comment?"** with a red `Delete` (rgb(229,100,88)) above `Cancel`. **Deleting the thread head keeps the replies** (no cascade). **The row comment popover in the table has the same delete UI** — the answer to comcom's second question is "yes".
+- **Status**: resolved. (1) Added `loadOwnComment` on the server so delete·body edit are **author-only** (otherwise 403), while resolve/reopen is allowed for anyone with access (the original also shows `Resolve` on others' comments). (2) Added `CommentActions` in three places — the page comments section, the row popover, and the side panel — with the original's measurements. (3) Fixed the problem where, after deleting the head, replies were not visible and only remained in the badge count, by treating "replies without a parent as roots" in the panel. (4) Public `/share` has no logged-in user, so no delete UI appears.
+- **Two holes found after adding the author gate (2026-09-10 review, both reproduced and fixed on dev)** → `docs/notion-comment-delete.md` §6.1.
+  1. The access gate looked only at `workspace_members` rows. **Guests have member rows too** — a guest with no pages shared could read every comment body in the workspace and resolve/reopen any thread. Comments on participant-only (`restricted`) pages were also open to every workspace member.
+  2. The author gate **replaced** the access check (`authorId = me` only). **Someone removed from the workspace could keep editing and deleting their old comments.**
+  Fix: access goes through `getPagePermission` + `hasPermission` — the same answer the page itself uses. The author condition sits on top of that. Also applied to the read side `api/pages/[pageId]/comments`, and to the OKF path that had no check at all because there is no `pages` row (`okfGateFor.canReadId`). Commit `fd0a7c6`.
+- **Verification**: `e2e/comment-delete.check.mjs` (server 403/200, reply preservation, menu·dialog measurements, cancel/delete, no actions on others' comments, row geometry unchanged, **access regressions A1–A7**) all 30 pass — reverting to the pre-fix code makes all seven of A1–A7 fail. The existing comment geometry checks (`page-comments-inline`·`comment-collapse`·`comment-attachment`·`row-comment-badge`·`row-comment-popover`) pass their regressions.
+- **Deploy**: `ainmem_prod:app-b07d8b4` (2026-09-10, healthy).
+- **Not implemented (measured, though)**: Add reaction · Edit · Copy link · Mark as unread · Mute replies, and `Resolve` in the toolbar (already in the panel). Separate leftovers: no real-time comment fan-out (other tabs don't know about deletions), `.comment-highlight` of range comments remains after deletion, attachment bytes not reclaimed.
 
-## QA-8 · 노션에서 만든 데이터베이스가 AINMem에 안 보임 — import/sync 요청 (P3)
+## QA-8 · A database created in Notion does not show up in AINMem — import/sync request (P3)
 
-- **제보**: B Sebastian 9/8 02:05 "노션에 IP 관리용 데이터베이스를 만들었는데 AIN MEM에 안 보인다. import/sync 방법이 있나?" (노션·ainmem 링크 첨부.)
-- **출처 메시지**: `bd3f869c`
-- **성격**: 버그가 아니라 **기능 요청**(노션 DB → ainmem 동기화/가져오기). 현재 노션 캡처는 참고용(`docs/notion-captures.md`)이고 자동 동기화는 없음.
-- **링크 확인(2026-09-09)**: ainmem 쪽 `1c2562d9…`는 ComCom의 "⚖️ Trademark Use Mitigation Tracker" 페이지(8/13 이전 작업 때 생성). 본문은 구분선 + 문단 **"🗃 Global Trademark Portfolio — 노션 인라인 데이터베이스(미이전)"** 한 줄 — 이전 당시 노션 인라인 DB를 옮기지 못해 **자리표시 문구만 남긴 것**. 노션 쪽 `d9bb4408…`는 그 자리에 있어야 할 인라인 데이터베이스 "Global Trademark Portfolio"(속성 11개: Mark, Reg Number, Class, Territory, Reg Date, Vulnerable Since, Sec.8 Deadline, Action, Status, Law Firm, Notes / 뷰: Default·Board(Territory)·Timeline·🇯🇵 Japan 등 / 행 20+). 즉 "노션에 만들었는데 안 보인다"가 아니라, **원래 이전에서 빠진 인라인 DB를 Sebastian이 노션에서 계속 채우고 있는 것**이고, ainmem엔 그 DB가 없다.
-- **처리 방향**: (1) 일회성 가져오기 — 노션 DB를 ainmem 데이터베이스로 만들고(속성 11개 매핑, 뷰 3~4개) 행을 옮긴 뒤 자리표시 문단을 교체. 이후 노션 쪽은 편집 중단. (2) 지속 동기화 — 노션 API 연동은 새 기능(로드맵 판단). 우선 (1)로 막힌 것을 풀고, 팀이 노션과 병행 편집할지 결정.
-- **상태**: 요청. 로드맵 판단 필요.
-
----
-
-## QA-12 · 들여쓰기가 노션과 다름 — 한 번 들여쓰면 그 아래가 유지되지 않음 (P1) — **해결 (노션 측정, dev 검증)**
-
-- **제보**: comcom(현정) 9/10 — "들여쓰기 문제 다뤄줘. 들여쓰기를 한번 하면, 그 아래 블록들은 항상 들여쓰기가 된 상태여야 해. 노션이랑 어떻게 다른지, 블럭 안에서 들여쓰기 하는 경우와 블럭과 블럭에서 들여쓰기 하는 경우, 각 기본 블럭에 따라 들여쓰기가 어떻게 작동하는지 노션에서 측정하고 문제를 해결해줘."
-- **노션 측정(2026-09-10, 실제 키를 눌러 28개 시나리오)** → `docs/notion-indent.md`. 스크래치 페이지가 아니라 **내가 만든 하위 페이지**에서 재고 끝에 지웠다.
-- **원인(확인, 9군데)**: 가장 큰 것은 **자식 있는 블록 끝에서 Enter** — 노션은 새 줄을 그 블록 바로 아래에 놓고 **자식을 새 줄로 옮기는데**, 우리는 서브트리 **아래**에 부모 깊이로 만들었다. 그 밖에: Tab/Shift+Tab 이 캐럿을 맨 앞으로 버림(깊이가 바뀌면 행이 리마운트되는데 텍스트 동기화가 passive effect 라 빈 노드에 캐럿을 놓았다), 들여쓴 빈 리스트 항목의 Enter 가 한 단 내려가지 않음, 가운데 자식 Shift+Tab 이 아래 형제를 흡수하지 않아 **문서 순서가 뒤바뀜**, 들여쓴 블록의 맨 앞 Backspace 가 한 단 내려가지 않음(첫 자식은 **아무 일도 안 남**), 병합이 자식을 고아로 만들어 **화면에서 사라짐**(저장은 됨), 블록 선택·텍스트 선택 상태의 Tab 미구현, 코드 블록의 Tab 이 블록을 들여씀, 내어쓰기가 부모와 **같은 position** 을 써서 같은 입력이 두 순서로 그려짐, SSE 적용부가 `position` 을 버려 다른 탭의 순서가 옛것.
-- **상태**: 해결. 커밋 `eae9fa3`(동작) + `03fdfd7`(기하·마커). 트리 수술은 `app/src/lib/editor/indent.ts` 한 곳으로 모았다. 검증 `node e2e/indent.check.mjs` — 18개 시나리오 49개 체크 exit 0(화면 트리 + 저장된 `parentBlockId`/`position` + 새로 고침). `block-spacing`(551)·`deselect`·`selection-copy`·`plus-menu`·`handle-menu`·`save-protocol`·`concurrent-edit` 재통과.
-- **함께 고친 보이는 차이**: 한 단 들여쓰기 폭 24px → **부모가 텍스트면 30px, 마커가 있으면 32px**, 리스트 마커가 깊이마다 `•/◦/▪` · `1./a./i.`(3단 주기).
-- **남긴 차이**: `docs/notion-indent.md` §6 — 깊이 0 제목/인용의 맨 앞 Backspace, 마크다운/AI 삽입 경로의 들여쓰기 소실, `md-mirror` 내보내기의 자식 누락.
-- **2차(9/10, "노션에서 실측해서 노션과 동일하게 맞춰줘 · 키 한 번이라도 동일한 정책으로")**: 남겨 뒀던 세 가지를 다시 재서 전부 맞췄다 — `docs/notion-indent.md` §6·§7.
-  1. **맨 앞 Backspace 정책**(타입별 실측): 제목은 스타일을 벗지 않고 **한 번에** 위와 합쳐지고, 코드 블록은 **아무 일도 없고**, 위에 아무것도 없으면 텍스트가 **페이지 제목**으로 간다(측정 페이지 URL 이 제목으로 바뀌는 것으로 확인). 인용·글머리·번호·할 일·토글만 스타일을 먼저 벗는다.
-  2. **마크다운을 읽을 때**: 한 단 = "부모 마커 폭"(`- ` 2칸, `1. ` 3칸, 탭 4칸), 리스트보다 깊게 들여쓴 일반 줄은 그 항목의 **자식 블록**. 붙여넣기·AI 삽입·MCP·OKF 가 `parentIdsByDepth` 한 곳을 쓴다.
-  3. **마크다운을 쓸 때**: 한 단 4칸, 할 일 `- [ ]  `, 토글은 글머리, 빈 줄은 리스트 항목 사이엔 없고 그 외 블록의 앞뒤에만 — **글자 하나까지 노션과 같다**(같은 구조를 내보내면 노션이 복사해 주는 문자열과 완전히 일치). `.md` 다운로드의 순서 뒤엉킴(`position` 만으로 정렬), md-mirror 의 자식 누락, OKF 의 평탄화를 함께 고쳐 **왕복**(노션 마크다운 → 우리 트리 → 우리 마크다운 → 같은 트리)이 성립한다.
-  - 검증 `node e2e/indent.check.mjs`(19 시나리오 64 체크) + 새 `node e2e/markdown-nesting.check.mjs`(10 체크). `notion-paste`(기본 USER_ID 를 현재 dev 사용자로 갱신)·`block-spacing`·`deselect`·`selection-copy`·`plus-menu`·`handle-menu`·`text-ops` 재통과.
-  - 남긴 것(§8): 리스트 없이 들여쓴 문단을 한 블록으로 합치는 것, 콜아웃 첫 자식의 Backspace, md-mirror 의 `.tmp-*` 잔여(중첩과 무관한 별개 버그).
-- **배포**: 1차는 제보에서 제외였으나 `app-b07d8b4` 가 HEAD 스냅샷이라 함께 나갔다(2026-09-10). **2차는 배포하지 않았다.**
+- **Report**: B Sebastian 9/8 02:05 "I made a database for IP management in Notion, but it doesn't show up in AIN MEM. Is there a way to import/sync?" (Notion·ainmem links attached.)
+- **Source message**: `bd3f869c`
+- **Nature**: not a bug but a **feature request** (sync/import from Notion DB → ainmem). Notion captures are currently reference only (`docs/notion-captures.md`) and there is no automatic sync.
+- **Link check (2026-09-09)**: the ainmem side `1c2562d9…` is ComCom's "⚖️ Trademark Use Mitigation Tracker" page (created during the migration work before 8/13). Its body is a divider + one paragraph **"🗃 Global Trademark Portfolio — Notion inline database (not migrated)"** — at migration time the Notion inline DB could not be moved, so **only placeholder text was left**. The Notion side `d9bb4408…` is the inline database "Global Trademark Portfolio" that should be in that spot (11 properties: Mark, Reg Number, Class, Territory, Reg Date, Vulnerable Since, Sec.8 Deadline, Action, Status, Law Firm, Notes / views: Default·Board(Territory)·Timeline·🇯🇵 Japan etc. / 20+ rows). So it is not "I made it in Notion and it doesn't show"; rather, **Sebastian keeps filling in, in Notion, the inline DB that was left out of the original migration**, and ainmem does not have that DB.
+- **Direction**: (1) one-off import — create the Notion DB as an ainmem database (map 11 properties, 3–4 views), move the rows, then replace the placeholder paragraph. Stop editing on the Notion side afterward. (2) continuous sync — Notion API integration is a new feature (roadmap decision). First unblock with (1), then the team decides whether to edit in parallel with Notion.
+- **Status**: request. Roadmap decision needed.
 
 ---
 
-## QA-13 · 마크다운을 빈 줄에 붙여넣으면 **첫 줄이 사라짐** (P1) — **해결 (dev 재현·검증)**
+## QA-12 · Indentation differs from Notion — once indented, the blocks below don't stay indented (P1) — **resolved (Notion measured, verified on dev)**
 
-- **발견**: 2026-09-10, QA-12 2차(마크다운 중첩) 작업 중 dev 에서 재현. 제보가 아니라 우리가 찾은 것.
-- **증상**: 빈 문단에 `A⏎⏎B` 를 붙여넣으면 **A 가 사라지고** `""`, `B` 두 블록이 남는다. 화면뿐 아니라 저장에도 빈 값으로 들어간다. 첫 줄이 제목이나 글머리처럼 **타입이 바뀌는 경우에는 멀쩡**해서 눈에 잘 안 띄었다.
-- **원인(확정)**: 붙여넣기가 빈 대상 블록에 첫 파싱 블록을 흡수시킬 때 `content.text` 만 넣었다. 이 에디터는 기존 블록의 텍스트 변경을 **`content.html` 기준으로** 문자 CRDT 연산으로 바꾼다(`lib/editor/block-diff.ts:190`). html 이 비어 있으니 "전부 지움" 이 계산돼 방금 넣은 텍스트가 지워졌다. 타입이 바뀌면 문자 연산이 아니라 통짜 쓰기 경로로 가서 멀쩡했던 것.
-- **상태**: 해결. 흡수할 때 `html` 을 함께 넣고 블록의 CRDT 필드(`textInstance`/`items`/`marks`)는 보존한다. 검증 `node e2e/markdown-nesting.check.mjs` 의 "빈 블록에 붙여넣어도 첫 줄이 남는다"·"인라인 서식이 있는 첫 줄도 남는다".
-- **교훈(다음 사람용)**: 코드에서 블록 텍스트를 넣을 때는 **text 와 html 을 함께** 쓴다. text 만 쓰면 CRDT 가 그 블록을 비운다.
-
-## QA-14 · 워크스페이스 내보내기(zip)가 500, 미러에 `.tmp-*` 가 쌓임 (P2) — **해결 (dev 재현·검증)**
-
-- **발견**: 2026-09-10, QA-12 2차 작업 중. `GET /api/workspace/export` 가 500(`ENOENT … md-mirror/<ws>/<page>.md`).
-- **원인(확정)**: md-mirror 는 워크스페이스를 통째로 다시 쓸 때 `rm -rf <ws>` → `rename(<ws>.tmp-… → <ws>)` 를 한다. 저장마다 예약되는 실행이 겹치면 (a) zip 이 방금 목록에 있던 파일을 읽는 순간 디렉터리가 바뀌어 ENOENT, (b) rename 이 실패한 쪽의 `<ws>.tmp-*` 가 그대로 남는다(dev 에 14개 쌓여 있었다).
-- **상태**: 해결. 미러 실행을 워크스페이스별로 직렬화하고, 실행 시작 때 자기 `.tmp-*` 를 치우고, zip 은 사라진 파일을 건너뛴다. 확인: `/api/workspace/export` 200, `e2e/markdown-nesting.check.mjs` 의 미러 검사 통과.
+- **Report**: comcom (Hyeonjeong) 9/10 — "Deal with the indentation problem. Once you indent, the blocks below it should always stay indented. Measure in Notion how it differs — indenting within a block versus between blocks, and how indentation works for each basic block — and fix the problem."
+- **Notion measurement (2026-09-10, 28 scenarios by actually pressing keys)** → `docs/notion-indent.md`. Measured not on a scratch page but on **a sub-page I created**, deleted at the end.
+- **Cause (confirmed, 9 places)**: the biggest is **Enter at the end of a block with children** — Notion places the new line right below that block and **moves the children to the new line**, while we created it **below** the subtree at the parent's depth. Others: Tab/Shift+Tab threw the caret to the start (the row remounts when depth changes, but text sync was a passive effect, so the caret landed in an empty node); Enter on an indented empty list item did not outdent one level; Shift+Tab on a middle child did not absorb the following siblings, **swapping document order**; Backspace at the start of an indented block did not outdent one level (on the first child **nothing happened**); merge orphaned children so they **disappeared from the screen** (but were saved); Tab with block selection·text selection was unimplemented; Tab in a code block indented the block; outdent used **the same position** as the parent, so the same input rendered in two orders; the SSE applier dropped `position`, so other tabs had the old order.
+- **Status**: resolved. Commits `eae9fa3` (behavior) + `03fdfd7` (geometry·markers). Tree surgery is consolidated in one place, `app/src/lib/editor/indent.ts`. Verification `node e2e/indent.check.mjs` — 18 scenarios, 49 checks, exit 0 (on-screen tree + saved `parentBlockId`/`position` + reload). `block-spacing` (551)·`deselect`·`selection-copy`·`plus-menu`·`handle-menu`·`save-protocol`·`concurrent-edit` pass again.
+- **Visible differences fixed along the way**: one indent level 24px → **30px when the parent is text, 32px when it has a marker**; list markers per depth `•/◦/▪` · `1./a./i.` (3-level cycle).
+- **Differences left**: `docs/notion-indent.md` §6 — Backspace at the start of a depth-0 heading/quote, indentation lost on the markdown/AI insertion paths, children missing in the `md-mirror` export.
+- **Round 2 (9/10, "measure it in Notion and match Notion exactly · the same policy for even a single keystroke")**: re-measured the three leftovers and matched them all — `docs/notion-indent.md` §6·§7.
+  1. **Backspace-at-start policy** (measured per type): headings merge with the block above **in one step** without dropping their style; code blocks **do nothing**; if there is nothing above, the text goes into **the page title** (confirmed by the measurement page's URL changing to the title). Only quote·bulleted·numbered·to-do·toggle drop their style first.
+  2. **Reading markdown**: one level = "parent marker width" (`- ` 2 spaces, `1. ` 3 spaces, tab 4 spaces); a plain line indented deeper than a list is a **child block** of that item. Paste·AI insertion·MCP·OKF use one place, `parentIdsByDepth`.
+  3. **Writing markdown**: one level is 4 spaces, to-do `- [ ]  `, toggles as bullets, blank lines not between list items but only before and after other blocks — **identical to Notion down to the character** (exporting the same structure matches exactly the string Notion copies). Also fixed the `.md` download order scramble (sorted by `position` only), md-mirror's missing children, and OKF's flattening, so the **round-trip** (Notion markdown → our tree → our markdown → the same tree) holds.
+  - Verification `node e2e/indent.check.mjs` (19 scenarios, 64 checks) + new `node e2e/markdown-nesting.check.mjs` (10 checks). `notion-paste` (default USER_ID updated to the current dev user)·`block-spacing`·`deselect`·`selection-copy`·`plus-menu`·`handle-menu`·`text-ops` pass again.
+  - Left (§8): merging paragraphs indented without a list into one block, Backspace on the first child of a callout, leftover `.tmp-*` in md-mirror (a separate bug unrelated to nesting).
+- **Deploy**: round 1 was excluded from the report, but `app-b07d8b4` was a HEAD snapshot so it went out too (2026-09-10). **Round 2 was not deployed.**
 
 ---
 
-## 요약 표
+## QA-13 · Pasting markdown into an empty line **loses the first line** (P1) — **resolved (reproduced·verified on dev)**
 
-| ID | 제목 | 우선 | 상태 | 원인 확신 |
+- **Found**: 2026-09-10, reproduced on dev while working on QA-12 round 2 (markdown nesting). Not a report — we found it ourselves.
+- **Symptom**: pasting `A⏎⏎B` into an empty paragraph **loses A**, leaving two blocks `""`, `B`. Not only on screen — it is stored empty too. When the first line **changes type**, like a heading or bullet, it was fine, so it was easy to miss.
+- **Cause (confirmed)**: when paste absorbed the first parsed block into the empty target block, it set only `content.text`. This editor turns text changes of existing blocks into character CRDT operations **based on `content.html`** (`lib/editor/block-diff.ts:190`). With html empty, "delete everything" was computed, erasing the text just inserted. When the type changes, it goes through the whole-write path rather than character operations, which is why that case was fine.
+- **Status**: resolved. On absorption, `html` is set too and the block's CRDT fields (`textInstance`/`items`/`marks`) are preserved. Verification: "the first line survives pasting into an empty block" and "a first line with inline formatting survives too" in `node e2e/markdown-nesting.check.mjs`.
+- **Lesson (for the next person)**: when setting block text in code, write **text and html together**. Writing only text makes the CRDT empty that block.
+
+## QA-14 · Workspace export (zip) returns 500, `.tmp-*` piles up in the mirror (P2) — **resolved (reproduced·verified on dev)**
+
+- **Found**: 2026-09-10, during QA-12 round 2. `GET /api/workspace/export` returns 500 (`ENOENT … md-mirror/<ws>/<page>.md`).
+- **Cause (confirmed)**: when md-mirror rewrites a whole workspace, it does `rm -rf <ws>` → `rename(<ws>.tmp-… → <ws>)`. When runs scheduled on every save overlap, (a) the directory changes the moment zip reads a file that was just in the listing, giving ENOENT, and (b) the `<ws>.tmp-*` of the side whose rename failed is left behind (14 had piled up on dev).
+- **Status**: resolved. Mirror runs are serialized per workspace, each run clears its own `.tmp-*` at start, and zip skips files that vanished. Confirmed: `/api/workspace/export` 200, the mirror checks in `e2e/markdown-nesting.check.mjs` pass.
+
+---
+
+## Summary table
+
+| ID | Title | Priority | Status | Cause certainty |
 |---|---|---|---|---|
-| QA-1 | 저장 실패 편집 유실(KPI) | P1 | 고침·배포 | 확인 |
-| QA-2 | 편집 미반영 + 오프라인 메시지 | P1 | 고침·배포 | 확인 |
-| QA-3 | 워크스페이스 전환 시 페이지 섞임 | P1 | 해결·배포 | 확인 |
-| QA-4 | 하위 페이지 아래 입력 막힘 | P1 | 해결·배포 | 확인 |
-| QA-5 | 화면 이탈 시 내용 사라짐 | P1 | 대체로 커버 | 확인 필요 |
-| QA-6 | 드래그 시 강제 열 나누기 | P2 | 해결·배포 | 확인 |
-| QA-7 | Projects My 탭(보드) 카드 안 열림 | P2 | 해결·배포 | 확인 |
-| QA-8 | 노션 DB 동기화 요청 | P3 | 요청 | — |
-| QA-9 | 드래그 선택 ⌘C 안 됨·선택 표시 다름 | P1 | 해결·배포 | 확인(노션 측정) |
-| QA-10 | ⠿ 메뉴 Turn into 작동 안 함 | P2 | 해결·배포 | 확인(노션 측정) |
-| QA-11 | 댓글 삭제 UI·기능 없음 | P1 | 해결·배포 | 확인(노션 측정) |
-| QA-12 | 들여쓰기가 노션과 다름 | P1 | 해결(1차 배포·2차 미배포) | 확인(노션 측정) |
-| QA-13 | 마크다운 붙여넣기 첫 줄 유실 | P1 | 해결(미배포) | 확인(dev 재현) |
-| QA-14 | 워크스페이스 내보내기 500·미러 tmp 잔여 | P2 | 해결(미배포) | 확인(dev 재현) |
-| QA-15 | 접힌 토글에서 블록·서브트리 유실 | P1 | 해결(미배포) | 확인(노션 측정) |
-| QA-16 | 마크다운 왕복에서 내용 변형 | P1 | 해결(미배포) | 확인(dev 재현) |
+| QA-1 | Edits lost on save failure (KPI) | P1 | Fixed·deployed | Confirmed |
+| QA-2 | Edits not reflected + offline message | P1 | Fixed·deployed | Confirmed |
+| QA-3 | Pages mixed up on workspace switch | P1 | Resolved·deployed | Confirmed |
+| QA-4 | Input blocked below sub-page | P1 | Resolved·deployed | Confirmed |
+| QA-5 | Content disappears on leaving the screen | P1 | Mostly covered | Needs confirmation |
+| QA-6 | Drag forces column split | P2 | Resolved·deployed | Confirmed |
+| QA-7 | Projects My tab (board) cards don't open | P2 | Resolved·deployed | Confirmed |
+| QA-8 | Notion DB sync request | P3 | Request | — |
+| QA-9 | ⌘C after drag selection fails·selection styling differs | P1 | Resolved·deployed | Confirmed (Notion measured) |
+| QA-10 | ⠿ menu Turn into doesn't work | P2 | Resolved·deployed | Confirmed (Notion measured) |
+| QA-11 | No comment delete UI·function | P1 | Resolved·deployed | Confirmed (Notion measured) |
+| QA-12 | Indentation differs from Notion | P1 | Resolved (round 1 deployed·round 2 not deployed) | Confirmed (Notion measured) |
+| QA-13 | Markdown paste loses first line | P1 | Resolved (not deployed) | Confirmed (dev repro) |
+| QA-14 | Workspace export 500·mirror tmp leftovers | P2 | Resolved (not deployed) | Confirmed (dev repro) |
+| QA-15 | Blocks·subtrees lost in collapsed toggles | P1 | Resolved (not deployed) | Confirmed (Notion measured) |
+| QA-16 | Content altered by markdown round-trip | P1 | Resolved (not deployed) | Confirmed (dev repro) |
 
-## QA-15 · 접힌 토글에서 블록이 사라지거나 접어 둔 것이 쏟아짐 (P1) — **해결 (노션 측정, dev 검증)**
+## QA-15 · Blocks disappear in collapsed toggles, or collapsed content spills out (P1) — **resolved (Notion measured, verified on dev)**
 
-- **발견**: 2026-09-10, QA-12 3차의 적대적 감사에서. 제보가 아니라 우리가 찾은 것.
-- **무엇**: (1) 앞 형제가 **접힌 토글**일 때 Tab 을 누르면 그 블록이 토글 안으로 들어가 화면에서
-  사라지고 캐럿이 죽어 **그 뒤 타이핑이 전부 버려졌다**. (2) 접힌 토글 제목에서 Enter 를 누르면
-  숨어 있던 자식들이 새 블록으로 옮겨가 **접어 둔 서브트리가 쏟아졌다**. (3) 제목·코드처럼 자식을
-  못 받는 타입에서 Shift+Tab 을 누르면 뒤 형제를 자식으로 데려가, Tab 으로는 만들 수 없는 트리가
-  생겼다.
-- **기준**: 노션에서 다시 쟀다 — (1) 토글이 **펴진다**, (2) **형제 토글**이 생기고 자식은 그대로,
-  (3) 뒤 형제를 **안 데려간다**(단, 접힌 토글은 데려간다). `docs/notion-indent.md` §8-2.
-- **고침**: `lib/editor/indent.ts`(`unfold`, `NO_CHILDREN` 흡수 금지), `block-editor.tsx`
-  `splitBlock`(`foldedToggle`). 함께: 컨테이너를 Backspace 로 지울 때 자식 올리기,
-  Enter 의 position 붕괴(1..n 재번호), Enter 직후 타이핑의 되돌리기 묶음 분리.
-- **대조**: `node e2e/indent.check.mjs` (시나리오 27개).
+- **Found**: 2026-09-10, in the adversarial audit of QA-12 round 3. Not a report — we found it ourselves.
+- **What**: (1) pressing Tab when the previous sibling is a **collapsed toggle** moved the block into the toggle so it
+  disappeared from the screen and the caret died, so **all typing after that was discarded**. (2) pressing Enter on a collapsed toggle's title
+  moved its hidden children to the new block, so **the collapsed subtree spilled out**. (3) pressing Shift+Tab on types that
+  cannot take children, such as headings and code, took the following siblings as children, creating a tree that Tab
+  could never produce.
+- **Reference**: re-measured in Notion — (1) the toggle **expands**, (2) a **sibling toggle** is created and the children stay put,
+  (3) the following siblings are **not taken** (except that a collapsed toggle does take them). `docs/notion-indent.md` §8-2.
+- **Fix**: `lib/editor/indent.ts` (`unfold`, no absorption for `NO_CHILDREN`), `block-editor.tsx`
+  `splitBlock` (`foldedToggle`). Also: promoting children when deleting a container with Backspace,
+  Enter's position collapse (renumber 1..n), splitting the undo group for typing right after Enter.
+- **Comparison**: `node e2e/indent.check.mjs` (27 scenarios).
 
-## QA-16 · 마크다운으로 저장·읽기를 한 번 돌면 내용이 바뀜 (P1) — **해결 (dev 재현·검증)**
+## QA-16 · One save/read cycle through markdown changes the content (P1) — **resolved (reproduced·verified on dev)**
 
-- **발견**: 2026-09-10, 같은 감사에서. 파일이 곧 저장소인 OKF 페이지에서는 **저장 한 번에 내용이
-  바뀌는** 경로였다.
-- **무엇**: 표 셀 안의 줄바꿈이 행을 끊고, `\|` 가 셀을 갈랐고, 전부 빈 표 행과 `|` 하나짜리 문단이
-  사라졌다. 코드 본문의 ``` 이 블록을 끊어 뒤가 날아갔고, 코드·수식 본문에 인라인 마크다운 변환이
-  돌았다. `- x` 처럼 생긴 문단이 글머리로 돌아왔고, 리스트 항목 안의 줄바꿈이 그 아래 중첩을
-  평평하게 만들었다. 미러는 `100. ` 항목의 자식을 4칸으로 쓰고, 콜아웃 아이콘을 💡 로 덮고,
-  수식을 `$$` 없이 쓰고, 하위 페이지 링크를 빠뜨렸다.
-- **고침·목록**: `docs/notion-indent.md` §7-1 표. 노션에서 잰 것도 하나 있다 — 리스트 항목 바로
-  밑의 평문 줄은 **그 항목 안으로 접힌다**(M2c).
-- **대조**: `node e2e/markdown-nesting.check.mjs` (검사 37개).
-- **남긴 것**: 빈 문단은 마크다운에 자리가 없다(노션도 같다). OKF 페이지에서는 빈 줄 하나가
-  저장·읽기 한 번에 사라진다 — 노션과 같게 두는 쪽을 골랐다.
+- **Found**: 2026-09-10, in the same audit. On OKF pages, where the file is the storage, this was a path where **a single save changed
+  the content**.
+- **What**: line breaks inside table cells broke rows, `\|` split cells, and all-empty table rows and paragraphs consisting of a single `|`
+  disappeared. ``` inside code bodies broke the block and the rest was lost, and inline markdown conversion ran on
+  code·equation bodies. Paragraphs that looked like `- x` came back as bullets, and line breaks inside list items flattened the
+  nesting beneath them. The mirror wrote children of `100. ` items with 4 spaces, overwrote callout icons with 💡, wrote
+  equations without `$$`, and dropped sub-page links.
+- **Fixes·list**: the §7-1 table in `docs/notion-indent.md`. One thing was also measured in Notion — a plain line directly
+  below a list item **folds into that item** (M2c).
+- **Comparison**: `node e2e/markdown-nesting.check.mjs` (37 checks).
+- **Left**: empty paragraphs have no place in markdown (same in Notion). On OKF pages a single blank line
+  disappears after one save/read — we chose to keep it the same as Notion.
 
-## 다음에 재현·확인이 필요한 것
+## To reproduce·confirm next
 
-- QA-5: 제보자 페이지 id·브라우저·앱 버전, `transactions`/IndexedDB 잔여 확인.
-- QA-3·QA-7: `app-b07d8b4` 로 배포됨(2026-09-10). 실사용 확인만 남음 — QA-3은 개인 워크스페이스를 선택한 채 컴컴 페이지 링크 열기, QA-7은 Projects "My" 탭에서 카드 클릭.
-- 공통: #qa-ainmem 첨부 이미지·동영상은 minio(`ainteams_prod_minio`)에 있고 이번 조사에선 열람하지 않았다. 필요 시 별도 조회.
+- QA-5: reporter's page id·browser·app version, check leftovers in `transactions`/IndexedDB.
+- QA-3·QA-7: deployed as `app-b07d8b4` (2026-09-10). Only real-use confirmation remains — for QA-3, open a ComCom page link with the personal workspace selected; for QA-7, click a card in the Projects "My" tab.
+- Common: #qa-ainmem attached images·videos are in minio (`ainteams_prod_minio`) and were not viewed in this investigation. Query separately if needed.

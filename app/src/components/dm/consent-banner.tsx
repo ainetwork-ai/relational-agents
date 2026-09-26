@@ -6,6 +6,7 @@ import { signTypedDataWithWallet } from "@/lib/wallet/sign";
 import type { RelationConsentTypedData } from "@/lib/relation-contract";
 import { WalletSignatureError } from "@/lib/wallet/provider";
 import type { RpContext } from "@worldcoin/idkit";
+import { SELLER } from "@/i18n/content/lib";
 
 interface ConsentStatus {
   consentAt: string | null;
@@ -171,7 +172,7 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
         <>
           <div className="mt-2 text-amber-800/80 dark:text-amber-300/80">
             {born
-              ? "달빛떡집 refuses agents without a human on each side. Verify now and the chain records it — the same refusal turns into a box of Chuseok songpyeon."
+              ? `${SELLER.name} refuses agents without a human on each side. Verify now and the chain records it — the same refusal turns into a box of Chuseok songpyeon.`
               : "Optional — prove you're a unique human. An agent with a proof on each side can buy where a bot is refused; without it the agent is born just the same."}
           </div>
           {WORLD_ID_APP_ID && rpContext ? (

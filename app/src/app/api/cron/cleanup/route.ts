@@ -4,15 +4,16 @@ import { getTusServer, sweepStaging, TUS_EXPIRATION_MS } from "@/lib/files/tus-s
 export const dynamic = "force-dynamic";
 
 /**
- * POST → 만료된 tus 진행분을 치운다.
+ * POST → clears out expired tus uploads in progress.
  *
- * 재개 가능 업로드는 중단되면 조각을 남긴다 — 그게 재개의 대가다. 만료(24h)는
- * `TUS_EXPIRATION_MS` 로 정해 뒀는데 **치우는 사람이 없었다.** tus 를 들여오면서 빠뜨린
- * 부분이고, 그냥 두면 실패한 업로드마다 스테이징 디렉터리가 자란다.
+ * A resumable upload leaves its pieces behind when interrupted — that is the price of
+ * resuming. The expiry (24h) was set with `TUS_EXPIRATION_MS`, but **nobody was cleaning up.**
+ * It was the part missed when tus came in; left alone, the staging directory grows with every
+ * failed upload.
  *
- * 인증: `CRON_SECRET` 헤더. 세션이 아니라 공유 비밀인 이유는 부르는 쪽이 사람이 아니라
- * cron 이기 때문이다. **비밀이 설정돼 있지 않으면 거절한다** — 설정을 빠뜨린 배포에서
- * 아무나 부를 수 있게 열리는 편보다 아무도 못 부르는 편이 낫다.
+ * Auth: the `CRON_SECRET` header. A shared secret rather than a session, because the caller is
+ * cron, not a person. **With no secret configured it refuses** — better that nobody can call it
+ * than that a deployment missing the setting is open to anyone.
  *
  *   0 * * * * curl -fsS -X POST -H "x-cron-secret: …" https://…/api/cron/cleanup
  */
@@ -25,14 +26,14 @@ export async function POST(req: Request) {
   const expiredTusUploads = await getTusServer()
     .cleanUpExpiredUploads()
     .catch((e: unknown) => {
-     // 청소 실패가 cron 을 빨갛게 만들 이유는 있지만, 다음 시간에 다시 돌면 된다
-      console.error("[cron/cleanup] tus 진행분 청소 실패:", e);
+     // a failed cleanup could turn cron red, but the next hourly run will just try again
+      console.error("[cron/cleanup] failed to clean up tus uploads in progress:", e);
       return -1;
     });
 
-  // 라이브러리 수집기가 볼 수 없는 모양 — finalize 가 데이터 파일을 옮겨 짝이 깨진
-  // 사이드카 — 은 우리가 나이로 쓸어낸다. 원인은 finalize 쪽에서 막았고, 이건 그 전에
-  // 쌓인 것과 혹시 놓친 것을 위한 그물이다.
+  // Shapes the library's collector can't see — sidecars left unpaired because finalize
+  // moved their data file — we sweep by age. The cause was fixed on the finalize side; this
+  // is the net for what piled up before that and anything that still slips through.
   const sweptOrphans = await sweepStaging().catch(() => -1);
 
   return NextResponse.json({

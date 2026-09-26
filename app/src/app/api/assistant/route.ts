@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
@@ -42,7 +43,8 @@ export async function GET(req: NextRequest) {
       .returning();
     await db.insert(chatRoomMembers).values({ roomId: room.id, userId: auth.user.id });
     const { agentUserId } = await provisionRoomAgent(room, [auth.user.id], auth.user.id);
-    await db.update(users).set({ displayName: `${ws?.name ?? ""} 에이전트`.trim() }).where(eq(users.id, agentUserId));
+    const t = await getT();
+    await db.update(users).set({ displayName: `${ws?.name ?? ""} ${t("Agent")}`.trim() }).where(eq(users.id, agentUserId));
   }
   const [bot] = await db
     .select({ id: users.id, name: users.displayName })
@@ -65,7 +67,7 @@ export async function GET(req: NextRequest) {
     roomId: room.id,
     teamspaceId,
     agentId: bot?.id ?? null,
-    agentName: bot?.name ?? "에이전트",
+    agentName: bot?.name ?? (await getT())("Agent"),
     workspaceName: ws?.name ?? null,
     drives: sources.map((s, i) => ({ label: s.label, owner: s.ownerName ?? null, online: online[i] })),
   });

@@ -1,18 +1,19 @@
-// 행 페이지의 속성 블록(제목 → 세부 정보 토글 → 고정 속성 밴드 → 댓글 → 본문)을
-// 원본 실측(fixtures/notion-row-props.json)과 대조한다 — 사이드 피크와 전체 페이지 둘 다.
+// Compares the row page's property block (title → details toggle → pinned property band → comments → body)
+// against the original's measurements (src/i18n/content/e2e-fixtures/notion-row-props.json) — both side peek and full page.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] node e2e/row-props.check.mjs
 //
-// 읽기 전용: 행을 열어 재고, Evaluation(없으면 첫 select) 값을 눌러 메뉴만 재고 Escape.
+// Read-only: open a row and measure, click the Evaluation value (or the first select) to measure only the menu, Escape.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-row-props.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-row-props.json", import.meta.url), "utf8"));
 
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
@@ -25,7 +26,7 @@ const near = (a, b, tol = G.tolerance) => a != null && b != null && Math.abs(a -
 const eq = (a, b, label) => ok(near(a, b), `${label}: ${a} ≈ ${b}`);
 const same = (a, b, label) => ok(a === b, `${label}: ${a} = ${b}`);
 
-// 블록 측정 — root 안에서 훅을 찾아 좌표/스타일을 읽는다
+// block measurement — find the hooks inside root and read positions/styles
 const MEASURE = `(rootSel, titleSel) => {
   const root = document.querySelector(rootSel);
   const q = (s) => root.querySelector(s);
@@ -66,69 +67,69 @@ const MEASURE = `(rootSel, titleSel) => {
 }`;
 
 function checkBlock(m, surface, spec) {
-  eq(m.title?.fs, spec.titleFontSize, `${surface}: 제목 font-size`);
-  eq(m.title?.lh, spec.titleLineHeight, `${surface}: 제목 line-height`);
+  eq(m.title?.fs, spec.titleFontSize, `${surface}: title font-size`);
+  eq(m.title?.lh, spec.titleLineHeight, `${surface}: title line-height`);
   {
-    ok(m.toggle && m.toggle.op === "1", `${surface}: 토글 항상 보임 (호버 없이)`);
-    eq(m.toggle?.top - m.title?.bottom, G.toggle.gapBelowTitle, `${surface}: 제목 → 토글`);
-    eq(m.toggle?.h, G.toggle.height, `${surface}: 토글 높이`);
-    eq(m.toggle?.fs, G.toggle.fontSize, `${surface}: 토글 글자`);
-    same(m.toggle?.color, G.toggle.color, `${surface}: 토글 색`);
-    eq(m.toggle?.padL, G.toggle.paddingX, `${surface}: 토글 좌우 패딩`);
-    eq(m.toggle?.radius, G.toggle.radius, `${surface}: 토글 radius`);
-    eq(m.band?.top - m.toggle?.bottom, G.toggle.gapToBand, `${surface}: 토글 → 밴드`);
+    ok(m.toggle && m.toggle.op === "1", `${surface}: toggle always visible (without hover)`);
+    eq(m.toggle?.top - m.title?.bottom, G.toggle.gapBelowTitle, `${surface}: title → toggle`);
+    eq(m.toggle?.h, G.toggle.height, `${surface}: toggle height`);
+    eq(m.toggle?.fs, G.toggle.fontSize, `${surface}: toggle text`);
+    same(m.toggle?.color, G.toggle.color, `${surface}: toggle colour`);
+    eq(m.toggle?.padL, G.toggle.paddingX, `${surface}: toggle side padding`);
+    eq(m.toggle?.radius, G.toggle.radius, `${surface}: toggle radius`);
+    eq(m.band?.top - m.toggle?.bottom, G.toggle.gapToBand, `${surface}: toggle → band`);
   }
-  eq(m.band?.mt, 10, `${surface}: 밴드 margin-top`);
-  eq(m.band?.gap, G.band.gap, `${surface}: 항목 gap`);
-  eq(m.band?.h, G.band.height, `${surface}: 밴드 높이`);
-  ok(m.items.length >= 1, `${surface}: 고정 항목 ${m.items.length}개`);
+  eq(m.band?.mt, 10, `${surface}: band margin-top`);
+  eq(m.band?.gap, G.band.gap, `${surface}: item gap`);
+  eq(m.band?.h, G.band.height, `${surface}: band height`);
+  ok(m.items.length >= 1, `${surface}: ${m.items.length} pinned items`);
   for (const it of m.items) {
     const n = `${surface} ${it.name}`;
     same(it.minw, `${G.band.itemMinWidth}px`, `${n}: min-width`);
     same(it.maxw, `${G.band.itemMaxWidth}px`, `${n}: max-width`);
-    eq(it.labelH, G.band.labelHeight, `${n}: 라벨 높이`);
-    eq(it.labelPadL, G.band.labelPadX, `${n}: 라벨 패딩`);
-    eq(it.labelRadius, G.band.labelRadius, `${n}: 라벨 radius`);
-    eq(it.labelFs, G.band.labelFontSize, `${n}: 라벨 글자`);
-    same(String(it.labelFw), String(G.band.labelWeight), `${n}: 라벨 굵기`);
-    same(it.labelColor, G.band.labelColor, `${n}: 라벨 색`);
-    eq(it.iconW, G.band.iconRenderedSize, `${n}: 아이콘 14px×1.2 (렌더 rect)`);
-    eq(it.valueH, it.type === "person" ? 31 : G.band.valueHeight, `${n}: 값 높이`);
-    eq(it.valuePadL, G.band.valuePadX, `${n}: 값 좌우 패딩`);
-    eq(it.valueRadius, G.band.valueRadius, `${n}: 값 radius`);
+    eq(it.labelH, G.band.labelHeight, `${n}: label height`);
+    eq(it.labelPadL, G.band.labelPadX, `${n}: label padding`);
+    eq(it.labelRadius, G.band.labelRadius, `${n}: label radius`);
+    eq(it.labelFs, G.band.labelFontSize, `${n}: label text`);
+    same(String(it.labelFw), String(G.band.labelWeight), `${n}: label weight`);
+    same(it.labelColor, G.band.labelColor, `${n}: label colour`);
+    eq(it.iconW, G.band.iconRenderedSize, `${n}: icon 14px×1.2 (rendered rect)`);
+    eq(it.valueH, it.type === "person" ? 31 : G.band.valueHeight, `${n}: value height`);
+    eq(it.valuePadL, G.band.valuePadX, `${n}: value side padding`);
+    eq(it.valueRadius, G.band.valueRadius, `${n}: value radius`);
     if (it.emptyColor) {
-      same(it.emptyColor, G.band.emptyColor, `${n}: 비어 있음 색`);
-      eq(it.emptyFs, G.band.emptyFontSize, `${n}: 비어 있음 글자`);
-      eq(it.emptyLh, G.band.emptyLineHeight, `${n}: 비어 있음 line-height`);
+      same(it.emptyColor, G.band.emptyColor, `${n}: Empty colour`);
+      eq(it.emptyFs, G.band.emptyFontSize, `${n}: Empty text`);
+      eq(it.emptyLh, G.band.emptyLineHeight, `${n}: Empty line-height`);
     }
   }
   for (let i = 1; i < m.items.length; i++)
-    eq(m.items[i].x - (m.items[i - 1].x + m.items[i - 1].w), G.band.gap, `${surface}: ${m.items[i - 1].name}→${m.items[i].name} 간격`);
+    eq(m.items[i].x - (m.items[i - 1].x + m.items[i - 1].w), G.band.gap, `${surface}: ${m.items[i - 1].name}→${m.items[i].name} gap`);
   if (m.arrows.length) {
-    eq(m.arrows[0].width, G.band.arrow.size, `${surface}: 스크롤 화살표 32px`);
-    eq(m.arrows[0].top - m.band.top, G.band.arrow.offsetY, `${surface}: 화살표 세로 위치`);
-    eq(m.arrows[0].left, m.band.left - G.band.arrow.overhang, `${surface}: 왼쪽 화살표가 밴드 밖 4px`);
-    same(m.arrows[0].op, "0", `${surface}: 맨 앞에선 왼쪽 화살표 숨김`);
-  } else ok(false, `${surface}: 스크롤 화살표 없음`);
-  eq(m.comments?.top - m.band?.bottom, G.comments.gapAboveRow, `${surface}: 밴드 → 댓글`);
-  eq(m.comments?.h, G.comments.rowHeight, `${surface}: 댓글 줄 높이`);
-  eq(m.comments?.textLeft - m.band?.left, G.comments.textInsetX - 2, `${surface}: 댓글 글자 인셋`);
-  eq(m.comments?.fs, G.comments.fontSize, `${surface}: 댓글 글자`);
-  same(String(m.comments?.fw), String(G.comments.weight), `${surface}: 댓글 굵기`);
-  same(m.comments?.color, G.comments.color, `${surface}: 댓글 색`);
-  same(m.comments?.sectionBorder, "1px", `${surface}: 댓글 섹션 아래 구분선`);
-  eq(m.body?.top - m.comments?.sectionBottom, 0, `${surface}: 댓글 섹션 → 본문`);
-  eq(m.body?.padTop, G.comments.contentPadTop, `${surface}: 본문 padding-top`);
+    eq(m.arrows[0].width, G.band.arrow.size, `${surface}: scroll arrow 32px`);
+    eq(m.arrows[0].top - m.band.top, G.band.arrow.offsetY, `${surface}: arrow vertical position`);
+    eq(m.arrows[0].left, m.band.left - G.band.arrow.overhang, `${surface}: left arrow 4px outside the band`);
+    same(m.arrows[0].op, "0", `${surface}: left arrow hidden at the start`);
+  } else ok(false, `${surface}: no scroll arrows`);
+  eq(m.comments?.top - m.band?.bottom, G.comments.gapAboveRow, `${surface}: band → comments`);
+  eq(m.comments?.h, G.comments.rowHeight, `${surface}: comments row height`);
+  eq(m.comments?.textLeft - m.band?.left, G.comments.textInsetX - 2, `${surface}: comments text inset`);
+  eq(m.comments?.fs, G.comments.fontSize, `${surface}: comments text`);
+  same(String(m.comments?.fw), String(G.comments.weight), `${surface}: comments weight`);
+  same(m.comments?.color, G.comments.color, `${surface}: comments colour`);
+  same(m.comments?.sectionBorder, "1px", `${surface}: divider below the comments section`);
+  eq(m.body?.top - m.comments?.sectionBottom, 0, `${surface}: comments section → body`);
+  eq(m.body?.padTop, G.comments.contentPadTop, `${surface}: body padding-top`);
 }
 
 async function checkMenu(page, surface, winW = 1200) {
   const target = page.locator("[data-testid^='row-props-item-'][data-type='select']").first();
-  if (!(await target.count())) { console.log(`· ${surface}: select 고정 속성 없음 — 메뉴 대조 생략`); return; }
+  if (!(await target.count())) { console.log(`· ${surface}: no pinned select property — menu comparison skipped`); return; }
   const val = target.locator("[data-role='value']");
   const vr = await val.boundingBox();
  // the original's Evaluation sits past the peek's edge too; a 300px box that
  // has no room to the right is placed by a rule we have no original data for
-  if (!vr || vr.x < 0 || vr.x + G.menu.width > winW - 8) { console.log(`· ${surface}: 값 셀(x ${vr?.x}) 오른쪽에 300px 자리 없음 — 메뉴 대조 생략`); return; }
+  if (!vr || vr.x < 0 || vr.x + G.menu.width > winW - 8) { console.log(`· ${surface}: no 300px of room right of the value cell (x ${vr?.x}) — menu comparison skipped`); return; }
   await val.click();
   const menu = page.locator("[data-testid='db-select-menu']");
   await menu.waitFor({ timeout: 5000 });
@@ -142,12 +143,12 @@ async function checkMenu(page, surface, winW = 1200) {
     const ir = it && it.getBoundingClientRect();
     return { x: r.left, y: r.top, w: r.width, radius: parseFloat(s.borderRadius), itemH: ir && ir.height, itemW: ir && ir.width };
   });
-  eq(m.x - vr.x, G.menu.offsetX, `${surface}: 메뉴 x (값 셀 기준)`);
-  eq(m.y - vr.y, G.menu.offsetY, `${surface}: 메뉴 y (값 셀 기준)`);
-  eq(m.w, G.menu.width, `${surface}: 메뉴 폭`);
-  eq(m.radius, G.menu.radius, `${surface}: 메뉴 radius`);
-  eq(m.itemH, G.menu.itemHeight, `${surface}: 메뉴 항목 높이`);
-  eq(m.itemW, G.menu.itemWidth, `${surface}: 메뉴 항목 폭`);
+  eq(m.x - vr.x, G.menu.offsetX, `${surface}: menu x (relative to the value cell)`);
+  eq(m.y - vr.y, G.menu.offsetY, `${surface}: menu y (relative to the value cell)`);
+  eq(m.w, G.menu.width, `${surface}: menu width`);
+  eq(m.radius, G.menu.radius, `${surface}: menu radius`);
+  eq(m.itemH, G.menu.itemHeight, `${surface}: menu item height`);
+  eq(m.itemW, G.menu.itemWidth, `${surface}: menu item width`);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
 }
@@ -159,27 +160,27 @@ await page.goto(`${BASE}/p/${PAGE_ID}`, { waitUntil: "domcontentloaded", timeout
 await page.waitForSelector("[data-cellnav]", { timeout: 60_000 });
 await page.evaluate(() => localStorage.removeItem("row-peek-width"));
 await page.locator("[data-cellnav]").first().hover();
-await page.locator("text=열기").first().click({ timeout: 5000 });
+await page.locator(`text=${ko("Open")}`).first().click({ timeout: 5000 });
 await page.waitForSelector("[data-testid='db-peek-open-full']", { timeout: 10_000 });
 await page.waitForSelector("[data-testid='row-props-body'] [contenteditable]", { timeout: 30_000 });
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(400);
 
-console.log("\n— 사이드 피크 —");
+console.log("\n— side peek —");
 const pm = await page.evaluate(`(${MEASURE})("[data-testid='db-row-peek']", "[data-testid='db-peek-title']")`);
-eq(pm.rootW, G.peek.width, "피크: 폭");
-eq(pm.title?.left - (1200 - G.peek.width), G.peek.insetL, "피크: 제목 인셋");
-checkBlock(pm, "피크", G.peek);
-// 호버해도 아무것도 움직이지 않는다 (원본: 토글은 늘 박혀 있다)
+eq(pm.rootW, G.peek.width, "peek: width");
+eq(pm.title?.left - (1200 - G.peek.width), G.peek.insetL, "peek: title inset");
+checkBlock(pm, "peek", G.peek);
+// nothing moves on hover (original: the toggle is always in place)
 await page.locator("[data-testid='db-peek-title']").hover();
 await page.waitForTimeout(350);
 const pm2 = await page.evaluate(`(${MEASURE})("[data-testid='db-row-peek']", "[data-testid='db-peek-title']")`);
-eq(pm2.band?.top - pm.band?.top, 0, "피크: 호버해도 밴드가 안 움직임");
+eq(pm2.band?.top - pm.band?.top, 0, "peek: the band does not move on hover");
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(350);
-await checkMenu(page, "피크");
+await checkMenu(page, "peek");
 
-console.log("\n— 사이드 피크: 세부 정보 보기 —");
+console.log("\n— side peek: Show details —");
 const peekW0 = pm.rootW, titleW0 = pm.title?.w;
 await page.locator("[data-testid='db-peek-title']").hover();
 await page.waitForTimeout(350);
@@ -195,30 +196,30 @@ const pd = await page.evaluate(() => {
 });
 const D = G.peekDetails;
 const wantPeek = 1200 - D.capMargin >= D.capMin ? Math.min(peekW0 + D.panelWidth, 1200 - D.capMargin) : peekW0 + D.panelWidth;
-eq(pd.peekW, wantPeek, `피크가 왼쪽으로 넓어짐 (${peekW0} → ${wantPeek})`);
-eq(pd.peekRight, 1200, "피크는 오른쪽에 붙어 있음");
-eq(pd.panelW, D.panelWidth + D.divider, "패널 280 + 구분선 1");
-eq(pd.panelRight, 1200, "패널이 피크 안 오른쪽");
-same(pd.border, "1px", "패널 왼쪽 구분선");
-eq(pd.hdrX, D.headerInsetX, "헤더 인셋"); eq(pd.hdrY, D.headerTop, "헤더 y");
-eq(pd.titleW, wantPeek - D.panelWidth - D.divider - 2 * G.peek.insetL, `본문 칼럼 (${titleW0} → 원본 1200 에선 368)`);
-// 패널 닫기: 호버 전엔 없고, 패널을 호버하면 상단바에 나타나고, 누르면 닫힌다
+eq(pd.peekW, wantPeek, `peek widens to the left (${peekW0} → ${wantPeek})`);
+eq(pd.peekRight, 1200, "peek stays attached to the right");
+eq(pd.panelW, D.panelWidth + D.divider, "panel 280 + divider 1");
+eq(pd.panelRight, 1200, "panel on the right inside the peek");
+same(pd.border, "1px", "panel left divider");
+eq(pd.hdrX, D.headerInsetX, "header inset"); eq(pd.hdrY, D.headerTop, "header y");
+eq(pd.titleW, wantPeek - D.panelWidth - D.divider - 2 * G.peek.insetL, `body column (${titleW0} → 368 on the original at 1200)`);
+// panel close: absent before hover, appears in the top bar when the panel is hovered, closes on click
 const PC = G.panelClose;
 await page.mouse.move(10, 850); await page.waitForTimeout(250);
-ok((await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").count()) === 0, "피크: 호버 전엔 패널 닫기 없음");
+ok((await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").count()) === 0, "peek: no panel close before hover");
 await page.locator("[data-testid='db-peek-details']").hover({ position: { x: 100, y: 300 } });
 await page.waitForTimeout(300);
 const pc = await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").evaluate((b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); const svg = b.querySelector('svg').getBoundingClientRect(); return { w: r.width, h: r.height, top: r.top, radius: parseFloat(s.borderRadius), color: s.color, icon: svg.width }; });
-eq(pc.w, PC.size, "피크: 패널 닫기 24px"); eq(pc.h, PC.size, "피크: 패널 닫기 높이"); eq(pc.top, PC.top, "피크: 패널 닫기 y");
-eq(pc.radius, PC.peekRadius, "피크: 패널 닫기 radius"); same(pc.color, PC.color, "피크: 패널 닫기 색"); eq(pc.icon, PC.iconSize, "피크: 아이콘 20px");
+eq(pc.w, PC.size, "peek: panel close 24px"); eq(pc.h, PC.size, "peek: panel close height"); eq(pc.top, PC.top, "peek: panel close y");
+eq(pc.radius, PC.peekRadius, "peek: panel close radius"); same(pc.color, PC.color, "peek: panel close colour"); eq(pc.icon, PC.iconSize, "peek: icon 20px");
 await page.locator("[data-testid='db-row-peek'] [data-testid='db-details-close']").click();
 await page.waitForTimeout(400);
-ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "피크: 패널 닫기를 누르면 패널 닫힘");
-eq((await page.locator("[data-testid='db-row-peek']").boundingBox()).width, peekW0, "닫으면 원래 폭");
+ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "peek: clicking panel close closes the panel");
+eq((await page.locator("[data-testid='db-row-peek']").boundingBox()).width, peekW0, "original width after closing");
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(350);
 
-console.log("\n— 전체 페이지 —");
+console.log("\n— full page —");
 await page.locator("[data-testid='db-peek-open-full']").click();
 await page.waitForSelector("[data-testid='page-title']", { timeout: 30_000 });
 // the block arrives after the page: row lookup, then the database snapshot
@@ -227,19 +228,19 @@ await page.waitForSelector("[data-testid='page-row-props'] [data-testid='row-pro
 await page.mouse.move(1190, 890);
 await page.waitForTimeout(500);
 const fm = await page.evaluate(`(${MEASURE})("[data-testid='page-root']", "[data-testid='page-title']")`);
-// 원본의 칼럼은 minmax(auto, 720px); 우리 산문 칼럼은 708 로 잰 규칙(page-view.tsx)을
-// 따른다 — 이 블록의 문제가 아니라 페이지 칼럼의 문제라 여기서는 알리기만 한다
-console.log(`· 풀페이지: 제목 칼럼 폭 ${fm.title?.w} (원본 ${G.full.contentWidth}; 페이지 칼럼 규칙, 이 블록 밖)`);
-checkBlock(fm, "풀페이지", G.full);
+// the original's column is minmax(auto, 720px); our prose column follows the rule measured as 708
+// (page-view.tsx) — that is the page column's concern, not this block's, so only report it here
+console.log(`· full page: title column width ${fm.title?.w} (original ${G.full.contentWidth}; page column rule, outside this block)`);
+checkBlock(fm, "full page", G.full);
 // the menu was measured on the original at 1200 where its column starts at
 // 375; ours starts further right, so widen the window until the 300px box fits
 await page.setViewportSize({ width: 1500, height: 900 });
 await page.waitForTimeout(300);
-await checkMenu(page, "풀페이지", 1500);
+await checkMenu(page, "full page", 1500);
 await page.setViewportSize({ width: 1200, height: 900 });
 await page.waitForTimeout(300);
 
-console.log("\n— 전체 페이지: 세부 정보 보기 —");
+console.log("\n— full page: Show details —");
 await page.locator("[data-testid='page-row-props'] [data-testid='row-props-toggle']").click();
 await page.waitForSelector("[data-testid='db-peek-details']", { timeout: 5000 });
 await page.waitForTimeout(350);
@@ -251,29 +252,29 @@ const sb = await page.evaluate(() => {
   const toggle = document.querySelector("[data-testid='page-row-props'] [data-testid='row-props-toggle']");
   return { w: r.width, right: r.right, top: r.top, borderL: s.borderLeftWidth, hdrText: h.textContent.trim(), hdrX: hr.left - r.left, hdrY: hr.top, hdrFs: parseFloat(hs.fontSize), hdrFw: hs.fontWeight, hdrColor: hs.color, titleW: title.width, mainW: main.width, toggleText: toggle.textContent.trim() };
 });
-eq(sb.w, G.sidebar.width, "사이드바 폭");
-eq(sb.right, 1200, "사이드바가 창 오른쪽에 붙음");
-eq(sb.top, 0, "사이드바가 창 위에서 시작");
-same(sb.borderL, "1px", "사이드바 왼쪽 hairline");
-same(sb.hdrText, "속성", "헤더 글자");
-eq(sb.hdrX, G.sidebar.headerInsetX, "헤더 인셋");
-eq(sb.hdrY, G.sidebar.headerTop, "헤더 y");
-eq(sb.hdrFs, 13, "헤더 글자 크기"); same(String(sb.hdrFw), "500", "헤더 굵기"); same(sb.hdrColor, G.band.labelColor, "헤더 색");
-same(sb.toggleText, "세부 정보 숨기기", "토글 문구가 숨기기로");
+eq(sb.w, G.sidebar.width, "sidebar width");
+eq(sb.right, 1200, "sidebar attached to the window's right");
+eq(sb.top, 0, "sidebar starts at the window's top");
+same(sb.borderL, "1px", "sidebar left hairline");
+same(sb.hdrText, ko("Properties"), "header text");
+eq(sb.hdrX, G.sidebar.headerInsetX, "header inset");
+eq(sb.hdrY, G.sidebar.headerTop, "header y");
+eq(sb.hdrFs, 13, "header font size"); same(String(sb.hdrFw), "500", "header weight"); same(sb.hdrColor, G.band.labelColor, "header colour");
+same(sb.toggleText, ko("Hide details"), "toggle wording switches to Hide");
 {
   const PC = G.panelClose;
   await page.mouse.move(10, 850); await page.waitForTimeout(250);
   const fc = await page.locator("[data-testid='db-peek-details'] [data-testid='db-details-close']").evaluate((b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); const a = b.closest("[data-testid='db-peek-details']").getBoundingClientRect(); return { w: r.width, top: r.top, inset: r.left - a.left, radius: parseFloat(s.borderRadius), color: s.color, op: s.opacity }; });
-  ok(fc.op === "1", "풀페이지: 패널 닫기 항상 보임"); eq(fc.w, PC.size, "풀페이지: 패널 닫기 24px"); eq(fc.top, PC.top, "풀페이지: 패널 닫기 y");
-  eq(fc.inset, PC.fullInsetX, "풀페이지: 패널 왼쪽에서 9px"); ok(fc.radius >= 12, `풀페이지: 둥근 버튼 (radius ${fc.radius})`); same(fc.color, PC.color, "풀페이지: 색");
+  ok(fc.op === "1", "full page: panel close always visible"); eq(fc.w, PC.size, "full page: panel close 24px"); eq(fc.top, PC.top, "full page: panel close y");
+  eq(fc.inset, PC.fullInsetX, "full page: 9px from the panel's left"); ok(fc.radius >= 12, `full page: round button (radius ${fc.radius})`); same(fc.color, PC.color, "full page: colour");
 }
 // the page's box loses the sidebar's width and the column re-centres in what is left
-eq(sb.titleW, Math.min(708, sb.mainW - G.sidebar.width - 192), `본문 칼럼이 좁아짐 (${sb.titleW}, 원본 353 @ 930 frame)`);
+eq(sb.titleW, Math.min(708, sb.mainW - G.sidebar.width - 192), `body column narrows (${sb.titleW}, original 353 @ 930 frame)`);
 await page.locator("[data-testid='db-peek-details'] [data-testid='db-details-close']").click();
 await page.waitForTimeout(300);
-ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "패널 닫기를 누르면 사이드바 닫힘");
-same((await page.locator("[data-testid='page-row-props'] [data-testid='row-props-toggle']").innerText()).trim(), "세부 정보 보기", "토글 문구 복귀");
+ok((await page.locator("[data-testid='db-peek-details']").count()) === 0, "clicking panel close closes the sidebar");
+same((await page.locator("[data-testid='page-row-props'] [data-testid='row-props-toggle']").innerText()).trim(), ko("Show details"), "toggle wording restored");
 
 await browser.close();
-if (fails.length) { console.error(`\n${fails.length}개 실패`); process.exit(1); }
-console.log("\n원본과 차이 없음 — exit 0");
+if (fails.length) { console.error(`\n${fails.length} failed`); process.exit(1); }
+console.log("\nno difference from the original — exit 0");

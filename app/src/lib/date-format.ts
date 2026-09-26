@@ -3,7 +3,7 @@
  *
  * The original keeps the format on the PROPERTY, not on the value: its
  * Projects table shows `Start date` as `08/04/2026` and `End date` as
- * `2026년 8월 4일` at the same time. The picker's `날짜 형식` row is what
+ * `August 4, 2026` (in Korean) at the same time. The picker's `Date format` row is what
  * chooses it, and every cell in that column follows.
  *
  * The six choices and their order are the original's
@@ -12,19 +12,19 @@
 export type DateFormat = "full" | "relaxed" | "mdy" | "dmy" | "ymd" | "relative";
 
 export const DATE_FORMATS: { id: DateFormat; label: string }[] = [
-  { id: "full", label: "전체 날짜" },
-  { id: "relaxed", label: "날짜 간단히 표기" },
-  { id: "mdy", label: "월/일/년" },
-  { id: "dmy", label: "일/월/년" },
-  { id: "ymd", label: "년/월/일" },
-  { id: "relative", label: "상대" },
+  { id: "full", label: "Full date" },
+  { id: "relaxed", label: "Short date" },
+  { id: "mdy", label: "Month/Day/Year" },
+  { id: "dmy", label: "Day/Month/Year" },
+  { id: "ymd", label: "Year/Month/Day" },
+  { id: "relative", label: "Relative" },
 ];
 
 /** what a date property renders as before anyone picks — the original's default */
 export const DEFAULT_DATE_FORMAT: DateFormat = "full";
 
 /** Formatting knobs: the Intl locale (ko-KR / en-US — the user's language,
- *  `useIntlLocale()`) and, for `relative`, a translator for 오늘/어제/내일. */
+ *  `useIntlLocale()`) and, for `relative`, a translator for Today/Yesterday/Tomorrow. */
 export interface DateFmtOpts {
   locale?: string;
   t?: (key: string, vars?: Record<string, string | number>) => string;
@@ -54,10 +54,10 @@ function relative(iso: string, opts: DateFmtOpts): string {
   if (!d || !today) return iso;
   const t = opts.t ?? id;
   const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
-  if (days === 0) return t("오늘");
-  if (days === -1) return t("어제");
-  if (days === 1) return t("내일");
-  if (Math.abs(days) <= 6) return days < 0 ? t("{n}일 전", { n: -days }) : t("{n}일 후", { n: days });
+  if (days === 0) return t("Today");
+  if (days === -1) return t("Yesterday");
+  if (days === 1) return t("Tomorrow");
+  if (Math.abs(days) <= 6) return days < 0 ? t("{n} days ago", { n: -days }) : t("In {n} days", { n: days });
   return fmtDay(iso, "full", opts);
 }
 
@@ -85,7 +85,7 @@ export function fmtDay(iso: string, fmt: DateFormat = DEFAULT_DATE_FORMAT, opts:
   }
 }
 
-/** "HH:MM" as the original writes it — `오후 3:30`. */
+/** "HH:MM" as the original writes it — `3:30 PM` in the locale's form. */
 export function fmtTime(hm: string, opts: DateFmtOpts = {}): string {
   const [h, mi] = hm.split(":").map(Number);
   if (Number.isNaN(h)) return hm;
@@ -93,7 +93,7 @@ export function fmtTime(hm: string, opts: DateFmtOpts = {}): string {
   return d.toLocaleTimeString(opts.locale ?? DEFAULT_INTL, { hour: "numeric", minute: "2-digit" });
 }
 
-/** `2026년 8월` — the calendar's caption. */
+/** `August 2026` in the locale's form — the calendar's caption. */
 export function fmtMonth(y: number, m: number, opts: DateFmtOpts = {}): string {
   return new Date(y, m, 1).toLocaleDateString(opts.locale ?? DEFAULT_INTL, { year: "numeric", month: "long" });
 }

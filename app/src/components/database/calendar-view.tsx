@@ -7,7 +7,7 @@ import { applyView, dateStart } from "@/lib/db-values";
 import { useDb } from "./database-block";
 import { useT } from "@/i18n/provider";
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -86,7 +86,7 @@ export function CalendarView({ view }: { view: DbView }) {
         <button
           data-testid="db-calendar-prev"
           onClick={prev}
-          aria-label={t("이전 달")}
+          aria-label={t("Previous month")}
           className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronLeft size={14} />
@@ -96,20 +96,20 @@ export function CalendarView({ view }: { view: DbView }) {
           className="min-w-[9rem] text-center text-sm font-medium text-neutral-800 dark:text-neutral-100"
         >
           {mode === "month"
-            ? t("{year}년 {month}월", { year, month: month + 1 })
-            : `${t("{month}월 {day}일", { month: weekDays[0].getMonth() + 1, day: weekDays[0].getDate() })} – ${t("{year}년 {month}월 {day}일", { year: weekDays[6].getFullYear(), month: weekDays[6].getMonth() + 1, day: weekDays[6].getDate() })}`}
+            ? t("{month} {year}", { year, month: month + 1 })
+            : `${t("{month} {day}", { month: weekDays[0].getMonth() + 1, day: weekDays[0].getDate() })} – ${t("{month} {day}, {year}", { year: weekDays[6].getFullYear(), month: weekDays[6].getMonth() + 1, day: weekDays[6].getDate() })}`}
         </span>
         <button
           data-testid="db-calendar-mode"
           onClick={() => setMode((m) => (m === "month" ? "week" : "month"))}
           className="rounded border border-neutral-200 px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          {mode === "month" ? t("주") : t("월")}
+          {mode === "month" ? t("Week") : t("Month")}
         </button>
         <button
           data-testid="db-calendar-next"
           onClick={next}
-          aria-label={t("다음 달")}
+          aria-label={t("Next month")}
           className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <ChevronRight size={14} />
@@ -134,7 +134,7 @@ export function CalendarView({ view }: { view: DbView }) {
 
       {!dateProp ? (
         <div className="py-4 text-sm text-neutral-400">
-          {t("캘린더를 사용하려면 날짜 속성을 추가하세요.")}
+          {t("Add a date property to use the calendar.")}
         </div>
       ) : mode === "week" ? (
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-700">
@@ -168,7 +168,7 @@ export function CalendarView({ view }: { view: DbView }) {
                       onClick={() => db.openRow(r.id)}
                       className="truncate rounded bg-blue-100 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200"
                     >
-                      {(titleProp && (r.values[titleProp.id] as string)) || t("제목 없음")}
+                      {(titleProp && (r.values[titleProp.id] as string)) || t("Untitled")}
                     </button>
                   ))}
                 </div>
@@ -219,7 +219,7 @@ export function CalendarView({ view }: { view: DbView }) {
                       onClick={() => db.openRow(r.id)}
                       className="truncate rounded bg-blue-100 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200"
                     >
-                      {(titleProp && (r.values[titleProp.id] as string)) || t("제목 없음")}
+                      {(titleProp && (r.values[titleProp.id] as string)) || t("Untitled")}
                     </button>
                   ))}
                 </div>

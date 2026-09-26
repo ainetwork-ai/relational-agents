@@ -1,8 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demoLogin } from "./helpers";
+import { CHAT_FIX_02_LINKS as C } from "../src/i18n/content/e2e";
 
-// 요구사항 2: 채팅 안의 링크가 평문이 아니라 하이퍼링크(<a>)로 렌더된다.
-// fake 응답에 마크다운 링크 [docs](https://example.com/docs)와 맨 URL https://example.com 포함.
+// Requirement 2: links in the chat render as hyperlinks (<a>), not plain text.
+// The fake reply contains the markdown link [docs](https://example.com/docs) and the bare URL https://example.com.
 
 test.beforeEach(async ({ context }) => {
   await context.addCookies([
@@ -14,7 +15,7 @@ async function seedAndOpen(page: Page): Promise<void> {
   const chat = await (await page.request.post("/api/ai/chats", { data: {} })).json();
   const id: string = chat.chat.id;
   const res = await page.request.post(`/api/ai/chats/${id}/messages`, {
-    data: { text: "링크 보여줘", present: true },
+    data: { text: C.showLinks, present: true },
     timeout: 30_000,
   });
   await res.text();
@@ -22,17 +23,17 @@ async function seedAndOpen(page: Page): Promise<void> {
   await expect(page.getByTestId("chat-msg-content").last()).toBeVisible({ timeout: 15_000 });
 }
 
-test("CHAT-FIX-2010 마크다운 링크가 <a>로 렌더되고 텍스트/href/보안속성 올바름", async ({ page }) => {
+test("CHAT-FIX-2010 markdown link renders as <a> with correct text/href/security attributes", async ({ page }) => {
   await demoLogin(page);
   await seedAndOpen(page);
   const link = page.getByTestId("chat-msg-content").last().locator('a[href="https://example.com/docs"]');
   await expect(link).toBeVisible();
-  await expect(link).toHaveText("docs"); // 평문 [docs](...)가 아니라 링크 텍스트만
+  await expect(link).toHaveText("docs"); // only the link text, not the plain [docs](...)
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", /noopener/);
 });
 
-test("CHAT-FIX-2011 맨 URL도 자동 하이퍼링크된다", async ({ page }) => {
+test("CHAT-FIX-2011 a bare URL is auto-linked too", async ({ page }) => {
   await demoLogin(page);
   await seedAndOpen(page);
   const auto = page
@@ -43,7 +44,7 @@ test("CHAT-FIX-2011 맨 URL도 자동 하이퍼링크된다", async ({ page }) =
   await expect(auto).toHaveText("https://example.com");
 });
 
-test("CHAT-FIX-2012 링크 원문 마크다운 대괄호가 화면에 안 보인다(평문 아님)", async ({ page }) => {
+test("CHAT-FIX-2012 the raw markdown brackets of a link are not visible (not plain text)", async ({ page }) => {
   await demoLogin(page);
   await seedAndOpen(page);
   const content = page.getByTestId("chat-msg-content").last();

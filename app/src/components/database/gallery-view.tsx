@@ -21,7 +21,7 @@ export function GalleryView({ view }: { view: DbView }) {
   const rest = shown.filter((p) => p.type !== "url");
   const groupable = db.properties.filter(isGroupable);
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
-  const groups = groupRowsBy(visible, groupProp, db.members);
+  const groups = groupRowsBy(visible, groupProp, db.members, t);
  // card cover: the first url/files property's value.
   const coverProp = db.properties.find((p) => p.type === "url" || p.type === "files");
   const coverOf = (values: Record<string, unknown>): string | null => {
@@ -49,7 +49,7 @@ export function GalleryView({ view }: { view: DbView }) {
       )}
       <div className="p-3">
         <div className="mb-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          {(titleProp && (row.values[titleProp.id] as string)) || t("제목 없음")}
+          {(titleProp && (row.values[titleProp.id] as string)) || t("Untitled")}
         </div>
         <div className="flex flex-col gap-1.5">
           {rest.map((p) => (
@@ -95,7 +95,7 @@ export function GalleryView({ view }: { view: DbView }) {
           onClick={() => db.addRow()}
           className="flex min-h-[80px] items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
         >
-          <Plus size={13} /> {t("새 {name}", { name: db.itemName })}
+          <Plus size={13} /> {t("New {name}", { name: db.itemName })}
         </button>
       )}
     </div>

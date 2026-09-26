@@ -28,9 +28,9 @@ export async function provisionDatabase(
   shape: "tracker" | "minimal" = "tracker",
   t: T = (k) => k
 ): Promise<DatabaseSnapshot> {
-  if (!title && shape === "tracker") title = t("작업");
+  if (!title && shape === "tracker") title = t("Tasks");
   // A database created as a page of its own starts bare, the way Notion's does:
-  // one 이름 column, one 표 view, no rows. The tracker shape below is for the
+  // one Name column, one Table view, no rows. The tracker shape below is for the
   // inline /database command, whose whole promise is "table + board".
   if (shape === "minimal") return provisionMinimal(workspaceId, userId, title, t);
   const [database] = await db
@@ -39,9 +39,9 @@ export async function provisionDatabase(
     .returning();
 
   const statusOptions = [
-    { id: rid(), name: t("할 일"), color: "gray" },
-    { id: rid(), name: t("진행 중"), color: "blue" },
-    { id: rid(), name: t("완료"), color: "green" },
+    { id: rid(), name: t("To-do"), color: "gray" },
+    { id: rid(), name: t("In progress"), color: "blue" },
+    { id: rid(), name: t("Done"), color: "green" },
   ];
 
   const propDefs: {
@@ -49,10 +49,10 @@ export async function provisionDatabase(
     type: DbProperty["type"];
     config: DbProperty["config"];
   }[] = [
-    { name: t("이름"), type: "title", config: {} },
-    { name: t("상태"), type: "status", config: { options: statusOptions } },
-    { name: t("담당자"), type: "person", config: {} },
-    { name: t("마감일"), type: "date", config: {} },
+    { name: t("Name"), type: "title", config: {} },
+    { name: t("Status"), type: "status", config: { options: statusOptions } },
+    { name: t("Assignee"), type: "person", config: {} },
+    { name: t("Due"), type: "date", config: {} },
   ];
 
   const properties = await db
@@ -90,10 +90,10 @@ export async function provisionDatabase(
   const views = await db
     .insert(dbViews)
     .values([
-      { databaseId: database.id, name: t("표"), type: "table" as const, config: {}, position: 1 },
+      { databaseId: database.id, name: t("Table"), type: "table" as const, config: {}, position: 1 },
       {
         databaseId: database.id,
-        name: t("보드"),
+        name: t("Board"),
         type: "board" as const,
         config: { groupByPropertyId: statusProp.id },
         position: 2,
@@ -119,13 +119,13 @@ async function provisionMinimal(
 
   const properties = await db
     .insert(dbProperties)
-    .values([{ databaseId: database.id, name: t("이름"), type: "title" as const, config: {}, position: 1 }])
+    .values([{ databaseId: database.id, name: t("Name"), type: "title" as const, config: {}, position: 1 }])
     .returning();
 
   const views = await db
     .insert(dbViews)
     .values([
-      { databaseId: database.id, name: t("표"), type: "table" as const, config: {}, position: 1 },
+      { databaseId: database.id, name: t("Table"), type: "table" as const, config: {}, position: 1 },
     ])
     .returning();
 

@@ -17,7 +17,7 @@ interface StarterItem {
 }
 
 /**
- * The 시작하기 row Notion shows on a brand-new empty page.
+ * The Get started row Notion shows on a brand-new empty page.
  *
  * Items we cannot honour are rendered disabled with a reason rather than left
  * out: the row is a menu of what a page can become, and silently dropping three
@@ -26,30 +26,30 @@ interface StarterItem {
 const ITEMS: StarterItem[] = [
   {
     key: "ai",
-    label: "AI에게 질문하기",
+    label: "Ask AI a question",
     icon: <Sparkles size={15} />,
-    soon: "LLM 엔드포인트가 아직 설정되지 않았습니다",
+    soon: "No LLM endpoint is configured yet",
   },
   {
     key: "ai-note",
-    label: "AI 노트",
+    label: "AI note",
     icon: <FileText size={15} />,
-    soon: "AI 노트는 아직 없습니다",
+    soon: "AI notes are not available yet",
   },
   {
     key: "database",
-    label: "데이터베이스",
+    label: "Database",
     icon: <Table2 size={15} />,
     type: "database",
   },
   {
     key: "form",
-    label: "폼",
+    label: "Form",
     icon: <ClipboardList size={15} />,
-    soon: "폼은 아직 없습니다",
+    soon: "Forms are not available yet",
   },
-  // 템플릿 opens the page-template list this editor already ships
-  { key: "template", label: "템플릿", icon: <LayoutTemplate size={15} /> },
+  // Templates opens the page-template list this editor already ships
+  { key: "template", label: "Templates", icon: <LayoutTemplate size={15} /> },
 ];
 
 export function EmptyPageStarter({
@@ -107,11 +107,11 @@ export function EmptyPageStarter({
       ref={ref}
       data-testid="empty-page-starter"
       role="menu"
-      aria-label={t("시작하기")}
+      aria-label={t("Get started")}
       className="absolute inset-x-0 transition-[top] duration-200"
       style={top === null ? { visibility: "hidden", top: 0 } : { top }}
     >
-      <p className="px-1 pb-1.5 text-sm font-medium text-neutral-400">{t("시작하기")}</p>
+      <p className="px-1 pb-1.5 text-sm font-medium text-neutral-400">{t("Get started")}</p>
       <div className="flex flex-wrap gap-2">
         {ITEMS.map((item) => {
           const isTemplate = item.key === "template";

@@ -5,7 +5,7 @@ import { fileIconForName } from "./file-icon";
 import type { PreviewProps } from "./types";
 import { PreviewMessage } from "./status";
 
-const CANT_PLAY = "브라우저에서 재생할 수 없는 오디오입니다 — 다운로드해서 열어 주세요.";
+const CANT_PLAY = "This audio can't be played in the browser — download it to open it.";
 
 /**
  * Type icon + filename over a full-width <audio> control. Plays natively; if

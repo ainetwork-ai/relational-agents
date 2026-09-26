@@ -15,58 +15,58 @@ import type { T } from "@/i18n/translate";
 import type { MentionPerson } from "@/lib/mention/search";
 
 /**
- * 수신함 — 원본에서 잰 값 그대로 (docs/notion-comment-mention.md §6).
+ * Inbox — exactly the values measured on the original (docs/notion-comment-mention.md §6).
  *
- *   패널 폭 366 · 제목 `수신함` 14px/500 rgb(44,44,43)
- *     (366 은 사이드바(270)보다 넓다 — 원본처럼 사이드바 **옆에 뜨는 오버레이**여야
- *      나오는 값이다. 사이드바 안에 넣으면 269 로 눌린다.)
- *   시간대 머리(오늘 / 어제 / 이전)로 묶는다
- *   아바타 24×24, 행 왼쪽에서 8 · 위에서 10 (사진이 없으면 이니셜 11px rgb(142,139,134))
- *   첫 줄 = {보낸 사람}(14/500) + 문구 + [페이지 아이콘] + {페이지 제목}(14/500),
- *          오른쪽 끝 날짜 12px rgb(161,158,153)
- *   미리보기 = 본문 14/400 rgb(125,122,117) — 멘션은 댓글과 같은 모양(연한 @ + 이름)
- *   안 읽음 = 날짜 **오른쪽**의 파란 점 (예전엔 왼쪽에 그렸다)
- *   행 높이 = 미리보기 없으면 87, 있으면 108
+ *   panel width 366 · title `Inbox` 14px/500 rgb(44,44,43)
+ *     (366 is wider than the sidebar (270) — the value only comes out when it is an overlay
+ *      floating **beside** the sidebar, like the original. Put inside the sidebar it squeezes to 269.)
+ *   grouped under time-bucket headers (Today / Yesterday / Previous)
+ *   avatar 24×24, 8 from the row's left · 10 from the top (no photo → initial 11px rgb(142,139,134))
+ *   first line = {sender}(14/500) + phrase + [page icon] + {page title}(14/500),
+ *          date at the far right 12px rgb(161,158,153)
+ *   preview = body 14/400 rgb(125,122,117) — mentions look the same as in comments (faint @ + name)
+ *   unread = a blue dot to the **right** of the date (it used to be drawn on the left)
+ *   row height = 87 without a preview, 108 with one
  *
- * 잰 값이 아닌 것(원본 캡처에 수치가 없어 우리가 고른 것): 파란 점 6px, 아바타–글 간격 8,
- * 시간대 머리 12px/500 rgb(125,122,117)(§3 섹션 머리와 같은 값), 호버 배경,
- * 페이지 아이콘 크기(줄의 글자 크기를 따른다), 오버레이의 그림자·라운드.
+ * Not measured (the capture has no numbers, so we picked them): blue dot 6px, avatar–text gap 8,
+ * time-bucket header 12px/500 rgb(125,122,117) (same as the §3 section header), hover background,
+ * page icon size (follows the line's font size), the overlay's shadow and radius.
  */
 
-/** 첫 줄 문구. `{actor}`/`{page}` 자리에 굵은 조각이 들어간다 —
- *  통째로 번역해야 영어의 어순(`X mentioned you in Y`)이 산다.
- *  `t(key)` 는 vars 를 주지 않으면 자리표시자를 그대로 돌려준다. */
+/** First-line phrase. Bold fragments go into the `{actor}`/`{page}` slots —
+ *  it has to be translated as a whole so each language keeps its own word order (`X mentioned you in Y`).
+ *  `t(key)` returns the placeholders untouched when no vars are given. */
 const SUMMARY: Record<string, { page: string; bare: string }> = {
- // 원본 문구: 보낸 사람 → `다음에서 나를 멘션함` → 페이지 제목
-  mention: { page: "{actor} 다음에서 나를 멘션함 {page}", bare: "{actor}님이 나를 멘션했습니다" },
-  comment: { page: "{actor}님이 {page}에 댓글을 달았습니다.", bare: "{actor}님이 댓글을 달았습니다." },
-  invite: { page: "{actor}님이 {page}에 초대했습니다", bare: "{actor}님이 나를 초대했습니다" },
- // 관계 계약의 pageId 는 DM 방 id 라 페이지 제목이 없다 — 두 쪽이 같은 문구다
-  consent: { page: "{actor}님의 관계 계약", bare: "{actor}님의 관계 계약" },
- // 리마인더는 보낸 사람이 없다
-  reminder: { page: "⏰ 리마인더 · {page}", bare: "⏰ 리마인더" },
+ // original phrase (ko): sender → "mentioned me in" → page title
+  mention: { page: "{actor} mentioned you in {page}", bare: "{actor} mentioned you" },
+  comment: { page: "{actor} commented on {page}", bare: "{actor} left a comment" },
+  invite: { page: "{actor} invited you to {page}", bare: "{actor} invited you" },
+ // a relationship-agreement's pageId is a DM room id, so there is no page title — both phrases are the same
+  consent: { page: "{actor}'s relationship agreement", bare: "{actor}'s relationship agreement" },
+ // a reminder has no sender
+  reminder: { page: "⏰ Reminder · {page}", bare: "⏰ Reminder" },
 };
 
 const SUMMARY_FALLBACK = {
-  page: "{actor}님이 {page}에서 알림을 보냈습니다",
-  bare: "{actor}님이 나에게 알림을 보냈습니다",
+  page: "{actor} sent you a notification in {page}",
+  bare: "{actor} sent you a notification",
 };
 
-/** 알림이 가리키는 페이지 제목. 없으면 null — 그러면 `bare` 문구를 쓴다. */
+/** Title of the page a notification points at. null when there is none — then the `bare` phrase is used. */
 function pageLabel(n: InboxNotification, t: T): string | null {
- // consent 의 pageId 는 페이지가 아니라 DM 방이다
+ // consent's pageId is a DM room, not a page
   if (!n.pageId || n.type === "consent") return null;
-  return n.pageTitle?.trim() || t("제목 없음");
+  return n.pageTitle?.trim() || t("Untitled");
 }
 
-/** 첫 줄을 조각으로. 이름과 페이지 제목만 weight 500 이다.
- *  `row` 는 트리에서 찾은 그 페이지 — §6 의 첫 줄에는 제목 **앞에 페이지 아이콘**이
- *  붙는다(멘션 메뉴의 페이지 행이 아이콘을 얻는 것과 같은 곳에서 온다). 트리에 없는
- *  페이지면 사이드바와 같은 기본 글리프를 쓴다. */
+/** The first line as fragments. Only the name and the page title are weight 500.
+ *  `row` is that page as found in the tree — in §6 the first line has a **page icon before** the title
+ *  (it comes from the same place the mention menu's page rows get their icons). A page not in the
+ *  tree gets the same default glyph as the sidebar. */
 function summaryNodes(n: InboxNotification, t: T, row?: PageRow): ReactNode[] {
   const tpl = SUMMARY[n.type] ?? SUMMARY_FALLBACK;
   const page = pageLabel(n, t);
-  const actor = n.actor?.displayName ?? t("누군가");
+  const actor = n.actor?.displayName ?? t("Someone");
   const text = t(page ? tpl.page : tpl.bare);
 
   return text.split(/(\{actor\}|\{page\})/).map((part, i) => {
@@ -94,14 +94,14 @@ function summaryNodes(n: InboxNotification, t: T, row?: PageRow): ReactNode[] {
   });
 }
 
-/** 원본의 시간대 머리. 알림 날짜로 오늘 / 어제 / 이전. */
-function bucketOf(iso: string): "오늘" | "어제" | "이전" {
+/** The original's time-bucket headers: Today / Yesterday / Previous by notification date. */
+function bucketOf(iso: string): "Today" | "Yesterday" | "Previous" {
   const at = new Date(iso).getTime();
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
-  if (at >= midnight.getTime()) return "오늘";
-  if (at >= midnight.getTime() - 86_400_000) return "어제";
-  return "이전";
+  if (at >= midnight.getTime()) return "Today";
+  if (at >= midnight.getTime() - 86_400_000) return "Yesterday";
+  return "Previous";
 }
 
 function groupByDay(items: InboxNotification[]): { label: string; items: InboxNotification[] }[] {
@@ -115,7 +115,7 @@ function groupByDay(items: InboxNotification[]): { label: string; items: InboxNo
   return out;
 }
 
-/** 원본 댓글과 같은 날짜 표기 — `5월 14일`. */
+/** Same date notation as the original's comments — month and day (e.g. May 14). */
 function fmtDate(iso: string, locale: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -123,19 +123,19 @@ function fmtDate(iso: string, locale: string): string {
 }
 
 /**
- * 클릭했을 때 갈 곳. 댓글 알림은 **commentId 를 들고 간다** — 예전엔 버렸다.
+ * Where a click goes. A comment notification **carries its commentId** — it used to be dropped.
  *
- * TODO(comment-deeplink): `?comment=` 를 읽는 쪽이 아직 없다. 페이지는 맨 위에서 열린다.
- * 해당 댓글로 스크롤/강조하는 것은 별도 작업(page-comment-section 담당).
+ * TODO(comment-deeplink): nothing reads `?comment=` yet. The page opens at the top.
+ * Scrolling to / highlighting that comment is separate work (owned by page-comment-section).
  */
 export function notificationHref(n: InboxNotification): string | null {
   if (!n.pageId) return null;
- // 관계 계약 알림의 pageId 는 DM 방 id 다 — 동의 배너 위로 내린다
+ // a relationship-agreement notification's pageId is a DM room id — land on the consent banner
   if (n.type === "consent") return `/dm/${n.pageId}`;
   return n.commentId ? `/p/${n.pageId}?comment=${n.commentId}` : `/p/${n.pageId}`;
 }
 
-/** 행 하나 — 잰 값이 다 여기 있다. */
+/** One row — all the measured values live here. */
 function InboxRow({
   n,
   members,
@@ -143,8 +143,8 @@ function InboxRow({
   onMarkRead,
 }: {
   n: InboxNotification;
- // 실제 멤버만 멘션으로 물들인다 — 댓글과 같은 규칙(CommentBody). null 이면
- // 아직 모르는 것이라 평문으로 그린다.
+ // only real members get mention colouring — the same rule as comments (CommentBody). null means
+ // not known yet, so it renders as plain text.
   members: MentionPerson[] | null;
   onOpen: (n: InboxNotification) => void;
   onMarkRead: (id: string) => void;
@@ -152,7 +152,7 @@ function InboxRow({
   const t = useT();
   const locale = useIntlLocale();
   const preview = n.body?.trim() ?? "";
- // 첫 줄의 페이지 아이콘 — 멘션 메뉴의 페이지 행과 같은 출처(페이지 트리)
+ // the page icon on the first line — same source as the mention menu's page rows (the page tree)
   const pageRow = usePagesStore((s) => (n.pageId ? s.pages[n.pageId] : undefined));
 
   return (
@@ -163,7 +163,7 @@ function InboxRow({
         preview ? "h-[108px]" : "h-[87px]"
       } ${n.read ? "opacity-60" : ""}`}
     >
-      {/* 아바타 24×24 — 행 왼쪽에서 8(px-2), 위에서 10(pt-[10px]) */}
+      {/* avatar 24×24 — 8 from the row's left (px-2), 10 from the top (pt-[10px]) */}
       {n.actor?.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -184,7 +184,7 @@ function InboxRow({
           <p className="line-clamp-2 min-w-0 flex-1 text-[14px] leading-[20px] font-normal text-[rgb(44,44,43)] dark:text-neutral-200">
             {summaryNodes(n, t, pageRow)}
           </p>
-          {/* 날짜와 안 읽음 점은 첫 줄(20) 안에서 세로 가운데 */}
+          {/* the date and the unread dot are vertically centred within the first line (20) */}
           <div
             className={`flex h-[20px] shrink-0 items-center gap-1.5 ${
               n.read ? "" : "transition-opacity group-hover:opacity-0"
@@ -193,11 +193,11 @@ function InboxRow({
             <span className="text-[12px] leading-[16px] text-[rgb(161,158,153)]">
               {fmtDate(n.createdAt, locale)}
             </span>
-            {/* 안 읽음: 날짜 **오른쪽**의 파란 점 (예전엔 줄 왼쪽에 있었다) */}
+            {/* unread: a blue dot to the **right** of the date (it used to sit at the line's left) */}
             {!n.read && (
               <span
                 data-testid={`inbox-unread-${n.id}`}
-                aria-label={t("읽지 않음")}
+                aria-label={t("Unread")}
                 className="h-1.5 w-1.5 rounded-full bg-blue-500"
               />
             )}
@@ -206,16 +206,16 @@ function InboxRow({
 
         {preview && (
           <p className="mt-px line-clamp-1 text-[14px] leading-[20px] font-normal text-[rgb(125,122,117)] dark:text-neutral-400">
-            {/* 원본은 수신함에서도 댓글과 **같은 방식**으로 그린다: 칩이 아니라
-                보조색 이름 + 그 색의 60% 로 연한 `@`. 그리는 코드도 같은 것을 쓴다 —
-                따로 두었더니 댓글에는 없는 `@단어` 가 수신함에서만 물들었다. */}
+            {/* the original draws the inbox the **same way** as comments: not a chip but
+                the secondary-colour name + a faint `@` at 60% of that colour. The drawing code is shared too —
+                when it was separate, `@word`s that comments leave plain got coloured only in the inbox. */}
             <CommentBody body={preview} members={members} />
           </p>
         )}
       </div>
 
-      {/* 원본은 호버에서 오른쪽에 아이콘 3개(알림 끄기 · 읽음 표시 · 보관)를 낸다.
-          우리가 실제로 하는 것은 읽음 표시 하나뿐이라 그것만 둔다. */}
+      {/* on hover the original shows 3 icons on the right (mute · mark as read · archive).
+          Mark as read is the only one we actually do, so only that one is here. */}
       {!n.read && (
         <button
           data-testid={`inbox-markread-${n.id}`}
@@ -224,7 +224,7 @@ function InboxRow({
             onMarkRead(n.id);
           }}
           className="absolute top-[8px] right-2 flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-300/60 hover:text-neutral-600 dark:hover:bg-neutral-600"
-          aria-label={t("읽음으로 표시")}
+          aria-label={t("Mark as read")}
         >
           <Check size={14} />
         </button>
@@ -233,7 +233,7 @@ function InboxRow({
   );
 }
 
-/** 시간대 머리로 묶은 목록. 두 껍데기(사이드바 패널 · 옛 팝업)가 같이 쓴다. */
+/** The list grouped under time-bucket headers. Both shells (the sidebar panel · the old popup) use it. */
 function InboxList({
   items,
   onOpen,
@@ -244,12 +244,12 @@ function InboxList({
   onMarkRead: (id: string) => void;
 }) {
   const t = useT();
- // 한 번만 묻고 행들에 나눠 준다 (행마다 물으면 같은 답을 17번 구독한다)
+ // ask once and hand it to the rows (asking per row subscribes to the same answer 17 times)
   const members = useWorkspaceMembers();
   const groups = useMemo(() => groupByDay(items), [items]);
 
   if (items.length === 0) {
-    return <p className="px-3 py-6 text-center text-xs text-neutral-400">{t("아직 알림이 없습니다")}</p>;
+    return <p className="px-3 py-6 text-center text-xs text-neutral-400">{t("No notifications yet")}</p>;
   }
 
   return (
@@ -269,15 +269,15 @@ function InboxList({
 }
 
 /**
- * 수신함 패널. 사이드바가 자기 수신함 화면을 켤 때 그린다.
+ * The inbox panel. Drawn when the sidebar switches to its inbox view.
  *
- * **사이드바 안이 아니라 그 옆에 뜬다.** 원본의 폭은 366 인데 사이드바는 270 이라,
- * 사이드바의 자식으로 흐르게 두면 366 이 269 로 눌린다(`max-w-full` 이 그렇게
- * 만든다 — 잰 값이 화면에서는 안 나오던 이유). 그래서 사이드바(`aside.relative`)를
- * 기준으로 `left-full` 에 절대배치해 오른쪽 옆에 띄우고, 폭은 366 그대로 둔다.
- * 테두리를 두지 않는 것도 폭 때문이다: 366 짜리 상자에 테두리를 주면 행이 364 가 된다.
- * 닫기는 X 버튼과 사이드바의 수신함 버튼(토글) 둘 다 — 화면을 덮는 배경막이 없으므로
- * 패널이 열려 있어도 사이드바는 그대로 쓸 수 있다.
+ * **It floats beside the sidebar, not inside it.** The original is 366 wide but the sidebar is 270,
+ * so flowing it as a sidebar child squeezes 366 to 269 (`max-w-full` does that —
+ * why the measured value never showed on screen). So it is absolutely positioned at `left-full` relative
+ * to the sidebar (`aside.relative`), floating on its right, and keeps its width of 366.
+ * No border for the same reason: a border on a 366 box makes the rows 364.
+ * It closes from both the X button and the sidebar's inbox button (a toggle) — there is no backdrop
+ * covering the screen, so the sidebar stays usable while the panel is open.
  */
 export function InboxPanel({ onClose }: { onClose: () => void }) {
   const t = useT();
@@ -304,7 +304,7 @@ export function InboxPanel({ onClose }: { onClose: () => void }) {
     >
       <div className="flex items-center justify-between px-2 py-1.5">
         <h2 className="text-[14px] leading-[20px] font-medium text-[rgb(44,44,43)] dark:text-neutral-200">
-          {t("수신함")}
+          {t("Inbox")}
         </h2>
         <div className="flex items-center gap-1">
           <button
@@ -312,12 +312,12 @@ export function InboxPanel({ onClose }: { onClose: () => void }) {
             onClick={() => markAll()}
             className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700"
           >
-            <CheckCheck size={13} /> {t("모두 읽음으로 표시")}
+            <CheckCheck size={13} /> {t("Mark all as read")}
           </button>
           <button
             onClick={onClose}
             className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-700"
-            aria-label={t("수신함 닫기")}
+            aria-label={t("Close inbox")}
           >
             <X size={15} />
           </button>
@@ -373,9 +373,9 @@ export function NotificationsInbox({
       <button
         data-testid="inbox-button"
         onClick={() => (onOpen ? onOpen() : setOpen((v) => !v))}
-        aria-label={t("수신함")}
-        data-tip={t("수신함")}
-       // 28×28 — 원본에서 잰 값(§6). 옆의 탭 알약들은 32 라 이 버튼만 한 치수 작다.
+        aria-label={t("Inbox")}
+        data-tip={t("Inbox")}
+       // 28×28 — measured on the original (§6). The tab pills beside it are 32, so this button alone is a size smaller.
         className={`relative flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors ${
           active
             ? `bg-neutral-200/70 text-neutral-800 dark:bg-neutral-700/70 dark:text-neutral-100 ${showLabel ? "px-2.5" : "w-7 shrink-0"}`
@@ -383,7 +383,7 @@ export function NotificationsInbox({
         }`}
       >
         <Bell size={16} className="shrink-0" />
-        {active && showLabel && t("수신함")}
+        {active && showLabel && t("Inbox")}
         {unreadCount > 0 && (
           <span
             data-testid="inbox-badge"
@@ -405,7 +405,7 @@ export function NotificationsInbox({
           >
             <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-2 dark:border-neutral-700">
               <h2 className="text-[14px] leading-[20px] font-medium text-[rgb(44,44,43)] dark:text-neutral-200">
-                {t("수신함")}
+                {t("Inbox")}
               </h2>
               <div className="flex items-center gap-1">
                 <button
@@ -413,12 +413,12 @@ export function NotificationsInbox({
                   onClick={() => markAll()}
                   className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700"
                 >
-                  <CheckCheck size={13} /> {t("모두 읽음으로 표시")}
+                  <CheckCheck size={13} /> {t("Mark all as read")}
                 </button>
                 <button
                   onClick={() => setOpen(false)}
                   className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-700"
-                  aria-label={t("수신함 닫기")}
+                  aria-label={t("Close inbox")}
                 >
                   <X size={15} />
                 </button>

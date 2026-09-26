@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describeRule, evaluateCommand, parsePayees, parseTreasuryPolicy } from "@/lib/agent/treasury/policy";
 import { matchTreasuryCommand, mentionsMoney } from "@/lib/agent/treasury/match";
 import type { EvaluateInput, TreasuryPolicy } from "@/lib/agent/treasury/types";
+import { TREASURY_SELFTEST as KO } from "@/i18n/content/scripts";
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -293,12 +294,12 @@ check("withdrawals and investments", () => {
 });
 
 check("Korean", () => {
-  const e = money("@agent 호텔 예약금 180달러 보내줘");
-  assert.deepEqual([e.kind, e.amountUsd, e.memo, e.toSelf], ["expense", 180, "호텔 예약금", false]);
-  const w = money("@agent 700달러 내 지갑으로 보내줘");
+  const e = money(KO.expense);
+  assert.deepEqual([e.kind, e.amountUsd, e.memo, e.toSelf], ["expense", 180, KO.expenseMemo, false]);
+  const w = money(KO.withdrawal);
   assert.deepEqual([w.kind, w.amountUsd, w.toSelf], ["withdrawal", 700, true]);
-  assert.deepEqual(m("@agent 잔액 알려줘"), { kind: "status", raw: "@agent 잔액 알려줘" });
-  assert.equal(m("@agent 어제 호텔에 180달러 냈어"), null);
+  assert.deepEqual(m(KO.status), { kind: "status", raw: KO.status });
+  assert.equal(m(KO.pastTense), null);
 });
 
 check("status phrasings", () => {

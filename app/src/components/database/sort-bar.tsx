@@ -49,8 +49,8 @@ export function SortBar() {
       <button
         ref={btnRef}
         data-testid="db-sort"
-        data-tip={t("정렬")}
-        aria-label={t("정렬")}
+        data-tip={t("Sort")}
+        aria-label={t("Sort")}
         // with sorts in place the button folds/unfolds the rule row under the
         // tabs (the original's behaviour); with none it opens the sort panel
         onClick={() => (sorts.length ? db.setRulesRowOpen(!db.rulesRowOpen) : setOpen((v) => !v))}
@@ -74,7 +74,7 @@ export function SortBar() {
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 overflow-y-auto w-80 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           {sorts.length === 0 && (
-            <p className="px-1 py-2 text-xs text-neutral-400">{t("정렬 기준이 없습니다.")}</p>
+            <p className="px-1 py-2 text-xs text-neutral-400">{t("No sorts applied.")}</p>
           )}
           {sorts.map((s, i) => (
             <div key={i} className="mb-1 flex items-center gap-1">
@@ -96,14 +96,14 @@ export function SortBar() {
                 onChange={(e) => update(i, { dir: e.target.value as "asc" | "desc" })}
                 className={selectCls}
               >
-                <option value="asc">{t("오름차순")}</option>
-                <option value="desc">{t("내림차순")}</option>
+                <option value="asc">{t("Ascending")}</option>
+                <option value="desc">{t("Descending")}</option>
               </select>
               <button
                 data-testid={`db-sort-remove-${i}`}
                 onClick={() => commit(sorts.filter((_, idx) => idx !== i))}
                 className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-700"
-                aria-label={t("정렬 제거")}
+                aria-label={t("Remove sort")}
               >
                 <X size={12} />
               </button>
@@ -114,7 +114,7 @@ export function SortBar() {
             onClick={addSort}
             className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
           >
-            <Plus size={12} /> {t("정렬 추가")}
+            <Plus size={12} /> {t("Add sort")}
           </button>
           </div>,
           document.body

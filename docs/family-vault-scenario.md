@@ -1,60 +1,60 @@
-# Family Vault — 바운티 시나리오 (팀 공유용)
+# Family Vault — Bounty Scenario (for team sharing)
 
-> **상태: 1inch 바운티 제출 취소 (2026-09-25).** 팀은 다른 바운티로 진행.
-> 이 문서와 `family-vault/` 구현은 완성된 데모 자산으로 보존한다 — 아래
-> 내용은 취소 전 제출 계획의 기록.
+> **Status: 1inch bounty submission cancelled (2026-09-25).** The team went with a different bounty.
+> This document and the `family-vault/` implementation are kept as a finished demo asset — the
+> content below is a record of the submission plan from before the cancellation.
 
-2026-09-25 성민님 확정 시나리오("family")의 구체화. 코드·데모·문서는
-`family-vault/` (영어), 이 문서는 팀 내부 공유용.
+A fleshed-out version of the "family" scenario Sungmin confirmed on 2026-09-25. The code, demo, and docs
+live in `family-vault/` (in English); this document is for internal team sharing.
 
-## 1. 트랙 이름
+## 1. Track name
 
-**1inch 💦 Build an Aqua App — Continuity Track** ($2,000 · 1위 $1,500 / 2위 $500)
+**1inch 💦 Build an Aqua App — Continuity Track** ($2,000 · 1st place $1,500 / 2nd place $500)
 
-## 2. 트랙 요구사항 (검증됨)
+## 2. Track requirements (verified)
 
-- 공식 Aqua/SwapVM 컨트랙트 사용 — **수정된 SwapVM 재배포는 명시적 허용**
-- 데모에 온체인 토큰 전송 포함 (로컬 포크 OK)
-- Continuity: 기존 오픈소스의 확장 + 해커톤 기간 잘게 나눈 커밋 (마지막 날 단일 커밋 = 실격)
-- SwapVM 활용 시 가산점
+- Use the official Aqua/SwapVM contracts — **redeploying a modified SwapVM is explicitly allowed**
+- The demo includes an on-chain token transfer (a local fork is OK)
+- Continuity: an extension of existing open source + small, granular commits during the hackathon (a single commit on the last day = disqualification)
+- Bonus points for using SwapVM
 
-**우리의 충족 방식**: 공식 Aqua 레지스트리(0x1111113…)에 ship/dock ✅ ·
-커스텀 연산자 2개를 추가한 SwapVM 재배포(공식 TestCustomSwapVM 패턴) ✅ ·
-claim()의 온체인 전송 ✅ · 7월부터의 리포 히스토리 + 해커톤 커밋 20여 개 ✅
+**How we meet them**: ship/dock to the official Aqua registry (0x1111113…) ✅ ·
+a SwapVM redeploy with 2 added custom operators (the official TestCustomSwapVM pattern) ✅ ·
+the on-chain transfer in claim() ✅ · repo history since July + about 20 hackathon commits ✅
 
-## 3. 시연 시나리오 (3분, 육성 녹음 — 대본: family-vault/DEMO.md)
+## 3. Demo scenario (3 minutes, voice-over — script: family-vault/DEMO.md)
 
-1. **예치 (백일)** — 부모가 $1,000(USDC+WETH)을 자기 가족의 금고 컨트랙트에
-   예치 + 편지를 워크스페이스에 🔒 봉인. 금고가 스스로 maker가 되어 공식
-   Aqua에 운용 정책을 ship. 정책 = SwapVM 프로그램 4개 명령어:
-   `salt · timeCapsule(만기, 아이주소) · lowRiskGuard(만기, 5%) · xycSwap`
-2. **운용 (0→18세)** — 시장 taker들이 금고 상대로 체결, 스프레드가 아이의
-   이자. 모든 체결·이벤트가 Vault Ledger에 자동 기록(18년 가치 선 차트).
-   자산은 18년 내내 금고 지갑을 떠나지 않음(self-custody).
-3. **비상구 장면 (10초)** — 부모의 조기 해지 요청(공개 온체인, 30일 대기)과
-   취소. 둘 다 가족의 기록으로 남음. 망한 토큰은 정책 re-ship으로 대응.
-4. **오픈 (18세)** — anvil 시간 점프 → 아이의 claim() 한 트랜잭션으로
-   원금+수익 온체인 전송 → 같은 이벤트가 편지 페이지를 해제 + 인박스 알림.
-   **"자산과 메시지가 동시에 도착한다."**
+1. **Deposit (100th-day celebration)** — The parents deposit $1,000 (USDC+WETH) into their family's vault contract
+   + 🔒 seal a letter in the workspace. The vault becomes a maker itself and ships its investment policy to the
+   official Aqua. Policy = a 4-instruction SwapVM program:
+   `salt · timeCapsule(maturity, childAddress) · lowRiskGuard(maturity, 5%) · xycSwap`
+2. **Growth (age 0→18)** — Market takers trade against the vault, and the spread becomes the child's
+   interest. Every fill and event is recorded automatically in the Vault Ledger (an 18-year value line chart).
+   The assets never leave the vault wallet for all 18 years (self-custody).
+3. **Emergency-exit scene (10 seconds)** — The parents' early-termination request (public, on-chain, 30-day wait)
+   and its cancellation. Both stay in the family's record. A token that goes bust is handled by re-shipping the policy.
+4. **Opening (age 18)** — anvil time jump → the child's single claim() transaction transfers
+   principal + returns on-chain → the same event unlocks the letter page + sends an inbox notification.
+   **"The assets and the message arrive at the same time."**
 
-## 왜 1inch인가 (심사 논리 3문장)
+## Why 1inch (the judging argument in 3 sentences)
 
-1. 18년짜리 질문은 "돈이 어디 있느냐"인데, Aqua만 "유동성이 maker 지갑을
-   떠나지 않는다"로 답한다 — 세대를 건너는 보관에서 이건 편의가 아니라 존재 이유.
-2. SwapVM에선 투자 정책이 컨트랙트가 아니라 바이트 몇 줄의 프로그램이라,
-   18년 동안의 정책 교체가 재배포·재감사가 아니라 dock→ship 한 번이다.
-3. 수익이 keeper 봇이 아니라 공식 레지스트리를 타는 실제 시장 플로우에서 나온다.
+1. The 18-year question is "where is the money?", and only Aqua answers "the liquidity never leaves
+   the maker's wallet" — for custody across generations, that is not a convenience but the reason to exist.
+2. In SwapVM the investment policy is not a contract but a program a few bytes long, so changing policy
+   over 18 years is a single dock→ship, not a redeploy and re-audit.
+3. The returns come not from a keeper bot but from real market flow going through the official registry.
 
-## 우승 전략 4기둥
+## Four pillars of the winning strategy
 
-① SwapVM을 호출이 아니라 **확장** (커스텀 연산자 2개 — 가산점 최상단)
-② 트레이딩 UI 무덤을 피한 **소비자 서사** (3문장이면 이해되는 이야기로 프로토콜의 가장 깊은 부분 사용)
-③ 우리만 가진 반쪽 — **기억** (편지 봉인/해제, 원장, 알림: 몇 달 히스토리의 실제 제품)
-④ 데모 안무가 심사 Q&A를 선제 답변 (비상구·정책교체 장면)
+① **Extend** SwapVM rather than just call it (2 custom operators — top of the bonus list)
+② A **consumer story** that avoids the trading-UI graveyard (using the deepest part of the protocol through a story you get in 3 sentences)
+③ The half only we have — **memory** (letter seal/unseal, ledger, notifications: a real product with months of history)
+④ The demo choreography pre-empts the judges' Q&A (the emergency-exit and policy-swap scenes)
 
-## 남은 일
+## Remaining work
 
-- [ ] 데모 영상 육성 녹음 (대본 family-vault/DEMO.md, 파이프라인 명령 그대로)
-- [ ] (선택) 녹화용 깨끗한 워크스페이스 "Family" 구성 — 지금 dev 워크스페이스엔
-      관계 데모 페이지가 섞여 있음
-- [ ] ETHGlobal 폼 제출 (프로젝트명 Family Vault, 트랙 선택)
+- [ ] Record the demo video voice-over (script family-vault/DEMO.md, pipeline commands as-is)
+- [ ] (Optional) Set up a clean "Family" workspace for recording — the current dev workspace has
+      relationship-demo pages mixed in
+- [ ] Submit the ETHGlobal form (project name Family Vault, pick the track)

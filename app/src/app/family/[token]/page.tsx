@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, HardDrive, Loader2 } from "lucide-react";
 import { connectAindrive, loadAindriveInfo, signInWithAindrive } from "@/lib/aindrive-client";
 import { useT } from "@/i18n/provider";
+import { LanguageSwitch } from "@/components/language-switch";
 
 interface Invite {
   name: string;
@@ -61,7 +62,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
     if (!r.ok) {
       const d = (await r.json().catch(() => ({}))) as { error?: string };
       setPhase("welcome");
-      return setError(d.error ?? t("함께하지 못했어요. 다시 시도해 주세요."));
+      return setError(d.error ?? t("Couldn't join. Please try again."));
     }
     const c = (await fetch(`/api/family-invite/${token}/categories`).then((x) => x.json())) as {
       drives: { online: boolean }[];
@@ -82,13 +83,13 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
       const info = await loadAindriveInfo(true);
       if (!info.connected && !(await connectAindrive())) {
         setPhase("welcome");
-        return setError(t("aindrive 승인이 끝나지 않았어요. 다시 눌러 주세요."));
+        return setError(t("The aindrive approval didn't finish. Tap again."));
       }
     } else {
       const ok = await signInWithAindrive();
       if (!ok) {
         setPhase("welcome");
-        return setError(t("aindrive 승인이 끝나지 않았어요. 다시 눌러 주세요."));
+        return setError(t("The aindrive approval didn't finish. Tap again."));
       }
     }
     await join();
@@ -106,7 +107,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
     const d = (await r.json().catch(() => ({}))) as { shared?: string[]; error?: string };
     if (!r.ok) {
       setPhase("choose");
-      return setError(d.error ?? t("공유하지 못했어요."));
+      return setError(d.error ?? t("Couldn't share."));
     }
     finish(d.shared?.length ?? 0);
   }
@@ -126,19 +127,21 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-neutral-50 px-5 py-12 dark:bg-neutral-950">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm dark:bg-neutral-900">
+      <div className="w-full max-w-sm">
+      <LanguageSwitch className="mb-3" />
+      <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-neutral-900">
         {phase === "loading" && <Loader2 className="mx-auto animate-spin text-neutral-400" />}
         {phase === "invalid" && (
-          <p className="text-center text-sm text-neutral-500">{t("초대가 만료됐거나 없는 초대예요. 초대한 가족에게 새 링크를 부탁해 주세요.")}</p>
+          <p className="text-center text-sm text-neutral-500">{t("This invite has expired or doesn't exist. Ask for a new link.")}</p>
         )}
         {invite && (phase === "welcome" || phase === "approving") && (
           <div data-testid="family-invite-welcome" className="text-center">
             <div className="mb-3 text-5xl">{invite.teamspace.icon ?? "👪"}</div>
             <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-              {t("{inviter}님이 「{space}」에 초대했어요", { inviter: invite.inviter ?? t("가족"), space: invite.teamspace.name })}
+              {t("{inviter} invited you to 「{space}」", { inviter: invite.inviter ?? t("Family"), space: invite.teamspace.name })}
             </h1>
             <p className="mt-2 text-sm text-neutral-500">
-              {t("{name}의 폰 사진·메모를 가족과 함께 볼 수 있어요. 파일은 폰에 그대로 있고, 고른 폴더만 보여요.", { name: invite.name })}
+              {t("Share {name}'s phone photos and notes with the family. Files stay on the phone; only the folders you pick are visible.", { name: invite.name })}
             </p>
             <button
               data-testid="family-invite-approve"
@@ -147,16 +150,16 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-base font-semibold text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
             >
               {phase === "approving" ? <Loader2 size={18} className="animate-spin" /> : <HardDrive size={18} />}
-              {me ? t("{name}(으)로 함께하기", { name: me.displayName }) : t("aindrive로 승인하기")}
+              {me ? t("Join as {name}", { name: me.displayName }) : t("Approve with aindrive")}
             </button>
-            {!me && <p className="mt-2 text-[11px] text-neutral-400">{t("aindrive 창이 열리면 [승인]만 누르세요.")}</p>}
+            {!me && <p className="mt-2 text-[11px] text-neutral-400">{t("When aindrive opens, just tap [Approve].")}</p>}
             {me && (
               <button
                 data-testid="family-invite-other-account"
                 onClick={() => void fetch("/api/auth/logout", { method: "POST" }).then(() => setMe(null))}
                 className="mt-2 text-[11px] text-neutral-400 underline underline-offset-2"
               >
-                {t("{name}이(가) 아니에요 — 다른 aindrive 계정으로 승인", { name: me.displayName })}
+                {t("Not {name}? Approve with another aindrive account", { name: me.displayName })}
               </button>
             )}
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
@@ -164,10 +167,10 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
         )}
         {(phase === "choose" || phase === "sharing") && (
           <div data-testid="family-invite-choose">
-            <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{t("무엇을 함께 볼까요?")}</h1>
-            <p className="mb-4 mt-1 text-sm text-neutral-500">{t("켜 둔 것만 가족에게 보여요. 나중에 언제든 바꿀 수 있어요.")}</p>
-            {phoneOff && <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t("폰의 aindrive가 꺼져 있어요. 켜고 다시 열어 주세요.")}</p>}
-            {cats.length === 0 && !phoneOff && <p className="text-sm text-neutral-500">{t("폰에 공유할 폴더가 아직 없어요.")}</p>}
+            <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{t("What should the family see?")}</h1>
+            <p className="mb-4 mt-1 text-sm text-neutral-500">{t("Only what's on is visible to the family. You can change it anytime.")}</p>
+            {phoneOff && <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t("aindrive on the phone is off. Turn it on and open this again.")}</p>}
+            {cats.length === 0 && !phoneOff && <p className="text-sm text-neutral-500">{t("There are no folders on the phone to share yet.")}</p>}
             <ul className="space-y-2">
               {cats.map((c) => (
                 <li key={c.key}>
@@ -200,7 +203,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-base font-semibold text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
             >
               {phase === "sharing" && <Loader2 size={18} className="animate-spin" />}
-              {t("공유하고 시작하기")}
+              {t("Share and start")}
             </button>
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
           </div>
@@ -208,20 +211,21 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
         {phase === "done" && invite && (
           <div data-testid="family-invite-done" className="text-center">
             <div className="mb-3 text-5xl">✅</div>
-            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{t("연결됐어요!")}</h1>
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{t("You're connected!")}</h1>
             <p className="mt-2 text-sm text-neutral-500">
               {sharedCount
-                ? t("폴더 {n}개가 「{space}」에 공유됐어요. 새 사진도 폰에 찍히면 가족이 바로 볼 수 있어요.", { n: sharedCount, space: invite.teamspace.name })
-                : t("「{space}」에 함께하게 됐어요. 폴더는 나중에 공유할 수 있어요.", { space: invite.teamspace.name })}
+                ? t("{n} folders are shared to 「{space}」. New photos you take show up for the family too.", { n: sharedCount, space: invite.teamspace.name })
+                : t("You've joined 「{space}」. You can share folders later.", { space: invite.teamspace.name })}
             </p>
             <button
               onClick={() => router.push("/")}
               className="mt-6 w-full rounded-xl border border-neutral-200 py-3 text-sm font-medium text-neutral-700 dark:border-neutral-700 dark:text-neutral-200"
             >
-              {t("가족 공간으로 가기")}
+              {t("Go to the family space")}
             </button>
           </div>
         )}
+      </div>
       </div>
     </main>
   );

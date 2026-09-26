@@ -5,9 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatRoomBots, users } from "@/lib/db/schema";
 import { readIsHumanBacked } from "@/lib/relation-registry";
+import { SELLER } from "@/i18n/content/lib";
 
 /**
- * 달빛떡집 — a storefront that sells only to agents with two proven humans
+ * Dalbit Tteokjip (the moonlight rice-cake shop) — a storefront that sells only to agents with two proven humans
  * behind them.
  *
  * The interesting part is what it does NOT do. It does not ask who the buyer
@@ -36,7 +37,7 @@ export function paymentQuote() {
     payTo: sellerPayTo(),
     network: "sepolia",
     chainId: sepolia.id,
-    item: "송편 한 상자 (1kg)",
+    item: SELLER.item,
     payWith: "send the price to payTo, then retry with header X-Payment-Tx: <txhash>",
     condition: "only relationships with a proof-of-personhood per party are served",
   };
@@ -145,8 +146,8 @@ export async function serveSongpyeon(txHash: string): Promise<SellerVerdict> {
     body: {
       songpyeon: "1kg",
       receipt: {
-        seller: "달빛떡집",
-        item: "송편 한 상자 (1kg)",
+        seller: SELLER.name,
+        item: SELLER.item,
         paid: `${formatEther(payment.valueWei!)} ETH`,
         payer: payment.from,
         paymentTx: txHash,
@@ -154,7 +155,7 @@ export async function serveSongpyeon(txHash: string): Promise<SellerVerdict> {
         humanBacked: true,
         servedAt: new Date().toISOString(),
       },
-      message: "실제 가족이 뒤에 있는 에이전트 — 추석 잘 보내세요 🌕",
+      message: SELLER.message,
     },
   };
 }

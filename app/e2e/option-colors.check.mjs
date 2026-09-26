@@ -5,13 +5,13 @@
 //
 // The chip can be pixel-perfect and still show the wrong colour if the option
 // itself was imported wrong: the seed mapped Notion's palette onto ours while
-// ours had no brown (`brown: "orange"`), so "Need Improvement" and "한양대" came
+// ours had no brown (`brown: "orange"`), so "Need Improvement" and "Hanyang Univ." came
 // in orange. This compares our stored options against the original's schema
-// (e2e/fixtures/notion-option-colors.json, from a read-only loadPageChunk).
+// (src/i18n/content/e2e-fixtures/notion-option-colors.json, from a read-only loadPageChunk).
 import fs from "node:fs";
 import pg from "pg";
 
-const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-option-colors.json", import.meta.url)));
+const FIX = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-option-colors.json", import.meta.url)));
 const WRITE = process.argv.includes("--write");
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const url = env.match(/^POSTGRES_URL=(.+)$/m)?.[1]?.trim();
@@ -73,18 +73,18 @@ for (const [propName, want] of Object.entries(FIX.properties)) {
 if (WRITE && fixes.length) {
   for (const [id, config] of fixes)
     await client.query("update db_properties set config = $2::jsonb where id = $1", [id, config]);
-  console.log(`고쳤습니다 — ${fixes.length}개 속성의 옵션 색을 원본과 맞췄습니다.`);
+  console.log(`Fixed — matched the option colours of ${fixes.length} properties to the original.`);
 }
 await client.end();
 
 const total = Object.values(FIX.properties).reduce((n, p) => n + Object.keys(p.options).length, 0);
 console.log(`compared ${total} options across ${Object.keys(FIX.properties).length} properties`);
 if (diffs.length && !WRITE) {
-  console.error("\n  ┌─ 옵션 색이 원본과 다릅니다 ─────────────────────");
+  console.error("\n  ┌─ Option colours differ from the original ───────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 고치기: node e2e/option-colors.check.mjs --write");
+  console.error("  │ fix: node e2e/option-colors.check.mjs --write");
   console.error("  └────────────────────────────────────────────────\n");
   process.exit(1);
 }
-if (!diffs.length) console.log("차이 0 — 옵션 색이 원본과 같습니다.");
+if (!diffs.length) console.log("0 diffs — option colours match the original.");

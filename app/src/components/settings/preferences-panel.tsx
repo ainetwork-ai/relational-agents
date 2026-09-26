@@ -9,8 +9,8 @@ import { LOCALES, LOCALE_NATIVE, type Locale } from "@/i18n/locales";
 import { SettingsHeader, SettingsRow, SettingsSection } from "./settings-layout";
 import { SettingsSelect } from "./settings-select";
 
-/** 설정 › 기본 설정: 테마 and 언어 및 시간 › 언어. The original's other rows
- *  (숫자 형식, 주 시작 요일, 시간대…) are deferred — docs/i18n-plan.md §5 Q3. */
+/** Settings › Preferences: Theme and Language & time › Language. The original's other rows
+ *  (number format, start of week, time zone…) are deferred — docs/i18n-plan.md §5 Q3. */
 export function PreferencesPanel() {
   const t = useT();
   const router = useRouter();
@@ -30,7 +30,7 @@ export function PreferencesPanel() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || t("저장하지 못했습니다"));
+        setError(data.error || t("Couldn't save"));
         return;
       }
       if (data.user) useMeStore.getState().setMe(data.user);
@@ -42,21 +42,21 @@ export function PreferencesPanel() {
   }
 
   const themeOptions: { value: ThemeMode; label: string }[] = [
-    { value: "system", label: t("시스템 설정 사용") },
-    { value: "light", label: t("라이트") },
-    { value: "dark", label: t("다크") },
+    { value: "system", label: t("Use system setting") },
+    { value: "light", label: t("Light") },
+    { value: "dark", label: t("Dark") },
   ];
 
   return (
     <>
-      <SettingsHeader title={t("기본 설정")} subtitle={t("모양새와 작동 방식을 선택하세요")} />
-      <SettingsSection title={t("테마")}>
-        <SettingsRow label={t("테마")} description={t("이 기기에서 사용할 테마를 선택하세요.")}>
+      <SettingsHeader title={t("Preferences")} subtitle={t("Choose how you want it to look and behave")} />
+      <SettingsSection title={t("Theme")}>
+        <SettingsRow label={t("Theme")} description={t("Choose a theme for this device.")}>
           <SettingsSelect testid="theme-select" value={theme} options={themeOptions} onChange={setThemeMode} />
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title={t("언어 및 시간")}>
-        <SettingsRow label={t("언어")} description={t("사용할 언어를 선택합니다.")}>
+      <SettingsSection title={t("Language & time")}>
+        <SettingsRow label={t("Language")} description={t("Choose the language you want to use.")}>
           <div className={saving ? "pointer-events-none opacity-60" : undefined}>
             <SettingsSelect
               testid="language-select"

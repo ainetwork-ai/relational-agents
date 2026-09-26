@@ -20,9 +20,9 @@ const VISIBILITIES: {
   label: string;
   hint: string;
 }[] = [
-  { value: "open", label: "공개", hint: "누구나 이 팀스페이스를 보고 참여할 수 있음" },
-  { value: "closed", label: "비공개", hint: "누구나 찾을 수 있지만, 참여는 초대를 받아야 함" },
-  { value: "private", label: "완전 비공개", hint: "멤버만 이 팀스페이스를 보고 참여할 수 있음" },
+  { value: "open", label: "Public", hint: "Anyone can see and join this teamspace" },
+  { value: "closed", label: "Closed", hint: "Anyone can find it, but joining requires an invite" },
+  { value: "private", label: "Fully private", hint: "Only members can see and join this teamspace" },
 ];
 
 
@@ -47,11 +47,11 @@ function matchesQuery(m: WorkspaceMember, q: string): boolean {
 /**
  * Teamspace creation, in the two steps Notion uses.
  *
- * Step 1 (팀스페이스 만들기) takes icon + name, description and 보안, and the
+ * Step 1 (Create a teamspace) takes icon + name, description and Security, and the
  * primary button stays disabled until there is a name — the same rule Notion's
  * dialog uses (aria-disabled on an empty form).
  *
- * Step 2 invites people, and its way out is 건너뛰기: the teamspace already
+ * Step 2 invites people, and its way out is Skip: the teamspace already
  * exists after step 1, so skipping must not undo it. Only workspace members can
  * be invited here (see the members route for why).
  */
@@ -124,7 +124,7 @@ export function TeamspaceCreateModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(t("팀스페이스를 만들지 못했습니다: {error}", { error: data?.error ?? res.status }));
+        show(t("Couldn't create teamspace: {error}", { error: data?.error ?? res.status }));
         return;
       }
       setCreated({ id: data.teamspace.id, name: data.teamspace.name });
@@ -146,10 +146,10 @@ export function TeamspaceCreateModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        show(t("초대에 실패했습니다: {error}", { error: data?.error ?? res.status }));
+        show(t("Couldn't invite: {error}", { error: data?.error ?? res.status }));
         return;
       }
-      show(t("{n}명을 초대했습니다", { n: data.added }));
+      show(t("Invited {n} people", { n: data.added }));
       onClose();
     } finally {
       setBusy(false);
@@ -170,14 +170,14 @@ export function TeamspaceCreateModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={step === 1 ? t("팀스페이스 만들기") : t("팀스페이스 멤버 초대")}
+        aria-label={step === 1 ? t("Create a teamspace") : t("Invite teamspace members")}
         data-testid="teamspace-create-modal"
         onClick={(e) => e.stopPropagation()}
         className="popover-anim relative w-full max-w-[520px] rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
       >
         <button
           onClick={onClose}
-          aria-label={t("닫기")}
+          aria-label={t("Close")}
           data-testid="teamspace-modal-close"
           className="absolute right-3 top-3 rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
         >
@@ -190,21 +190,21 @@ export function TeamspaceCreateModal({
               <Users size={20} className="mt-0.5 shrink-0 text-neutral-400" />
               <div>
                 <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-                  {t("팀스페이스 만들기")}
+                  {t("Create a teamspace")}
                 </h2>
                 <p className="mt-0.5 text-sm text-neutral-500">
-                  {t("팀스페이스로 팀의 페이지, 멤버, 사용 권한을 관리할 수 있습니다.")}
+                  {t("Teamspaces let you manage your team's pages, members, and permissions.")}
                 </p>
               </div>
             </div>
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("아이콘과 이름")}</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("Icon and name")}</label>
             <div className="mb-4 flex items-center gap-2">
               <input
                 data-testid="teamspace-icon-input"
                 value={icon}
                 onChange={(e) => setIcon([...e.target.value].slice(0, 2).join(""))}
-                aria-label={t("아이콘")}
+                aria-label={t("Icon")}
                 className="h-9 w-9 shrink-0 rounded-md border border-neutral-200 bg-neutral-50 text-center text-lg outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
                 placeholder={name ? [...name][0] : "T"}
               />
@@ -216,22 +216,22 @@ export function TeamspaceCreateModal({
                 onKeyDown={(e) => {
                   if (!isImeComposing(e) && e.key === "Enter") void create();
                 }}
-                placeholder={t("예: 엔지니어링")}
+                placeholder={t("e.g. Engineering")}
                 className="h-9 flex-1 rounded-md border border-neutral-200 px-2.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
               />
             </div>
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("설명")}</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("Description")}</label>
             <textarea
               data-testid="teamspace-description-input"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("이 팀스페이스의 용도는 무엇인가요?")}
+              placeholder={t("What is this teamspace for?")}
               className="mb-4 w-full resize-none rounded-md border border-neutral-200 p-2.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
             />
 
-            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("보안")}</label>
+            <label className="mb-1 block text-xs font-medium text-neutral-500">{t("Security")}</label>
             <div className="relative mb-6">
               <button
                 data-testid="teamspace-visibility"
@@ -287,14 +287,14 @@ export function TeamspaceCreateModal({
                 disabled={!name.trim() || busy}
                 className="rounded-md bg-blue-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
               >
-                {busy ? t("만드는 중…") : t("팀스페이스 만들기")}
+                {busy ? t("Creating…") : t("Create a teamspace")}
               </button>
             </div>
           </>
         ) : (
           <>
             <div className="mb-4 flex items-center gap-2 text-sm text-neutral-500">
-              <span>{t("초대할 팀스페이스:")}</span>
+              <span>{t("Teamspace to invite to:")}</span>
               <span className="flex h-5 w-5 items-center justify-center rounded bg-neutral-200 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-200">
                 {icon || [...(created?.name ?? "T")][0]}
               </span>
@@ -308,7 +308,7 @@ export function TeamspaceCreateModal({
               data-testid="teamspace-member-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("사용자나 그룹을 검색하세요")}
+              placeholder={t("Search for people or groups")}
               className="mb-2 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-800"
             />
 
@@ -322,7 +322,7 @@ export function TeamspaceCreateModal({
                       data-testid={`teamspace-picked-${id}`}
                       onClick={() => setPicked((p) => p.filter((x) => x !== id))}
                       className="flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                      aria-label={t("{name} 선택 해제", { name: m?.displayName ?? id })}
+                      aria-label={t("Deselect {name}", { name: m?.displayName ?? id })}
                     >
                       {m?.displayName ?? id}
                       <X size={11} />
@@ -338,9 +338,9 @@ export function TeamspaceCreateModal({
               className="mb-4 max-h-56 overflow-y-auto rounded-md border border-neutral-200 dark:border-neutral-700"
             >
               {loadingMembers ? (
-                <p className="px-3 py-2 text-sm text-neutral-400">{t("불러오는 중...")}</p>
+                <p className="px-3 py-2 text-sm text-neutral-400">{t("Loading...")}</p>
               ) : shown.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-neutral-400">{t("일치하는 사용자가 없습니다")}</p>
+                <p className="px-3 py-2 text-sm text-neutral-400">{t("No matching users")}</p>
               ) : (
                 shown.map((m) => {
                   const on = picked.includes(m.id);
@@ -375,11 +375,11 @@ export function TeamspaceCreateModal({
                 data-testid="teamspace-copy-invite-link"
                 onClick={() => {
                   void navigator.clipboard.writeText(window.location.origin);
-                  show(t("초대 링크를 복사했습니다"));
+                  show(t("Invite link copied"));
                 }}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                <LinkIcon size={14} /> {t("초대 링크 복사")}
+                <LinkIcon size={14} /> {t("Copy invite link")}
               </button>
               <div className="flex items-center gap-2">
                 <button
@@ -387,7 +387,7 @@ export function TeamspaceCreateModal({
                   onClick={onClose}
                   className="rounded-md px-3 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  {t("건너뛰기")}
+                  {t("Skip")}
                 </button>
                 <button
                   data-testid="teamspace-invite-submit"
@@ -395,7 +395,7 @@ export function TeamspaceCreateModal({
                   disabled={!picked.length || busy}
                   className="rounded-md bg-blue-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
                 >
-                  {picked.length ? t("{n}명 초대", { n: picked.length }) : t("초대")}
+                  {picked.length ? t("Invite {n} people", { n: picked.length }) : t("Invite")}
                 </button>
               </div>
             </div>

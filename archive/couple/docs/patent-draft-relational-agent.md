@@ -1,513 +1,873 @@
-# 특허출원 명세서 (초안 v2)
+# Patent Application Specification (Draft v2)
 
-> 상태: **초안 v2**. 변리사 검토 전.
-> v1(다자 서명 생성을 청구항 1로 둔 안)은 폐기. 사유: 멀티시그의 응용으로 읽혀 진보성 방어가 약함.
-> v2는 **기억의 부재를 제어 신호로 사용하는 것**을 발명의 핵심으로 재구성하고,
-> 온체인 합의는 그 부재를 의미 있게 만드는 폐쇄성 확립 수단으로 종속항에 배치한다.
+> Status: **Draft v2**. Not yet reviewed by patent counsel.
+> v1 (which placed multi-party signature generation as Claim 1) has been abandoned. Reason: it
+> read as an application of multisig, making the inventive-step defense weak.
+> v2 reframes **using the absence of memory as a control signal** as the core of the
+> invention, and places on-chain consensus as a dependent claim — a means of establishing the
+> closure that makes that absence meaningful.
 
 ---
 
-## 【발명의 명칭】
+## [Title of the Invention]
 
-관계에 폐쇄적으로 귀속된 기억의 항목별 부재를 제어 신호로 이용하는 인공지능 에이전트 시스템 및 그 동작 방법
+An artificial intelligence agent system and its method of operation that uses per-item
+absence of memory closed to a relationship as a control signal
 
-(영문) ARTIFICIAL INTELLIGENCE AGENT SYSTEM AND METHOD USING PER-SLOT ABSENCE OF RELATIONSHIP-CLOSED MEMORY AS AN AFFIRMATIVE CONTROL SIGNAL
+(English) ARTIFICIAL INTELLIGENCE AGENT SYSTEM AND METHOD USING PER-SLOT ABSENCE OF
+RELATIONSHIP-CLOSED MEMORY AS AN AFFIRMATIVE CONTROL SIGNAL
 
-## 【기술분야】
+## [Technical Field]
 
-본 발명은 인공지능 에이전트 시스템에 관한 것으로, 보다 상세하게는 **둘 이상의 당사자로 이루어진 관계에 폐쇄적으로 귀속되는 기억 저장소**를 유지하고, 복수의 관계에 공통으로 적용되는 항목 스키마에 따라 각 관계의 기억을 항목별로 사상(寫像)하여, **값이 존재하지 않는 항목에 대해 부재를 명시하는 확정적 단언을 생성**하고, 상기 부재 단언을 관계 운영을 위한 능동적 제어 신호로 사용하는 인공지능 에이전트 시스템 및 그 동작 방법에 관한 것이다.
+The present invention relates to an artificial intelligence agent system, and more
+specifically to an artificial intelligence agent system and its method of operation that
+maintains a **memory store closed to a relationship consisting of two or more parties**,
+maps each relationship's memory item-by-item according to an item schema commonly applied
+across multiple relationships, **generates a definite assertion specifying absence for an
+item whose value does not exist**, and uses that absence assertion as an affirmative control
+signal for operating the relationship.
 
-## 【발명의 배경이 되는 기술】
+## [Background Art]
 
-### 종래기술
+### Prior art
 
-인공지능 에이전트가 축적된 기억을 참조하여 응답하는 구조는 통상 다음과 같이 구성된다.
+The structure by which an artificial intelligence agent references accumulated memory to
+respond is generally composed as follows.
 
-1. 사용자와의 상호작용으로부터 정보를 추출하여 벡터 저장소 또는 문서 저장소에 축적한다.
-2. 질의가 입력되면 유사도 검색으로 관련 기억을 인출한다.
-3. 인출된 기억을 문맥에 포함하여 언어모델이 응답을 생성한다.
-4. **관련 기억이 인출되지 않으면**, 언어모델의 사전학습 지식으로 응답하거나, 외부 검색으로 보완하거나, 응답을 거절한다.
+1. Information is extracted from interaction with the user and accumulated in a vector store
+   or document store.
+2. When a query is entered, related memory is retrieved via similarity search.
+3. The retrieved memory is included in the context, and the language model generates a
+   response.
+4. **When no related memory is retrieved**, the system responds using the language model's
+   pretrained knowledge, supplements with external search, or declines to answer.
 
-회의·통화 보조 도구 또한 같은 골격을 따른다. 발화를 전사하여 색인하고, 참여자의 요청 또는 자동 판단에 따라 **관련 있는 과거 기록을 찾아 제시**한다.
+Meeting/call assistant tools follow the same skeleton. Utterances are transcribed and
+indexed, and **related past records are found and presented** on participant request or by
+automatic judgment.
 
-### 종래기술의 문제점
+### Problems with the prior art
 
-**(가) 부재가 아무것도 의미하지 못한다 — 본 발명이 착안한 핵심 문제**
+**(a) Absence means nothing — the core problem this invention identifies**
 
-종래 구조에서 검색 결과가 비어 있는 것은 **검색의 실패**로만 처리된다. 이는 필연적인데, 그 기억 저장소의 경계가 무엇을 의미하는지 정의되어 있지 않기 때문이다. 개인 비서형 에이전트의 저장소에 어떤 사실이 없다는 것은 다음 중 무엇이든 될 수 있다.
+In the conventional structure, an empty search result is treated only as a **search
+failure**. This is inevitable, because the boundary of that memory store is never defined in
+terms of what it means. The absence of a fact in a personal-assistant-type agent's store can
+be any of the following:
 
-- 사용자가 그 사실을 말한 적이 없다
-- 말했으나 추출 단계에서 누락되었다
-- 다른 세션·다른 상대와의 대화에 저장되어 이 조회 범위 밖에 있다
-- 저장되었으나 유사도 검색이 인출하지 못했다
+- The user never stated the fact
+- It was stated but dropped during extraction
+- It is stored in a different session or with a different counterpart, outside this query's
+  scope
+- It was stored, but similarity search failed to retrieve it
 
-원인을 구별할 수 없으므로, 부재로부터는 **어떠한 확정적 추론도 도출할 수 없다.** 따라서 종래 시스템은 부재를 만나면 폴백(사전학습 지식, 외부 검색)하거나 침묵할 뿐, 부재 자체를 근거로 행동하지 못한다.
+Since the cause cannot be distinguished, **no definite inference can be drawn from absence.**
+Conventional systems therefore only fall back (to pretrained knowledge, external search) or
+stay silent when they encounter absence, and never act on the absence itself as grounds.
 
-그런데 사람 사이의 관계 운영에서 실제로 결정적인 정보는 오히려 부재 쪽인 경우가 많다. 두 사람이 오래 알고 지내면서도 **한 번도 이야기한 적 없는 영역**이 어디인지, 어떤 주제가 서로에게 확인된 적 없는지가, 이미 공유된 사실을 다시 조회하는 것보다 관계의 상태를 더 잘 설명한다. 종래 구조는 이 정보를 원리적으로 산출할 수 없다.
+Yet in the actual operation of relationships between people, the information that is often
+truly decisive is precisely the absent side. Which areas two people, even after knowing each
+other a long time, **have never once discussed**, and which topics have never been confirmed
+between them, often describes the state of the relationship better than re-querying already
+shared facts. The conventional structure cannot, in principle, produce this information.
 
-**(나) 기억의 귀속 주체가 개인 또는 서비스여서 경계가 닫히지 않는다**
+**(b) Memory is attributed to an individual or a service, so the boundary never closes**
 
-에이전트가 개인에게 귀속되면 저장소에는 그 개인이 맺은 여러 관계에서 얻은 정보가 함께 축적된다. 이 경우 (i) 관계 A의 대화 중 관계 B의 정보가 인용되는 혼입이 구조적으로 가능하고, (ii) 조회 범위가 관계와 일치하지 않으므로 (가)에서 본 것처럼 부재의 의미가 확정되지 않는다. 프롬프트 지시로 억제하는 방식은 대규모 언어모델의 확률적 특성상 보장이 되지 못한다.
+When an agent is attributed to an individual, its store accumulates information obtained
+across every relationship that individual has. In this case, (i) cross-contamination is
+structurally possible, where information from relationship B is cited during a conversation
+in relationship A, and (ii) the query scope does not coincide with the relationship, so as
+seen in (a) the meaning of absence remains undetermined. Suppressing this via prompt
+instructions cannot be guaranteed, given the probabilistic nature of large language models.
 
-**(다) 폴백이 부재를 소거한다**
+**(c) Fallback erases absence**
 
-검색 실패 시 모델의 사전학습 지식으로 답하는 통상의 구조는, 부재라는 신호를 **응답 생성 과정에서 소멸시킨다.** 예컨대 두 사람이 한 번도 언급한 적 없는 장소에 대해 시스템은 세계 지식으로 그럴듯한 답을 만들어내고, 그 결과 "이 관계에는 그것이 없다"는 사실은 사용자에게 도달하지 않는다.
+The common structure of answering with the model's pretrained knowledge on a search failure
+**extinguishes the absence signal during response generation.** For example, for a place the
+two people have never once mentioned, the system will fabricate a plausible answer from
+world knowledge, and as a result the fact that "this relationship has nothing on this" never
+reaches the user.
 
-**(라) 부재를 신호로 쓰려 해도 계산 비용이 성립하지 않는다**
+**(d) Even if one wants to use absence as a signal, the computation cost doesn't work out**
 
-부재를 판정하려면 항목별로 기억 전체를 확인해야 한다. 기억 문서 전체를 언어모델 문맥에 투입하는 방식은 응답까지 수 초 내지 수십 초가 소요되어, 초 단위로 진행되는 실시간 대화에 개입할 수 없다.
+Determining absence requires checking the entire memory item by item. Feeding the entire
+memory document into the language model's context takes several to tens of seconds to
+respond, which cannot participate in a real-time conversation proceeding on a per-second
+basis.
 
-**(마) 부재 판정을 언어모델에 위임하면 재현되지 않는다**
+**(e) Delegating the absence determination to the language model is not reproducible**
 
-"이것을 알려주어야 하는가"를 언어모델에 질의하면, 동일한 성격의 입력에 대해 서로 다른 답이 반환된다. 부재는 존재보다 판정이 미묘하므로 이 불안정성이 더 크게 나타난다.
+Querying the language model with "should this be disclosed?" returns different answers for
+inputs of the same character. Since absence is a subtler judgment than existence, this
+instability is even more pronounced.
 
-**(바) 부재의 고지가 노출을 유발한다**
+**(f) Notifying absence causes exposure**
 
-"두 분의 기록에 그것이 없습니다"라는 정보를 대화 상대방이 함께 인지하면, 보조를 받았다는 사실과 무엇을 모르는지가 동시에 노출되어 관계 운영에 역효과를 낳는다.
+If the information "there's nothing about that in your records" is perceived jointly by the
+conversation partner, both the fact that assistance was given and what is unknown are exposed
+simultaneously, producing a counterproductive effect on relationship management.
 
-## 【발명의 내용】
+## [Content of the Invention]
 
-### 【해결하려는 과제】
+### [Problem to be Solved]
 
-1. 기억 저장소의 경계를 **관계와 정확히 일치**시키고 외부로부터의 보충 경로를 차단함으로써, 부재의 원인을 단일하게 확정하여 **부재를 확정적 사실로 승격**시키는 것.
-2. 복수의 관계에 **공통의 항목 스키마**를 적용하여 각 관계를 항목별 충족/미충족 지도로 환원하고, 미충족 항목 집합을 관계의 상태 표현으로 유지하는 것.
-3. 상기 미충족 항목을 검색 실패가 아닌 **능동적 제어 신호**로 사용하여 에이전트의 개입을 유발하는 것.
-4. 부재 판정이 폴백에 의해 소거되지 않도록, 부재를 **응답 생성 이전 단계에서 명시적 단언으로 물질화**하는 것.
-5. 부재 판정을 실시간 대화 중 1초 미만으로 수행하는 것.
-6. 판정의 재현성을 확보하는 것.
-7. 부재의 고지가 대화 상대방에게 노출되지 않도록 하는 것.
+1. Making the boundary of the memory store **exactly coincide with the relationship** and
+   blocking any external supplementation path, thereby uniquely fixing the cause of absence
+   and **elevating absence to a definite fact**.
+2. Applying a **common item schema** across multiple relationships to reduce each
+   relationship to a map of fulfilled/unfulfilled items, and maintaining the set of
+   unfulfilled items as the relationship's state representation.
+3. Using the unfulfilled items not as a search failure but as an **affirmative control
+   signal** that triggers agent intervention.
+4. Materializing absence as an **explicit assertion at a stage prior to response generation**
+   so that the absence determination is not erased by fallback.
+5. Performing the absence determination in under 1 second during real-time conversation.
+6. Securing reproducibility of the determination.
+7. Preventing the notification of absence from being exposed to the conversation partner.
 
-### 【과제의 해결 수단】
+### [Means to Solve the Problem]
 
-#### 수단 1 — 기억의 관계 폐쇄성 (closure)
+#### Means 1 — Relational closure of memory
 
-기억 저장소를 당사자 집합에 대응시켜 생성하고, 다음 세 경로를 모두 차단한다.
+The memory store is created corresponding to a set of parties, and all three of the
+following paths are blocked.
 
-- **입력 폐쇄** — 해당 관계의 당사자들이 공동으로 생성한 상호작용(대화, 통화, 첨부)만이 기억의 원천이 된다. 당사자가 다른 관계에서 생성한 상호작용은 유입되지 않는다.
-- **조회 폐쇄** — 조회 범위가 해당 관계의 저장 영역과 정확히 일치한다. 경로 단위 접근제어로 강제하며, 비당사자에 대해서는 접근 거부가 아니라 **부존재 응답**으로 처리한다.
-- **보충 폐쇄** — 항목값이 발견되지 않을 때 언어모델의 사전학습 지식이나 외부 검색으로 값을 채우지 않는다.
+- **Input closure** — only interactions (conversation, calls, attachments) jointly created by
+  the parties to that relationship become the source of memory. Interactions a party created
+  in a different relationship do not flow in.
+- **Query closure** — the query scope exactly coincides with that relationship's storage
+  region. This is enforced through path-level access control, and non-parties are handled not
+  with an access-denied response but with a **non-existence response**.
+- **Supplementation closure** — when an item value is not found, it is not filled in using the
+  language model's pretrained knowledge or external search.
 
-> 세 번째가 본 발명에서 가장 반직관적인 구성이다. 통상의 시스템 설계에서 폴백의 부재는 결함으로 취급되나, 본 발명에서는 **폴백을 두면 부재라는 신호 자체가 소멸**하므로 이를 적극적으로 배제한다. 폐쇄성은 성능 제약이 아니라 부재를 의미 있게 만드는 필수 구성요소이다.
+> The third is the most counterintuitive component of this invention. In ordinary system
+> design, the absence of a fallback is treated as a defect, but in this invention, **having a
+> fallback would extinguish the absence signal itself**, so it is actively excluded. Closure
+> is not a performance constraint but an essential component that makes absence meaningful.
 
-상기 세 폐쇄가 동시에 성립할 때에 한하여, 어떤 항목에 값이 없다는 관측은 **"이 관계의 당사자들은 그것을 성립시킨 적이 없다"**라는 단일한 의미로 확정된다.
+Only when all three closures hold simultaneously does the observation "an item has no value"
+become fixed to the single meaning: **"the parties to this relationship have never
+established that."**
 
-#### 수단 2 — 공통 항목 스키마에 의한 관계의 지도화
+#### Means 2 — Mapping relationships via a common item schema
 
-복수의 관계에 **동일한 항목 스키마**를 적용한다. 항목은 예컨대 장소, 취향, 음식, 사건, 인물 등 관계의 성격에 따라 정의되는 유한 집합이며, 관계 유형별 프로파일로 스키마를 달리할 수 있다.
+The **same item schema** is applied across multiple relationships. Items are a finite set
+defined according to the nature of the relationship, e.g., places, tastes, food, events,
+people, and the schema may vary by relationship-type profile.
 
-각 관계에 대하여 기억 문서를 상기 스키마에 사상하여 **관계 상태 표현**을 산출한다. 이 표현의 결정적 특징은 다음과 같다.
+For each relationship, the memory document is mapped onto the above schema to produce a
+**relationship state representation**. The decisive features of this representation are as
+follows.
 
 ```
 places:  Belém Tower, Sintra
-tastes:  (기록 없음)          ← null 이나 필드 생략이 아님
+tastes:  (nothing recorded)          ← not null and not a field omission
 foods:   egg tart
 events:  Lisbon trip (March)
-people:  (기록 없음)          ← 명시적 부재 단언
+people:  (nothing recorded)          ← explicit absence assertion
 ```
 
-값이 없는 항목을 **누락이나 널(null)로 두지 않고, 부재를 명시하는 지정 문자열로 기재**한다. 이는 단순한 표기 선택이 아니다.
+An item with no value is **not left as omitted or null, but recorded with a designated
+string that specifies absence**. This is not a mere notational choice.
 
-- 필드를 생략하면 후속 판정기(언어모델 포함)는 그 항목을 **판단 불가**로 처리하고 폴백 경로로 진입한다.
-- 부재를 명시하면 그 항목은 **판정 가능한 확정 사실**이 되어, 존재하는 값과 동등한 자격으로 판정 입력에 참여한다.
+- If the field is omitted, a downstream judge (including a language model) treats that item
+  as **undeterminable** and enters the fallback path.
+- If the absence is made explicit, that item becomes a **determinable, definite fact**, and
+  participates as a judgment input on equal footing with an existing value.
 
-즉 본 수단은 부재를 **데이터 부재에서 데이터 존재로 전환**한다. 이로써 관계는 "채워진 항목의 집합"이 아니라 **"채워진 항목과 비어 있는 항목으로 이루어진 지도"**로 표현되며, 후자가 전자와 동등한 일급 상태값이 된다.
+That is, this means converts absence **from data-absence into data-presence**. As a result,
+the relationship is represented not as "a set of filled items" but as **"a map made up of
+filled items and empty items,"** with the latter elevated to a first-class state value equal
+to the former.
 
-#### 수단 3 — 부재를 능동적 제어 신호로 사용
+#### Means 3 — Using absence as an affirmative control signal
 
-입력(발화, 초안 메시지, 질의)이 도달하면 그 입력의 주제를 상기 스키마의 항목으로 사상하고, 해당 항목의 충족 여부에 따라 **서로 다른 개입**을 유발한다.
+When an input (an utterance, a draft message, a query) arrives, its topic is mapped onto an
+item of the above schema, and **different interventions** are triggered depending on whether
+that item is fulfilled.
 
-| 항목 상태 | 개입 |
+| Item state | Intervention |
 |---|---|
-| 충족 | 기록된 값을 근거로 상기(想起)·확인 정보 제공 |
-| **미충족** | **"이 관계에는 그것이 없다"를 고지**, 또는 그 항목을 채우기 위한 확인·질의 유도 |
-| 사상 불가 | 침묵 |
+| Fulfilled | Provide recall/confirmation information based on the recorded value |
+| **Unfulfilled** | **Notify that "this relationship has nothing on that,"** or prompt a confirming question to fill the item |
+| Not mappable | Stay silent |
 
-**미충족 항목에 대해 침묵하지 않고 고지하는 것**이 본 발명의 중핵이다. 종래 시스템에서 이 경로는 존재하지 않는다. 부재가 확정 사실이 아니었으므로 고지할 수 없었기 때문이다.
+**Not staying silent but notifying for unfulfilled items** is the core of this invention. In
+conventional systems, this path does not exist, because absence was never a definite fact and
+so could not be notified.
 
-나아가 미충족 항목 집합은 개별 입력에 대한 반응을 넘어 **관계 운영의 계획 정보**로 사용될 수 있다. 장기간 미충족 상태로 유지되는 항목, 일방만이 기여한 항목, 관계 유형의 통상 분포 대비 결손이 큰 항목을 식별하여 능동적 개입 시점과 대상을 결정한다.
+Furthermore, the set of unfulfilled items can be used beyond reacting to a single input, as
+**planning information for operating the relationship**. Items that remain unfulfilled for a
+long period, items to which only one party has contributed, and items with a large deficit
+relative to the typical distribution for that relationship type are identified to determine
+the timing and target of affirmative intervention.
 
-#### 수단 4 — 부재 판정의 사전 물질화 및 실시간화
+#### Means 4 — Pre-materialization and real-time processing of the absence determination
 
-관계 상태 표현을 **입력 처리 시점이 아니라 세션 개시 시점에 1회 산출**하여 유지한다. 이후 각 입력은 기억 문서 전체가 아니라 상기 상태 표현만을 문맥으로 하여 판정된다.
+The relationship state representation is **computed once at session start, not at each input
+processing time**, and maintained. Thereafter each input is judged using only that state
+representation as context, not the entire memory document.
 
-이 구성은 두 효과를 동시에 얻는다.
+This structure yields two effects simultaneously.
 
-- **폴백 차단** — 부재 단언이 판정 시점 이전에 이미 확정되어 있으므로, 판정 단계에서 모델이 빈칸을 세계 지식으로 메울 여지가 없다(수단 1의 보충 폐쇄를 실행 구조로 강제).
-- **지연 감소** — 판정 문맥의 크기가 문서 전체에서 상태 표현 수준으로 축소된다. 동일한 로컬 소형 언어모델을 사용한 측정에서, 문서 전체 및 첨부 데이터를 투입한 경우 10~45초가 소요된 반면 상태 표현과 입력 한 줄만을 투입한 경우 **0.2~0.5초**가 소요되었다. 즉 실시간 개입의 가부는 모델 성능이 아니라 **문맥 크기**에 의해 결정된다.
+- **Fallback blocking** — since the absence assertion is already fixed before the judgment
+  step, there is no room at judgment time for the model to fill a blank with world knowledge
+  (this enforces Means 1's supplementation closure as an execution structure).
+- **Reduced latency** — the size of the judgment context is reduced from the entire document
+  to the level of the state representation. In measurements using the same local small
+  language model, feeding the entire document plus attached data took 10–45 seconds, whereas
+  feeding only the state representation plus one line of input took **0.2–0.5 seconds.** That
+  is, whether real-time intervention is feasible is determined not by model capability but by
+  **context size.**
 
-#### 수단 5 — 판정 규칙의 결정론적 배치
+#### Means 5 — Deterministic placement of the judgment rules
 
-언어모델에는 **이해에 해당하는 부분만** 위임한다. 즉 `{입력이 어느 항목에 관한 것인가, 그 항목이 충족되어 있는가}`만을 산출하게 하고, 지시대명사의 해소(예: "그때 거기 좋았지" → 항목: 장소, 값: 벨렝 탑)를 이 단계에서 함께 처리한다.
+Only the part corresponding to **understanding** is delegated to the language model. That is,
+it is made to produce only `{which item does the input concern, is that item fulfilled}`, and
+the resolution of deictic references (e.g., "that was nice back then" → item: place, value:
+Belém Tower) is also handled at this stage.
 
-**개입 여부의 판정은 결정론적 규칙 실행부**가 수행한다.
+**The determination of whether to intervene is performed by a deterministic rule-execution
+unit.**
 
 ```
-입력이 상대에 대한 질문 형태이다  → 항목 충족 여부와 무관하게 개입
-                                     (충족이면 기록 제시, 미충족이면 부재 고지)
-입력이 서술 형태이다              → 항목이 충족된 경우에만 개입
-그 외                             → 침묵
+if the input is in question form  → intervene regardless of fulfillment
+                                     (present the record if fulfilled, notify absence if not)
+if the input is in statement form → intervene only if the item is fulfilled
+otherwise                         → stay silent
 ```
 
-질문 형태의 판정은 문말 물음표 또는 문두 의문사·조동사에 대한 패턴 정합으로 수행한다. 개입 여부를 언어모델에 질의하면 동일 성격의 입력(예: "너 에그타르트 좋아해?"와 "네가 제일 좋아하는 디저트가 뭐야?")에 상반된 답이 반환되는 재현성 결여가 관측되었으며, 본 수단이 이를 제거한다.
+The determination of question form is performed by pattern matching on a trailing question
+mark or a leading interrogative/auxiliary. A lack of reproducibility was observed where
+querying the language model for whether to intervene returned opposite answers for inputs of
+the same character (e.g., "do you like egg tarts?" and "what's your favorite dessert?"), and
+this means eliminates that.
 
-#### 수단 6 — 비대칭 전달
+#### Means 6 — Asymmetric delivery
 
-개입 정보는 **입력을 생성한 당사자를 제외한 당사자에게만** 수신자 지정으로 전달한다. 실시간 통화의 경우 통화 화면에 병설된 대화 패널에 시각적으로 표시하며, 음성 합성 출력을 배제한다. 이로써 부재의 고지가 대화 상대방에게 노출되지 않는다.
+Intervention information is delivered, addressed to a specific recipient, **only to the party
+other than the one who produced the input.** In the case of a real-time call, it is displayed
+visually in a conversation panel placed alongside the call screen, and speech-synthesis output
+is excluded. This ensures the notification of absence is not exposed to the conversation
+partner.
 
-#### 수단 7 — 폐쇄성의 성립 근거 확립 (부가 수단)
+#### Means 7 — Establishing the grounds for closure (supplementary means)
 
-부재가 확정 사실이 되려면, 그 기억 저장소가 정확히 어느 당사자 집합에 귀속되는지가 **다툼 없이 확정**되어야 한다. 서비스 서버의 내부 플래그로 당사자 집합을 표현하면 운영자가 이를 변경할 수 있고, 제3자가 검증할 수 없으며, 서비스 종료와 함께 소멸한다.
+For absence to become a definite fact, exactly which set of parties the memory store belongs
+to must be **fixed beyond dispute.** If the set of parties is represented by an internal flag
+on a service server, an operator could change it, a third party could not verify it, and it
+would vanish when the service is discontinued.
 
-이에 관계 식별자와 당사자 주소 배열을 필드로 하는 합의 구조체를 정의하고, 당사자 전원이 각자의 개인키로 동일한 다이제스트에 서명한 서명 집합이 분산원장 상에서 전부 검증된 경우에 한하여 관계를 성립시킨다. 이때
+Accordingly, a consent structure is defined with a relationship identifier and an array of
+party addresses as fields, and a relationship is established only when a set of signatures,
+in which every party signs the same digest with their own private key, is fully verified on a
+distributed ledger. Here:
 
-- 주소 배열은 **오름차순 정렬 및 중복 배제**를 강제하여, 순서에 무관한 정규화와 동일 주소 재사용에 의한 위조 차단을 인접 원소 비교만으로 동시에 달성한다.
-- 발행된 에이전트 식별자의 소유자는 어느 당사자도 아닌 **레지스트리 자신**으로 설정하여, 기억이 어느 일방에 귀속되지 않음을 소유 구조로 표현한다.
-- 당사자별 **인격증명 식별자(널리파이어)**를 관계 범위 내 상호 상이성 검증 후 결속하여, "두 계정"이 아니라 "**서로 다른 두 사람**"이 당사자임을 확정한다. 유일성 범위를 전역이 아닌 관계 단위로 한정한 것은, 한 사람이 복수의 관계에 참여하는 것이 정당하기 때문이다.
-- 관계의 종료 역시 **당사자 전원의 서명**을 요구하되 식별자를 소각하지 않고 종료 시각만 기록한다.
-- 관계가 성립하기 이전에 발생한 상호작용은 기억에 편입하지 않는다. 이로써 기억의 시간적 경계도 확정된다.
+- The address array enforces **ascending order and no duplicates**, simultaneously achieving
+  order-independent normalization and blocking forgery via reuse of the same address, through
+  adjacent-element comparison alone.
+- The owner of the issued agent identifier is set to **the registry itself**, rather than
+  either party, expressing through the ownership structure that memory is not attributed to
+  either side alone.
+- A **proof-of-personhood identifier (a nullifier)** for each party is bound after verifying
+  mutual distinctness within the scope of the relationship, fixing that the parties are not
+  "two accounts" but "**two distinct people**." Scoping uniqueness to the relationship rather
+  than globally reflects that it is legitimate for one person to participate in multiple
+  relationships.
+- Terminating a relationship likewise requires **signatures from all parties**, but does not
+  burn the identifier, only recording the termination timestamp.
+- Interactions that occurred before the relationship was established are not incorporated
+  into memory. This also fixes the temporal boundary of memory.
 
-### 【발명의 효과】
+### [Effects of the Invention]
 
-1. **부재의 사실화** — 폐쇄성 확립에 의해 부재의 원인이 단일하게 확정되어, 종래에 검색 실패로만 처리되던 신호가 관계에 대한 확정적 사실로 승격된다.
-2. **새로운 정보의 산출** — 관계를 채워진 항목과 비어 있는 항목의 지도로 표현함으로써, 종래 시스템이 원리적으로 산출할 수 없던 정보(무엇이 한 번도 성립된 적 없는가)를 얻는다.
-3. **능동적 개입 경로의 신설** — 미충족 항목이 침묵의 사유가 아니라 개입의 사유가 된다.
-4. **폴백에 의한 신호 소멸 방지** — 부재 단언을 판정 이전에 물질화함으로써 응답 생성 과정에서 세계 지식이 빈칸을 메우는 것을 구조적으로 차단한다.
-5. **실시간성** — 소형·로컬 언어모델로도 발화 단위 개입이 가능하다.
-6. **재현성** — 동일 성격의 입력에 동일한 출력이 보장된다.
-7. **혼입 차단** — 관계 간 정보 혼입이 프롬프트 지시가 아니라 저장 경계와 접근제어로 차단된다.
-8. **은닉성** — 부재 고지가 상대방에게 노출되지 않으며, 관계의 존재 자체가 비당사자에게 은닉된다.
-9. **검증 가능한 경계** — 기억이 귀속되는 당사자 집합이 서비스 운영자와 독립적으로 검증 가능하다.
+1. **Factualization of absence** — establishing closure uniquely fixes the cause of absence,
+   elevating a signal previously treated only as a search failure to a definite fact about the
+   relationship.
+2. **Production of new information** — by representing the relationship as a map of filled
+   and empty items, information the conventional system could not, in principle, produce
+   (what has never once been established) is obtained.
+3. **A new path for affirmative intervention** — unfulfilled items become grounds for
+   intervention rather than grounds for silence.
+4. **Preventing signal loss by fallback** — materializing the absence assertion prior to
+   judgment structurally blocks world knowledge from filling in blanks during response
+   generation.
+5. **Real-time capability** — per-utterance intervention is possible even with a small, local
+   language model.
+6. **Reproducibility** — the same output is guaranteed for inputs of the same character.
+7. **Contamination blocking** — cross-relationship information contamination is blocked by
+   storage boundaries and access control rather than prompt instructions.
+8. **Concealment** — the notification of absence is not exposed to the partner, and the
+   existence of the relationship itself is concealed from non-parties.
+9. **Verifiable boundary** — the set of parties to whom memory is attributed is verifiable
+   independently of the service operator.
 
-## 【도면의 간단한 설명】
+## [Brief Description of the Drawings]
 
-- **도 1** — 전체 시스템 구성도. 클라이언트, 상호작용 수집부, 관계별 폐쇄 기억 저장소, 항목 사상부, 관계 상태 표현 캐시, 결정론적 규칙 실행부, 언어모델 이해부, 비대칭 전달부, 폐쇄성 확립 레지스트리의 연결관계.
-- **도 2** — 종래기술과 본 발명의 대비도. (a) 종래: 검색 → 결과 없음 → 폴백/침묵. (b) 본 발명: 항목 사상 → 부재 단언 → 개입.
-- **도 3** — 관계 상태 표현의 자료구조도. 항목 스키마, 충족 항목의 값, 미충족 항목의 명시적 부재 단언.
-- **도 4** — 복수 관계에 대한 항목 충족 지도(관계 × 항목 행렬)와 미충족 집합의 산출.
-- **도 5** — 입력 처리 순서도. 상태 표현 조회 → 항목 사상 → 형태 판정(결정론) → 개입 분기 → 비대칭 전달.
-- **도 6** — 타이밍도. 세션 개시 시 상태 표현 1회 산출, 입력마다 소규모 판정.
-- **도 7** — 폐쇄성 확립 순서도. 합의 구조체 → 전원 서명 → 검증 → 관계 성립 → 저장 영역 및 접근제어 생성.
-- **도 8** — 경로 단위 접근제어 구조도 및 부존재 응답 처리.
+- **Fig. 1** — Overall system configuration diagram. The connection relationships among the
+  client, interaction collection unit, per-relationship closed memory store, item mapping
+  unit, relationship state representation cache, deterministic rule execution unit, language
+  model understanding unit, asymmetric delivery unit, and closure-establishing registry.
+- **Fig. 2** — Comparison diagram of the prior art and the present invention. (a) Prior art:
+  search → no result → fallback/silence. (b) Present invention: item mapping → absence
+  assertion → intervention.
+- **Fig. 3** — Data structure diagram of the relationship state representation. Item schema,
+  values of fulfilled items, explicit absence assertions for unfulfilled items.
+- **Fig. 4** — Item fulfillment map for multiple relationships (relationship × item matrix)
+  and derivation of the unfulfilled set.
+- **Fig. 5** — Input processing flowchart. State representation lookup → item mapping → form
+  determination (deterministic) → intervention branch → asymmetric delivery.
+- **Fig. 6** — Timing diagram. One-time computation of the state representation at session
+  start, small-scale judgment per input.
+- **Fig. 7** — Closure-establishment flowchart. Consent structure → all-party signatures →
+  verification → relationship established → creation of storage region and access control.
+- **Fig. 8** — Path-level access control structure diagram and non-existence response
+  handling.
 
-## 【발명을 실시하기 위한 구체적인 내용】
+## [Detailed Description of the Invention]
 
-### 1. 용어의 정의
+### 1. Definitions of terms
 
-- **관계(relationship)** — 둘 이상의 당사자로 이루어진 집합으로서, 그 당사자 전원의 동의로 성립하고 전원의 동의로 종료되는 단위.
-- **폐쇄 기억(closed memory)** — 하나의 관계에 귀속되며, 입력·조회·보충의 세 경로가 모두 그 관계로 한정된 기억 저장소.
-- **항목 스키마(slot schema)** — 복수의 관계에 공통으로 적용되는 유한한 항목 집합.
-- **관계 상태 표현(relationship state representation)** — 하나의 관계의 폐쇄 기억을 항목 스키마에 사상한 결과로서, 미충족 항목에 대한 명시적 부재 단언을 포함하는 표현. 이하 실시예에서 **사실 시트**로 지칭한다.
-- **부재 단언(absence assertion)** — 특정 항목에 대해 값이 존재하지 않음을 명시하는 확정적 표현. 널이나 필드 생략과 구별된다.
+- **Relationship** — a set of two or more parties, established by the consent of all
+  parties and terminated by the consent of all parties.
+- **Closed memory** — a memory store attributed to one relationship, in which all three paths
+  of input, query, and supplementation are confined to that relationship.
+- **Item schema (slot schema)** — a finite set of items commonly applied across multiple
+  relationships.
+- **Relationship state representation** — the result of mapping one relationship's closed
+  memory onto the item schema, a representation that includes explicit absence assertions for
+  unfulfilled items. Referred to in the embodiments below as the **fact sheet**.
+- **Absence assertion** — a definite expression stating that a value does not exist for a
+  specific item. Distinguished from a null or a field omission.
 
-### 2. 시스템 구성 (도 1)
+### 2. System configuration (Fig. 1)
 
-**(1) 상호작용 수집부** — 대화 메시지, 실시간 통화 발화, 첨부 자료를 수집한다. 통화의 경우 각 클라이언트가 자신의 입력만을 텍스트로 변환하여 전송하므로 화자 식별이 불필요하며, 발화는 대화 메시지와 **분리된 저장소**에 보관된다.
+**(1) Interaction collection unit** — collects conversation messages, real-time call
+utterances, and attachments. For calls, since each client converts only its own input to
+text and transmits it, speaker identification is unnecessary, and utterances are kept in a
+store **separate from** conversation messages.
 
-> 발화를 대화 메시지로 저장하면 수 초에 한 줄씩 발생하는 발화가 당사자들이 실제로 읽는 대화를 덮어버린다. 조회 시 필터로 배제하는 방식은 한 곳이라도 누락하면 유출되나, 저장소를 분리하면 구조가 보장한다.
+> Storing utterances as conversation messages would let utterances, which occur at a rate of
+> one line every few seconds, bury the conversation the parties actually read. Excluding them
+> by filter at query time leaks if even one spot is missed, but separating the store makes it
+> structurally guaranteed.
 
-**(2) 폐쇄 기억 저장소** — 관계별로 생성되는 문서 트리. 항목 스키마에 대응하는 섹션으로 구성되며, 각 기록에는 원 상호작용에 대한 참조(딥링크)가 출처로 부착되어 문서와 대화가 상호 참조된다.
+**(2) Closed memory store** — a document tree created per relationship. Composed of sections
+corresponding to the item schema, with each record carrying a reference (deep link) to the
+original interaction as its source, so the document and the conversation cross-reference each
+other.
 
-**(3) 접근제어부** — 경로와 허용 당사자 집합의 매핑을 유지한다. 등록된 제한 경로 및 그 하위 경로는 허용 집합에 속한 사용자만 접근할 수 있으며, 목록·트리·노드·쓰기·첨부·**검색**·식별자 직접 접근·외부 도구 프로토콜의 각 경로에 개별 적용된다. 비당사자에 대해서는 403이 아니라 **404 및 목록·검색 결과에서의 제외**로 응답한다(권한 거부 응답은 그 자체로 대상의 존재를 알린다).
+**(3) Access control unit** — maintains a mapping between paths and allowed party sets.
+Registered restricted paths and their subpaths are accessible only to users within the
+allowed set, applied individually to each path for listing, tree, node, write, attachment,
+**search**, direct identifier access, and external-tool-protocol paths. Non-parties are
+responded to not with 403 but with **404, and excluded from listing/search results** (a
+permission-denied response by itself announces the target's existence).
 
-**(4) 항목 사상부** — 폐쇄 기억을 항목 스키마에 사상하여 관계 상태 표현을 산출한다.
+**(4) Item mapping unit** — maps closed memory onto the item schema to produce the
+relationship state representation.
 
-**(5) 상태 표현 캐시** — 세션 식별자에 대응시켜 관계 상태 표현을 유지한다.
+**(5) State representation cache** — maintains the relationship state representation keyed
+to the session identifier.
 
-**(6) 이해부(언어모델)** — 입력의 항목 사상 및 지시대명사 해소만을 담당한다.
+**(6) Understanding unit (language model)** — handles only item mapping of the input and
+resolution of deictic references.
 
-**(7) 규칙 실행부** — 개입 여부를 결정론적으로 판정한다.
+**(7) Rule execution unit** — deterministically determines whether to intervene.
 
-**(8) 비대칭 전달부** — 개입 정보를 입력 생성자를 제외한 당사자에게만 수신자 지정으로 전달한다.
+**(8) Asymmetric delivery unit** — delivers intervention information, addressed to a specific
+recipient, only to the party other than the one who produced the input.
 
-**(9) 폐쇄성 확립 레지스트리** — 분산원장 상의 계약. 당사자 집합의 확정 및 검증을 담당한다.
+**(9) Closure-establishing registry** — a contract on a distributed ledger. Responsible for
+fixing and verifying the set of parties.
 
-### 3. 관계 상태 표현의 산출 (도 3)
+### 3. Computing the relationship state representation (Fig. 3)
 
 ```
 buildStateRepresentation(relationship):
-  schema  ← 관계 유형별 프로파일이 정의하는 항목 스키마
-  docs    ← 폐쇄 기억 저장소의 전 섹션 본문
+  schema  ← item schema defined by the relationship-type profile
+  docs    ← full section text of the closed memory store
   for each slot in schema:
-     value ← docs로부터 해당 항목에 해당하는 기재를 추출
-              · 기록된 표현과 그 명백한 동의어만을 사용
-              · 외부 지식 및 다른 관계의 기억은 참조하지 않음   ← 보충 폐쇄
-     if value 없음:
-         representation[slot] ← ABSENCE_TOKEN     ← 부재 단언의 물질화
+     value ← extract the entry corresponding to that item from docs
+              · use only recorded expressions and their obvious synonyms
+              · do not reference external knowledge or other relationships' memory   ← supplementation closure
+     if value is absent:
+         representation[slot] ← ABSENCE_TOKEN     ← materialization of the absence assertion
      else:
          representation[slot] ← value
-  캐시에 저장
+  store in cache
 ```
 
-`ABSENCE_TOKEN`은 후속 판정기가 값으로 인식할 수 있는 확정적 문자열이어야 한다. 실시예에서는 `(nothing recorded)`를 사용하며, 판정기에 대해 "이 표시는 그러한 종류의 것이 기록에 전혀 없음을 뜻한다"를 함께 고지한다.
+`ABSENCE_TOKEN` must be a definite string that a downstream judge can recognize as a value.
+The embodiment uses `(nothing recorded)`, and the judge is also told: "this marker means
+nothing of this kind is recorded at all."
 
-폐쇄 기억이 완전히 비어 있는 경우에는 언어모델을 호출하지 않고 **전 항목이 부재 단언인 상태 표현**을 즉시 사용한다. 기억이 없는 관계도 유효한 상태를 가지며, 오히려 모든 항목이 미충족이라는 명확한 상태이다.
+If closed memory is completely empty, the language model is not invoked, and a **state
+representation in which every item is an absence assertion** is used immediately. A
+relationship with no memory still has a valid state — indeed, a clear state in which every
+item is unfulfilled.
 
-### 4. 복수 관계에 대한 지도화 (도 4)
+### 4. Mapping across multiple relationships (Fig. 4)
 
-동일한 항목 스키마가 복수의 관계에 적용되므로, 시스템 전체는 다음 형태의 행렬을 얻는다.
+Since the same item schema applies across multiple relationships, the system as a whole
+obtains a matrix of the following form.
 
 ```
               places  tastes  foods  events  people
-관계 R1          ●       ○       ●      ●       ○
-관계 R2          ●       ●       ○      ●       ●
-관계 R3          ○       ○       ○      ●       ○
-                        ● 충족   ○ 미충족
+relationship R1  ●       ○       ●      ●       ○
+relationship R2  ●       ●       ○      ●       ●
+relationship R3  ○       ○       ○      ●       ○
+                        ● fulfilled   ○ unfulfilled
 ```
 
-이 행렬로부터 다음이 도출된다.
+From this matrix, the following are derived.
 
-- **관계별 미충족 집합** — 해당 관계에서 아직 성립된 적 없는 항목들.
-- **항목별 결손 분포** — 동일 유형의 관계들에서 통상 충족되는 항목이 특정 관계에서만 미충족인 경우, 그 항목이 우선 개입 대상이 된다.
-- **기여 비대칭** — 각 항목의 기재가 어느 당사자의 상호작용에서 유래했는지를 출처 참조로부터 역추적하여, 일방만이 기여한 항목을 식별한다.
-- **지속 미충족** — 관계 성립 이후 경과 시간 대비 장기간 미충족 상태인 항목.
+- **Per-relationship unfulfilled set** — items not yet established in that relationship.
+- **Per-item deficit distribution** — when an item ordinarily fulfilled across relationships
+  of the same type is unfulfilled only in a particular relationship, that item becomes a
+  priority intervention target.
+- **Contribution asymmetry** — tracing back, from source references, which party's
+  interaction each item's entry originated from, to identify items to which only one party
+  has contributed.
+- **Persistent unfulfillment** — items that have remained unfulfilled for a long time relative
+  to the time elapsed since the relationship was established.
 
-이들은 실시간 반응에 그치지 않고 **능동적 개입의 계획 정보**로 사용된다. 예컨대 장기 미충족 항목에 대해 에이전트가 적절한 시점에 확인 질의를 제안하거나, 해당 항목에 관한 발화가 처음 등장했을 때 우선적으로 기록을 유도한다.
+These are used not only for real-time reactions but as **planning information for
+affirmative intervention.** For example, the agent may propose a confirming question at an
+appropriate time for a long-unfulfilled item, or preferentially prompt a record when an
+utterance concerning that item first appears.
 
-### 5. 입력 처리 (도 5)
+### 5. Input processing (Fig. 5)
 
 ```
 onInput(relationship, sessionId, authorId, text):
-  rep  ← 캐시[sessionId]  (없으면 3항으로 산출)
-  read ← 이해부(text, rep) → { slot, filled }
-            · rep만을 문맥으로 사용                  ← 폴백 차단
-            · 지시대명사 해소를 여기서 수행
-            · 어느 항목에도 해당하지 않으면 slot = null
+  rep  ← cache[sessionId]  (computed per §3 if absent)
+  read ← understandingUnit(text, rep) → { slot, filled }
+            · use only rep as context                  ← fallback blocking
+            · resolve deictic references here
+            · slot = null if it matches no item
 
-  asks ← 프로파일.질문시개입 AND QUESTION_PATTERN(text)   ← 결정론
-  개입여부 ←  asks
+  asks ← profile.interveneOnQuestion AND QUESTION_PATTERN(text)   ← deterministic
+  shouldIntervene ← asks
              OR (slot != null AND read.filled == true)
-  개입여부 아니면 종료
+  if not shouldIntervene, terminate
 
   message ← read.filled
-              ? "<slot 값> — 두 분의 기록에 있습니다"
-              : "<slot 또는 인용된 발화>에 관해 기록이 없습니다 — 적어도 이 관계에는"
+              ? "<slot value> — it's in your records"
+              : "There's no record about <slot or the quoted utterance> — at least not in this relationship"
 
-  수신자 ← 관계 당사자 − authorId − 에이전트 자신
-  수신자 각각에 수신자 지정 메시지로 저장 후 실시간 통지     ← 비대칭 전달
+  recipients ← relationship parties − authorId − the agent itself
+  store as a recipient-addressed message for each recipient, then notify in real time     ← asymmetric delivery
 ```
 
-**부재 고지 문구의 한정 표현이 중요하다.** "기록이 없습니다"로 끝내면 세계에 대한 주장으로 읽히나, "**적어도 이 관계에는**"을 부기하면 폐쇄 기억의 경계 내에서의 사실임이 명확해진다. 부재 단언이 유효한 범위를 문구 자체가 담지한다.
+**The qualifying phrase in the absence-notification wording matters.** Ending with "there's
+no record" reads as a claim about the world, but appending "**at least not in this
+relationship**" makes clear it is a fact within the boundary of closed memory. The phrasing
+itself carries the scope within which the absence assertion is valid.
 
-주제를 항목으로 사상할 수 없는 질문의 경우에는 발화 원문을 인용하여 고지한다. 질문임에도 침묵하면 개입 규칙의 일관성이 깨지기 때문이다.
+For a question whose topic cannot be mapped to an item, the original utterance is quoted in
+the notification. Staying silent despite it being a question would break the consistency of
+the intervention rule.
 
-### 6. 기억으로의 반영
+### 6. Reflection into memory
 
-**(1) 대화로부터** — 미처리 메시지가 임계 수량에 도달하거나 유휴 시간이 경과하면, 관계 단위 뮤텍스로 직렬화한 뒤 기존 섹션과 함께 언어모델에 투입하여 **증분 편집**을 생성한다(전체 덮어쓰기 금지). 파일 기록 성공 이후에만 처리 체크포인트를 전진시킨다.
+**(1) From conversation** — when unprocessed messages reach a threshold count or idle time
+elapses, they are serialized via a per-relationship mutex and fed to the language model
+together with the existing sections to produce an **incremental edit** (a full overwrite is
+prohibited). The processing checkpoint advances only after the file write succeeds.
 
-**(2) 통화로부터** — 종료된 통화는 하나의 사건이므로 **한 항목**으로 기록한다(속기록이 아니라 회의록). 여기에는 경합 조건이 존재한다. 종료 처리가 남기는 안내 메시지가 기록 파이프라인을 깨우고, 파이프라인은 이미 종료된 통화를 인지하지 못한 채 발화들을 낱개로 가져간다. 이를 다음 순서로 해소한다.
+**(2) From a call** — a finished call is a single event, so it is recorded as **one item**
+(meeting minutes, not a transcript). A race condition exists here. The notification message
+left by the termination process wakes the write pipeline, and the pipeline, unaware the call
+has already ended, picks up the utterances individually. This is resolved in the following
+order.
 
-1. **선점** — 해당 통화의 미처리 발화를 조회함과 동시에 처리됨으로 갱신하는 단일 갱신 연산. 종료 요청이 이 완료를 대기한다.
-2. **요약** — 언어모델 왕복이므로 요청 처리 경로 밖에서 수행. 연대기 항목 1건과, 통화에서 파생된 결정·미해결 주제·인물 정보를 각 항목에 별도 기록.
-3. **반환** — 요약 실패 시 선점을 해제하여 발화를 기록 대기 상태로 복귀. **흩어져서라도 남는 편이 깔끔하게 사라지는 것보다 낫다.**
+1. **Claim** — a single update operation that queries the call's unprocessed utterances and
+   marks them processed at the same time. The termination request waits for this to complete.
+2. **Summarize** — performed outside the request-processing path, since it is a language-model
+   round trip. One chronicle item, plus decisions/open topics/people information derived from
+   the call, each recorded to its own item.
+3. **Return** — if summarization fails, release the claim, returning the utterances to a
+   pending state. **It is better for them to remain scattered than to cleanly vanish.**
 
-기억이 갱신되면 해당 관계의 상태 표현 캐시를 무효화한다. 충족되지 않았던 항목이 충족으로 전이하는 시점이 곧 관계의 상태 변화이다.
+When memory is updated, the state representation cache for that relationship is invalidated.
+The moment a previously unfulfilled item transitions to fulfilled is itself a change in the
+relationship's state.
 
-### 7. 부재를 차단 근거로 사용하지 않는 것 — 발송 전 검증
+### 7. Not using absence as grounds for blocking — pre-send verification
 
-부재는 개입의 근거이지 **차단의 근거가 아니다.** 초안 메시지가 기억과 모순되는지 검증하는 게이트에서 이 구별이 명시적으로 구현된다.
+Absence is grounds for intervention, **not grounds for blocking.** This distinction is
+explicitly implemented in the gate that verifies whether a draft message contradicts memory.
 
-1. **프리필터** — 초안과 기억 본문의 문자 바이그램 집합의 교집합이 공집합이면 언어모델을 호출하지 않고 통과시키며, 검증 수행 플래그를 거짓으로 반환한다(형태소 분석 없이 한국어에도 동작). 임계값은 1로 둔다. 높이면 문서의 고유명사 하나만 공유하는 초안이 미검사 통과하는 누출이 발생한다.
-2. **AND 조건** — [기억과 모순됨] 이고 [관계 훼손 위험 있음]인 경우에만 차단 후보로 승격.
-3. **부재 불차단** — 기억에 없는 새로운 주제·계획·감정은 결코 차단하지 않는다. 부재는 모순이 아니다.
-4. **근거 실재 검증** — 언어모델이 제시한 인용문을 공백·따옴표 정규화 후 기억 본문에서 실제로 탐색하여, 실재가 확인된 인용이 하나도 없으면 차단하지 않는다(환각 근거 제거).
-5. 검증은 발송 경로에 직렬로 놓이지 않고 병렬 수행되며, 언어모델 장애 시에는 통과시킨다. 차단 시에도 **강제 발송 수단을 항상 병기**하여 최종 결정권을 사람에게 유보한다.
+1. **Prefilter** — if the intersection of the character-bigram sets of the draft and the
+   memory text is empty, the language model is not invoked, and the verification-performed
+   flag is returned as false (works on Korean too, without morphological analysis). The
+   threshold is set to 1. Raising it causes a leak in which a draft sharing only a single
+   proper noun with the document passes unchecked.
+2. **AND condition** — promoted to a block candidate only when both [contradicts memory] and
+   [risk of harming the relationship] hold.
+3. **No blocking on absence** — a new topic, plan, or emotion absent from memory is never
+   blocked. Absence is not a contradiction.
+4. **Grounding-existence verification** — quotes cited by the language model are normalized
+   for whitespace/quotation marks and actually searched for in the memory text; if not a
+   single cited quote is confirmed to exist, blocking does not occur (removes hallucinated
+   grounds).
+5. Verification is not placed serially in the send path but runs in parallel, and passes
+   through on language-model failure. Even when blocked, **a forced-send option is always
+   presented alongside it**, reserving the final decision for the person.
 
-### 8. 폐쇄성 확립의 실시예 (도 7)
+### 8. Embodiment of closure establishment (Fig. 7)
 
-합의 구조체를 `RelationConsent(bytes32 relationId, address[] parties)`로 정의하고, EIP-712 규약에 따라 도메인 분리자(계약명·버전·체인 식별자·계약 주소)를 포함한 다이제스트를 산출한다.
+The consent structure is defined as `RelationConsent(bytes32 relationId, address[] parties)`,
+and a digest is computed that includes a domain separator (contract name, version, chain
+identifier, contract address) per the EIP-712 convention.
 
-> **구현상 유의점** — 주소 배열의 해시는 각 원소를 32바이트 워드로 확장한 뒤 연접하여 해시해야 한다. 20바이트 주소를 그대로 팩하는 방식은 지갑이 규약에 따라 실제 서명하는 값과 불일치하여 모든 검증이 실패한다.
+> **Implementation note** — the hash of the address array must be computed by expanding each
+> element to a 32-byte word before concatenating and hashing. Packing the 20-byte addresses
+> as-is would mismatch the value the wallet actually signs per the standard, and every
+> verification would fail.
 
 ```
-전제:  parties.length >= 2
+Preconditions:  parties.length >= 2
        sigs.length == parties.length
        agentOfRelation[relationId] == 0
-순회 i:
+Iterate i:
        parties[i] != 0
-       i > 0 → parties[i] > parties[i-1]        (정렬 + 중복 배제)
+       i > 0 → parties[i] > parties[i-1]        (ordering + duplicate exclusion)
        recover(digest, sigs[i]) == parties[i]
-전부 통과 → agentId = mint(소유자 = 레지스트리 자신, agentURI)
+All pass → agentId = mint(owner = the registry itself, agentURI)
             agentOfRelation[relationId] = agentId
             partiesOfRelation[relationId] = parties
 ```
 
-서명 제출자는 당사자일 필요가 없다(릴레이 허용). 검증이 서명에 의해서만 이루어지므로 당사자는 수수료를 부담하지 않는다.
+The signature submitter need not be a party (relaying is allowed). Since verification is
+based solely on the signatures, the parties bear no gas fee.
 
-인격증명 결속 및 대칭적 해산은 배경기술 (나)에서 언급한 경계 확정의 연장으로서, 각각 관계 범위 내 널리파이어 상호 상이성 검증과, 등록 시 저장된 당사자 전원의 해산 서명 검증(식별자 미소각)으로 구현한다.
+Proof-of-personhood binding and symmetric dissolution are extensions of the boundary-fixing
+discussed in Background (b), implemented respectively as mutual-distinctness verification of
+nullifiers within the scope of the relationship, and verification of dissolution signatures
+from all parties stored at registration (without burning the identifier).
 
-관계가 성립하지 않은 상태에서는 기억 저장 영역·접근제어·상태 레코드의 생성 자체를 거부한다. 이 검사가 없으면 통화 한 건만으로도 동의한 적 없는 관계에 대한 기억이 생성된다.
+While the relationship has not been established, the creation of the memory storage region,
+access control, and state record itself is refused. Without this check, a single call alone
+could create memory for a relationship that was never consented to.
 
-### 9. 변형 실시예
+### 9. Alternative embodiments
 
-- 항목 스키마는 관계 유형(연인, 업무, 가족 등)별 프로파일로 정의되며, 항목 수와 명칭은 한정되지 않는다.
-- 당사자 수는 2인에 한정되지 않는다.
-- 부재 단언의 표현 형식은 지정 문자열에 한정되지 않으며, 후속 판정기가 값으로 인식할 수 있는 임의의 확정적 표현(전용 열거값, 구조화 필드)으로 대체 가능하다.
-- 관계 상태 표현의 갱신 시점은 세션 개시에 한정되지 않으며, 기억 갱신 시 즉시 재산출하는 방식도 가능하다.
-- 언어모델은 원격 상용 모델 및 로컬 소형 모델 모두 적용 가능하다.
-- 폐쇄성 확립 수단은 분산원장에 한정되지 않으며, 당사자 전원의 서명 집합을 검증 가능한 형태로 보존하는 임의의 수단으로 대체 가능하다. 다만 서비스 운영자의 단독 변경이 가능한 수단은 배경기술 (나)의 문제를 해소하지 못한다.
+- The item schema is defined by profile per relationship type (romantic, business, family,
+  etc.), and the number and naming of items are not limited.
+- The number of parties is not limited to two.
+- The expression form of the absence assertion is not limited to a designated string, and may
+  be replaced with any definite expression a downstream judge can recognize as a value
+  (a dedicated enum value, a structured field).
+- The timing of updating the relationship state representation is not limited to session
+  start, and immediate recomputation upon memory update is also possible.
+- The language model may be either a remote commercial model or a local small model.
+- The means of establishing closure is not limited to a distributed ledger, and may be
+  replaced with any means that preserves the full set of signatures from all parties in a
+  verifiable form. However, a means that allows unilateral modification by the service
+  operator does not resolve the problem in Background (b).
 
-## 【특허청구범위】
+## [Claims]
 
-### 청구항 1 (독립항 — 시스템)
+### Claim 1 (independent — system)
 
-둘 이상의 당사자로 이루어진 관계에 귀속되는 기억 저장소로서, 상기 관계의 당사자들이 공동으로 생성한 상호작용만을 기억의 원천으로 하고, 조회 범위가 상기 관계의 저장 영역과 일치하도록 한정되는 폐쇄 기억부;
+A closed memory unit for a memory store attributed to a relationship consisting of two or
+more parties, wherein only interactions jointly created by the parties to said relationship
+serve as the source of memory, and wherein the query scope is confined to coincide with the
+storage region of said relationship;
 
-복수의 관계에 공통으로 적용되는 유한한 항목 스키마에 따라 상기 폐쇄 기억부의 내용을 항목별로 사상하되, 값이 존재하지 않는 항목에 대하여 **널 또는 필드 생략이 아닌, 부재를 명시하는 확정적 단언을 기재**한 관계 상태 표현을 생성하는 항목 사상부;
+an item mapping unit that maps the content of said closed memory unit item-by-item according
+to a finite item schema commonly applied across multiple relationships, and that, for an item
+whose value does not exist, generates a relationship state representation recording **a
+definite assertion specifying absence, not a null or a field omission**;
 
-입력이 수신되면 상기 관계 상태 표현을 문맥으로 하여 해당 입력이 대응하는 항목 및 해당 항목의 충족 여부를 판정하되, **값이 존재하지 않는 항목에 대하여 상기 폐쇄 기억부 외부의 지식으로 값을 보충하지 아니하는** 판정부; 및
+a judgment unit that, upon receiving an input, determines, using said relationship state
+representation as context, the item to which said input corresponds and whether said item is
+fulfilled, wherein **for an item whose value does not exist, the value is not supplemented
+with knowledge external to said closed memory unit**; and
 
-상기 항목이 충족된 경우에는 기록된 값에 근거한 정보를, **상기 항목이 미충족인 경우에는 상기 관계에 해당 항목이 존재하지 않는다는 사실을 고지하는 정보를** 생성하여 출력하는 개입부를 포함하는,
+an intervention unit that generates and outputs, when said item is fulfilled, information
+based on the recorded value, and, **when said item is unfulfilled, information notifying that
+the fact that said item does not exist in said relationship**,
 
-인공지능 에이전트 시스템.
+an artificial intelligence agent system.
 
-### 청구항 2 (종속 — 부재의 한정 범위 표현)
+### Claim 2 (dependent — expression of the scope of absence)
 
-제1항에 있어서, 상기 미충족 항목에 대한 고지 정보는 상기 사실이 상기 관계의 범위 내에서 성립함을 한정하는 표현을 포함하는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein the notification information for said unfulfilled item
+includes an expression qualifying that said fact holds within the scope of said relationship.
 
-### 청구항 3 (종속 — 사전 물질화 및 실시간화)
+### Claim 3 (dependent — pre-materialization and real-time processing)
 
-제1항에 있어서, 상기 항목 사상부는 상기 관계 상태 표현을 **입력 수신 시점이 아니라 세션 개시 시점에 산출**하여 세션 식별자에 대응시켜 유지하고, 상기 판정부는 상기 폐쇄 기억부의 전체 내용이 아니라 상기 관계 상태 표현만을 문맥으로 사용하는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein said item mapping unit computes said relationship state
+representation **at the time a session starts, rather than at the time an input is
+received**, and maintains it keyed to a session identifier, and wherein said judgment unit
+uses, as context, not the entire content of said closed memory unit but only said
+relationship state representation.
 
-### 청구항 4 (종속 — 판정의 결정론적 배치)
+### Claim 4 (dependent — deterministic placement of judgment)
 
-제1항에 있어서, 상기 판정부는 언어모델로부터 **상기 항목의 식별 및 상기 충족 여부만을** 수신하고, 개입을 수행할지 여부의 결정은 상기 언어모델이 아닌 결정론적 규칙 실행부가 수행하되, 상기 규칙은 입력이 질문 형태인 경우 상기 충족 여부와 무관하게 개입하고 서술 형태인 경우 충족된 때에만 개입하는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein said judgment unit receives from a language model **only the
+identification of said item and whether it is fulfilled**, and the decision of whether to
+perform intervention is made not by said language model but by a deterministic rule execution
+unit, wherein said rule intervenes regardless of said fulfillment when the input is in
+question form, and intervenes only when fulfilled when the input is in statement form.
 
-### 청구항 5 (종속 — 질문 형태 판정)
+### Claim 5 (dependent — determination of question form)
 
-제4항에 있어서, 상기 질문 형태의 판정은 입력 문자열 내 물음표의 존재 또는 문두에 위치한 의문사 내지 조동사에 대한 패턴 정합으로 수행되는 것을 특징으로 하는 시스템.
+The system of claim 4, wherein said determination of question form is performed by pattern
+matching on the presence of a question mark within the input string or on an interrogative or
+auxiliary verb located at the start of the sentence.
 
-### 청구항 6 (종속 — 비대칭 전달)
+### Claim 6 (dependent — asymmetric delivery)
 
-제1항에 있어서, 상기 개입부는 상기 정보를 상기 둘 이상의 당사자 중 **상기 입력을 생성한 당사자를 제외한 당사자에게만** 수신자 지정으로 전달하며, 음성 합성 출력을 배제하는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein said intervention unit delivers said information, addressed to
+a specific recipient, only to a party among said two or more parties **other than the party
+that generated said input**, excluding speech-synthesis output.
 
-### 청구항 7 (종속 — 지시대명사 해소)
+### Claim 7 (dependent — resolution of deictic references)
 
-제1항에 있어서, 상기 판정부는 상기 입력에 포함된 지시대명사를 상기 관계 상태 표현에 기재된 값으로 해소하여 상기 항목을 식별하는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein said judgment unit identifies said item by resolving a deictic
+reference contained in said input to a value recorded in said relationship state
+representation.
 
-### 청구항 8 (종속 — 관계 × 항목 지도)
+### Claim 8 (dependent — relationship × item map)
 
-제1항에 있어서, 복수의 관계 각각에 대한 상기 관계 상태 표현으로부터 관계와 항목을 축으로 하는 충족 지도를 산출하고, 특정 관계에서만 미충족인 항목, 미충족 상태가 소정 기간 이상 지속된 항목, 또는 일방의 당사자만이 기여한 항목을 식별하여 능동적 개입의 대상 및 시점을 결정하는 개입 계획부를 더 포함하는 것을 특징으로 하는 시스템.
+The system of claim 1, further comprising an intervention planning unit that computes, from
+said relationship state representation for each of a plurality of relationships, a
+fulfillment map with relationship and item as axes, and identifies an item unfulfilled only in
+a specific relationship, an item whose unfulfilled state has persisted beyond a predetermined
+period, or an item to which only one party has contributed, to determine the target and
+timing of affirmative intervention.
 
-### 청구항 9 (종속 — 접근제어 및 부존재 응답)
+### Claim 9 (dependent — access control and non-existence response)
 
-제1항에 있어서, 경로와 허용 당사자 집합의 매핑을 저장하고 상기 폐쇄 기억부의 경로 또는 그 하위 경로에 대한 접근 요청자가 상기 허용 집합에 포함되지 않는 경우 **접근 거부가 아니라 부존재 응답을 반환하고 목록 및 검색 결과에서 해당 경로를 제외**하는 접근제어부를 더 포함하는 것을 특징으로 하는 시스템.
+The system of claim 1, further comprising an access control unit that stores a mapping
+between paths and allowed party sets, and, when a requester accessing a path of said closed
+memory unit or a subpath thereof is not included in said allowed set, **returns a
+non-existence response rather than an access-denied response, and excludes said path from
+listing and search results**.
 
-### 청구항 10 (종속 — 실시간 통화 및 발화 분리)
+### Claim 10 (dependent — real-time calls and utterance separation)
 
-제1항에 있어서, 상기 입력은 실시간 통화 중의 발화이고, 상기 발화는 각 클라이언트가 자신의 음성 입력만을 텍스트로 변환하여 전송한 것이며, 상기 발화는 상기 관계의 대화 메시지 저장소와 **분리된 발화 저장소**에 화자 식별자와 함께 저장되는 것을 특징으로 하는 시스템.
+The system of claim 1, wherein said input is an utterance during a real-time call, said
+utterance is produced by each client converting only its own voice input to text and
+transmitting it, and said utterance is stored together with a speaker identifier in an
+**utterance store separate from** the conversation-message store of said relationship.
 
-### 청구항 11 (종속 — 통화 요약 및 선점)
+### Claim 11 (dependent — call summarization and claiming)
 
-제10항에 있어서, 상기 통화의 종료 요청에 응답하여 해당 통화의 미처리 발화를 조회함과 동시에 처리됨으로 갱신하는 단일 갱신 연산으로 선점하고, 상기 종료 요청은 상기 선점의 완료를 대기하며, 상기 선점된 발화의 요약은 상기 종료 요청의 처리 경로 밖에서 수행되어 상기 폐쇄 기억부에 하나의 항목으로 기록되고, 상기 요약이 실패한 경우 상기 선점을 해제하는 것을 특징으로 하는 시스템.
+The system of claim 10, wherein, in response to a termination request for said call, said
+system claims via a single update operation that queries and simultaneously marks as
+processed the unprocessed utterances of said call, said termination request waits for
+completion of said claim, and the summarization of said claimed utterances is performed
+outside the processing path of said termination request and recorded as one item in said
+closed memory unit, and said claim is released if said summarization fails.
 
-### 청구항 12 (종속 — 부재의 불차단)
+### Claim 12 (dependent — non-blocking of absence)
 
-제1항에 있어서, 상기 관계의 당사자가 작성 중인 초안이 상기 폐쇄 기억부와 모순되는지를 발송 전에 검증하는 검증부를 더 포함하되, 상기 검증부는 상기 초안의 주제에 대응하는 항목이 **미충족이라는 사유만으로는 발송을 차단하지 아니하고**, 기억과의 모순 및 관계 훼손 위험이 모두 인정되며 제시된 인용문이 상기 폐쇄 기억부의 본문에서 실제로 탐색되는 경우에 한하여 차단으로 판정하고, 차단 시에도 강제 발송 수단을 제공하는 것을 특징으로 하는 시스템.
+The system of claim 1, further comprising a verification unit that verifies, before sending,
+whether a draft being composed by a party to said relationship contradicts said closed memory
+unit, wherein said verification unit **does not block sending solely on the ground that the
+item corresponding to the topic of said draft is unfulfilled**, determines blocking only when
+both a contradiction with memory and a risk of relationship harm are recognized and a cited
+quotation is actually found in the text of said closed memory unit, and provides a
+forced-send means even when blocking.
 
-### 청구항 13 (종속 — 프리필터)
+### Claim 13 (dependent — prefilter)
 
-제12항에 있어서, 상기 검증부는 상기 초안과 상기 폐쇄 기억부 본문 각각으로부터 산출한 문자 바이그램 집합의 교집합이 공집합인 경우 언어모델을 호출하지 아니하고 통과로 판정하는 것을 특징으로 하는 시스템.
+The system of claim 12, wherein said verification unit determines a pass, without invoking a
+language model, when the intersection of character-bigram sets computed respectively from
+said draft and the text of said closed memory unit is empty.
 
-### 청구항 14 (종속 — 폐쇄성의 확립)
+### Claim 14 (dependent — establishment of closure)
 
-제1항에 있어서, 관계 식별자 및 상기 둘 이상의 당사자에 대응하는 주소 배열을 필드로 포함하는 합의 구조체로부터 서명 대상 다이제스트를 산출하고, 상기 당사자 각각의 개인키로 생성된 서명들로부터 복원된 주소가 상기 주소 배열의 대응 원소와 일치하는지를 검증하여 **모든 서명이 검증된 경우에 한하여** 상기 폐쇄 기억부 및 상기 접근제어의 생성을 허용하는 레지스트리를 더 포함하는 것을 특징으로 하는 시스템.
+The system of claim 1, further comprising a registry that computes a digest to be signed from
+a consent structure including as fields a relationship identifier and an array of addresses
+corresponding to said two or more parties, verifies whether addresses recovered from
+signatures generated with each party's private key match the corresponding elements of said
+address array, and permits the creation of said closed memory unit and said access control
+**only when all signatures are verified**.
 
-### 청구항 15 (종속 — 정규화 및 공동 귀속)
+### Claim 15 (dependent — normalization and joint attribution)
 
-제14항에 있어서, 상기 레지스트리는 상기 주소 배열의 원소들이 오름차순으로 정렬되고 상호 상이할 것을 인접 원소 간 크기 비교에 의해 검증하며, 발행되는 에이전트 식별자의 소유자를 상기 당사자 중 어느 하나가 아니라 상기 레지스트리 자신으로 설정하는 것을 특징으로 하는 시스템.
+The system of claim 14, wherein said registry verifies, by size comparison between adjacent
+elements, that the elements of said address array are sorted in ascending order and are
+mutually distinct, and sets the owner of the issued agent identifier not to any one of said
+parties but to said registry itself.
 
-### 청구항 16 (종속 — 인격 상이성)
+### Claim 16 (dependent — personhood distinctness)
 
-제14항에 있어서, 상기 레지스트리는 상기 당사자 각각에 대응하는 익명 인격증명 식별자를 함께 수신하여 **상기 관계 식별자의 범위 내에서 상호 상이함**을 검증한 후 결속 저장하는 것을 특징으로 하는 시스템.
+The system of claim 14, wherein said registry additionally receives an anonymous
+proof-of-personhood identifier corresponding to each of said parties, and binds and stores it
+after verifying **mutual distinctness within the scope of said relationship identifier**.
 
-### 청구항 17 (종속 — 대칭적 종료)
+### Claim 17 (dependent — symmetric termination)
 
-제14항에 있어서, 상기 레지스트리는 상기 합의 구조체와 상이한 타입 식별자를 갖는 종료 구조체에 대하여 등록 시 저장된 상기 주소 배열의 모든 원소에 대응하는 서명이 검증된 경우에만 종료 시각을 기록하되 상기 에이전트 식별자를 소각하지 아니하는 것을 특징으로 하는 시스템.
+The system of claim 14, wherein said registry, for a termination structure having a type
+identifier different from said consent structure, records a termination timestamp only when
+signatures corresponding to all elements of said address array stored at registration are
+verified, without burning said agent identifier.
 
-### 청구항 18 (종속 — 시간적 경계)
+### Claim 18 (dependent — temporal boundary)
 
-제14항에 있어서, 상기 폐쇄 기억부에 대한 기록은 상기 모든 서명이 검증된 시각 이후에 발생한 상호작용에 한하여 수행되는 것을 특징으로 하는 시스템.
+The system of claim 14, wherein recording to said closed memory unit is performed only for
+interactions that occur after the time at which all of said signatures were verified.
 
-### 청구항 19 (독립항 — 방법)
+### Claim 19 (independent — method)
 
-프로세서 및 메모리를 포함하는 컴퓨팅 장치가 수행하는 인공지능 에이전트 동작 방법으로서,
+A method of operating an artificial intelligence agent, performed by a computing device
+comprising a processor and memory, the method comprising:
 
-(a) 둘 이상의 당사자로 이루어진 관계에 귀속되는 기억 저장소를 유지하되, 상기 관계의 당사자들이 공동으로 생성한 상호작용만을 기억의 원천으로 하고 조회 범위를 상기 관계의 저장 영역으로 한정하는 단계;
+(a) maintaining a memory store attributed to a relationship consisting of two or more
+parties, wherein only interactions jointly created by the parties to said relationship serve
+as the source of memory, and confining the query scope to the storage region of said
+relationship;
 
-(b) 복수의 관계에 공통으로 적용되는 유한한 항목 스키마에 따라 상기 기억 저장소의 내용을 항목별로 사상하고, 값이 존재하지 않는 항목에 대하여 부재를 명시하는 확정적 단언을 기재한 관계 상태 표현을 **세션 개시 시점에 산출**하여 유지하는 단계;
+(b) mapping the content of said memory store item-by-item according to a finite item schema
+commonly applied across multiple relationships, and computing and maintaining, **at the time
+a session starts**, a relationship state representation that records a definite assertion
+specifying absence for an item whose value does not exist;
 
-(c) 입력이 수신되면 상기 기억 저장소의 전체 내용이 아니라 상기 관계 상태 표현만을 문맥으로 하여, 상기 입력이 대응하는 항목 및 해당 항목의 충족 여부를 판정하되 미충족 항목의 값을 외부 지식으로 보충하지 아니하는 단계;
+(c) upon receiving an input, using, as context, not the entire content of said memory store
+but only said relationship state representation, to determine the item to which said input
+corresponds and whether said item is fulfilled, without supplementing the value of an
+unfulfilled item with external knowledge;
 
-(d) 상기 입력의 형태가 미리 정해진 질문 판정 규칙을 만족하는지를 결정론적으로 판정하고, 만족하는 경우 상기 충족 여부와 무관하게, 만족하지 아니하는 경우 상기 항목이 충족된 때에 한하여 개입을 결정하는 단계;
+(d) deterministically determining whether the form of said input satisfies a predetermined
+question-determination rule, and deciding to intervene, when it is satisfied, regardless of
+said fulfillment, and, when it is not satisfied, only when said item is fulfilled;
 
-(e) 상기 항목이 충족된 경우에는 기록된 값에 근거한 정보를, 미충족인 경우에는 **상기 관계에 해당 항목이 존재하지 아니한다는 사실을 상기 관계의 범위로 한정하여 고지하는 정보**를 생성하는 단계; 및
+(e) generating, when said item is fulfilled, information based on the recorded value, and,
+when unfulfilled, **information notifying, confined to the scope of said relationship, the
+fact that said item does not exist in said relationship**; and
 
-(f) 상기 정보를 상기 당사자 중 상기 입력을 생성한 당사자를 제외한 당사자에게만 수신자 지정으로 전달하는 단계를 포함하는,
+(f) delivering said information, addressed to a specific recipient, only to a party among
+said parties other than the party that generated said input,
 
-인공지능 에이전트 동작 방법.
+a method of operating an artificial intelligence agent.
 
-### 청구항 20 (독립항 — 기록매체)
+### Claim 20 (independent — recording medium)
 
-제19항의 방법을 컴퓨터에서 실행시키기 위한 프로그램이 기록된 컴퓨터 판독 가능한 기록매체.
+A computer-readable recording medium storing a program for executing the method of claim 19
+on a computer.
 
-## 【요약서】
+## [Abstract]
 
-### 요약
+### Summary
 
-본 발명은 관계에 폐쇄적으로 귀속된 기억의 항목별 부재를 제어 신호로 이용하는 인공지능 에이전트에 관한 것이다. 종래 에이전트는 기억이 개인 또는 서비스에 귀속되어 조회 결과의 부재가 발화 부재·추출 누락·범위 밖 저장·검색 실패 중 무엇인지 구별되지 않으므로, 부재로부터 어떠한 확정적 추론도 도출하지 못하고 폴백하거나 침묵하였다. 본 발명은 기억의 입력·조회·보충 경로를 모두 하나의 관계로 폐쇄하여 부재의 원인을 단일하게 확정하고, 복수의 관계에 공통되는 항목 스키마로 각 관계를 항목별 충족/미충족 지도로 환원하며, 미충족 항목에 대하여 널이나 필드 생략이 아닌 명시적 부재 단언을 기재한 관계 상태 표현을 세션 개시 시 1회 산출한다. 이후 각 입력은 상기 표현만을 문맥으로 판정되어 부재가 외부 지식으로 소거되지 않으면서 판정 지연이 1초 미만으로 감소하며, 개입 여부는 언어모델이 아닌 결정론적 규칙이 결정하고, 미충족 항목에 대해서는 "이 관계에는 그것이 없다"는 사실이 입력 생성자를 제외한 당사자에게만 전달된다. 이로써 종래 시스템이 원리적으로 산출할 수 없었던 정보 — 두 사람이 한 번도 성립시킨 적 없는 영역 — 가 관계 운영의 일급 신호가 된다.
+The present invention relates to an artificial intelligence agent that uses per-item absence
+of memory closed to a relationship as a control signal. In conventional agents, memory is
+attributed to an individual or a service, so the absence of a query result cannot be
+distinguished among absent utterance, extraction omission, out-of-scope storage, and search
+failure, and thus no definite inference could be drawn from absence, leaving systems to
+fall back or stay silent. The present invention closes all of memory's input, query, and
+supplementation paths to a single relationship to uniquely fix the cause of absence, reduces
+each relationship, via an item schema common across multiple relationships, to a map of
+per-item fulfillment/unfulfillment, and computes, once at session start, a relationship state
+representation that records, for unfulfilled items, an explicit absence assertion rather than
+a null or field omission. Thereafter, each input is judged using only that representation as
+context, so that absence is not erased by external knowledge while judgment latency is
+reduced to under 1 second, whether to intervene is decided by a deterministic rule rather than
+a language model, and for unfulfilled items, the fact that "this relationship has nothing on
+that" is delivered only to the party other than the one who generated the input. In this way,
+information the conventional system could not, in principle, produce — an area the two people
+have never once established — becomes a first-class signal for operating the relationship.
 
-### 대표도
+### Representative Drawing
 
-도 2
+Fig. 2
 
 ---
 
-## 부록 A — 진보성 논증의 요지
+## Appendix A — Summary of the inventive-step argument
 
-심사 단계에서 다투게 될 핵심을 미리 정리한다.
+Organizing in advance the key points to be contested at examination.
 
-**쟁점 1 — "부재를 알려주는 것"은 자명하지 않은가?**
+**Issue 1 — Is "notifying absence" not obvious?**
 
-자명하지 않다. 종래 구조에서 부재는 **알려줄 수 있는 대상이 아니다.** 개인 비서의 저장소에 값이 없다는 것으로부터 "사용자에게 그것이 없다"를 도출하면 오보가 된다. 저장소의 경계가 사용자의 경험 전체와 일치하지 않기 때문이다. 본 발명은 경계를 관계와 일치시키는 세 폐쇄를 먼저 확립함으로써 비로소 부재를 고지 가능한 사실로 만든다. 즉 **고지가 발명인 것이 아니라, 고지를 가능하게 하는 경계 확립과 그 위에서의 부재 물질화가 결합된 구성**이 발명이다.
+It is not obvious. In the conventional structure, absence is **not a subject that can be
+notified.** Deriving "the user does not have this" from the absence of a value in a personal
+assistant's store produces misinformation, because the store's boundary does not coincide
+with the user's entire experience. The present invention first establishes the three
+closures that make the boundary coincide with the relationship, thereby making absence a
+notifiable fact only as a consequence. That is, **the invention is not the notification
+itself, but the combined structure of establishing the boundary that makes notification
+possible and materializing absence on top of it.**
 
-**쟁점 2 — 폴백 배제는 단순한 기능 제한 아닌가?**
+**Issue 2 — Is excluding fallback not merely a functional limitation?**
 
-아니다. 통상의 설계에서 폴백은 품질 향상 수단이며 이를 제거하는 것은 통상의 기술자가 채택할 동기가 없는 방향이다. 본 발명은 폴백이 **신호를 소멸시킨다**는 인식에 기초하여 이를 적극적으로 배제하며, 나아가 부재 단언을 판정 이전 단계에 물질화하는 실행 구조로 그 배제를 강제한다. 통상의 기술자가 자연히 도달할 구성이 아니다.
+No. In ordinary design, fallback is a means of improving quality, and removing it is a
+direction an ordinary practitioner would have no motivation to adopt. The present invention
+actively excludes fallback based on the recognition that fallback **extinguishes the
+signal**, and further enforces that exclusion through an execution structure that
+materializes the absence assertion prior to judgment. This is not a configuration an ordinary
+practitioner would naturally arrive at.
 
-**쟁점 3 — 명시적 부재 표기는 단순한 표기 방식 아닌가?**
+**Issue 3 — Is explicit absence notation not merely a notational method?**
 
-아니다. 널·필드 생략과 명시적 단언은 후속 판정기의 동작을 서로 다르게 만든다. 전자는 판단 불가로 처리되어 폴백 경로로 진입하고, 후자는 판정 입력으로 참여한다. 따라서 이는 표기 선택이 아니라 **제어 흐름을 결정하는 구성요소**이다.
+No. A null/field-omission and an explicit assertion cause a downstream judge to behave
+differently. The former is treated as undeterminable and enters the fallback path; the latter
+participates as a judgment input. This is therefore not a notational choice but **a component
+that determines control flow.**
 
-**쟁점 4 — 실시간성은 단순한 최적화 아닌가?**
+**Issue 4 — Is real-time capability not merely an optimization?**
 
-문맥 크기 축소가 지연을 10~45초에서 0.2~0.5초로 감소시킨다는 측정은, 부재 기반 개입을 **실시간 대화에서 가능하게 만드는 임계 조건**이다. 수 초의 지연은 이미 지나간 발화에 대한 개입이 되어 기능이 성립하지 않는다. 따라서 단순 최적화가 아니라 실시가능성의 요건이다.
+The measurement that context-size reduction lowers latency from 10–45 seconds to 0.2–0.5
+seconds is **the threshold condition that makes absence-based intervention feasible in
+real-time conversation.** A delay of several seconds would make the intervention target an
+utterance that has already passed, and the function would not hold. It is therefore not a
+mere optimization but a requirement of feasibility.
 
-## 부록 B — 실시 현황 (실시가능성 대응용)
+## Appendix B — Implementation status (for enablement support)
 
-명세서 본문 중 현 구현으로 검증된 부분과 확장 실시예를 구분한다.
+Distinguishes, within the specification body, parts verified by the current implementation
+from extended embodiments.
 
-| 구성 | 현황 | 근거 |
+| Component | Status | Basis |
 |---|---|---|
-| 관계 단위 폐쇄 기억, 경로 접근제어, 부존재 응답 | 구현·검증 | `app/src/lib/okf-acl.ts`, 통합 검증 `AGENT2` (제3자 문서 차단) |
-| 항목 스키마 및 부재 명시 상태 표현 | 구현 | `app/src/lib/agent/call-watch.ts` — `factSheet`, `(nothing recorded)` |
-| 세션 개시 1회 산출 및 캐시 | 구현 | 동 파일 캐시 구조 |
-| 폴백 배제 | 구현 | 동 파일 — 판정 문맥이 상태 표현으로 한정됨 |
-| 부재 기반 개입 및 한정 표현 | 구현 | 동 파일 `whisperText` |
-| 결정론적 질문 판정 | 구현 | 동 파일 `QUESTION` 정규식, `watchUtterance` |
-| 비대칭 전달 | 구현 | 동 파일 `privateToUserId` 지정 |
-| 통화 선점·요약·반환 | 구현 | `claimCallUtterances` / `writeCallRecap` / `releaseCallUtterances` |
-| 부재 불차단 및 근거 실재 검증 | 구현·검증 | `app/src/lib/agent/guard.ts`, 통합 검증 `AGENT3` |
-| 다자 서명 성립·인격증명·대칭 해산 | 구현 | `contracts/RelationalAgentRegistry.sol` |
-| **관계 × 항목 충족 지도 및 개입 계획부 (청구항 8)** | **미구현 — 확장 실시예** | 상태 표현이 통화 단위 캐시로만 존재. 관계 간 비교·지속 미충족 추적은 미구현 |
-| **기여 비대칭 식별 (청구항 8 일부)** | **미구현 — 확장 실시예** | 출처 참조는 기록되어 있으므로 역추적 자체는 가능 |
+| Per-relationship closed memory, path access control, non-existence response | Implemented·verified | `app/src/lib/okf-acl.ts`, integration test `AGENT2` (third-party document blocking) |
+| Item schema and absence-explicit state representation | Implemented | `app/src/lib/agent/call-watch.ts` — `factSheet`, `(nothing recorded)` |
+| One-time computation at session start and caching | Implemented | Cache structure in the same file |
+| Fallback exclusion | Implemented | Same file — judgment context is confined to the state representation |
+| Absence-based intervention and qualifying expression | Implemented | `whisperText` in the same file |
+| Deterministic question determination | Implemented | `QUESTION` regex in the same file, `watchUtterance` |
+| Asymmetric delivery | Implemented | `privateToUserId` designation in the same file |
+| Call claiming·summarization·release | Implemented | `claimCallUtterances` / `writeCallRecap` / `releaseCallUtterances` |
+| Non-blocking of absence and grounding-existence verification | Implemented·verified | `app/src/lib/agent/guard.ts`, integration test `AGENT3` |
+| Multi-party signature establishment, proof-of-personhood, symmetric dissolution | Implemented | `contracts/RelationalAgentRegistry.sol` |
+| **Relationship × item fulfillment map and intervention planning unit (Claim 8)** | **Not implemented — extended embodiment** | The state representation exists only as a per-call cache. Cross-relationship comparison and persistent-unfulfillment tracking are not implemented |
+| **Contribution-asymmetry identification (part of Claim 8)** | **Not implemented — extended embodiment** | Source references are recorded, so back-tracing itself is possible |
 
-> 청구항 8은 미구현 확장이다. 실시가능성 요건 충족을 위해 본문 4항의 서술 수준을 유지하되,
-> 필요 시 출원 전 최소 구현으로 뒷받침하는 것을 권한다. 다른 청구항은 모두 구현으로 뒷받침된다.
+> Claim 8 is an unimplemented extension. To meet the enablement requirement, the descriptive
+> level of body section 4 should be maintained, and a minimal implementation prior to filing
+> is recommended if needed. All other claims are supported by an implementation.
 
-## 부록 C — 출원 전 확인 필요 사항
+## Appendix C — Items to confirm before filing
 
-1. **선행기술 조사 초점** — "absence as signal", "negative knowledge", "closed-world assumption in dialogue systems", "knowledge gap detection", "unanswerable question detection"이 핵심 검색어. 특히 폐쇄세계 가정(CWA)은 데이터베이스·논리 프로그래밍 분야의 오래된 개념이므로, **본 발명이 CWA를 대화형 에이전트의 개입 판단에 적용한 것과 어떻게 구별되는지** 논증을 준비할 것. 구별점은 (i) 폐쇄 범위가 사회적 단위(관계)와 일치한다는 점, (ii) 그 폐쇄가 당사자 전원의 검증 가능한 합의로 확정된다는 점, (iii) 부재가 실시간 대화 중 비대칭 전달된다는 점이다.
-2. **공지 여부** — 해커톤 발표, 공개 저장소(`ainetwork-ai/relational-agents`), 데모 영상, `memory.ainetwork.ai` 배포가 공지에 해당할 수 있다. **최초 공개 일자를 확정**하고 국내 공지예외주장(12개월) 가능 여부를 확인할 것. 국가별 상이.
-3. **미국 출원 시 §101** — 청구항 1의 "부재 단언 물질화 → 폴백 차단 → 지연 감소"라는 인과가 컴퓨터 기능 자체의 개선임을 명세서가 뒷받침해야 한다. 부록 A 쟁점 2·4와 5-2 측정치를 근거로 사용할 것.
-4. **도면 작성** — 도 1~8 미작성. 특히 **도 2(종래 대비도)**가 발명의 요지를 가장 잘 전달하므로 대표도로 지정했다. 우선 작성할 것.
-5. **분할출원 검토** — 청구항 14~18(폐쇄성 확립)은 별도 발명으로 분할 가능하다. 심사 과정에서 단일성 거절이 나오면 분할하되, 본 출원은 청구항 1 계열을 유지할 것.
+1. **Focus of prior-art search** — "absence as signal," "negative knowledge," "closed-world
+   assumption in dialogue systems," "knowledge gap detection," and "unanswerable question
+   detection" are the key search terms. In particular, since the closed-world assumption
+   (CWA) is a long-standing concept in database and logic-programming fields, prepare an
+   argument for **how this invention's application of CWA to intervention decisions in a
+   conversational agent is distinguished.** The distinguishing points are (i) the scope of
+   closure coincides with a social unit (a relationship), (ii) that closure is fixed by a
+   verifiable consent of all parties, and (iii) absence is asymmetrically delivered during a
+   real-time conversation.
+2. **Public disclosure status** — hackathon presentations, the public repository
+   (`ainetwork-ai/relational-agents`), demo videos, and the `memory.ainetwork.ai` deployment
+   may constitute public disclosure. **Fix the date of first disclosure** and check whether a
+   grace-period exception (12 months) for prior disclosure is available domestically.
+   Varies by country.
+3. **US filing, §101** — the specification must support that the causal chain of Claim 1,
+   "materializing the absence assertion → blocking fallback → reduced latency," is itself an
+   improvement to computer functionality. Use Appendix A issues 2 and 4 and the 5-2
+   measurements as grounds.
+4. **Drawings** — Figs. 1–8 not yet drafted. In particular, **Fig. 2 (comparison with prior
+   art)** conveys the gist of the invention best, hence its designation as the representative
+   drawing. Draft it first.
+5. **Divisional filing review** — Claims 14–18 (closure establishment) can be split off as a
+   separate invention. If a unity objection arises during examination, divide it while
+   keeping this application centered on the Claim 1 family.

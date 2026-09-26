@@ -1,15 +1,15 @@
 // A hover affordance has a SCOPE, and the only way to see the scope is to look
 // at what did NOT light up.
 //
-// The original shows 열기 for the whole row and 댓글/복사 for the one column the
+// The original shows Open for the whole row and Comment/Copy for the one column the
 // pointer is in. We shipped both keyed to the row's hover group, so pointing at
-// any cell lit the 댓글 button in every qualifying cell of that row. Nothing was
+// any cell lit the Comment button in every qualifying cell of that row. Nothing was
 // missing or misplaced — the button I checked was exactly where it belonged —
 // so measuring the hovered cell alone said "correct" every time. The bug lives
 // in the siblings.
 //
 // Hovers cells across one row and asserts, for each: exactly ONE cell shows an
-// action bar and it is the hovered one, while 열기 stays lit throughout.
+// action bar and it is the hovered one, while Open stays lit throughout.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] [USER_ID=…] \
 //     node e2e/db-hover-scope.check.mjs
@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "af7fc488-3666-4935-9eb9-92d23ebe8238"; // Projects
@@ -74,7 +75,7 @@ const failures = [];
 for (const i of withActions) {
   await cells.nth(i).hover();
   await page.waitForTimeout(200);
-  const state = await page.evaluate(() => {
+  const state = await page.evaluate((openLabel) => {
     const row = document.querySelector("[data-hover-probe='1']");
     const lit = [];
     [...row.querySelectorAll(":scope > [data-cellnav]")].forEach((c, idx) => {
@@ -83,7 +84,7 @@ for (const i of withActions) {
       )?.parentElement;
       if (bar && Number(getComputedStyle(bar).opacity) > 0.5) lit.push(idx);
     });
-    const open = row.querySelector("[aria-label='사이드 보기에서 열기']");
+    const open = row.querySelector(`[aria-label='${openLabel}']`);
  // the BUTTON's own painted opacity, not its parent's: reading the parent was
  // reading the cell, which is always 1, and it hid a button that never showed
     const openOpacity = open
@@ -91,20 +92,20 @@ for (const i of withActions) {
           .reduce((acc, n) => acc * Number(getComputedStyle(n).opacity), 1)
       : null;
     return { lit, open: openOpacity };
-  });
+  }, ko("Open in side peek"));
   const ok = state.lit.length === 1 && state.lit[0] === i;
   if (!ok) failures.push(`hover cell #${i}: lit ${JSON.stringify(state.lit)}, expected [${i}]`);
-  if (!(state.open > 0.5)) failures.push(`hover cell #${i}: 열기 not shown (${state.open})`);
-  console.log(`cell #${i} → lit ${JSON.stringify(state.lit)}  열기 ${state.open}`);
+  if (!(state.open > 0.5)) failures.push(`hover cell #${i}: Open not shown (${state.open})`);
+  console.log(`cell #${i} → lit ${JSON.stringify(state.lit)}  Open ${state.open}`);
 }
 
 await browser.close();
 
 if (failures.length) {
-  console.error("\n셀 호버 범위가 틀렸습니다:");
+  console.error("\nThe cell hover scope is wrong:");
   for (const f of failures) console.error(`  ${f}`);
-  console.error("\n댓글/복사는 포인터가 있는 셀 하나만, 열기는 행 전체입니다.");
-  console.error("group-hover/dbrow 로 걸면 그 행의 모든 셀이 같이 켜집니다.\n");
+  console.error("\nComment/Copy belong to the one cell under the pointer only; Open belongs to the whole row.");
+  console.error("Keying them to group-hover/dbrow lights up every cell of that row together.\n");
   process.exit(1);
 }
-console.log(`\n호버 범위 정상 — ${withActions.length}개 셀 각각 자기 것만 켬 (행 ${total}칸)`);
+console.log(`\nHover scope OK — each of ${withActions.length} cells lights only its own (row has ${total} cells)`);

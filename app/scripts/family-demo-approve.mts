@@ -43,7 +43,7 @@ const login = await fetch(`${AIN}/api/wallet/login`, {
 });
 const aSession = login.headers.getSetCookie().find((c) => c.startsWith("aindrive_session="))!.split(";")[0].split("=").slice(1).join("=");
 
-// the invite page: "aindrive로 승인하기" → approve on aindrive → signed in here
+// the invite page: "Approve with aindrive" → approve on aindrive → signed in here
 const jar = new Map<string, string>();
 const take = (r: Response) => {
   for (const c of r.headers.getSetCookie()) {
@@ -55,7 +55,7 @@ const take = (r: Response) => {
 const cookie = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
 const info = await (await fetch(`${APP}/api/family-invite/${token}`)).json();
 if (info.error) throw new Error(`invite: ${info.error}`);
-console.log(`📱 ${info.inviter}님이 「${info.teamspace.name}」에 초대했어요 (${info.name})`);
+console.log(`📱 ${info.inviter} invited you to 「${info.teamspace.name}」 (${info.name})`);
 const start = await fetch(`${APP}/api/auth/aindrive/start`, { method: "POST" });
 take(start);
 const { pairingId, approveUrl } = await start.json();
@@ -66,7 +66,7 @@ const ap = await fetch(`${AIN}/api/auth/cli/approve`, {
   body: JSON.stringify({ linkId }),
 });
 if (!ap.ok) throw new Error(`aindrive approval failed (${ap.status})`);
-console.log("✅ aindrive에서 승인");
+console.log("✅ approved on aindrive");
 for (let i = 0; i < 15; i++) {
   const p = await fetch(`${APP}/api/auth/aindrive/poll`, { method: "POST", headers: { "content-type": "application/json", cookie: cookie() }, body: JSON.stringify({ pairingId }) });
   take(p);
@@ -75,7 +75,7 @@ for (let i = 0; i < 15; i++) {
 }
 const joined = await fetch(`${APP}/api/family-invite/${token}`, { method: "POST", headers: { cookie: cookie() } });
 if (!joined.ok) throw new Error(`join failed (${joined.status}): ${await joined.text()}`);
-console.log("👪 가족 공간에 함께하게 됐어요");
+console.log("👪 joined the family space");
 const cats = (await (await fetch(`${APP}/api/family-invite/${token}/categories`, { headers: { cookie: cookie() } })).json()) as {
   categories: { key: string; label: string; defaultOn: boolean; folders: { driveId: string; root: string }[] }[];
 };
@@ -88,5 +88,5 @@ const shared = await (
     body: JSON.stringify({ folders }),
   })
 ).json();
-console.log(`📂 공유: ${(shared.shared ?? []).join(", ")}${shared.failed?.length ? ` (실패: ${JSON.stringify(shared.failed)})` : ""}`);
+console.log(`📂 shared: ${(shared.shared ?? []).join(", ")}${shared.failed?.length ? ` (failed: ${JSON.stringify(shared.failed)})` : ""}`);
 process.exit(0);

@@ -4,11 +4,15 @@ import { db } from "@/lib/db";
 import { chatMessages, chatRoomBots, chatRoomMembers, chatRooms, users } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import type { GiftSpec } from "@/lib/gift";
+import { getT } from "@/i18n/server";
 
 /** Tells the family: in every room of the workspace where both the payer and
- *  the maker are, the room's agent says the gift was opened with pocket money. */
+ *  the maker are, the room's agent says the gift was opened with pocket money.
+ *  Called from request handlers only; the text is in the payer's saved
+ *  language, else the request's (cookie → DEFAULT_LOCALE → browser → ko). */
 export async function announceGift(workspaceId: string, payerId: string, spec: GiftSpec, receipt: string): Promise<void> {
-  const [payer] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, payerId));
+  const [payer] = await db.select({ name: users.displayName, language: users.language }).from(users).where(eq(users.id, payerId));
+  const t = await getT(payer?.language);
   const rooms = await db.select({ id: chatRooms.id }).from(chatRooms).where(eq(chatRooms.workspaceId, workspaceId));
   for (const r of rooms) {
     const members = (
@@ -25,7 +29,13 @@ export async function announceGift(workspaceId: string, payerId: string, spec: G
     await db.insert(chatMessages).values({
       roomId: r.id,
       authorId: bot.agent,
-      text: `🎁 ${payer?.name ?? ""}께서 ${spec.recipientName}에게 용돈 ${spec.amountKrw.toLocaleString("ko-KR")}원을 보내고 「${spec.title}」을 여셨어요. (x402 결제 · 영수증 ${receipt})`,
+      text: t("🎁 {payer} sent {recipient} {amount} in pocket money and opened “{title}”. (x402 payment · receipt {receipt})", {
+        payer: payer?.name ?? "",
+        recipient: spec.recipientName,
+        amount: t("₩{n}", { n: spec.amountKrw.toLocaleString("ko-KR") }),
+        title: spec.title,
+        receipt,
+      }),
     });
     await publishToRoomMembers(r.id, { type: "dm-message", clientId: `agent:${bot.agent}` });
   }

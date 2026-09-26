@@ -18,7 +18,7 @@ const DB_ID = process.env.DB_ID ?? "cc027bcc-f38e-4521-9e63-731371148eab"; // Pr
 const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
 
 const G = JSON.parse(
-  fs.readFileSync(new URL("./fixtures/notion-view-columns.json", import.meta.url), "utf8"),
+  fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-view-columns.json", import.meta.url), "utf8"),
 );
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret =
@@ -35,7 +35,7 @@ const props = data.properties ?? data.database?.properties ?? [];
 const views = data.views ?? data.database?.views ?? [];
 const view = views.find((v) => v.name === G.view);
 if (!view) {
-  console.error(`뷰 "${G.view}"가 없습니다 (있는 것: ${views.map((v) => v.name).join(", ")})`);
+  console.error(`no view "${G.view}" (present: ${views.map((v) => v.name).join(", ")})`);
   process.exit(1);
 }
 const name = Object.fromEntries(props.map((p) => [p.id, p.name]));
@@ -48,20 +48,21 @@ const ours = (view.config?.propertyOrder ?? [])
 const diffs = [];
 G.columns.forEach((want, i) => {
   const got = ours[i];
-  if (!got) return diffs.push(`#${i} ${want.name}: 우리 (없음) / 노션 ${want.width}px`);
-  if (got.name !== want.name) diffs.push(`#${i} 순서: 우리 ${got.name} / 노션 ${want.name}`);
+  if (!got) return diffs.push(`#${i} ${want.name}: ours (missing) / Notion ${want.width}px`);
+  if (got.name !== want.name) diffs.push(`#${i} order: ours ${got.name} / Notion ${want.name}`);
   else if (Math.round(Number(got.width)) !== want.width)
-    diffs.push(`${want.name} 폭: 우리 ${got.width} / 노션 ${want.width}`);
+    diffs.push(`${want.name} width: ours ${got.width} / Notion ${want.width}`);
 });
 if (ours.length > G.columns.length)
-  diffs.push(`보이는 열이 더 많습니다: ${ours.slice(G.columns.length).map((c) => c.name).join(", ")}`);
+  diffs.push(`more visible columns than the original: ${ours.slice(G.columns.length).map((c) => c.name).join(", ")}`);
 
 if (diffs.length) {
-  console.error("\n  ┌─ 표의 열이 원본과 다릅니다 ───────────────────────────────");
+  console.error("\n  ┌─ The table columns differ from the original ─────────────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-view-columns.json");
+  console.error("  │ reference: src/i18n/content/e2e-fixtures/notion-view-columns.json");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`열 ${ours.length}개 순서·폭 모두 원본과 일치 (${G.view})`);
+console.log(`all ${ours.length} columns match the original in order and width (${G.view})`);
+

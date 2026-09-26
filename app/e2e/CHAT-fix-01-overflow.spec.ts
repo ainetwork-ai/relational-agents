@@ -1,8 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demoLogin } from "./helpers";
+import { CHAT_FIX_01_OVERFLOW as C } from "../src/i18n/content/e2e";
 
-// 요구사항 1: 채팅이 길어져도(긴 URL/무공백 토큰/코드) 페이지 가로 스크롤이 생기지 않는다.
-// 메시지는 API로 시드(전송 UI 타이밍 flakiness 제거)한 뒤 렌더 상태에서 가로 스크롤을 검증한다.
+// Requirement 1: even when the chat gets long (long URLs / tokens without spaces / code), the page
+// gets no horizontal scroll. Messages are seeded through the API (removing send-UI timing
+// flakiness), then horizontal scroll is checked on the rendered state.
 
 test.beforeEach(async ({ context }) => {
   await context.addCookies([
@@ -27,7 +29,7 @@ async function noHorizontalPageScroll(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-test("CHAT-FIX-1010 긴 무공백 토큰 + URL 메시지 → 페이지 가로 스크롤 없음", async ({ page }) => {
+test("CHAT-FIX-1010 long spaceless token + URL message → no horizontal page scroll", async ({ page }) => {
   await demoLogin(page);
   const longUrl = "https://example.com/" + "segment-".repeat(60) + "end";
   const id = await seedChat(page, `${"x".repeat(400)} ${longUrl}`);
@@ -36,18 +38,18 @@ test("CHAT-FIX-1010 긴 무공백 토큰 + URL 메시지 → 페이지 가로 �
   await noHorizontalPageScroll(page);
 });
 
-test("CHAT-FIX-1011 좁은 뷰포트(모바일)에서도 가로 스크롤 없음", async ({ page }) => {
+test("CHAT-FIX-1011 no horizontal scroll on a narrow (mobile) viewport either", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await demoLogin(page);
-  const id = await seedChat(page, "초장문 " + "가나다라마".repeat(120));
+  const id = await seedChat(page, C.longPrefix + C.longUnit.repeat(120));
   await page.goto(`/chat/${id}`, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("chat-msg-user").last()).toBeVisible({ timeout: 15_000 });
   await noHorizontalPageScroll(page);
 });
 
-test("CHAT-FIX-1012 코드블록/표 렌더 + 페이지 가로 스크롤 없음", async ({ page }) => {
+test("CHAT-FIX-1012 code block/table render + no horizontal page scroll", async ({ page }) => {
   await demoLogin(page);
-  const id = await seedChat(page, "코드 보여줘");
+  const id = await seedChat(page, C.showCode);
   await page.goto(`/chat/${id}`, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("chat-msg-content").last().locator("pre code").first()).toBeVisible({
     timeout: 15_000,

@@ -1,17 +1,17 @@
-// 들여쓰기(중첩) 패리티 — 우리 앱이 원본과 같게 움직이는지.
+// Indentation (nesting) parity — does our app behave the same as the original.
 //
-// 기대값은 전부 2026-09-10 에 app.notion.com 에서 직접 잰 것이고, 시나리오 이름은
-// docs/notion-indent.md 의 표와 같다(원 데이터: scratchpad/nind-*.jsonl).
-// "고쳤다"의 근거는 이 스크립트의 exit 0 이다.
+// Every expected value was measured directly on app.notion.com on 2026-09-10, and the scenario names
+// match the table in docs/notion-indent.md (raw data: scratchpad/nind-*.jsonl).
+// The evidence for "fixed" is this script's exit 0.
 //
 //   [BASE_URL=http://localhost:3110] [ONLY=enter_with_children,shift_tab_middle]
 //   node e2e/indent.check.mjs
 //
-// 왜 DOM 과 저장을 같이 보나: 화면에서는 들여써졌는데 저장은 안 된 상태가 실제로
-// 가능하다(에디터는 트랜잭션 큐로 따로 저장한다). 그래서 키를 누른 뒤 DOM 트리와
-// GET /api/pages/<id>/blocks 의 parentBlockId·position 을 함께 본다.
+// Why look at the DOM and the save together: "indented on screen but not saved" is a real
+// possible state (the editor saves separately through a transaction queue). So after a keypress we look at the DOM tree
+// and at the parentBlockId·position from GET /api/pages/<id>/blocks together.
 //
-// 페이지는 시나리오마다 새로 만들고 끝에 전부 보관함으로 보낸다(dev 데이터는 버려도 됨).
+// A new page per scenario, all archived at the end (dev data is disposable).
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
@@ -41,7 +41,7 @@ const contentOf = (type, text) =>
   : { text };
 
 const createdPages = [];
-/** seed: [{ k, type?, text?, parent? }] — parent 는 앞에 나온 k */
+/** seed: [{ k, type?, text?, parent? }] — parent is an earlier k */
 async function build(name, seed) {
   const res = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: `indent.check ${name}` }) }).then((r) => r.json());
   const pageId = res.page?.id ?? res.id;
@@ -81,7 +81,7 @@ async function open(p) {
   await tab.waitForTimeout(600);
 }
 
-/** 캐럿 놓기 — 줄바꿈에 흔들리지 않게 Range 로 정확히 */
+/** Place the caret — exactly, with a Range, so line wrapping does not shake it */
 const caret = (id, where) =>
   tab.evaluate(([id, where]) => {
     const el = document.querySelector(`[data-testid="block-editable-${id}"]`);
@@ -99,9 +99,9 @@ const caret = (id, where) =>
     return { placed: document.activeElement === el, offset: off, len };
   }, [id, where]);
 
-/** 캐럿을 놓되 **글자가 DOM 에 올라온 뒤**에 놓는다. 블록이 아직 비어 있는 순간에
- *  놓으면 `where: "end"` 가 offset 0 이 되어(자식 노드가 없다) 시나리오가 통째로
- *  엉뚱한 걸 잰다 — Enter 가 맨 앞에서 갈라져 빈 줄이 앞에 남는 식으로. */
+/** Place the caret, but **after the text is in the DOM**. Placing it while the block is still empty
+ *  makes `where: "end"` offset 0 (there are no child nodes) and the scenario measures the wrong thing
+ *  entirely — e.g. Enter splits at the very start and leaves an empty line in front. */
 const caretReady = async (id, where, minLen = 1) => {
   let c = await caret(id, where);
   for (let k = 0; k < 15 && (!c.placed || (c.len ?? 0) < minLen); k++) {
@@ -133,7 +133,7 @@ const caretNow = () =>
     };
   });
 
-/** 화면 트리: 깊이·들여쓰기 px·마커·텍스트 */
+/** The on-screen tree: depth·indent px·marker·text */
 const domTree = () =>
   tab.evaluate(() => {
     const root = document.querySelector('[data-testid="editor-root"]');
@@ -155,16 +155,16 @@ const domTree = () =>
     });
   });
 
-/** 저장된 원본 블록 그대로 (content 까지 봐야 하는 검사용) */
+/** The saved raw blocks as-is (for checks that need to look at content) */
 async function blocksOf(p) {
   const r = await fetch(`${BASE}/api/pages/${p.pageId}/blocks`, { headers: H }).then((x) => x.json()).catch(() => ({}));
   return r.blocks ?? [];
 }
 
-/** 저장된 진실 — 같은 답이 두 번 연속 나올 때까지.
- *  단, **처음 두 번은 같아도 믿지 않는다**: 저장은 500ms 배치로 나가므로 방금 누른 키의
- *  트랜잭션이 아직 큐에 있는 동안 "직전 상태"가 두 번 연속 같게 읽힌다(halo_tab 이
- *  Shift+Tab 전의 들여쓴 트리를 저장 결과로 읽고 실패했다). */
+/** The saved truth — until the same answer comes twice in a row.
+ *  But **the first two do not count even if equal**: saves go out in 500ms batches, so while the
+ *  transaction of the key just pressed is still queued, the "previous state" reads the same twice in a row (halo_tab
+ *  read the indented tree from before Shift+Tab as the save result and failed). */
 async function persisted(p) {
   let prev = null, rows = [];
   for (let i = 0; i < 20; i++) {
@@ -189,10 +189,10 @@ async function persisted(p) {
   return rows;
 }
 
-/** 화면 모양을 한 줄로 — "A@0 B@1" (텍스트가 있으면 텍스트, 없으면 타입) */
+/** The on-screen shape as one line — "A@0 B@1" (the text if any, otherwise the type) */
 const shape = (tree) => tree.map((b) => `${b.text || b.type}@${b.depth}`).join(" ");
-/** 저장된 트리를 문서 순서로 — position 은 형제 목록 안에서만 1..n 이라
- *  API 가 주는 순서(평평한 정렬)로는 부모와 자식이 섞인다 */
+/** The saved tree in document order — position is 1..n only within a sibling list, so
+ *  the order the API gives (a flat sort) mixes parents and children */
 const pshape = (rows) => {
   const kids = new Map();
   for (const r of rows) {
@@ -216,7 +216,7 @@ const dump = (tree) => tree.map((b) => `${b.type}@d${b.depth} pad${b.padLeft} ${
 const scenarios = {};
 const scenario = (name, fn) => { scenarios[name] = fn; };
 
-// ── 1. Tab 은 캐럿 위치와 무관하게 블록을 들여쓰고, 캐럿은 그 자리에 남는다 ─────
+// ── 1. Tab indents the block regardless of the caret position, and the caret stays put ──
 scenario("tab_caret", async () => {
   const p = await build("tab_caret", [{ k: "A" }, { k: "B", text: "BBBBBB" }]);
   const before = await caret(p.ids.B, 3);
@@ -224,13 +224,13 @@ scenario("tab_caret", async () => {
   await tab.waitForTimeout(400);
   const t = await domTree();
   const c = await caretNow();
-  check("Tab: 블록이 한 단 들어간다", shape(t) === "A@0 BBBBBB@1", dump(t));
-  check("Tab: 캐럿이 같은 글자에 남는다", c.offset === before.offset && c.inEditable, `우리 ${c.offset} / 노션 ${before.offset}`);
+  check("Tab: the block goes in one level", shape(t) === "A@0 BBBBBB@1", dump(t));
+  check("Tab: the caret stays on the same character", c.offset === before.offset && c.inEditable, `ours ${c.offset} / Notion ${before.offset}`);
   const rows = await persisted(p);
-  check("Tab: 저장에도 부모가 남는다", rows.find((r) => r.key === "B")?.parentKey === "A", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("Tab: the parent is saved too", rows.find((r) => r.key === "B")?.parentKey === "A", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
-// ── 2. 들여쓴 뒤 Enter — 아래로 계속 같은 깊이 ───────────────────────────────
+// ── 2. Enter after indenting — the same depth continues below ────────────────
 scenario("enter_keeps_depth", async () => {
   const p = await build("enter_keeps_depth", [{ k: "A" }, { k: "B" }]);
   await caret(p.ids.B, "end");
@@ -242,12 +242,12 @@ scenario("enter_keeps_depth", async () => {
   await tab.keyboard.type("D", { delay: 40 });
   await tab.waitForTimeout(400);
   const t = await domTree();
-  check("Enter: 들여쓴 블록 아래가 계속 같은 깊이", shape(t) === "A@0 B@1 C@1 D@1", dump(t));
+  check("Enter: below an indented block stays at the same depth", shape(t) === "A@0 B@1 C@1 D@1", dump(t));
   const rows = await persisted(p);
-  check("Enter: 저장도 같은 부모", pshape(rows) === "A@0 B@1 C@1 D@1", pshape(rows));
+  check("Enter: saved with the same parent too", pshape(rows) === "A@0 B@1 C@1 D@1", pshape(rows));
 });
 
-// ── 3. 들여쓴 빈 문단에서 Enter — 내어쓰지 않는다(원본과 같음) ───────────────
+// ── 3. Enter in an indented empty paragraph — does not outdent (same as the original) ──
 scenario("enter_empty_paragraph", async () => {
   const p = await build("enter_empty_paragraph", [{ k: "A" }, { k: "B" }]);
   await caret(p.ids.B, "end");
@@ -258,10 +258,10 @@ scenario("enter_empty_paragraph", async () => {
   await tab.keyboard.press("Enter");
   await tab.waitForTimeout(400);
   const t = await domTree();
-  check("빈 문단 Enter: 같은 깊이의 빈 줄이 하나 더", shape(t) === "A@0 B@1 paragraph@1 paragraph@1", dump(t));
+  check("empty paragraph Enter: one more empty line at the same depth", shape(t) === "A@0 B@1 paragraph@1 paragraph@1", dump(t));
 });
 
-// ── 4. 들여쓴 빈 리스트 항목에서 Enter — 한 단 내려가고 리스트를 유지한다 ────
+// ── 4. Enter in an indented empty list item — goes out one level and stays a list ──
 scenario("enter_empty_list", async () => {
   const p = await build("enter_empty_list", [
     { k: "A", type: "bulleted_list", text: "a" },
@@ -270,19 +270,19 @@ scenario("enter_empty_list", async () => {
   await caret(p.ids.B, "end");
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(250);
-  await tab.keyboard.press("Enter"); // 같은 깊이의 빈 항목
+  await tab.keyboard.press("Enter"); // an empty item at the same depth
   await tab.waitForTimeout(300);
   const mid = await domTree();
-  check("빈 항목이 같은 깊이로 생긴다", shape(mid) === "a@0 b@1 bulleted_list@1", dump(mid));
-  await tab.keyboard.press("Enter"); // 빈 항목 → 한 단 내림
+  check("an empty item appears at the same depth", shape(mid) === "a@0 b@1 bulleted_list@1", dump(mid));
+  await tab.keyboard.press("Enter"); // empty item → out one level
   await tab.waitForTimeout(400);
   const t = await domTree();
   const empty = t.find((b) => b.text === "");
-  check("빈 항목 Enter: 한 단 내려간다", empty?.depth === 0, dump(t));
-  check("빈 항목 Enter: 리스트를 유지한다", empty?.type === "bulleted_list", empty?.type ?? "?");
+  check("empty item Enter: goes out one level", empty?.depth === 0, dump(t));
+  check("empty item Enter: stays a list", empty?.type === "bulleted_list", empty?.type ?? "?");
 });
 
-// ── 5. 자식 있는 블록 끝에서 Enter — 새 블록이 바로 아래, 자식은 새 블록에게 ──
+// ── 5. Enter at the end of a block with children — new block right below, children go to the new block ──
 scenario("enter_with_children", async () => {
   const p = await build("enter_with_children", [{ k: "A" }, { k: "K", parent: "A" }, { k: "Z" }]);
   await caret(p.ids.A, "end");
@@ -290,20 +290,20 @@ scenario("enter_with_children", async () => {
   await tab.keyboard.type("X", { delay: 40 });
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("자식 있는 블록의 Enter: 새 줄이 바로 아래, 자식이 그 아래로", shape(t) === "A@0 X@0 K@1 Z@0", dump(t));
+  check("Enter on a block with children: new line right below, children under it", shape(t) === "A@0 X@0 K@1 Z@0", dump(t));
   const rows = await persisted(p);
   const k = rows.find((r) => r.key === "K");
-  check("자식의 부모가 새 블록으로 저장된다", k?.parentKey === "NEW", JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
+  check("the children's parent is saved as the new block", k?.parentKey === "NEW", JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
 });
 
-// ── 6. 중간 분할에서도 자식은 뒤쪽(새 블록)으로 ─────────────────────────────
+// ── 6. A split in the middle also sends the children to the back piece (the new block) ──
 scenario("split_with_children", async () => {
   const p = await build("split_with_children", [{ k: "A", text: "AAAA" }, { k: "K", parent: "A" }]);
   await caret(p.ids.A, "mid");
   await tab.keyboard.press("Enter");
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("중간 분할: 앞·뒤 같은 깊이, 자식은 뒤쪽", shape(t) === "AA@0 AA@0 K@1", dump(t));
+  check("split in the middle: front·back at the same depth, children with the back", shape(t) === "AA@0 AA@0 K@1", dump(t));
 });
 
 // ── 7~9. Shift+Tab ─────────────────────────────────────────────────────────
@@ -314,11 +314,11 @@ scenario("shift_tab_leaf", async () => {
   await tab.waitForTimeout(450);
   const t = await domTree();
   const c = await caretNow();
-  check("Shift+Tab: 한 단만 내려가고 부모 바로 뒤에 선다", shape(t) === "A@0 B@1 C@1", dump(t));
-  check("Shift+Tab: 캐럿이 같은 글자에 남는다", c.offset === before.offset, `우리 ${c.offset} / 노션 ${before.offset}`);
+  check("Shift+Tab: goes out only one level and lands right after the parent", shape(t) === "A@0 B@1 C@1", dump(t));
+  check("Shift+Tab: the caret stays on the same character", c.offset === before.offset, `ours ${c.offset} / Notion ${before.offset}`);
   const rows = await persisted(p);
   const positions = rows.filter((r) => r.parentKey === "A").map((r) => r.position);
-  check("Shift+Tab: 형제 position 이 겹치지 않는다", new Set(positions).size === positions.length, JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("Shift+Tab: sibling positions do not collide", new Set(positions).size === positions.length, JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
 scenario("shift_tab_middle_adopts", async () => {
@@ -329,10 +329,10 @@ scenario("shift_tab_middle_adopts", async () => {
   await tab.keyboard.press("Shift+Tab");
   await tab.waitForTimeout(500);
   const t = await domTree();
- // 원본(T6b): A > B1, 그리고 B2 가 A 옆으로 나오면서 B3 를 자식으로 데려간다
-  check("Shift+Tab(가운데 자식): 아래 형제를 자식으로 데려간다", shape(t) === "A@0 B1@1 B2@0 B3@1", dump(t));
+ // original (T6b): A > B1, and B2 comes out next to A taking B3 along as its child
+  check("Shift+Tab (middle child): takes the siblings below as children", shape(t) === "A@0 B1@1 B2@0 B3@1", dump(t));
   const rows = await persisted(p);
-  check("저장도 같은 트리", rows.find((r) => r.key === "B3")?.parentKey === "B2", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("saved as the same tree too", rows.find((r) => r.key === "B3")?.parentKey === "B2", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
 scenario("shift_tab_with_children", async () => {
@@ -341,25 +341,25 @@ scenario("shift_tab_with_children", async () => {
   await tab.keyboard.press("Shift+Tab");
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("Shift+Tab(자식 있음): 자식은 그대로 아래에", shape(t) === "A@0 B@0 C@1", dump(t));
+  check("Shift+Tab (with children): the children stay below", shape(t) === "A@0 B@0 C@1", dump(t));
   const rows = await persisted(p);
   const tops = rows.filter((r) => r.parentKey === null).map((r) => r.position);
-  check("최상위 position 이 겹치지 않는다", new Set(tops).size === tops.length, JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("top-level positions do not collide", new Set(tops).size === tops.length, JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
-// ── 10~12. 맨 앞 Backspace ─────────────────────────────────────────────────
+// ── 10~12. Backspace at the very start ─────────────────────────────────────
 scenario("backspace_indented_paragraph", async () => {
   const p = await build("backspace_indented_paragraph", [{ k: "A" }, { k: "B", parent: "A" }]);
   await caret(p.ids.B, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
   const t1 = await domTree();
-  check("들여쓴 문단 맨 앞 Backspace: 먼저 한 단 내려간다", shape(t1) === "A@0 B@0", dump(t1));
+  check("Backspace at the start of an indented paragraph: first goes out one level", shape(t1) === "A@0 B@0", dump(t1));
   await caret(p.ids.B, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
   const t2 = await domTree();
-  check("깊이 0 에서는 위 블록과 합쳐진다", shape(t2) === "AB@0", dump(t2));
+  check("at depth 0 it merges with the block above", shape(t2) === "AB@0", dump(t2));
 });
 
 scenario("backspace_indented_list", async () => {
@@ -372,12 +372,12 @@ scenario("backspace_indented_list", async () => {
   await tab.waitForTimeout(450);
   const t1 = await domTree();
   const b1 = t1.find((x) => x.text === "bb");
-  check("들여쓴 리스트 맨 앞 Backspace: 먼저 글머리만 떨어진다", b1?.type === "paragraph" && b1?.depth === 1, dump(t1));
+  check("Backspace at the start of an indented list: first only the bullet drops", b1?.type === "paragraph" && b1?.depth === 1, dump(t1));
   await caret(p.ids.B, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
   const t2 = await domTree();
-  check("그다음 한 단 내려간다", t2.find((x) => x.text === "bb")?.depth === 0, dump(t2));
+  check("then goes out one level", t2.find((x) => x.text === "bb")?.depth === 0, dump(t2));
 });
 
 scenario("backspace_lifts_children", async () => {
@@ -386,13 +386,13 @@ scenario("backspace_lifts_children", async () => {
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(500);
   const t = await domTree();
- // 원본(T28): 'AB' 로 합쳐지고 K 는 최상위로 올라와 바로 뒤에 선다
-  check("합쳐질 때 자식이 사라지지 않는다", shape(t) === "AB@0 K@0 Z@0", dump(t));
+ // original (T28): merges into 'AB' and K rises to the top level, right after it
+  check("children do not vanish on merge", shape(t) === "AB@0 K@0 Z@0", dump(t));
   const rows = await persisted(p);
-  check("자식이 고아(보이지 않는 블록)로 남지 않는다", rows.every((r) => r.parentKey === null), JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
+  check("children are not left as orphans (invisible blocks)", rows.every((r) => r.parentKey === null), JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
 });
 
-// ── 13. 거절되는 Tab ───────────────────────────────────────────────────────
+// ── 13. Rejected Tabs ───────────────────────────────────────────────────────
 scenario("tab_refused", async () => {
   const p = await build("tab_refused", [
     { k: "A" }, { k: "B", parent: "A" },
@@ -404,20 +404,20 @@ scenario("tab_refused", async () => {
   await caret(p.ids.A, "end");
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(300);
-  check("첫 블록에서 Tab: 아무 일도 없다", shape(await domTree()) === shape(first), dump(await domTree()));
+  check("Tab on the first block: nothing happens", shape(await domTree()) === shape(first), dump(await domTree()));
   await caret(p.ids.B, "end");
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(300);
-  check("첫 자식에서 Tab: 아무 일도 없다", (await domTree()).find((x) => x.text === "B")?.depth === 1);
-  for (const [who, label] of [["PH", "제목"], ["PD", "구분선"], ["PC", "코드"]]) {
+  check("Tab on the first child: nothing happens", (await domTree()).find((x) => x.text === "B")?.depth === 1);
+  for (const [who, label] of [["PH", "a heading"], ["PD", "a divider"], ["PC", "code"]]) {
     await caret(p.ids[who], "end");
     await tab.keyboard.press("Tab");
     await tab.waitForTimeout(300);
-    check(`앞 형제가 ${label}이면 들여쓰지 않는다`, (await domTree()).find((x) => x.text === who)?.depth === 0, dump(await domTree()));
+    check(`no indent when the previous sibling is ${label}`, (await domTree()).find((x) => x.text === who)?.depth === 0, dump(await domTree()));
   }
 });
 
-// ── 14. 코드 블록의 Tab 은 탭 문자 ─────────────────────────────────────────
+// ── 14. Tab in a code block is a tab character ─────────────────────────────
 scenario("code_tab_inserts_tab", async () => {
   const p = await build("code_tab_inserts_tab", [{ k: "X" }, { k: "C", type: "code", text: "ab" }]);
   await caret(p.ids.C, 0);
@@ -425,12 +425,12 @@ scenario("code_tab_inserts_tab", async () => {
   await tab.waitForTimeout(450);
   const t = await domTree();
   const code = t.find((b) => b.type === "code");
-  check("코드 안 Tab: 블록은 그대로", code?.depth === 0, dump(t));
+  check("Tab in code: the block stays", code?.depth === 0, dump(t));
   const text = await tab.evaluate((id) => document.querySelector(`[data-testid="block-editable-${id}"]`)?.innerText ?? "", p.ids.C);
-  check("코드 안 Tab: 탭 문자가 들어간다", text.includes("\t"), JSON.stringify(text.slice(0, 12)));
+  check("Tab in code: a tab character is inserted", text.includes("\t"), JSON.stringify(text.slice(0, 12)));
 });
 
-// ── 15. 블록(halo) 선택에서 Tab / Shift+Tab — 선택을 유지한다 ──────────────
+// ── 15. Tab / Shift+Tab with a block (halo) selection — keeps the selection ──
 scenario("halo_tab", async () => {
   const p = await build("halo_tab", [{ k: "H0" }, { k: "H1" }, { k: "H2" }]);
   await caret(p.ids.H1, "end");
@@ -439,25 +439,25 @@ scenario("halo_tab", async () => {
   await tab.keyboard.press("Shift+ArrowDown");
   await tab.waitForTimeout(250);
   const sel = (await domTree()).filter((b) => b.selected).map((b) => b.text);
-  check("두 블록이 선택된다", sel.join(",") === "H1,H2", JSON.stringify(sel));
+  check("two blocks are selected", sel.join(",") === "H1,H2", JSON.stringify(sel));
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("블록 선택 Tab: 선택한 블록이 모두 한 단 들어간다", shape(t) === "H0@0 H1@1 H2@1", dump(t));
-  check("블록 선택 Tab: 선택이 유지된다", t.filter((b) => b.selected).length === 2, JSON.stringify(t.filter((b) => b.selected).map((b) => b.text)));
+  check("block selection Tab: every selected block goes in one level", shape(t) === "H0@0 H1@1 H2@1", dump(t));
+  check("block selection Tab: the selection is kept", t.filter((b) => b.selected).length === 2, JSON.stringify(t.filter((b) => b.selected).map((b) => b.text)));
   await tab.keyboard.press("Shift+Tab");
   await tab.waitForTimeout(500);
   const t2 = await domTree();
-  check("블록 선택 Shift+Tab: 모두 한 단 나온다", shape(t2) === "H0@0 H1@0 H2@0", dump(t2));
+  check("block selection Shift+Tab: all come out one level", shape(t2) === "H0@0 H1@0 H2@0", dump(t2));
   const rows = await persisted(p);
-  check("저장도 최상위로 돌아온다", rows.every((r) => r.parentKey === null), JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
+  check("the save returns to top level too", rows.every((r) => r.parentKey === null), JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
 });
 
-// ── 16. 두 블록에 걸친 텍스트 선택 + Tab — 둘 다, 선택도 유지 ──────────────
+// ── 16. Text selection across two blocks + Tab — both, and the selection is kept ──
 scenario("textsel_tab", async () => {
   const p = await build("textsel_tab", [{ k: "P0" }, { k: "P1" }, { k: "P2" }]);
- // 두 블록의 글자가 DOM 에 올라온 뒤에 범위를 만든다 — 자식 노드가 없는 순간에 만들면
- // `setEnd(el, 1)` 이 IndexSizeError 로 죽어 시나리오가 통째로 실패한다
+ // build the range after both blocks' text is in the DOM — building it while there are no child nodes
+ // makes `setEnd(el, 1)` die with IndexSizeError and the whole scenario fails
   await tab.waitForFunction(
     ([a, b]) =>
       [a, b].every((id) => {
@@ -479,16 +479,16 @@ scenario("textsel_tab", async () => {
     s.addRange(r);
   }, [p.ids.P1, p.ids.P2]);
   const before = await caretNow();
-  check("두 블록에 걸친 선택이 만들어졌다", before.selLen > 0, JSON.stringify(before));
+  check("a selection spanning two blocks was made", before.selLen > 0, JSON.stringify(before));
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(600);
   const t = await domTree();
-  check("텍스트 선택 Tab: 걸친 블록이 모두 들어간다", shape(t) === "P0@0 P1@1 P2@1", dump(t));
+  check("text selection Tab: every spanned block goes in", shape(t) === "P0@0 P1@1 P2@1", dump(t));
   const after = await caretNow();
-  check("텍스트 선택 Tab: 선택이 남는다", after.selLen === before.selLen, `우리 ${after.selLen} / 노션 ${before.selLen}`);
+  check("text selection Tab: the selection remains", after.selLen === before.selLen, `ours ${after.selLen} / Notion ${before.selLen}`);
 });
 
-// ── 17. 새로 고쳐도 남는다 ─────────────────────────────────────────────────
+// ── 17. Survives a reload ──────────────────────────────────────────────────
 scenario("survives_reload", async () => {
   const p = await build("survives_reload", [{ k: "A" }, { k: "B" }, { k: "C" }]);
   await caret(p.ids.B, "end");
@@ -501,10 +501,10 @@ scenario("survives_reload", async () => {
   await persisted(p);
   await open(p);
   const t = await domTree();
-  check("새로 고침 뒤에도 같은 트리", shape(t) === beforeShape && shape(t) === "A@0 B@1 C@1", `${shape(t)} / 저장 전 ${beforeShape}`);
+  check("the same tree after a reload", shape(t) === beforeShape && shape(t) === "A@0 B@1 C@1", `${shape(t)} / before save ${beforeShape}`);
 });
 
-// ── 18. 기하와 마커 — 깊이마다 얼마나 들어가고 마커가 어떻게 바뀌나 ──────────
+// ── 18. Geometry and markers — how far each depth goes in and how the marker changes ──
 scenario("geometry_and_markers", async () => {
   const chain = (type, n, prefix) =>
     Array.from({ length: n }, (_, i) => ({ k: `${prefix}${i}`, type, parent: i ? `${prefix}${i - 1}` : undefined }));
@@ -527,64 +527,64 @@ scenario("geometry_and_markers", async () => {
       });
     });
 
- // 문단 사슬 — 한 단 30px (원본 366→396→426…)
+ // paragraph chain — 30px per level (original 366→396→426…)
   await build("geo_paragraph", chain("paragraph", 4, "P"));
   let r = await boxes();
-  check("문단 아래 문단: 한 단 30px", r.map((x) => x.padL).join(",") === "0,30,60,90", JSON.stringify(r.map((x) => x.padL)));
+  check("paragraph under paragraph: 30px per level", r.map((x) => x.padL).join(",") === "0,30,60,90", JSON.stringify(r.map((x) => x.padL)));
 
- // 글머리 사슬 — 한 단 32px, 마커 • ◦ ▪ •
+ // bullet chain — 32px per level, markers • ◦ ▪ •
   await build("geo_bullet", chain("bulleted_list", 4, "B"));
   r = await boxes();
-  check("글머리 아래 글머리: 한 단 32px", r.map((x) => x.padL).join(",") === "0,32,64,96", JSON.stringify(r.map((x) => x.padL)));
-  check("글머리 마커가 깊이마다 바뀐다 (•◦▪•)", r.map((x) => x.marker).join("") === "•◦▪•", JSON.stringify(r.map((x) => x.marker)));
+  check("bullet under bullet: 32px per level", r.map((x) => x.padL).join(",") === "0,32,64,96", JSON.stringify(r.map((x) => x.padL)));
+  check("bullet markers change with depth (•◦▪•)", r.map((x) => x.marker).join("") === "•◦▪•", JSON.stringify(r.map((x) => x.marker)));
 
- // 번호 사슬 — 마커 1. a. i. 1.
+ // numbered chain — markers 1. a. i. 1.
   await build("geo_number", chain("numbered_list", 4, "N"));
   r = await boxes();
-  check("번호 마커가 깊이마다 바뀐다 (1. a. i. 1.)", r.map((x) => x.marker).join(" ") === "1. a. i. 1.", JSON.stringify(r.map((x) => x.marker)));
+  check("number markers change with depth (1. a. i. 1.)", r.map((x) => x.marker).join(" ") === "1. a. i. 1.", JSON.stringify(r.map((x) => x.marker)));
 
- // 문단 밑의 글머리는 여전히 • (주기는 같은 종류 리스트 조상 수로 센다 — T21)
+ // a bullet under a paragraph is still • (the cycle counts ancestors of the same list kind — T21)
   await build("geo_bullet_under_paragraph", [{ k: "P" }, { k: "B", type: "bulleted_list", parent: "P" }]);
   r = await boxes();
-  check("문단 밑 글머리 마커는 •", r[1].marker === "•", JSON.stringify(r.map((x) => [x.type, x.marker, x.padL])));
-  check("문단 밑 글머리도 한 단 30px", r[1].padL === 30, JSON.stringify(r.map((x) => x.padL)));
+  check("bullet marker under a paragraph is •", r[1].marker === "•", JSON.stringify(r.map((x) => [x.type, x.marker, x.padL])));
+  check("a bullet under a paragraph is also 30px per level", r[1].padL === 30, JSON.stringify(r.map((x) => x.padL)));
 
- // 토글 자식은 토글 텍스트와 같은 x = 박스에서 32px, 그 아래는 다시 30px
+ // a toggle child sits at the same x as the toggle text = 32px from the box, below that 30px again
   await build("geo_toggle", [{ k: "T", type: "toggle" }, { k: "C1", parent: "T" }, { k: "C2", parent: "C1" }]);
   r = await boxes();
   const d = (i) => +(r[i].absL - r[0].absL).toFixed(1);
-  check("토글 자식: 박스에서 32px", d(1) === 32, `${d(1)} (기대 32)`);
-  check("토글 손자: 거기서 다시 30px", d(2) === 62, `${d(2)} (기대 62)`);
+  check("toggle child: 32px from the box", d(1) === 32, `${d(1)} (expected 32)`);
+  check("toggle grandchild: another 30px from there", d(2) === 62, `${d(2)} (expected 62)`);
 });
 
-// ── 19. 맨 앞 Backspace 정책 — 원본과 같은 순서 ────────────────────────────
+// ── 19. Backspace-at-start policy — the same order as the original ──────────
 scenario("backspace_policy", async () => {
- // (a) 제목은 스타일을 벗지 않고 **한 번에** 위 블록과 합쳐진다 (A_heading*)
+ // (a) a heading merges with the block above **in one go** without shedding its style (A_heading*)
   let p = await build("bs_heading", [{ k: "P", text: "PREV" }, { k: "H", type: "heading2", text: "XX" }]);
   await caret(p.ids.H, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
-  check("제목 맨 앞 Backspace: 한 번에 합쳐진다", shape(await domTree()) === "PREVXX@0", dump(await domTree()));
+  check("Backspace at the start of a heading: merges in one go", shape(await domTree()) === "PREVXX@0", dump(await domTree()));
 
- // (b) 인용·글머리·번호·할 일·토글은 먼저 스타일만 벗는다 (A_quote / A_bulleted_list …)
-  for (const [type, label] of [["quote", "인용"], ["bulleted_list", "글머리"], ["numbered_list", "번호"], ["todo", "할 일"], ["toggle", "토글"]]) {
+ // (b) quote·bullet·number·todo·toggle first shed only the style (A_quote / A_bulleted_list …)
+  for (const [type, label] of [["quote", "quote"], ["bulleted_list", "bullet"], ["numbered_list", "number"], ["todo", "todo"], ["toggle", "toggle"]]) {
     p = await build(`bs_${type}`, [{ k: "P", text: "PREV" }, { k: "B", type, text: "XX" }]);
     await caret(p.ids.B, 0);
     await tab.keyboard.press("Backspace");
     await tab.waitForTimeout(400);
     const t1 = await domTree();
-    check(`${label} 맨 앞 Backspace: 먼저 스타일만 벗는다`, shape(t1) === "PREV@0 XX@0" && t1[1].type === "paragraph", dump(t1));
+    check(`${label} Backspace at start: first sheds only the style`, shape(t1) === "PREV@0 XX@0" && t1[1].type === "paragraph", dump(t1));
     await caret(p.ids.B, 0);
     await tab.keyboard.press("Backspace");
     await tab.waitForTimeout(400);
-    check(`${label}: 그다음 합쳐진다`, shape(await domTree()) === "PREVXX@0", dump(await domTree()));
+    check(`${label}: then merges`, shape(await domTree()) === "PREVXX@0", dump(await domTree()));
   }
 
- // (c) 코드 블록은 아무 일도 없다 (A_codetext)
+ // (c) a code block: nothing happens (A_codetext)
   p = await build("bs_code", [{ k: "P", text: "PREV" }, { k: "C", type: "code", text: "QQ" }]);
   await caret(p.ids.C, 0);
- // 코드 블록의 본문이 그려지기 전에 스냅샷을 찍으면 shape 가 "code"(타입)로 나와
- // Backspace 전후가 달라 보인다 — 본문이 보일 때까지 기다린다
+ // a snapshot taken before the code block's body is drawn gives shape "code" (the type) and
+ // before/after Backspace look different — wait until the body is visible
   let beforeCode = shape(await domTree());
   for (let k = 0; k < 10 && !beforeCode.includes("QQ"); k++) {
     await tab.waitForTimeout(200);
@@ -592,34 +592,34 @@ scenario("backspace_policy", async () => {
   }
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(400);
-  check("코드 맨 앞 Backspace: 아무 일도 없다", shape(await domTree()) === beforeCode, dump(await domTree()));
+  check("Backspace at the start of code: nothing happens", shape(await domTree()) === beforeCode, dump(await domTree()));
 
- // (d) 페이지 첫 블록은 텍스트가 **제목으로** 간다 (B_*: 블록이 사라지고 제목이 늘어난다)
+ // (d) on the page's first block the text goes **into the title** (B_*: the block vanishes and the title grows)
   p = await build("bs_title", [{ k: "A", text: "ZZTOP" }, { k: "B", text: "keep" }]);
   const titleBefore = await tab.inputValue('[data-testid="page-title"]');
   await caret(p.ids.A, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(600);
   const t = await domTree();
-  check("첫 블록 맨 앞 Backspace: 블록이 사라진다", shape(t) === "keep@0", dump(t));
-  check("첫 블록 맨 앞 Backspace: 텍스트가 제목에 붙는다",
+  check("Backspace at the start of the first block: the block vanishes", shape(t) === "keep@0", dump(t));
+  check("Backspace at the start of the first block: the text joins the title",
     (await tab.inputValue('[data-testid="page-title"]')) === titleBefore + "ZZTOP",
-    `"${await tab.inputValue('[data-testid="page-title"]')}" (전 "${titleBefore}")`);
+    `"${await tab.inputValue('[data-testid="page-title"]')}" (before "${titleBefore}")`);
   const rows = await persisted(p);
-  check("제목 병합이 저장된다", rows.length === 1 && rows[0].key === "B", JSON.stringify(rows.map((r) => [r.key, r.text])));
+  check("the title merge is saved", rows.length === 1 && rows[0].key === "B", JSON.stringify(rows.map((r) => [r.key, r.text])));
 
- // (e) ⌘Z 한 번이 제목과 블록을 함께 되돌린다 (원본 M4 실측)
+ // (e) one ⌘Z restores the title and the block together (original M4 measurement)
   await tab.keyboard.press("Control+z");
   await tab.waitForTimeout(600);
-  check("⌘Z: 블록이 돌아온다", shape(await domTree()) === "ZZTOP@0 keep@0", dump(await domTree()));
-  check("⌘Z: 제목도 함께 돌아온다",
+  check("⌘Z: the block comes back", shape(await domTree()) === "ZZTOP@0 keep@0", dump(await domTree()));
+  check("⌘Z: the title comes back with it",
     (await tab.inputValue('[data-testid="page-title"]')) === titleBefore,
-    `"${await tab.inputValue('[data-testid="page-title"]')}" (기대 "${titleBefore}")`);
+    `"${await tab.inputValue('[data-testid="page-title"]')}" (expected "${titleBefore}")`);
 });
 
-// ── 20. 맨 앞 Backspace의 남은 경우들 ─────────────────────────────────────
+// ── 20. The remaining Backspace-at-start cases ─────────────────────────────
 scenario("backspace_edges", async () => {
- // 토글의 첫 자식은 내어쓰기가 아니라 토글 제목으로 접힌다 (2026-08-26 toggle/enter_backspace)
+ // a toggle's first child folds into the toggle title rather than outdenting (2026-08-26 toggle/enter_backspace)
   let p = await build("bs_toggle_kid", [
     { k: "T", type: "toggle", text: "TT" },
     { k: "K", parent: "T", text: "KK" },
@@ -627,32 +627,32 @@ scenario("backspace_edges", async () => {
   await caret(p.ids.K, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
-  check("토글 첫 자식의 Backspace: 제목으로 접힌다", shape(await domTree()) === "TTKK@0", dump(await domTree()));
+  check("Backspace on a toggle's first child: folds into the title", shape(await domTree()) === "TTKK@0", dump(await domTree()));
 
- // 빈 첫 블록은 제목으로 옮길 것이 없다 — 아무 일도 없어야 한다
+ // an empty first block has nothing to move into the title — nothing should happen
   p = await build("bs_empty_first", [{ k: "A", text: "" }, { k: "B", text: "keep" }]);
   const titleBefore = await tab.inputValue('[data-testid="page-title"]');
   await caret(p.ids.A, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(450);
-  check("빈 첫 블록: 제목이 그대로", (await tab.inputValue('[data-testid="page-title"]')) === titleBefore,
+  check("empty first block: the title is unchanged", (await tab.inputValue('[data-testid="page-title"]')) === titleBefore,
     `"${await tab.inputValue('[data-testid="page-title"]')}"`);
 
- // 첫 블록에 자식이 있으면 자식은 그 자리(맨 앞)로 올라온다
+ // if the first block has children, they move up into its place (the very start)
   p = await build("bs_first_kids", [{ k: "A", text: "AA" }, { k: "K", parent: "A", text: "KK" }, { k: "Z", text: "ZZ" }]);
   await caret(p.ids.A, 0);
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(600);
-  check("첫 블록의 자식은 그 자리로 올라온다", shape(await domTree()) === "KK@0 ZZ@0", dump(await domTree()));
+  check("the first block's children move up into its place", shape(await domTree()) === "KK@0 ZZ@0", dump(await domTree()));
 });
 
-// ── 접힌 토글 — 2026-09-10 3차 실측 (scratchpad/nind-M7·M8·M10.jsonl) ──────
-// 원본에서 잰 네 가지:
-//  M7 S2  앞 형제가 접힌 토글일 때 Tab → 토글이 **펴지고** 그 마지막 자식이 된다
-//  M7 S1  접힌 토글 제목 끝 Enter → **형제 토글**이 생기고 숨은 자식은 그대로
-//  M10 D1 접힌 토글 제목 가운데 Enter → 토글 둘로 갈라지고 자식은 **앞쪽**에 남는다
-//  M7 S3  자식을 못 받는 타입(제목)에서 Shift+Tab → 뒤 형제를 **안 데려간다**
-//  M8 S5  접힌 토글에서 Shift+Tab → 뒤 형제를 **데려간다**(접힌 채라 안 보인다)
+// ── Collapsed toggles — 2026-09-10 round 3 measurements (scratchpad/nind-M7·M8·M10.jsonl) ──
+// Four things measured on the original:
+//  M7 S2  Tab when the previous sibling is a collapsed toggle → the toggle **expands** and it becomes the last child
+//  M7 S1  Enter at the end of a collapsed toggle title → a **sibling toggle** appears and the hidden children stay
+//  M10 D1 Enter in the middle of a collapsed toggle title → the toggle splits in two and the children stay with the **front**
+//  M7 S3  Shift+Tab on a type that cannot take children (heading) → does **not take** the following siblings
+//  M8 S5  Shift+Tab on a collapsed toggle → **takes** the following siblings (not visible, being collapsed)
 scenario("tab_into_folded_toggle", async () => {
   const p = await build("tab_into_folded_toggle", [
     { k: "TG", type: "toggle", text: "TG", content: { expanded: false } },
@@ -663,13 +663,13 @@ scenario("tab_into_folded_toggle", async () => {
   await tab.keyboard.press("Tab");
   await tab.waitForTimeout(550);
   const t = await domTree();
-  check("접힌 토글로 Tab: 토글이 펴지고 마지막 자식이 된다", shape(t) === "TG@0 KK@1 XX@1", dump(t));
+  check("Tab into a collapsed toggle: the toggle expands and it becomes the last child", shape(t) === "TG@0 KK@1 XX@1", dump(t));
   const c = await caretNow();
-  check("접힌 토글로 Tab: 캐럿이 살아 있다", c && !c.none && c.offset === 2, JSON.stringify(c));
+  check("Tab into a collapsed toggle: the caret survives", c && !c.none && c.offset === 2, JSON.stringify(c));
   const rows = await persisted(p);
-  check("저장도 같은 트리", pshape(rows) === "TG@0 KK@1 XX@1", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("saved as the same tree too", pshape(rows) === "TG@0 KK@1 XX@1", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
   const saved = await blocksOf(p);
-  check("저장된 토글이 펴져 있다", saved.find((b) => b.id === p.ids.TG)?.content?.expanded === true,
+  check("the saved toggle is expanded", saved.find((b) => b.id === p.ids.TG)?.content?.expanded === true,
     JSON.stringify(saved.find((b) => b.id === p.ids.TG)?.content));
 });
 
@@ -684,10 +684,10 @@ scenario("enter_on_folded_toggle", async () => {
   await tab.keyboard.type("NN");
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("접힌 토글에서 Enter: 숨은 자식이 새어 나오지 않는다", shape(t) === "TG@0 NN@0", dump(t));
-  check("접힌 토글에서 Enter: 새 줄도 토글", t.find((b) => b.text === "NN")?.type === "toggle", dump(t));
+  check("Enter on a collapsed toggle: hidden children do not leak out", shape(t) === "TG@0 NN@0", dump(t));
+  check("Enter on a collapsed toggle: the new line is a toggle too", t.find((b) => b.text === "NN")?.type === "toggle", dump(t));
   const rows = await persisted(p);
-  check("저장: 자식은 토글 안에 그대로", rows.find((r) => r.key === "K")?.parentKey === "TG",
+  check("saved: the children stay inside the toggle", rows.find((r) => r.key === "K")?.parentKey === "TG",
     JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
@@ -701,9 +701,9 @@ scenario("shift_tab_heading_no_adopt", async () => {
   await tab.keyboard.press("Shift+Tab");
   await tab.waitForTimeout(550);
   const t = await domTree();
-  check("제목은 뒤 형제를 데려가지 않는다", shape(t) === "AA@0 BB@1 HH@0", dump(t));
+  check("a heading does not take the following siblings", shape(t) === "AA@0 BB@1 HH@0", dump(t));
   const rows = await persisted(p);
-  check("저장도 같은 트리", pshape(rows) === "AA@0 BB@1 HH@0", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
+  check("saved as the same tree too", pshape(rows) === "AA@0 BB@1 HH@0", JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
 scenario("shift_tab_folded_toggle_adopts", async () => {
@@ -717,17 +717,17 @@ scenario("shift_tab_folded_toggle_adopts", async () => {
   await tab.keyboard.press("Shift+Tab");
   await tab.waitForTimeout(600);
   const t = await domTree();
-  check("접힌 토글은 뒤 형제를 데려가고 접힌 채로 있다", shape(t) === "AA@0 TG@0", dump(t));
+  check("a collapsed toggle takes the following siblings and stays collapsed", shape(t) === "AA@0 TG@0", dump(t));
   const rows = await persisted(p);
-  check("저장: 뒤 형제가 토글의 자식", rows.find((r) => r.key === "B")?.parentKey === "TG",
+  check("saved: the following sibling is the toggle's child", rows.find((r) => r.key === "B")?.parentKey === "TG",
     JSON.stringify(rows.map((r) => [r.key, r.parentKey, r.position])));
 });
 
-// ── 감사에서 나온 나머지 (2026-09-10 3차) ──────────────────────────────────
+// ── The rest from the audit (2026-09-10 round 3) ────────────────────────────
 scenario("backspace_deletes_container_keeps_kids", async () => {
- // 앞 블록이 글자를 담지 않는 컨테이너면 Backspace 는 그것을 지운다. 그 자식까지
- // 같이 사라지면 안 된다 — 부모가 없는 블록은 아무 데도 그려지지 않아 화면에서
- // 없어지고 저장에는 남는다.
+ // when the previous block is a container that holds no text, Backspace deletes it. Its children
+ // must not vanish with it — a block without a parent is drawn nowhere, so it disappears from the
+ // screen while staying in the save.
   const p = await build("bs_container_kids", [
     { k: "L", type: "column_list", text: "" },
     { k: "K1", parent: "L", text: "K1" },
@@ -738,32 +738,32 @@ scenario("backspace_deletes_container_keeps_kids", async () => {
   await tab.keyboard.press("Backspace");
   await tab.waitForTimeout(600);
   const t = await domTree();
-  check("컨테이너를 지워도 자식이 남는다", shape(t) === "K1@0 K2@0 ZZ@0", dump(t));
+  check("deleting the container keeps its children", shape(t) === "K1@0 K2@0 ZZ@0", dump(t));
   const rows = await persisted(p);
-  check("저장에도 고아가 없다", rows.every((r) => r.parentKey === null) && rows.length === 3,
+  check("no orphans in the save either", rows.every((r) => r.parentKey === null) && rows.length === 3,
     JSON.stringify(rows.map((r) => [r.key, r.parentKey])));
 });
 
 scenario("undo_after_enter", async () => {
- // Enter 직후에 친 글자는 Enter 와 같은 되돌리기 묶음에 들어가면 안 된다.
- // ⌘Z 한 번은 친 글자만 되돌리고, 새 줄은 그대로 있어야 한다.
+ // text typed right after Enter must not go into the same undo group as the Enter.
+ // One ⌘Z undoes only the typed text, and the new line must stay.
   const p = await build("undo_after_enter", [{ k: "A", text: "AA" }]);
   await caretReady(p.ids.A, "end", 2);
   await tab.keyboard.press("Enter");
   await tab.waitForTimeout(350);
   await tab.keyboard.type("BB");
   await tab.waitForTimeout(400);
-  check("Enter + 타이핑", shape(await domTree()) === "AA@0 BB@0", dump(await domTree()));
+  check("Enter + typing", shape(await domTree()) === "AA@0 BB@0", dump(await domTree()));
   await tab.keyboard.press("ControlOrMeta+z");
   await tab.waitForTimeout(500);
   const t = await domTree();
-  check("⌘Z 한 번은 친 글자만 되돌린다", t.length === 2 && t[0].text === "AA" && t[1].text === "", dump(t));
+  check("one ⌘Z undoes only the typed text", t.length === 2 && t[0].text === "AA" && t[1].text === "", dump(t));
 });
 
 scenario("enter_many_positions_stay_distinct", async () => {
- // 새 줄의 position 은 다음 형제와의 간격 가운데를 쓴다. 그 간격을 계속 반으로 접으면
- // 배정도 실수가 더 나눌 자리를 잃고(≈53번째) 두 줄이 같은 값이 된다 — 그때부터 순서는
- // 정렬의 tie 처리에 맡겨진다. 60번 눌러도 값이 전부 달라야 한다.
+ // a new line's position takes the middle of the gap to the next sibling. Keep halving that gap and
+ // the double runs out of room to divide (≈ the 53rd time) and two lines get the same value — from then on the order
+ // is left to the sort's tie handling. Even after 60 presses every value must differ.
   const p = await build("enter_many", [{ k: "A", text: "A" }, { k: "Z", text: "Z" }]);
   await caretReady(p.ids.A, "end", 1);
   for (let i = 0; i < 60; i++) {
@@ -772,39 +772,39 @@ scenario("enter_many_positions_stay_distinct", async () => {
   }
   await tab.waitForTimeout(900);
   const t = await domTree();
-  check("Enter 60번: 줄 수가 맞는다", t.length === 62, `${t.length}개`);
-  check("Enter 60번: Z 가 여전히 마지막", t[t.length - 1]?.text === "Z", dump(t).slice(-120));
- // 60번 치는 동안 저장이 계속 흐르므로 persisted() 가 중간 상태에서 멈출 수 있다 —
- // 62개가 다 도착할 때까지 조금 더 기다린 뒤에 본다
+  check("Enter ×60: the line count is right", t.length === 62, `${t.length}`);
+  check("Enter ×60: Z is still last", t[t.length - 1]?.text === "Z", dump(t).slice(-120));
+ // saving keeps flowing during the 60 presses, so persisted() may settle on an intermediate state —
+ // wait a bit longer until all 62 have arrived before looking
   let rows = await persisted(p);
   for (let k = 0; k < 10 && rows.length < 62; k++) rows = await persisted(p);
   const tops = rows.filter((r) => r.parentKey === null).map((r) => r.position);
-  check("Enter 60번: 저장에도 62줄", rows.length === 62, `${rows.length}개`);
-  check("Enter 60번: position 이 겹치지 않는다", new Set(tops).size === tops.length,
-    `${tops.length}개 중 ${new Set(tops).size}개만 유일`);
+  check("Enter ×60: 62 lines in the save too", rows.length === 62, `${rows.length}`);
+  check("Enter ×60: positions do not collide", new Set(tops).size === tops.length,
+    `only ${new Set(tops).size} of ${tops.length} unique`);
 });
 
-// ── 실행 ───────────────────────────────────────────────────────────────────
+// ── Run ─────────────────────────────────────────────────────────────────────
 const names = Object.keys(scenarios).filter((n) => !ONLY.length || ONLY.includes(n));
 for (const n of names) {
   console.log(`\n── ${n} ─────────────────────────────`);
   try {
     await scenarios[n]();
   } catch (e) {
-    check(`${n}: 시나리오가 끝까지 돌지 않았습니다`, false, String(e).slice(0, 200));
+    check(`${n}: the scenario did not run to the end`, false, String(e).slice(0, 200));
   }
 }
 
-if (pageErrors.length) check(`콘솔 에러 ${pageErrors.length}건`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));
+if (pageErrors.length) check(`${pageErrors.length} console errors`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));
 await browser.close();
 for (const id of createdPages) {
   await fetch(`${BASE}/api/pages/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 }
 
 if (fails) {
-  console.error(`\n  ┌─ 들여쓰기가 원본과 다릅니다 (${fails}건) ─────────────`);
-  console.error("  │ 기대값 출처: docs/notion-indent.md (2026-09-10 실측)");
+  console.error(`\n  ┌─ Indentation differs from the original (${fails}) ─────────────`);
+  console.error("  │ expected values from: docs/notion-indent.md (measured 2026-09-10)");
   console.error("  └──────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`\n들여쓰기 — 원본과 같습니다 (시나리오 ${names.length}개).`);
+console.log(`\nIndentation — same as the original (${names.length} scenarios).`);

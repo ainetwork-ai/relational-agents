@@ -1,14 +1,14 @@
-// 마크다운의 들여쓰기(중첩) 왕복 — 우리 앱이 원본과 같게 읽고 같게 쓰는지.
+// Markdown indentation (nesting) round trip — does our app read and write it the same as the original.
 //
-// 기대값은 2026-09-10 에 app.notion.com 에서 직접 잰 것이다(docs/notion-indent.md §6):
-//   들어갈 때(붙여넣기): 한 단은 "부모 마커 폭만큼" 들여쓴 것 — `- ` 는 2칸, `1. ` 는 3칸,
-//     탭은 한 단. 리스트 항목보다 깊게 들여쓴 **일반 줄은 그 항목의 자식 블록**이 된다.
-//   나올 때(내보내기): 한 단 4칸, 할 일은 `- [ ]  `(상자 뒤 두 칸), 토글은 글머리로.
-//   그리고 원본이 내보낸 마크다운을 다시 붙여넣으면 **같은 트리**가 된다(왕복).
+// The expected values were measured directly on app.notion.com on 2026-09-10 (docs/notion-indent.md §6):
+//   Coming in (paste): one level is an indent "as wide as the parent marker" — `- ` is 2 spaces, `1. ` is 3,
+//     a tab is one level. A **plain line indented deeper than a list item becomes that item's child block**.
+//   Going out (export): 4 spaces per level, todos as `- [ ]  ` (two spaces after the box), toggles as bullets.
+//   And pasting back the markdown the original exported gives the **same tree** (round trip).
 //
 //   [BASE_URL=http://localhost:3110] node e2e/markdown-nesting.check.mjs
 //
-// 세 경로를 다 본다: 에디터 붙여넣기(parseMarkdown), `.md` 내보내기 라우트, md-mirror 파일.
+// Looks at all three paths: editor paste (parseMarkdown), the `.md` export route, the md-mirror file.
 import fs from "node:fs";
 import path from "node:path";
 import { sealData } from "iron-session";
@@ -83,9 +83,9 @@ const domTree = () =>
   });
 const shape = (t) => t.map((b) => `${b.type}:${b.text || ""}@${b.depth}`).join(" ");
 
-/** 마크다운을 붙여넣고 트리를 읽는다 — 원본을 잴 때와 같은 방식(합성 paste 이벤트) */
+/** Paste markdown and read the tree — the same way the original was measured (synthetic paste event) */
 async function pasteInto(md, label) {
- // 빈 페이지(블록 0개)는 시작 안내 UI만 그려서 붙여넣을 자리가 없다 — 빈 문단 하나를 둔다
+ // an empty page (0 blocks) draws only the getting-started UI, so there is nowhere to paste — put one empty paragraph
   const { pageId } = await newPage(`markdown-nesting ${label}`, [{ k: "p0", text: "" }]);
   await tab.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await tab.waitForSelector('[data-testid="editor-root"] [data-block-type]', { timeout: 90_000 });
@@ -104,8 +104,8 @@ async function pasteInto(md, label) {
   return { tree: await domTree(), pageId };
 }
 
-/** 미러를 한 번 돌리고 파일을 찾는다. 미러는 워크스페이스 단위로 통째로 다시 쓰이므로
- *  (다른 검사가 페이지를 만들거나 보관하면 그 사이에 파일이 사라질 수 있다) 몇 번 시도한다. */
+/** Run the mirror once and find the file. The mirror rewrites a whole workspace at a time
+ *  (the file can vanish in between if another check creates or archives pages), so try a few times. */
 async function mirrorFile(re, want) {
   for (let attempt = 0; attempt < 5; attempt++) {
     await fetch(`${BASE}/api/workspace/export`, { headers: H }).then((r) => r.arrayBuffer()).catch(() => null);
@@ -128,43 +128,43 @@ async function mirrorFile(re, want) {
   return null;
 }
 
-// ── 1. 들어갈 때: 칸 수 규칙 ───────────────────────────────────────────────
+// ── 1. Coming in: the space-count rules ────────────────────────────────────
 {
   const { tree } = await pasteInto("- a\n  - b\n    - c", "bullet-2sp");
-  check("글머리는 2칸이면 한 단 들어간다", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1 bulleted_list:c@2", shape(tree));
+  check("a bullet goes one level in with 2 spaces", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1 bulleted_list:c@2", shape(tree));
 }
 {
   const { tree } = await pasteInto("- a\n\t- b", "bullet-tab");
-  check("탭도 한 단", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1", shape(tree));
+  check("a tab is one level too", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1", shape(tree));
 }
 {
- // 원본: `1. ` 의 내용은 3칸에서 시작하므로 2칸은 부족하다 (M2c 실측)
+ // original: the content of `1. ` starts at column 3, so 2 spaces are not enough (M2c measurement)
   const { tree } = await pasteInto("1. a\n  1. b", "number-2sp");
-  check("번호 목록은 2칸으로는 들어가지 않는다", shape(tree) === "numbered_list:a@0 numbered_list:b@0", shape(tree));
+  check("a numbered list does not go in with 2 spaces", shape(tree) === "numbered_list:a@0 numbered_list:b@0", shape(tree));
 }
 {
   const { tree } = await pasteInto("1. a\n   1. b\n      1. c", "number-3sp");
-  check("번호 목록은 3칸이면 한 단", shape(tree) === "numbered_list:a@0 numbered_list:b@1 numbered_list:c@2", shape(tree));
+  check("a numbered list goes one level in with 3 spaces", shape(tree) === "numbered_list:a@0 numbered_list:b@1 numbered_list:c@2", shape(tree));
 }
 {
   const { tree } = await pasteInto("- [ ] a\n  - [ ] b\n    - [ ] c", "todo");
-  check("할 일도 2칸이면 한 단", shape(tree) === "todo:a@0 todo:b@1 todo:c@2", shape(tree));
+  check("a todo also goes one level in with 2 spaces", shape(tree) === "todo:a@0 todo:b@1 todo:c@2", shape(tree));
 }
 {
- // 리스트 항목보다 깊은 일반 줄은 그 항목의 **자식 블록** (원본이 자기 마크다운을 그렇게 쓴다)
+ // a plain line deeper than a list item is that item's **child block** (the original writes its own markdown that way)
   const { tree } = await pasteInto("- a\n    - b\n\n        deep\n", "child-paragraph");
-  check("리스트 밑으로 들여쓴 문단은 그 항목의 자식", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1 paragraph:deep@2", shape(tree));
+  check("a paragraph indented under a list is that item's child", shape(tree) === "bulleted_list:a@0 bulleted_list:b@1 paragraph:deep@2", shape(tree));
 }
 
-// ── 2. 원본이 내보낸 마크다운을 그대로 붙여넣기 (왕복의 절반) ──────────────
+// ── 2. Paste the markdown the original exported, as-is (half of the round trip) ──
 const NOTION_OUT = "- b1\n    - b2\n        - b3\n        \n        pchild\n        \n- [ ]  t1\n    - [ ]  t2\n- T\n    \n    tkid";
 const NOTION_TREE = "bulleted_list:b1@0 bulleted_list:b2@1 bulleted_list:b3@2 paragraph:pchild@2 todo:t1@0 todo:t2@1 bulleted_list:T@0 paragraph:tkid@1";
 {
   const { tree } = await pasteInto(NOTION_OUT, "notion-output");
-  check("원본이 쓴 마크다운이 원본과 같은 트리로 들어온다", shape(tree) === NOTION_TREE, shape(tree));
+  check("markdown written by the original comes in as the same tree as the original", shape(tree) === NOTION_TREE, shape(tree));
 }
 
-// ── 3. 나올 때: `.md` 내보내기 ─────────────────────────────────────────────
+// ── 3. Going out: `.md` export ──────────────────────────────────────────────
 const nested = await newPage("markdown-nesting export", [
   { k: "b1", type: "bulleted_list" },
   { k: "b2", type: "bulleted_list", parent: "b1" },
@@ -176,64 +176,64 @@ const nested = await newPage("markdown-nesting export", [
   { k: "tkid", parent: "T" },
 ]);
 const md = await fetch(`${BASE}/api/pages/${nested.pageId}/export`, { headers: H }).then((r) => r.text());
- // 원본이 같은 구조를 복사할 때 내놓는 마크다운 그대로 — 빈 줄 자리까지 (M3 실측)
+ // exactly the markdown the original produces when copying the same structure — down to the blank lines (M3 measurement)
 const NOTION_MD = "- b1\n    - b2\n        - b3\n        \n        pchild\n        \n- [ ]  t1\n    - [ ]  t2\n- T\n    \n    tkid";
 const body = md.replace(/^# .*\n\n/, "").replace(/\n$/, "");
-check("내보낸 마크다운이 원본과 글자 하나까지 같다", body === NOTION_MD, JSON.stringify(body));
+check("exported markdown matches the original character for character", body === NOTION_MD, JSON.stringify(body));
 
 {
- // 왕복: 우리가 쓴 마크다운을 우리가 다시 읽으면 같은 트리
+ // round trip: when we read back the markdown we wrote, we get the same tree
   const { tree } = await pasteInto(md.replace(/^# .*\n/, ""), "roundtrip-ours");
-  check("우리 마크다운도 같은 트리로 되돌아온다", shape(tree) === NOTION_TREE, shape(tree));
+  check("our markdown also comes back as the same tree", shape(tree) === NOTION_TREE, shape(tree));
 }
 
-// ── 4. md-mirror 파일에 자식이 실리나 ──────────────────────────────────────
+// ── 4. Do children make it into the md-mirror file ─────────────────────────
 {
   const wanted = ["- b1", "    - b2", "        - b3", "        pchild", "- [ ]  t1", "    - [ ]  t2", "- T", "    tkid"];
   const hit = await mirrorFile(/^markdown-nesting-export-/, wanted);
   const missing = hit ? wanted.filter((w) => !hit.text.includes(w)) : wanted;
-  check("미러 파일에 중첩이 4칸으로 실린다", !!hit && missing.length === 0,
-    hit ? `${hit.path}${missing.length ? " — 없는 줄 " + JSON.stringify(missing) : ""}` : `${MIRROR_ROOT} 에서 파일을 못 찾음`);
+  check("the mirror file carries nesting with 4 spaces", !!hit && missing.length === 0,
+    hit ? `${hit.path}${missing.length ? " — missing lines " + JSON.stringify(missing) : ""}` : `no file found in ${MIRROR_ROOT}`);
 }
 
-// ── 5. 붙여넣기가 첫 줄을 잃지 않는다 (텍스트 CRDT 가 html 로 문자 연산을 만든다) ──
+// ── 5. Paste does not lose the first line (the text CRDT builds char ops from the html) ──
 {
   const { tree } = await pasteInto("A\n\nB", "first-line");
-  check("빈 블록에 붙여넣어도 첫 줄이 남는다", shape(tree) === "paragraph:A@0 paragraph:B@0", shape(tree));
+  check("pasting into an empty block keeps the first line", shape(tree) === "paragraph:A@0 paragraph:B@0", shape(tree));
 }
 {
   const { tree } = await pasteInto("**bold** text\n\nsecond", "inline-marks");
-  check("인라인 서식이 있는 첫 줄도 남는다", shape(tree) === "paragraph:bold text@0 paragraph:second@0", shape(tree));
+  check("a first line with inline formatting is kept too", shape(tree) === "paragraph:bold text@0 paragraph:second@0", shape(tree));
 }
 
-// ── 6. 이어지는 줄은 한 블록 (원본 M2d_indented_paragraphs) ────────────────
+// ── 6. Continuation lines are one block (original M2d_indented_paragraphs) ──
 {
   const { tree } = await pasteInto("- x\n\npara-A\n    para-B\n        para-C", "continuation");
   const last = tree[tree.length - 1];
-  check("빈 줄 없이 이어진 줄은 한 블록으로 접힌다",
+  check("lines continuing without a blank line fold into one block",
     tree.length === 2 && last.type === "paragraph" && last.text.replace(/\s+/g, " ") === "para-A para-B para-C",
     shape(tree));
 }
 
-// ── 7. 코드 펜스·구분선·빈 항목 ────────────────────────────────────────────
+// ── 7. Code fences · dividers · empty items ────────────────────────────────
 {
   const { tree, pageId } = await pasteInto("- a\n    ```js\n    const x = 1;\n    ```", "nested-code");
-  check("리스트 밑 코드 펜스가 자식으로 들어오고 본문은 들여쓰기가 벗겨진다",
+  check("a code fence under a list comes in as a child with its body de-indented",
     shape(tree) === "bulleted_list:a@0 code:const x = 1;@1", shape(tree));
   const md2 = await fetch(`${BASE}/api/pages/${pageId}/export`, { headers: H }).then((r) => r.text());
-  check("그 코드가 다시 4칸으로 나간다", md2.includes("    ```js") && md2.includes("    const x = 1;"), JSON.stringify(md2.slice(-80)));
+  check("that code goes back out with 4 spaces", md2.includes("    ```js") && md2.includes("    const x = 1;"), JSON.stringify(md2.slice(-80)));
 }
 {
   const { tree } = await pasteInto("---\n- a\n  - b\n---\n- c", "leading-hr");
-  check("`---` 로 시작해도 내용이 사라지지 않는다",
+  check("content does not vanish when it starts with `---`",
     shape(tree) === "divider:@0 bulleted_list:a@0 bulleted_list:b@1 divider:@0 bulleted_list:c@0", shape(tree));
 }
 {
   const { tree } = await pasteInto("- \n\n    - b", "empty-item");
-  check("빈 글머리도 글머리로 남고 자식이 붙는다", shape(tree) === "bulleted_list:@0 bulleted_list:b@1", shape(tree));
+  check("an empty bullet stays a bullet and takes children", shape(tree) === "bulleted_list:@0 bulleted_list:b@1", shape(tree));
 }
 
-// ── 8. 부모가 사라진 블록도 파일에 남는다 (리뷰에서 확인된 미러 누락) ──────
+// ── 8. Blocks whose parent is gone still make it into the file (mirror gap found in review) ──
 {
   const ghost = uuid();
   const orphan = await newPage("markdown-nesting orphan", [{ k: "A", text: "A" }, { k: "B", text: "B", parent: "A" }]);
@@ -247,37 +247,37 @@ check("내보낸 마크다운이 원본과 글자 하나까지 같다", body ===
     }),
   });
   const md3 = await fetch(`${BASE}/api/pages/${orphan.pageId}/export`, { headers: H }).then((r) => r.text());
-  check(".md 내보내기가 부모 없는 블록을 살린다", md3.includes("LOST"), JSON.stringify(md3.slice(-60)));
+  check(".md export keeps blocks without a parent", md3.includes("LOST"), JSON.stringify(md3.slice(-60)));
   const hitO = await mirrorFile(/^markdown-nesting-orphan-/, ["LOST"]);
   const hit = hitO?.text ?? null;
-  check("미러도 부모 없는 블록을 살린다", !!hit && hit.includes("LOST"), hit ? JSON.stringify(hit.slice(-80)) : "파일 없음");
+  check("the mirror keeps blocks without a parent too", !!hit && hit.includes("LOST"), hit ? JSON.stringify(hit.slice(-80)) : "no file");
 }
 
-// ── 9. 리스트가 아닌 부모의 자식 — 원본처럼 평평하게 쓰고, 들여쓰기는 코드로 읽는다 ──
+// ── 9. Children of a non-list parent — written flat like the original, indentation read as code ──
 {
- // 원본(M6 실측)은 문단의 자식 문단을 `PA⏎⏎PB` 로, 들여쓰기 없이 내보낸다.
+ // the original (M6 measurement) exports a paragraph's child paragraph as `PA⏎⏎PB`, without indentation.
   const flat = await newPage("markdown-nesting flat-parent", [
     { k: "PA", text: "PA" }, { k: "PB", text: "PB", parent: "PA" },
   ]);
   const md4 = await fetch(`${BASE}/api/pages/${flat.pageId}/export`, { headers: H }).then((r) => r.text());
   const body4 = md4.replace(/^# .*\n\n/, "").replace(/\n$/, "");
-  check("문단의 자식은 들여쓰지 않고 내보낸다", body4 === "PA\n\nPB", JSON.stringify(body4));
+  check("a paragraph's children are exported without indentation", body4 === "PA\n\nPB", JSON.stringify(body4));
 }
 {
- // 원본(M5 실측)은 빈 줄 뒤 4칸 들여쓴 줄을 **코드 블록**으로 읽는다
+ // the original (M5 measurement) reads a line indented 4 spaces after a blank line as a **code block**
   const { tree } = await pasteInto("AAA\n\n    BBB", "indented-code");
-  check("빈 줄 뒤 들여쓴 줄은 코드 블록", shape(tree) === "paragraph:AAA@0 code:BBB@0", shape(tree));
+  check("an indented line after a blank line is a code block", shape(tree) === "paragraph:AAA@0 code:BBB@0", shape(tree));
 }
 
 
-// ── 7. 왕복에서 내용이 상하지 않는가 (2026-09-10 3차, 감사에서 나온 것들) ────
-/** 블록 → 내보낸 마크다운 → 다시 붙여넣기 → 저장된 블록 */
+// ── 7. Does content survive the round trip (2026-09-10 round 3, findings from the audit) ──
+/** blocks → exported markdown → pasted back → saved blocks */
 async function roundTrip(label, seed) {
   const src = await newPage(`markdown-nesting ${label}`, seed);
   const md = await fetch(`${BASE}/api/pages/${src.pageId}/export`, { headers: H }).then((r) => r.text());
   const body = md.replace(/^# .*\n\n/, "");
   const { pageId } = await pasteInto(body, `${label}-back`);
- // 저장은 트랜잭션 큐로 따로 나간다 — 같은 답이 두 번 연속 나올 때까지 기다린다
+ // saving goes out separately through the transaction queue — wait until the same answer comes twice in a row
   let rows = { blocks: [] }, prevSnap = null;
   for (let k = 0; k < 12; k++) {
     await tab.waitForTimeout(350);
@@ -298,72 +298,72 @@ async function roundTrip(label, seed) {
 }
 
 {
- // 원본 M2c: 리스트 항목 바로 밑의 평문 줄은 그 항목 안으로 접힌다(게으른 이어짐)
+ // original M2c: plain lines right under a list item fold into that item (lazy continuation)
   const { tree } = await pasteInto("1. num-B\npara-A\npara-B", "lazy-continuation");
-  check("리스트 항목 밑의 평문 줄은 그 항목으로 접힌다",
+  check("plain lines under a list item fold into that item",
     shape(tree) === "numbered_list:num-B para-A para-B@0", shape(tree));
 }
 {
- // 항목 안의 줄바꿈이 그 밑의 중첩을 무너뜨리면 안 된다
+ // a line break inside an item must not collapse the nesting below it
   const r = await roundTrip("soft-break-nesting", [
     { k: "A", type: "bulleted_list", text: "a1\na2" },
     { k: "B", type: "bulleted_list", text: "b", parent: "A" },
   ]);
-  check("항목 안 줄바꿈이 그 밑의 중첩을 깨지 않는다",
+  check("a line break inside an item does not break the nesting below it",
     r.blocks.map((b) => `${b.type}@${b.depth}`).join(" ") === "bulleted_list@0 bulleted_list@1",
     JSON.stringify(r.md) + " → " + r.blocks.map((b) => `${b.type}@${b.depth}:${JSON.stringify(b.content.text)}`).join(" "));
-  check("그 줄바꿈이 왕복에서 살아남는다", (r.blocks[0]?.content?.text ?? "") === "a1\na2",
+  check("that line break survives the round trip", (r.blocks[0]?.content?.text ?? "") === "a1\na2",
     JSON.stringify(r.blocks[0]?.content?.text));
 }
 {
- // 마커처럼 생긴 문단이 다른 타입으로 돌아오면 안 된다
+ // a paragraph that looks like a marker must not come back as another type
   const r = await roundTrip("marker-looking-text", [
     { k: "A", text: "- not a bullet" }, { k: "B", text: "# not a heading" },
     { k: "C", text: "---" }, { k: "D", text: "1. not numbered" }, { k: "E", text: "| not a table |" },
   ]);
-  check("마커처럼 생긴 문단은 문단으로 돌아온다",
+  check("paragraphs that look like markers come back as paragraphs",
     r.blocks.every((b) => b.type === "paragraph") && r.blocks.length === 5,
     r.blocks.map((b) => `${b.type}:${JSON.stringify(b.content.text)}`).join(" "));
-  check("그 글자도 그대로", r.blocks.map((b) => b.content.text).join("|") === "- not a bullet|# not a heading|---|1. not numbered|| not a table |",
+  check("with the same text", r.blocks.map((b) => b.content.text).join("|") === "- not a bullet|# not a heading|---|1. not numbered|| not a table |",
     JSON.stringify(r.blocks.map((b) => b.content.text)));
 }
 {
- // 코드 본문에 ``` 이 있으면 앞에서 끊겨 나머지가 날아갔다
+ // a ``` inside the code body used to cut it early and drop the rest
   const body = "before\n```\ninner fence\n```\nafter";
   const r = await roundTrip("code-with-fence", [
     { k: "C", type: "code", content: { text: body, language: "plain" } },
     { k: "Z", text: "tail" },
   ]);
-  check("코드 안의 ``` 이 블록을 끊지 않는다", (r.blocks[0]?.content?.text ?? "") === body,
+  check("a ``` inside code does not cut the block", (r.blocks[0]?.content?.text ?? "") === body,
     JSON.stringify(r.md));
-  check("코드 뒤 블록이 살아 있다", r.blocks.some((b) => b.content.text === "tail"),
+  check("the block after the code survives", r.blocks.some((b) => b.content.text === "tail"),
     r.blocks.map((b) => b.type).join(" "));
 }
 {
- // 표: 셀 안의 파이프와 줄바꿈, 그리고 전부 빈 행
+ // tables: pipes and line breaks inside cells, and an all-empty row
   const cells = [["h1", "h2"], ["a|b", "line1\nline2"], ["", ""], ["z", "w"]];
   const r = await roundTrip("table-cells", [
     { k: "T", type: "table", content: { table: { cells, headerRow: true } } },
   ]);
   const got = r.blocks[0]?.content?.table?.cells;
-  check("표 셀의 파이프·줄바꿈·빈 행이 왕복에서 살아남는다",
+  check("table cell pipes · line breaks · empty rows survive the round trip",
     JSON.stringify(got) === JSON.stringify(cells), JSON.stringify(got) + " / " + JSON.stringify(r.md));
 }
 
 {
- // 표의 열 정렬이 .md 로 나갔다가 돌아온다
+ // table column alignment goes out to .md and comes back
   const cells = [["L", "C", "R"], ["1", "2", "3"]];
   const align = [["default", "center", "right"], ["default", "center", "right"]];
   const r = await roundTrip("table-align", [
     { k: "T", type: "table", content: { table: { cells, headerRow: true, align } } },
   ]);
-  check("표의 열 정렬이 왕복에서 살아남는다",
+  check("table column alignment survives the round trip",
     /\|\s*---\s*\|\s*:---:\s*\|\s*---:\s*\|/.test(r.md) &&
       JSON.stringify(r.blocks[0]?.content?.table?.align?.[0]) === JSON.stringify(["default", "center", "right"]),
     JSON.stringify(r.md) + " / " + JSON.stringify(r.blocks[0]?.content?.table?.align));
 }
 {
- // 미러 파일도 같은 규칙 — `100. ` 항목의 자식은 5칸, 콜아웃 아이콘, 수식, 하위 페이지 링크
+ // the mirror file follows the same rules — children of a `100. ` item at 5 spaces, callout icon, equation, subpage link
   const { pageId } = await newPage("markdown-nesting mirror-extras", [
     { k: "N", type: "numbered_list", text: "n", content: { text: "n" } },
     { k: "K", type: "bulleted_list", text: "kid", parent: "N" },
@@ -380,16 +380,16 @@ async function roundTrip(label, seed) {
     if (hit) { file = path.join(MIRROR_ROOT, d, hit); break; }
   }
   const md = file ? fs.readFileSync(file, "utf8") : "";
-  check("미러가 콜아웃 아이콘을 그대로 쓴다", md.includes("> ⚠️ warn"), JSON.stringify(md.slice(-220)));
- // 마커 이스케이프가 인라인 마크다운까지 먹으면 안 된다 — 미러는 `**굵게**` 를 쓴다
-  check("미러의 굵게가 이스케이프되지 않는다", md.includes("**bold** start") && !md.includes("\\**"),
+  check("the mirror writes the callout icon as-is", md.includes("> ⚠️ warn"), JSON.stringify(md.slice(-220)));
+ // marker escaping must not eat inline markdown — the mirror writes `**bold**`
+  check("bold in the mirror is not escaped", md.includes("**bold** start") && !md.includes("\\**"),
     JSON.stringify(md.slice(-260)));
-  check("미러가 수식을 $$ 로 감싼다", /\$\$\na\^2 \+ b\^2\n\$\$/.test(md), JSON.stringify(md.slice(-220)));
+  check("the mirror wraps equations in $$", /\$\$\na\^2 \+ b\^2\n\$\$/.test(md), JSON.stringify(md.slice(-220)));
 }
 
-// ── 8. 붙여넣는 자리 (2026-09-10 3차) ──────────────────────────────────────
+// ── 8. Where the paste lands (2026-09-10 round 3) ───────────────────────────
 {
- // 글자가 있는 블록의 **맨 앞**에 붙여넣으면 빈 블록이 남으면 안 된다
+ // pasting at the **very start** of a block with text must not leave an empty block
   const { pageId } = await newPage("markdown-nesting paste-at-start", [{ k: "T", text: "TAIL" }]);
   await tab.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await tab.waitForSelector('[data-testid="editor-root"] [data-block-type]', { timeout: 90_000 });
@@ -407,11 +407,11 @@ async function roundTrip(label, seed) {
   }, "- X\n- Y");
   await tab.waitForTimeout(900);
   const t = await domTree();
-  check("맨 앞에 붙여넣으면 빈 블록이 남지 않는다",
+  check("pasting at the very start leaves no empty block",
     shape(t) === "bulleted_list:X@0 bulleted_list:Y@0 paragraph:TAIL@0", shape(t));
 }
 {
- // 블록 **가운데**에 붙여넣으면 뒤쪽 조각의 서식이 살아 있어야 한다
+ // pasting in the **middle** of a block must keep the formatting of the tail piece
   const { pageId } = await newPage("markdown-nesting paste-mid-marks", [
     { k: "B", content: { text: "boldtail", html: "<b>boldtail</b>" } },
   ]);
@@ -438,12 +438,12 @@ async function roundTrip(label, seed) {
       return { type: row.getAttribute("data-block-type"), html: (ce?.innerHTML ?? "").trim() };
     });
   });
-  check("가운데 붙여넣기: 앞 조각의 서식이 남는다", /<b>bold<\/b>/.test(htmls[0]?.html ?? ""), JSON.stringify(htmls));
+  check("paste in the middle: the head piece keeps its formatting", /<b>bold<\/b>/.test(htmls[0]?.html ?? ""), JSON.stringify(htmls));
   const tail = htmls[htmls.length - 1];
-  check("가운데 붙여넣기: 뒤 조각의 서식도 남는다", /<b>tail<\/b>/.test(tail?.html ?? ""), JSON.stringify(htmls));
+  check("paste in the middle: the tail piece keeps its formatting too", /<b>tail<\/b>/.test(tail?.html ?? ""), JSON.stringify(htmls));
 }
 {
- // 빈 **글머리**에 붙여넣으면 그 글머리가 첫 블록이 된다(빈 줄이 남지 않는다)
+ // pasting into an empty **bullet** makes that bullet the first block (no empty line left)
   const { pageId } = await newPage("markdown-nesting paste-empty-bullet", [
     { k: "B", type: "bulleted_list", text: "" },
   ]);
@@ -459,19 +459,19 @@ async function roundTrip(label, seed) {
   }, "# H\n\nbody");
   await tab.waitForTimeout(900);
   const t = await domTree();
-  check("빈 글머리에 붙여넣으면 빈 줄이 남지 않는다",
+  check("pasting into an empty bullet leaves no empty line",
     shape(t) === "heading1:H@0 paragraph:body@0", shape(t));
 }
 
-if (pageErrors.length) check(`콘솔 에러 ${pageErrors.length}건`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));
+if (pageErrors.length) check(`${pageErrors.length} console errors`, false, pageErrors.slice(0, 2).join(" / ").slice(0, 200));
 await browser.close();
 for (const id of createdPages) {
   await fetch(`${BASE}/api/pages/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 }
 if (fails) {
-  console.error(`\n  ┌─ 마크다운 중첩이 원본과 다릅니다 (${fails}건) ─────────`);
-  console.error("  │ 기대값 출처: docs/notion-indent.md §6 (2026-09-10 실측)");
+  console.error(`\n  ┌─ Markdown nesting differs from the original (${fails}) ─────────`);
+  console.error("  │ expected values from: docs/notion-indent.md §6 (measured 2026-09-10)");
   console.error("  └──────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("\n마크다운 중첩 — 읽기·쓰기·왕복·미러 모두 원본과 같습니다.");
+console.log("\nMarkdown nesting — reading · writing · round trip · mirror all match the original.");

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { DbProperty, DbRow, DbView, SelectOption, ViewConfig } from "@/lib/db/schema";
 import type { PublicUser } from "@/lib/auth/public-user";
 import { newId } from "@/lib/compat";
+import { useT } from "@/i18n/provider";
 import { COLOR_CYCLE } from "@/lib/db-values";
 import { usePageSync } from "@/hooks/use-page-sync";
 import { useRowDetails } from "@/stores/row-details";
@@ -11,8 +12,8 @@ import { DbCtx, type DbApi } from "./database-block";
 import { PanelCloseButton, RowDetailsPanel, RowPropertyBlock } from "./row-property-block";
 
 /** A database row opened as a FULL page: the same property block the side
- * peek draws (toggle · pinned band · 댓글) above the body, and 세부 정보 보기
- * hanging a 385px 속성 sidebar down the window's right edge — the original's
+ * peek draws (toggle · pinned band · Comments) above the body, and View details
+ * hanging a 385px Properties sidebar down the window's right edge — the original's
  * layout, measured 2026-08-27 (e2e/fixtures/notion-row-props.json).
  *
  * Self-hides when the page isn't a row's page (the body renders plain).
@@ -42,6 +43,7 @@ export function RowPropertiesPanel({
  // leaving the page closes the sidebar — the next page must not open narrowed
   useEffect(() => () => setDetailsOpen(false), [setDetailsOpen]);
   const [clientId] = useState(() => newId());
+  const t = useT();
 
   const refresh = useCallback(async (databaseId: string) => {
     const snap = await fetch(`/api/databases/${databaseId}`).then((x) => (x.ok ? x.json() : null));
@@ -121,7 +123,7 @@ export function RowPropertiesPanel({
       rows,
       members,
       me,
-      itemName: "페이지",
+      itemName: t("Page"),
       fullPage: false,
       icon: null,
       allDatabases,
@@ -171,7 +173,7 @@ export function RowPropertiesPanel({
       },
       patchView: () => {},
       openRow: () => {},
- // this surface has no column headers to open, so the Status menu's 속성 편집
+ // this surface has no column headers to open, so the Status menu's Edit property
  // has nowhere to go here
       editProperty: () => {},
       editingPropertyId: null,
@@ -180,7 +182,7 @@ export function RowPropertiesPanel({
       rulesRowOpen: false,
       setRulesRowOpen: () => {},
     };
-  }, [ref, properties, rows, members, me, allDatabases, clientId]);
+  }, [ref, properties, rows, members, me, allDatabases, clientId, t]);
 
   const row = ref ? rows.find((r) => r.id === ref.rowId) : undefined;
  // not a row's page — or not known yet: the body renders plain at once (it
@@ -208,7 +210,7 @@ export function RowPropertiesPanel({
           row={row}
           className="fixed right-0 top-0 z-40 h-full w-[385px] border-l border-[rgba(55,53,47,0.09)] pb-4 pl-5 pr-4 pt-11 dark:border-neutral-800"
         >
-          {/* 패널 닫기 — always shown on a full page, round, in the top bar 9px
+          {/* Close panel — always shown on a full page, round, in the top bar 9px
               in from the panel's edge (measured 2026-08-27) */}
           <PanelCloseButton round onClick={() => setDetailsOpen(false)} className="absolute" style={{ left: 9, top: 10 }} />
         </RowDetailsPanel>

@@ -2,23 +2,25 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { sealData } from "iron-session";
 
 /**
- * 배포 검증 — 실제로 떠 있는 사이트를 브라우저로 본다.
+ * Deployment check — looks at the site that is actually running, in a browser.
  *
- * **읽기만 한다.** 글을 쓰거나 올리거나 지우지 않는다. 라이브 데이터다.
+ * **Read-only.** Writes, uploads and deletes nothing. This is live data.
  *
- * 이전 판은 `POST /api/auth/demo-login` 으로 로그인했는데 그 엔드포인트는
- * 2026-08-03(`ecfcc6b`, 지갑·데모 제거)에 사라졌다. 그 뒤로 11개 전부 같은 줄에서
- * 죽고 있었고 — 3주 넘게 **배포 검증이 사실상 없었다**. 여기서 다시 세운다.
+ * The previous version signed in through `POST /api/auth/demo-login`, an
+ * endpoint that disappeared on 2026-08-03 (`ecfcc6b`, wallet/demo removal).
+ * After that all 11 tests died on the same line — for over three weeks there
+ * was **effectively no deployment check**. This rebuilds it.
  *
- * 로그인은 세션 쿠키를 직접 서명해 넣는다. dev 검사들이 쓰는 방법 그대로다.
- * 테스트 전용 로그인 경로를 되살리는 것보다 낫다 — 공격면을 늘리지 않는다.
+ * Sign-in seals a session cookie directly, the same way the dev checks do.
+ * Better than reviving a test-only login route — it adds no attack surface.
  *
  *   PROD_URL=https://ainmem.ainetwork.ai \
  *   PROD_SESSION_SECRET=… PROD_USER_ID=… \
  *   npx playwright test -c playwright.prod.config.ts
  *
- * 비밀값은 레포에 없다. 안 주면 로그인이 필요한 것들은 skip 되고, 익명으로 볼 수
- * 있는 것만 돈다 — 비밀값 없이도 "사이트가 살아 있나"는 답한다.
+ * The secrets are not in the repo. Without them the signed-in tests are
+ * skipped and only what an anonymous visitor sees runs — "is the site alive"
+ * is still answered.
  */
 
 const SECRET = process.env.PROD_SESSION_SECRET;
@@ -32,20 +34,20 @@ async function signIn(context: BrowserContext, baseURL: string) {
   ]);
 }
 
-test.describe("배포된 사이트 — 누구나 보는 것", () => {
-  test("헬스체크가 200 이다 (스키마가 이 빌드에 맞는다는 뜻)", async ({ request }) => {
+test.describe("the deployed site — what anyone sees", () => {
+  test("health check is 200 (meaning the schema matches this build)", async ({ request }) => {
     const res = await request.get("/api/health");
-    expect(res.status(), "503 이면 라이브 DB 가 이 빌드보다 뒤처졌다").toBe(200);
+    expect(res.status(), "503 means the live DB is behind this build").toBe(200);
   });
 
-  test("로그인하지 않으면 로그인 화면이 나온다", async ({ page }) => {
+  test("signed out, the login screen shows", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByTestId("google-login-button")).toBeVisible();
   });
 
-  test("로그인 없이 남의 파일을 가져갈 수 없다", async ({ request }) => {
-   // 오브젝트 스토리지 이관 뒤 바이트가 나가는 유일한 문이라, 여기가 뚫리면
-   // 워크스페이스의 첨부와 이미지가 전부 공개된다
+  test("nobody's files can be fetched without signing in", async ({ request }) => {
+   // Since the object-storage migration this is the only door bytes leave by;
+   // if it is open, every workspace's attachments and images are public
     const res = await request.get(
       "/api/files/key/files/" + "a".repeat(64) + ".png",
       { failOnStatusCode: false }
@@ -54,33 +56,34 @@ test.describe("배포된 사이트 — 누구나 보는 것", () => {
   });
 });
 
-test.describe("로그인한 사람이 보는 것", () => {
-  test.skip(!signedIn, "PROD_SESSION_SECRET / PROD_USER_ID 가 없다");
+test.describe("what a signed-in person sees", () => {
+  test.skip(!signedIn, "PROD_SESSION_SECRET / PROD_USER_ID not set");
 
   test.beforeEach(async ({ context, baseURL }) => {
     await signIn(context, baseURL!);
   });
 
-  test("홈이 그려지고 사이드바에 내용이 있다", async ({ page }) => {
+  test("home renders and the sidebar has content", async ({ page }) => {
     await page.goto("/home");
     await expect(page.getByTestId("sidebar")).toBeVisible();
-   // 트리가 비어 있으면 DB 는 붙었는데 내용이 안 오는 상태다 — 200 만으로는 안 잡힌다
+   // An empty tree means the DB connected but content is not coming — a 200 alone does not catch it
     await expect(page.locator("[data-testid^='page-tree-item-']").first()).toBeVisible();
   });
 
-  test("페이지를 열면 본문이 그려진다", async ({ page }) => {
+  test("opening a page renders its body", async ({ page }) => {
     const pageId = process.env.PROD_PAGE_ID;
-    test.skip(!pageId, "PROD_PAGE_ID 가 없다");
+    test.skip(!pageId, "PROD_PAGE_ID not set");
     await page.goto(`/p/${pageId}`);
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await expect(page.locator("h1, [contenteditable]").first()).toBeVisible();
   });
 
-  test("오브젝트 스토리지의 이미지가 실제로 그려진다", async ({ page }) => {
-   // 이관(2026-08-28)으로 이미지가 디스크에서 MinIO 로 옮겨갔다. 참조만 바뀌고
-   // 바이트가 안 왔으면 화면은 멀쩡히 뜨면서 그림만 깨진다 — 헬스체크는 200 이다.
+  test("images from object storage actually render", async ({ page }) => {
+   // The migration (2026-08-28) moved images from disk to MinIO. If only the
+   // reference changed and the bytes never arrived, the page looks fine with
+   // broken pictures — and the health check is 200.
     const pageId = process.env.PROD_IMAGE_PAGE_ID;
-    test.skip(!pageId, "PROD_IMAGE_PAGE_ID 가 없다");
+    test.skip(!pageId, "PROD_IMAGE_PAGE_ID not set");
     await page.goto(`/p/${pageId}`);
     const img = page.locator("img[src^='/api/files/key/']").first();
     await expect(img).toBeVisible();

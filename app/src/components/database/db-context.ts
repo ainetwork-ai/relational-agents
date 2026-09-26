@@ -21,7 +21,7 @@ interface DbApi {
   rows: DbRow[];
   members: PublicUser[];
   me: string | null;
-  /** what one row is called — the original's Projects says "새 프로젝트" */
+  /** what one row is called — the original's Projects says "New project" */
   itemName: string;
   /** rendered as the page itself (not an inline block) */
   fullPage: boolean;
@@ -49,7 +49,7 @@ interface DbApi {
   patchView: (config: ViewConfig, opts?: { draft?: boolean }) => void;
   openRow: (rowId: string) => void;
   /** open a column's header menu from somewhere else — the Status menu's
-   * 속성 편집 row, which the original also points at the property editor */
+   * Edit property row, which the original also points at the property editor */
   editProperty: (propId: string | null) => void;
   editingPropertyId: string | null;
   /** true while the toolbar Filter popover (advanced panel) is open — the
@@ -57,8 +57,8 @@ interface DbApi {
  * the same filter editor at once */
   filterUiOpen: boolean;
   setFilterUiOpen: (open: boolean) => void;
-  /** the rule row (sort chips · filter chips · + 필터) under the view tabs.
-   *  The original shows it only after the toolbar's 필터/정렬 button is
+  /** the rule row (sort chips · filter chips · + Filter) under the view tabs.
+   *  The original shows it only after the toolbar's Filter/Sort button is
    *  pressed, and remembers that per view; the buttons take a pressed box
    *  while it is out. */
   rulesRowOpen: boolean;

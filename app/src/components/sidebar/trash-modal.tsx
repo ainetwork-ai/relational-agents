@@ -77,7 +77,7 @@ export function TrashModal() {
           data-testid="trash-search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={t("휴지통에서 페이지 검색")}
+          placeholder={t("Search pages in Trash")}
           className="w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400 dark:text-neutral-200"
         />
       </div>
@@ -85,7 +85,7 @@ export function TrashModal() {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {items.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-neutral-400">
-            {q ? t("결과 없음") : t("휴지통이 비어 있습니다")}
+            {q ? t("No results") : t("Trash is empty")}
           </p>
         ) : (
           items.map((p) => (
@@ -94,13 +94,13 @@ export function TrashModal() {
               className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-700/50"
             >
               <span><PageIcon icon={p.icon} fallback="📄" /></span>
-              <span className="min-w-0 flex-1 truncate">{p.title || t("제목 없음")}</span>
+              <span className="min-w-0 flex-1 truncate">{p.title || t("Untitled")}</span>
               <button
                 data-testid={`trash-restore-${p.id}`}
                 onClick={() => restorePage(p.id)}
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 opacity-0 transition-all hover:bg-neutral-200 group-hover:opacity-100 dark:hover:bg-neutral-600"
               >
-                <RotateCcw size={12} /> {t("복원")}
+                <RotateCcw size={12} /> {t("Restore")}
               </button>
               <button
                 data-testid={`trash-delete-${p.id}`}
@@ -119,14 +119,14 @@ export function TrashModal() {
                     : "text-red-500 opacity-0 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/30"
                 }`}
               >
-                <Trash2 size={12} /> {armed === p.id ? t("영구 삭제할까요?") : t("삭제")}
+                <Trash2 size={12} /> {armed === p.id ? t("Delete permanently?") : t("Delete")}
               </button>
             </div>
           ))
         )}
       </div>
       <div className="border-t border-neutral-100 px-3 py-1.5 text-[11px] text-neutral-400 dark:border-neutral-700">
-        {t("휴지통에 30일 이상 있는 페이지는 자동으로 삭제됩니다")}
+        {t("Pages in Trash for over 30 days are deleted automatically")}
       </div>
     </div>,
     document.body

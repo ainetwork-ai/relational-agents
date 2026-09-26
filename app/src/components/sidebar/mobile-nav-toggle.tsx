@@ -13,7 +13,7 @@ export function MobileNavToggle() {
       data-testid="mobile-nav-toggle"
       onClick={() => setMobileNavOpen(true)}
       className="fixed left-2 top-2 z-30 rounded-md bg-white/70 p-2 text-neutral-500 shadow-sm backdrop-blur transition-colors hover:bg-neutral-100 md:hidden dark:bg-neutral-800/70 dark:text-neutral-300 dark:hover:bg-neutral-700"
-      aria-label={t("메뉴 열기")}
+      aria-label={t("Open menu")}
     >
       <Menu size={18} />
     </button>

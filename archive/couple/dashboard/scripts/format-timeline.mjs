@@ -1,6 +1,6 @@
 // Reshape each relationship doc's Timeline section into the formal template:
 //
-//   # 2026-08-04                  ← one date (데이트) = one event, chronological
+//   # 2026-08-04                  ← one date = one event, chronological
 //   ## Belém day — natas at the source, castle at golden hour
 //   > 💕 17:46 – 00:31 · 4 moments — caption · caption · …   (callout)
 //   ### 17:46 ~

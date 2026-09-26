@@ -51,9 +51,9 @@ async function loadAccessibleComment(
  * still comment on.
  *
  * Measured on Notion 2026-09-10 (docs/notion-comment-delete.md): the ⋯ menu on
- * someone else's comment offers only 읽지 않음으로 표시 · 링크 복사, while your
- * own adds 편집하기 and 삭제하기 — so authorship gates these two. Resolving is
- * different: the 해결 button sits on anyone's thread head, so that path stays
+ * someone else's comment offers only Mark as unread · Copy link, while your
+ * own adds Edit and Delete — so authorship gates these two. Resolving is
+ * different: the Resolve button sits on anyone's thread head, so that path stays
  * on the access check alone.
  *
  * Authorship is ADDED to that access check, never substituted for it. Asking

@@ -1,21 +1,21 @@
-// 우리 앱의 "들여쓰기(indent)"가 **지금** 실제로 어떻게 동작하는지를 시나리오별로 잰다.
-// 노션과 같은 표(T1~T22)를 우리 쪽에서도 말할 수 있게 만드는 것이 목적이고,
-// 판단이 아니라 잰 값만 남긴다 — 못 잰 시나리오는 failures 로 나간다.
+// Measures, scenario by scenario, how our app's "indent" **currently** behaves.
+// The goal is to be able to state the same table as Notion (T1~T22) on our side,
+// and to keep only measured values, not judgements — scenarios that could not be measured go to failures.
 //
-// 왜 이렇게 재는가
-//  - 키는 진짜로 누른다(Tab / Shift+Tab / Enter / Backspace / 타이핑). indent()를
-//    직접 부르면 키 핸들러가 막고 있는 경우(코드 블록의 Tab, 선택 모드의 Tab)를
-//    통째로 놓친다.
-//  - DOM 만 보면 안 된다. 에디터는 트랜잭션 큐로 따로 저장하므로,
-//    "화면에서는 들여써졌는데 저장은 안 된" 상태가 실제로 가능하다. 그래서 키 입력 뒤
-//    GET /api/pages/<id>/blocks 의 parentBlockId 까지 같이 찍는다.
-//  - 시나리오마다 페이지를 새로 만든다. 한 페이지에서 이어서 하면 앞 시나리오가 만든
-//    부모/형제 관계가 다음 결과를 오염시킨다. 만든 페이지는 끝에서 전부 보관함으로.
+// Why measure this way
+//  - Keys are really pressed (Tab / Shift+Tab / Enter / Backspace / typing). Calling indent()
+//    directly misses entirely the cases where a key handler blocks it (Tab in a code block, Tab in
+//    selection mode).
+//  - Looking only at the DOM is not enough. The editor saves separately through a transaction queue, so
+//    "indented on screen but not saved" is a real possible state. So after a keystroke we also record
+//    the parentBlockId from GET /api/pages/<id>/blocks.
+//  - A new page per scenario. Continuing on one page lets the parent/sibling relations an earlier
+//    scenario made contaminate the next result. All pages made are archived at the end.
 //
 //   [BASE_URL=http://localhost:3110] [USER_ID=…] [ONLY=T4_enter_after_indented,T6_shift_tab]
 //   node e2e/indent.measure.mjs
 //
-// dev 서버는 이미 떠 있는 3110 을 쓴다(CLAUDE.md). dev 데이터는 버려도 되는 데이터.
+// Uses the dev server already running on 3110 (CLAUDE.md). dev data is disposable.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
@@ -31,10 +31,10 @@ const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 })
 const H = { cookie: `rm-session=${cookie}`, "content-type": "application/json" };
 const uuid = () => crypto.randomUUID();
 
-// 1x1 png — image 블록에 실제 URL 을 물려야 렌더가 끝난다(네트워크는 안 탄다)
+// 1x1 png — an image block needs a real URL for rendering to finish (no network involved)
 const PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
-// 타입별 content 모양 — block-spacing.check.mjs 와 같은 규칙
+// content shape per type — same rules as block-spacing.check.mjs
 const contentOf = (type, text) =>
   type === "todo" ? { text, checked: false }
   : type === "toggle" ? { text, expanded: true }
@@ -44,16 +44,16 @@ const contentOf = (type, text) =>
   : type === "image" ? { url: PNG }
   : { text };
 
-// ── 페이지 만들기 ────────────────────────────────────────────────────────────
+// ── Making pages ────────────────────────────────────────────────────────────
 const createdPages = [];
-/** seed: [{ k, type, text?, parent? }] — parent 는 앞에 나온 k 를 가리킨다 */
+/** seed: [{ k, type, text?, parent? }] — parent points to an earlier k */
 async function build(name, seed) {
   const res = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: `indent.measure ${name}` }) }).then((r) => r.json());
   const pageId = res.page?.id ?? res.id;
   if (!pageId) throw new Error(`page create failed: ${JSON.stringify(res).slice(0, 200)}`);
   createdPages.push(pageId);
-  // 새 페이지에는 부트스트랩 빈 문단이 하나 들어 있다(block-editor.tsx bootstrapParagraph).
-  // 그걸 남겨두면 트리에 정체 불명의 빈 문단이 섞이고 position 1 이 겹쳐 순서가 흐려진다.
+  // A new page holds one bootstrap empty paragraph (block-editor.tsx bootstrapParagraph).
+  // Left in place, an unidentified empty paragraph gets mixed into the tree and position 1 collides, blurring the order.
   const existing = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { headers: H }).then((r) => r.json()).catch(() => ({}));
   const stale = (existing.blocks ?? []).map((b) => b.id);
   const ids = {};
@@ -75,14 +75,14 @@ async function build(name, seed) {
   return p;
 }
 
-// ── 브라우저 ────────────────────────────────────────────────────────────────
+// ── Browser ─────────────────────────────────────────────────────────────────
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 } });
 await ctx.addCookies([{ name: "rm-session", value: cookie, domain: new URL(BASE).hostname, path: "/" }]);
 const tab = await ctx.newPage();
 const pageErrors = [];
 tab.on("pageerror", (e) => pageErrors.push(String(e)));
-// 저장 트랜잭션을 세어 둔다: "Tab 을 눌렀는데 저장 요청이 0건" 자체가 증거다
+// Count save transactions: "pressed Tab and 0 save requests" is itself evidence
 let saveStarted = 0, saveDone = 0;
 tab.on("request", (r) => { if (r.url().includes("/api/saveTransactions")) saveStarted++; });
 tab.on("requestfinished", (r) => { if (r.url().includes("/api/saveTransactions")) saveDone++; });
@@ -94,9 +94,9 @@ async function openPage(p) {
   await tab.waitForTimeout(700);
 }
 
-// ── 재는 도구 ───────────────────────────────────────────────────────────────
-/** 캐럿 놓기. 키 입력은 진짜로 누르지만 "문장 중간" 같은 위치는 Range 로 정확히 잡아야
- *  T2/T14 가 재현된다. 클릭은 줄바꿈된 줄에서 오프셋이 흔들린다. */
+// ── Measuring tools ─────────────────────────────────────────────────────────
+/** Place the caret. Keys are really pressed, but positions like "mid-sentence" have to be set exactly
+ *  with a Range to reproduce T2/T14. A click makes the offset wobble on wrapped lines. */
 const caret = (id, where) =>
   tab.evaluate(([id, where]) => {
     const el = document.querySelector(`[data-testid="block-editable-${id}"]`);
@@ -114,7 +114,7 @@ const caret = (id, where) =>
     return { placed: document.activeElement === el, offset: off, len, text: (el.innerText ?? "").slice(0, 24) };
   }, [id, where]);
 
-/** 키 입력 뒤 캐럿이 어디 있는지 — 들여쓰기가 캐럿을 잃어버리는지도 표에 필요하다 */
+/** Where the caret is after a keystroke — the table also needs whether indenting loses the caret */
 const caretNow = () =>
   tab.evaluate(() => {
     const s = getSelection();
@@ -129,8 +129,8 @@ const caretNow = () =>
     };
   });
 
-/** 화면의 블록 트리: id·타입·중첩 깊이(editor-root 안의 [data-block-type] 조상 수)·
- *  들여쓰기 px(행의 padding-left)·편집영역 왼쪽 x·리스트 마커 글자 */
+/** The block tree on screen: id·type·nesting depth (number of [data-block-type] ancestors inside editor-root)·
+ *  indent px (the row's padding-left)·editable left x·list marker text */
 const domTree = () =>
   tab.evaluate(() => {
     const root = document.querySelector('[data-testid="editor-root"]');
@@ -162,10 +162,10 @@ const domTree = () =>
     });
   });
 
-/** 저장이 끝났는지: 트랜잭션 요청이 하나라도 돌고 in-flight 가 없어질 때까지 (최대 ms).
- *  기준선(base)은 키 입력 **전**의 카운트다 — 큐는 한가할 때 동기로 flush 하므로
- *  키를 누른 직후에 세기 시작하면 이미 끝난 저장을 "0건"으로 잘못 적는다.
- *  변화가 없으면 저장 요청 자체가 안 뜨므로 오래 기다리지 않고 넘어간다. */
+/** Whether saving is done: until at least one transaction request has gone out and none are in flight (max ms).
+ *  The baseline (base) is the count **before** the keystroke — the queue flushes synchronously when idle, so
+ *  starting the count right after the keypress records an already-finished save as "0".
+ *  With no change no save request goes out at all, so move on without waiting long. */
 let pressBaseline = null;
 async function waitSaves(ms = 3500) {
   const base = pressBaseline ?? saveStarted;
@@ -177,7 +177,7 @@ async function waitSaves(ms = 3500) {
   return { requests: saveStarted - base, settled: saveDone >= saveStarted };
 }
 
-/** 저장된 진실: API 가 두 번 연속 같은 답을 줄 때까지 읽는다(부모/위치/깊이) */
+/** The saved truth: read until the API gives the same answer twice in a row (parent/position/depth) */
 async function readPersisted(p) {
   const saves = await waitSaves();
   let prev = null, rows = [];
@@ -204,7 +204,7 @@ async function readPersisted(p) {
   return { rows, stable: false, saves };
 }
 
-/** 블록의 박스 — 마퀴/텍스트 드래그 좌표 계산용 (deselect.check.mjs 와 같은 방식) */
+/** A block's box — for computing marquee/text-drag coordinates (same method as deselect.check.mjs) */
 const rect = (id) =>
   tab.evaluate((id) => {
     const b = document.querySelector(`[data-testid="block-${id}"]`);
@@ -222,7 +222,7 @@ const drag = async (x1, y1, x2, y2, steps = 10) => {
   await tab.mouse.up();
   await tab.waitForTimeout(320);
 };
-/** halo(블록 선택) 목록 */
+/** The halo (block selection) list */
 const halos = () =>
   tab.evaluate(() =>
     [...document.querySelectorAll('[data-testid="editor-root"] [data-block-type]')]
@@ -230,7 +230,7 @@ const halos = () =>
       .map((r) => r.getAttribute("data-testid").slice(6, 14))
   );
 
-// ── 시나리오 러너 ───────────────────────────────────────────────────────────
+// ── Scenario runner ─────────────────────────────────────────────────────────
 const results = {};
 const failures = [];
 async function scenario(key, why, fn) {
@@ -246,23 +246,23 @@ async function scenario(key, why, fn) {
   console.log(JSON.stringify(out));
   return out;
 }
-/** 대부분의 시나리오가 끝에 하는 일: 화면 + 저장된 트리 */
+/** What most scenarios do at the end: the screen + the saved tree */
 const snapshot = async (p, extra = {}) => {
   const per = await readPersisted(p);
   return { pageId: p.pageId, ...extra, caretAfter: await caretNow(), dom: await domTree(), persisted: per.rows, persistStable: per.stable, saveRequests: per.saves.requests };
 };
 const press = async (k, n = 1, wait = 320) => {
-  pressBaseline ??= saveStarted; // 이 시나리오의 첫 키 입력 시점을 저장 카운트의 기준선으로
+  pressBaseline ??= saveStarted; // the moment of this scenario's first keystroke is the baseline for the save count
   for (let i = 0; i < n; i++) { await tab.keyboard.press(k); await tab.waitForTimeout(wait); }
 };
 
 const TYPES = ["paragraph", "heading1", "heading2", "heading3", "bulleted_list", "numbered_list", "todo", "toggle", "quote", "callout", "code", "divider"];
 
-// ── T1~T3: 캐럿 위치가 Tab 결과를 바꾸는가 ──────────────────────────────────
-// 노션은 캐럿 위치와 무관하게 블록 전체를 들여쓴다. 우리 쪽이 offset 0 에서만/끝에서만
-// 다르게 굴지 않는지 확인하려고 세 개로 쪼갰다.
+// ── T1~T3: does the caret position change the Tab result ────────────────────
+// Notion indents the whole block regardless of the caret position. Split into three to confirm we
+// don't behave differently only at offset 0 / only at the end.
 for (const [key, where] of [["T1_tab_at_start", 0], ["T2_tab_mid", "mid"], ["T3_tab_end", "end"]]) {
-  await scenario(key, `앞 형제가 문단인 문단에서 캐럿 ${where} 위치로 Tab`, async () => {
+  await scenario(key, `Tab with the caret at ${where} in a paragraph whose previous sibling is a paragraph`, async () => {
     const p = await build(key, [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "BBBBBBBB" }]);
     const before = await caret(p.ids.B, where);
     await press("Tab");
@@ -270,27 +270,27 @@ for (const [key, where] of [["T1_tab_at_start", 0], ["T2_tab_mid", "mid"], ["T3_
   });
 }
 
-// ── T4: 사용자가 불편해한 그 지점 ───────────────────────────────────────────
-// B 가 A 밑에 들여써져 있고 B 끝에서 Enter — 새 블록 C 는 B 와 같은 깊이여야 한다(노션).
-await scenario("T4_enter_after_indented", "A 밑에 들여쓴 B 의 끝에서 Enter — 새 블록의 깊이", async () => {
+// ── T4: the exact spot the user found annoying ──────────────────────────────
+// B is indented under A and Enter at the end of B — the new block C must be at the same depth as B (Notion).
+await scenario("T4_enter_after_indented", "Enter at the end of B indented under A — depth of the new block", async () => {
   const p = await build("T4", [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "BBBB", parent: "A" }, { k: "Z", type: "paragraph", text: "ZZZZ" }]);
   const before = await caret(p.ids.B, "end");
   await press("Enter");
-  await tab.keyboard.type("CCC", { delay: 60 }); // 새 블록을 식별할 수 있게 글자를 넣는다
+  await tab.keyboard.type("CCC", { delay: 60 }); // type text so the new block can be identified
   await tab.waitForTimeout(300);
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T5: 빈 상태의 들여쓴 블록에서 Enter ─────────────────────────────────────
-// 노션에서 리스트/문단이 비어 있으면 Enter 는 내어쓰기(또는 문단 변환)로 쓰인다.
-await scenario("T5_enter_empty_indented", "A 밑에 들여쓴 빈 B 에서 Enter — 내어쓰기/유지/변환", async () => {
+// ── T5: Enter in an empty indented block ────────────────────────────────────
+// In Notion, Enter in an empty list item/paragraph is used as outdent (or conversion to paragraph).
+await scenario("T5_enter_empty_indented", "Enter in an empty B indented under A — outdent/stay/convert", async () => {
   const p = await build("T5", [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "", parent: "A" }]);
   const before = await caret(p.ids.B, 0);
   await press("Enter");
   return snapshot(p, { caretBefore: before });
 });
-// 같은 질문의 리스트 판 — 빈 리스트 항목은 노션에서 따로 규칙이 있다
-await scenario("T5b_enter_empty_indented_list", "A 밑에 들여쓴 빈 글머리 항목에서 Enter", async () => {
+// the list version of the same question — empty list items have their own rule in Notion
+await scenario("T5b_enter_empty_indented_list", "Enter in an empty bullet item indented under A", async () => {
   const p = await build("T5b", [{ k: "A", type: "bulleted_list", text: "AAAA" }, { k: "B", type: "bulleted_list", text: "", parent: "A" }]);
   const before = await caret(p.ids.B, 0);
   await press("Enter");
@@ -298,9 +298,9 @@ await scenario("T5b_enter_empty_indented_list", "A 밑에 들여쓴 빈 글머�
 });
 
 // ── T6: Shift+Tab ───────────────────────────────────────────────────────────
-// 내어쓴 블록이 형제 순서에서 어디에 꽂히는지(부모 바로 뒤인지, 맨 끝인지)와
-// 자식이 따라오는지를 같이 봐야 해서 A ⊃ B ⊃ C 옆에 D 를 하나 더 둔다.
-await scenario("T6_shift_tab", "A ⊃ B ⊃ C, 그 뒤 top-level D. B 에서 Shift+Tab", async () => {
+// We need to see both where the outdented block lands in the sibling order (right after the parent, or at the end)
+// and whether its children follow, so put one more D next to A ⊃ B ⊃ C.
+await scenario("T6_shift_tab", "A ⊃ B ⊃ C, then top-level D. Shift+Tab in B", async () => {
   const p = await build("T6", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBB", parent: "A" },
@@ -312,41 +312,41 @@ await scenario("T6_shift_tab", "A ⊃ B ⊃ C, 그 뒤 top-level D. B 에서 Shi
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T7: 들여쓴 블록의 맨 앞에서 Backspace ───────────────────────────────────
-// 노션은 먼저 내어쓰기를 한 번 먹고, 그 다음 Backspace 에서 앞 블록과 합친다.
-await scenario("T7_backspace_at_start_indented", "A 밑에 들여쓴 BBBB 의 offset 0 에서 Backspace", async () => {
+// ── T7: Backspace at the very start of an indented block ────────────────────
+// Notion first consumes one outdent, then merges with the previous block on the next Backspace.
+await scenario("T7_backspace_at_start_indented", "Backspace at offset 0 of BBBB indented under A", async () => {
   const p = await build("T7", [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "BBBB", parent: "A" }]);
   const before = await caret(p.ids.B, 0);
   await press("Backspace");
   const first = await snapshot(p, { caretBefore: before });
-  // 두 번째 Backspace 까지 봐야 "내어쓰기 먼저"인지 "바로 합침"인지 구분된다
+  // only the second Backspace tells "outdent first" from "merge right away"
   const stillThere = await tab.$(`[data-testid="block-editable-${p.ids.B}"]`);
   let second = null;
   if (stillThere) { await caret(p.ids.B, 0); await press("Backspace"); second = await snapshot(p, {}); }
   return { ...first, secondBackspace: second };
 });
 
-// 대조군: 들여쓰기가 아닌 문단의 맨 앞 Backspace. T7 이 "아무 일도 없음"으로 나오면
-// 그게 들여쓰기 때문인지, 맨 앞 Backspace 자체가 원래 합치지 않는 것인지 갈라야 한다.
-await scenario("T7b_backspace_at_start_flat", "대조군: 들여쓰지 않은 BBBB 의 offset 0 에서 Backspace", async () => {
+// Control: Backspace at the start of a paragraph that is not indented. If T7 comes out as "nothing happens"
+// we have to tell whether that is due to the indent, or whether Backspace at the start never merges anyway.
+await scenario("T7b_backspace_at_start_flat", "control: Backspace at offset 0 of a non-indented BBBB", async () => {
   const p = await build("T7b", [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "BBBB" }]);
   const before = await caret(p.ids.B, 0);
   await press("Backspace");
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T8: 페이지 첫 블록의 Tab (앞 형제가 없다) ───────────────────────────────
-await scenario("T8_tab_first_block", "페이지 첫 블록에서 Tab — 앞 형제가 없을 때", async () => {
+// ── T8: Tab on the first block of the page (no previous sibling) ────────────
+await scenario("T8_tab_first_block", "Tab on the first block of the page — with no previous sibling", async () => {
   const p = await build("T8", [{ k: "F", type: "paragraph", text: "FIRST" }, { k: "G", type: "paragraph", text: "GGGG" }]);
   const before = await caret(p.ids.F, "end");
   await press("Tab");
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T9: 앞 형제가 헤딩일 때 ─────────────────────────────────────────────────
-// 노션에서 헤딩은 자식을 받는다(토글 헤딩이 아니어도 들여쓰기는 된다). 우리 쪽 코드에는
-// NO_CHILDREN 목록이 있어서 여기서 갈릴 가능성이 크다 — 세 헤딩을 각각 잰다.
-await scenario("T9_parent_is_heading", "heading1/2/3 뒤 문단에서 Tab", async () => {
+// ── T9: when the previous sibling is a heading ──────────────────────────────
+// In Notion headings take children (indenting works even if it is not a toggle heading). Our code has
+// a NO_CHILDREN list, so this is likely where we diverge — measure each of the three headings.
+await scenario("T9_parent_is_heading", "Tab in a paragraph after heading1/2/3", async () => {
   const p = await build("T9", [
     { k: "H1", type: "heading1", text: "H1" }, { k: "P1", type: "paragraph", text: "under h1" },
     { k: "H2", type: "heading2", text: "H2" }, { k: "P2", type: "paragraph", text: "under h2" },
@@ -362,8 +362,8 @@ await scenario("T9_parent_is_heading", "heading1/2/3 뒤 문단에서 Tab", asyn
   return snapshot(p, { perHeading: per });
 });
 
-// ── T10: 앞 형제가 divider / code / image 일 때 ─────────────────────────────
-await scenario("T10_parent_is_atomic", "divider·code·image 뒤 문단에서 Tab", async () => {
+// ── T10: when the previous sibling is a divider / code / image ──────────────
+await scenario("T10_parent_is_atomic", "Tab in a paragraph after divider·code·image", async () => {
   const p = await build("T10", [
     { k: "DV", type: "divider" }, { k: "PD", type: "paragraph", text: "after divider" },
     { k: "CD", type: "code", text: "print(1)" }, { k: "PC", type: "paragraph", text: "after code" },
@@ -379,8 +379,8 @@ await scenario("T10_parent_is_atomic", "divider·code·image 뒤 문단에서 Ta
   return snapshot(p, { perPrevType: per });
 });
 
-// ── T11 / T12: 자식이 딸린 블록을 들여쓰기/내어쓰기 ─────────────────────────
-await scenario("T11_indent_with_children", "이미 자식(C,D)이 있는 B 를 Tab — 자식이 상대 깊이를 유지하며 따라오나", async () => {
+// ── T11 / T12: indent/outdent a block that has children ─────────────────────
+await scenario("T11_indent_with_children", "Tab on B that already has children (C,D) — do the children follow, keeping their relative depth", async () => {
   const p = await build("T11", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBB" },
@@ -391,7 +391,7 @@ await scenario("T11_indent_with_children", "이미 자식(C,D)이 있는 B 를 T
   await press("Tab");
   return snapshot(p, { caretBefore: before });
 });
-await scenario("T12_outdent_with_children", "자식(C)이 있는 B 를 Shift+Tab — 자식이 B 밑에 남나", async () => {
+await scenario("T12_outdent_with_children", "Shift+Tab on B with a child (C) — does the child stay under B", async () => {
   const p = await build("T12", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBB", parent: "A" },
@@ -402,9 +402,9 @@ await scenario("T12_outdent_with_children", "자식(C)이 있는 B 를 Shift+Tab
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T13: 자식이 있는 블록의 끝에서 Enter ────────────────────────────────────
-// 노션은 새 블록을 "첫 자식"으로 넣는다(자식이 있는 블록일 때). 우리 쪽은?
-await scenario("T13_enter_end_with_children", "자식 B 가 있는 A 의 끝에서 Enter — 형제 뒤인가 첫 자식인가", async () => {
+// ── T13: Enter at the end of a block with children ──────────────────────────
+// Notion inserts the new block as the "first child" (when the block has children). And ours?
+await scenario("T13_enter_end_with_children", "Enter at the end of A with child B — after the sibling, or first child", async () => {
   const p = await build("T13", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBB", parent: "A" },
@@ -417,18 +417,18 @@ await scenario("T13_enter_end_with_children", "자식 B 가 있는 A 의 끝에�
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T14: 들여쓴 블록의 중간에서 Enter ───────────────────────────────────────
-await scenario("T14_split_mid_indented", "A 밑에 들여쓴 B(BBBBBBBB)의 중간에서 Enter — 두 조각의 깊이", async () => {
+// ── T14: Enter in the middle of an indented block ───────────────────────────
+await scenario("T14_split_mid_indented", "Enter in the middle of B (BBBBBBBB) indented under A — depth of the two pieces", async () => {
   const p = await build("T14", [{ k: "A", type: "paragraph", text: "AAAA" }, { k: "B", type: "paragraph", text: "BBBBBBBB", parent: "A" }]);
   const before = await caret(p.ids.B, "mid");
   await press("Enter");
   return snapshot(p, { caretBefore: before });
 });
 
-// ── T15: 블록(halo) 다중 선택 + Tab ────────────────────────────────────────
-// 캐럿이 없는 선택 모드에서는 키가 window 핸들러로 간다 — 거기 Tab 이 있는지 없는지가
-// 그대로 결과다. 선택은 왼쪽 여백 마퀴 드래그(deselect.check.mjs 와 같은 방법).
-await scenario("T15_multiselect_tab", "B·C 를 블록으로 선택(halo)한 뒤 Tab", async () => {
+// ── T15: block (halo) multi-selection + Tab ─────────────────────────────────
+// In selection mode with no caret, keys go to the window handler — whether Tab is handled there
+// is the result as-is. Selection by marquee drag in the left margin (same method as deselect.check.mjs).
+await scenario("T15_multiselect_tab", "Tab after selecting B·C as blocks (halo)", async () => {
   const p = await build("T15", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBB" },
@@ -442,8 +442,8 @@ await scenario("T15_multiselect_tab", "B·C 를 블록으로 선택(halo)한 뒤
   return snapshot(p, { halosBefore: before, halosAfter: after, expectHalos: [p.ids.B.slice(0, 8), p.ids.C.slice(0, 8)] });
 });
 
-// ── T16: 두 블록에 걸친 텍스트 선택 + Tab ──────────────────────────────────
-await scenario("T16_textsel_across_tab", "B→C 에 걸친 텍스트 선택 상태에서 Tab", async () => {
+// ── T16: text selection across two blocks + Tab ─────────────────────────────
+await scenario("T16_textsel_across_tab", "Tab with a text selection spanning B→C", async () => {
   const p = await build("T16", [
     { k: "A", type: "paragraph", text: "AAAA" },
     { k: "B", type: "paragraph", text: "BBBBBBBB" },
@@ -461,9 +461,9 @@ await scenario("T16_textsel_across_tab", "B→C 에 걸친 텍스트 선택 상�
   return snapshot(p, { selectionBefore: before });
 });
 
-// ── T17: 깊이 1단의 px, 그리고 최대 깊이 ───────────────────────────────────
-// 계단을 Tab 으로 직접 만든다: Pi 에서 Tab 을 i 번 누르면 i 단이 되는지까지 함께 잰다.
-await scenario("T17_depth_geometry", "Tab 으로 계단을 쌓아 단당 px 과 상한을 잰다", async () => {
+// ── T17: px per depth level, and the maximum depth ──────────────────────────
+// Build the staircase with Tab directly: also measures whether pressing Tab i times in Pi gives depth i.
+await scenario("T17_depth_geometry", "stack a staircase with Tab to measure px per level and the cap", async () => {
   const N = 8;
   const seed = Array.from({ length: N }, (_, i) => ({ k: `P${i}`, type: "paragraph", text: `P${i}` }));
   const p = await build("T17", seed);
@@ -472,15 +472,15 @@ await scenario("T17_depth_geometry", "Tab 으로 계단을 쌓아 단당 px 과 
   const byDepth = {};
   for (const r of stair) if (byDepth[r.domDepth] === undefined) byDepth[r.domDepth] = r.ceLeft;
   const stepPx = Object.keys(byDepth).sort((a, b) => a - b).slice(1).map((d) => +(byDepth[d] - byDepth[d - 1]).toFixed(1));
-  // 상한: 이미 깊은 사슬 끝에 형제를 하나 두고 거기서 Tab — 계단 끝은 형제가 없어
-  // 더 못 내려가므로, 상한만 따로 이렇게 확인한다.
+  // Cap: put a sibling at the end of an already deep chain and Tab there — the staircase end has no sibling
+  // so it cannot go further down; the cap alone is checked this way.
   const D = 14;
   const chain = Array.from({ length: D }, (_, i) => ({ k: `L${i}`, type: "paragraph", text: `L${i}`, ...(i ? { parent: `L${i - 1}` } : {}) }));
-  chain.push({ k: "S", type: "paragraph", text: "SIB", parent: `L${D - 2}` }); // L(D-1) 의 형제
+  chain.push({ k: "S", type: "paragraph", text: "SIB", parent: `L${D - 2}` }); // sibling of L(D-1)
   const q = await build("T17-deep", chain);
   const beforeDeep = (await domTree()).find((r) => r.id === q.ids.S.slice(0, 8));
   await caret(q.ids.S, "end");
-  await press("Tab", 3, 260); // 한 번은 L(D-1) 밑, 그 다음은 형제가 없어 안 움직여야 한다
+  await press("Tab", 3, 260); // once under L(D-1), after that there is no sibling so it must not move
   const afterDeep = (await domTree()).find((r) => r.id === q.ids.S.slice(0, 8));
   const deepPer = await readPersisted(q);
   return {
@@ -492,12 +492,12 @@ await scenario("T17_depth_geometry", "Tab 으로 계단을 쌓아 단당 px 과 
   };
 });
 
-// ── T18: 깊이별 리스트 마커 ────────────────────────────────────────────────
-// 노션은 깊이에 따라 글머리 글리프(• ◦ ▪)와 번호 체계(1. a. i.)가 바뀐다.
-// 깊이마다 항목이 하나뿐이면 번호가 늘 "1." 로 나와 체계를 말할 수 없으므로,
-// 각 깊이에 두 항목씩 만든다(둘째 항목의 라벨이 체계를 드러낸다).
-await scenario("T18_list_markers", "글머리·번호 목록의 깊이 0~3 마커 (깊이마다 두 항목)", async () => {
-  const TABS = [0, 0, 1, 1, 2, 2, 3, 3]; // i 번째 항목에 누를 Tab 수 → 깊이 0,0,1,1,2,2,3,3
+// ── T18: list markers per depth ─────────────────────────────────────────────
+// In Notion the bullet glyph (• ◦ ▪) and numbering scheme (1. a. i.) change with depth.
+// With a single item per depth the number always comes out "1." and says nothing about the scheme,
+// so make two items per depth (the second item's label reveals the scheme).
+await scenario("T18_list_markers", "bulleted·numbered list markers at depth 0~3 (two items per depth)", async () => {
+  const TABS = [0, 0, 1, 1, 2, 2, 3, 3]; // Tabs to press on item i → depth 0,0,1,1,2,2,3,3
   const p = await build("T18", [
     ...Array.from({ length: 8 }, (_, i) => ({ k: `B${i}`, type: "bulleted_list", text: `bul ${i}` })),
     ...Array.from({ length: 8 }, (_, i) => ({ k: `N${i}`, type: "numbered_list", text: `num ${i}` })),
@@ -513,10 +513,10 @@ await scenario("T18_list_markers", "글머리·번호 목록의 깊이 0~3 마�
   return snapshot(p, { bulleted: pick("bul"), numbered: pick("num") });
 });
 
-// ── T19 / T20: 컨테이너(콜아웃·토글) 안에서의 Tab ──────────────────────────
-// 콜아웃/토글 자식은 렌더 트리에서 depth 가 0 으로 리셋된다(block-row.tsx) —
-// 그래서 domDepth 만 보면 안 되고 편집영역 x 까지 같이 찍는다.
-await scenario("T19_tab_inside_callout", "콜아웃 안의 두 번째 자식 문단에서 Tab", async () => {
+// ── T19 / T20: Tab inside containers (callout·toggle) ───────────────────────
+// Callout/toggle children have depth reset to 0 in the render tree (block-row.tsx) —
+// so domDepth alone is not enough; record the editable x too.
+await scenario("T19_tab_inside_callout", "Tab in the second child paragraph inside a callout", async () => {
   const p = await build("T19", [
     { k: "CA", type: "callout", text: "callout" },
     { k: "c1", type: "paragraph", text: "inside one", parent: "CA" },
@@ -525,13 +525,13 @@ await scenario("T19_tab_inside_callout", "콜아웃 안의 두 번째 자식 문
   const beforeRow = (await domTree()).find((r) => r.id === p.ids.c2.slice(0, 8));
   const before = await caret(p.ids.c2, "end");
   await press("Tab");
-  const firstChildTab = await (async () => { // 첫 자식은 앞 형제가 없다 — 같이 확인
+  const firstChildTab = await (async () => { // the first child has no previous sibling — check it too
     await caret(p.ids.c1, "end"); await press("Tab");
     return (await domTree()).find((r) => r.id === p.ids.c1.slice(0, 8));
   })();
   return snapshot(p, { caretBefore: before, c2Before: beforeRow, c1AfterTab: firstChildTab });
 });
-await scenario("T20_tab_inside_toggle", "펼친 토글 안의 두 번째 자식 문단에서 Tab", async () => {
+await scenario("T20_tab_inside_toggle", "Tab in the second child paragraph inside an expanded toggle", async () => {
   const p = await build("T20", [
     { k: "TG", type: "toggle", text: "toggle" },
     { k: "t1", type: "paragraph", text: "inside one", parent: "TG" },
@@ -547,10 +547,10 @@ await scenario("T20_tab_inside_toggle", "펼친 토글 안의 두 번째 자식 
   return snapshot(p, { caretBefore: before, t2Before: beforeRow, t1AfterTab: firstChildTab });
 });
 
-// ── T21: 타입별로 "문단 밑으로 들여쓸 수 있나" ─────────────────────────────
-// 페이지 하나에 [문단 host, 대상 타입] 짝을 늘어놓고 대상에서만 Tab 을 누른다.
-// divider 는 편집영역이 없어 캐럿을 못 놓는다 — 6점 클릭(halo)으로 선택하고 Tab.
-await scenario("T21_can_indent_type", "각 타입 블록을 앞의 문단 밑으로 Tab", async () => {
+// ── T21: per type, "can it be indented under a paragraph" ───────────────────
+// Lay out [paragraph host, target type] pairs on one page and press Tab only on the target.
+// A divider has no editable so the caret cannot be placed — select it with a 6-dot click (halo) and Tab.
+await scenario("T21_can_indent_type", "Tab each type's block under the preceding paragraph", async () => {
   const seed = [];
   for (const t of TYPES) { seed.push({ k: `h_${t}`, type: "paragraph", text: `host ${t}` }); seed.push({ k: `x_${t}`, type: t, text: `x ${t}` }); }
   const p = await build("T21", seed);
@@ -559,7 +559,7 @@ await scenario("T21_can_indent_type", "각 타입 블록을 앞의 문단 밑으
     const id = p.ids[`x_${t}`];
     const c = await caret(id, "end");
     let drivenBy = "caret";
-    if (!c.placed) { // 편집영역이 없는 타입: 6점 핸들 클릭으로 블록 선택 후 Tab
+    if (!c.placed) { // types without an editable: select the block by clicking the 6-dot handle, then Tab
       drivenBy = "halo";
       await tab.locator(`[data-testid="block-${id}"]`).hover({ position: { x: 80, y: 6 } }).catch(() => {});
       await tab.waitForTimeout(120);
@@ -585,9 +585,9 @@ await scenario("T21_can_indent_type", "각 타입 블록을 앞의 문단 밑으
   return { pageId: p.pageId, perType: per, persistStable: pers.stable, saveRequests: pers.saves.requests };
 });
 
-// ── T22: 타입별로 "밑에 자식을 받을 수 있나" ───────────────────────────────
-// [대상 타입 X, 문단 P] 짝. P 에서 Tab 을 눌러 X 밑으로 들어가는지 본다.
-await scenario("T22_can_accept_children", "각 타입 뒤의 문단에서 Tab — 그 타입이 자식을 받나", async () => {
+// ── T22: per type, "can it take children" ───────────────────────────────────
+// [target type X, paragraph P] pairs. Press Tab in P and see whether it goes under X.
+await scenario("T22_can_accept_children", "Tab in the paragraph after each type — does that type take children", async () => {
   const seed = [];
   for (const t of TYPES) { seed.push({ k: `x_${t}`, type: t, text: `x ${t}` }); seed.push({ k: `p_${t}`, type: "paragraph", text: `child of ${t}` }); }
   const p = await build("T22", seed);
@@ -609,7 +609,7 @@ await scenario("T22_can_accept_children", "각 타입 뒤의 문단에서 Tab �
   return { pageId: p.pageId, perType: per, persistStable: pers.stable, saveRequests: pers.saves.requests };
 });
 
-// ── 정리 ───────────────────────────────────────────────────────────────────
+// ── Cleanup ─────────────────────────────────────────────────────────────────
 await browser.close();
 const archived = [];
 for (const id of createdPages) {

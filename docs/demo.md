@@ -1,189 +1,210 @@
 ---
-title: Demo — 김씨네 가족, aindrive 세 폴더로 꾸린 가족 워크스페이스
+title: Demo — The Kim Family, a family workspace built from three aindrive folders
 icon: 🏡
 ---
 
-# 흩어진 가족의 자료가, 한 공간에서 만난다
+# A family's scattered files meet in one space
 
-**할머니, 엄마, 아빠가 각자의 aindrive 폴더를 연결하면 — 파일은 각자의 컴퓨터에
-그대로 두고 — 가족 워크스페이스가 저절로 채워진다.**
+**When Grandma, Mom, and Dad each connect their own aindrive folder — leaving the files right where
+they are on their own computers — the family workspace fills itself in.**
 
-오늘은 2026년 9월 24일, 추석 연휴 첫날. 내일(25일)이 추석이다. 김씨네는 할머니 댁에
-모인다. 레시피는 할머니 폴더에, 장보기와 차례상은 엄마 폴더에, 귀성길과 성묘 계획은 아빠
-폴더에 있다. 이 데모는 그 세 폴더가 하나의 가족 공간이 되는 과정을 보여준다.
+Today is September 24, 2026, the first day of the Chuseok holiday. Tomorrow (the 25th) is Chuseok. The Kims are
+gathering at Grandma's house. The recipes are in Grandma's folder, the grocery list and ancestral-rite table are in Mom's
+folder, and the trip home and grave-visit plans are in Dad's folder. This demo shows those three folders becoming a
+single family space.
 
-## 등장인물과 그들의 aindrive
+## The cast and their aindrives
 
-| 사람 | aindrive 계정 | 드라이브(폴더) | 들어 있는 것 |
+| Person | aindrive account | Drive (folder) | What's inside |
 |---|---|---|---|
-| 🧓 할머니 | 지갑 계정 | 「할머니의 부엌과 앨범」 | 송편·토란국·녹두전·식혜 레시피, 우리 집 차례 순서, 선산 가는 길, 옛날 사진과 사진 이야기, 추석 연휴 약 챙기기·복약 일정·혈압 기록·병원 예약, 손주에게 쓴 편지 |
-| 👩 엄마 | 지갑 계정 | 「엄마의 살림」 | 추석 사흘 일정, 역할 분담표(csv), 차례상 차림표·배치도, 장보기(xlsx), 선물·용돈(csv), 보름달 소원, 가족 달력, 명절 사진 |
-| 👨 아빠 | 지갑 계정 | 「아빠의 기록」 | 귀성·귀경 계획, 벌초·성묘 계획, 귀성 전 차량 점검(정비기록), 윷놀이 대진표, 추석 뒤 가족회의 안건(docx), 제주 여행 계획·경비·사진 |
-| 👴 외할아버지 | 지갑 계정 | 「외할아버지 폰」 | `사진/텃밭/` 배추·고추·호박·감, `메모/` 텃밭 일지, `건강/` 혈압 메모 — 처음엔 가족 공간 밖, 초대로 들어온다 |
-| 👧 서연 | 지갑 계정 | 「서연이 폰」 | `앨범/` 제주 사진·앨범 소개 (→ 우리 가족), `생신준비/` 할머니 생신 준비 회의 녹음(m4a)+받아쓰기 (→ 할머니 생신 준비, 비밀), `특별영상/` 할머니께 드리는 영상 (공유 안 함 — x402 선물로만 열림) |
+| 🧓 Grandma | Wallet account | "Grandma's Kitchen and Album" | Recipes for songpyeon, taro soup, mung bean pancakes, and sikhye; our family's ancestral-rite order; directions to the family burial hill; old photos and the stories behind them; Chuseok holiday medication reminders, medication schedule, blood pressure log, hospital appointments; letters to her grandchildren |
+| 👩 Mom | Wallet account | "Mom's Household" | Three-day Chuseok schedule, chore assignment sheet (csv), ancestral-rite table menu and layout, grocery list (xlsx), gifts and pocket money (csv), full-moon wishes, family calendar, holiday photos |
+| 👨 Dad | Wallet account | "Dad's Records" | Plans for the trip home and back, grave cleaning and visit plan, pre-trip car inspection (maintenance log), yut-nori bracket, post-Chuseok family meeting agenda (docx), Jeju trip plan, budget, and photos |
+| 👴 Maternal Grandpa | Wallet account | "Maternal Grandpa's Phone" | `photos/garden/` cabbages, chili peppers, pumpkins, persimmons; `notes/` garden journal; `health/` blood pressure notes — outside the family space at first, he joins by invitation |
+| 👧 Seoyeon | Wallet account | "Seoyeon's Phone" | `album/` Jeju photos and album intro (→ Our Family), `birthday-prep/` recording (m4a) + transcript of the planning meeting for Grandma's birthday (→ Grandma's Birthday Prep, secret), `special-video/` a video for Grandma (not shared — opens only as an x402 gift) |
 
-할머니·엄마·아빠는 드라이브 통째로, 서연은 **폴더 단위로** 공유한다. 사진에는 찍은 시각·위치·기기(EXIF)가 들어 있다.
+Grandma, Mom, and Dad share their whole drives; Seoyeon shares **folder by folder**. The photos carry the time, location, and device they were taken with (EXIF).
 
-각자의 기기(aindrive 드라이브)가 자료를 올리는 구조다. 추석 자료 12건과 시나리오 자료 33건(사진·영상·녹음 포함)은
-aindrive MCP `write_file`로 각자의 계정 권한으로 그 기기에 올렸다(`scripts/family-demo-push.mts`, 올린 뒤 다시 읽어 비교).
+Each person's own device (aindrive drive) is what uploads the files. The 12 Chuseok files and 33 scenario files (including photos, videos, and recordings)
+were uploaded to those devices with the aindrive MCP `write_file`, under each person's own account permissions (`scripts/family-demo-push.mts`, which reads them back and compares after uploading).
 
-네 사람은 **각자 자기 aindrive 계정**을 쓴다(이메일 없이 지갑으로 로그인). 모두
-ainmem에 "aindrive로 로그인"으로 들어오고, 로그인 바로 다음 화면 **"어떤 aindrive
-폴더를 팀과 공유할까요?"** 에서 자기 드라이브를 골라 "우리 가족" 팀스페이스에 공유한다
-(드라이브 목록과 내 것인지 확인은 aindrive MCP로, 내 계정 권한으로). 연결된 폴더는 팀스페이스 가족 모두가 열어 볼 수 있다. 읽기와
-쓰기는 **폴더를 연결한 사람의 계정으로** MCP를 통해 aindrive로 간다.
+The four people each use **their own aindrive account** (wallet login, no email). They all
+come into ainmem with "Sign in with aindrive", and on the screen right after login, **"Which aindrive
+folders do you want to share with your team?"**, they pick their drive and share it into the "Our Family" teamspace
+(the drive list and the ownership check go through the aindrive MCP, with their own account permissions). A connected folder can be opened by everyone in the teamspace family. Reads and
+writes go to aindrive through MCP **under the account of the person who connected the folder**.
 
-사진은 모두 Wikimedia Commons의 자유 라이선스 사진이고, 출처는 각 폴더의
-`CREDITS.md`에 있다. 문서는 실제 정보를 바탕으로 썼다(2026년 추석 날짜, 전통 레시피,
-차례상 규칙, 귀성길 경로). 복약 정보 같은 건강 자료는 표본 데이터이고, 실제 개인정보는 없다.
+All photos are freely licensed photos from Wikimedia Commons, with credits in each folder's
+`CREDITS.md`. The documents were written from real information (the 2026 Chuseok dates, traditional recipes,
+ancestral-rite table rules, routes home for the holiday). Health data such as medication info is sample data; there is no real personal information.
 
-## 준비 (한 번)
+## Setup (once)
 
 ```bash
 cd app
-# 1) 네 사람: aindrive 계정(지갑) + 드라이브(aindrive CLI) + ainmem 계정
+# 1) Four people: aindrive account (wallet) + drive (aindrive CLI) + ainmem account
 pnpm tsx scripts/family-demo-accounts.mts --data ~/.ainmem-demo/source/family
-# 2) 자료를 각자의 기기로 — aindrive MCP로, 각자의 계정으로 (선택: 이미 있으면 생략)
+# 2) Files onto each person's device — via the aindrive MCP, under each person's account (optional: skip if already there)
 pnpm tsx scripts/family-demo-push.mts --from ~/.ainmem-demo/source/family
-# 3) 가족 워크스페이스 "김씨네 가족": 팀스페이스 2개(우리 가족 · 할머니 생신 준비[비공개]),
-#    드라이브·폴더 연결, 페이지 13개, 대화방 2개, x402 선물, 용돈 장부
-pnpm demo:family            # 다시 만들 때는 --reset
-# (선택) "오늘 여행사진"을 글자 그대로: 여행 사진의 촬영일을 오늘로 옮긴다 (폰의 EXIF를 MCP로 고침)
+# 3) Family workspace "The Kim Family": 2 teamspaces (Our Family · Grandma's Birthday Prep [private]),
+#    drive/folder connections, 13 pages, 2 chat rooms, x402 gift, pocket-money ledger
+pnpm demo:family            # use --reset to rebuild
+# (Optional) Make "today's trip photos" literally true: move the trip photos' capture date to today (fixes the phones' EXIF via MCP)
 pnpm tsx scripts/family-demo-trip-date.mts --end today
 ```
 
-- 드라이브 폴더, 지갑 키, CLI 홈은 `~/.ainmem-demo/`에 있다(리포 밖, 키 파일은 600).
-- aindrive CLI 세 개가 이 머신에서 돌아야 파일이 열린다. 다시 띄우려면 1)을 다시
-  실행하면 된다. 이미 도는 CLI는 건드리지 않는다.
-- `DEMO_LOGIN_ADDRESS`가 설정돼 있으면 "데모 계정으로 시작"이 **엄마**로 들어간다.
-  그 아래 **다른 가족으로: 할머니 · 아빠 · 서연**을 누르면 그 사람으로 바로 들어간다(시나리오 4는 할머니로).
-- 자료 원본과 생성 도구(사진 다운로드·EXIF·녹음 합성·영상)는 `~/.ainmem-demo/source/`에 있다.
+- Drive folders, wallet keys, and CLI homes live in `~/.ainmem-demo/` (outside the repo; key files are mode 600).
+- Three aindrive CLIs must be running on this machine for files to open. To bring them back up, just run
+  step 1) again. CLIs that are already running are left alone.
+- If `DEMO_LOGIN_ADDRESS` is set, "Start with the demo account" signs in as **Mom**.
+  Below it, clicking **As another family member: Grandma · Dad · Seoyeon** signs in as that person directly (scenario 4 uses Grandma).
+- The source files and generation tools (photo download, EXIF, recording synthesis, video) are in `~/.ainmem-demo/source/`.
 
-## 데모 순서 (약 3분)
+## Demo run (about 3 minutes)
 
-### 0:00 · 로그인 — "aindrive로 로그인"
-로그인 화면에서 **aindrive로 로그인**을 누른다. aindrive 승인 창("Connect “ainmem” to
-aindrive")에서 Authorize를 한 번 누르면 엄마로 로그인된다. 사이드바 **AINDRIVE**에 엄마
-계정의 드라이브가 바로 뜬다. 엄마 폴더는 이미 "우리 가족"에 공유돼 있어서 공유 화면은
-건너뛴다 — 아직 공유 안 한 드라이브가 있으면 그 화면에서 체크된 채로 나온다(사이드바
-AINDRIVE의 **팀과 공유**로 언제든 다시 열 수 있다).
-> "가입도 업로드도 없다. 원래 쓰던 aindrive 계정으로 들어오면 내 폴더가 그대로 따라온다."
+### 0:00 · Login — "Sign in with aindrive"
+On the login screen, click **Sign in with aindrive**. In the aindrive approval window ("Connect “ainmem” to
+aindrive"), click Authorize once and you are signed in as Mom. The sidebar's **AINDRIVE** immediately shows Mom's
+account's drives. Mom's folder is already shared into "Our Family", so the sharing screen is
+skipped — if there is a drive not yet shared, it appears on that screen already checked (you can reopen it anytime with
+**Share with team** in the sidebar's AINDRIVE).
+> "No sign-up, no uploads. Come in with the aindrive account you already use and your folders follow you."
 
-### 0:30 · 세 폴더가 모인 팀스페이스
-사이드바 **우리 가족** 팀스페이스 아래에 aindrive 폴더 세 개가 있다. 「엄마의 살림」
-(동기화됨), 「할머니의 부엌과 앨범」(할머니), 「아빠의 기록」(아빠). 할머니 폴더를 열면
-할머니 컴퓨터에 있는 레시피와 옛날 사진이 보인다. 옛날 사진을 누르면 바로 미리보기가 뜬다.
-> "각자의 파일은 각자의 컴퓨터에 있다. 연결만 했을 뿐인데 가족 모두가 볼 수 있다."
+### 0:30 · A teamspace where three folders meet
+Under the **Our Family** teamspace in the sidebar there are three aindrive folders: "Mom's Household"
+(synced), "Grandma's Kitchen and Album" (Grandma), and "Dad's Records" (Dad). Open Grandma's folder and you see
+the recipes and old photos on Grandma's computer. Click an old photo and a preview opens right away.
+> "Everyone's files stay on their own computers. All we did was connect them, and now the whole family can see them."
 
-### 1:00 · 🎑 2026 우리 가족 추석 — 준비
-허브 페이지 **2026 우리 가족 추석**에서 시작한다.
-- **추석 일정 · 귀성길**: 엄마의 사흘 일정 + 아빠의 귀성·귀경 계획(7시 출발, 망향휴게소) + 귀성 전 차량 점검 기록.
-- **역할 분담**: 엄마의 역할분담표가 보드(할 일 → 진행 중 → 완료)로. 상태를 옮기면 모두에게 보인다.
-- **차례상과 음식**: 엄마의 차림표·배치도, 할머니가 불러 준 **우리 집 차례 순서**, 할머니 레시피 4가지(송편·토란국·녹두전·식혜), 장보기 엑셀.
-- **벌초 · 성묘**: 아빠의 계획 + 할머니의 선산 가는 길("빨간 리본", "밤 주워 오기").
+### 1:00 · 🎑 2026 Our Family Chuseok — preparation
+Start from the hub page **2026 Our Family Chuseok**.
+- **Chuseok schedule · trip home**: Mom's three-day schedule + Dad's plan for the trip home and back (leave at 7, Manghyang rest stop) + the pre-trip car inspection record.
+- **Chore assignments**: Mom's chore sheet as a board (To do → In progress → Done). Move a status and everyone sees it.
+- **Ancestral-rite table and food**: Mom's menu and layout, **our family's ancestral-rite order** as dictated by Grandma, Grandma's 4 recipes (songpyeon, taro soup, mung bean pancakes, sikhye), the grocery spreadsheet.
+- **Grave cleaning · visit**: Dad's plan + Grandma's directions to the family burial hill ("the red ribbon", "pick up chestnuts on the way back").
 
-세 사람 폴더의 파일이 페이지마다 섞여 있지만 복사본은 하나도 없다. 전부 aindrive 링크다.
-빈 줄에서 **+** 를 누르면 메뉴 맨 위가 **aindrive에서 가져오기**다. 내 드라이브뿐 아니라
-"팀스페이스에 공유된 폴더"로 할머니·아빠 폴더의 파일도 골라 넣을 수 있다.
+Files from all three people's folders are mixed across the pages, yet there is not a single copy. They are all aindrive links.
+Press **+** on an empty line and the top of the menu is **Import from aindrive**. Besides your own drive,
+you can pick files from Grandma's and Dad's folders too, under "Folders shared to the teamspace".
 
-### 1:40 · 챙길 것과 추억
-- **할머니 건강 · 연휴 약**: 추석 당일 아침 약은 차례 전 7시에 서연이. 복약 일정 표, 혈압 기록, 병원 예약.
-- **선물 · 용돈**: 누가 누구에게 무엇을, 얼마, 준비 상태.
-- **추석 앨범**: 할머니의 1950–70년대 사진과 "사진 이야기", 엄마의 명절 사진.
-- **추석 밤 · 가족회의**: 아빠의 윷놀이 대진표, 엄마의 보름달 소원(작년 소원 이뤄졌나?), 추석 뒤 가족회의 안건.
+### 1:40 · Things to look after, and memories
+- **Grandma's health · holiday medication**: on Chuseok morning, Seoyeon handles the medicine at 7, before the rite. Medication schedule table, blood pressure log, hospital appointments.
+- **Gifts · pocket money**: who gives what to whom, how much, and preparation status.
+- **Chuseok album**: Grandma's photos from the 1950s–70s and their "photo stories", Mom's holiday photos.
+- **Chuseok night · family meeting**: Dad's yut-nori bracket, Mom's full-moon wishes (did last year's wish come true?), the post-Chuseok family meeting agenda.
 
-### 2:20 · 가족 대화방의 에이전트 — 공유된 폴더에서 답한다
-**우리 가족** 대화방. 에이전트는 가족이 팀스페이스에 공유한 폴더를 읽고(공유한 사람의 권한으로),
-답에 **어느 파일에서 왔는지** 말한다. 실제로 확인한 질문:
-- `@agent 추석날 할머니 아침 약은 몇 시에 누가 챙겨?` → 오전 7시, 서연 (할머니 `건강/추석연휴_약챙기기.md`)
-- `@agent 작은아버지네 몇 시에 도착해? 누가 데리러 가?` → 9/24 18:41 논산역, 아빠 (아빠 `귀성/귀성길_계획.md`)
-- `@agent 성묘 갈 때 뭐 챙겨야 돼?` → 청주·잔·북어포·과일·돗자리·목장갑·벌레 기피제… (아빠 `벌초_성묘_계획.md`)
-- `@agent 토란국에 할머니 비법이 뭐야?` → 마지막에 들깨가루 (할머니 `레시피/토란국.md`)
-- `@agent 송편 주문해` → 에이전트가 자기 지갑으로 **달빛떡집**에 송편 한 상자를 주문한다.
+### 2:20 · The agent in the family chat — answering from shared folders
+The **Our Family** chat room. The agent reads the folders the family shared into the teamspace (with the sharer's permissions),
+and says **which file** each answer came from. Questions we actually verified:
+- `@agent On Chuseok, what time is Grandma's morning medicine and who's handling it?` → 7 a.m., Seoyeon (Grandma's `health/chuseok_holiday_medication.md`)
+- `@agent What time does Uncle's family arrive? Who's picking them up?` → 9/24 18:41 at Nonsan Station, Dad (Dad's `trip-home/trip_home_plan.md`)
+- `@agent What should we bring for the grave visit?` → rice wine, cups, dried pollack, fruit, a mat, work gloves, bug repellent… (Dad's `grave_cleaning_and_visit_plan.md`)
+- `@agent What's Grandma's secret for taro soup?` → perilla seed powder at the end (Grandma's `recipes/taro_soup.md`)
+- `@agent Order songpyeon` → the agent orders a box of songpyeon from **Moonlight Rice Cake Shop** with its own wallet.
 
-### 2:50 · 마무리 — 백업은 OKF로, 원래 폴더에
-「엄마의 살림」을 열면 `ainmem-우리-가족-…/` 폴더에 방금 본 페이지들이 OKF(Markdown +
-CSV)로 동기화돼 있다. 편집하면 몇 초 뒤 다시 동기화된다.
-> "가족의 기억은 가족의 폴더에 남는다."
+### 2:50 · Wrap-up — backups go to OKF, in the original folder
+Open "Mom's Household" and the pages you just saw are synced as OKF (Markdown +
+CSV) into the `ainmem-our-family-…/` folder. Edit one and it syncs again a few seconds later.
+> "The family's memories stay in the family's folders."
 
-## 추석 다음 이야기 — 네 가지 시나리오
+## After Chuseok — four scenarios
 
-> 지금 3110 상태: ①②③의 결과 페이지(🛒 녹두전 4인분 장보기 · ✅ 할머니 생신 준비 회의 — 할 일 · 📸 제주 여행 앨범)는
-> 엄마로 한 번씩 만들어 두었고, ④ 선물은 잠겨 있다. 처음부터 보여 주려면 `pnpm demo:family --reset`.
-> 결과 페이지는 같은 부탁을 다시 하면 같은 자리에 새로 만들어진다.
+> Current state on 3110: the result pages for ①②③ (🛒 Mung Bean Pancakes for 4 — Shopping List · ✅ Grandma's Birthday Prep Meeting — To-dos · 📸 Jeju Trip Album)
+> have each been created once as Mom, and the ④ gift is locked. To show everything from scratch, run `pnpm demo:family --reset`.
+> Asking for the same thing again recreates the result page in the same place.
 
-어느 페이지에서든 **오른쪽 아래 동그란 에이전트 버튼**을 누르면 오른쪽에 에이전트가 열린다.
-맨 위에 이 에이전트가 읽는 aindrive가 보인다 — 엄마·할머니·아빠·서연 앨범(엄마로 들어가면
-비밀 팀스페이스의 「서연 폰 · 생신 준비」까지). 에이전트는 각 폴더를 **공유한 사람의 계정으로** 읽는다.
-가족 대화방에서 `@agent`로 부탁해도 같은 일을 한다.
+On any page, click the **round agent button at the bottom right** and the agent opens on the right.
+At the top you see the aindrives this agent reads — Mom's, Grandma's, Dad's, and Seoyeon's album (signed in as Mom,
+also "Seoyeon's Phone · Birthday Prep" in the secret teamspace). The agent reads each folder **under the account of the person who shared it**.
+Asking with `@agent` in the family chat does the same thing.
 
-### ① 요리 — 할머니 녹두전 (🥞 할머니 녹두전)
-할머니 폰의 레시피·손글씨 사진·반죽 농도 영상·계량법, 엄마 폰의 후기가 한 페이지에.
-> 「녹두전 4인분 장보기 목록 만들어줘」 → 🛒 **녹두전 4인분 장보기**: 할머니 레시피를 4인분으로 줄이고,
-> 「한 줌」은 계량법으로 바꿔 체크리스트 + 요약 + 할머니 자료.
+### ① Cooking — Grandma's mung bean pancakes (🥞 Grandma's Mung Bean Pancakes)
+The recipe, handwritten-note photo, batter-consistency video, and measuring guide from Grandma's phone, plus Mom's review from her phone, on one page.
+> "Make a shopping list for mung bean pancakes for 4" → 🛒 **Mung Bean Pancakes for 4 — Shopping List**: Grandma's recipe scaled down to 4 servings,
+> "a handful" converted with the measuring guide, as a checklist + summary + Grandma's materials.
 
-### ② 생신 — "할머니 생신인 거 알지? 선물 뭐 할까?" (🎂 할머니 생신 준비 · 비공개)
-서연 폰의 10/11 준비 회의 녹음(1분 42초, 엄마·아빠·서연·도윤)은 **할머니를 뺀** 비공개 팀스페이스에만 공유돼 있다.
-**할머니 생신 준비** 대화방(할머니 없음)에서:
-> 「할머니 생신인 거 알지? 선물 뭐 할까?」 → 녹음에서: 줄 달린 돋보기(서연), 무릎 담요(도윤)…
-> 「녹음에서 할 일 뽑아줘」 → ✅ **할머니 생신 준비 회의 — 할 일**: 담당별 보드(엄마·아빠·서연·도윤·모두), 기한 달력, 녹음·받아쓰기 링크.
+### ② Birthday — "You know it's Grandma's birthday, right? What should we get her?" (🎂 Grandma's Birthday Prep · private)
+The 10/11 planning-meeting recording on Seoyeon's phone (1 min 42 s, Mom, Dad, Seoyeon, Doyun) is shared only into a private teamspace that **leaves Grandma out**.
+In the **Grandma's Birthday Prep** chat room (no Grandma):
+> "You know it's Grandma's birthday, right? What should we get her?" → from the recording: a magnifying glass on a cord (Seoyeon), a lap blanket (Doyun)…
+> "Pull the to-dos out of the recording" → ✅ **Grandma's Birthday Prep Meeting — To-dos**: a board by owner (Mom, Dad, Seoyeon, Doyun, Everyone), a due-date calendar, links to the recording and transcript.
 
-할머니가 가족방에서 「애들이 내 생일 뭐 준비해?」라고 물으면 에이전트는 모두가 볼 수 있는 가족 달력(케이크·용돈 봉투)만
-말한다. 녹음 파일을 직접 열려 해도 aindrive가 거절한다(403). 할머니에게는 비공개 팀스페이스 자체가
-사이드바에 보이지 않고, 그 안의 페이지도 열리지 않는다(404).
+If Grandma asks in the family room "What are the kids planning for my birthday?", the agent mentions only the family calendar everyone can see (cake, pocket-money envelope).
+If she tries to open the recording directly, aindrive refuses (403). For Grandma, the private teamspace itself
+does not appear in the sidebar, and the pages inside it do not open (404).
 
-### ③ 가족 여행 — 세 폰의 사진이 하나의 앨범으로 (✈️ 제주 가족여행)
-에이전트 버튼 → 「**오늘 여행사진 정리해서 앨범으로 만들어줘.**」
-→ 📸 **제주 여행 앨범**: 엄마(iPhone 15)·아빠(Galaxy S24)·서연(Galaxy A35) 폰의 사진 17장을
-찍은 시각·위치(EXIF)로 모아 1~4일차로. 엄마가 카톡으로 받은 아빠 사진(같은 파일)은 한 번만, 원본 쪽으로.
-"오늘"은 오늘이 들어 있는 여행, 없으면 가장 최근 여행이다(데모 당일로 옮기려면 `family-demo-trip-date.mts`).
+### ③ Family trip — photos from three phones become one album (✈️ Jeju Family Trip)
+Agent button → "**Sort today's trip photos into an album.**"
+→ 📸 **Jeju Trip Album**: 17 photos from Mom's (iPhone 15), Dad's (Galaxy S24), and Seoyeon's (Galaxy A35) phones,
+grouped into days 1–4 by capture time and location (EXIF). Dad's photo that Mom received over KakaoTalk (the same file) appears only once, on the original's side.
+"Today" means the trip that includes today, or the most recent trip if none does (to move it to demo day, use `family-demo-trip-date.mts`).
 
-### ④ 손주 앨범 보다가 용돈 — 특별 영상 x402 (📷 서연이 앨범)
-서연 앨범 아래 **🎁 할머니께, 제주에서** — 흐린 미리보기와 「🔒 용돈 50,000원으로 열기」(x402 · 36.23 USDC → 서연 지갑).
-영상 원본은 서연 폰의 공유 안 한 폴더에만 있다. **할머니로** 들어가서 버튼을 누르거나, 가족방에서
-「@agent 서연이 용돈 주고 영상 보자」 →
-1. 선물 주소가 **402 Payment Required** + `PAYMENT-REQUIRED`(x402 v2, exact, Base Sepolia USDC, EIP-3009)로 답한다.
-2. 할머니 가족 지갑이 `transferWithAuthorization`에 서명해 `PAYMENT-SIGNATURE`로 다시 요청한다.
-3. 서명을 검증하고, 정산은 **가족 용돈 장부**에 — 할머니 폰 `지갑/용돈_장부.csv`(300,000 → 250,000)와
-   서연 폰 `지갑/받은_용돈.csv`(+50,000)에 같은 영수증으로 한 줄씩(MCP, 각자의 계정으로).
-4. `PAYMENT-RESPONSE`와 함께 영상이 열리고, 가족방에 "🎁 할머니께서 서연에게 용돈 50,000원을…" 알림.
+### ④ Pocket money while browsing a grandchild's album — special video via x402 (📷 Seoyeon's Album)
+Under Seoyeon's album, **🎁 For Grandma, from Jeju** — a blurred preview and "🔒 Open with ₩50,000 pocket money" (x402 · 36.23 USDC → Seoyeon's wallet).
+The original video exists only in an unshared folder on Seoyeon's phone. Sign in **as Grandma** and click the button, or in the family room say
+"@agent Let's give Seoyeon some pocket money and watch the video" →
+1. The gift URL responds with **402 Payment Required** + `PAYMENT-REQUIRED` (x402 v2, exact, Base Sepolia USDC, EIP-3009).
+2. Grandma's family wallet signs `transferWithAuthorization` and retries with `PAYMENT-SIGNATURE`.
+3. The signature is verified, and settlement goes to the **family pocket-money ledger** — one line each, with the same receipt, in Grandma's phone `wallet/pocket_money_ledger.csv` (300,000 → 250,000) and
+   Seoyeon's phone `wallet/received_pocket_money.csv` (+50,000) (via MCP, under each person's account).
+4. The video opens along with `PAYMENT-RESPONSE`, and the family room gets a notification: "🎁 Grandma gave Seoyeon ₩50,000 in pocket money…"
 
-> 체인 정산은 하지 않는다 — 이 환경에는 잔고가 있는 지갑이 없다. 서명·검증은 실제 EIP-3009이고,
-> 정산 단계(`src/lib/gift.ts`의 `settle`)만 x402 facilitator(Base USDC)로 바꾸면 실제 송금이 된다.
-> 위조 서명은 402 "signature does not match the payer"로 거절된다.
+> There is no on-chain settlement in this environment — no wallet has a balance. Signing and verification are real EIP-3009,
+> and a forged signature is rejected with 402 "signature does not match the payer".
 
-## 가족 폴더와 초대 — 외할아버지가 폰 한 번 눌러 들어온다
+**Where the money actually moves is a provider** (`src/lib/x402/`). The wire above never changes; the 402's
+`extra.settlement` names the provider the payer must sign with, and the resource settles with the same one:
 
-aindrive 연결은 이제 한 사람씩 찾아 들어가는 설정이 아니라 **가족 폴더** 한곳에서 본다.
+| Provider | Wallet | Settlement | When |
+|---|---|---|---|
+| `family-ledger` | a key this server keeps per person | two CSV rows in the family's aindrive over MCP | today's demo |
+| `aindrive` | the person's aindrive agent wallet (`x402_wallet`) | aindrive's facilitator (`x402_sign` / `x402_settle` over its MCP) | the moment aindrive lists those tools for the account |
 
-- **어디서 여나**: 팀스페이스 페이지 머리의 **👪 가족 폴더 5/5** 알약, 사이드바 팀스페이스 옆 아이콘,
-  에이전트 패널의 **가족 폴더 · 초대**. 셋 다 같은 시트를 연다.
-- **시트**: 가족마다 한 줄 — 공유한 폴더, 폰이 켜져 있는지(● 켜짐 / ◐ 꺼짐 — 지금은 읽을 수 없음),
-  초대만 받고 아직인 사람(○ 초대함 · 승인 기다리는 중), 그리고 따로 떼어 둔 **이 공간 백업 → 엄마의 살림 [지금 백업]**.
-- **초대**: 이름(예: 외할아버지)을 넣고 **초대 링크 만들기** → QR과 링크, "메시지 복사". 받은 사람은 폰에서
-  링크를 열어 **aindrive로 승인하기** 한 번 → **무엇을 함께 볼까요?**(사진·영상 ☑ · 레시피·메모 ☑ · 건강 기록 ☐) →
-  **공유하고 시작하기** → 끝. 이름은 초대에 적은 이름(외할아버지)으로 들어온다.
+`GIFT_SETTLEMENT=auto` (default) picks `aindrive` when its x402 tools are there for the recipient's account, else the ledger;
+`ledger` / `aindrive` force one. The aindrive side is in `aindrive/web/lib/x402-pay-skills.ts`, switched on there with
+`AINDRIVE_AGENT_WALLETS=1` (and the `wallet:pay` scope for account grants).
 
-**데모 (외할아버지 = 엄마의 아버지, 수원에서 텃밭)** — 할아버지는 차례를 모시는 돌아가신 분이라, 초대받는 분은 외할아버지다.
-1. 엄마로 들어가 **가족 폴더 → 가족 초대하기 → "외할아버지"** → QR이 뜬다.
-2. 외할아버지 폰 역할(폰이 없으면): `pnpm tsx scripts/family-demo-approve.mts --as grandpa --invite <링크>`
-   — aindrive 승인 → 합류 → 사진·메모 공유(건강은 안 함)까지 폰이 하는 그대로.
-3. 시트에 외할아버지가 **● 연결됨 · 사진 · 메모**로 나타난다. 에이전트에게 「외할아버지 사진으로 앨범 만들어줘」
-   → 텃밭 사진 4장, 날짜별로.
-4. (선택) 폰 하나가 꺼져 있으면 에이전트가 말한다: "⚠️ 아빠 폰이 꺼져 있어서 그 폰의 파일은 못 읽었어요."
+**How agents and other UIs join in**
+- **AG-UI**: `POST /api/gift/<id>/pay` with `Accept: text/event-stream` streams the run as AG-UI events
+  (`RUN_STARTED`, `STEP_STARTED` quote → sign → settle → unlock, `STATE_SNAPSHOT` with the 402 terms and the receipt, `RUN_FINISHED` / `RUN_ERROR`).
+  The gift block on the page consumes this and narrates each step on the button.
+- **A2UI**: `GET /api/gift/<id>/a2ui` returns the gift as an A2UI v0.9 surface (locked: preview + pay button; open: video + receipt);
+  `POST` with the renderer's `{ action }` (`ainmem.gift.pay`) runs the payment and returns the next surface.
+- **MCP**: `/api/mcp` offers `list_gifts`, `gift_surface`, `pay_gift` and `a2ui_action`; every result carries the surface in
+  `_meta["ai.ainmem/a2ui"]` and as an `application/a2ui+json` resource, the same convention as aindrive's tools, so one renderer draws both.
 
-외할아버지 계정과 폰은 `family-demo-accounts.mts`가 만들지만, 가족 워크스페이스에는 넣지 않는다 — 초대로 들어온다.
-`--reset`하면 초대와 합류도 처음으로 돌아간다.
+## Family folders and invitations — Maternal Grandpa joins with one tap on his phone
 
-## 확인 포인트
-- 로그인 → 사이드바 AINDRIVE에 드라이브 목록(켜진 것 먼저)
-- 팀스페이스 아래 폴더 3개, 각자 연결한 사람 표시, 백업 폴더만 "동기화됨"
-- 페이지의 파일 블록: 이미지·PDF·xlsx·pptx·docx·md·csv 미리보기
-- 다른 가족이 연결한 폴더의 파일도 열린다(연결한 사람 권한으로) — 공유 안 된 남의 드라이브는 안 열린다
-- 에이전트가 공유된 폴더의 파일로 답하고 출처 파일을 말한다(방 사람 모두가 볼 수 있는 팀스페이스의 폴더만)
-- aindrive로 로그인하면 공유할 폴더를 고르는 화면(이미 모두 공유했으면 건너뜀)
-- `+` 메뉴의 첫 항목이 aindrive에서 가져오기, 가져오기 창에 "팀스페이스에 공유된 폴더"
+Connecting aindrive is no longer a setting you hunt down person by person; you see it all in one place: **Family Folders**.
 
-이전 커플 데모는 `archive/couple/`, 영업사원 데모는 `archive/sales/`로 옮겼다.
-- 오른쪽 아래 에이전트 버튼 → 연동된 aindrive 목록 → 「오늘 여행사진 정리해서 앨범으로 만들어줘.」 → 앨범 페이지
-- 서연의 영상·녹음은 공유 폴더 밖이라 aindrive가 거절(403), 선물 결제로만 영상이 열린다
+- **Where to open it**: the **👪 Family Folders 5/5** pill at the top of the teamspace page, the icon next to the teamspace in the sidebar,
+  and **Family Folders · Invite** in the agent panel. All three open the same sheet.
+- **The sheet**: one row per family member — the folders they shared, whether their phone is on (● On / ◐ Off — can't read right now),
+  people who were invited but haven't joined yet (○ Invited · awaiting approval), and, set apart, **Back up this space → Mom's Household [Back up now]**.
+- **Invitation**: enter a name (e.g., Maternal Grandpa) and click **Create invite link** → a QR code and link, plus "Copy message". The recipient opens the
+  link on their phone and taps **Approve with aindrive** once → **What would you like to share?** (Photos & videos ☑ · Recipes & notes ☑ · Health records ☐) →
+  **Share and get started** → done. They join under the name written on the invite (Maternal Grandpa).
+
+**Demo (Maternal Grandpa = Mom's father, who keeps a vegetable garden in Suwon)** — Grandpa on Dad's side has passed away and is the one honored at the ancestral rite, so the one being invited is Maternal Grandpa.
+1. Sign in as Mom, **Family Folders → Invite family → "Maternal Grandpa"** → a QR code appears.
+2. Playing Maternal Grandpa's phone (if you don't have a phone): `pnpm tsx scripts/family-demo-approve.mts --as grandpa --invite <link>`
+   — exactly what the phone does: aindrive approval → join → share photos and notes (not health).
+3. Maternal Grandpa appears on the sheet as **● Connected · Photos · Notes**. Ask the agent "Make an album from Maternal Grandpa's photos"
+   → 4 garden photos, by date.
+4. (Optional) If a phone is off, the agent says so: "⚠️ Dad's phone is off, so I couldn't read the files on it."
+
+`family-demo-accounts.mts` creates Maternal Grandpa's account and phone but does not add them to the family workspace — he comes in by invitation.
+`--reset` also resets the invitation and joining back to the start.
+
+## Things to check
+- Login → drive list in the sidebar's AINDRIVE (online ones first)
+- 3 folders under the teamspace, each showing who connected it; only the backup folder says "Synced"
+- File blocks on pages: previews for images, PDF, xlsx, pptx, docx, md, csv
+- Files in folders connected by other family members open too (with the connector's permissions) — someone else's unshared drive does not open
+- The agent answers from files in shared folders and names the source file (only folders in teamspaces everyone in the room can see)
+- Signing in with aindrive shows a screen for choosing folders to share (skipped if everything is already shared)
+- The first item in the `+` menu is Import from aindrive, and the import window has "Folders shared to the teamspace"
+
+The earlier couple demo has moved to `archive/couple/`, and the salesperson demo to `archive/sales/`.
+- Agent button at the bottom right → list of connected aindrives → "Sort today's trip photos into an album." → album page
+- Seoyeon's video and recording are outside the shared folders, so aindrive refuses them (403); the video opens only via the gift payment

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
-  // shape=minimal is the page-as-database case (Notion's 새 데이터베이스);
+  // shape=minimal is the page-as-database case (Notion's New database);
   // the default tracker shape backs the inline /database command.
   const shape = body?.shape === "minimal" ? "minimal" : "tracker";
   const snapshot = await provisionDatabase(

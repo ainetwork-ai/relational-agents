@@ -43,11 +43,11 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
       className="absolute right-4 top-12 z-20 w-64 rounded-lg border border-neutral-200 bg-white p-3 shadow-lg dark:border-neutral-700 dark:bg-[#252525]"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{t("알림")}</h2>
+        <h2 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{t("Notifications")}</h2>
         <button
           type="button"
           onClick={onClose}
-          aria-label={t("닫기")}
+          aria-label={t("Close")}
           className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
         >
           <X size={14} />
@@ -56,7 +56,7 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
       {prefs && (
         <div className="space-y-2 text-sm text-neutral-700 dark:text-neutral-200">
           <label className="flex items-center justify-between">
-            {t("알림 사용")}
+            {t("Enable notifications")}
             <input
               type="checkbox"
               data-testid="notif-enabled-toggle"
@@ -65,7 +65,7 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label className="flex items-center justify-between">
-            {t("소리")}
+            {t("Sound")}
             <input
               type="checkbox"
               data-testid="notif-sound-toggle"
@@ -74,7 +74,7 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label className="flex items-center justify-between">
-            {t("방해 금지")}
+            {t("Do not disturb")}
             <input
               type="checkbox"
               data-testid="notif-dnd-toggle"
@@ -90,13 +90,13 @@ export function NotifSettings({ onClose }: { onClose: () => void }) {
           </label>
           <p data-testid="notif-dnd-status" className="text-xs text-neutral-400">
             {dndOn && prefs.dndUntil
-              ? t("{time}까지 방해 금지", {
+              ? t("Do not disturb until {time}", {
                   time: new Date(prefs.dndUntil).toLocaleTimeString(intl, {
                     hour: "2-digit",
                     minute: "2-digit",
                   }),
                 })
-              : t("방해 금지 꺼짐")}
+              : t("Do not disturb off")}
           </p>
         </div>
       )}

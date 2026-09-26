@@ -75,12 +75,12 @@ export function SharedPageEditor({
       <div className="min-h-full pb-32">
         <div className="sticky top-0 z-30 flex items-center justify-end gap-2 bg-white/80 px-3 py-1.5 backdrop-blur dark:bg-[#191919]/80">
           <span className="mr-auto text-xs text-neutral-400">
-            {t("편집 권한으로 공유됨")}
+            {t("Shared with edit access")}
           </span>
           <button
             
             onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
-            aria-label={t("댓글")}
+            aria-label={t("Comments")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <MessageSquare size={16} />
@@ -103,7 +103,7 @@ export function SharedPageEditor({
             
             rows={1}
             value={title}
-            placeholder={t("제목 없음")}
+            placeholder={t("Untitled")}
             onChange={(e) => {
               const v = e.target.value.replace(/\n/g, "");
               setTitle(v);
@@ -141,12 +141,12 @@ export function SharedPageEditor({
       <div className="min-h-full pb-32">
         <div className="sticky top-0 z-30 flex items-center justify-end gap-2 bg-white/80 px-3 py-1.5 backdrop-blur dark:bg-[#191919]/80">
           <span className="mr-auto text-xs text-neutral-400">
-            {t("댓글 권한으로 공유됨")}
+            {t("Shared with comment access")}
           </span>
           <button
             
             onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
-            aria-label={t("댓글")}
+            aria-label={t("Comments")}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <MessageSquare size={16} />
@@ -165,7 +165,7 @@ export function SharedPageEditor({
             )}
           </div>
           <h1 className="mt-2 text-4xl font-bold text-neutral-900 dark:text-neutral-100">
-            {page.title || t("제목 없음")}
+            {page.title || t("Untitled")}
           </h1>
           <div className="mt-4">
             <ReadOnlyBlocks blocks={blocks} />

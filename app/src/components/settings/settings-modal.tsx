@@ -42,7 +42,7 @@ function NavTab({
   );
 }
 
-/** Notion's 기본 설정 tab glyph (sliders), from docs/settings_my_settings.html. */
+/** Notion's Preferences tab glyph (sliders), from docs/settings_my_settings.html. */
 function SlidersIcon() {
   return (
     <svg aria-hidden viewBox="0 0 20 20" width={20} height={20} fill="currentColor">
@@ -61,7 +61,7 @@ function GearIcon() {
   );
 }
 
-/** 설정과 멤버 — the settings dialog, opened from the workspace switcher like
+/** Settings & members — the settings dialog, opened from the workspace switcher like
  *  the original. Measured on docs/settings_my_settings.html: 90vw (max 1512)
  *  × calc(100% - 100px), r12; a 240px nav with 12/16 500 section labels and
  *  28px tabs (r6, 6px padding, 14/20 500); the panel scrolls, padding
@@ -99,20 +99,20 @@ export function SettingsModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("설정")}
+        aria-label={t("Settings")}
         data-testid="settings-modal"
         onClick={(e) => e.stopPropagation()}
         className="relative flex h-[calc(100%-100px)] w-[90vw] max-w-[1512px] overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-neutral-800"
       >
         <nav className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto bg-neutral-50 px-2 py-2 dark:bg-neutral-900" role="tablist" aria-orientation="vertical">
           <div className="flex flex-col gap-0.5">
-            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("계정")}</div>
+            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("Account")}</div>
             <NavTab id="account" active={tab === "account"} onSelect={setTab} icon={<UserAvatar user={shown} size={20} />} label={shown.displayName} />
-            <NavTab id="preferences" active={tab === "preferences"} onSelect={setTab} icon={<SlidersIcon />} label={t("기본 설정")} />
+            <NavTab id="preferences" active={tab === "preferences"} onSelect={setTab} icon={<SlidersIcon />} label={t("Preferences")} />
           </div>
           <div className="flex flex-col gap-0.5">
-            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("워크스페이스")}</div>
-            <NavTab id="general" active={tab === "general"} onSelect={setTab} icon={<GearIcon />} label={t("일반")} />
+            <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500">{t("Workspace")}</div>
+            <NavTab id="general" active={tab === "general"} onSelect={setTab} icon={<GearIcon />} label={t("General")} />
           </div>
         </nav>
         <div role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="relative flex-1 overflow-y-auto bg-white dark:bg-neutral-800">
@@ -126,7 +126,7 @@ export function SettingsModal({
         </div>
         <button
           onClick={onClose}
-          aria-label={t("닫기")}
+          aria-label={t("Close")}
           data-testid="settings-close"
           className="absolute right-3 top-3 flex h-[22px] w-[22px] items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-700"
         >

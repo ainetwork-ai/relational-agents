@@ -1,17 +1,18 @@
-// The blue 새로 만들기 button: does it add a row, and does its caret open the
+// The blue New button: does it add a row, and does its caret open the
 // template menu the original opens?
 //
 //   node e2e/new-row-button.check.mjs      # 0 = same, 1 = differs
 //
-// Measured on app.notion.com (e2e/fixtures/notion-new-row-button.json). This one
+// Measured on app.notion.com (src/i18n/content/e2e-fixtures/notion-new-row-button.json). This one
 // DOES write: it presses the button and then deletes the row it created, because
 // "it adds a row" is the whole claim being checked. It runs on the dev DB only.
 import fs from "node:fs";
 import { chromium } from "@playwright/test";
 import { sealData } from "iron-session";
 import pg from "pg";
+import { ko } from "./i18n.mjs";
 
-const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-new-row-button.json", import.meta.url)));
+const FIX = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-new-row-button.json", import.meta.url)));
 const BASE = process.env.BASE ?? "http://localhost:3110";
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const val = (k) => env.match(new RegExp(`^${k}=(.+)$`, "m"))?.[1]?.trim();
@@ -87,7 +88,7 @@ const menu = await page.evaluate(`(() => {
 })()`);
 if (!menu) diffs.push("the caret does not open a menu");
 else {
-  for (const want of ["템플릿", "기본", "비어 있음", "새 템플릿"])
+  for (const want of [ko("Templates"), ko("Default"), ko("Empty"), ko("New template")])
     if (!menu.items.includes(want)) diffs.push(`the caret menu has no "${want}" (has: ${menu.items.join(" / ")})`);
   if (Math.abs(menu.offRight) > 24) diffs.push(`the menu's right edge is ${menu.offRight}px off the button's`);
 }
@@ -112,9 +113,9 @@ console.log(`button ${JSON.stringify(btn)}`);
 console.log(`caret menu ${JSON.stringify(menu)}`);
 console.log(`rows ${before[0].n} → ${now[0].n} on press, cleaned back to ${cleaned[0].n}`);
 if (diffs.length) {
-  console.error("\n  ┌─ 새로 만들기 버튼이 원본과 다릅니다 ─────────────");
+  console.error("\n  ┌─ The New button differs from the original ───────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  └────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("차이 0 — 규격·캐럿 메뉴·행 추가 모두 원본과 같습니다.");
+console.log("0 differences — size, caret menu and row creation all match the original.");

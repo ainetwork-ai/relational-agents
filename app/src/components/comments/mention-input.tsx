@@ -182,7 +182,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   function pick(item: MentionItem) {
     const el = input.current;
     if (!el) return;
- // `N개 결과 더 보기` is the menu's own row — it expands the list there and
+ // `Show N more results` is the menu's own row — it expands the list there and
  // never reaches a caller as a mention
     if (item.kind === "more") return;
     const caret = el.selectionStart ?? el.value.length;
@@ -229,7 +229,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
           pick(item);
           return;
         }
- // nothing to pick — the card is showing `결과 없음`. Swallowing the Enter
+ // nothing to pick — the card is showing `No results`. Swallowing the Enter
  // here made every comment holding an email address unsendable from the
  // keyboard (`hong@example.com` opens a menu on `example.com`), so let it
  // fall through to the send below.

@@ -3,7 +3,7 @@
 //   node e2e/header-tail.check.mjs      # 0 = same, 1 = differs
 //
 // The report: "+ and ⋯ are a separate column in Notion, but ours looks like part
-// of the last property". Measured on app.notion.com (e2e/fixtures/notion-header-
+// of the last property". Measured on app.notion.com (src/i18n/content/e2e-fixtures/notion-header-
 // tail.json): the column grid closes with the table's own right edge and the two
 // 28x28 controls sit beyond it, with no cell borders of their own.
 import fs from "node:fs";
@@ -11,8 +11,8 @@ import { chromium } from "@playwright/test";
 import { sealData } from "iron-session";
 import pg from "pg";
 
-const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-header-tail.json", import.meta.url)));
-const ICONS = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-header-icons.json", import.meta.url)));
+const FIX = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-header-tail.json", import.meta.url)));
+const ICONS = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-header-icons.json", import.meta.url)));
 const BASE = process.env.BASE ?? "http://localhost:3110";
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const val = (k) => env.match(new RegExp(`^${k}=(.+)$`, "m"))?.[1]?.trim();
@@ -165,11 +165,11 @@ console.log(`type icon ${JSON.stringify(got.typeIcon)}`);
 console.log(`row ${JSON.stringify(got.row)}\nbody edge ${JSON.stringify(got.bodyEdge)}`);
 console.log(`+ ${JSON.stringify(got.plus)}\n⋯ ${JSON.stringify(got.dots)}\nlast column ends at ${got.lastColumnRight}`);
 if (diffs.length) {
-  console.error("\n  ┌─ 헤더 끝의 + / ⋯ 가 원본과 다릅니다 ────────────");
+  console.error("\n  ┌─ The + / ⋯ at the header's end differ from the original ─");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-header-tail.json");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-header-tail.json");
   console.error("  └───────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("차이 0 — + 와 ⋯ 가 칼럼 밖 자기 영역에 있습니다.");
+console.log("0 differences — + and ⋯ sit in their own area outside the columns.");

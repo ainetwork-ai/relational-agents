@@ -36,7 +36,7 @@ interface WorkspaceRow {
 }
 
 /** Header workspace switcher: current workspace, dropdown to switch/create,
- * and — like the original's — the way into 설정, 멤버 초대 and 로그아웃. */
+ * and — like the original's — the way into Settings, Invite members and Log out. */
 export function WorkspaceSwitcher({ workspace, displayName }: { workspace: ActiveWorkspace; displayName: string }) {
   const t = useT();
   const router = useRouter();
@@ -186,8 +186,8 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
             style={{ visibility: "hidden" }}
             className="popover-anim fixed z-50 w-60 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
           >
-          {/* the original's order: 설정 · 멤버 초대 / 워크스페이스 목록 /
-              워크스페이스 추가하기 / 로그아웃 */}
+          {/* the original's order: Settings · Invite members / workspace list /
+              Add a workspace / Log out */}
           <button
             data-testid="workspace-settings-button"
             onClick={() => {
@@ -197,7 +197,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
             className={ITEM}
           >
             <Settings size={14} />
-            {t("설정")}
+            {t("Settings")}
           </button>
           <button
             data-testid="members-button"
@@ -208,7 +208,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
             className={ITEM}
           >
             <Users size={14} />
-            {t("멤버 초대")}
+            {t("Invite members")}
           </button>
 
           <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
@@ -248,7 +248,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
                   if (!isImeComposing(e) && e.key === "Enter") void createWorkspace();
                   if (e.key === "Escape") setCreating(false);
                 }}
-                placeholder={t("워크스페이스 이름")}
+                placeholder={t("Workspace name")}
                 className="mb-1 w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-600 dark:bg-neutral-900"
               />
               <button
@@ -257,7 +257,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
                 className="w-full rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
                 disabled={busy}
               >
-                {t("워크스페이스 만들기")}
+                {t("Create workspace")}
               </button>
             </div>
           ) : (
@@ -267,7 +267,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
               className={ITEM}
             >
               <Plus size={14} />
-              {t("워크스페이스 추가하기")}
+              {t("Add workspace")}
             </button>
           )}
 
@@ -284,7 +284,7 @@ export function WorkspaceSwitcher({ workspace, displayName }: { workspace: Activ
             className={ITEM}
           >
             <LogOut size={14} />
-            {t("로그아웃")}
+            {t("Log out")}
           </button>
           </div>,
           document.body

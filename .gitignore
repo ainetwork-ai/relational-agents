@@ -36,13 +36,13 @@ app/public/avatars/
 assets/*.mp4
 *.mp4
 
-# 노션 대조용 DOM 캡처 — 로컬 참고 자료이고 소스가 아니다.
-# 파일 하나가 최대 1.4MB 라 리포를 무겁게 만든다. 무엇이 어떤 화면인지는
-# docs/notion-captures.md 에 정리돼 있다.
+# Notion DOM captures for comparison — local reference material, not source.
+# A single file is up to 1.4MB and would weigh the repo down. Which capture is
+# which screen is listed in docs/notion-captures.md.
 docs/*.html
 docs/plus_page_personalpage_html
-# 노션 클립보드 캡처(사내 데이터) — e2e/notion-paste.check.mjs 의 입력.
-# 다시 뜨는 법은 그 스크립트 헤더와 docs/notion-captures.md 에.
+# Notion clipboard captures (internal data) — input for e2e/notion-paste.check.mjs.
+# How to take them again: that script's header and docs/notion-captures.md.
 docs/notion-clip-flow-page/
-# 원본(노션) CDP 측정 스크립트 — 로컬 도구, 소스 아님 (docs/notion-golden-set.md §4)
+# CDP measurement scripts against the original (Notion) — local tools, not source (docs/notion-golden-set.md §4)
 /scratchpad/

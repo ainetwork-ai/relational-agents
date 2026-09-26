@@ -73,7 +73,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
     const child = await createPage(page.id);
     expand(page.id);
  // Notion opens a new sub-page in the center peek rather than navigating away
- // — the popup header says where it went ("추가 대상 🏠 팀스페이스 홈"), and you
+ // — the popup header says where it went ("Add to 🏠 Teamspace Home"), and you
  // keep the page you were reading behind it. ⤢ in the peek makes it full-page.
     openPeek(child.id, page.id);
   }
@@ -167,14 +167,14 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
           data-testid={`page-tree-toggle-${page.id}`}
           onClick={hasChildren ? () => toggleExpanded(page.id) : undefined}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-          aria-label={hasChildren ? (expanded ? t("접기") : t("펼치기")) : undefined}
+          aria-label={hasChildren ? (expanded ? t("Collapse") : t("Expand")) : undefined}
         >
           {/* Swap the page icon for the chevron on row hover. A leaf keeps its
               icon — a deliberate divergence from the original, which offers the
               chevron (and "No pages inside") on every page (comcom, 2026-08-19) */}
           <span className={`text-[15px] leading-none ${hasChildren ? "group-hover:hidden" : ""}`}>
             {(page as PageRow).isDatabase && !page.icon ? (
-              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label={t("데이터베이스")} />
+              <Table2 size={13} className="shrink-0 text-neutral-400" aria-label={t("Database")} />
             ) : (
               <PageIcon icon={page.icon} fallback="📄" />
             )}
@@ -226,7 +226,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             data-testid={`page-item-menu-${page.id}`}
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label={t("페이지 옵션")}
+            aria-label={t("Page options")}
           >
             <MoreHorizontal size={16} />
           </button>
@@ -234,7 +234,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             data-testid={`page-add-child-${page.id}`}
             onClick={addChild}
             className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-neutral-300/60 dark:hover:bg-neutral-700"
-            aria-label={t("하위 페이지 추가")}
+            aria-label={t("Add sub-page")}
           >
             <Plus size={16} />
           </button>
@@ -251,7 +251,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-rename-${page.id}`}
               icon={<Pencil size={14} />}
-              label={t("이름 바꾸기")}
+              label={t("Rename")}
               onClick={() => {
                 setMenuOpen(false);
                 startRenaming();
@@ -260,7 +260,7 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-favorite-${page.id}`}
               icon={page.isFavorite ? <StarOff size={14} /> : <Star size={14} />}
-              label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
+              label={page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
               onClick={() => {
                 setMenuOpen(false);
                 updatePage(page.id, { isFavorite: !page.isFavorite });
@@ -269,16 +269,16 @@ export const PageItem = memo(function PageItem({ page, depth }: { page: Page; de
             <MenuButton
               testid={`page-menu-delete-${page.id}`}
               icon={<Trash2 size={14} />}
-              label={t("삭제")}
+              label={t("Delete")}
               danger
               onClick={async () => {
                 setMenuOpen(false);
                 const toast = useToastStore.getState();
                 if (!(await archivePage(page.id))) {
-                  toast.show(t("휴지통으로 이동하지 못했습니다"));
+                  toast.show(t("Couldn't move to Trash"));
                   return;
                 }
-                toast.show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
+                toast.show(t("Moved to Trash"), { onUndo: () => restorePage(page.id) });
                 if (isActive) router.push("/");
               }}
             />
