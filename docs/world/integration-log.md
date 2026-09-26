@@ -117,3 +117,14 @@ Format: `JST time — surface — what happened`.
   with no hint; found by checking the value for non-token bytes. Lesson for the
   debrief: pick the redirect host before registering — it becomes the identity
   sector and can't be moved.
+- 2026-09-26 02:5x — both — **deployed to memory.ainetwork.ai** (this host,
+  `memory-live-app`): image `a59a23b` (origin main + this log), previous
+  `640339c` kept for rollback. `.env.prod` gained the sandbox client + RP values
+  (backup beside it); no `WORLD_IDP`, so the client id selects the sandbox.
+  Schema: pre-deploy `pg_dump` (verified readable), drift check listed 7 tables
+  + 3 `users` columns; applied as one additive transaction after a rehearsal on
+  a restored copy (`drizzle-kit push` was unusable — it stalls on a prompt
+  because prod's hand-made unique constraint is named `users_google_sub_key`,
+  not `users_google_sub_unique`; no data issue). After: drift "schema matches",
+  `/api/health` 200, client id/secret server-side only (not in static chunks).
+  Still to measure: first real IdP sign-in on prod (time to first success).
