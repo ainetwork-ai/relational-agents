@@ -845,8 +845,17 @@ export const BlockEditor = forwardRef<
  // Mount sync: browser-back can hydrate from a stale router-cache RSC
  // snapshot (blocks added since that visit would be missing). Reconcile with
  // the server once; applyRemote's dirty/seq/focus guards keep S032 safe.
+ // Then replay what the server has not acknowledged yet (this tab's queue and
+ // what an earlier tab left in IndexedDB): a page opened from an older copy —
+ // a reload while saves fail, the service worker's offline snapshot — keeps
+ // the edits on screen. Text ops are idempotent, so ones already in the
+ // snapshot change nothing.
   useEffect(() => {
-    void applyRemoteRef.current();
+    void applyRemoteRef.current().then(async () => {
+      const pending = await queue.pendingFor(pageId);
+      if (pending.length) applyRemoteTransactions(pending);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
  // Another client's save arrives as the transactions the server applied

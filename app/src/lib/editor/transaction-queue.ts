@@ -399,6 +399,26 @@ export class TransactionQueue {
     }
   }
 
+  /**
+   * Every transaction of `pageId` the server has not acknowledged yet — this
+   * tab's and those a closed tab left in IndexedDB — oldest first. A page that
+   * opens from an older copy (a reload while saves fail, the service worker's
+   * offline snapshot) replays these on top so the edits stay on screen.
+   */
+  async pendingFor(pageId: string): Promise<Transaction[]> {
+    const out = new Map<string, Transaction>();
+    try {
+      const db = await this.open();
+      const rows = (await req(
+        db.transaction("Transaction", "readonly").objectStore("Transaction").index("byPageId").getAll(pageId)
+      )) as StoredTransaction[];
+      rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+      for (const r of rows) out.set(r.id, toWire(r));
+    } catch {}
+    for (const c of this.carried) if (c.t.pageId === pageId && !out.has(c.t.id)) out.set(c.t.id, c.t);
+    return [...out.values()];
+  }
+
   /** Test/diagnostic hook: what this tab still holds. */
   debugPending(): { pageId: string; id: string }[] {
     return this.carried.map((c) => ({ pageId: c.t.pageId, id: c.t.id }));
