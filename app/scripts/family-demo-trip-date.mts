@@ -4,7 +4,8 @@
  * live demo — "Make an album from today's trip photos." then really means
  * today's photos. Files are read and written over aindrive MCP, as each owner.
  *
- *   pnpm tsx scripts/family-demo-trip-date.mts [--end today|YYYY-MM-DD] [--home ~/.ainmem-demo]
+ *   pnpm tsx scripts/family-demo-trip-date.mts [--end today|YYYY-MM-DD] [--lang ko|en] [--home ~/.ainmem-demo]
+ *     --lang  ko (default) | en — only picks the default --home (~/.ainmem-demo or ~/.ainmem-demo-en)
  *
  * Only photos with EXIF in the latest run of back-to-back days are moved; the
  * dates are rewritten in place (same length), nothing else in the file changes.
@@ -17,19 +18,23 @@ const path = await import("node:path");
 const { listDrives, listTree, notUserFolder, readFileBytes, writeFileBytes } = await import("../src/lib/aindrive");
 const { runAs } = await import("../src/lib/aindrive-account");
 const { readExif } = await import("../src/lib/exif");
+const { demoHomeName, demoLangFromArgs } = await import("../src/i18n/content/demo-lang");
+const LANG = demoLangFromArgs();
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
-const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
+const HOME = arg("home", path.join(os.homedir(), demoHomeName())) as string;
 const kst = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);
 const endArg = arg("end", "today") as string;
 const END = endArg === "today" ? kst : endArg;
 if (!/^\d{4}-\d{2}-\d{2}$/.test(END)) throw new Error("--end is today or YYYY-MM-DD");
 const family = JSON.parse(fs.readFileSync(path.join(HOME, "family.json"), "utf8")) as {
+  lang?: string;
   members: Record<string, { name: string; drive: string; ainmemUserId: string }>;
 };
+if ((family.lang ?? "ko") !== LANG) throw new Error(`${HOME} holds the ${family.lang ?? "ko"} demo — pass --lang ${family.lang ?? "ko"}`);
 
 type Photo = { owner: string; name: string; link: { driveId: string; root: string }; rel: string; bytes: Buffer; day: string };
 const photos: Photo[] = [];

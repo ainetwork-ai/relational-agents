@@ -2,7 +2,11 @@
  * The family demo's workspace: the Kim family's, put together from the three
  * aindrive folders grandma, mom and dad each share.
  *
- *   pnpm demo:family [--home ~/.ainmem-demo] [--reset]
+ *   pnpm demo:family [--lang ko|en] [--home ~/.ainmem-demo] [--reset]
+ *
+ * --lang picks the demo (default ko; sets DEMO_CONTENT_LANG, see
+ * src/i18n/content/demo-lang.ts) and with it the default --home
+ * (~/.ainmem-demo or ~/.ainmem-demo-en).
  *
  * Run scripts/family-demo-accounts.mts first — it makes the three people
  * (aindrive accounts + drives + ainmem accounts) and writes <home>/family.json.
@@ -18,9 +22,10 @@
  *   4. opens the family chat with its agent (family profile);
  *   5. points the demo login ("Start with the demo account", DEMO_LOGIN_ADDRESS) at mom.
  *
- * The Korean content it writes lives in src/i18n/content/family-seed.ts.
+ * The content it writes lives in src/i18n/content/family-seed.ts (Korean) and
+ * family-seed.en.ts (English).
  *
- * --reset removes the workspace this script made before (and its pages, chat,
+ * --reset removes the workspace this script made before for the same --lang (and its pages, chat,
  * links) and builds it again. Without it, a second run changes nothing.
  */
 
@@ -42,23 +47,30 @@ const { aindriveFileUrl } = await import("../src/lib/aindrive-url");
 const { provisionRoomAgent } = await import("../src/lib/agent/provision");
 const { runBackup } = await import("../src/lib/aindrive-backup");
 const { deleteNode } = await import("../src/lib/okf-store");
-const { SEED } = await import("../src/i18n/content/family-seed");
+const { demoHomeName, demoLangFromArgs, familySeed } = await import("../src/i18n/content/demo-lang");
+const LANG = demoLangFromArgs();
+const SEED = familySeed();
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
-const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
-const RESET = process.argv.includes("--reset");
+const HOME = arg("home", path.join(os.homedir(), demoHomeName())) as string;
+/** --remove: delete this language's workspace (as --reset does) and stop — e.g. to
+ *  clear the Korean demo from a server that now serves the English one. */
+const REMOVE = process.argv.includes("--remove");
+const RESET = REMOVE || process.argv.includes("--reset");
 const WORKSPACE = SEED.workspace.name;
 const TEAMSPACE = SEED.teamspace.name;
 
 type Key = "grandma" | "mom" | "dad" | "seoyeon";
 const KEYS: Key[] = ["grandma", "mom", "dad", "seoyeon"];
 const family = JSON.parse(fs.readFileSync(path.join(HOME, "family.json"), "utf8")) as {
+  lang?: string;
   aindrive: string;
   members: Record<Key, { name: string; drive: string; ainmemUserId: string }>;
 };
+if ((family.lang ?? "ko") !== LANG) throw new Error(`${HOME} holds the ${family.lang ?? "ko"} demo — pass --lang ${family.lang ?? "ko"}`);
 const base = (process.env.AINDRIVE_PUBLIC_URL || process.env.AINDRIVE_SERVER || family.aindrive).replace(/\/+$/, "");
 const M = family.members;
 if (!M.seoyeon) throw new Error("no seoyeon in family.json — run scripts/family-demo-accounts.mts again (it adds her phone)");
@@ -107,6 +119,10 @@ if (existing) {
   }
   await db.delete(S.workspaces).where(eq(S.workspaces.id, existing.id)); // pages, teamspaces, links cascade
   console.log(`removed the previous "${WORKSPACE}"`);
+}
+if (REMOVE) {
+  if (!existing) console.log(`no "${WORKSPACE}" to remove`);
+  process.exit(0);
 }
 
 // ── workspace, members, teamspace ──────────────────────────────────────────

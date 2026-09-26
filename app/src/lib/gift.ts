@@ -8,7 +8,7 @@ import { blocks, pages, users, workspaceMembers } from "@/lib/db/schema";
 import { hasDrive, readFile, readFileBytes, writeFile } from "@/lib/aindrive";
 import { runAs } from "@/lib/aindrive-account";
 import { seal, stamp, stampOk, unseal } from "@/lib/secret-box";
-import { LEDGER } from "@/i18n/content/family-demo";
+import { familyDemo } from "@/i18n/content/demo-lang";
 
 /**
  * A gift behind x402: a file someone keeps unshared on their own device (Seoyeon's
@@ -23,7 +23,7 @@ import { LEDGER } from "@/i18n/content/family-demo";
  *
  * Settlement here is the family ledger: the debit and the credit are written
  * as rows into the payer's and the recipient's own aindrive (the out/in ledger
- * CSVs, LEDGER in i18n/content/family-demo), over MCP, as each of them. The signature is real and
+ * CSVs, LEDGER in i18n/content/family-demo[.en], picked by demo-lang), over MCP, as each of them. The signature is real and
  * checked; no chain is touched — this environment has no funded wallet.
  *
  * That is one *provider*. lib/x402 holds the provider layer: the family
@@ -292,9 +292,8 @@ export async function verifyPayment(p: PaymentPayload | null, req: PaymentRequir
 
 // ── settlement: the family ledger, in the family's own aindrive ─────────────
 
-export const LEDGER_OUT = LEDGER.out;
-export const LEDGER_IN = LEDGER.in;
-const LEDGER_HEAD = LEDGER.head;
+/** The ledgers of the demo this server serves (DEMO_CONTENT_LANG). */
+const ledger = () => familyDemo().LEDGER;
 const usedNonces = new Set<string>();
 
 function parseLedger(text: string): string[][] {
@@ -306,7 +305,7 @@ function parseLedger(text: string): string[][] {
 }
 
 export async function ledgerBalance(userId: string, driveId: string): Promise<number> {
-  const text = await runAs(userId, () => readFile({ driveId, root: "" }, LEDGER_OUT)).catch(() => "");
+  const text = await runAs(userId, () => readFile({ driveId, root: "" }, ledger().out)).catch(() => "");
   const rows = parseLedger(text);
   return rows.length ? Number(rows[rows.length - 1][4]) || 0 : 0;
 }
@@ -323,21 +322,22 @@ export async function settle(
   if (usedNonces.has(nonce)) return { error: "this authorization was already used" };
   const receipt = keccak256(p.payload.signature).slice(0, 18);
   const link = { driveId: payer.driveId, root: "" };
-  const text = await runAs(payer.userId, () => readFile(link, LEDGER_OUT)).catch(() => "");
+  const LEDGER = ledger();
+  const text = await runAs(payer.userId, () => readFile(link, LEDGER.out)).catch(() => "");
   const rows = parseLedger(text);
   const balance = rows.length ? Number(rows[rows.length - 1][4]) || 0 : 0;
   if (rows.some((r) => r[5] === receipt)) return { error: "this authorization was already used" };
   if (balance < g.amountKrw) return { error: `Not enough balance (balance ₩${balance.toLocaleString("ko-KR")})` };
   const today = new Date().toISOString().slice(0, 10);
   const clean = (s: string) => s.replace(/,\s*/g, " ").replace(/\n/g, " ");
-  const out = [LEDGER_HEAD, ...rows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(g.recipientName), -g.amountKrw, balance - g.amountKrw, receipt].join(",")];
-  await runAs(payer.userId, () => writeFile(link, LEDGER_OUT, out.join("\n") + "\n"));
+  const out = [LEDGER.head, ...rows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(g.recipientName), -g.amountKrw, balance - g.amountKrw, receipt].join(",")];
+  await runAs(payer.userId, () => writeFile(link, LEDGER.out, out.join("\n") + "\n"));
   const inLink = { driveId: recipientDriveId, root: "" };
-  const inText = await runAs(g.recipientUserId, () => readFile(inLink, LEDGER_IN)).catch(() => "");
+  const inText = await runAs(g.recipientUserId, () => readFile(inLink, LEDGER.in)).catch(() => "");
   const inRows = parseLedger(inText);
   const inBal = inRows.length ? Number(inRows[inRows.length - 1][4]) || 0 : 0;
-  const inOut = [LEDGER_HEAD, ...inRows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(payer.name), g.amountKrw, inBal + g.amountKrw, receipt].join(",")];
-  await runAs(g.recipientUserId, () => writeFile(inLink, LEDGER_IN, inOut.join("\n") + "\n"));
+  const inOut = [LEDGER.head, ...inRows.map((r) => r.join(",")), [today, clean(LEDGER.entry(g.title)), clean(payer.name), g.amountKrw, inBal + g.amountKrw, receipt].join(",")];
+  await runAs(g.recipientUserId, () => writeFile(inLink, LEDGER.in, inOut.join("\n") + "\n"));
   usedNonces.add(nonce);
   return { receipt };
 }

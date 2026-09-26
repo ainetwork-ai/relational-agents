@@ -4,7 +4,8 @@
  * the invite page would have ticked (every category on by default — health
  * and money stay off). For a live demo without a second phone in hand.
  *
- *   pnpm tsx scripts/family-demo-approve.mts --as grandpa --invite <url or token> [--app http://localhost:3110]
+ *   pnpm tsx scripts/family-demo-approve.mts --as grandpa --invite <url or token> [--app http://localhost:3110] [--lang ko|en]
+ *     --lang  ko (default) | en — only picks the default --home (~/.ainmem-demo or ~/.ainmem-demo-en)
  */
 process.loadEnvFile?.(new URL("../.env.local", import.meta.url).pathname);
 
@@ -13,6 +14,8 @@ const os = await import("node:os");
 const path = await import("node:path");
 const { privateKeyToAccount } = await import("viem/accounts");
 const { createSiweMessage } = await import("viem/siwe");
+const { demoHomeName, demoLangFromArgs } = await import("../src/i18n/content/demo-lang");
+demoLangFromArgs();
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -21,7 +24,7 @@ const arg = (name: string, fallback?: string) => {
 const WHO = arg("as");
 const INVITE = arg("invite");
 const APP = (arg("app", "http://localhost:3110") as string).replace(/\/+$/, "");
-const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
+const HOME = arg("home", path.join(os.homedir(), demoHomeName())) as string;
 const AIN = (process.env.AINDRIVE_SERVER || "https://aindrive.ainetwork.ai").replace(/\/+$/, "");
 if (!WHO || !INVITE) {
   console.error("usage: family-demo-approve.mts --as <grandma|mom|dad|seoyeon|grandpa> --invite <url or token>");
