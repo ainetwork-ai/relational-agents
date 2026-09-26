@@ -175,9 +175,12 @@ export const SEED = {
 
   /** seoyeon's video for grandma, opened only through an x402 gift */
   gift: {
-    video: "special_video/for_grandma_from_jeju.mp4" as Rel,
-    title: "For Grandma, from Jeju",
-    preview: "album/special_video_preview.jpg" as Rel,
+    // a toddler's sebae, "새해 복 많이 받으세요~ 28개월 아기 세배" by 강남연세언어치료연구소
+    // (youtu.be/TvWPzv-nZl8, CC BY), trimmed — credited on the page (`credit`)
+    video: "special_video/sebae_for_grandma.mp4" as Rel,
+    title: "A New Year's bow for Grandma",
+    preview: "album/sebae_preview.jpg" as Rel,
+    credit: "Video: “새해 복 많이 받으세요~ 28개월 아기 세배” by 강남연세언어치료연구소 (youtu.be/TvWPzv-nZl8), CC BY — trimmed.",
   },
 
   /** the family chat room and its opening messages */

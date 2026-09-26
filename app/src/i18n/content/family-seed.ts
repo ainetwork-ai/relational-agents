@@ -163,9 +163,12 @@ export const SEED = {
 
   /** seoyeon's video for grandma, opened only through an x402 gift */
   gift: {
-    video: "특별영상/할머니께_제주에서.mp4" as Rel,
-    title: "할머니께, 제주에서",
-    preview: "앨범/특별영상_미리보기.jpg" as Rel,
+    // 아기 세배 영상, "새해 복 많이 받으세요~ 28개월 아기 세배" — 강남연세언어치료연구소
+    // (youtu.be/TvWPzv-nZl8, CC BY), 앞 32초 — 페이지에 출처 표시 (`credit`)
+    video: "특별영상/할머니께_세배.mp4" as Rel,
+    title: "할머니께 드리는 세배",
+    preview: "앨범/세배_미리보기.jpg" as Rel,
+    credit: "영상: “새해 복 많이 받으세요~ 28개월 아기 세배” — 강남연세언어치료연구소 (youtu.be/TvWPzv-nZl8), CC BY · 편집함",
   },
 
   /** the family chat room and its opening messages */
