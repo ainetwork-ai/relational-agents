@@ -12,6 +12,7 @@ import { IconPicker } from "./icon-picker";
 import { BlockEditor, type BlockEditorHandle } from "@/components/editor/block-editor";
 import { SharePopover } from "./share-popover";
 import { FamilyFoldersPill } from "@/components/family/family-folders";
+import { RelationLinks } from "@/components/page/relation-links";
 import { MessageSquare, Link2, Check, Lock as LockIcon, Maximize2, X } from "lucide-react";
 import { PageIcon } from "@/components/page-icon";
 import { PageOptionsMenu } from "./page-options";
@@ -313,6 +314,7 @@ export function PageView({
           <Breadcrumbs pageId={initialPage.id} current={page} />
         )}
         <div className="flex shrink-0 items-center gap-1 max-md:gap-0">
+        <RelationLinks pageId={page.id} />
         <FamilyFoldersPill teamspaceId={page.teamspaceId} />
         {/* on a phone the bar keeps only what fits: the avatars go, Favorite and Copy link move into ⋯ */}
         <span className="contents max-md:hidden"><PresenceBar self={self} others={others} /></span>

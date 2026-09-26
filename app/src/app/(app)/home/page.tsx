@@ -10,6 +10,7 @@ import { listRecentWorkspaces, recordWorkspaceVisit } from "@/lib/recent-workspa
 import { initial } from "@/lib/glyph";
 import { useT } from "@/i18n/provider";
 import { AindrivePanel } from "@/components/home/aindrive-panel";
+import { HomeTreasuries } from "@/components/home/home-treasuries";
 import type { T } from "@/i18n/translate";
 
 interface WorkspaceCard {
@@ -360,6 +361,7 @@ export default function HomePage() {
         </p>
       </div>
       <WorkspaceSections />
+      <HomeTreasuries />
       <AindrivePanel />
       <Section icon={<Star size={12} />} title={t("Favorites")} items={favorites} prefix="home-fav" />
       </div>
