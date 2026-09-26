@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AinuiButton, AinuiText } from "@/components/ainui/surface";
+import { AinuiText } from "@/components/ainui/surface";
+import { AinuiNavItem } from "@/components/ainui/navigation";
 import { usePathname, useRouter } from "next/navigation";
-import { FileText, HardDrive, Plus } from "lucide-react";
+import { FileText, HardDrive, Plus, Users } from "lucide-react";
 import { LinkForm, errorOf, type Drive } from "@/components/home/aindrive-panel";
 import { useT } from "@/i18n/provider";
 import { openFamilySheet } from "@/components/family/family-folders";
@@ -215,7 +216,7 @@ export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
   const state = drive ? driveState(drive) : null;
   const label = t("Family folders");
   return <div data-testid={`teamspace-drive-badge-${teamspaceId}`} data-state={state ?? "none"}>
-    <AinuiButton label={`${label}${state ? ` · ${t(STATE_LABEL[state])}` : ""}`} onClick={() => openFamilySheet(teamspaceId)} />
+    <AinuiNavItem size="icon" icon={Users} label={label} status={state ?? undefined} title={`${label}${state ? ` · ${t(STATE_LABEL[state])}` : ""}`} onClick={() => openFamilySheet(teamspaceId)} />
   </div>;
 }
 
@@ -229,10 +230,10 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
   const pathname = usePathname();
   const router = useRouter();
   if (drives === undefined) return null;
-  return <div className="pl-8">
-    {!drives.length && <AinuiButton testId={`teamspace-drive-connect-row-${teamspaceId}`} label={t("Sync to aindrive")} onClick={link.open} />}
+  return <div className="min-w-0 pl-8">
+    {!drives.length && <AinuiNavItem icon={HardDrive} testId={`teamspace-drive-connect-row-${teamspaceId}`} label={t("Sync to aindrive")} onClick={link.open} />}
     {drives.map((drive) => <div key={drive.id} data-testid={`teamspace-drive-row-${teamspaceId}`} data-drive={drive.id} data-state={drive.backup ? driveState(drive) : "linked"}>
-      <AinuiButton label={`${pathname === `/aindrive/${drive.id}` ? "✓ " : ""}${drive.name} · ${drive.backup ? t(STATE_LABEL[driveState(drive)]) : drive.linkedBy ?? ""}`} onClick={() => router.push(`/aindrive/${drive.id}`)} />
+      <AinuiNavItem icon={HardDrive} label={drive.name} active={pathname === `/aindrive/${drive.id}`} status={drive.backup ? driveState(drive) : undefined} title={`${drive.name} · ${drive.backup ? t(STATE_LABEL[driveState(drive)]) : drive.linkedBy ?? ""}`} onClick={() => router.push(`/aindrive/${drive.id}`)} />
     </div>)}
     {link.error && <AinuiText text={link.error} />}
     {link.dialog}
@@ -277,7 +278,7 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
             <FileText size={14} className="text-neutral-400" /> {t("Page")}
           </button>
           {drive !== undefined && (
-            <AinuiButton testId={`teamspace-add-aindrive-${teamspaceId}`} label={drive ? t("Add an aindrive folder") : t("Sync to aindrive")} onClick={() => { setMenu(false); return link.open(); }} />
+            <AinuiNavItem icon={HardDrive} testId={`teamspace-add-aindrive-${teamspaceId}`} label={drive ? t("Add an aindrive folder") : t("Sync to aindrive")} onClick={() => { setMenu(false); return link.open(); }} />
           )}
         </div>
       )}

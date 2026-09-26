@@ -6,6 +6,8 @@ A2UI processor and the AIN-UI catalog. Host layout and navigation remain Next.js
 - `surface.tsx`: shared renderer, app-owned buttons/forms/text, file views and
   access-checked asset URLs. `renderFile` connects AIN-UI `FileView` to the existing
   lazy document/media renderers, including spreadsheet and Office previews.
+- `navigation.tsx`: compact AIN-UI buttons for sidebar rows and status badges.
+  Scoped styles keep long names truncated and preserve selection in narrow sidebars.
 - `drive-browser.tsx`: producer-owned messages from `/api/ainui/aindrive`.
   File selection uses the same surface in read-only mode, returning a reference
   to the chosen file. It never copies bytes or invokes file mutations.

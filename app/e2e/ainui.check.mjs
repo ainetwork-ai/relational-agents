@@ -35,6 +35,18 @@ try {
     return json({});
   });
   await page.goto('http://localhost:3110/ainui-test-fixture', { waitUntil: 'networkidle', timeout: 60000 });
+  const nav = page.getByTestId('navigation-fixture');
+  await nav.getByTestId('nav-phone').locator('button').waitFor();
+  assert.ok(await nav.evaluate(el => el.scrollWidth <= el.clientWidth));
+  assert.equal((await nav.getByTestId('nav-phone').locator('button').boundingBox()).height, 28);
+  assert.equal((await nav.getByTestId('nav-badge').locator('button').boundingBox()).width, 20);
+  await nav.getByTestId('nav-desktop').locator('button').click();
+  assert.equal(await page.getByTestId('nav-selected').textContent(), 'desktop');
+  await nav.getByTestId('nav-toggle').locator('button').click();
+  assert.equal(await nav.getByTestId('nav-phone').count(), 0);
+  await nav.getByTestId('nav-toggle').locator('button').click();
+  assert.equal(await nav.getByTestId('nav-phone').locator('button').evaluate(el => getComputedStyle(el).borderTopWidth), '0px');
+  await nav.screenshot({ path: '/tmp/ainui-sidebar-fixed.png' });
   await page.locator('#album .ain-ui button').click();
   await page.locator('[data-testid="album-lightbox-smoke"] .ain-ui img').waitFor();
   await page.keyboard.press('Escape');
@@ -59,7 +71,7 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.screenshot({ path: '/tmp/ainui-integration-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('AIN-UI browser checks passed: gallery, rich preview, form bindings, sharing, payment quote and read-only picker.');
+  console.log('AIN-UI browser checks passed: compact sidebar, selection/collapse, gallery, rich preview, form bindings, sharing, payment quote and read-only picker.');
 } catch (e) {
   console.error(JSON.stringify({ errors, text: await page?.locator("body").innerText() }));
   await page?.screenshot({ path: "/tmp/ainui-failure.png", fullPage: true });
