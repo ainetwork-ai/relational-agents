@@ -4,12 +4,14 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { getWorkspaceRole, hasRole, type WorkspaceRole } from "@/lib/auth/workspace-role";
-import { linkedWallet } from "@/lib/wallet/linked";
+import { linkedWallet, verifiedWallet } from "@/lib/wallet/linked";
 import type { User } from "@/lib/db/schema";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type Member = { user: User; role: WorkspaceRole; wallet: `0x${string}` | null };
+/** `wallet`: the account's proven wallet (verifiedWallet), the only one family writes act as.
+ *  `linked`: whatever 0x address the account lists, proven or not (for telling the user). */
+export type Member = { user: User; role: WorkspaceRole; wallet: `0x${string}` | null; linked: `0x${string}` | null };
 
 /** Signed in (401) and a member of this workspace (403). Guests (DM plumbing) do not count. */
 export async function requireMember(workspaceId: string): Promise<Member | { error: NextResponse }> {
@@ -19,10 +21,10 @@ export async function requireMember(workspaceId: string): Promise<Member | { err
   if (!role || !hasRole(role, "member")) {
     return { error: NextResponse.json({ error: "Not a workspace member" }, { status: 403 }) };
   }
-  return { user: auth.user, role, wallet: linkedWallet(auth.user) };
+  return { user: auth.user, role, wallet: verifiedWallet(auth.user), linked: linkedWallet(auth.user) };
 }
 
-/** requireMember, then admin/owner (403), then a linked 0x wallet (412) — in that order. */
+/** requireMember, then admin/owner (403), then a proven 0x wallet (412) — in that order. */
 export async function requireFamilyAdmin(
   workspaceId: string
 ): Promise<(Member & { wallet: `0x${string}` }) | { error: NextResponse }> {
@@ -33,7 +35,10 @@ export async function requireFamilyAdmin(
   }
   if (!m.wallet) {
     return {
-      error: NextResponse.json({ reason: "no-wallet", error: "Connect MetaMask to this account first." }, { status: 412 }),
+      error: NextResponse.json(
+        { reason: "no-wallet", error: "Connect MetaMask to prove this account's wallet first." },
+        { status: 412 }
+      ),
     };
   }
   return { ...m, wallet: m.wallet };

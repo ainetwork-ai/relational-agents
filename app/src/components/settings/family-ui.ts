@@ -81,6 +81,14 @@ export function linkFailureText(reason: MetaMaskFailure, t: T, raw: string): str
       return t("This wallet is already used by another account — pick another account in MetaMask.");
     case "has-other":
       return t("This account already uses another wallet.");
+    case "has-verified":
+      return t("This account already has another proven wallet.");
+    case "owns-family":
+      return t("The account's current wallet owns this workspace's family name and keeps control of it.");
+    case "changed":
+      return t("This account's wallet changed meanwhile. Try again.");
+    case "chain-unavailable":
+      return t("Could not reach Sepolia right now. Try again in a moment.");
     case "network":
       return t("Could not reach the server. Check your connection and try again.");
   }

@@ -1,7 +1,8 @@
 "use client";
 
 // Settings › Workspace › Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Tasks 7, 7b).
-// 1 no linked wallet → Connect MetaMask · 2 admin, no family → create form · 3 the create run's
+// 1 the wallet check (family-wallet-section.tsx): a proven wallet that MetaMask is on, on Sepolia —
+// nothing below acts as a wallet otherwise · 2 admin, no family → create form · 3 the create run's
 // step list (resumable) · 4 the family: expiry banners, Renew, the tree canvas (members are added
 // there) · 5 non-admins read only (the canvas without ghost cards).
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -13,7 +14,7 @@ import { useMe } from "@/stores/me";
 import { USDC_DECIMALS } from "@/lib/ens-family/config";
 import { checkLabel } from "@/lib/ens-family/labels";
 import { NameTakenError, NotRenewableError, type TxStep } from "@/lib/ens-family/issue";
-import { linkMetaMask } from "@/lib/wallet/metamask-login";
+import { useInjectedAccount } from "@/lib/wallet/use-injected-account";
 import {
   FamilyApiError,
   HOLD_KEY,
@@ -41,7 +42,6 @@ import {
   MUTED,
   PRIMARY,
   explain,
-  linkFailureText,
   short,
   txUrl,
   usdcText,
@@ -51,6 +51,7 @@ import {
   type TreeNode,
 } from "./family-ui";
 import { FamilyTreeCanvas } from "./family-tree-canvas";
+import { WalletSection, shortAddress, walletGate } from "./family-wallet-section";
 
 // ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
 
@@ -62,7 +63,8 @@ interface Family {
   tree: TreeNode;
 }
 interface FamilyState {
-  me: { address: string | null; canEdit: boolean };
+  /** address: the proven wallet (null until a signature proves one); linked: the 0x address the account lists */
+  me: { address: string | null; linked?: string | null; canEdit: boolean };
   family: Family | null;
   /** admins only: workspace members with a linked wallet who are not in the tree */
   candidates: Candidate[];
@@ -181,10 +183,13 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
 function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state: FamilyState; reload: (fresh?: boolean) => Promise<void> }) {
   const t = useT();
   const { me, family } = state;
-  const wallet = me.address as Address | null;
+  const live = useInjectedAccount();
+  const gate = walletGate(me, live);
+  // only a proven wallet that MetaMask is on, on Sepolia, is acted as (create, renew, add)
+  const wallet = gate.kind === "ok" ? gate.wallet : null;
   return (
     <>
-      {!wallet && <ConnectSection onLinked={() => reload()} />}
+      <WalletSection gate={gate} onLinked={() => reload()} refresh={live.refresh} />
       {!family && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={() => reload()} />}
       {family && (
         <FamilySection
@@ -208,37 +213,6 @@ function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state:
         </p>
       )}
     </>
-  );
-}
-
-// ── 1. connect ───────────────────────────────────────────────────────────────────────────────────
-
-function ConnectSection({ onLinked }: { onLinked: () => Promise<void> }) {
-  const t = useT();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function connect() {
-    setBusy(true);
-    setError(null);
-    const r = await linkMetaMask();
-    setBusy(false);
-    if (r.ok) return onLinked();
-    setError(linkFailureText(r.reason, t, r.error));
-  }
-
-  return (
-    <SettingsSection title={t("Wallet")}>
-      <SettingsRow
-        label={t("No wallet connected")}
-        description={t("Family names live on Ethereum (Sepolia ENS). Connect MetaMask to this account to create or manage them.")}
-      >
-        <button data-testid="family-connect" className={BTN} onClick={() => void connect()} disabled={busy}>
-          {busy ? t("Waiting for MetaMask…") : t("Connect MetaMask")}
-        </button>
-        {error && <span className="mt-1 text-xs text-red-500">{error}</span>}
-      </SettingsRow>
-    </SettingsSection>
   );
 }
 
@@ -484,9 +458,10 @@ function CreateForm({
         </span>
         <span className={MUTED}>
           {funds
-            ? t("About {n} approvals in MetaMask and a 1-minute wait · you need ≈ {need} Sepolia ETH (you have {have})", {
+            ? t("About {n} approvals in MetaMask and a 1-minute wait · you need ≈ {need} Sepolia ETH ({addr} has {have})", {
                 n: CREATE_APPROVALS,
                 need: Number(formatEther(funds.need)).toFixed(4),
+                addr: shortAddress(account),
                 have: Number(formatEther(funds.have)).toFixed(4),
               })
             : t("About {n} approvals in MetaMask and a 1-minute wait", { n: CREATE_APPROVALS })}

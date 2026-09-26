@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { toPublicUser } from "@/lib/auth/public-user";
 import {
@@ -36,19 +36,23 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await getSession();
-    if (!session.challenge) {
+    const challenge = session.challenge;
+    if (!challenge) {
       return NextResponse.json(
         { error: "No challenge found. Please try again." },
         { status: 400 }
       );
     }
+    // one use, pass or fail: a signature for this challenge now also proves the wallet
+    session.challenge = undefined;
+    await session.save();
 
     let valid = false;
     try {
       const { verifyEthSignature } = await import("@/lib/auth/eth-verify");
       const { challengeMessage } = await import("@/lib/auth/ain-verify");
       valid = await verifyEthSignature(
-        challengeMessage(session.challenge),
+        challengeMessage(challenge),
         signature,
         address
       );
@@ -72,11 +76,21 @@ export async function POST(req: NextRequest) {
  // Returning user typed a (different) name → honor it. Login is the only
  // place the form offers a name, so this is how you rename yourself.
     if (user) user = await applyLoginDisplayName(user, displayName);
+    // signing in by signature proves the wallet (users.wallet_verified_at, see lib/wallet/linked.ts)
+    if (user && !user.walletVerifiedAt) {
+      const [proven] = await db
+        .update(users)
+        .set({ walletVerifiedAt: new Date() })
+        .where(and(eq(users.id, user.id), eq(users.ainAddress, normalizedAddress)))
+        .returning();
+      user = proven ?? user;
+    }
     if (!user) {
       const [created] = await db
         .insert(users)
         .values({
           ainAddress: normalizedAddress,
+          walletVerifiedAt: new Date(),
           displayName:
             normalizeDisplayName(displayName) ?? fallbackDisplayName(address),
           status: "online",
@@ -89,7 +103,6 @@ export async function POST(req: NextRequest) {
 
     session.userId = user.id;
     session.ainAddress = user.ainAddress ?? undefined;
-    session.challenge = undefined;
  // switching accounts invalidates the previous account's active workspace (same as demo-login)
     session.activeWorkspaceId = undefined;
     await session.save();

@@ -25,7 +25,11 @@ export type MetaMaskFailure =
   | "no-challenge" // the server had no challenge for this session
   | "invalid-signature"
   | "taken" // wallet-link: the wallet belongs to another account
-  | "has-other" // wallet-link: this account already has another wallet
+  | "has-other" // wallet-link: this account's address is a sign-in id that is not a wallet
+  | "has-verified" // wallet-link: this account has another proven wallet (retry with replace after a warning)
+  | "owns-family" // wallet-link: the proven wallet owns a family name of this account's workspace
+  | "changed" // wallet-link: the account's wallet changed meanwhile
+  | "chain-unavailable" // wallet-link: Sepolia could not be read for the family check
   | "network" // a request never got an answer
   | "failed"; // anything else
 
@@ -57,12 +61,27 @@ function reasonFor(err: unknown): MetaMaskFailure {
 }
 
 /**
- * Pick an account in MetaMask, fetch a fresh challenge and sign it.
+ * Pick an account in MetaMask (or, with `pick: false`, take the one it is on), fetch a fresh challenge and sign it.
  * Throws `MetaMaskFlowError` (no wallet / no account) or the provider's error (4001 on reject).
  */
-export async function signChallengeWithMetaMask(): Promise<{ address: string; signature: string }> {
+export async function signChallengeWithMetaMask(opts: { pick?: boolean } = {}): Promise<{ address: string; signature: string }> {
   const ethereum = getInjectedProvider();
   if (!ethereum) throw new MetaMaskFlowError("no-wallet", "MetaMask not detected. Please install the extension.");
+  if (opts.pick !== false) await forceAccountPicker(ethereum);
+  const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+  const address = accounts?.[0];
+  if (!address) throw new MetaMaskFlowError("no-account", "No MetaMask account available.");
+
+  const challengeRes = await fetch("/api/auth/challenge");
+  const { message } = await challengeRes.json();
+  const signature = (await ethereum.request({
+    method: "personal_sign",
+    params: [toHexMessage(message), address],
+  })) as string;
+  return { address, signature };
+}
+
+async function forceAccountPicker(ethereum: NonNullable<ReturnType<typeof getInjectedProvider>>): Promise<void> {
   // Force the account picker every time. eth_requestAccounts reuses whatever this
   // origin already authorized, so switching accounts inside MetaMask changes nothing
   // on its own. Revoking the permission first (MetaMask ≥ 12.2) guarantees the next
@@ -77,17 +96,6 @@ export async function signChallengeWithMetaMask(): Promise<{ address: string; si
       if (isRejection(err)) throw err;
     }
   }
-  const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
-  const address = accounts?.[0];
-  if (!address) throw new MetaMaskFlowError("no-account", "No MetaMask account available.");
-
-  const challengeRes = await fetch("/api/auth/challenge");
-  const { message } = await challengeRes.json();
-  const signature = (await ethereum.request({
-    method: "personal_sign",
-    params: [toHexMessage(message), address],
-  })) as string;
-  return { address, signature };
 }
 
 /** Sign in as the account that owns the MetaMask address (created on first use). */
@@ -110,22 +118,43 @@ export async function signInWithMetaMask(
   }
 }
 
-/** Attach the MetaMask address to the account signed in now; the session keeps its user.
- *  `error` is English (for logs); `reason` is what a UI translates. */
-export async function linkMetaMask(): Promise<{ ok: true; address: string } | { ok: false; error: string; reason: MetaMaskFailure }> {
+export type LinkResult =
+  | { ok: true; address: string }
+  | { ok: false; error: string; reason: MetaMaskFailure; name?: string; current?: string };
+
+/** Prove a MetaMask address for the account signed in now; the session keeps its user.
+ *  `pick: false` signs with the account MetaMask is on now instead of opening the account picker;
+ *  `replace: true` replaces a proven wallet (only after the UI warned). `error` is English (for
+ *  logs); `reason` is what a UI translates, with `name` (owns-family) and `current` (the old wallet). */
+export async function linkMetaMask(opts: { pick?: boolean; replace?: boolean } = {}): Promise<LinkResult> {
   const fallback = "Connecting MetaMask failed";
   try {
-    const { address, signature } = await signChallengeWithMetaMask();
+    const { address, signature } = await signChallengeWithMetaMask({ pick: opts.pick });
     const res = await fetch("/api/auth/wallet-link", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ signature, address }),
+      body: JSON.stringify({ signature, address, replace: opts.replace === true }),
     });
     const data = await res.json();
     if (!res.ok) {
-      const known: MetaMaskFailure[] = ["taken", "has-other", "no-challenge", "invalid-signature"];
+      const known: MetaMaskFailure[] = [
+        "taken",
+        "has-other",
+        "has-verified",
+        "owns-family",
+        "changed",
+        "chain-unavailable",
+        "no-challenge",
+        "invalid-signature",
+      ];
       const reason = known.includes(data.reason) ? (data.reason as MetaMaskFailure) : "failed";
-      return { ok: false, error: data.error || fallback, reason };
+      return {
+        ok: false,
+        error: data.error || fallback,
+        reason,
+        name: typeof data.name === "string" ? data.name : undefined,
+        current: typeof data.current === "string" ? data.current : undefined,
+      };
     }
     return { ok: true, address: data.address };
   } catch (err) {

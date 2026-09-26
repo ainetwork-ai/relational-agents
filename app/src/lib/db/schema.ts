@@ -38,6 +38,11 @@ export const users = pgTable("users", {
  // Google accounts have none and wallet accounts may lack googleSub/email;
  // the two login families coexist on this one table.
   ainAddress: text("ain_address").unique(),
+  // When a signature last proved this account controls ain_address (MetaMask link or sign-in).
+  // Null = unproven: seeded rows and older data carry addresses nobody ever signed for, so
+  // anything that acts as that wallet (Settings › Family names) uses verifiedWallet() instead.
+  // Every write of ain_address sets or clears this in the same statement.
+  walletVerifiedAt: timestamp("wallet_verified_at"),
   // aindrive identity ("<aindrive server>|<aindrive user id>") — set by
   // "Sign in with aindrive" and by connecting aindrive in-app, so either path lands
   // on the same account. Keyed on the aindrive id, never adopted by email.

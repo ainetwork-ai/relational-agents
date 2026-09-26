@@ -13,7 +13,7 @@ import { zeroAddress, type Address } from "viem";
 import { db } from "@/lib/db";
 import { users, workspaceMembers } from "@/lib/db/schema";
 import { hasRole } from "@/lib/auth/workspace-role";
-import { linkedWallet } from "@/lib/wallet/linked";
+import { verifiedWallet } from "@/lib/wallet/linked";
 import { ensReader } from "@/lib/ens-chain";
 import {
   familyChainFor,
@@ -151,17 +151,25 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       (tree ? [tree, ...descendants(tree).map((d) => d.node)] : []).flatMap((n) => (n.address ? [n.address.toLowerCase()] : []))
     );
     const rows = await db
-      .select({ id: users.id, displayName: users.displayName, ainAddress: users.ainAddress, isAgent: users.isAgent })
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        ainAddress: users.ainAddress,
+        walletVerifiedAt: users.walletVerifiedAt,
+        isAgent: users.isAgent,
+      })
       .from(workspaceMembers)
       .innerJoin(users, eq(workspaceMembers.userId, users.id))
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), ne(workspaceMembers.role, "guest")));
     candidates = rows
       .filter((r) => !r.isAgent)
-      .map((r) => ({ userId: r.id, displayName: r.displayName, address: linkedWallet(r) }))
+      .map((r) => ({ userId: r.id, displayName: r.displayName, address: verifiedWallet(r) }))
       .filter((r): r is { userId: string; displayName: string; address: `0x${string}` } => !!r.address && !inTree.has(r.address));
   }
 
-  return NextResponse.json({ me: { address: m.wallet, canEdit }, family, candidates });
+  // me.address: the proven wallet (null until a signature proves one); me.linked: the 0x address the
+  // account lists, proven or not, so the panel can say "this account uses 0x…, MetaMask is on 0x…"
+  return NextResponse.json({ me: { address: m.wallet, linked: m.linked, canEdit }, family, candidates });
 }
 
 /** Is `<label>.<parent>` free? `parent` must be a name in this workspace's own tree. */
