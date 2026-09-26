@@ -6,7 +6,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { makeT } from "@/i18n/translate";
-import { familyChain, sendSecret } from "@/lib/ens-chain";
+import { sendSecret } from "@/lib/ens-chain";
+import { familyChainFor } from "@/lib/ens-workspace";
+import { linkedWallet } from "@/lib/wallet/linked";
 import { ensureNicknamesTable, loadNicknames } from "@/lib/ens-nicknames";
 import { prepareSend } from "@/lib/ens-family/prepare";
 import { displayName, findNodeByAddress, pickAnswer, pickRecipients, type FamilyNode } from "@/lib/ens-family/family-tree";
@@ -57,10 +59,11 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult | null>
   // no amount ("send Minjun some money"): ours only if it names someone to ask the amount for
   const vague = !isSendRequest(text);
 
-  const chain = familyChain();
+  const chain = await familyChainFor(ctx.workspaceId);
   if (!chain) return vague ? null : { text: t("Family names aren't set up here yet.") };
-  const [me] = await db.select({ address: users.ainAddress }).from(users).where(eq(users.id, ctx.askerId));
-  if (!me?.address) return vague ? null : { text: t("Sign in with your wallet first, so I know which family name is yours.") };
+  const [row] = await db.select({ ainAddress: users.ainAddress }).from(users).where(eq(users.id, ctx.askerId));
+  const me = { address: row ? linkedWallet(row) : null };
+  if (!me.address) return vague ? null : { text: t("Sign in with your wallet first, so I know which family name is yours.") };
 
   const tree = await chain.loadTree();
   const nicknames = await loadNicknames(ctx.workspaceId);
@@ -94,7 +97,7 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult | null>
     return { text: why + note };
   }
   const token = signSendIntent(
-    { userId: ctx.askerId, roomId: ctx.roomId ?? "", from: me.address as `0x${string}`, name: r.recipient.name, to: r.to, amountMicro: r.amountMicro.toString() },
+    { userId: ctx.askerId, workspaceId: ctx.workspaceId, roomId: ctx.roomId ?? "", from: me.address, name: r.recipient.name, to: r.to, amountMicro: r.amountMicro.toString() },
     sendSecret()
   );
   return {

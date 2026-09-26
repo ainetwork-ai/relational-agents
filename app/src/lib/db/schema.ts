@@ -115,6 +115,18 @@ export const inviteTokens = pgTable(
   ]
 );
 
+// A workspace's family name in ENS (docs/superpowers/plans/2026-09-26-ens-family-settings.md).
+// One per workspace; the tree itself lives onchain.
+export const workspaceEns = pgTable("workspace_ens", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  rootName: text("root_name").notNull().unique(),
+  fromBlock: text("from_block").notNull(), // decimal string; bigint-safe
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ---------------------------------------------------------------------------
 // Workspace tables (plan.md schema)
 // ---------------------------------------------------------------------------

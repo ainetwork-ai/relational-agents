@@ -8,7 +8,8 @@ import { db } from "@/lib/db";
 import { chatMessages, chatRoomBots, notifications, users } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { makeT } from "@/i18n/translate";
-import { familyChain, sendSecret } from "@/lib/ens-chain";
+import { sendSecret } from "@/lib/ens-chain";
+import { familyChainFor } from "@/lib/ens-workspace";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
 import { markConfirmed, markSent, releaseSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (!recorded) markSent(body.t, body.txHash);
   if (wasConfirmed(body.t)) return NextResponse.json({ ok: true });
 
-  const chain = familyChain();
+  const chain = await familyChainFor(intent.workspaceId);
   if (!chain) return NextResponse.json({ error: "ENS family not configured" }, { status: 422 });
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);

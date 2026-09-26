@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth/session";
 import { getT } from "@/i18n/server";
-import { familyChain, sendSecret } from "@/lib/ens-chain";
+import { sendSecret } from "@/lib/ens-chain";
+import { familyChainFor } from "@/lib/ens-workspace";
 import { verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "@/lib/ens-family/send-token";
 import { descendants, displayName } from "@/lib/ens-family/family-tree";
 import { SendCard } from "@/components/ens/send-card";
@@ -11,10 +12,11 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const t = await getT();
   const { t: token = "" } = await searchParams;
   const session = await getSession();
-  const chain = familyChain();
-  const live = chain ? verifySendIntent(token, sendSecret()) : null;
+  const live = verifySendIntent(token, sendSecret());
   // past its 10 minutes a link can no longer pay, but a transfer already made with it can still be checked
-  const intent = live ?? (chain ? verifySendIntentForConfirm(token, sendSecret()) : null);
+  const intent = live ?? verifySendIntentForConfirm(token, sendSecret());
+  // the family the agent found the recipient in (its own, else the deployment's ENS_FAMILY_ROOT)
+  const chain = intent && intent.userId === session.userId ? await familyChainFor(intent.workspaceId) : null;
   const fail = (msg: string) => (
     <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">
       {msg}

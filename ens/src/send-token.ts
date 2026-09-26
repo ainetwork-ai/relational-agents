@@ -6,6 +6,8 @@ import type { Address } from "viem";
 
 export interface SendIntent {
   userId: string;
+  /** whose family the recipient was found in: the page and the confirm read that family's chain */
+  workspaceId: string;
   roomId: string;
   from: Address;
   name: string;
@@ -32,6 +34,9 @@ export function verifySendIntent(token: string, secret: string, now = Date.now()
   if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
   try {
     const intent = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SendIntent;
+    // links signed before workspaceId existed name no family: refused like an expired link
+    // (they lived 10 minutes; the agent prepares a new one)
+    if (typeof intent.workspaceId !== "string" || !intent.workspaceId) return null;
     return intent.exp >= now ? intent : null;
   } catch {
     return null;

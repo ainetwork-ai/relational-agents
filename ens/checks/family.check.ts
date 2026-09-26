@@ -136,6 +136,7 @@ ok("displayName: label fallback", displayName({ ...minjun, alias: null }) === "m
 const SECRET = "check-secret-check-secret-check-secret";
 const intent = {
   userId: "u1",
+  workspaceId: "w1",
   roomId: "r1",
   from: "0x00000000000000000000000000000000000000c1" as const,
   name: `minjun.dad.grandma.${ROOT}`,
@@ -151,6 +152,14 @@ const [, mac] = tok.split(".");
 const forged = Buffer.from(JSON.stringify({ ...intent, to: "0x00000000000000000000000000000000000000ee", exp: T0 + 600_000 })).toString("base64url");
 ok("token: tampered body", verifySendIntent(`${forged}.${mac}`, SECRET, T0) === null);
 ok("token: garbage", verifySendIntent("nope", SECRET, T0) === null);
+{
+  // a link signed before SendIntent carried workspaceId: valid MAC, no family to read → refused
+  const { workspaceId: _w, ...legacy } = intent;
+  const old = signSendIntent(legacy as typeof intent, SECRET, T0);
+  ok("token: without workspaceId refused", verifySendIntent(old, SECRET, T0 + 1000) === null);
+  ok("token: without workspaceId refused for confirm too", verifySendIntentForConfirm(old, SECRET, T0 + 1000) === null);
+  ok("token: tampered workspaceId", verifySendIntent(`${Buffer.from(JSON.stringify({ ...intent, workspaceId: "w2", exp: T0 + 600_000 })).toString("base64url")}.${tok.split(".")[1]}`, SECRET, T0) === null);
+}
 ok("sent: unknown", wasSent(tok) === null);
 markSent(tok, "0xabc");
 ok("sent: remembered", wasSent(tok) === "0xabc");
