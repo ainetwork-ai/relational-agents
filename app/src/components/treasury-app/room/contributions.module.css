@@ -1,0 +1,864 @@
+/* Members' recurring contributions: the Wallet card, the Contributions tab and its dialogs. The
+   --tr-* tokens come from treasury-room.module.css's .root, which every Treasury tab renders in. */
+
+.quiet {
+  font-size: 13px;
+  color: var(--tr-sec);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── the Wallet card ─────────────────────────────────────────────────────── */
+
+.big {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 34px;
+}
+
+.bigValue {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.bigSub {
+  font-size: 14px;
+  color: var(--tr-sec);
+}
+
+.whoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.dot {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--tr-tint);
+  color: var(--tr-coral-ink);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+}
+
+.dotOff {
+  background: var(--tr-hair);
+  color: var(--tr-ter);
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+/* ── the tab: summary strip ──────────────────────────────────────────────── */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.stripItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stripLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tr-sec);
+}
+
+.stripValue {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stripRoute {
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* ── the tab: your contribution ──────────────────────────────────────────── */
+
+.mineEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.mineLine {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.facts > div {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--tr-hair);
+  min-width: 0;
+}
+
+.facts dt {
+  font-size: 12px;
+  color: var(--tr-sec);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* one line whose height never changes: the reason when a period can't be collected, else blank */
+.blockedLine {
+  min-height: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tr-bad-ink);
+}
+
+.blockedHidden {
+  visibility: hidden;
+}
+
+/* ── the tab: the grid ───────────────────────────────────────────────────── */
+
+.grid {
+  --cols: minmax(190px, 1.6fr) repeat(var(--months), minmax(92px, 1fr)) 72px;
+  display: flex;
+  flex-direction: column;
+}
+
+.gridRow {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-top: 1px solid var(--tr-hair);
+}
+
+.gridHead {
+  min-height: 32px;
+  border-top: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tr-sec);
+}
+
+.gridFoot {
+  min-height: 40px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gridWho {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.whoText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.whoName {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.whoPlan {
+  font-size: 12px;
+  color: var(--tr-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gridMonth {
+  font-size: 12px;
+}
+
+.gridTotal {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 16px;
+}
+
+.cell {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--tr-hair);
+  transition:
+    transform var(--tr-fast),
+    box-shadow var(--tr-fast);
+}
+
+a.cell:hover {
+  transform: scale(1.15);
+}
+
+a.cell:active {
+  transform: scale(0.95);
+}
+
+a.cell:focus-visible {
+  outline: 2px solid var(--tr-info);
+  outline-offset: 2px;
+}
+
+.cellWide {
+  width: 40px;
+}
+
+.cellCollected {
+  background: var(--tr-ok);
+}
+
+.cellDue {
+  background: var(--tr-wait);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.cellMissed {
+  background: var(--tr-bad);
+}
+
+.cellUpcoming {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--tr-line);
+}
+
+.cellStopped {
+  background: repeating-linear-gradient(45deg, var(--tr-hair) 0 3px, var(--tr-line) 3px 6px);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cellDue {
+    animation: none;
+  }
+}
+
+/* the cell's date, amount and state, above it, on hover and on keyboard focus */
+a.cell[data-tip]:hover::after,
+a.cell[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--tr-text);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.none {
+  font-size: 13px;
+  color: var(--tr-ter);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--tr-sec);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendCell {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  animation: none;
+}
+
+.footnote {
+  font-size: 12.5px;
+  color: var(--tr-sec);
+  padding: 0 4px;
+}
+
+/* ── dialogs ─────────────────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(25, 31, 40, 0.42);
+  animation: fadeIn var(--tr-fast);
+}
+
+.dialog {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border-radius: 24px;
+  background: var(--tr-card);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  outline: none;
+  animation: rise var(--tr-slow);
+}
+
+.dialogHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 4px;
+}
+
+.dialogTitle {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dialogBody {
+  padding: 12px 22px;
+}
+
+.dialogFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 22px 20px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tr-sub);
+  padding: 0;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.amountChip {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 58px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--tr-hair);
+  color: var(--tr-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--tr-fast),
+    box-shadow var(--tr-fast);
+}
+
+.amountChip:hover {
+  background: var(--tr-line);
+}
+
+.amountChip:active {
+  transform: scale(0.98);
+}
+
+.amountChip:focus-visible,
+.amountChip:focus-within {
+  outline: 2px solid var(--tr-info);
+  outline-offset: 2px;
+}
+
+.amountChipOn,
+.amountChipOn:hover {
+  background: var(--tr-tint);
+  box-shadow: inset 0 0 0 2px var(--tr-coral);
+  color: var(--tr-coral-ink);
+}
+
+.amountUsdc {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tr-sec);
+}
+
+.customRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.customInput {
+  width: 52px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  text-align: left;
+  outline: none;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--tr-hair);
+}
+
+.segment {
+  appearance: none;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tr-sec);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--tr-fast),
+    color var(--tr-fast);
+}
+
+.segment:hover {
+  color: var(--tr-text);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--tr-info);
+  outline-offset: 1px;
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--tr-card);
+  color: var(--tr-text);
+  box-shadow: var(--tr-shadow);
+}
+
+.stepperRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--tr-hair);
+}
+
+.stepperBtn {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tr-card);
+  color: var(--tr-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color var(--tr-fast);
+}
+
+.stepperBtn:hover {
+  background: var(--tr-line);
+}
+
+.stepperBtn:active {
+  transform: scale(0.95);
+}
+
+.stepperBtn:focus-visible {
+  outline: 2px solid var(--tr-info);
+  outline-offset: 1px;
+}
+
+.stepperBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stepperValue {
+  min-width: 36px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.stepperNote {
+  font-size: 13px;
+  color: var(--tr-sec);
+}
+
+.summary {
+  min-height: 84px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--tr-ok-bg);
+  color: var(--tr-ok-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.walletLead {
+  min-height: 20px;
+  font-size: 14px;
+  color: var(--tr-sub);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* every row keeps one height through waiting → confirming → done / failed */
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: var(--tr-hair);
+  transition: background-color var(--tr-slow);
+}
+
+.stepIcon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--tr-card);
+  color: var(--tr-sec);
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stepTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepSub {
+  font-size: 12.5px;
+  color: var(--tr-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step_wallet .stepIcon,
+.step_mining .stepIcon {
+  color: var(--tr-wait-ink);
+  background: var(--tr-wait-bg);
+}
+
+.step_done {
+  background: var(--tr-ok-bg);
+}
+
+.step_done .stepIcon {
+  color: #fff;
+  background: var(--tr-ok);
+}
+
+.step_failed {
+  background: var(--tr-bad-bg);
+}
+
+.step_failed .stepIcon {
+  color: #fff;
+  background: var(--tr-bad);
+}
+
+.step_failed .stepSub {
+  color: var(--tr-bad-ink);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.doneLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.doneIcon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--tr-ok);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pendingLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--tr-coral);
+}
+
+/* ── phone width ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stripRoute {
+    align-items: flex-start;
+  }
+
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .facts dd {
+    white-space: normal;
+  }
+
+  /* one card per person: the name stays, the months scroll sideways inside it */
+  .gridRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-top: 8px;
+    padding: 12px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--tr-hair);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  /* after .gridRow, which would show it again */
+  .gridRow.gridHead {
+    display: none;
+  }
+
+  .gridWho {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: none;
+    width: 128px;
+    background: var(--tr-hair);
+  }
+
+  /* a month: its name, then its periods */
+  .cells {
+    flex: none;
+    width: 100px;
+    align-content: flex-start;
+  }
+
+  .cells::before {
+    content: attr(aria-label);
+    flex-basis: 100%;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tr-sec);
+  }
+
+  .gridFoot .gridMonth {
+    display: none;
+  }
+
+  .gridTotal {
+    flex: none;
+    align-self: center;
+  }
+
+  /* the dialog is a bottom sheet */
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .dialogFoot {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .dialogFoot > * {
+    flex: 1;
+  }
+}

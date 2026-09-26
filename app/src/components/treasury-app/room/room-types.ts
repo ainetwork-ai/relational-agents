@@ -1,4 +1,5 @@
 import type { TreasuryChain } from "@/components/chain/chain-badge";
+import type { TreasuryContributions } from "@/lib/agent/treasury/contribution-plan";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 
 /** One person (or the room's agent) as the Treasury page names them. */
@@ -32,6 +33,8 @@ export interface TreasuryWallet {
   swaps: Record<string, SwapAmounts>;
   /** false for a chain this server runs as a local fork: no public explorer has its transactions */
   explorable: Record<TreasuryChain, boolean>;
+  /** members' recurring contributions into this wallet on Base, through Permit2 (lib/agent/treasury/contributions.ts) */
+  contributions: TreasuryContributions;
 }
 
 /** GET /api/treasury/[roomId] — what /treasury/[roomId] renders. */

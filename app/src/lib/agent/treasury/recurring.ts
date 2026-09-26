@@ -893,6 +893,7 @@ export async function recurringBuyStatus(roomId: string, now = new Date()): Prom
       ...(r.usdcIn ? { usdcIn: formatUnits(BigInt(r.usdcIn), 6) } : {}),
       ...(r.wethOut ? { wethOut: formatUnits(BigInt(r.wethOut), 18) } : {}),
       ...(r.txUrl ? { txUrl: r.txUrl } : {}),
+      ...(r.route ? { route: r.route } : {}),
     })),
     realRuns: realRunsEnabled(),
   };
