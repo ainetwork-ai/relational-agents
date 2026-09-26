@@ -388,7 +388,6 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
   const worldIdAppId = status.seatAppId ?? WORLD_ID_APP_ID;
   const viewerId = status.viewerId;
   const me = viewerId ? status.members.find((m) => m.userId === viewerId) : undefined;
-  const withAvatars = status.members.some((m) => avatarOf(m));
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
   const history = status.actions
@@ -512,7 +511,7 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
             )
           )}
 
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="treasury-members">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2" data-testid="treasury-members">
             <span
               data-testid="treasury-votes-count"
               title="Members whose World ID vote counts, of everyone in the relation"
@@ -535,28 +534,18 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                   : state === "off"
                     ? "ring-red-500"
                     : "ring-neutral-300 dark:ring-neutral-600";
-              const avatar = avatarOf(m);
+              // the face is the whole chip; the name and the reason are the tooltip
+              const name = m.userId === viewerId ? youName(m.displayName) : m.displayName;
               return (
                 <span
                   key={m.userId}
                   data-testid="treasury-member"
                   data-vote={state}
-                  title={chipTitle(m)}
-                  className="inline-flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300"
+                  title={`${name}\n${chipTitle(m)}`}
+                  aria-label={name}
+                  className={`inline-flex rounded-full ring-2 ring-offset-1 ring-offset-white dark:ring-offset-neutral-900 ${ring}`}
                 >
-                  {withAvatars ? (
-                    <span
-                      aria-hidden
-                      className={`inline-flex rounded-full ring-2 ring-offset-1 ring-offset-white dark:ring-offset-neutral-900 ${ring}`}
-                    >
-                      <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatar }} size={22} />
-                    </span>
-                  ) : (
-                    <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ring-2 ${ring}`} />
-                  )}
-                  <span className={m.userId === viewerId ? "font-medium" : undefined}>
-                    {m.userId === viewerId ? youName(m.displayName) : m.displayName}
-                  </span>
+                  <UserAvatar user={{ displayName: m.displayName, avatarUrl: avatarOf(m) }} size={24} />
                 </span>
               );
             })}
