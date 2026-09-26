@@ -34,7 +34,12 @@ export function worldIdV4Config() {
     console.error(`NEXT_PUBLIC_WORLD_ID_ENV="${environment}" is not production|staging|sandbox — World ID 4.0 disabled`);
     return null;
   }
-  return { rpId, signingKey, appId, environment: environment as IdKitEnvironment };
+  // World verifies staging/sandbox proofs only inside a 24 h window the app's
+  // team opens in the Developer Portal, and each verify call must carry that
+  // window's token (scripts/world-staging-window.mjs opens it and saves the
+  // token). Production proofs need none.
+  const stagingToken = process.env.WORLD_STAGING_VERIFICATION_TOKEN?.trim() || null;
+  return { rpId, signingKey, appId, environment: environment as IdKitEnvironment, stagingToken };
 }
 
 export interface RpContextPayload {
@@ -143,9 +148,11 @@ export async function verifyIdKitV4(
       return { ok: false, error: "proof was not made for this context (signal mismatch)" };
   }
 
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (cfg.environment !== "production" && cfg.stagingToken) headers["x-staging-verification-token"] = cfg.stagingToken;
   const res = await fetch(`https://developer.world.org/api/v4/verify/${cfg.rpId}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(result),
     signal: AbortSignal.timeout(15_000),
   }).catch((err) => {
@@ -159,6 +166,13 @@ export async function verifyIdKitV4(
     code?: string;
     detail?: string;
   };
+  if (body.code === "environment_not_allowed")
+    return {
+      ok: false,
+      error: cfg.stagingToken
+        ? "World isn't accepting this app's staging proofs: the staging window has closed or its token changed — reopen it with scripts/world-staging-window.mjs and restart the app."
+        : "World isn't accepting this app's staging proofs: no staging window is open — open one with scripts/world-staging-window.mjs and restart the app.",
+    };
   if (!res.ok || body.success !== true)
     return { ok: false, error: body.detail ?? body.code ?? `verifier ${res.status}` };
 
