@@ -21,7 +21,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.join(HERE, "..", "public", "avatars", "tokyo");
+const OUT_DIR = path.join(HERE, "..", "public", "demo", "tokyo");
 const RAW_DIR = process.env.TOKYO_AVATARS_RAW_DIR || path.join(os.tmpdir(), "tokyo-avatars-raw");
 const ENV_FILE = process.env.AZURE_ENV_FILE || path.join(HERE, "..", "..", "dashboard", ".env");
 const API_VERSION = "2025-04-01-preview";
