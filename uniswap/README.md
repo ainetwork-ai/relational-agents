@@ -53,10 +53,11 @@ Each layer runs without the layer in front of it.
 | `src/mandate/` | pure, no IO: typed data, signature recovery, `verifyApproval`, `checkMandate`, the period key. |
 | `src/ledger/` | the passbook. `file.js` is one JSON file, and its `view()` is what the caps are checked against. |
 | `src/tsumitate.js` | `runOnce()` — one idempotent run: choose a mandate, verify it, check it, quote, swap, record. |
-| `src/chains/` | every contract and token address this package knows. Nothing outside this folder holds one. |
+| `src/chains/` | every contract and token address the JavaScript side knows; nothing else in `src/` holds one. `contracts/` names Permit2 itself — one address on every chain. |
 | `src/cli/` | `fund` (fork only), `buy` (the swap layer alone), `mandate sign`/`revoke`, `tsumitate` (one run; `--dry-run` decides and quotes, writes and swaps nothing). |
 | `src/web/` | `pnpm web` — a local page over the same `runOnce`, ledger and signer: sign, dry-run, run, revoke, read the passbook. |
 | `src/address.js` | the one address comparison, case-insensitive. |
+| `contracts/` | `RecurringContribution.sol` — recurring contributions from a member's wallet through Permit2; its Foundry tests in `contracts/test/` (`foundry.toml`). |
 
 ## Running it on the fork
 
@@ -143,6 +144,47 @@ run for real (a confirm dialog, then `confirm: true` in the body — the only ro
 revoke, and the passbook with explorer links. It binds to `127.0.0.1` only, because the agent's key
 sits behind it. `WEB_PORT` changes the port.
 
+## Recurring contributions — Permit2
+
+`contracts/RecurringContribution.sol` lets a member pay into a relation's pot on a schedule, from
+their own wallet, through Uniswap's Permit2 (AllowanceTransfer, `0x000000000022D473030F116dDEE9F6B43aC78BA3`).
+One contract serves every relation and every member; each plan has its own amount and its own period.
+
+- The member calls `start(pot, token, amountPerPeriod, period, until, salt)` and gives the contract a
+  Permit2 allowance on that token. `period` is in seconds — a week, two weeks, thirty days — and
+  periods count from the plan's own start.
+- Anyone may call `pull(id)` — the relation's agent does, once a period — and the contract moves
+  exactly `amountPerPeriod` from the member to the plan's pot.
+- The member calls `stop(id)` to end it.
+
+What the contract guarantees, whoever calls `pull`:
+- at most `amountPerPeriod` per period. Missed periods don't add up: a late pull covers only the
+  period it lands in.
+- only to the pot the member chose at `start`, and nobody can start a plan that pulls from someone else.
+- only until `until`, and never after `stop`.
+- the member can also cut it off in Permit2 alone — `approve(token, contract, 0, 0)` — without this
+  contract or us.
+
+A member's Permit2 allowance to the contract is per token, so it is shared by all of that member's
+plans on that token.
+
+How much a member allows: both approvals are the plan's total, never unlimited — `USDC.approve(Permit2,
+total)` and `Permit2.approve(USDC, RecurringContribution, total, until)`, where total is
+`amountPerPeriod` × the periods until `until`. The contract has no path that sends anywhere but the
+plan's pot; beyond that, if it were ever broken, what it could move from a member is bounded by that
+member's remaining total, and only until the plan ends. A wallet that already approved Permit2
+without limit for other apps is still capped, for this contract, by the Permit2 allowance it gives
+this contract.
+
+Not done yet: no app screen starts a plan, and the contract is not deployed. `node --test` runs its
+Foundry tests on a fork of Base mainnet — the real Permit2 and USDC —
+(`test/recurring-contribution.test.js` runs `forge test --fork-url`) and skips without Foundry or a
+Base RPC.
+
+Per-period pulls are an established pattern: Coinbase Spend Permissions (`SpendPermissionManager`)
+and MetaMask's `ERC20PeriodTransferEnforcer` enforce them for smart accounts. This contract does the
+same for any wallet that has approved Permit2.
+
 ## Continuity — what existed before, what this adds
 
 | piece | status |
@@ -153,6 +195,7 @@ sits behind it. `WEB_PORT` changes the port.
 | Everything under `uniswap/`: swap layer, `SpendMandate`, ledger, executor, CLIs, web page, tests | **new, built 2026-09-25/26 during ETHGlobal Tokyo** |
 | The Relation Treasury in the app (rules from the relation's doc, World ID approvals, the Sepolia pot, the investing swap) | the World track, see [`world/`](../world/) for what existed before vs what was built |
 | The recurring buy in the app, its Treasury page (the agent's wallet, holdings per chain, every swap), the treasurer agent (7 tools, AG-UI stream, A2UI cards) | **new, built 2026-09-26 during ETHGlobal Tokyo** |
+| `contracts/RecurringContribution.sol` — recurring contributions from members' wallets through Permit2, with Base-fork tests | **new, built 2026-09-27 during ETHGlobal Tokyo** |
 | A scheduler that runs the week without a member asking, the Trading API provider | not yet |
 
 ## Honest limits
