@@ -382,7 +382,7 @@ function confirmPage(
       ${c.recurring ? `<dt>Terms</dt><dd class="digest">${esc(c.recurring.digestShort)}</dd>` : ""}
     </dl>
     <p class="bar">${esc(bar)}</p>
-    <p class="note">Every payment gets its own check: World ID confirms, right now, that a unique human is approving. Your approval counts once and can't be withdrawn.</p>
+    <p class="note">Every approval gets its own check: World ID confirms, right now, that a unique human is approving. Your approval counts once and can't be withdrawn.</p>
     ${
       sandbox
         ? `<p class="sandbox">Sandbox: World uses a fake identity and finishes by itself in about 3 seconds — its page says “Signing you in”; that is this check. In production this is World App on the member's phone.</p>`

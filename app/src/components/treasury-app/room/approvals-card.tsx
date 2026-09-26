@@ -127,10 +127,13 @@ export function ApprovalsCard({ status, roomId, meId, now }: { status: TreasuryS
   return (
     <section className={styles.card} data-testid="treasury-room-approvals">
       <div className={styles.cardHead}>
-        <h2 className={styles.cardTitle}>
-          {t("Needs approval")}
-          <span className={styles.count}>{waiting.length}</span>
-        </h2>
+        <div>
+          <h2 className={styles.cardTitle}>
+            {t("Needs approval")}
+            <span className={styles.count}>{waiting.length}</span>
+          </h2>
+          <p className={styles.cardSub}>{t("Each approval is its own World ID check, made right then.")}</p>
+        </div>
       </div>
       <ul className={styles.list}>
         {waiting.map((a) => (

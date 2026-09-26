@@ -559,8 +559,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           {showClaim && (
             <div className="mt-3 rounded-md border border-dashed border-neutral-300 px-3 py-2 dark:border-neutral-700">
               <div className="text-neutral-700 dark:text-neutral-300">
-                Claim your vote — prove you&apos;re a unique human. Only members with a vote can approve
-                what the agent asks to spend.
+                <span className="font-medium">Claim your vote</span>
+                {" — once per member: World ID proves "}
+                you&apos;re a unique human, so one person can&apos;t hold two votes. Only members with a vote can
+                approve what the agent asks to spend.
               </div>
               {status.seatMode === "world-id-v4" ? (
                 worldIdAppId.startsWith("app_") ? (
@@ -723,7 +725,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   >
                     {a.kind === "ratify" || a.kind === "recurring-buy"
                       ? "Adopting… this updates in a moment."
-                      : "Paying on Sepolia… this updates when the payment confirms."}
+                      : "Paying on Sepolia — usually about 40 seconds. This updates when the payment confirms."}
                   </div>
                 ) : iApproved ? (
                   <div data-testid="treasury-you-approved" className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
@@ -732,6 +734,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 ) : !status.mySeated ? (
                   <div data-testid="treasury-no-vote" className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
                     No vote on this account — only verified humans can approve.
+                    {showClaim && " Claim your vote above first."}
                   </div>
                 ) : me && !me.voting ? (
                   <div className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
@@ -757,6 +760,9 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     >
                       🌍 Approve with World ID
                     </button>
+                    <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                      Every approval gets its own check: World ID confirms a human is approving, right now.
+                    </div>
                     {status.idpMode === "mock" && (
                       <div data-testid="treasury-mock-idp" className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
                         local mock IdP
