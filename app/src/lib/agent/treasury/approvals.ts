@@ -649,6 +649,24 @@ function errorText(err: unknown): string {
   return text.split("\n")[0].slice(0, 300);
 }
 
+/**
+ * What the room reads when the chain said no: a sentence, not the client
+ * library's ("The contract function "exactInputSingle" reverted with the
+ * following reason:"). Only for a failure where nothing went out — a sent
+ * transaction keeps its own "unconfirmed" line. The original goes to the
+ * server log; invest.ts's own errors already read as sentences.
+ */
+function failureText(err: unknown, investing: boolean): string {
+  const raw = errorText(err);
+  if (/revert|simulat/i.test(raw))
+    return investing ? "the swap on Uniswap didn't go through — nothing was spent." : "Sepolia refused the transfer — nothing was sent.";
+  if (/insufficient funds|exceeds the balance|gas required exceeds/i.test(raw))
+    return "the agent wallet can't cover this and its gas right now — nothing was sent.";
+  if (/timed? ?out|fetch failed|ECONN|HTTP request failed|network/i.test(raw))
+    return "the network didn't answer — nothing was sent. Try again in a minute.";
+  return raw;
+}
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Outcome =
@@ -1019,10 +1037,11 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
         claimed.amountUsd
       ));
   } catch (err) {
-    error = errorText(err);
     // wallet.ts attaches the hash when a transaction went out: it may land
     const sent = (err as { txHash?: unknown } | null)?.txHash;
     if (typeof sent === "string" && /^0x[0-9a-fA-F]{64}$/.test(sent)) sentTx = sent;
+    console.error(`treasury: executing ${actionId} failed:`, err);
+    error = sentTx ? errorText(err) : failureText(err, claimed.kind === "investment");
   }
   const failure = error ?? "transfer failed";
 
