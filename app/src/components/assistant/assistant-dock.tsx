@@ -9,6 +9,9 @@ import { useT } from "@/i18n/provider";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { AindriveConnect } from "@/components/aindrive/aindrive-connect";
 import { openFamilySheet } from "@/components/family/family-folders";
+import { A2uiSurface } from "@/components/a2ui/surface";
+import { splitA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
+import { sendOfferSrc } from "@/lib/agent/send-offer-surface";
 
 interface Assistant {
   roomId: string;
@@ -77,8 +80,9 @@ export function SuggestionChips({ items, onPick, disabled }: { items: string[]; 
 }
 
 /**
- * "/p/<id>" in an answer is a page the agent made, "/send?t=…" a transfer to review
- * (the send-by-name skill), and an https url the explorer link on a receipt — links, not text.
+ * "/p/<id>" in an answer is a page the agent made, "/send?t=…" a transfer to review (older
+ * send-by-name answers; it asks in the chat now), and an https url the explorer link on a
+ * receipt — links, not text.
  */
 function Linked({ text, label }: { text: string; label: string }) {
   const t = useT();
@@ -286,16 +290,23 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
         )}
         {msgs.map((m) => {
           const mine = m.authorId === me?.id;
-          return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[88%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                  mine ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100"
-                }`}
-              >
-                <Linked text={m.text} label={t("Open page")} />
+          // a card line ("Is this Minjun?", the Send button) is drawn as that card, like the room chat does
+          return splitA2uiMarkers(m.text).map((part, pi) =>
+            part.kind === "text" ? (
+              <div key={`${m.id}-${pi}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[88%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                    mine ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100"
+                  }`}
+                >
+                  <Linked text={part.text} label={t("Open page")} />
+                </div>
               </div>
-            </div>
+            ) : part.kind === "send" ? (
+              <div key={`${m.id}-${pi}`} className="flex justify-start">
+                <A2uiSurface src={sendOfferSrc(part.view, part.offerId)} refreshKey={msgs.length} />
+              </div>
+            ) : null
           );
         })}
         {waiting && <p className="text-xs text-neutral-400">{t("Looking through the family's folders…")}</p>}

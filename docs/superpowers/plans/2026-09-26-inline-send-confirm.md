@@ -22,8 +22,8 @@ button in the chat; pressing it sends the transaction."
   transaction; `pnpm db:check` on both.
 - **Step 1 card** (`send-check`): recipient photo (the workspace member whose *verified* wallet
   equals the resolved address → `users.avatar_url`; else the ENS `avatar` record if https; else
-  initials), their name, email (only if that member has one), "1 USDC", "Is this Minjun?" and
-  Yes / No. No member with that wallet → "Minjun isn't in this workspace yet" and only the ENS
+  initials), their name, email (only if that member has one, and only on the asker's card), "1 USDC",
+  "Is this Minjun?" and Yes / No. No member with that wallet → "Minjun isn't in this workspace yet" and only the ENS
   alias + avatar. Only the asker gets buttons; everyone else sees it read-only. Typing yes / no
   (English and Korean words in `i18n/content/agent.ts`) answers the newest open question of that
   asker in that room (respond.ts checks before any other skill, DB-backed so a restart keeps it).

@@ -12,18 +12,37 @@
  *   buy     → POSTs the same way, no question: the server buys this week's
  *             share, skips or rehearses, and says which on the card
  *   open    → the Treasury page
+ * and the send-by-name skill's `ainmem.send.*` (lib/agent/send-offer-surface.ts):
+ *   answer   → POSTs Yes / No to "Is this Minjun?"
+ *   go       → POSTs; the server's answer names the transfer, which goes to
+ *              MetaMask (send-wallet.ts), then to /api/ens/send/confirm; the
+ *              card redraws after each step
+ *   recheck  → asks the confirm route again about the hash it has
+ *   explorer → the transaction on Etherscan
+ * An Image with variant "avatar" / "smallAvatar" is a round photo, its
+ * `fallback` initials when there is no url.
  * Either `messages` (the treasurer's stream hands them over) or `src` (the
  * room chat fetches the card) — a card with `src` refetches when the tab
  * regains focus, so approvals given elsewhere show up.
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useT } from "@/i18n/provider";
 import { Check, Globe, Repeat, type LucideIcon } from "lucide-react";
 import { ChainBadge, UniswapBadge } from "@/components/chain/chain-badge";
 import type { A2uiComponent, A2uiMessage } from "@/lib/x402/a2ui";
 import { TREASURY_APPROVE_ACTION, TREASURY_BUY_ACTION, TREASURY_OPEN_ACTION, TREASURY_STOP_ACTION } from "@/lib/agent/treasurer/surfaces";
+import {
+  SEND_ANSWER_ACTION,
+  SEND_CANCELLED_ACTION,
+  SEND_EXPLORER_ACTION,
+  SEND_FAILED_ACTION,
+  SEND_GO_ACTION,
+  SEND_RECHECK_ACTION,
+} from "@/lib/agent/send-offer-surface";
+import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
+import { confirmTx, sendFromCard, storeTx, storedTx, type CardWallet } from "./send-wallet";
 
 /** nesting bound: a malformed surface that names itself as its own child must not recurse forever */
 const MAX_DEPTH = 12;
@@ -96,7 +115,9 @@ function surfaceUrl(context: Record<string, unknown>): string | null {
     : null;
 }
 
-export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]; src?: string }) {
+/** `refreshKey`: the chat's message count, say — a new message (a typed "yes" that answered this
+ *  card) refetches a `src` card as a regained focus does. */
+export function A2uiSurface({ messages: given, src, refreshKey }: { messages?: A2uiMessage[]; src?: string; refreshKey?: number }) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
@@ -129,7 +150,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
       live = false;
       window.removeEventListener("focus", load);
     };
-  }, [src]);
+  }, [src, refreshKey]);
 
   // a card redrawn by its own action wins over what the caller first handed in
   const messages = fetched ?? given ?? null;
@@ -138,9 +159,9 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
   const live = model.state === "live";
 
   const post = useCallback(
-    async (c: A2uiComponent, ev: ActionEvent) => {
+    async (c: A2uiComponent, ev: ActionEvent, keepBusy = false): Promise<Record<string, unknown> | null> => {
       const url = src ?? surfaceUrl(ev.context);
-      if (!url) return;
+      if (!url) return null;
       setConfirming(null);
       setActionFailed(null);
       setBusy(c.id);
@@ -158,17 +179,77 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
             },
           }),
         });
-        const data = (await res.json().catch(() => ({}))) as { messages?: A2uiMessage[] };
+        const data = (await res.json().catch(() => ({}))) as { messages?: A2uiMessage[] } & Record<string, unknown>;
         if (Array.isArray(data.messages)) setFetched(data.messages);
         else if (!res.ok) setActionFailed(c.id);
+        return data;
       } catch {
         setActionFailed(c.id);
+        return null;
       } finally {
-        setBusy(null);
+        if (!keepBusy) setBusy(null);
       }
     },
     [src, surfaceId]
   );
+
+  const refetch = useCallback(async () => {
+    if (!src) return;
+    const data = (await fetch(src, { cache: "no-store" })
+      .then((r) => r.json())
+      .catch(() => null)) as { messages?: A2uiMessage[] } | null;
+    if (Array.isArray(data?.messages)) setFetched(data.messages);
+  }, [src]);
+
+  // a send card: one wallet request at a time from this card, whatever gets clicked
+  const sending = useRef(false);
+  const token = typeof model.token === "string" ? model.token : null;
+  const serverTx = typeof model.tx_hash === "string" ? model.tx_hash : null;
+
+  const confirmAndRedraw = useCallback(
+    async (tok: string, hash: string) => {
+      await confirmTx(tok, hash);
+      await refetch();
+    },
+    [refetch]
+  );
+
+  const runSend = useCallback(
+    async (c: A2uiComponent, ev: ActionEvent) => {
+      if (sending.current) return;
+      sending.current = true;
+      try {
+        const data = await post(c, ev, true);
+        const wallet = data?.wallet as CardWallet | undefined;
+        if (!wallet) return;
+        const r = await sendFromCard(wallet);
+        if ("hash" in r) {
+          // in this browser first: a reload before the server heard of it still knows it was sent
+          storeTx(wallet.token, r.hash);
+          await confirmAndRedraw(wallet.token, r.hash);
+        } else {
+          await post(c, {
+            name: r.outcome === "cancelled" ? SEND_CANCELLED_ACTION : SEND_FAILED_ACTION,
+            context: { ...ev.context, ...(r.outcome === "failed" ? { reason: r.reason } : {}) },
+          });
+        }
+      } finally {
+        sending.current = false;
+        setBusy(null);
+      }
+    },
+    [post, confirmAndRedraw]
+  );
+
+  // a hash this browser kept that the server never saw (the confirm call was lost): check it once
+  const recovered = useRef<string | null>(null);
+  useEffect(() => {
+    if (!token || serverTx || model.state === "done" || model.state === "sent") return;
+    const hash = storedTx(token);
+    if (!hash || recovered.current === hash) return;
+    recovered.current = hash;
+    void confirmAndRedraw(token, hash);
+  }, [token, serverTx, model.state, confirmAndRedraw]);
 
   const run = useCallback(
     (c: A2uiComponent, ev: ActionEvent) => {
@@ -187,11 +268,21 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
       } else if (ev.name === TREASURY_STOP_ACTION) {
         setActionFailed(null);
         setConfirming(c.id);
-      } else if (ev.name === TREASURY_BUY_ACTION) {
+      } else if (ev.name === TREASURY_BUY_ACTION || ev.name === SEND_ANSWER_ACTION) {
         void post(c, ev);
+      } else if (ev.name === SEND_GO_ACTION) {
+        void runSend(c, ev);
+      } else if (ev.name === SEND_RECHECK_ACTION) {
+        const hash = serverTx ?? (token ? storedTx(token) : null);
+        if (!token || !hash) return;
+        setBusy(c.id);
+        void confirmAndRedraw(token, hash).finally(() => setBusy(null));
+      } else if (ev.name === SEND_EXPLORER_ACTION) {
+        const url = ev.context.url;
+        if (typeof url === "string" && url.startsWith(`${SEPOLIA_EXPLORER}/tx/`)) window.open(url, "_blank", "noopener,noreferrer");
       }
     },
-    [router, post]
+    [router, post, runSend, confirmAndRedraw, serverTx, token]
   );
 
   if (!messages) {
@@ -220,7 +311,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         );
       case "Row": {
         const kinds = children.map((k) => byId.get(k)?.component);
-        const gap = kinds.some((k) => k === "Chip" || k === "Icon") ? "gap-x-1.5 gap-y-1" : kinds.some((k) => k === "Button") ? "gap-x-3 gap-y-2" : "gap-x-6 gap-y-2";
+        const gap = kinds.some((k) => k === "Chip" || k === "Icon") ? "gap-x-1.5 gap-y-1" : kinds.some((k) => k === "Image") ? "gap-x-3 gap-y-2 flex-nowrap" : kinds.some((k) => k === "Button") ? "gap-x-3 gap-y-2" : "gap-x-6 gap-y-2";
         return (
           <div
             key={id}
@@ -277,6 +368,23 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
           </div>
         );
       }
+      case "Image": {
+        const size = c.variant === "smallAvatar" ? "h-9 w-9 text-xs" : "h-14 w-14 text-base";
+        const url = typeof c.url === "string" && /^(?:https:\/\/|\/(?!\/))/.test(c.url) ? c.url : null;
+        return url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={id} src={url} alt="" data-testid="a2ui-image" className={`${size} shrink-0 rounded-full object-cover ring-1 ring-neutral-200 dark:ring-neutral-700`} />
+        ) : (
+          <span
+            key={id}
+            data-testid="a2ui-initials"
+            aria-hidden
+            className={`${size} flex shrink-0 items-center justify-center rounded-full bg-neutral-200 font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-200`}
+          >
+            {typeof c.fallback === "string" ? c.fallback : ""}
+          </span>
+        );
+      }
       case "Divider":
         return <hr key={id} className="my-1 border-neutral-200 dark:border-neutral-700" />;
       case "Button": {
@@ -324,7 +432,9 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
             {busy === id
               ? ev?.name === TREASURY_APPROVE_ACTION
                 ? t("Opening World ID…")
-                : t("Working…")
+                : ev?.name === SEND_GO_ACTION
+                  ? t("Waiting for MetaMask…")
+                  : t("Working…")
               : actionFailed === id && ev?.name === TREASURY_BUY_ACTION
                 ? t("Try again")
                 : label}
