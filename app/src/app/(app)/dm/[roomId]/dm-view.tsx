@@ -139,6 +139,10 @@ export function DmView({
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  // Mentions lifted out of the text into chips (Notion draws a picked @mention
+  // as a pill). The chips are merged back in front of the text at send time,
+  // so the wire format — "@agent pay …" — is unchanged.
+  const [mentionChips, setMentionChips] = useState<DmUser[]>([]);
   const [authors, setAuthors] = useState<DmUser[]>([]);
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
@@ -390,7 +394,7 @@ export function DmView({
     room?.name || (others.length ? others.map((o) => o.displayName).join(", ") : t("(No participants)"));
 
   async function send(force = false) {
-    const text = input.trim();
+    const text = [mentionChips.map((u) => `@${handleOf(u)}`).join(" "), input.trim()].filter(Boolean).join(" ");
     if ((!text && pendingAtt.length === 0) || sending) return;
  // a draft contradicting the record gets stopped once. Force-send is the human's call.
     if (declined && !force) return;
@@ -413,6 +417,7 @@ export function DmView({
         return prev.some((m) => m.id === msg.id) ? prev : [...prev, msg];
       });
       setInput("");
+      setMentionChips([]);
       setPendingAtt([]);
       setQuiet(false); // one quiet question at a time — you opt in per message
       setGuard(null);
@@ -510,16 +515,23 @@ export function DmView({
       .slice(0, 6);
   }, [mentionCandidates, mentionQuery]);
 
-  /** Replace the "@query" under the caret with the picked handle. */
+  /** The handle "@" stands for — must match timeline's mentionHandle. */
+  const handleOf = (u: DmUser) => (u.isAgent ? "agent" : u.displayName.split(/\s+/)[0]);
+
+  function addChip(user: DmUser) {
+    setMentionChips((prev) => (prev.some((c) => c.id === user.id) ? prev : [...prev, user]));
+  }
+
+  /** Lift the "@query" under the caret out of the text and into a chip. */
   function pickMention(user: DmUser) {
     if (mentionStart === null) return;
-    const handle = user.isAgent ? "agent" : user.displayName.split(/\s+/)[0];
     const caret = composerRef.current?.selectionStart ?? input.length;
-    const next = `${input.slice(0, mentionStart)}@${handle} ${input.slice(caret)}`;
+    const next = `${input.slice(0, mentionStart)}${input.slice(caret).replace(/^\s+/, "")}`;
     setInput(next);
+    addChip(user);
     setMentionOpen(false);
     setMentionStart(null);
-    const pos = mentionStart + handle.length + 2;
+    const pos = mentionStart;
     requestAnimationFrame(() => {
       composerRef.current?.setSelectionRange(pos, pos);
       composerRef.current?.focus();
@@ -527,6 +539,17 @@ export function DmView({
   }
 
   function onInputChange(v: string) {
+    // A handle typed out in full and closed with a space ("@agent ") becomes a
+    // chip on the spot, without the menu. Only at the end of the text: that is
+    // where typing happens, and it keeps a pasted "@agent pay …" untouched.
+    const typed = /(^|\s)@([^\s@]+)\s$/.exec(v);
+    if (typed) {
+      const user = mentionCandidates.find((m) => handleOf(m).toLowerCase() === typed[2].toLowerCase());
+      if (user) {
+        v = v.slice(0, typed.index + typed[1].length);
+        addChip(user);
+      }
+    }
     setInput(v);
     // "@" at a word boundary opens the menu; whitespace in the query closes it.
     const caret = composerRef.current?.selectionStart ?? v.length;
@@ -1337,6 +1360,28 @@ export function DmView({
         >
           <ImagePlus size={18} />
         </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {mentionChips.length > 0 && (
+            <div data-testid="dm-mention-chips" className="flex flex-wrap gap-1 px-0.5">
+              {mentionChips.map((u) => (
+                <span
+                  key={u.id}
+                  data-testid="dm-mention-chip"
+                  className="inline-flex items-center gap-0.5 rounded-[3px] bg-[rgba(0,118,217,0.1)] py-0.5 pl-1.5 pr-1 text-[13px] font-medium leading-5 text-[rgb(38,74,114)] dark:bg-blue-500/15 dark:text-blue-300"
+                >
+                  @{handleOf(u)}
+                  <button
+                    type="button"
+                    aria-label={t("Remove {name}", { name: `@${handleOf(u)}` })}
+                    onClick={() => setMentionChips((prev) => prev.filter((c) => c.id !== u.id))}
+                    className="rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         <textarea
           ref={composerRef}
           data-testid="dm-composer-input"
@@ -1370,6 +1415,11 @@ export function DmView({
                 return;
               }
             }
+            if (e.key === "Backspace" && !input && mentionChips.length && !isComposingRef.current) {
+              e.preventDefault();
+              setMentionChips((prev) => prev.slice(0, -1));
+              return;
+            }
             if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
               e.preventDefault();
               void send();
@@ -1377,18 +1427,19 @@ export function DmView({
               e.currentTarget.blur();
             }
           }}
-          className={`max-h-40 min-h-[2.25rem] flex-1 resize-none rounded-lg border px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 ${
+          className={`max-h-40 min-h-[2.25rem] w-full resize-none rounded-lg border px-3.5 py-2 text-[14px] leading-relaxed outline-none transition-colors placeholder:text-neutral-400 ${
             draftIsPrivate
               ? // dashed = this one is not going to the room
                 "border-dashed border-purple-300 bg-purple-50/40 focus:border-purple-400 dark:border-purple-700/70 dark:bg-purple-950/20 dark:focus:border-purple-500"
               : "border-neutral-200 bg-white focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
           }`}
         />
+        </div>
         <button
           type="submit"
           data-testid="dm-send"
           aria-label={t("Send message")}
-          disabled={sending || uploading || (!input.trim() && pendingAtt.length === 0)}
+          disabled={sending || uploading || (!input.trim() && !mentionChips.length && pendingAtt.length === 0)}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 disabled:opacity-40"
         >
           <Send size={16} />
