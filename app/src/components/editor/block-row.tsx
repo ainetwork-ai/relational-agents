@@ -725,12 +725,27 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
 const CODE_TYPE_CLASS =
   "whitespace-pre-wrap break-words py-3 font-mono text-[13.6px] leading-[20.4px]";
 
+// The language select and Copy float over the block and show on hover. A touch
+// screen has no hover (Tailwind only applies group-hover under (hover: hover)),
+// so there `touch-reveal` keeps them shown, Copy grows to a 36px target, and the
+// box's top padding grows to hold that row (top-2 + h-9 = 44px = pt-11) instead of
+// covering the first line. A saved AI prompt page is one long code block, and
+// selecting ~15k characters by hand on a phone is not a way to copy it.
+// Exported for scripts/prompt-export-ui.check.mts, which compiles them with Tailwind.
+export const CODE_BOX_CLASS =
+  "group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06] [@media(hover:none)]:pt-11";
+export const CODE_TOOLBAR_CLASS =
+  "absolute left-3 right-3 top-2 flex items-center justify-between touch-reveal opacity-0 transition-opacity focus-within:opacity-100 group-hover/code:opacity-100";
+export const CODE_COPY_CLASS =
+  "flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:hover:bg-neutral-700 [@media(hover:none)]:h-9 [@media(hover:none)]:min-w-9 [@media(hover:none)]:justify-center [@media(hover:none)]:px-2.5";
+
 /** Code block: language select + copy button + caption + a dependency-free
  * syntax-highlight overlay painted behind a transparent-text editor.
  * The <Editable> is untouched (full editing/caret model); we only read its
  * text to paint colors behind it. */
 function CodeBlock({ block }: { block: EBlock }) {
   const editor = useEditor();
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const caption = (block.content.caption as string) ?? "";
   const text = (block.content.text as string) ?? "";
@@ -746,8 +761,8 @@ function CodeBlock({ block }: { block: EBlock }) {
     // and inside it the editing area 12/12 — a one-line code block is 108.4. Language and copy float over the
     // container only on hover, and the caption takes space only when there is one.
     <div className="w-full px-0.5 py-2">
-    <div className="group/code relative w-full rounded-[10px] bg-[rgba(66,35,3,0.03)] px-[22px] py-6 dark:bg-white/[0.06]">
-      <div className="absolute left-3 right-3 top-2 flex items-center justify-between opacity-0 transition-opacity group-hover/code:opacity-100">
+    <div className={CODE_BOX_CLASS}>
+      <div className={CODE_TOOLBAR_CLASS}>
         <MemorySelect
           testid={`code-lang-${block.id}`}
           value={language}
@@ -762,19 +777,19 @@ function CodeBlock({ block }: { block: EBlock }) {
               setTimeout(() => setCopied(false), 1500);
             }
           }}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:hover:bg-neutral-700"
+          className={CODE_COPY_CLASS}
           aria-label="Copy code"
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("Copied") : t("Copy")}
         </button>
       </div>
       <div
         className="relative"
         onInput={(e) => {
-          const t = (e.target as HTMLElement).innerText.replace(/\n$/, "");
+          const typed = (e.target as HTMLElement).innerText.replace(/\n$/, "");
           if (overlayRef.current)
-            overlayRef.current.innerHTML = highlightCode(t, language) + "\n";
+            overlayRef.current.innerHTML = highlightCode(typed, language) + "\n";
         }}
       >
         {/* colored layer (read-only, non-interactive) sits behind the caret layer */}

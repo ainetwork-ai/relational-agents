@@ -36,10 +36,45 @@ const SUGGESTIONS = [
   "What time does grandma take her morning medicine on Chuseok?",
 ];
 /** offered on a page: the page open behind the panel goes along as "this page" */
-const PAGE_SUGGESTION = "Turn this page into an AI prompt.";
+export const PAGE_SUGGESTION = "Turn this page into an AI prompt.";
 
 /** The page open behind the panel (a uuid or an OKF id), if any. */
-const pageIdOf = (pathname: string | null) => pathname?.match(/^\/p\/([A-Za-z0-9_-]{8,})/)?.[1] ?? null;
+export const pageIdOf = (pathname: string | null) => pathname?.match(/^\/p\/([A-Za-z0-9_-]{8,})/)?.[1] ?? null;
+
+/**
+ * What the panel offers (English keys). Before the first message: a list under
+ * the greeting, this page first. The assistant room is made once per person and
+ * workspace and then reused, so that list is gone after the first question; the
+ * page's own offer then stays as a chip above the composer, because it is the
+ * one tied to what is open behind the panel.
+ */
+export function suggestionsFor(o: { pageId: string | null; hasDrives: boolean; hasHistory: boolean }): {
+  list: string[];
+  chips: string[];
+} {
+  const page = o.pageId ? [PAGE_SUGGESTION] : [];
+  if (o.hasHistory) return { list: [], chips: page };
+  return { list: [...page, ...(o.hasDrives ? SUGGESTIONS : [])], chips: [] };
+}
+
+/** a chip is a 36px target where there is no mouse, like the send button next to it */
+export const CHIP_CLASS =
+  "flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-full border border-neutral-200 px-3 text-xs text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 [@media(hover:none)]:h-9";
+
+/** Suggestions that stay above the composer once the room has history. */
+export function SuggestionChips({ items, onPick, disabled }: { items: string[]; onPick: (text: string) => void; disabled?: boolean }) {
+  if (items.length === 0) return null;
+  return (
+    <div data-testid="assistant-chips" className="flex flex-wrap gap-1.5 px-3 pb-2 pt-1">
+      {items.map((s) => (
+        <button key={s} type="button" data-testid="assistant-chip" disabled={disabled} onClick={() => onPick(s)} className={CHIP_CLASS}>
+          <Sparkles size={12} className="shrink-0 text-neutral-400" />
+          <span className="truncate">{s}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** "/p/<id>" in an answer is a page the agent made — a link, not text. */
 function Linked({ text, label }: { text: string; label: string }) {
@@ -140,6 +175,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
   // a chat screen has its own composer (and its own agent) at the bottom — on a
   // phone the round button would sit on top of the send button there
   const onChatScreen = /^\/(dm|chat)\//.test(pathname || "");
+  const offer = suggestionsFor({ pageId: pageIdOf(pathname), hasDrives: (a?.drives.length ?? 0) > 0, hasHistory: msgs.length > 0 });
   if (!open)
     return (
       <button
@@ -221,10 +257,10 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
         </div>
       )}
       <div ref={listRef} data-testid="assistant-messages" className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {msgs.length === 0 && a && (a.drives.length > 0 || pageIdOf(pathname)) && (
+        {a && offer.list.length > 0 && (
           <div className="space-y-2">
             {a.drives.length > 0 && <p className="text-sm text-neutral-500">{t("I can see your family's aindrive folders. What can I do?")}</p>}
-            {[...(pageIdOf(pathname) ? [PAGE_SUGGESTION] : []), ...(a.drives.length > 0 ? SUGGESTIONS : [])].map((key) => t(key)).map((s) => (
+            {offer.list.map((key) => t(key)).map((s) => (
               <button
                 key={s}
                 onClick={() => void send(s)}
@@ -252,6 +288,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
         {waiting && <p className="text-xs text-neutral-400">{t("Looking through the family's folders…")}</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      {a && <SuggestionChips items={offer.chips.map((key) => t(key))} onPick={(s) => void send(s)} disabled={asked === "sending"} />}
       <form
         onSubmit={(e) => {
           e.preventDefault();
