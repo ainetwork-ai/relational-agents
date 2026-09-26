@@ -7,7 +7,7 @@ import { idpMode } from "@/lib/auth/world";
 import type { AiTool } from "@/lib/ai";
 import type { T } from "@/i18n";
 import type { A2uiMessage } from "@/lib/x402/a2ui";
-import { treasuryStatus } from "@/lib/agent/treasury/approvals";
+import { treasuryStatus, voters } from "@/lib/agent/treasury/approvals";
 import { investConfig, usdcForUsd } from "@/lib/agent/treasury/invest";
 import { humanMemberIds, latestAdoption, loadRelationTreasury } from "@/lib/agent/treasury/memory";
 import { evaluateCommand } from "@/lib/agent/treasury/policy";
@@ -132,6 +132,16 @@ async function postAsAgent(ctx: TreasurerContext, text: string): Promise<void> {
  * The card for one recurring-buy action as `viewerId` sees it now, or null
  * when the room has no such action. Reads only the database.
  */
+/** Who may approve in this room right now (approvals.ts voters: the electorate, still a member, seated), by name, in the room's order. */
+async function voterNamesOf(roomId: string, electorateIds: string[]): Promise<string[]> {
+  const can = await voters(roomId, electorateIds);
+  if (!can.size) return [];
+  const ordered = (await humanMemberIds(roomId)).filter((id) => can.has(id));
+  const rows = await db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, ordered));
+  const name = new Map(rows.map((r) => [r.id, r.name]));
+  return ordered.map((id) => name.get(id) ?? "").filter(Boolean);
+}
+
 export async function recurringBuySurfaceFor(
   roomId: string,
   actionId: string,
@@ -141,7 +151,7 @@ export async function recurringBuySurfaceFor(
 ): Promise<A2uiMessage[] | null> {
   const authority = (await roomRecurringBuys(roomId)).find((a) => a.actionId === actionId);
   if (!authority) return null;
-  const [status, members, voters, seat, mine] = await Promise.all([
+  const [status, members, electorateIds, seat, mine] = await Promise.all([
     recurringBuyStatus(roomId),
     humanMemberIds(roomId),
     electorate(roomId),
@@ -171,7 +181,7 @@ export async function recurringBuySurfaceFor(
             ? "stopped"
             : "ended"
           : record.revokedAt !== undefined
-            ? "withdrawn"
+            ? "cancelled"
             : "closed";
   return recurringBuySurface(
     {
@@ -185,7 +195,8 @@ export async function recurringBuySurfaceFor(
       approvals: authority.approvals,
       required: authority.required,
       approvedBy: authority.approvedBy,
-      canApprove: state === "pending" && seat.length > 0 && voters.includes(viewerId) && mine.length === 0,
+      voterNames: await voterNamesOf(roomId, electorateIds),
+      canApprove: state === "pending" && seat.length > 0 && electorateIds.includes(viewerId) && mine.length === 0,
       approveBlocked:
         state !== "pending"
           ? undefined
@@ -193,7 +204,7 @@ export async function recurringBuySurfaceFor(
             ? "approved"
             : seat.length === 0
               ? "unseated"
-              : !voters.includes(viewerId)
+              : !electorateIds.includes(viewerId)
                 ? "not-voting"
                 : undefined,
       approvalsOpen: idpMode() !== null,
@@ -216,7 +227,7 @@ export async function recurringBuySurfaceFor(
 /**
  * Stops the room's recurring buy for `byUserId` and tells the room. Shared
  * by the stop tool and the card's Stop button, so both leave the same trace.
- * `wasLive`: a running one was stopped (else a waiting request was withdrawn);
+ * `wasLive`: a running one was stopped (else a waiting request was cancelled);
  * `terms`: "$20 of ETH weekly for 12 weeks", when it could be read.
  */
 export async function stopAndAnnounce(
@@ -230,7 +241,7 @@ export async function stopAndAnnounce(
   const phrase = terms ? ` (${termsPhrase(terms)})` : "";
   const line = wasLive
     ? `⏹ Stopped the recurring buy${phrase} at ${ctx.askerName}'s request.\nI won't buy again under it.`
-    : `✖ Withdrew the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
+    : `✖ Cancelled the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
   await postAsAgent(ctx, line);
   return { ok: true, actionId: stopped.actionId, line, wasLive, terms: terms ? termsPhrase(terms) : null };
 }
@@ -554,7 +565,7 @@ const stopRecurring: TreasurerTool = {
     function: {
       name: "stop_recurring_buy",
       description:
-        "Stops the room's running recurring buy, or withdraws one still waiting for approval — no vote needed, since stopping only narrows what the agent may do; the room is told. Call it only when the member's latest message asks to stop, cancel, pause or withdraw it. Starting again takes a new request and new approvals.",
+        "Stops the room's running recurring buy, or cancels one still waiting for approval — no vote needed, since stopping only narrows what the agent may do; the room is told. Call it only when the member's latest message asks to stop, cancel, pause or withdraw it. Starting again takes a new request and new approvals.",
       parameters: NO_ARGS,
     },
   },
@@ -567,7 +578,7 @@ const stopRecurring: TreasurerTool = {
       result: {
         ok: true,
         // the room's line names the asker in the third person; the asker is told in their own terms
-        what: stopped.wasLive ? "stopped" : "withdrawn",
+        what: stopped.wasLive ? "stopped" : "cancelled",
         terms: stopped.terms,
         ...(stopped.wasLive ? { noMoreBuys: true } : { willNeverRun: true }),
         toldTheRoom: true,

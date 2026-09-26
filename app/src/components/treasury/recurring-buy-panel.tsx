@@ -129,8 +129,8 @@ export function RecurringBuyPanel({
       const data = (await res.json().catch(() => ({}))) as { error?: string; result?: RecurringRunResult };
       if (!res.ok) setNote({ tone: "bad", text: data.error || t("That didn't work ({status}).", { status: res.status }) });
       else if (action === "run" && data.result) setNote(runNote(data.result, t));
-      // with an authority in force a stop hits that one; otherwise it withdrew the waiting request
-      else if (action === "stop") setEnded({ actionId, terms, text: live ? t("Stopped. No more buys.") : t("Withdrawn. It won't run.") });
+      // with an authority in force a stop hits that one; otherwise it cancelled the waiting request
+      else if (action === "stop") setEnded({ actionId, terms, text: live ? t("Stopped. No more buys.") : t("Cancelled. It won't run.") });
       await onChanged();
     } catch {
       setNote({ tone: "bad", text: t("Couldn't reach the server — nothing changed.") });
@@ -143,7 +143,7 @@ export function RecurringBuyPanel({
   const stopControl = (actionId: string, terms: string) =>
     confirmStop ? (
       <span data-testid="treasury-recurring-stop-confirm" className="flex items-center gap-2 text-xs">
-        <span className="text-neutral-600 dark:text-neutral-400">{live ? t("Stop it for good?") : t("Withdraw it?")}</span>
+        <span className="text-neutral-600 dark:text-neutral-400">{live ? t("Stop it for good?") : t("Cancel it?")}</span>
         <button
           type="button"
           data-testid="treasury-recurring-stop-yes"
@@ -151,7 +151,7 @@ export function RecurringBuyPanel({
           disabled={busy !== null}
           className={`rounded px-1 font-medium text-red-700 transition-colors hover:text-red-600 disabled:opacity-50 dark:text-red-300 ${FOCUS}`}
         >
-          {busy === "stop" ? t("Stopping…") : live ? t("Yes, stop") : t("Yes, withdraw")}
+          {busy === "stop" ? t("Stopping…") : live ? t("Yes, stop") : t("Yes, cancel")}
         </button>
         <button
           type="button"
@@ -173,7 +173,7 @@ export function RecurringBuyPanel({
         disabled={busy !== null}
         className={QUIET}
       >
-        {live ? t("Stop") : t("Withdraw")}
+        {live ? t("Stop") : t("Cancel request")}
       </button>
     );
 
@@ -307,8 +307,17 @@ function NoteText({ note }: { note: Note }) {
   );
 }
 
-/** Mini approval slots: a filled one per approval (name · Tokyo time), a dashed one per approval still missing. */
-function Slots({ approvals, required }: { approvals: Pick<Approval, "userId" | "displayName" | "at">[]; required: number }) {
+/** Mini approval slots: a filled one per approval (name · Tokyo time), then who can still approve, dashed and by name. */
+function Slots({
+  approvals,
+  required,
+  waitingOn,
+}: {
+  approvals: Pick<Approval, "userId" | "displayName" | "at">[];
+  required: number;
+  /** voters who haven't approved yet, in the room's order */
+  waitingOn: string[];
+}) {
   const t = useT();
   const got = Math.min(approvals.length, required);
   const progress = t("{n} of {m} verified humans", { n: got, m: required });
@@ -340,9 +349,9 @@ function Slots({ approvals, required }: { approvals: Pick<Approval, "userId" | "
             key={`open-${i}`}
             data-testid="treasury-slot-empty"
             aria-hidden
-            className="inline-flex h-5 w-8 items-center justify-center rounded border border-dashed border-neutral-300 text-[11px] text-neutral-400 dark:border-neutral-600 dark:text-neutral-500"
+            className="inline-flex h-5 min-w-8 items-center justify-center rounded border border-dashed border-neutral-300 px-1.5 text-[11px] text-neutral-500 dark:border-neutral-600 dark:text-neutral-400"
           >
-            –
+            {waitingOn[i - approvals.length] ?? "–"}
           </span>
         );
       })}
@@ -422,7 +431,7 @@ function PendingBlock({
             ? t("✓ You approved — waiting for 1 more.")
             : t("✓ You approved — waiting for {n} more.", { n: left })
           : !status.mySeated
-            ? t("No vote on this account.")
+            ? t("No vote yet — claim it above.")
             : me && !me.voting
               ? t("You joined after the rules were adopted — no vote yet.")
               : !status.idpMode
@@ -435,7 +444,15 @@ function PendingBlock({
     <Block
       state={adopting ? "adopting" : "waiting"}
       terms={termsLine(pending, t)}
-      chip={<Slots approvals={approvals} required={pending.required} />}
+      chip={
+        <Slots
+          approvals={approvals}
+          required={pending.required}
+          waitingOn={status.members
+            .filter((m) => m.seated && m.voting && !approvals.some((p) => p.userId === m.userId))
+            .map((m) => m.displayName)}
+        />
+      }
       actions={
         <>
           {doNow}

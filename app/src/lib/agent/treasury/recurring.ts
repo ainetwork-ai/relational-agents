@@ -762,7 +762,7 @@ export async function runRecurringBuy(input: {
  * Any human member stops the recurring buy, without a vote: stopping only
  * narrows what the agent may do. The live authority gets revokedAt/revokedBy
  * in its record (the first stop wins); a request still waiting for approval
- * is withdrawn instead, so a mistaken one needn't block a new one for a day.
+ * is cancelled instead, so a mistaken one needn't block a new one for a day.
  */
 export async function stopRecurringBuy(input: {
   roomId: string;
@@ -787,12 +787,12 @@ export async function stopRecurringBuy(input: {
   const waiting = authorities.find((a) => isOpenRequest(a, now));
   if (!waiting) return { ok: false, reason: "There's no recurring buy running — nothing to stop." };
   // unclaimed only: once its quorum is being counted, adoption owns the row
-  const [withdrawn] = await db
+  const [cancelled] = await db
     .update(treasuryActions)
     .set({
       status: "cancelled",
       decidedAt: now,
-      error: `Withdrawn by ${who}.`,
+      error: `Cancelled by ${who}.`,
       ruleText: JSON.stringify({ ...waiting.record, ...mark }),
     })
     .where(
@@ -803,11 +803,11 @@ export async function stopRecurringBuy(input: {
       )
     )
     .returning({ id: treasuryActions.id });
-  if (!withdrawn)
+  if (!cancelled)
     return { ok: false, reason: "It's being adopted right this moment — ask me to stop it again in a few seconds." };
   await logActivity(
     input.roomId,
-    `✖ ${who} withdrew the recurring buy request (${termsPhrase(waiting.record.terms)}).`
+    `✖ ${who} cancelled the recurring buy request (${termsPhrase(waiting.record.terms)}).`
   );
   return { ok: true, actionId: waiting.actionId };
 }

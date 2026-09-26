@@ -696,7 +696,7 @@ async function recurringStopReply(ctx: TreasuryCommandContext): Promise<string> 
   const before = await recurringBuyStatus(ctx.roomId).catch(() => null);
   const r = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (!r.ok) return r.reason;
-  if (r.actionId === before?.pending?.actionId) return "✖ Withdrew the recurring buy request.";
+  if (r.actionId === before?.pending?.actionId) return "✖ Cancelled the recurring buy request.";
   return "⏹ Stopped the recurring buy.";
 }
 
