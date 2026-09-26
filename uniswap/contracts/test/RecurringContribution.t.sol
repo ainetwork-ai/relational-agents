@@ -61,7 +61,8 @@ contract RecurringContributionTest {
         until = startedAt + 10 * WEEK;
         fund(member, 10_000_000); // 10 USDC
         vm.startPrank(member);
-        IERC20(USDC).approve(address(PERMIT2), type(uint256).max);
+        // both approvals are the plan's total, never unlimited: a broken contract could move no more than this
+        IERC20(USDC).approve(address(PERMIT2), 4 * WEEKLY);
         PERMIT2.approve(USDC, address(rc), 4 * WEEKLY, until); // four weeks' worth, until the plan ends
         id = rc.start(pot, USDC, WEEKLY, WEEK, until, bytes32("tokyo-trip"));
         vm.stopPrank();
@@ -225,7 +226,7 @@ contract RecurringContributionTest {
         uint48 month = 30 days;
         fund(member2, 10_000_000);
         vm.startPrank(member2);
-        IERC20(USDC).approve(address(PERMIT2), type(uint256).max);
+        IERC20(USDC).approve(address(PERMIT2), 3 * monthly);
         PERMIT2.approve(USDC, address(rc), 3 * monthly, startedAt + 3 * month);
         bytes32 monthlyPlan = rc.start(pot2, USDC, monthly, month, startedAt + 3 * month, bytes32("family"));
         vm.stopPrank();

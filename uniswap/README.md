@@ -168,6 +168,14 @@ What the contract guarantees, whoever calls `pull`:
 A member's Permit2 allowance to the contract is per token, so it is shared by all of that member's
 plans on that token.
 
+How much a member allows: both approvals are the plan's total, never unlimited — `USDC.approve(Permit2,
+total)` and `Permit2.approve(USDC, RecurringContribution, total, until)`, where total is
+`amountPerPeriod` × the periods until `until`. The contract has no path that sends anywhere but the
+plan's pot; beyond that, if it were ever broken, what it could move from a member is bounded by that
+member's remaining total, and only until the plan ends. A wallet that already approved Permit2
+without limit for other apps is still capped, for this contract, by the Permit2 allowance it gives
+this contract.
+
 Not done yet: no app screen starts a plan, and the contract is not deployed. `node --test` runs its
 Foundry tests on a fork of Base mainnet — the real Permit2 and USDC —
 (`test/recurring-contribution.test.js` runs `forge test --fork-url`) and skips without Foundry or a
