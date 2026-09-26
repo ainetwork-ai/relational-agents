@@ -1,7 +1,7 @@
 // ens/src/chain.ts
 // Everything this feature reads from Sepolia. The tree comes from the chain alone
 // (spec D1): LabelRegistered logs per registry, records through the Universal Resolver.
-import { createPublicClient, erc20Abi, http, parseEventLogs, toHex, zeroAddress, type Address, type Hex } from "viem";
+import { createPublicClient, erc20Abi, http, parseEventLogs, toHex, zeroAddress, type Address, type Hex, type Log } from "viem";
 import { packetToBytes } from "viem/ens";
 import { sepolia } from "viem/chains";
 import { ALIAS_KEY, AVATAR_KEY, RELATION_KEY, RELATIONS, SEPOLIA_USDC, UNIVERSAL_HELPER, type Relation } from "./config";
@@ -14,7 +14,31 @@ export interface FamilyChain {
   verifyPath(name: string): Promise<boolean>;
   resolveAddress(name: string): Promise<Address | null>;
   balances(address: Address): Promise<{ usdcMicro: bigint; ethWei: bigint }>;
-  findTransfer(txHash: Hex, expect: { from: Address; to: Address; amountMicro: bigint }): Promise<boolean>;
+  /** match: mined with that USDC Transfer · mismatch: mined, but reverted or with no USDC leaving the
+   *  sender (nothing was paid) · different: USDC left the sender, but not as prepared · pending: no receipt yet */
+  checkTransfer(txHash: Hex, expect: TransferExpect, timeoutMs?: number): Promise<TransferCheck>;
+}
+
+export interface TransferExpect {
+  from: Address;
+  to: Address;
+  amountMicro: bigint;
+}
+export type TransferCheck = "match" | "mismatch" | "different" | "pending";
+
+/** A mined receipt against the transfer the link prepared: exactly one outcome, no chain calls.
+ *  Only "mismatch" may free the link, so it means no USDC left the sender at all. */
+export function receiptOutcome(
+  receipt: { status: "success" | "reverted"; logs: Log[] },
+  expect: TransferExpect
+): "match" | "mismatch" | "different" {
+  if (receipt.status !== "success") return "mismatch";
+  const outgoing = parseEventLogs({ abi: erc20Abi, eventName: "Transfer", logs: receipt.logs }).filter(
+    (l) => l.address.toLowerCase() === SEPOLIA_USDC.toLowerCase() && l.args.from.toLowerCase() === expect.from.toLowerCase()
+  );
+  if (outgoing.some((l) => l.args.to.toLowerCase() === expect.to.toLowerCase() && l.args.value === expect.amountMicro)) return "match";
+  // USDC moved, just not as prepared: the link stays spent, a second Send could pay twice
+  return outgoing.length ? "different" : "mismatch";
 }
 
 export const dnsEncode = (name: string): Hex => toHex(packetToBytes(name));
@@ -63,6 +87,12 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
     };
   }
 
+  async function checkTransfer(txHash: Hex, expect: TransferExpect, timeoutMs = 30_000): Promise<TransferCheck> {
+    // no receipt in time (or the RPC failed) says nothing about the money: pending, not mismatch
+    const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: timeoutMs }).catch(() => null);
+    return receipt ? receiptOutcome(receipt, expect) : "pending";
+  }
+
   return {
     root: opts.root,
 
@@ -103,17 +133,6 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
       return { usdcMicro, ethWei };
     },
 
-    async findTransfer(txHash, expect) {
-      const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
-      if (receipt.status !== "success") return false;
-      const logs = parseEventLogs({ abi: erc20Abi, eventName: "Transfer", logs: receipt.logs });
-      return logs.some(
-        (l) =>
-          l.address.toLowerCase() === SEPOLIA_USDC.toLowerCase() &&
-          l.args.from.toLowerCase() === expect.from.toLowerCase() &&
-          l.args.to.toLowerCase() === expect.to.toLowerCase() &&
-          l.args.value === expect.amountMicro
-      );
-    },
+    checkTransfer,
   };
 }

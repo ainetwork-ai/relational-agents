@@ -11,7 +11,7 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
-import { markConfirmed, markSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
+import { markConfirmed, markSent, releaseSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +44,16 @@ export async function POST(req: NextRequest) {
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);
   try {
-    const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
-    if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
+    const status = await chain.checkTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) });
+    // mined, but reverted or with no USDC leaving her wallet: nothing was paid, so the link may pay again
+    if (status === "mismatch") {
+      releaseSent(body.t, body.txHash);
+      return NextResponse.json({ error: "No USDC left the wallet in that transaction", reason: "mismatch" }, { status: 422 });
+    }
+    // USDC left her wallet, but not as this link prepared: the link stays spent on this hash
+    if (status === "different") return NextResponse.json({ error: "That transaction moved USDC differently", reason: "different" }, { status: 422 });
+    // no receipt yet: the money may still move, so the link stays spent on this hash
+    if (status === "pending") return NextResponse.json({ error: "Not confirmed on Sepolia yet", reason: "pending" }, { status: 202 });
     await announce(intent, body.txHash);
     markConfirmed(body.t);
   } finally {

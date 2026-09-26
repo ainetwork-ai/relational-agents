@@ -47,6 +47,14 @@ function storeTx(token: string, hash: string) {
     // private mode or blocked storage: the server copy is recorded on confirm
   }
 }
+// only the hash the server freed: another tab may have stored a real one since
+function dropTx(token: string, hash: string) {
+  try {
+    if (localStorage.getItem(txKey(token)) === hash) localStorage.removeItem(txKey(token));
+  } catch {
+    // nothing stored to drop
+  }
+}
 
 export function SendCard(p: Props) {
   const t = useT();
@@ -54,6 +62,8 @@ export function SendCard(p: Props) {
   const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.confirmed ? "done" : "idle");
   const [tx, setTx] = useState<string | null>(p.sentTx);
   const [error, setError] = useState<string | null>(null);
+  // "not yet" is not an error: the card says so in its normal colour
+  const [waiting, setWaiting] = useState(false);
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
@@ -67,12 +77,28 @@ export function SendCard(p: Props) {
   // retried as a confirm, never as a second transfer
   async function confirm(hash: string) {
     setError(null);
+    setWaiting(false);
     setState("confirming");
-    const ok = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
-      .then((r) => r.ok)
-      .catch(() => false);
-    setState(ok ? "done" : "error");
-    if (!ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+    // 200 found and announced · 202 no receipt yet · 422 mismatch: no USDC left the wallet ·
+    // 422 different: USDC left it, but not as prepared
+    const outcome = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
+      .then(async (r) => (r.status === 200 ? "match" : (((await r.json().catch(() => ({}))) as { reason?: string }).reason ?? "error")))
+      .catch(() => "error");
+    if (outcome === "match") return setState("done");
+    if (outcome === "mismatch") {
+      // the server released the link: this hash paid nothing, so Send comes back
+      dropTx(p.token, hash);
+      setTx(null);
+      setState("idle");
+      return setError(t("That transaction didn't move any USDC, so nothing was paid. You can send again."));
+    }
+    setState("error");
+    if (outcome === "pending") return setWaiting(true);
+    setError(
+      outcome === "different"
+        ? t("That transaction moved USDC, but not as prepared here. Check the explorer link.")
+        : t("It was sent, but I couldn't confirm it yet. Check the explorer link.")
+    );
   }
 
   async function send() {
@@ -138,6 +164,7 @@ export function SendCard(p: Props) {
                 {t("View on the explorer")}
               </a>
             </p>
+            {waiting && state !== "confirming" && <p className="mt-3" data-testid="send-waiting">{t("Waiting for the network to confirm it…")}</p>}
             <button
               data-testid="send-confirm-retry"
               onClick={() => void confirm(knownTx)}

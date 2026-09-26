@@ -60,6 +60,10 @@ export function markSent(token: string, txHash: string): void {
 export function wasSent(token: string): string | null {
   return sent.get(token) ?? null;
 }
+/** The recorded hash was mined and moved no USDC: the link may pay again. Only that hash frees it. */
+export function releaseSent(token: string, txHash: string): void {
+  if (sent.get(token)?.toLowerCase() === txHash.toLowerCase()) sent.delete(token);
+}
 export function markConfirmed(token: string): void {
   confirmed.add(token);
 }
