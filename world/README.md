@@ -164,7 +164,7 @@ With World instead of the stand-ins:
 | For | Set | Needs |
 |---|---|---|
 | World ID for Agents (sandbox IdP) | `WORLD_CLIENT_ID`, `WORLD_CLIENT_SECRET`, `WORLD_REDIRECT_URI` | a client registered for the deploy's HTTPS host; `WORLD_TOKEN_AUTH_METHOD=client_secret_post` if the registration says so |
-| IDKit (claiming votes) | `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `NEXT_PUBLIC_WORLD_ID_APP_ID`, `NEXT_PUBLIC_WORLD_ID_ENV=staging` | a Developer Portal app with its relying party registered and the action `treasury-seat`; staging proofs come from simulator.worldcoin.org |
+| IDKit (claiming votes) | `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `NEXT_PUBLIC_WORLD_ID_APP_ID`, `NEXT_PUBLIC_WORLD_ID_ENV=staging` | a Developer Portal app with its relying party registered and the action `treasury-seat`; staging proofs come from simulator.worldcoin.org and are verified only inside a staging window the team opens — `scripts/world-staging-window.mjs` opens it (24 h) and saves `WORLD_STAGING_VERIFICATION_TOKEN` |
 
 Investing, and with it the recurring buy, needs `TREASURY_INVEST=uniswap-base` and USDC plus a
 little ETH in the agent's wallet on Base; the recurring buy spends real money only with
@@ -172,7 +172,7 @@ little ETH in the agent's wallet on Base; the recurring buy spends real money on
 
 As a member, `GET /api/dm/rooms/<room>/treasury` says which is live: `"idpMode": "sandbox"` and
 `"seatMode": "world-id-v4"` are World; `"mock"` and `"dev-simulator"` are the local stand-ins,
-and the panel labels them "mock IdP" and "dev vote". Production never runs the mock unless
+and the panel labels the IdP "mock IdP" and rings a dev seat red (not counted). Production never runs the mock unless
 `WORLD_IDP=mock` is set on purpose, because anyone can claim any human there.
 
 ## What has been exercised

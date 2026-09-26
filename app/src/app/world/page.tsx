@@ -249,8 +249,10 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                       Open the treasury as Alex: the pot, what waits for approval, who holds a vote, and the treasurer.
                     </li>
                     <li>
-                      Go back to the room (<b>Back to Tokyo Trip</b>) and press <b>Claim your vote with World ID</b>. The
-                      World ID simulator opens; choose an identity and continue.
+                      Press <b>Claim your vote with World ID</b>, on the treasury page or in the room. World shows a QR
+                      code: this is the staging network, so answer with the World ID Simulator, not World App — the{" "}
+                      <b>Use the simulator</b> link under the QR, or open simulator.worldcoin.org on a phone and scan it.
+                      Pick an identity and continue.
                     </li>
                     <li>
                       In a second browser or a private window, pick Chris and claim a vote with a different simulator
@@ -276,6 +278,10 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                     <li>
                       One browser is one human. The sandbox IdP gives each browser its own fake identity and finishes
                       without a phone; in production the check comes from World App.
+                    </li>
+                    <li>
+                      Votes use World&apos;s staging network, so the QR is answered by the World ID Simulator with a test
+                      identity. Keep the same identity for the same person: the simulator is that person&apos;s phone.
                     </li>
                     <li>Investing is in the video. This copy&apos;s wallet holds no USDC on Base, so a swap here is refused.</li>
                     <li>

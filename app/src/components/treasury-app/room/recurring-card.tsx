@@ -5,7 +5,7 @@
  * through Uniswap v3 on Base — where in its weeks we are, what it has bought,
  * and the stop button any member may press (stopping only narrows what the
  * agent may do, so it needs no vote). A request still waiting shows the same
- * swap and can be withdrawn the same way; its votes are in Needs approval.
+ * swap and can be cancelled the same way; its votes are in Needs approval.
  */
 
 import { useState, type ReactNode } from "react";
@@ -215,8 +215,8 @@ function PendingCard({ pending, usdcPerUsd }: { pending: RecurringPending; usdcP
       </div>
       <SwapBox weeklyUsd={pending.weeklyUsd} usdcPerUsd={usdcPerUsd} receive="—" rate={null} />
       <StopButton
-        label={t("Withdraw request")}
-        confirmText={t("Withdraw this request?")}
+        label={t("Cancel request")}
+        confirmText={t("Cancel this request?")}
         lead={<span className={styles.num}>{t("For {weeks} weeks · at most {total} in total", { weeks: pending.weeks, total: usd(pending.exposureUsd) })}</span>}
       />
     </>

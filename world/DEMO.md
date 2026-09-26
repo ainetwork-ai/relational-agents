@@ -26,20 +26,20 @@ the spend step: a fresh step-up per approval, one human counts once).
 Order: rehearsal → final reset → vote claims only → shoot. Nothing else happens
 in the room between the final reset and the first take.
 
-1. **Shoot on https://memory.ainetwork.ai, never on localhost.** The sandbox
-   IdP client's only registered redirect is memory.ainetwork.ai (localhost was
+1. **Shoot on https://ainmem.ainetwork.xyz, never on localhost.** The sandbox
+   IdP client's only registered redirect is ainmem.ainetwork.xyz (localhost was
    refused), so localhost is the mock IdP forever. The production build also
    has no Next.js dev indicator or error overlay — a `next dev` server draws
    the "N" button and an issue count in the corner of every frame. All UI fixes
    go out in one deploy before the final reset.
 2. **Final reset, on production's own data.** Run the seed against
-   memory.ainetwork.ai's DB, content root and `SESSION_SECRET` (inside the
+   ainmem.ainetwork.xyz's DB, content root and `SESSION_SECRET` (inside the
    prod container, or from a clean worktree with the prod env — the agent's
    wallet key is sealed under that secret; integration-log 2026-09-26 03:58):
 
    ```bash
    npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts \
-     --reset --no-preseat --app https://memory.ainetwork.ai
+     --reset --no-preseat --app https://ainmem.ainetwork.xyz
    ```
 
    → the six accounts, $1,000 in a new agent wallet, the relation's memory doc
@@ -70,14 +70,14 @@ in the room between the final reset and the first take.
      names `client_secret_post`). Production never runs with `WORLD_IDP=mock`:
      anyone can claim any human there.
    - `"seatMode": "world-id-v4"` and **0** members with
-     `seatLevel: "dev-simulator"` — a dev seat shows as "dev vote" on screen.
+     `seatLevel: "dev-simulator"` — a dev seat shows a red ring (not counted), never a green one.
      Needs the Portal staging app (`WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`,
      `NEXT_PUBLIC_WORLD_ID_APP_ID` baked into the build).
    - `"balanceUsd": 1000`.
 6. **Browsers.** One Chrome profile per person — Alex, Alex (2nd account),
    Chris, Dana — each in its own profile color, so the window frame changes
    when the laptop changes hands. Each profile signs in once with the demo
-   login and has a `lang=en` cookie on memory.ainetwork.ai. **1920×1080 window
+   login and has a `lang=en` cookie on ainmem.ainetwork.xyz. **1920×1080 window
    at 125% zoom** (CSS 1536×864), clean profiles (no bookmarks bar, no
    extensions), tabless app windows (Etherscan is the one tab), the sidebar on
    the Chats tab. Never open the agent dock, the inbox, Home or header tooltips
@@ -146,7 +146,7 @@ Caption: `Ten accounts. Still one human.` · `World ID · IDKit — Proof of Hum
 
 "Alex (2nd account)" tries to claim a sixth vote with Alex's own World ID →
 **"This human already has a vote in this relation — one human, one vote."**
-The chip stays `Alex (2nd account) · no vote`.
+Alex (2nd account)'s ring stays grey — no vote.
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 

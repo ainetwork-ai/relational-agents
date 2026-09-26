@@ -759,15 +759,31 @@ export function DmView({
       {variant !== "call" && (
       <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 max-md:min-h-12 max-md:py-1.5 max-md:pl-11 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
         <div className="flex -space-x-2 max-sm:hidden" data-testid="dm-members" aria-label={t("Room members")}>
-          {/* humans lead the stack; the agent tags along at the end */}
-          {[...members]
-            .sort((a, b) => Number(a.isAgent) - Number(b.isAgent))
-            .slice(0, 4)
-            .map((m) => (
-              <span key={m.id} className="rounded-full ring-2 ring-white dark:ring-neutral-950">
-                <DmAvatar user={m} size={28} />
-              </span>
-            ))}
+          {/* humans lead the stack; the agent tags along at the end. Four faces,
+              then one "+N" bubble for the rest, so the count is always right */}
+          {(() => {
+            const stack = [...members].sort((a, b) => Number(a.isAgent) - Number(b.isAgent));
+            const shown = stack.slice(0, 4);
+            const rest = stack.slice(4);
+            return (
+              <>
+                {shown.map((m) => (
+                  <span key={m.id} className="rounded-full ring-2 ring-white dark:ring-neutral-950">
+                    <DmAvatar user={m} size={28} />
+                  </span>
+                ))}
+                {rest.length > 0 && (
+                  <span
+                    data-testid="dm-members-more"
+                    title={rest.map((m) => m.displayName).join(", ")}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-neutral-200 text-[11px] font-medium text-neutral-700 ring-2 ring-white dark:bg-neutral-700 dark:text-neutral-200 dark:ring-neutral-950"
+                  >
+                    +{rest.length}
+                  </span>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {renaming ? (

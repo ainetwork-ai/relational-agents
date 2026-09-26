@@ -84,7 +84,7 @@ function actionItem(t: T, a: TreasuryAction, status: TreasuryStatus, wallet: Tre
     if (a.status === "pending")
       return { ...base, amount, tone: "wait", icon: "wait", title: t("Recurring buy waiting for approval"), detail };
     if (a.status === "cancelled")
-      return { ...base, amount, tone: "bad", icon: "recurring", title: t("Recurring buy withdrawn or expired"), detail };
+      return { ...base, amount, tone: "bad", icon: "recurring", title: t("Recurring buy cancelled or expired"), detail };
     return { ...base, amount, tone: "bad", icon: "recurring", title: t("Recurring buy not adopted"), detail: a.error ?? detail };
   }
 

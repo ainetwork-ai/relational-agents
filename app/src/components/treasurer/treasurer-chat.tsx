@@ -55,7 +55,7 @@ function stepLabel(name: string, result: Record<string, unknown> | null): string
   if (name === "buy_this_week" && result.outcome === "rehearsal") return "Rehearsed this week's buy";
   if (name === "buy_this_week" && result.outcome === "skipped") return "Skipped this week's buy";
   if (name === "buy_this_week" && result.outcome === "bought") return "Bought this week's ETH";
-  if (name === "stop_recurring_buy" && result.what === "withdrawn") return "Withdrew the request";
+  if (name === "stop_recurring_buy" && result.what === "cancelled") return "Cancelled the request";
   return step.done;
 }
 
