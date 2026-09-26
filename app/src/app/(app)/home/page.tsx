@@ -26,12 +26,12 @@ function ago(iso: string | null, t: T): string | null {
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 0 || Number.isNaN(ms)) return null;
   const m = Math.floor(ms / 60_000);
-  if (m < 1) return t("방금 전");
-  if (m < 60) return t("{n}분 전", { n: m });
+  if (m < 1) return t("Just now");
+  if (m < 60) return t("{n} minutes ago", { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return t("{n}시간 전", { n: h });
+  if (h < 24) return t("{n} hours ago", { n: h });
   const d = Math.floor(h / 24);
-  return d < 30 ? t("{n}일 전", { n: d }) : t("{n}개월 전", { n: Math.floor(d / 30) });
+  return d < 30 ? t("{n} days ago", { n: d }) : t("{n} months ago", { n: Math.floor(d / 30) });
 }
 
 async function enterWorkspace(id: string) {
@@ -117,7 +117,7 @@ function WorkspaceSections() {
     <>
       <section data-testid="home-workspaces" className="mb-10">
         <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          <LayoutGrid size={12} /> {t("내 워크스페이스")}
+          <LayoutGrid size={12} /> {t("My workspace")}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ordered.map((w) => (
@@ -152,23 +152,23 @@ function WorkspaceSections() {
                   )}
                   {w.id === activeId && (
                     <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
-                      {t("현재")}
+                      {t("Current")}
                     </span>
                   )}
                   {w.id !== activeId && visitedSet.has(w.id) && (
-                    <Clock size={11} aria-label={t("최근 방문")} className="shrink-0 text-neutral-300 dark:text-neutral-500" />
+                    <Clock size={11} aria-label={t("Recently visited")} className="shrink-0 text-neutral-300 dark:text-neutral-500" />
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-neutral-400">
                   {switching === w.id
-                    ? t("여는 중…")
+                    ? t("Opening…")
                     : [
                         w.description,
                         ago(w.lastEditedAt, t) &&
-                          t("{ago} 편집됨", { ago: ago(w.lastEditedAt, t) as string }),
+                          t("Edited {ago}", { ago: ago(w.lastEditedAt, t) as string }),
                       ]
                         .filter(Boolean)
-                        .join(" · ") || t("이 워크스페이스 열기")}
+                        .join(" · ") || t("Open this workspace")}
                 </p>
               </div>
             </button>
@@ -190,7 +190,7 @@ function Card({ p, testid }: { p: Page; testid: string }) {
       <span className="shrink-0 text-base">
         <PageIcon icon={p.icon} fallback={<FileText size={16} className="text-neutral-400" />} />
       </span>
-      <span className="truncate">{p.title || t("제목 없음")}</span>
+      <span className="truncate">{p.title || t("Untitled")}</span>
     </Link>
   );
 }
@@ -293,16 +293,16 @@ export default function HomePage() {
     hour === null
       ? null
       : hour < 6
-      ? t("좋은 밤이에요")
+      ? t("Good night")
       : hour < 12
-        ? t("좋은 아침이에요")
+        ? t("Good morning")
         : hour < 18
-          ? t("좋은 오후예요")
-          : t("좋은 저녁이에요");
+          ? t("Good afternoon")
+          : t("Good evening");
 
   return (
     <div data-testid="home-dashboard" className="pb-16">
-      {/* dashboard cover — per-user (users.home_cover_url; the demo's 엄마 ships
+      {/* dashboard cover — per-user (users.home_cover_url; the demo's Mom ships
           with the azulejo one), falling back to the default generated banner.
           Rendered only once /api/auth/me resolves, so a custom cover never
           flashes the default first. */}
@@ -322,7 +322,7 @@ export default function HomePage() {
               data-testid="home-cover-change"
               className={`cursor-pointer rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800 ${coverBusy ? "pointer-events-none opacity-60" : ""}`}
             >
-              {coverBusy ? t("업로드 중…") : t("커버 변경")}
+              {coverBusy ? t("Uploading…") : t("Change cover")}
               <input
                 data-testid="home-cover-input"
                 type="file"
@@ -342,7 +342,7 @@ export default function HomePage() {
                 disabled={coverBusy}
                 className="rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur transition-colors hover:bg-white disabled:opacity-60 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800"
               >
-                {t("초기화")}
+                {t("Reset all")}
               </button>
             )}
           </div>
@@ -356,12 +356,12 @@ export default function HomePage() {
           {greeting && me?.name ? `, ${me.name}!` : ""}
         </h1>
         <p className="mt-1 text-2xl font-bold text-neutral-300 dark:text-neutral-600">
-          {t("워크스페이스를 골라 볼까요?")}
+          {t("Choose a workspace")}
         </p>
       </div>
       <WorkspaceSections />
       <AindrivePanel />
-      <Section icon={<Star size={12} />} title={t("즐겨찾기")} items={favorites} prefix="home-fav" />
+      <Section icon={<Star size={12} />} title={t("Favorites")} items={favorites} prefix="home-fav" />
       </div>
     </div>
   );

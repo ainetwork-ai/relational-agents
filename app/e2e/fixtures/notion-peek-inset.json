@@ -1,8 +1,0 @@
-{
-  "note": "2026-08-10 원본(Projects 행 피크) 실측. 창 1000/1200/1500/1800에서 각각 새로 열어 잼 — 콘텐츠 인셋은 폭과 무관하게 좌우 76px 고정, 피크 폭은 창의 50%(하한 564). 우측 인셋이 92로 보였던 것은 에뮬레이션의 클래식 스크롤바(16px)로, clientWidth 기준 76이 맞다. 잰 스크립트: scratchpad/measure-peek3.mjs",
-  "insetL": 76,
-  "insetR": 76,
-  "widthFraction": 0.5,
-  "minWidth": 564,
-  "tolerance": 2
-}

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Sharing your aindrive folders with a teamspace — the step right after
- * "aindrive로 로그인", and whenever someone wants to share another.
+ * "Sign in with aindrive", and whenever someone wants to share another.
  *
  * GET  → { connected, drives: [{ id, name, online, sharedIn: [{ teamspaceId, teamspaceName }] }],
  *          teamspaces: [{ id, name, icon, workspaceId, workspaceName, members }] }

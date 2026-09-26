@@ -1,58 +1,58 @@
-# 노션의 아이콘 정책 — 조사와 우리 구현
+# Notion's icon policy — investigation and our implementation
 
-2026-08-06. "데이터베이스 아이콘이 행에 따라오는가"를 원본 워크스페이스에서 확인한 기록이다.
-결론부터: **따라오는 게 아니라, 행을 만들 때 한 번 복사된다.**
+2026-08-06. A record of checking, against the original workspace, whether "the database icon follows the rows."
+The conclusion up front: **it does not follow them; it is copied once when the row is created.**
 
-조사 방법은 `docs/notion-projects-spec.md`와 같다 — 사용자 크롬에 CDP로 붙어 읽기 전용 API
-(`loadPageChunk`, `queryCollection`)를 호출하고 DOM을 읽었다. 원본은 수정하지 않았다.
+The investigation method is the same as in `docs/notion-projects-spec.md` — we attached to the user's Chrome over CDP,
+called the read-only APIs (`loadPageChunk`, `queryCollection`), and read the DOM. The original was not modified.
 
-## 1. 보이는 것
+## 1. What you see
 
-| 데이터베이스 | DB 아이콘 | 행 제목 셀 |
+| Database | DB icon | Row title cell |
 |---|---|---|
-| `Projects` | `/icons/iterate_blue.svg` | **DB 아이콘이 행마다** 붙어 있다 |
-| `Master` (AIN Space QA) | `🎖` | 🎖 아님. **일반 페이지 글리프**(`svg.page`) |
-| `Projects List`·`ComCom Tasks` (모두연 유지보수) | `/images/app-packages/*.svg` | **아무것도 없다** |
+| `Projects` | `/icons/iterate_blue.svg` | **The DB icon is attached to every row** |
+| `Master` (AIN Space QA) | `🎖` | Not 🎖. A **generic page glyph** (`svg.page`) |
+| `Projects List`·`ComCom Tasks` (Modulabs maintenance) | `/images/app-packages/*.svg` | **Nothing at all** |
 
-같은 규칙이면 `Master`의 행에도 🎖가 있어야 하는데 없다. 그래서 "DB 아이콘이 렌더링 때
-상속된다"는 설명은 틀렸다.
+If the same rule applied, the rows of `Master` should also show 🎖, but they don't. So the explanation that
+"the DB icon is inherited at render time" is wrong.
 
-## 2. 실제 규칙
+## 2. The actual rule
 
-행 블록(=행의 페이지)이 **자기 `format.page_icon`을 들고 있다.** `Projects`의 행 100건을 보면:
+The row block (= the row's page) **carries its own `format.page_icon`.** Looking at 100 rows of `Projects`:
 
 ```
-/icons/iterate_blue.svg   99건   ← DB 아이콘
-/icons/anchor_blue.svg     1건   ← 그 행만 따로 바꾼 것
+/icons/iterate_blue.svg   99 rows   ← the DB icon
+/icons/anchor_blue.svg     1 row    ← that one row was changed individually
 ```
 
-한 건이 다르다는 게 결정적이다. 실시간 상속이라면 전부 같아야 한다. 즉:
+The single differing row is decisive. With live inheritance they would all be identical. So:
 
-1. **행을 만들 때** 데이터베이스의 아이콘이 그 행의 페이지에 **복사**된다
-2. 이후 **행마다 따로 바꿀 수 있다**
-3. 복사는 행 생성 시점 한 번뿐이라, **그 행 문서 안에서 만든 하위 문서(depth 2)에는 안 따라간다**
-4. `Master`·`모두연`의 행에 아이콘이 없는 건 그 행들이 만들어질 때 복사가 없었기 때문이다
+1. **When a row is created**, the database's icon is **copied** into that row's page
+2. After that, **each row can be changed independently**
+3. The copy happens only once, at row creation, so **it does not carry over to sub-documents created inside that row's document (depth 2)**
+4. The rows of `Master` and Modulabs have no icon because no copy happened when those rows were created
 
-그리고 **표시 여부는 뷰가 정한다** — `collection_view.format.show_page_icon`. 원본 `Projects`는
-`My`·`All Projects`·`My Timeline` 세 뷰에서 행 아이콘을 끈다(나머지는 값이 없고 = 켜짐).
+And **whether it is shown is decided by the view** — `collection_view.format.show_page_icon`. The original `Projects`
+turns row icons off in three views: `My`, `All Projects`, and `My Timeline` (the rest have no value = on).
 
-## 3. 우리 구현
+## 3. Our implementation
 
-| 규칙 | 우리 |
+| Rule | Ours |
 |---|---|
-| 행 생성 시 DB 아이콘 복사 | ✅ `addRow`가 `values.__icon`에 넣는다. 템플릿 행은 제외 |
-| 행마다 다른 아이콘 | ✅ 값이 행에 있으니 행별로 다를 수 있다 (바꾸는 UI는 아직 없다) |
-| 하위 문서에는 안 따라감 | ✅ 복사가 생성 시점 한 번이라 구조적으로 그렇다 |
-| 뷰별 표시 토글 | ✅ `ViewConfig.showPageIcon` (기본 켜짐) |
-| 표시 우선순위 | ✅ 행의 `__icon` → 없으면 데이터베이스 아이콘 |
+| Copy the DB icon on row creation | ✅ `addRow` puts it in `values.__icon`. Template rows are excluded |
+| Different icon per row | ✅ The value lives on the row, so it can differ per row (there is no UI to change it yet) |
+| Does not carry over to sub-documents | ✅ Structurally true, since the copy happens once at creation |
+| Per-view display toggle | ✅ `ViewConfig.showPageIcon` (on by default) |
+| Display priority | ✅ The row's `__icon` → otherwise the database icon |
 
-풀페이지 데이터베이스에서 **DB 아이콘 = 그 페이지의 아이콘**이라, 아이콘을 정하는 곳은 페이지
-헤더의 아이콘 하나뿐이다(별도 컬럼을 두지 않았다).
+In a full-page database, **DB icon = that page's icon**, so the only place the icon is set is the icon in the page
+header (we did not add a separate column).
 
-**아직 다른 점**: 행이 만들어진 뒤 아이콘을 바꾸는 UI가 없다. 원본에서 한 행만 바꿔둔 것과 같은
-일을 우리 UI로는 못 한다. 행↔페이지가 붙으면 그 페이지의 아이콘 피커가 그대로 그 역할을 한다.
+**Still different**: there is no UI to change a row's icon after it is created. We can't do with our UI what was done
+in the original, where a single row was changed. Once row↔page is wired up, that page's icon picker will serve that role as-is.
 
-## 4. dev 데이터
+## 4. dev data
 
-시드(`scratchpad/gen-seed.mjs`)가 249행 전부에 `__icon`을 넣는다 — 원본에서 행들이 생성 시
-아이콘을 복사받은 상태와 같게 맞춘 것이다. dev의 Projects 페이지 아이콘이 🎯이라 행도 🎯다.
+The seed (`scratchpad/gen-seed.mjs`) puts `__icon` on all 249 rows — matching the state in the original where rows
+received a copy of the icon at creation. The dev Projects page icon is 🎯, so the rows are 🎯 too.

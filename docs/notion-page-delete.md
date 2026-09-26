@@ -1,91 +1,90 @@
-# 페이지 삭제 — 우측 상단 `⋯` 메뉴 (노션 측정, 2026-09-10)
+# Page deletion — top-right `⋯` menu (Notion measurements, 2026-09-10)
 
-comcom: "테스트 페이지 만든 거 삭제하고 싶은데 삭제 버튼이 없음. Projects 페이지에서
-테이블에서 문서로 진입했을 때, 우측상단 ...에서 삭제하는 게 없대. 노션에서 측정하고
-삭제 기능도 추가해줘."
+comcom: "I want to delete the test page I made, but there's no delete button. When you open a document
+from the table on the Projects page, there's no delete under the ... at the top right. Measure it in
+Notion and add the delete feature too."
 
-원본은 읽기만 했다 — 메뉴를 열어 항목과 값을 재고 Escape 로 닫았다. 아무것도 지우지 않았다.
-측정 스크립트 `mp0*.mjs`, 원자료 `n-pagemenu*.jsonl`.
+The original was only read — the menu was opened, its items and values measured, and closed with
+Escape. Nothing was deleted. Measurement scripts `mp0*.mjs`, raw data `n-pagemenu*.jsonl`.
 
-## 0. 잴 때의 함정 (다음 사람용)
+## 0. Pitfall when measuring (for the next person)
 
-Projects 표에서 행을 열려고 제목 셀 근처를 클릭하면 **셀이 편집 모드로 들어간다.** 호버로
-뜨는 `열기` 버튼의 좌표는 창 폭에 따라 움직여서, 재현성 있게 누르기 어렵다. 실제로 두 번
-회사 데이터의 제목 셀에 캐럿이 들어갔다(글자는 바뀌지 않았다). **표 안에서는 클릭하지 말고**
-메뉴 자체는 일반 페이지에서 재는 편이 안전하다 — 어차피 세 화면이 같은 메뉴다.
+Clicking near the title cell in the Projects table to open a row **puts the cell into edit mode.** The
+coordinates of the hover `Open` button shift with the window width, so it is hard to press reproducibly.
+The caret actually landed in a title cell of company data twice (the text was not changed). **Do not click
+inside the table**; it is safer to measure the menu itself on a regular page — all three views share the same menu anyway.
 
-## 1. 어디에 있나
+## 1. Where it is
 
-우측 상단 **28 × 28** 버튼, `aria-label="작업"`. 그 옆으로 `링크 복사하기`,
-`즐겨찾기`, `공유` 가 나란히 있다.
+A **28 × 28** button at the top right, `aria-label` = the `Actions` string (ko dictionary). Next to it,
+side by side: `Copy link`, `Favorite`, `Share`.
 
-## 2. 메뉴와 삭제 항목
+## 2. The menu and the delete item
 
-| 부분 | 값 |
+| Part | Value |
 |---|---|
-| 카드 | **256 폭**, radius **10px**, 흰 배경, 카드 자체 패딩 0, `overflow-y: hidden` |
-| 그림자 | `rgba(25,25,25,.05) 0 20px 24px`, `rgba(25,25,25,.027) 0 5px 8px`, `rgba(42,28,0,.07) 0 0 0 1px` (멘션 메뉴·동영상 팝오버와 **같은 3겹**) |
-| 삭제 항목 | **`휴지통으로 이동`** |
-| 글자 | 14px / 400 / **rgb(44,44,43)** |
-| 아이콘 | 왼쪽 12, 라벨은 카드 왼쪽에서 **40** |
+| Card | **256 wide**, radius **10px**, white background, card padding 0, `overflow-y: hidden` |
+| Shadow | `rgba(25,25,25,.05) 0 20px 24px`, `rgba(25,25,25,.027) 0 5px 8px`, `rgba(42,28,0,.07) 0 0 0 1px` (**the same 3 layers** as the mention menu and the video popover) |
+| Delete item | **`Move to Trash`** |
+| Text | 14px / 400 / **rgb(44,44,43)** |
+| Icon | Left 12, label **40** from the card's left |
 
-**빨간색이 아니다.** 댓글의 `삭제하기` 와 같다(`docs/notion-comment-delete.md` §3) — 원본은
-파괴적 항목을 빨갛게 칠하지 않는다. 우리 사이드바의 삭제는 `danger` 빨강이라 관례가 다르다.
+**It is not red.** Same as the comment `Delete` (`docs/notion-comment-delete.md` §3) — the original does
+not paint destructive items red. Delete in our sidebar is `danger` red, so the conventions differ.
 
-## 3. 메뉴 안에서의 자리 — `옮기기` 바로 다음
+## 3. Its position in the menu — right after `Move to`
 
-일반 페이지:
-
-```
-Ag 기본 · 세리프 · 모노
-링크 복사 ⌘⌥L · 페이지 내용 복사하기 · 복제 ⌘D · 옮기기 ⌘⇧P · 휴지통으로 이동
-프레젠테이션 모드 · 작은 텍스트 · 전체 너비 · 페이지 사용자 지정 · 페이지 잠금
-AI로 사용 · 편집 제안 · 번역 · 가져오기 · 내보내기 · 위키로 전환
-업데이트와 애널리틱스 · 버전 기록
-```
-
-데이터베이스 페이지:
+Regular page:
 
 ```
-링크 복사 ⌘⌥L · 복제 · 옮기기 ⌘⇧P · 휴지통으로 이동
-레이아웃 사용자 지정 · 데이터베이스 잠금
-가져오기 · CSV와 병합 · 내보내기
-업데이트와 애널리틱스 · 버전 기록 · 알림 받기 · 멘션 · 연결
-Mac 앱에서 열기
-—— <이름> 최종 편집 / <시각>
+Ag Default · Serif · Mono
+Copy link ⌘⌥L · Copy page contents · Duplicate ⌘D · Move to ⌘⇧P · Move to Trash
+Presentation mode · Small text · Full width · Customize page · Lock page
+Use with AI · Suggest edits · Translate · Import · Export · Turn into wiki
+Updates & analytics · Version history
 ```
 
-둘 다 **`옮기기` 바로 다음에 `휴지통으로 이동`** 이고, 그 뒤로 구분선이 온다.
+Database page:
 
-## 4. 우리 쪽 현황 (구현 전)
+```
+Copy link ⌘⌥L · Duplicate · Move to ⌘⇧P · Move to Trash
+Customize layout · Lock database
+Import · Merge with CSV · Export
+Updates & analytics · Version history · Notifications · Mentions · Connections
+Open in Mac app
+—— Last edited by <name> / <time>
+```
 
-- 페이지 `⋯` 메뉴는 앱 전체에 **하나뿐**이다 — `components/page/page-options.tsx` 의
-  `PageOptionsMenu`. 전체 너비 · 페이지 잠금 · 복제 · 옮기기 · Markdown 내보내기 ·
-  PDF 내보내기 · 페이지 기록. **삭제가 없다.** `Trash2` 를 import 조차 하지 않는다.
-- 세 화면이 **모두 이 컴포넌트를 쓴다**: 전체 페이지(`page-view.tsx`), 가운데 피크
-  (`page-peek.tsx`), 그리고 comcom이 말한 **표에서 연 행의 사이드 피크**(`row-peek.tsx`).
-  그래서 한 곳만 고치면 세 곳이 함께 해결된다.
-- 삭제 자체는 이미 있다: 사이드바 행 `⋯` → `삭제`(빨강) → `archivePage` + `휴지통으로
-  이동했습니다` 토스트 + 실행 취소, 그리고 `휴지통` 모달에서 복원·영구 삭제.
-- 서버 `DELETE /api/pages/[pageId]` 는 **소프트 삭제**(`isArchived`)이고 하위 트리까지
-  같이 접는다. `?permanent=1` 이면 진짜 삭제.
+In both, **`Move to Trash` comes right after `Move to`**, followed by a divider.
 
-## 5. 행 페이지를 지울 때 함께 해야 하는 것
+## 4. Our state (before implementation)
 
-데이터베이스의 **행은 곧 페이지**다(행의 `__page` 값이 페이지 id). 그런데 지금은 두 삭제가
-서로를 모른다:
+- There is **only one** page `⋯` menu in the whole app — `PageOptionsMenu` in
+  `components/page/page-options.tsx`. Full width · Lock page · Duplicate · Move to · Export Markdown ·
+  Export PDF · Page history. **No delete.** It does not even import `Trash2`.
+- **All three views use this component**: the full page (`page-view.tsx`), the center peek
+  (`page-peek.tsx`), and the one comcom mentioned, **the side peek of a row opened from a table** (`row-peek.tsx`).
+  So fixing one place fixes all three.
+- Deletion itself already exists: sidebar row `⋯` → `Delete` (red) → `archivePage` + the "Moved to trash"
+  toast + undo, plus restore / permanent delete in the `Trash` modal.
+- Server `DELETE /api/pages/[pageId]` is a **soft delete** (`isArchived`) and folds in the whole subtree.
+  With `?permanent=1` it is a real delete.
 
-- `DELETE /api/pages/<id>` 는 `db_rows` 를 건드리지 않는다 → 페이지만 휴지통으로 가고
-  **표에는 행이 그대로 남는다**(`__page` 가 죽은 페이지를 가리킨 채).
-- 행 삭제(`DELETE /api/databases/<db>/rows/<row>`)는 `pages` 를 건드리지 않는다 → 본문
-  페이지가 남는다.
-- 페이지 DELETE 는 **SSE 를 하나도 쏘지 않는다** — 다른 탭의 `usePageSync(databaseId)` 가
-  깨어나지 않아 표가 갱신되지 않는다(행 삭제 쪽은 쏜다).
-- 전체 페이지(`/p/<id>`)에서는 `RowPropertiesPanel` 이 만드는 `DbApi` 의 `deleteRow` 가
-  **빈 함수**라, 거기서 `useDb()` 로 지우면 조용히 아무 일도 안 일어난다.
+## 5. What must happen together when deleting a row page
 
-## 6. 권한
+In a database, **a row is a page** (the row's `__page` value is the page id). But right now the two
+deletions do not know about each other:
 
-`DELETE` 는 지금 **워크스페이스 멤버십만** 본다(`loadOwnedPage`). 같은 파일의 `PATCH` 는
-`requirePagePermission(..., "edit")` 를 거치는데 DELETE 는 아무것도 안 거친다. 메뉴에 삭제를
-꺼내는 김에 같이 조인다.
+- `DELETE /api/pages/<id>` does not touch `db_rows` → only the page goes to the trash and **the row stays
+  in the table** (with `__page` pointing at a dead page).
+- Row deletion (`DELETE /api/databases/<db>/rows/<row>`) does not touch `pages` → the body page remains.
+- Page DELETE **emits no SSE at all** — `usePageSync(databaseId)` in other tabs never wakes up, so the
+  table is not refreshed (the row-deletion side does emit).
+- On the full page (`/p/<id>`), the `deleteRow` of the `DbApi` built by `RowPropertiesPanel` is an
+  **empty function**, so deleting via `useDb()` there silently does nothing.
+
+## 6. Permissions
+
+`DELETE` currently checks **only workspace membership** (`loadOwnedPage`). `PATCH` in the same file goes
+through `requirePagePermission(..., "edit")`, but DELETE goes through nothing. While exposing delete in the
+menu, tighten this too.

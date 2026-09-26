@@ -28,13 +28,13 @@ export function ToastHost() {
               }}
               className="font-medium text-blue-300 hover:text-blue-200"
             >
-              {t("실행 취소")}
+              {t("Undo")}
             </button>
           )}
           <button
             data-testid="toast-dismiss"
             onClick={() => dismiss(toast.id)}
-            aria-label={t("닫기")}
+            aria-label={t("Close")}
             className="text-neutral-400 hover:text-white"
           >
             <X size={13} />

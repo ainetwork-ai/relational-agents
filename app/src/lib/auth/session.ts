@@ -14,7 +14,7 @@ export interface SessionData {
   ainAddress?: string;
   /** the AIN sign-in nonce for an in-flight wallet login */
   challenge?: string;
-  /** the in-flight "aindrive로 로그인" pairing — only this browser may finish it */
+  /** the in-flight "Sign in with aindrive" pairing — only this browser may finish it */
   aindrivePairing?: string;
 }
 

@@ -2,11 +2,11 @@
  * The sales demo's three phones, made real: each salesperson gets their own
  * aindrive account, their phone's call-history folder served as an aindrive
  * drive, and their own ainmem account connected to it — exactly what
- * "aindrive로 로그인" does in a browser.
+ * "Sign in with aindrive" does in a browser.
  *
  * A phone here is the aindrive CLI serving a folder: the folder is what the
- * phone syncs (통화기록/<date> <time> <who>.md, one file per call), so a new
- * call is a new file dropped into <home>/sales/drives/<key>/통화기록/.
+ * phone syncs (call-records/<date> <time> <who>.md, one file per call), so
+ * a new call is a new file dropped into <home>/sales/drives/<key>/call-records/.
  *
  *   pnpm tsx scripts/sales-demo-accounts.mts [--data demo/sales-calls] [--app http://localhost:3110]
  *     --data   folder holding kim/ lee/ park/ (each phone's call history)
@@ -47,9 +47,9 @@ if (!DATA) {
 /** The sales team: whose phone, the drive's name on aindrive, and the name
  *  they go by in the workspace. */
 const TEAM = [
-  { key: "kim", name: "김민준", drive: "김민준 폰 · Galaxy S25" },
-  { key: "lee", name: "이서연", drive: "이서연 폰 · iPhone 16" },
-  { key: "park", name: "박지훈", drive: "박지훈 폰 · Galaxy Z Fold7" },
+  { key: "kim", name: "Kim Minjun", drive: "Kim Minjun's phone · Galaxy S25" },
+  { key: "lee", name: "Lee Seoyeon", drive: "Lee Seoyeon's phone · iPhone 16" },
+  { key: "park", name: "Park Jihoon", drive: "Park Jihoon's phone · Galaxy Z Fold7" },
 ] as const;
 
 fs.mkdirSync(HOME, { recursive: true, mode: 0o700 });
@@ -141,7 +141,7 @@ function startCli(key: string, folder: string, driveName: string, session: strin
   return `started (pid ${child.pid}, log ${path.join(home, "aindrive.log")})`;
 }
 
-/** ainmem: "aindrive로 로그인", approved as the person on aindrive. */
+/** ainmem: "Sign in with aindrive", approved as the person on aindrive. */
 async function ainmemSignIn(session: string): Promise<{ userId: string; cookie: string }> {
   const app = jar();
   const start = await fetch(`${APP}/api/auth/aindrive/start`, { method: "POST" });

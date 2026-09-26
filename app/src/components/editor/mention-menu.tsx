@@ -10,6 +10,7 @@ import { MonthGrid } from "@/components/database/date-picker";
 import { initial } from "@/lib/glyph";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { useMe } from "@/stores/me";
+import { DATE_WORDS_KO } from "@/i18n/content/editor";
 import { useWorkspaceMembers } from "@/hooks/use-workspace-members";
 import { PEOPLE_SHOWN, rankPeople } from "@/lib/mention/search";
 
@@ -25,14 +26,14 @@ import { PEOPLE_SHOWN, rankPeople } from "@/lib/mention/search";
  *   row     322 × 28, radius 6, 4 in from each side, pitch 29
  *           avatar 20 at 8, label 14/400 rgb(44,44,43) at 36
  *   page    45 tall — title 14 rgb(44,44,43) over a path 12 rgb(161,158,153)
- *   empty   the card shrinks to 330 × 65 and says 결과 없음 at 12,9
+ *   empty   the card shrinks to 330 × 65 and says No results at 12,9
  *
  * Matching and ranking are NOT here: `@/lib/mention/search` holds the rules
  * measured in §2 (substring, case-insensitive, name + email, Korean initial
  * jamo, name-prefix > word-prefix > mid, me first, guests last, five shown)
  * and the server uses the same module to decide who gets notified.
  *
- * Deliberately not copied: Notion's `검색 피드백 보내기` footer link.
+ * Deliberately not copied: Notion's `Send search feedback` footer link.
  */
 const CARD = {
   width: 330,
@@ -50,7 +51,7 @@ const ROW = { width: 322, height: 28, pageHeight: 45, radius: 6, inset: 4, gap: 
 const EMPTY = { width: 330, height: 65, left: 12, top: 9 } as const;
 
 export interface MentionItem {
- // "more" is the `N개 결과 더 보기` line. The original treats it as an
+ // "more" is the `Show N more results` line. The original treats it as an
  // ordinary row of the flat list, so it is one here too — the menu handles
  // picking it itself (see below), the caller never sees it in `onPick`.
   kind: "page" | "person" | "date" | "more";
@@ -61,7 +62,7 @@ export interface MentionItem {
   parent?: string;
   /** person rows only: their photo, so a mention shows the same face as everywhere else */
   avatarUrl?: string | null;
-  /** person rows only: draws the original's trailing `(나)` */
+  /** person rows only: draws the original's trailing `(me)` */
   isMe?: boolean;
 }
 
@@ -75,22 +76,23 @@ export function mentionChipHtml(item: MentionItem, escape: (s: string) => string
 }
 
 /**
- * 질의를 **날짜 표현으로 읽는다** — 읽힐 때만 날짜 섹션이 생긴다.
+ * Reads the query **as a date expression** — the Date section appears only
+ * when it reads as one.
  *
- * 원본은 `@ye` 에도 날짜 섹션을 보여줬다(§3 의 `@ye` → 사람 → 날짜 →
- * 페이지 링크). 노션이 질의를 날짜식으로 파싱하기 때문이고, `ye` 는
- * `yesterday` 로 읽힌다. 우리가 읽는 것은 아래 낱말(양쪽 언어)의 **앞부분**과
- * `yyyy-mm-dd` 뿐이다 — 원본 파서의 나머지(`next friday`, `jan 5`,
- * `3 days ago` …)는 재 본 적이 없어 지어내지 않는다.
+ * The original showed a Date section even for `@ye` (§3: `@ye` → People → Date →
+ * Link to page), because Notion parses the query as a date and `ye` reads as
+ * `yesterday`. We read only a **prefix** of the words below (both languages)
+ * and `yyyy-mm-dd` — the rest of the original's parser (`next friday`, `jan 5`,
+ * `3 days ago` …) was never measured, so we do not invent it.
  */
 const DATE_WORDS: { words: string[]; offset: number }[] = [
-  { words: ["today", "오늘"], offset: 0 },
-  { words: ["tomorrow", "내일"], offset: 1 },
-  { words: ["yesterday", "어제"], offset: -1 },
+  { words: ["today", DATE_WORDS_KO.today], offset: 0 },
+  { words: ["tomorrow", DATE_WORDS_KO.tomorrow], offset: 1 },
+  { words: ["yesterday", DATE_WORDS_KO.yesterday], offset: -1 },
 ];
 
-/** 오늘에서 offset 일. **로컬** 날짜다 — `toISOString` 은 UTC 라 KST 밤에
- *  하루 어긋난 날짜를 멘션하게 된다. */
+/** `offset` days from today. A **local** date — `toISOString` is UTC, so late at
+ *  night in KST it would mention a date one day off. */
 function isoDay(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
@@ -98,10 +100,10 @@ function isoDay(offset: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** 질의 → `yyyy-mm-dd`, 날짜로 안 읽히면 null. */
+/** query → `yyyy-mm-dd`, or null when it does not read as a date. */
 function resolveDate(query: string): string | null {
   const q = query.trim().toLowerCase();
-  if (!q) return isoDay(0); // 빈 `@` 는 오늘 (§3: 맨 처음은 날짜 → 사람 → …)
+  if (!q) return isoDay(0); // a bare `@` is today (§3: first comes Date → People → …)
   if (/^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
   for (const g of DATE_WORDS) if (g.words.some((w) => w.startsWith(q))) return isoDay(g.offset);
   return null;
@@ -144,7 +146,7 @@ export function MentionMenu({
   const intl = useIntlLocale();
  // the mini calendar, held as the query it was opened for — the same trick
  // `expandedFor` uses below, so a new query folds it back (and it cannot be
- // left open on a query that has no 날짜 section to hang it on)
+ // left open on a query that has no Date section to hang it on)
   const [calFor, setCalFor] = useState<string | null>(null);
   const calOpen = calFor === query;
   const pages = usePagesStore((s) => s.pages);
@@ -152,7 +154,7 @@ export function MentionMenu({
  // true: ask again as the menu opens — see the hook for why a cached list can
  // be the wrong workspace's
   const members = useWorkspaceMembers(true);
- // `N개 결과 더 보기` opens the rest in place — held as the query it was
+ // `Show N more results` opens the rest in place — held as the query it was
  // pressed for, so a new query folds the list back with no effect to run
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const expanded = expandedFor === query;
@@ -171,7 +173,7 @@ export function MentionMenu({
       isMe: me?.id === p.id,
     }));
     if (ranked.more > 0) {
-      personItems.push({ kind: "more", id: "more", label: t("{n}개 결과 더 보기", { n: ranked.more }) });
+      personItems.push({ kind: "more", id: "more", label: t("Show {n} more results", { n: ranked.more }) });
     }
 
  // most recently edited first — on a big workspace the fresh
@@ -184,23 +186,23 @@ export function MentionMenu({
       .map((p) => ({
         kind: "page" as const,
         id: p.id,
-        label: p.title || t("제목 없음"),
+        label: p.title || t("Untitled"),
         icon: p.icon,
-        parent: p.parentPageId ? (pages[p.parentPageId]?.title || t("제목 없음")) : undefined,
+        parent: p.parentPageId ? (pages[p.parentPageId]?.title || t("Untitled")) : undefined,
       }))
       .filter((it) => !q || it.label.toLowerCase().includes(q))
       .slice(0, 6);
 
- // 날짜 — 질의를 날짜 표현으로 읽어 나오면 한 줄, 안 나오면 섹션이 없다
+ // Date — one row if the query reads as a date expression, otherwise no section
     const iso = resolveDate(query);
     const dateItems: MentionItem[] = iso ? [dateItem(iso, intl)] : [];
 
-    const date = { key: "date", label: t("날짜"), items: dateItems };
-    const people = { key: "person", label: t("사람"), items: personItems };
-    const page = { key: "page", label: t("페이지 링크"), items: pageItems };
- // "섹션 순서는 고정이 아니다" (§3): bare @ opens 날짜 → 사람 → 페이지 링크,
+    const date = { key: "date", label: t("Date"), items: dateItems };
+    const people = { key: "person", label: t("Person"), items: personItems };
+    const page = { key: "page", label: t("Link to page"), items: pageItems };
+ // "The section order is not fixed" (§3): bare @ opens Date → People → Link to page,
  // but a query that matches people puts them on top (measured with @ye).
- // 그룹 is a section we have no entity for.
+ // Groups is a section we have no entity for.
     const order = q && personItems.length ? [people, date, page] : [date, people, page];
     return order.filter((s) => s.items.length > 0);
   }, [query, pages, members, me, expanded, t, intl]);
@@ -215,7 +217,7 @@ export function MentionMenu({
   const wrap = useRef<HTMLDivElement>(null);
   useAnchoredAt(true, anchor, wrap);
 
- // The `N개 결과 더 보기` row belongs to the menu, not to whoever opened it:
+ // The `Show N more results` row belongs to the menu, not to whoever opened it:
  // the caller owns the caret and so drives Enter, but it must not be handed a
  // row that is not a mention (block-editor would insert a chip for it). We
  // take that one keypress back on the window, in the capture phase, so it
@@ -260,7 +262,7 @@ export function MentionMenu({
           data-testid="mention-empty"
           className="text-[14px] font-normal leading-5 text-[rgb(125,122,117)]"
         >
-          {t("결과 없음")}
+          {t("No results")}
         </div>
       </div>
     ) : (
@@ -320,7 +322,7 @@ export function MentionMenu({
                 >
                   {/* 20×20 at 8 — a box of its own so it measures the same
                       whether the person has a photo, an initial or an icon,
-                      and it is drawn for EVERY row: `N개 결과 더 보기` carries
+                      and it is drawn for EVERY row: `Show N more results` carries
                       no icon but its label must still start at the measured
                       36 (§3) = 8 + this 20 + 8 */}
                   <span
@@ -360,7 +362,7 @@ export function MentionMenu({
                     <span className="block truncate text-[14px] font-normal leading-[18px] text-[rgb(44,44,43)] dark:text-neutral-200">
                       {item.label}
                       {item.isMe && (
-                        <span className="ml-1 text-[14px] font-normal text-[rgb(125,122,117)]">{t("(나)")}</span>
+                        <span className="ml-1 text-[14px] font-normal text-[rgb(125,122,117)]">{t("(You)")}</span>
                       )}
                     </span>
                     {item.kind === "page" && item.parent && (
@@ -373,7 +375,7 @@ export function MentionMenu({
               );
             })}
             {/* pick ANY date — a typed field plus a toggleable mini
-                calendar. Ours, not the original's, so it hangs off the 날짜
+                calendar. Ours, not the original's, so it hangs off the Date
                 section and is drawn ONLY where that section is: sitting at the
                 bottom of the card it added 37px to EVERY menu, and §3 says a
                 card is as tall as its rows. */}
@@ -384,7 +386,7 @@ export function MentionMenu({
                     type="button"
                     data-testid="mention-date-calendar"
                     onClick={() => setCalFor((v) => (v === query ? null : query))}
-                    aria-label={t("달력에서 선택")}
+                    aria-label={t("Pick from calendar")}
                     className="shrink-0 rounded p-0.5 text-[rgb(142,139,134)] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-white/10"
                   >
                     <Calendar size={15} />

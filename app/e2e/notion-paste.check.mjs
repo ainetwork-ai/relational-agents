@@ -1,39 +1,42 @@
-// 노션 "전체 복사 → 우리 에디터 붙여넣기"를 원본과 대조한다.
+// Compares Notion "copy all → paste into our editor" against the original.
 //
-// 입력은 진짜 클립보드 페이로드다: 원본(상담/모니터링 FLOW 페이지)에서 Cmd+A×2,
-// Cmd+C 로 뜬 4개 MIME(text/plain·text/html·text/_notion-blocks-v3-production…)
-// 을 그대로 ClipboardEvent 로 합성해 쏜다. 기준은 같은 폴더의 expected-tree.json
-// (원본 라이브 DOM 카탈로그와 대조를 마친 트리)이다.
+// The input is a real clipboard payload: the 4 MIME types (text/plain·text/html·text/_notion-blocks-v3-production…)
+// captured from Cmd+A×2, Cmd+C on the original (the consultation/monitoring FLOW page) are synthesized
+// as-is into a ClipboardEvent. The reference is expected-tree.json in the same folder
+// (a tree already checked against the original's live DOM catalogue).
 //
 //   [BASE_URL=http://localhost:3110] node e2e/notion-paste.check.mjs
 //
-// 무엇을 보나:
-//  1) 붙여넣기 직후: 블록 타입·깊이·텍스트가 기대 트리와 1:1 (접힌 토글 자식 제외)
-//  2) 콜아웃: 파란/회색 배경, 💬 아이콘, 아이콘 없는 콜아웃, 자식이 박스 안에
-//  3) 토글: 접힌 채로 붙고, 펼치면 자식이 나온다 (원본도 접혀 있다)
-//  4) 리터럴 '**' 와 '<aside>' 가 어디에도 없다
-//  5) 새로고침 후에도 1)이 유지된다 (저장 경로까지 통과)
+// What it looks at:
+//  1) right after pasting: block type·depth·text match the expected tree 1:1 (children of collapsed toggles excluded)
+//  2) callouts: blue/gray backgrounds, 💬 icon, callouts without an icon, children inside the box
+//  3) toggles: pasted collapsed, children appear when expanded (the original is collapsed too)
+//  4) no literal '**' or '<aside>' anywhere
+//  5) 1) still holds after a reload (the save path passes too)
 //
-// 페이로드가 없으면(캡처는 커밋되지 않는다) 측정 불가로 exit 1 — 추론으로 메우지
-// 않는다. 다시 뜨는 법: docs/notion-golden-set.md 절차로 원본을 열고
-//   node scratchpad/capture-clipboard.mjs docs/notion-clip-flow-page   # Cmd+A×2 복사 캡처
-//   node scratchpad/probe-paste-types.mjs docs/notion-clip-flow-page   # paste 이벤트 4종 MIME
-// 를 돌리거나, 사람이 복사해서 채운다.
+// Without the payload (captures are not committed) it cannot measure and exits 1 — it does not fill
+// the gap with guesses. To capture again: open the original with the docs/notion-golden-set.md procedure and run
+//   node scratchpad/capture-clipboard.mjs docs/notion-clip-flow-page   # capture of the Cmd+A×2 copy
+//   node scratchpad/probe-paste-types.mjs docs/notion-clip-flow-page   # the 4 MIME types of the paste event
+// or have a person copy and fill it in.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { content } from "./i18n.mjs";
+
+const C = content.NOTION_PASTE;
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
-// dev DB 는 2026-08-27 이전에 다시 시드됐다 — 옛 기본 id 는 401 이 된다(docs/notion-golden-set.md)
+// the dev DB was reseeded before 2026-08-27 — the old default id gives 401 (docs/notion-golden-set.md)
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj
 const DIR = new URL("../../docs/notion-clip-flow-page/", import.meta.url);
 
 const need = (f) => {
   const p = new URL(f, DIR);
   if (!fs.existsSync(p)) {
-    console.error(`\n  캡처가 없습니다: docs/notion-clip-flow-page/${f}`);
-    console.error("  (커밋되지 않는 원본 데이터입니다 — 헤더 주석의 절차로 다시 떠 주세요)\n");
+    console.error(`\n  capture missing: docs/notion-clip-flow-page/${f}`);
+    console.error("  (original data that is not committed — capture it again with the procedure in the header comment)\n");
     process.exit(1);
   }
   return fs.readFileSync(p, "utf8");
@@ -46,8 +49,8 @@ const PAYLOAD = {
 };
 const EXPECTED = JSON.parse(need("expected-tree.json")).blocks;
 
-// ENV_FILE/USER_ID 를 주면 prod 에도 겨눌 수 있다 (배포 검증). 만드는 페이지는
-// ARCHIVE=1 이면 끝나고 아카이브한다 — prod 사이드바에 잔재를 남기지 않기 위해.
+// With ENV_FILE/USER_ID it can target prod too (deploy verification). With ARCHIVE=1 the pages
+// it makes are archived at the end — so it leaves no leftovers in the prod sidebar.
 const envPath = process.env.ENV_FILE
   ? new URL(process.env.ENV_FILE, `file://${process.cwd()}/`)
   : new URL("../.env.local", import.meta.url);
@@ -56,7 +59,7 @@ const secret =
   env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
 
-// ---- 대조용 페이지 생성 (dev DB — 소모품) -----------------------------------
+// ---- create the comparison page (dev DB — disposable) ------------------------
 const madePages = [];
 const createPage = async (label) => {
   const created = await fetch(`${BASE}/api/pages`, {
@@ -65,12 +68,12 @@ const createPage = async (label) => {
     body: JSON.stringify({ title: `notion-paste.check ${label} ${new Date().toISOString().slice(0, 16)}` }),
   });
   if (created.status !== 201) {
-    console.error("페이지 생성 실패:", created.status, await created.text());
+    console.error("page creation failed:", created.status, await created.text());
     process.exit(1);
   }
   const id = (await created.json()).page.id;
   madePages.push(id);
-  console.log(`대조 페이지(${label}): ${BASE}/p/${id}`);
+  console.log(`comparison page (${label}): ${BASE}/p/${id}`);
   return id;
 };
 const pageId = await createPage("json");
@@ -84,7 +87,7 @@ const page = await ctx.newPage();
 await page.goto(`${BASE}/p/${pageId}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
 await page.waitForSelector("[data-block-type='paragraph'] [contenteditable]", { timeout: 60_000 });
 
-// ---- 진짜 클립보드 그대로 paste 합성 ----------------------------------------
+// ---- synthesize the paste straight from the real clipboard -----------------
 await page.evaluate((payload) => {
   const el = document.querySelector("[data-block-type='paragraph'] [contenteditable]");
   el.focus();
@@ -94,7 +97,7 @@ await page.evaluate((payload) => {
 }, PAYLOAD);
 await page.waitForTimeout(1500);
 
-// ---- 에디터 DOM → {type, depth, text} 트리 ---------------------------------
+// ---- editor DOM → {type, depth, text} tree ----------------------------------
 const READ_TREE = () => {
   const rows = [...document.querySelectorAll("[data-testid^='block-'][data-block-type]")];
   return rows.map((row) => {
@@ -104,7 +107,7 @@ const READ_TREE = () => {
     const leaf = [...row.querySelectorAll("[contenteditable]")].find(
       (l) => l.closest("[data-testid^='block-'][data-block-type]") === row
     );
-    // textContent 는 <br> 를 통째로 삼킨다 — 줄바꿈으로 되살려 읽는다
+    // textContent swallows <br> whole — read it back as a newline
     const leafText = (el) => {
       if (!el) return null;
       const clone = el.cloneNode(true);
@@ -138,7 +141,7 @@ const ok = (cond, label) => {
 };
 const TODO_LIT = /^\[( |x)\]\s/i;
 
-// 기대 트리 → "화면에 보여야 하는" 시퀀스. 접힌 토글의 자식은 안 보인다.
+// expected tree → the sequence that "should be on screen". Children of collapsed toggles are not visible.
 const visibleExpected = (tree) => {
   const out = [];
   let hideBelow = null;
@@ -154,7 +157,7 @@ const visibleExpected = (tree) => {
 };
 
 const compare = (got, want, label) => {
-  ok(got.length === want.length, `${label}: 블록 수 ${got.length} == ${want.length}`);
+  ok(got.length === want.length, `${label}: block count ${got.length} == ${want.length}`);
   const n = Math.min(got.length, want.length);
   let mismatch = 0;
   for (let i = 0; i < n; i++) {
@@ -176,24 +179,24 @@ const compare = (got, want, label) => {
     }
     if (!same) mismatch++;
   }
-  ok(mismatch === 0, `${label}: 타입·깊이·텍스트·체크·색 일치 (불일치 ${mismatch})`);
+  ok(mismatch === 0, `${label}: type·depth·text·checked·color match (mismatches ${mismatch})`);
 };
 
-// ---- 1) 붙여넣기 직후 -------------------------------------------------------
+// ---- 1) right after pasting --------------------------------------------------
 let got = await page.evaluate(READ_TREE);
-compare(got, visibleExpected(EXPECTED), "paste 직후(접힌 토글 제외)");
+compare(got, visibleExpected(EXPECTED), "right after paste (collapsed toggles excluded)");
 
-// ---- 4) 리터럴 마크다운 찌꺼기 ---------------------------------------------
+// ---- 4) literal markdown leftovers ------------------------------------------
 const litNow = got.filter((b) => b.text.includes("**") || b.text.includes("<aside>"));
-ok(litNow.length === 0, `리터럴 '**'/'<aside>' 없음 (발견 ${litNow.length})`);
+ok(litNow.length === 0, `no literal '**'/'<aside>' (found ${litNow.length})`);
 
-// ---- 2) 콜아웃 --------------------------------------------------------------
+// ---- 2) callouts ------------------------------------------------------------
 const blue = got.find((b) => b.type === "callout" && b.color === "blue");
-ok(!!blue, "파란 배경 콜아웃 존재");
+ok(!!blue, "blue background callout exists");
 const calloutProbe = await page.evaluate(() => {
-  // 콜아웃 박스는 data-color 를 가진 유일한 노드 — callout-icon-/callout-color-
-  // 트리거들이 같은 접두사를 쓰므로 그걸로 거른다. 파란 콜아웃은 원본이 한
-  // 줄짜리다(첫 텍스트 자식이 본문으로 흡수되는 노션 v2 규칙) — 자식 0이 정답.
+  // The callout box is the only node with data-color — the callout-icon-/callout-color-
+  // triggers share the prefix, so filter on that. The blue callout is a single line in the
+  // original (Notion v2 rule: the first text child is absorbed into the body) — 0 children is right.
   const box = [...document.querySelectorAll("[data-testid^='callout-'][data-color]")][0];
   if (!box) return null;
   return {
@@ -201,34 +204,34 @@ const calloutProbe = await page.evaluate(() => {
     childCount: box.querySelectorAll("[data-block-type]").length,
   };
 });
-ok(calloutProbe?.icon === "💬", `콜아웃 아이콘 💬 (${calloutProbe?.icon})`);
-ok(calloutProbe?.childCount === 0, `한 줄 콜아웃은 본문으로 흡수 (자식 ${calloutProbe?.childCount})`);
+ok(calloutProbe?.icon === "💬", `callout icon 💬 (${calloutProbe?.icon})`);
+ok(calloutProbe?.childCount === 0, `single-line callout absorbed into the body (children ${calloutProbe?.childCount})`);
 
-// ---- 3) 토글: 접혀서 붙고, 펼치면 자식 --------------------------------------
+// ---- 3) toggles: pasted collapsed, children when expanded --------------------
 const togglesBefore = got.filter((b) => b.type === "toggle").length;
-ok(togglesBefore === 2, `토글 2개 (${togglesBefore})`);
-// 접힘 = 자식 블록이 DOM에 없음 (visibleExpected 대조가 이미 봤지만 명시적으로)
-ok(!got.some((b) => b.text.startsWith("증권봇 시나리오 수집")), "토글이 접힌 채로 붙음");
+ok(togglesBefore === 2, `2 toggles (${togglesBefore})`);
+// collapsed = child blocks not in the DOM (the visibleExpected comparison already saw it, but explicitly)
+ok(!got.some((b) => b.text.startsWith(C.toggleChild)), "toggle pasted collapsed");
 
-// 모두 펼친다 (안에 또 토글은 없다)
+// expand all (there are no toggles inside toggles)
 await page.evaluate(() => {
   for (const btn of document.querySelectorAll("[data-testid^='toggle-expand-']")) btn.click();
 });
 await page.waitForTimeout(600);
 got = await page.evaluate(READ_TREE);
-compare(got, EXPECTED, "토글 전부 펼친 후(전체 트리)");
+compare(got, EXPECTED, "after expanding all toggles (whole tree)");
 
 const litAll = got.filter((b) => b.text.includes("**") || b.text.includes("<aside>"));
-ok(litAll.length === 0, `펼친 후에도 리터럴 '**'/'<aside>' 없음 (발견 ${litAll.length})`);
+ok(litAll.length === 0, `still no literal '**'/'<aside>' after expanding (found ${litAll.length})`);
 
-// 회색·아이콘 없는 콜아웃 (토글 안에 있던 것)
+// gray callouts without an icon (the ones inside the toggles)
 const gray = got.filter((b) => b.type === "callout" && b.color === "gray");
-ok(gray.length === 2, `회색 콜아웃 2개 (${gray.length})`);
+ok(gray.length === 2, `2 gray callouts (${gray.length})`);
 
-// 여러 블록짜리 콜아웃: 자식들이 색 박스 **안에** 그려져야 한다 (노션 레이아웃)
-const multiProbe = await page.evaluate(() => {
+// multi-block callout: the children must be drawn **inside** the colored box (Notion layout)
+const multiProbe = await page.evaluate((heading) => {
   const boxes = [...document.querySelectorAll("[data-testid^='callout-'][data-color]")];
-  const box = boxes.find((b) => b.textContent.includes("[시나리오 활용방법]"));
+  const box = boxes.find((b) => b.textContent.includes(heading));
   if (!box) return null;
   const rows = [...box.querySelectorAll("[data-block-type]")];
   const br = box.getBoundingClientRect();
@@ -239,35 +242,35 @@ const multiProbe = await page.evaluate(() => {
       return rr.top >= br.top - 1 && rr.bottom <= br.bottom + 1;
     }),
   };
-});
+}, C.scenarioHeading);
 ok(
   multiProbe?.childCount === 14 && multiProbe?.allInside === true,
-  `다중 블록 콜아웃 자식 14개가 박스 안에 (${multiProbe?.childCount}, inside=${multiProbe?.allInside})`
+  `multi-block callout has its 14 children inside the box (${multiProbe?.childCount}, inside=${multiProbe?.allInside})`
 );
 const noIcon = await page.evaluate(() => {
   const boxes = [...document.querySelectorAll("[data-testid^='callout-'][data-color]")];
   return boxes.filter((b) => !b.querySelector("[data-testid^='callout-icon-']")).length;
 });
-ok(noIcon === 2, `아이콘 없는 콜아웃 2개 (${noIcon})`);
+ok(noIcon === 2, `2 callouts without an icon (${noIcon})`);
 
-// 볼드: 노션 주석 그대로 <b> 로 (공백·구두점 볼드 포함), ** 없이
-const boldPara = got.find((b) => b.text.includes("분리하여"));
+// bold: Notion annotations as <b> (including bold on spaces and punctuation), without **
+const boldPara = got.find((b) => b.text.includes(C.boldWord));
 ok(!!boldPara && /<b>/.test(boldPara.html) && !boldPara.html.includes("**"),
-  "깨졌던 볼드 문단이 <b>로 복원");
+  "the once-broken bold paragraph restored as <b>");
 
-// ---- 5) 새로고침 후 유지 ----------------------------------------------------
-// 위에서 토글을 펼쳤고 그 상태는 저장된다 — 리로드 기준은 전체 트리다.
-await page.waitForTimeout(2500); // 저장 플러시
+// ---- 5) survives a reload -----------------------------------------------------
+// the toggles were expanded above and that state is saved — the reload reference is the whole tree.
+await page.waitForTimeout(2500); // save flush
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForSelector("[data-block-type]", { timeout: 60_000 });
 await page.waitForTimeout(1200);
 got = await page.evaluate(READ_TREE);
-compare(got, EXPECTED, "새로고침 후(토글 펼친 상태 저장됨)");
+compare(got, EXPECTED, "after reload (expanded toggle state saved)");
 
-// ---- 6) 커스텀 MIME 없이 (text/html + text/plain 만) -------------------------
-// 클립보드 파이프가 Chromium 계열이 아니면(또는 일부 복사 경로) 커스텀 포맷이
-// 안 실려 온다 — 그때는 노션의 마크다운-왕복 HTML을 복원해야 한다. 이 플레이버
-// 에서 토글의 접힘은 정보가 아예 없어 불릿으로 남는 것이 물리적 한계다.
+// ---- 6) without the custom MIME (text/html + text/plain only) ----------------
+// When the clipboard pipe is not Chromium-family (or on some copy paths) the custom formats
+// do not come along — then Notion's markdown-round-trip HTML has to be restored. In this flavor
+// the toggle collapse carries no information at all, so staying a bullet is a physical limit.
 const pageId2 = await createPage("html-only");
 await page.goto(`${BASE}/p/${pageId2}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
 await page.waitForSelector("[data-block-type='paragraph'] [contenteditable]", { timeout: 60_000 });
@@ -283,30 +286,30 @@ await page.waitForTimeout(1500);
 got = await page.evaluate(READ_TREE);
 
 const count = (ty) => got.filter((b) => b.type === ty).length;
-ok(count("heading3") === 4, `html-only: heading3 4개 (${count("heading3")})`);
-ok(count("callout") === 3, `html-only: 콜아웃 3개 (${count("callout")})`);
-ok(count("todo") === 15, `html-only: 투두 15개 (${count("todo")})`);
-ok(count("file") === 3, `html-only: 파일 3개 (${count("file")})`);
-ok(count("numbered_list") === 2, `html-only: 번호 목록 2개 (${count("numbered_list")})`);
+ok(count("heading3") === 4, `html-only: 4 heading3 (${count("heading3")})`);
+ok(count("callout") === 3, `html-only: 3 callouts (${count("callout")})`);
+ok(count("todo") === 15, `html-only: 15 todos (${count("todo")})`);
+ok(count("file") === 3, `html-only: 3 files (${count("file")})`);
+ok(count("numbered_list") === 2, `html-only: 2 numbered list items (${count("numbered_list")})`);
 const checkedN = got.filter((b) => b.type === "todo" && b.checked).length;
-ok(checkedN === 7, `html-only: 체크된 투두 7개 (${checkedN})`);
+ok(checkedN === 7, `html-only: 7 checked todos (${checkedN})`);
 const junk = got.filter(
   (b) => b.text.includes("**") || b.text.includes("<aside>") || TODO_LIT.test(b.text)
 );
-ok(junk.length === 0, `html-only: 리터럴 '**'/'<aside>'/'[x]' 없음 (발견 ${junk.length})`);
-const bold2 = got.find((b) => b.text.includes("분리하여"));
-ok(!!bold2 && /<b>/.test(bold2.html) && !bold2.html.includes("**"), "html-only: 볼드 <b> 복원");
+ok(junk.length === 0, `html-only: no literal '**'/'<aside>'/'[x]' (found ${junk.length})`);
+const bold2 = got.find((b) => b.text.includes(C.boldWord));
+ok(!!bold2 && /<b>/.test(bold2.html) && !bold2.html.includes("**"), "html-only: bold restored as <b>");
 const firstCallout = got.find((b) => b.type === "callout");
 const cIcon = await page.evaluate(() => {
   const boxes = [...document.querySelectorAll("[data-testid^='callout-'][data-color]")];
   return boxes.map((b) => b.querySelector("[data-testid^='callout-icon-']")?.textContent?.trim() ?? null);
 });
-ok(!!firstCallout && cIcon[0] === "💬", `html-only: 첫 콜아웃 아이콘 💬 (${cIcon[0]})`);
-ok(cIcon.slice(1).every((i) => i === null), `html-only: 나머지 콜아웃 아이콘 없음 (${JSON.stringify(cIcon.slice(1))})`);
-const scenario = got.find((b) => b.type === "callout" && b.text.includes("[시나리오 활용방법]"));
-ok(!!scenario, "html-only: '[시나리오 활용방법]'이 콜아웃 본문으로 흡수");
-const tl = got.find((b) => b.text.startsWith("커뮤니케이션 타임라인"));
-ok(tl?.type === "bulleted_list" && tl?.depth === 1, `html-only: 토글이던 항목은 불릿으로 (한계, ${tl?.type}@${tl?.depth})`);
+ok(!!firstCallout && cIcon[0] === "💬", `html-only: first callout icon 💬 (${cIcon[0]})`);
+ok(cIcon.slice(1).every((i) => i === null), `html-only: other callouts have no icon (${JSON.stringify(cIcon.slice(1))})`);
+const scenario = got.find((b) => b.type === "callout" && b.text.includes(C.scenarioHeading));
+ok(!!scenario, `html-only: '${C.scenarioHeading}' absorbed into the callout body`);
+const tl = got.find((b) => b.text.startsWith(C.timelineItem));
+ok(tl?.type === "bulleted_list" && tl?.depth === 1, `html-only: the former toggle item becomes a bullet (limit, ${tl?.type}@${tl?.depth})`);
 
 await browser.close();
 if (process.env.ARCHIVE === "1") {
@@ -316,11 +319,11 @@ if (process.env.ARCHIVE === "1") {
       headers: { "content-type": "application/json", cookie: `rm-session=${cookie}` },
       body: JSON.stringify({ isArchived: true }),
     });
-    console.log(`대조 페이지 아카이브(${id.slice(0, 8)}): ${r.status}`);
+    console.log(`archived comparison page (${id.slice(0, 8)}): ${r.status}`);
   }
 }
 if (fails.length) {
-  console.error(`\n${fails.length}개 실패`);
+  console.error(`\n${fails.length} failed`);
   process.exit(1);
 }
-console.log("\n원본과 차이 없음 — exit 0");
+console.log("\nno difference from the original — exit 0");

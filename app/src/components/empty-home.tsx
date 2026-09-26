@@ -17,10 +17,10 @@ export function EmptyHome() {
     >
       <FileText size={40} className="mb-4 text-neutral-300 dark:text-neutral-600" />
       <h2 className="text-lg font-medium text-neutral-700 dark:text-neutral-300">
-        {t("아직 페이지가 없습니다")}
+        {t("No pages yet")}
       </h2>
       <p className="mt-1 text-sm text-neutral-400">
-        {t("첫 페이지를 만들어 시작하세요.")}
+        {t("Create your first page to get started.")}
       </p>
       <button
         data-testid="empty-home-new-page"
@@ -30,7 +30,7 @@ export function EmptyHome() {
         }}
         className="mt-5 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
       >
-        {t("새 페이지")}
+        {t("New page")}
       </button>
     </div>
   );

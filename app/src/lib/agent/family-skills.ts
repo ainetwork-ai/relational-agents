@@ -8,19 +8,36 @@ import { runAsOrService } from "@/lib/aindrive-account";
 import { aindrivePublicBase, listTree, notUserFolder, readFile, readFileBytes } from "@/lib/aindrive";
 import { aindriveFileUrl } from "@/lib/aindrive-url";
 import { readExif, type PhotoExif } from "@/lib/exif";
-import { formatUsdc, giftValid, ledgerBalance, ledgerDriveOf, payGift, unlocked, type GiftContent } from "@/lib/gift";
+import { formatUsdc, giftValid, ledgerBalance, ledgerDriveOf, unlocked, type GiftContent } from "@/lib/gift";
+import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
 import type { DriveSource } from "./shared-drives";
+import { makeT, type T } from "@/i18n/translate";
+import { FAMILY, FAMILY_NAME_EN, LEDGER } from "@/i18n/content/family-demo";
+import {
+  ALBUM_REGIONS,
+  FAMILY_ALIASES,
+  FAMILY_FILES,
+  FAMILY_SKILL_WORDS as W,
+  HANDFUL,
+  NAME_SUFFIX,
+  SERVINGS_UNITS,
+  TODO_BOARD_KO,
+  WEEKDAY_KO,
+  anyOf,
+} from "@/i18n/content/agent";
 
 /**
  * What a family room's agent can DO, beyond answering — each reads the folders
  * the family shared (as whoever shared them), writes a page into the teamspace
  * those files came from, and says in the chat where it is:
  *
- *   요리      "녹두전 4인분 장보기 목록 만들어줘"  → recipe scaled, a checklist
- *   녹음      "녹음에서 할 일 뽑아줘"              → a to-do board from a recording
- *   앨범      "제주 앨범 정리해줘"                  → photos from every phone, by day
- *   용돈      "서연이 용돈 주고 영상 보자"          → an x402 payment opens a gift
+ *   cooking     "shopping list for nokdujeon for 4"          → recipe scaled, a checklist
+ *   recording   "pull the to-dos out of the recording"       → a to-do board from a recording
+ *   album       "make a Jeju album"                          → photos from every phone, by day
+ *   allowance   "give Seoyeon her pocket money, open the video" → an x402 payment opens a gift
+ *
+ * (Asked in Korean or English — the keyword lists live in @/i18n/content/agent.)
  *
  * Matched by what the sentence asks for, not left to the model: these write
  * pages and move money, and "maybe" is not a state either may be in.
@@ -28,35 +45,29 @@ import type { DriveSource } from "./shared-drives";
 
 export type FamilySkill = "shopping" | "todos" | "album" | "allowance";
 
+const SKILL_RE = (["allowance", "todos", "album", "shopping"] as const).map((k) => ({
+  skill: k,
+  topic: anyOf(W[k].topic),
+  act: anyOf(W[k].act),
+}));
+const SERVINGS_RE = new RegExp(String.raw`\d+\s*(${SERVINGS_UNITS.join("|")})`, "i");
+const SERVINGS_NUM_RE = new RegExp(String.raw`(\d+)\s*(${SERVINGS_UNITS.join("|")})`, "i");
+const SERVINGS_ACT = anyOf(W.servingsAct);
+
 export function matchFamilySkill(text: string): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
-  if (/(용돈|pocket money|allowance)/i.test(t) && /(영상|열어|열자|보자|보내|줘|주고|주자|video|open|give|send|watch)/i.test(t)) return "allowance";
-  if (/(녹음|recording)/i.test(t) && /(할 ?일|todo|to-do|투두|정리|뽑|목록|task|action item|extract|list)/i.test(t)) return "todos";
-  if (/(앨범|album)/i.test(t) && /(정리|만들|모아|묶|make|create|organi[sz]e|put together|build|sort)/i.test(t)) return "album";
-  if (/(장보기|장 볼|재료|shopping list|grocery|ingredients)/i.test(t) && /(목록|리스트|만들|정리|알려|list|make|what)/i.test(t)) return "shopping";
-  if (/\d+\s*(인분|servings?|people)/i.test(t) && /(만들|목록|장보기|알려|make|list|shop|cook)/i.test(t)) return "shopping";
+  for (const { skill, topic, act } of SKILL_RE) if (topic.test(t) && act.test(t)) return skill;
+  if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping";
   return null;
 }
 
 /** The language to answer in: the one the request was written in. */
 export function langOf(text: string): "ko" | "en" {
-  return /[가-힣]/.test(text) ? "ko" : "en";
+  return /[\uAC00-\uD7A3]/.test(text) ? "ko" : "en";
 }
 
-/** Names the family's data uses, as someone asking in English might say them. */
-const ALIASES: Record<string, string[]> = {
-  녹두전: ["nokdujeon", "mung bean pancake", "mung-bean pancake", "bindaetteok"],
-  송편: ["songpyeon", "rice cake"],
-  토란국: ["toranguk", "taro soup"],
-  식혜: ["sikhye", "rice punch"],
-  된장찌개: ["doenjang", "soybean paste stew"],
-  배추김치: ["kimchi"],
-  제주: ["jeju"],
-  서연: ["seoyeon", "seo-yeon"],
-  할머니: ["grandma", "grandmother"],
-};
 const mentions = (text: string, word: string) =>
-  text.includes(word) || (ALIASES[word] ?? []).some((a) => text.toLowerCase().includes(a));
+  text.includes(word) || (FAMILY_ALIASES[word] ?? []).some((a) => text.toLowerCase().includes(a));
 
 export interface SkillContext {
   workspaceId: string;
@@ -69,10 +80,13 @@ export interface SkillContext {
   offline?: string[];
 }
 
-const tr = (ctx: SkillContext, ko: string, en: string) => (ctx.lang === "en" ? en : ko);
-/** How the family is called in English. */
-const NAME_EN: Record<string, string> = { 할머니: "Grandma", 엄마: "Mom", 아빠: "Dad", 서연: "Seoyeon", 도윤: "Doyun", 모두: "Everyone" };
-const nm = (ctx: SkillContext, name: string) => (ctx.lang === "en" ? (NAME_EN[name] ?? name) : name);
+/** Translator for the language the request was written in. */
+const tOf = (ctx: SkillContext): T => makeT(ctx.lang);
+/** A family member as named in the answer's language. */
+const nm = (ctx: SkillContext, name: string) => (ctx.lang === "en" ? (FAMILY_NAME_EN[name] ?? name) : name);
+/** A region as named in the answer's language. */
+const regionLabel = (ctx: SkillContext, r: string) => (ctx.lang === "en" ? (ALBUM_REGIONS[r]?.en ?? r) : r);
+const numLocale = (ctx: SkillContext) => (ctx.lang === "en" ? "en-US" : "ko-KR");
 const outLang = (ctx: SkillContext) => (ctx.lang === "en" ? "English" : "Korean");
 
 export interface SkillResult {
@@ -108,13 +122,18 @@ async function listAll(ctx: SkillContext): Promise<Found[]> {
   return out;
 }
 
-/** "아빠 폰이 꺼져 있어…" — appended to an answer when a phone did not answer. */
+/** "Dad's phone is off…" — appended to an answer when a phone did not answer. */
 function offNote(ctx: SkillContext): string {
   const off = ctx.offline ?? [];
   if (!off.length) return "";
-  return ctx.lang === "en"
-    ? `\n⚠️ ${off.map((o) => nm(ctx, o)).join(", ")}'s phone${off.length > 1 ? "s are" : " is"} off, so nothing from ${off.length > 1 ? "them" : "it"} is included — ask again once ${off.length > 1 ? "they're" : "it's"} on.`
-    : `\n⚠️ ${off.join(", ")} 폰이 꺼져 있어서 그 폰의 파일은 못 읽었어요. 켜지면 다시 부탁해 주세요.`;
+  const t = tOf(ctx);
+  const names = off.map((o) => nm(ctx, o)).join(", ");
+  return (
+    "\n⚠️ " +
+    (off.length > 1
+      ? t("{names}'s phones are off, so nothing from them is included — ask again once they're on.", { names })
+      : t("{names}'s phone is off, so nothing from it is included — ask again once it's on.", { names }))
+  );
 }
 
 const read = (f: Found) => runAsOrService(f.src.linkedBy, () => readFile(f.src.link, f.rel));
@@ -149,74 +168,77 @@ async function teamspaceOf(f: Found | undefined, workspaceId: string): Promise<{
   return t ? { id: t.id, name: t.name, private: t.visibility === "private" } : null;
 }
 
-// ── 1. 요리: recipe → scaled shopping list ─────────────────────────────────
+// ── 1. cooking: recipe → scaled shopping list ──────────────────────────────
+
+const RECIPE_DIR = new RegExp(`(^|/)${FAMILY_FILES.recipeDir}/`);
 
 async function shopping(ctx: SkillContext): Promise<SkillResult> {
+  const t = tOf(ctx);
   const files = await listAll(ctx);
-  const recipes = files.filter((f) => /(^|\/)레시피\//.test(f.full) && /\.md$/i.test(f.rel) && !/계량/.test(f.rel));
+  const recipes = files.filter((f) => RECIPE_DIR.test(f.full) && /\.md$/i.test(f.rel) && !f.rel.includes(FAMILY_FILES.measure));
   const dishOf = (f: Found) => nameOf(f.rel).replace(/\.md$/i, "");
   const recipe = recipes.find((f) => mentions(ctx.text, dishOf(f)));
   if (!recipe)
     return {
       text: recipes.length
-        ? tr(ctx, `어떤 음식인지 알려 주세요. 가족이 공유한 레시피: `, `Which dish? Recipes the family shared: `) + recipes.map(dishOf).join(", ")
-        : tr(ctx, "가족이 공유한 폴더에서 레시피를 찾지 못했어요.", "I couldn't find a recipe in the folders the family shared."),
+        ? t("Which dish? Recipes the family shared: {list}", { list: recipes.map(dishOf).join(", ") })
+        : t("I couldn't find a recipe in the folders the family shared."),
     };
   const dish = dishOf(recipe);
-  const servings = Number(ctx.text.match(/(\d+)\s*(인분|servings?|people)/i)?.[1] ?? 4);
-  const measure = files.find((f) => f.src === recipe.src && /계량/.test(f.rel));
+  const servings = Number(ctx.text.match(SERVINGS_NUM_RE)?.[1] ?? 4);
+  const measure = files.find((f) => f.src === recipe.src && f.rel.includes(FAMILY_FILES.measure));
   const [recipeText, measureText] = await Promise.all([read(recipe), measure ? read(measure) : Promise.resolve("")]);
   const plan = await llmJson<{ originalServings?: number; items?: { name: string; amount: string; note?: string }[]; steps?: string[] }>(
     "You turn a Korean family recipe into a shopping list for a different number of servings. Use the household measure table when given " +
-      '("한 줌" → grams). Output JSON only: {"originalServings":<number the recipe makes>,"items":[{"name":"<재료>","amount":"<scaled amount, Korean units or grams>","note":"<short tip or empty>"}],' +
+      `("${HANDFUL}" → grams). Output JSON only: {"originalServings":<number the recipe makes>,"items":[{"name":"<ingredient>","amount":"<scaled amount, Korean units or grams>","note":"<short tip or empty>"}],` +
       '"steps":["<short step>", …3 to 6]}. Keep every ingredient; do not invent any. ' +
       `Write names, amounts, notes and steps in ${outLang(ctx)}.`,
     `## Recipe\n${recipeText.slice(0, 5000)}\n\n## Household measures\n${measureText.slice(0, 2000)}\n\n## Servings wanted\n${servings}`
   );
   if (!plan?.items?.length)
-    return { text: tr(ctx, `${dish} 레시피를 읽었는데 재료를 정리하지 못했어요. 한 번 더 말해 주세요.`, `I read the ${dish} recipe but couldn't list the ingredients. Ask me once more?`) };
+    return { text: t("I read the {dish} recipe but couldn't list the ingredients. Ask me once more?", { dish }) };
   const media = files.filter((f) => f.src === recipe.src && f !== recipe && nameOf(f.rel).includes(dish));
-  const review = files.find((f) => /후기/.test(f.rel) && nameOf(f.rel).includes(dish));
+  const review = files.find((f) => f.rel.includes(FAMILY_FILES.review) && nameOf(f.rel).includes(dish));
   const ts = await teamspaceOf(recipe, ctx.workspaceId);
-  if (!ts) return { text: tr(ctx, "레시피가 있는 팀스페이스를 찾지 못했어요.", "I couldn't find the teamspace the recipe is in.") };
-  const title = tr(ctx, `${dish} ${servings}인분 장보기`, `${dish} for ${servings} — shopping list`);
+  if (!ts) return { text: t("I couldn't find the teamspace the recipe is in.") };
+  const title = t("{dish} for {n} — shopping list", { dish, n: servings });
+  const cook = nm(ctx, who(recipe));
   const body: NewBlock[] = [
     b.callout(
       "🛒",
-      tr(
-        ctx,
-        `${who(recipe)}의 ${dish} 레시피(${plan.originalServings ?? "?"}인분 기준)를 ${servings}인분으로 맞췄어요.` +
-          (measure ? " 「한 줌」 같은 단위는 할머니 계량법으로 바꿨어요." : ""),
-        `${nm(ctx, who(recipe))}'s ${dish} recipe (makes ${plan.originalServings ?? "?"}) scaled to ${servings} servings.` +
-          (measure ? ` Measures like "a handful" are converted with grandma's measure table.` : "")
-      )
+      t("{who}'s {dish} recipe (makes {orig}) scaled to {n} servings.", { who: cook, dish, orig: plan.originalServings ?? "?", n: servings }) +
+        (measure ? " " + t(`Measures like "a handful" are converted with grandma's measure table.`) : "")
     ),
-    b.h2(tr(ctx, "장볼 것", "To buy")),
+    b.h2(t("To buy")),
     ...plan.items.map((i) => b.todo(`${i.name} ${i.amount}${i.note ? ` — ${i.note}` : ""}`)),
-    b.h2(tr(ctx, "만드는 법 (요약)", "How to make it (short)")),
+    b.h2(t("How to make it (short)")),
     ...(plan.steps ?? []).map((s) => b.num(s)),
-    b.h2(tr(ctx, `${who(recipe)}의 자료`, `From ${nm(ctx, who(recipe))}'s phone`)),
+    b.h2(t("From {who}'s phone", { who: cook })),
     b.file(urlOf(recipe), nameOf(recipe.rel)),
     ...media.map((f) => b.file(urlOf(f), nameOf(f.rel))),
     ...(measure ? [b.file(urlOf(measure), nameOf(measure.rel))] : []),
-    ...(review ? [b.h2(tr(ctx, "해 본 사람 후기", "Tried it")), b.file(urlOf(review), `${nameOf(review.rel)} — ${who(review)}`)] : []),
+    ...(review ? [b.h2(t("Tried it")), b.file(urlOf(review), `${nameOf(review.rel)} — ${who(review)}`)] : []),
   ];
   const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "🛒", byUserId: ctx.askerId, blocks: body });
   return {
     pageId,
     text:
-      tr(ctx, `${dish} ${servings}인분 장보기 목록을 만들었어요 → /p/${pageId}\n`, `Made the ${dish} shopping list for ${servings} → /p/${pageId}\n`) +
+      t("Made the {dish} shopping list for {n} → /p/{pageId}", { dish, n: servings, pageId }) +
+      "\n" +
       plan.items.slice(0, 6).map((i) => `- ${i.name} ${i.amount}`).join("\n") +
-      (plan.items.length > 6 ? tr(ctx, `\n… 외 ${plan.items.length - 6}가지`, `\n… and ${plan.items.length - 6} more`) : "") +
-      tr(ctx, `\n출처: ${who(recipe)} 폰 — `, `\nFrom ${nm(ctx, who(recipe))}'s phone — `) +
+      (plan.items.length > 6 ? "\n" + t("… and {n} more", { n: plan.items.length - 6 }) : "") +
+      "\n" +
+      t("From {who}'s phone —", { who: cook }) +
+      " " +
       [recipe, ...media].map((m) => nameOf(m.rel)).join(", ") +
       offNote(ctx),
   };
 }
 
-// ── 2. 녹음: a recording's transcript → a to-do board ─────────────────────
+// ── 2. recording: a recording's transcript → a to-do board ────────────────
 
 async function todos(ctx: SkillContext): Promise<SkillResult> {
+  const t = tOf(ctx);
   const files = await listAll(ctx);
   const audio = files.filter((f) => /\.(m4a|mp3|wav|aac|ogg)$/i.test(f.rel));
   const pairs = audio
@@ -225,22 +247,22 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
     .sort((x, y) => nameOf(y.audio.rel).localeCompare(nameOf(x.audio.rel)));
   const pick = pairs[0];
   if (!pick)
-    return { text: tr(ctx, "공유된 폴더에서 받아쓰기(.txt)가 있는 녹음을 찾지 못했어요.", "I couldn't find a recording with a transcript (.txt) in the shared folders.") };
+    return { text: t("I couldn't find a recording with a transcript (.txt) in the shared folders.") };
   const transcript = await read(pick.text);
   const out = await llmJson<{ title?: string; date?: string; tasks?: { task: string; owner: string; due?: string | null; note?: string }[] }>(
     "You read a Korean family meeting transcript and list every action item someone took on. Resolve dates against the meeting date " +
       '(the year is in the header). Output JSON only: {"title":"<short meeting title>","date":"YYYY-MM-DD",' +
-      '"tasks":[{"task":"<what, short>","owner":"<who: one person\'s name as spoken, e.g. 엄마/아빠/서연/도윤, or 모두>","due":"YYYY-MM-DD or null","note":"<detail or empty>"}]}. ' +
+      '"tasks":[{"task":"<what, short>","owner":"<who: one person\'s name as spoken, e.g. ${[FAMILY.mom, FAMILY.dad, FAMILY.seoyeon, FAMILY.doyun].map((f) => f.ko).join("/")}, or ${FAMILY.everyone.ko}>","due":"YYYY-MM-DD or null","note":"<detail or empty>"}]}. ' +
       `Write title, task and note in ${outLang(ctx)}; keep owner names exactly as spoken.`,
     transcript.slice(0, 6000),
     1500
   );
-  if (!out?.tasks?.length) return { text: tr(ctx, "녹음을 읽었는데 할 일을 찾지 못했어요.", "I read the recording but found no to-dos.") };
+  if (!out?.tasks?.length) return { text: t("I read the recording but found no to-dos.") };
   const ts = await teamspaceOf(pick.audio, ctx.workspaceId);
-  if (!ts) return { text: tr(ctx, "녹음이 있는 팀스페이스를 찾지 못했어요.", "I couldn't find the teamspace the recording is in.") };
+  if (!ts) return { text: t("I couldn't find the teamspace the recording is in.") };
   const C = ctx.lang === "en"
     ? { task: "To-do", owner: "Owner", due: "Due", state: "Status", note: "Note", todo: "To do", doing: "Doing", done: "Done", byOwner: "By owner", progress: "Progress", table: "Table", suffix: "to-dos", meeting: "Meeting" }
-    : { task: "할 일", owner: "담당", due: "기한", state: "상태", note: "메모", todo: "할 일", doing: "진행 중", done: "완료", byOwner: "담당별", progress: "진행", table: "표", suffix: "할 일", meeting: "회의" };
+    : TODO_BOARD_KO;
   const palette = ["blue", "green", "orange", "purple", "pink", "yellow", "red", "brown"];
   const owners = [...new Set(out.tasks.map((t) => t.owner).filter(Boolean))];
   const dbId = await createAgentDatabase({
@@ -266,16 +288,11 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
   const body: NewBlock[] = [
     b.callout(
       "🎙️",
-      tr(
-        ctx,
-        `${who(pick.audio)} 폰의 녹음(${nameOf(pick.audio.rel)})에서 뽑은 할 일 ${out.tasks.length}개예요.` +
-          (ts.private ? ` 🤫 이 팀스페이스(${ts.name})에만 있어요 — 멤버가 아닌 가족에게는 보이지 않아요.` : ""),
-        `${out.tasks.length} to-dos from the recording on ${nm(ctx, who(pick.audio))}'s phone (${nameOf(pick.audio.rel)}).` +
-          (ts.private ? ` 🤫 Only in this teamspace (${ts.name}) — family members outside it can't see it.` : "")
-      )
+      t("{n} to-dos from the recording on {who}'s phone ({file}).", { n: out.tasks.length, who: nm(ctx, who(pick.audio)), file: nameOf(pick.audio.rel) }) +
+        (ts.private ? " " + t("🤫 Only in this teamspace ({ts}) — family members outside it can't see it.", { ts: ts.name }) : "")
     ),
     b.database(dbId),
-    b.h2(tr(ctx, "녹음", "Recording")),
+    b.h2(t("Recording")),
     b.file(urlOf(pick.audio), nameOf(pick.audio.rel)),
     b.file(urlOf(pick.text), nameOf(pick.text.rel)),
   ];
@@ -283,23 +300,23 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
   return {
     pageId,
     text:
-      tr(ctx, `녹음에서 할 일 ${out.tasks.length}개를 뽑아 보드로 만들었어요 → /p/${pageId}\n`, `Pulled ${out.tasks.length} to-dos from the recording into a board → /p/${pageId}\n`) +
+      t("Pulled {n} to-dos from the recording into a board → /p/{pageId}", { n: out.tasks.length, pageId }) +
+      "\n" +
       out.tasks.map((t) => `- ${nm(ctx, t.owner)}: ${t.task}${t.due ? ` (~${t.due.slice(5).replace("-", "/")})` : ""}`).join("\n") +
       offNote(ctx),
   };
 }
 
-// ── 3. 앨범: photos from every phone, by day, duplicates once ──────────────
+// ── 3. album: photos from every phone, by day, duplicates once ─────────────
 
-const REGIONS: Record<string, [number, number, number, number]> = {
-  제주: [33.0, 33.7, 126.0, 127.1],
-};
-const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const WEEKDAY_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const REGION_EN: Record<string, string> = { 제주: "Jeju" };
+const FORWARDED = new RegExp(`(${FAMILY_FILES.forwarded.join("|")})`, "i");
+const TRIP_DIR = new RegExp(`${FAMILY_FILES.tripDir}/`);
+const TRIP_DOCS = new RegExp(`(${FAMILY_FILES.tripDocs.join("|")})`);
 
 async function album(ctx: SkillContext): Promise<SkillResult> {
+  const t = tOf(ctx);
   const files = await listAll(ctx);
   const images = files.filter((f) => /\.(jpe?g)$/i.test(f.rel));
   const shots: { f: Found; ex: PhotoExif; hash: string }[] = [];
@@ -313,18 +330,18 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
       })
     );
   const inRegion = (r: string, x: PhotoExif) => {
-    const [la0, la1, lo0, lo1] = REGIONS[r];
+    const [la0, la1, lo0, lo1] = ALBUM_REGIONS[r].box;
     return x.lat !== undefined && x.lon !== undefined && x.lat >= la0 && x.lat <= la1 && x.lon >= lo0 && x.lon <= lo1;
   };
-  const asked = Object.keys(REGIONS).find((r) => mentions(ctx.text, r));
-  // "외할아버지 사진으로 앨범" — one person's phone; the longest name wins
-  // (외할아버지 over 할아버지)
+  const asked = Object.keys(ALBUM_REGIONS).find((r) => mentions(ctx.text, r));
+  // "an album of maternal grandpa's photos" — one person's phone; the longest
+  // name wins (maternal grandpa over grandpa, which it contains in Korean)
   const owners = [...new Set(shots.map((x) => who(x.f)))].sort((a, b2) => b2.length - a.length);
   const person = owners.find((o) => mentions(ctx.text, o));
   let pick = asked ? shots.filter((s) => inRegion(asked, s.ex)) : shots;
   if (person) pick = pick.filter((s) => who(s.f) === person);
   if (!asked && !person) {
-    // "오늘 여행사진" / "여행 사진": the trip — the run of back-to-back days with
+    // "today's trip photos" / "trip photos": the trip — the run of back-to-back days with
     // photos that holds today, or else the latest one
     const days = [...new Set(pick.map((s) => s.ex.takenAt!.slice(0, 10)))].sort();
     const runs: string[][] = [];
@@ -340,87 +357,95 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
   }
   if (!pick.length)
     return {
-      text: tr(
-        ctx,
-        `공유된 폴더에서 ${asked ? `${asked}에서 ` : ""}찍은 사진(촬영 정보 있는)을 찾지 못했어요.`,
-        `I couldn't find photos${asked ? ` taken in ${REGION_EN[asked] ?? asked}` : ""} (with date/location info) in the shared folders.`
-      ),
+      text: asked
+        ? t("I couldn't find photos taken in {region} (with date/location info) in the shared folders.", { region: regionLabel(ctx, asked) })
+        : t("I couldn't find photos (with date/location info) in the shared folders."),
     };
   // name the album for where the photos were taken, when they all agree
-  const region = asked ?? Object.keys(REGIONS).find((r) => pick.every((s) => inRegion(r, s.ex)));
+  const region = asked ?? Object.keys(ALBUM_REGIONS).find((r) => pick.every((s) => inRegion(r, s.ex)));
   // the same photo sent around the family is one photo
   const seen = new Set<string>();
   const dupes: typeof pick = [];
   // of two copies, keep the one on the phone that took it, not one passed along
-  const forwarded = (f: Found) => (/(보냄|받음|받은|복사|copy|kakao)/i.test(nameOf(f.rel)) ? 1 : 0);
+  const forwarded = (f: Found) => (FORWARDED.test(nameOf(f.rel)) ? 1 : 0);
   pick = pick
     .sort((a, b2) => a.ex.takenAt!.localeCompare(b2.ex.takenAt!) || forwarded(a.f) - forwarded(b2.f))
     .filter((s) => (seen.has(s.hash) ? (dupes.push(s), false) : (seen.add(s.hash), true)));
   const days = [...new Set(pick.map((s) => s.ex.takenAt!.slice(0, 10)))];
   const phones = [...new Set(pick.map((s) => who(s.f)))];
-  const docs = files.filter((f) => /여행\//.test(f.full) && /(계획|경비|브리핑)/.test(f.rel));
+  const docs = files.filter((f) => TRIP_DIR.test(f.full) && TRIP_DOCS.test(f.rel));
   const ts = await teamspaceOf(pick[0].f, ctx.workspaceId);
-  if (!ts) return { text: tr(ctx, "사진이 있는 팀스페이스를 찾지 못했어요.", "I couldn't find the teamspace the photos are in.") };
-  const regionName = region ? tr(ctx, region, REGION_EN[region] ?? region) : "";
+  if (!ts) return { text: t("I couldn't find the teamspace the photos are in.") };
+  const regionName = region ? regionLabel(ctx, region) : "";
+  const phoneNames = phones.map((x) => nm(ctx, x)).join(" · ");
   const place = (f: Found) => nameOf(f.rel).replace(/\.[^.]+$/, "").replace(/_/g, " ");
   const body: NewBlock[] = [
     b.callout(
       "📸",
-      tr(
-        ctx,
-        `${phones.join(" · ")}의 폰에서 ${region ? `${region} ` : ""}사진 ${pick.length}장을 찍은 시각·위치로 모아 날짜별로 정리했어요.` +
-          (dupes.length ? ` 같은 사진 ${dupes.length}장(서로 주고받은 것)은 한 번만 넣었어요.` : "") +
-          " 할머니, 보시고 댓글 남겨 주세요!",
-        `${pick.length} ${regionName ? `${regionName} ` : ""}photos from ${phones.map((x) => nm(ctx, x)).join(" · ")}'s phones, gathered by when and where they were taken and sorted by day.` +
-          (dupes.length ? ` ${dupes.length} duplicate${dupes.length > 1 ? "s" : ""} (sent between phones) included once.` : "") +
-          " Grandma, leave a comment!"
-      )
+      (regionName
+        ? t("{n} {region} photos from {phones}'s phones, gathered by when and where they were taken and sorted by day.", {
+            n: pick.length,
+            region: regionName,
+            phones: phoneNames,
+          })
+        : t("{n} photos from {phones}'s phones, gathered by when and where they were taken and sorted by day.", { n: pick.length, phones: phoneNames })) +
+        (dupes.length
+          ? " " +
+            (dupes.length > 1
+              ? t("{n} duplicates (sent between phones) included once.", { n: dupes.length })
+              : t("{n} duplicate (sent between phones) included once.", { n: dupes.length }))
+          : "") +
+        " " +
+        t("Grandma, leave a comment!")
     ),
     ...days.flatMap((d, i) => {
       const dt = new Date(`${d}T00:00:00`);
       const daily = pick.filter((s) => s.ex.takenAt!.startsWith(d));
       return [
         b.h2(
-          tr(
-            ctx,
-            `${i + 1}일차 · ${dt.getMonth() + 1}월 ${dt.getDate()}일 (${WEEKDAY[dt.getDay()]})`,
-            `Day ${i + 1} · ${WEEKDAY_EN[dt.getDay()]}, ${MONTH_EN[dt.getMonth()]} ${dt.getDate()}`
-          )
+          t("Day {n} · {weekday}, {month} {date}", {
+            n: i + 1,
+            // Korean takes the month number and a one-letter weekday
+            weekday: (ctx.lang === "en" ? WEEKDAY_EN : WEEKDAY_KO)[dt.getDay()],
+            month: ctx.lang === "en" ? MONTH_EN[dt.getMonth()] : dt.getMonth() + 1,
+            date: dt.getDate(),
+          })
         ),
         ...daily.map((s) =>
           b.file(
             urlOf(s.f),
-            `${s.ex.takenAt!.slice(11, 16)} · ${place(s.f)} — ${tr(ctx, `${who(s.f)} 폰`, `${nm(ctx, who(s.f))}'s phone`)}${s.ex.model ? ` (${s.ex.model})` : ""}`
+            `${s.ex.takenAt!.slice(11, 16)} · ${place(s.f)} — ${t("{who}'s phone", { who: nm(ctx, who(s.f)) })}${s.ex.model ? ` (${s.ex.model})` : ""}`
           )
         ),
       ];
     }),
-    ...(docs.length ? [b.h2(tr(ctx, "여행 계획과 경비", "Trip plan and budget")), ...docs.map((f) => b.file(urlOf(f), `${nameOf(f.rel)} — ${who(f)}`))] : []),
+    ...(docs.length ? [b.h2(t("Trip plan and budget")), ...docs.map((f) => b.file(urlOf(f), `${nameOf(f.rel)} — ${who(f)}`))] : []),
   ];
   const title = person
-    ? tr(ctx, `${person}의 사진 앨범`, `${nm(ctx, person)}'s photo album`)
-    : tr(ctx, `${region ?? "가족"} 여행 앨범`, `${regionName || "Family"} trip album`);
+    ? t("{name}'s photo album", { name: nm(ctx, person) })
+    : t("{region} trip album", { region: regionName || t("Family") });
   const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "📸", byUserId: ctx.askerId, blocks: body, fullWidth: true });
   return {
     pageId,
     text:
-      tr(ctx, `${title}을 만들었어요 → /p/${pageId}\n`, `Made the ${title} → /p/${pageId}\n`) +
-      tr(
-        ctx,
-        `${phones.join(" · ")} 폰의 사진 ${pick.length}장, ${days.length}일로 나눴어요` + (dupes.length ? ` (겹친 사진 ${dupes.length}장은 뺐어요)` : ""),
-        `${pick.length} photos from ${phones.map((x) => nm(ctx, x)).join(" · ")}'s phones, over ${days.length} days` + (dupes.length ? ` (${dupes.length} duplicate left out)` : "")
-      ) +
+      t("Made the {title} → /p/{pageId}", { title, pageId }) +
+      "\n" +
+      t("{n} photos from {phones}'s phones, over {days} days", { n: pick.length, phones: phoneNames, days: days.length }) +
+      (dupes.length ? " " + t("({n} duplicate left out)", { n: dupes.length }) : "") +
       ".\n" +
       days
-        .map((d, i) => `- ${tr(ctx, `${i + 1}일차`, `Day ${i + 1}`)} ${d.slice(5).replace("-", "/")}: ${pick.filter((s) => s.ex.takenAt!.startsWith(d)).map((s) => place(s.f)).join(", ")}`)
+        .map((d, i) => `- ${t("Day {n}", { n: i + 1 })} ${d.slice(5).replace("-", "/")}: ${pick.filter((s) => s.ex.takenAt!.startsWith(d)).map((s) => place(s.f)).join(", ")}`)
         .join("\n") +
       offNote(ctx),
   };
 }
 
-// ── 4. 용돈: pay a gift over x402 and open it ──────────────────────────────
+// ── 4. allowance: pay a gift over x402 and open it ─────────────────────────
+
+const NAME_SUFFIX_RE = new RegExp(`${NAME_SUFFIX}$`);
 
 async function allowance(ctx: SkillContext): Promise<SkillResult> {
+  const t = tOf(ctx);
   const rows = await db
     .select({ content: blocks.content, pageId: blocks.pageId })
     .from(blocks)
@@ -429,38 +454,40 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
   const gifts = rows
     .map((r) => ({ gift: (r.content as { gift?: unknown }).gift, pageId: r.pageId }))
     .filter((g): g is { gift: GiftContent; pageId: string } => giftValid(g.gift));
-  const named = gifts.filter((g) => mentions(ctx.text, g.gift.spec.recipientName.replace(/이$/, "")));
+  const named = gifts.filter((g) => mentions(ctx.text, g.gift.spec.recipientName.replace(NAME_SUFFIX_RE, "")));
   const target = named[0] ?? (gifts.length === 1 ? gifts[0] : undefined);
   if (!target)
     return {
       text: gifts.length
-        ? tr(ctx, "누구 영상을 열까요? ", "Whose video should I open? ") + gifts.map((g) => `${g.gift.spec.recipientName} — 「${g.gift.spec.title}」`).join(", ")
-        : tr(ctx, "용돈으로 여는 선물 영상이 아직 없어요.", "There's no pocket-money gift video yet."),
+        ? t("Whose video should I open? {list}", { list: gifts.map((g) => `${g.gift.spec.recipientName} — 「${g.gift.spec.title}」`).join(", ") })
+        : t("There's no pocket-money gift video yet."),
     };
   const { spec } = target.gift;
-  if (spec.recipientUserId === ctx.askerId) return { text: tr(ctx, "자기 영상은 용돈 없이 볼 수 있어요 🙂", "You can watch your own video without paying 🙂") };
+  if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying 🙂") };
   if (unlocked(target.gift))
-    return { pageId: target.pageId, text: tr(ctx, `「${spec.title}」은 이미 열렸어요 → /p/${target.pageId}`, `「${spec.title}」 is already open → /p/${target.pageId}`) };
+    return { pageId: target.pageId, text: t("「{title}」 is already open → /p/{pageId}", { title: spec.title, pageId: target.pageId }) };
   const r = await payGift(ctx.askerId, spec.id);
-  if (!r.ok) return { text: tr(ctx, `용돈을 보내지 못했어요: ${r.error}`, `Couldn't send the pocket money: ${r.error}`) };
+  if (!r.ok) return { text: t("Couldn't send the pocket money: {error}", { error: r.error }) };
   const payerDrive = await ledgerDriveOf(ctx.askerId);
   const left = payerDrive ? await ledgerBalance(ctx.askerId, payerDrive) : null;
   const [asker] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, ctx.askerId));
   return {
     pageId: target.pageId,
-    text: tr(
-      ctx,
-      `🎁 ${spec.recipientName}에게 용돈 ${spec.amountKrw.toLocaleString("ko-KR")}원(${formatUsdc(spec.amount)} USDC)을 보냈어요. ` +
-        `x402로 결제했고 「${spec.title}」이 열렸어요 → /p/${target.pageId}\n` +
-        `영수증 ${r.receipt}` +
-        (left !== null ? ` · ${asker?.name ?? ""} 용돈 장부 잔액 ${left.toLocaleString("ko-KR")}원` : "") +
-        ` (장부는 각자의 aindrive 「지갑/」 폴더에 적혔어요)`,
-      `🎁 Sent ${nm(ctx, spec.recipientName)} ₩${spec.amountKrw.toLocaleString("en-US")} of pocket money (${formatUsdc(spec.amount)} USDC). ` +
-        `Paid over x402 — 「${spec.title}」 is open → /p/${target.pageId}\n` +
-        `Receipt ${r.receipt}` +
-        (left !== null ? ` · ${nm(ctx, asker?.name ?? "")}'s pocket-money ledger: ₩${left.toLocaleString("en-US")} left` : "") +
-        ` (both ledgers are in each person's aindrive 「지갑/」 folder)`
-    ),
+    text:
+      t("🎁 Sent {name} ₩{krw} of pocket money ({usdc} USDC).", {
+        name: nm(ctx, spec.recipientName),
+        krw: spec.amountKrw.toLocaleString(numLocale(ctx)),
+        usdc: formatUsdc(spec.amount),
+      }) +
+      " " +
+      t("Paid over x402 — 「{title}」 is open → /p/{pageId}", { title: spec.title, pageId: target.pageId }) +
+      "\n" +
+      t("Receipt {receipt}", { receipt: r.receipt }) +
+      (left !== null
+        ? " · " + t("{name}'s pocket-money ledger: ₩{left} left", { name: nm(ctx, asker?.name ?? ""), left: left.toLocaleString(numLocale(ctx)) })
+        : "") +
+      " " +
+      t("(both ledgers are in each person's aindrive 「{folder}」 folder)", { folder: LEDGER.out.slice(0, LEDGER.out.indexOf("/") + 1) }),
   };
 }
 

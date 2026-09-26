@@ -12,10 +12,10 @@ import { useT } from "@/i18n/provider";
 const PERMS = ["view", "comment", "edit", "full"] as const;
 type Perm = (typeof PERMS)[number];
 const PERM_LABEL: Record<Perm, string> = {
-  view: "보기 허용",
-  comment: "댓글 허용",
-  edit: "편집 허용",
-  full: "전체 허용",
+  view: "Can view",
+  comment: "Can comment",
+  edit: "Can edit",
+  full: "Full access (all)",
 };
 
 interface Member {
@@ -121,7 +121,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
       body: JSON.stringify({ email: value, permission: perm }),
     });
     if (!res.ok) {
-      setError((await res.json().catch(() => ({}))).error ?? t("초대하지 못했습니다"));
+      setError((await res.json().catch(() => ({}))).error ?? t("Couldn't invite"));
       return;
     }
     setEmail("");
@@ -180,7 +180,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
         onClick={() => setOpen((v) => !v)}
         className="rounded-md px-2.5 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
-        {t("공유")}
+        {t("Share")}
       </button>
 
       {open && (
@@ -196,7 +196,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   : "pb-1.5 text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
               }
             >
-              {t("공유")}
+              {t("Share")}
             </button>
             <button
               data-testid="share-tab-publish"
@@ -208,7 +208,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                 " flex items-center gap-1.5"
               }
             >
-              {t("게시")}
+              {t("Publish")}
               {token && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />}
             </button>
           </div>
@@ -219,7 +219,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
           <div className="mb-1">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                {t("사용자 초대")}
+                {t("Invite users")}
               </span>
               <div className="relative">
                 <button
@@ -227,13 +227,13 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   onClick={() => setPickerOpen((v) => !v)}
                   className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700"
                 >
-                  <UserPlus size={13} /> {t("멤버 추가")}
+                  <UserPlus size={13} /> {t("Add members")}
                 </button>
                 {pickerOpen && (
                   <div className="popover-anim absolute right-0 top-8 z-50 max-h-48 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
                     {candidates.length === 0 ? (
                       <div className="px-2 py-1 text-xs text-neutral-400">
-                        {t("다른 멤버가 없습니다")}
+                        {t("No other members")}
                       </div>
                     ) : (
                       candidates.map((w) => (
@@ -260,7 +260,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                 onKeyDown={(e) => {
                   if (!isImeComposing(e) && e.key === "Enter") void invite();
                 }}
-                placeholder={t("이메일…")}
+                placeholder={t("Email…")}
                 className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
               />
               <MemorySelect
@@ -274,7 +274,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                 onClick={() => void invite()}
                 className="shrink-0 rounded-md bg-blue-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600"
               >
-                {t("초대")}
+                {t("Invite")}
               </button>
             </div>
             {error && (
@@ -304,7 +304,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                     data-testid={`share-person-remove-${m.user.id}`}
                     onClick={() => void remove(`userId=${m.user.id}`)}
                     className="text-xs text-neutral-400 hover:text-red-500"
-                    aria-label={t("액세스 권한 제거")}
+                    aria-label={t("Remove access")}
                   >
                     ✕
                   </button>
@@ -322,7 +322,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   <span className="min-w-0 flex-1 truncate text-xs text-neutral-700 dark:text-neutral-200">
                     {i.email}
                     <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                      {t("게스트 · 대기 중")}
+                      {t("Guest · Pending")}
                     </span>
                   </span>
                   <MemorySelect
@@ -335,7 +335,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                     data-testid={`page-access-remove-${i.email}`}
                     onClick={() => void remove(`email=${encodeURIComponent(i.email)}`)}
                     className="text-xs text-neutral-400 hover:text-red-500"
-                    aria-label={t("초대 취소")}
+                    aria-label={t("Cancel invite")}
                   >
                     ✕
                   </button>
@@ -357,7 +357,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
           >
             <LinkIcon size={13} className="text-neutral-400" />
-            {copied ? t("복사됨!") : t("링크 복사")}
+            {copied ? t("Copied!") : t("Copy link")}
           </button>
           </div>
           )}
@@ -369,7 +369,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
               <div className="mb-2 flex items-center justify-between gap-2 text-sm text-neutral-600 dark:text-neutral-300">
                 <span className="flex items-center gap-2">
                   <Globe size={14} className="text-blue-500" />
-                  {t("링크가 있는 모든 사용자에게")}
+                  {t("Anyone with the link")}
                 </span>
                 <MemorySelect
                   testid="share-link-permission"
@@ -396,13 +396,13 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   }}
                   className="shrink-0 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-200 dark:text-neutral-900"
                 >
-                  {copied ? t("복사됨!") : t("복사")}
+                  {copied ? t("Copied!") : t("Copy")}
                 </button>
               </div>
               {/* ── Link options: expiry / password / duplicate ── */}
               <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-neutral-100 p-2 text-xs dark:border-neutral-700">
                 <label className="flex items-center justify-between gap-2 text-neutral-500 dark:text-neutral-400">
-                  {t("링크 만료")}
+                  {t("Link expiration")}
                   <input
                     type="date"
                     data-testid="share-expiry-input"
@@ -415,14 +415,14 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   />
                 </label>
                 <div className="flex items-center justify-between gap-2 text-neutral-500 dark:text-neutral-400">
-                  <span>{t("비밀번호")}</span>
+                  <span>{t("Password")}</span>
                   <span className="flex items-center gap-1">
                     <input
                       type="password"
                       data-testid="share-password-input"
                       value={pwDraft}
                       onChange={(e) => setPwDraft(e.target.value)}
-                      placeholder={hasPassword ? t("••••• (설정됨)") : t("없음")}
+                      placeholder={hasPassword ? t("••••• (set)") : t("None")}
                       className="w-24 rounded border border-neutral-200 bg-transparent px-1 py-0.5 outline-none dark:border-neutral-600 dark:text-neutral-300"
                     />
                     <button
@@ -434,7 +434,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                       }}
                       className="rounded border border-neutral-200 px-1.5 py-0.5 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700"
                     >
-                      {hasPassword ? t("변경") : t("설정")}
+                      {hasPassword ? t("Change") : t("Settings")}
                     </button>
                     {hasPassword && (
                       <button
@@ -445,7 +445,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                           setPwDraft("");
                         }}
                         className="rounded px-1 py-0.5 text-neutral-400 hover:text-red-500"
-                        aria-label={t("비밀번호 제거")}
+                        aria-label={t("Remove password")}
                       >
                         ✕
                       </button>
@@ -453,7 +453,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   </span>
                 </div>
                 <label className="flex items-center justify-between gap-2 text-neutral-500 dark:text-neutral-400">
-                  {t("템플릿으로 복제 허용")}
+                  {t("Allow duplicate as template")}
                   <input
                     type="checkbox"
                     data-testid="share-allow-duplicate"
@@ -473,7 +473,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                 }}
                 className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
               >
-                {t("게시 취소")}
+                {t("Unpublish")}
               </button>
             </div>
           ) : (
@@ -481,10 +481,10 @@ export function SharePopover({ pageId }: { pageId: string }) {
               <div className="mb-1 flex flex-col items-center gap-1 py-3 text-center">
                 <Globe size={22} className="text-neutral-300 dark:text-neutral-500" />
                 <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                  {t("웹에 게시")}
+                  {t("Publish to web")}
                 </div>
                 <p className="text-xs text-neutral-400">
-                  {t("이 페이지로 웹사이트를 만듭니다. 링크가 있는 모든 사용자가 볼 수 있습니다.")}
+                  {t("Create a website with this page. Anyone with the link can view it.")}
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
@@ -508,7 +508,7 @@ export function SharePopover({ pageId }: { pageId: string }) {
                   }}
                   className="shrink-0 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600"
                 >
-                  {t("게시")}
+                  {t("Publish")}
                 </button>
               </div>
             </div>

@@ -16,9 +16,14 @@ import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { agentKitFor, invokeAction, txHashFromActionResult } from "@/lib/agent/agentkit";
 import { holdsTreasury } from "@/lib/agent/treasury/approvals";
 import { SONGPYEON_PRICE_ETH, sellerPayTo } from "@/lib/seller";
+import { BUY_SONGPYEON_COMMANDS, SONGPYEON_SHOP } from "@/i18n/content/agent";
+import { makeT } from "@/i18n/translate";
+
+/** The spend demo reports into the room in Korean. */
+const t = makeT("ko");
 
 /**
- * The agent buys from 달빛떡집, and the room learns what happened.
+ * The agent buys from the rice-cake shop (SONGPYEON_SHOP), and the room learns what happened.
  *
  * Extracted from the spend route so the same act can be asked for two ways —
  * the button in the header, or saying it in the chat — without either becoming
@@ -89,7 +94,7 @@ export async function buySongpyeon(
     });
     const paymentTx = txHashFromActionResult(actionResult);
     if (!paymentTx) {
-      await post(`🥮 추석 송편을 주문하려 했는데 결제가 실패했어요 — ${actionResult}`);
+      await post(t("🥮 Tried to order Chuseok songpyeon but the payment failed — {result}", { result: String(actionResult) }));
       return { status: 502, body: { error: "payment failed", detail: actionResult } };
     }
 
@@ -104,8 +109,14 @@ export async function buySongpyeon(
 
     await post(
       sellerRes.ok
-        ? `🥮 달빛떡집에서 추석 송편 한 상자를 주문했어요 — 실제 사람 두 명이 뒤에 있는 에이전트에게만 파는 곳인데, 체인이 우리 가족을 확인해 줬어요. 제 지갑에서 ${SONGPYEON_PRICE_ETH} ETH를 냈습니다. payment tx: ${paymentTx}`
-        : `🚫 달빛떡집이 주문을 거절했어요 (${sellerRes.status} — ${String(sellerBody.error ?? "rejected")}). ${SONGPYEON_PRICE_ETH} ETH를 냈지만 실제 사람 두 명이 뒤에 있다는 걸 증명하지 못했어요. payment tx: ${paymentTx}`
+        ? t(
+            "🥮 Ordered a box of Chuseok songpyeon from {shop} — it only sells to agents with two real people behind them, and the chain vouched for our family. I paid {price} ETH from my wallet. payment tx: {tx}",
+            { shop: SONGPYEON_SHOP, price: SONGPYEON_PRICE_ETH, tx: paymentTx }
+          )
+        : t(
+            "🚫 {shop} turned the order down ({status} — {error}). I paid {price} ETH but couldn't prove there are two real people behind me. payment tx: {tx}",
+            { shop: SONGPYEON_SHOP, status: sellerRes.status, error: String(sellerBody.error ?? "rejected"), price: SONGPYEON_PRICE_ETH, tx: paymentTx }
+          )
     );
 
     return {
@@ -128,7 +139,7 @@ export async function buySongpyeon(
 }
 
 /**
- * Ask 달빛떡집, from inside the container.
+ * Ask the rice-cake shop, from inside the container.
  *
  * The public origin is HTTPS terminated by nginx out front; reaching for it
  * from in here hits the app's own plain-HTTP port and dies on the TLS
@@ -148,5 +159,5 @@ async function fetchSeller(origin: string, paymentTx: string): Promise<Response>
 /** The one sentence that means "do it", said in the room instead of clicked. */
 export function isBuySongpyeonCommand(text: string): boolean {
   const t = text.trim().toLowerCase().replace(/\s+/g, " ");
-  return t === "@agent buy songpyeon" || t === "@agent 송편 주문해" || t === "@agent 송편 주문해줘";
+  return BUY_SONGPYEON_COMMANDS.includes(t);
 }

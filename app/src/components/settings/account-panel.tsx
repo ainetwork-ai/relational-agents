@@ -8,7 +8,7 @@ import { useMe, useMeStore } from "@/stores/me";
 import { useT } from "@/i18n/provider";
 import { SettingsHeader, SettingsRow, SettingsSection } from "./settings-layout";
 
-/** 설정 › 내 계정: photo + display name. Photo goes through POST /api/upload,
+/** Settings › My account: photo + display name. Photo goes through POST /api/upload,
  *  then PATCH /api/auth/me; the shared me-store keeps every avatar in sync.
  *  (Was the sidebar-footer profile chip — moved here, docs/i18n-plan.md §5 Q2.) */
 export function AccountPanel({ initialName }: { initialName: string }) {
@@ -35,7 +35,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t("저장하지 못했습니다"));
+        setError(data.error || t("Couldn't save"));
         return;
       }
       useMeStore.getState().setMe(data.user);
@@ -55,7 +55,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || t("업로드하지 못했습니다"));
+        setError(data.error || t("Upload failed"));
         return;
       }
       await patch({ avatarUrl: data.url });
@@ -66,8 +66,8 @@ export function AccountPanel({ initialName }: { initialName: string }) {
 
   return (
     <>
-      <SettingsHeader title={t("내 계정")} />
-      <SettingsSection title={t("내 프로필")}>
+      <SettingsHeader title={t("My account")} />
+      <SettingsSection title={t("My profile")}>
         <div className="flex items-center gap-5">
           <UserAvatar user={shown} size={60} />
           <div className="flex flex-col gap-1.5">
@@ -77,7 +77,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
               disabled={busy}
               className="h-7 rounded-md border border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700"
             >
-              {busy ? t("처리 중…") : t("사진 변경")}
+              {busy ? t("Processing…") : t("Change photo")}
             </button>
             <input
               ref={fileRef}
@@ -92,7 +92,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
             />
           </div>
         </div>
-        <SettingsRow label={t("선호하는 이름")}>
+        <SettingsRow label={t("Preferred name")}>
           <div className="flex items-center gap-1.5">
             <input
               data-testid="profile-name-input"
@@ -110,7 +110,7 @@ export function AccountPanel({ initialName }: { initialName: string }) {
                 disabled={busy || !name.trim()}
                 className="h-7 rounded-md bg-blue-500 px-2.5 text-sm font-medium text-white disabled:opacity-50"
               >
-                {t("저장")}
+                {t("Save")}
               </button>
             )}
           </div>

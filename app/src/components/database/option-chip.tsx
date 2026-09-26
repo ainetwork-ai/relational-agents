@@ -31,7 +31,7 @@
  * did not change between themes, so it stays a literal here.
  *
  * `default` is what Notion stores for Status's "Not started" — its CHIP paints
- * exactly like gray in both themes, but the colour menu lists 기본 and 회색 as
+ * exactly like gray in both themes, but the colour menu lists Default and Gray as
  * two rows with two swatches, so the two names must survive storage. */
 export const CHIP_COLOR_KEYS = [
   "default", "gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red",

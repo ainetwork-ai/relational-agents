@@ -39,7 +39,7 @@ export const users = pgTable("users", {
  // the two login families coexist on this one table.
   ainAddress: text("ain_address").unique(),
   // aindrive identity ("<aindrive server>|<aindrive user id>") — set by
-  // "aindrive로 로그인" and by connecting aindrive in-app, so either path lands
+  // "Sign in with aindrive" and by connecting aindrive in-app, so either path lands
   // on the same account. Keyed on the aindrive id, never adopted by email.
   aindriveSub: text("aindrive_sub").unique(),
   // World ID (Human Continuity IdP) pairwise subject — proof that a unique
@@ -323,20 +323,20 @@ export interface PropertyConfig {
    * `To-do · In progress · Complete`, and one of its views filters by the
    * GROUP rather than by an option (docs/notion-projects-spec.md) */
   optionGroups?: { id: string; name: string; color?: string; optionIds: string[] }[];
-  /** status: the option new rows start on — the original tags it `기본` in the
+  /** status: the option new rows start on — the original tags it `Default` in the
    * property editor and applies it to every page created without a value */
   defaultOptionId?: string;
-  /** status/select: the property editor's 콘텐츠 줄바꿈하기 switch. Stored so the
+  /** status/select: the property editor's Wrap content switch. Stored so the
    * toggle round-trips; table cells still clip to one line (table_wrap: false
    * in every capture), so nothing reads it yet. */
   wrapContent?: boolean;
   /** date: repeat every year (birthdays, anniversaries) — calendar views lay
  * the row out on its month/day in EVERY year, ignoring the stored year */
   recurring?: "yearly";
-  /** date: how every cell in the column reads — the picker's `날짜 형식` row.
+  /** date: how every cell in the column reads — the picker's `Date format` row.
    * The original keeps this on the property, which is why its Projects table
-   * shows `Start date` as 08/04/2026 and `End date` as 2026년 8월 4일 at the
-   * same time. One of DateFormat; undefined means 전체 날짜. */
+   * shows `Start date` as 08/04/2026 and `End date` as August 4, 2026 at the
+   * same time. One of DateFormat; undefined means Full date. */
   dateFormat?: string;
   /** relation: the target database whose rows this links to */
   relationDatabaseId?: string;
@@ -353,8 +353,8 @@ export interface PropertyConfig {
   numberFormat?: string;
   /** number: how to render the value — "number" | "bar" (progress) */
   display?: string;
-  /** show this property above a row page's body rather than in its 속성 panel
-   * — what the original's 레이아웃 사용자 지정 chooses. Lives on the property
+  /** show this property above a row page's body rather than in its Properties panel
+   * — what the original's Customize layout chooses. Lives on the property
    * because `config` is already JSON: pinning needed no new column. Undefined
    * on every property means nobody has chosen, and the first few stand in. */
   pinned?: boolean;
@@ -364,7 +364,7 @@ export interface PropertyConfig {
    * order starts elsewhere) — so the order is its own field, not `position`.
    * Undefined falls back to `position`. */
   pinnedOrder?: number;
-  /** 속성 표시 여부 — what the 속성 panel's label menu sets for a property that
+  /** Property visibility — what the Properties panel's label menu sets for a property that
    * is NOT pinned: "always" (the default) · "hide_empty" · "never". The band
    * ignores it; a pinned property keeps its slot however empty it is. */
   pageVisibility?: "always" | "hide_empty" | "never";
@@ -528,12 +528,12 @@ export const databases = pgTable("databases", {
   title: text("title").default("Untitled Database").notNull(),
  // editable text under the DB title
   description: text("description").default("").notNull(),
- // 설명 표시 / 설명 숨기기. Deliberately nullable: null means nobody has toggled
+ // Show description / Hide description. Deliberately nullable: null means nobody has toggled
  // it, and then the description shows if there is any — a database that already
  // has text must not go blank the moment this column exists.
   descriptionVisible: boolean("description_visible"),
  // What one row is called, used wherever the UI offers to make one: the
- // original's Projects says "새 프로젝트", not "새 페이지". Null = 페이지.
+ // original's Projects says "New project", not "New page". Null = Page.
   itemName: text("item_name"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -595,7 +595,7 @@ export const dbViews = pgTable(
 // ---------------------------------------------------------------------------
 // Teamspaces: a named grouping of pages inside a workspace (pages.teamspaceId).
 // ---------------------------------------------------------------------------
-/** Who can see and join a teamspace — the "보안" field of the create dialog. */
+/** Who can see and join a teamspace — the "Security" field of the create dialog. */
 export type TeamspaceVisibility = "open" | "closed" | "private";
 
 export const teamspaces = pgTable(
@@ -607,9 +607,9 @@ export const teamspaces = pgTable(
       .notNull(),
     name: text("name").notNull(),
     icon: text("icon"),
- // "이 팀스페이스의 용도는 무엇인가요?" — optional, shown under the name
+ // "What is this teamspace for?" — optional, shown under the name
     description: text("description").default("").notNull(),
- // open = anyone in the workspace can see and join (Notion's default 공개)
+ // open = anyone in the workspace can see and join (Notion's default, Open)
     visibility: text("visibility").$type<TeamspaceVisibility>().default("open").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -978,7 +978,7 @@ export const aindriveLinks = pgTable("aindrive_links", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// aindrive folders linked into a teamspace (sidebar → aindrive에 동기화하기).
+// aindrive folders linked into a teamspace (sidebar → Sync to aindrive).
 // Each member links their own (a family: grandma's, mom's, dad's), and every
 // member of the teamspace can open all of them — calls run as whoever linked
 // the folder. One of them (`backup`) also receives the teamspace's OKF backup
@@ -1045,7 +1045,7 @@ export type ChatRoomBot = typeof chatRoomBots.$inferSelect;
 export type TeamspaceDrive = typeof teamspaceDrives.$inferSelect;
 
 // A family member invited into a teamspace to share their phone's folders
-// (sidebar/page header → 가족 폴더 → 초대하기). The link opens /family/<token>:
+// (sidebar/page header → Family folders → Invite). The link opens /family/<token>:
 // approve once with aindrive, pick what to share, done. `acceptedBy` is set when
 // they join; until then the family folders sheet lists them as waiting.
 export const familyInvites = pgTable(
@@ -1059,7 +1059,7 @@ export const familyInvites = pgTable(
     teamspaceId: uuid("teamspace_id")
       .references(() => teamspaces.id, { onDelete: "cascade" })
       .notNull(),
-    // who they are to the family ("외할아버지") — becomes their name on joining
+    // who they are to the family ("maternal grandfather") — becomes their name on joining
     name: text("name").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     acceptedBy: uuid("accepted_by").references(() => users.id),

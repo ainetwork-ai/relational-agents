@@ -6,6 +6,8 @@ import { useMe } from "@/stores/me";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { aindriveRawUrl, parseAindriveUrl } from "@/lib/aindrive-url";
 import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n";
+import type { AgUiEvent, PayStep } from "@/lib/x402/agui";
 
 interface GiftView {
   spec: {
@@ -20,56 +22,110 @@ interface GiftView {
   unlock?: { at: string; byName: string; receipt: string };
 }
 
-const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+const won = (t: T, n: number) => t("{n} won", { n: n.toLocaleString("ko-KR") });
+
+/** The AG-UI steps of a payment run, in order, as the button narrates them. */
+const STEP_LABEL: Record<PayStep, string> = {
+  quote: "402 · checking the price…",
+  sign: "Signing in the wallet…",
+  settle: "Settling…",
+  unlock: "Opening…",
+};
 
 /**
  * A gift on a page: a file its maker keeps unshared on their own device,
- * offered behind x402. Locked, it shows a blurred preview and "용돈으로 열기";
+ * offered behind x402. Locked, it shows a blurred preview and "Open with pocket money";
  * paying sends the pocket money to the maker and opens it for the family.
+ *
+ * The payment is followed as an AG-UI run (POST …/pay with
+ * Accept: text/event-stream): each STEP_STARTED changes the button's words,
+ * the final STATE_SNAPSHOT carries the unlock, RUN_ERROR the reason.
  */
 export function GiftBlock({ blockId, gift }: { blockId: string; gift: GiftView }) {
   const t = useT();
   const me = useMe();
   const info = useAindriveInfo();
   const [unlock, setUnlock] = useState(gift.unlock ?? null);
-  const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<PayStep | null>(null);
+  const [settlement, setSettlement] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { spec } = gift;
   const mine = me?.id === spec.recipientUserId;
   const previewRef = spec.previewUrl ? parseAindriveUrl(spec.previewUrl, info?.base) : null;
   const video = `/api/gift/${encodeURIComponent(spec.id)}/video`;
   const usdc = (Number(spec.amount) / 1e6).toFixed(2);
+  const busy = step !== null;
 
   async function pay() {
-    setBusy(true);
+    setStep("quote");
     setError(null);
-    const r = await fetch(`/api/gift/${encodeURIComponent(spec.id)}/pay`, { method: "POST" }).catch(() => null);
-    const d = (await r?.json().catch(() => ({}))) as { unlock?: GiftView["unlock"]; error?: string } | undefined;
-    setBusy(false);
-    if (!r?.ok || !d?.unlock) return setError(d?.error ?? t("결제하지 못했어요. 다시 시도해 주세요."));
-    setUnlock(d.unlock);
+    let r: Response | null = null;
+    try {
+      r = await fetch(`/api/gift/${encodeURIComponent(spec.id)}/pay`, { method: "POST", headers: { accept: "text/event-stream" } });
+    } catch {
+      r = null;
+    }
+    if (!r?.ok || !r.body) {
+      const d = (await r?.json().catch(() => ({}))) as { error?: string } | undefined;
+      setStep(null);
+      return setError(d?.error ?? t("Payment failed. Please try again."));
+    }
+    // AG-UI over SSE: one JSON event per `data:` line
+    const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buf = "";
+    let done: GiftView["unlock"] | null = null;
+    let failed: string | null = null;
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buf += chunk.value;
+      let nl;
+      while ((nl = buf.indexOf("\n\n")) >= 0) {
+        const frame = buf.slice(0, nl);
+        buf = buf.slice(nl + 2);
+        const line = frame.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        let e: AgUiEvent;
+        try {
+          e = JSON.parse(line.slice(5));
+        } catch {
+          continue;
+        }
+        if (e.type === "STEP_STARTED") setStep(e.stepName);
+        else if (e.type === "STATE_SNAPSHOT") {
+          if (e.snapshot.settlement) setSettlement(e.snapshot.settlement);
+          if (e.snapshot.unlock) done = e.snapshot.unlock as GiftView["unlock"];
+        } else if (e.type === "RUN_ERROR") failed = e.message;
+      }
+    }
+    setStep(null);
+    if (done) return setUnlock(done);
+    setError(failed ?? t("Payment failed. Please try again."));
   }
 
   return (
     <div
       data-testid={`gift-block-${blockId}`}
       data-unlocked={unlock ? "true" : "false"}
+      data-settlement={settlement ?? undefined}
       contentEditable={false}
       className="my-1 overflow-hidden rounded-lg border border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20"
     >
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         <Gift size={15} className="shrink-0 text-amber-600" />
         <span className="font-medium text-neutral-800 dark:text-neutral-100">{spec.title}</span>
-        <span className="text-xs text-neutral-500">· {t("{name}이(가) 만든 영상", { name: spec.recipientName })}</span>
-        <span className="ml-auto rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">x402</span>
+        <span className="text-xs text-neutral-500">· {t("a video by {name}", { name: spec.recipientName })}</span>
+        <span className="ml-auto rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+          x402{settlement === "aindrive" ? " · aindrive" : ""}
+        </span>
       </div>
       {unlock || mine ? (
         <div>
           <video data-testid={`gift-video-${blockId}`} src={video} controls playsInline className="block max-h-[420px] w-full bg-black" />
           <p className="px-3 py-2 text-xs text-neutral-500">
             {unlock
-              ? t("🎁 {by}께서 용돈 {krw}으로 여셨어요 · 영수증 {receipt}", { by: unlock.byName, krw: won(spec.amountKrw), receipt: unlock.receipt })
-              : t("내 영상이에요. 가족에게는 용돈 {krw}으로 열리는 선물로 보여요.", { krw: won(spec.amountKrw) })}
+              ? t("🎁 {by} opened it with {krw} of pocket money · receipt {receipt}", { by: unlock.byName, krw: won(t, spec.amountKrw), receipt: unlock.receipt })
+              : t("Your video. Family members see a gift that opens with {krw} of pocket money.", { krw: won(t, spec.amountKrw) })}
           </p>
         </div>
       ) : (
@@ -83,15 +139,16 @@ export function GiftBlock({ blockId, gift }: { blockId: string; gift: GiftView }
           <div className="absolute inset-0 flex flex-col items-center justify-end gap-2 bg-gradient-to-t from-black/60 to-transparent p-4">
             <button
               data-testid={`gift-pay-${blockId}`}
+              data-step={step ?? undefined}
               onClick={() => void pay()}
               disabled={busy}
               className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-neutral-900 shadow disabled:opacity-60"
             >
               <Lock size={14} />
-              {busy ? t("용돈 보내는 중…") : t("용돈 {krw}으로 열기", { krw: won(spec.amountKrw) })}
+              {step ? t(STEP_LABEL[step]) : t("Open with {krw} of pocket money", { krw: won(t, spec.amountKrw) })}
             </button>
             <span className="text-[11px] text-white/85">
-              {t("x402 · {usdc} USDC → {name} 지갑", { usdc, name: spec.recipientName })}
+              {t("x402 · {usdc} USDC → {name}'s wallet", { usdc, name: spec.recipientName })}
             </span>
             {error && <span className="rounded bg-red-600/90 px-2 py-0.5 text-[11px] text-white">{error}</span>}
           </div>

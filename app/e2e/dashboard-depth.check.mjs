@@ -1,7 +1,7 @@
-// 대시보드 깊이 위젯 — 두 사이드 누적 계단 영역 (호가창 스타일).
+// Dashboard depth widget — cumulative step areas for two sides (order book style).
 //
-// Price(레벨)×Size(크기)×Side(bid/ask) 사다리를 만들고, 두 계단 폴리곤과
-// 누적 합, 크기→개수 전환, 레벨 축 전환을 확인한다.
+// Builds a Price (level) × Size × Side (bid/ask) ladder and checks the two step polygons,
+// the cumulative sums, switching size → count, and switching the level axis.
 //
 //   [BASE_URL=…] node e2e/dashboard-depth.check.mjs
 
@@ -36,7 +36,7 @@ const sideId = await mk("Side", "select", {
   ],
 });
 
-// bid 3레벨(누적 60), ask 2레벨(누적 70) — 98 레벨은 두 행이 합산돼야 한다
+// bid 3 levels (cumulative 60), ask 2 levels (cumulative 70) — level 98 must sum two rows
 const ladder = [
   [98, 10, "bid"], [98, 20, "bid"], [97, 15, "bid"], [96, 15, "bid"],
   [102, 30, "ask"], [104, 40, "ask"],
@@ -62,21 +62,21 @@ const dashTab = page.getByTestId(/^db-view-tab-/).filter({ hasText: "Dash" }).fi
 if (await dashTab.isVisible().catch(() => false)) await dashTab.click();
 await page.waitForSelector("[data-testid='db-dashw-depth-w-d']", { timeout: 60_000 });
 
-// 두 사이드 폴리곤 + 누적 합 툴팁
-if ((await page.locator("[data-depth-side='bid'] path").count()) !== 1) fails.push("bid 계단 폴리곤이 없습니다");
-if ((await page.locator("[data-depth-side='ask'] path").count()) !== 1) fails.push("ask 계단 폴리곤이 없습니다");
+// two side polygons + cumulative sum tooltip
+if ((await page.locator("[data-depth-side='bid'] path").count()) !== 1) fails.push("no bid step polygon");
+if ((await page.locator("[data-depth-side='ask'] path").count()) !== 1) fails.push("no ask step polygon");
 const bidTitle = await page.locator("[data-depth-side='bid'] title").textContent();
 const askTitle = await page.locator("[data-depth-side='ask'] title").textContent();
-if (!bidTitle?.includes("60")) fails.push(`bid 누적이 60이 아닙니다 (${bidTitle}) — 같은 레벨 두 행 합산 실패`);
-if (!askTitle?.includes("70")) fails.push(`ask 누적이 70이 아닙니다 (${askTitle})`);
+if (!bidTitle?.includes("60")) fails.push(`bid cumulative is not 60 (${bidTitle}) — failed to sum two rows at the same level`);
+if (!askTitle?.includes("70")) fails.push(`ask cumulative is not 70 (${askTitle})`);
 
-// 색: bid 초록 / ask 빨강
+// color: bid green / ask red
 const bidStroke = await page.locator("[data-depth-side='bid'] path").getAttribute("stroke");
 const askStroke = await page.locator("[data-depth-side='ask'] path").getAttribute("stroke");
-if (bidStroke !== "#4ade80") fails.push(`bid 색이 초록이 아닙니다 (${bidStroke})`);
-if (askStroke !== "#f87171") fails.push(`ask 색이 빨강이 아닙니다 (${askStroke})`);
+if (bidStroke !== "#4ade80") fails.push(`bid color is not green (${bidStroke})`);
+if (askStroke !== "#f87171") fails.push(`ask color is not red (${askStroke})`);
 
-// 크기 → 개수: bid 4행 / ask 2행
+// size → count: bid 4 rows / ask 2 rows
 await page.getByTestId("db-dash-edit").click();
 await page.getByTestId("db-dashw-agg-w-d").selectOption("count");
 await page.waitForFunction(
@@ -84,24 +84,25 @@ await page.waitForFunction(
   { timeout: 8_000 }
 ).catch(() => {});
 const bidCnt = await page.locator("[data-depth-side='bid'] title").textContent();
-if (!bidCnt?.includes("4")) fails.push(`개수 모드: bid 누적이 4가 아닙니다 (${bidCnt})`);
+if (!bidCnt?.includes("4")) fails.push(`count mode: bid cumulative is not 4 (${bidCnt})`);
 
-// 레벨 축 셀렉트에 숫자 속성이 있는지 + 전환 동작
+// does the level axis select have the number properties + does switching work
 const xOpts = await page.getByTestId("db-dashw-x-w-d").locator("option").allTextContents();
-if (!xOpts.some((o) => o.includes("Price"))) fails.push("레벨 축 셀렉트에 Price가 없습니다");
-if (!xOpts.some((o) => o.includes("Size"))) fails.push("레벨 축 셀렉트에 Size가 없습니다");
+if (!xOpts.some((o) => o.includes("Price"))) fails.push("the level axis select has no Price");
+if (!xOpts.some((o) => o.includes("Size"))) fails.push("the level axis select has no Size");
 await page.getByTestId("db-dashw-x-w-d").selectOption({ index: 1 });
 await page.waitForTimeout(500);
-if ((await page.locator("[data-depth-side='bid'] path").count()) !== 1) fails.push("레벨 축 전환 후 폴리곤이 사라졌습니다");
+if ((await page.locator("[data-depth-side='bid'] path").count()) !== 1) fails.push("the polygon disappeared after switching the level axis");
 
 await page.request.fetch(`${BASE}/api/pages/${pageId}`, { method: "DELETE" });
 await page.request.fetch(`${BASE}/api/databases/${dbId}`, { method: "DELETE" });
 await browser.close();
 
 if (fails.length) {
-  console.error(`\n  ┌─ 깊이 위젯 불일치 (${fails.length}건) ─────────────`);
+  console.error(`\n  ┌─ Depth widget mismatch (${fails.length}) ─────────────`);
   for (const f of fails) console.error(`  │ ${f}`);
   console.error("  └──────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("깊이 위젯 OK — bid 60/ask 70 누적 계단, 레벨 합산, 개수 전환, 축 전환");
+console.log("depth widget OK — bid 60/ask 70 cumulative steps, level summing, count switch, axis switch");
+

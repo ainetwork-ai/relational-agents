@@ -7,7 +7,7 @@
  * Measured on the original, light theme:
  *   panel        248 wide, white, radius 6
  *   input box    224x28, radius 6, bg rgba(66,35,3,.03), 14px/16.8
- *   caption      14px/500 · 오늘 12px #8E8B86 · chevrons #A5A5A5
+ *   caption      14px/500 · Today 12px #8E8B86 · chevrons #A5A5A5
  *   week head    32x32 cells, 12px #8B9898
  *   day          28x28 button inside a 32x32 cell, radius 6, 14px
  *                in-month #2C2C2B · outside #8B9898
@@ -15,8 +15,8 @@
  *   divider      1px rgba(42,28,0,.07), inset 12
  *   option row   240x28, radius 6 · label 14px #2C2C2B · value 14px #7D7A75
  *   toggle       30x18, radius 44
- * and the rows, in the original's order: 종료일 · 날짜 형식 · 시간 포함 ·
- * 리마인더 · 삭제 · 리마인더에 대해 알아보기.
+ * and the rows, in the original's order: End date · Date format · Include time ·
+ * Remind · Clear · Learn about reminders.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -30,6 +30,7 @@ import {
   todayIso,
   type DateFormat,
 } from "@/lib/date-format";
+import { KO_DATE_SEP } from "@/i18n/content/database";
 
 /** A date value is either a plain "YYYY-MM-DD" string (legacy) or an object
  * { start: "YYYY-MM-DD[THH:MM]", end?, includeTime? } for time-of-day/ranges. */
@@ -77,14 +78,19 @@ export function buildDateValue({ date, time, end, endTime, reminder }: DateParts
 
 /** The original's reminder choices for an all-day date. */
 const REMINDERS: { id: string; label: string }[] = [
-  { id: "", label: "알림 없음" },
-  { id: "same_day", label: "이벤트 당일" },
-  { id: "1d", label: "1일 전" },
-  { id: "2d", label: "2일 전" },
-  { id: "1w", label: "1주 전" },
+  { id: "", label: "No reminder" },
+  { id: "same_day", label: "On day of event" },
+  { id: "1d", label: "1 day before" },
+  { id: "2d", label: "2 days before" },
+  { id: "1w", label: "1 week before" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+/** a typed `y m d` in any order, split by `/ . -` or the Korean year/month marks */
+const TYPED_DATE = new RegExp(
+  `^(\\d{1,4})\\s*[/.\\-${KO_DATE_SEP.year}]\\s*(\\d{1,2})\\s*[/.\\-${KO_DATE_SEP.month}]?\\s*(\\d{1,2})`
+);
 const isoOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
 /** Six weeks from the Sunday on or before the 1st — the original's grid never
@@ -114,11 +120,11 @@ function monthOf(iso: string): { y: number; m: number } {
   return { y, m: m - 1 };
 }
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const WEEKDAY_FULL = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /**
- * The calendar alone: caption, 오늘, month arrows, and the day grid.
+ * The calendar alone: caption, Today, month arrows, and the day grid.
  * `range` paints the days between start and end the way the original does.
  */
 export function MonthGrid({
@@ -159,11 +165,11 @@ export function MonthGrid({
             onClick={() => setYm(monthOf(today))}
             className="rounded px-[10px] text-[12px] leading-5 text-[#8e8b86] hover:bg-[rgba(66,35,3,0.06)] dark:hover:bg-white/10"
           >
-            {t("오늘")}
+            {t("Today")}
           </button>
           <button
             data-testid={`db-date-prevmonth-${idBase}`}
-            aria-label={t("이전 달")}
+            aria-label={t("Previous month")}
             onClick={() => setYm(ym.m === 0 ? { y: ym.y - 1, m: 11 } : { y: ym.y, m: ym.m - 1 })}
             className="flex h-5 w-4 items-center justify-center text-[#a5a5a5] hover:text-[#2c2c2b] dark:hover:text-neutral-100"
           >
@@ -171,7 +177,7 @@ export function MonthGrid({
           </button>
           <button
             data-testid={`db-date-nextmonth-${idBase}`}
-            aria-label={t("다음 달")}
+            aria-label={t("Next month")}
             onClick={() => setYm(ym.m === 11 ? { y: ym.y + 1, m: 0 } : { y: ym.y, m: ym.m + 1 })}
             className="flex h-5 w-4 items-center justify-center text-[#a5a5a5] hover:text-[#2c2c2b] dark:hover:text-neutral-100"
           >
@@ -280,7 +286,7 @@ function OptRow({
   );
 }
 
-/** A right-hand submenu (날짜 형식 / 리마인더) — 180 wide on the original. */
+/** A right-hand submenu (Date format / Remind) — 180 wide on the original. */
 function SubMenu({
   testid,
   items,
@@ -398,7 +404,7 @@ function parseTyped(text: string, fmt: DateFormat): string | null {
   if (!s) return null;
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return s;
-  const nums = s.match(/^(\d{1,4})\s*[/.\-년]\s*(\d{1,2})\s*[/.\-월]?\s*(\d{1,2})/);
+  const nums = s.match(TYPED_DATE);
   if (nums) {
     const [a, b, c] = [Number(nums[1]), Number(nums[2]), Number(nums[3])];
     let y: number, m: number, d: number;
@@ -414,7 +420,7 @@ function parseTyped(text: string, fmt: DateFormat): string | null {
 }
 
 /**
- * The whole panel. `onFormat` is optional: without it the 날짜 형식 row still
+ * The whole panel. `onFormat` is optional: without it the Date format row still
  * shows the format but cannot change it (a surface with no property to write).
  */
 export function DatePickerPanel({
@@ -456,7 +462,7 @@ export function DatePickerPanel({
           includeTime={includeTime}
           active={hasEnd && editing === "start"}
           autoFocus
-          placeholder={t("날짜 입력")}
+          placeholder={t("Enter a date")}
           onFocus={() => setEditing("start")}
           onDate={(iso) => onChange({ date: iso })}
           onTime={(hm) => onChange({ time: hm })}
@@ -469,7 +475,7 @@ export function DatePickerPanel({
             fmt={fmt}
             includeTime={includeTime}
             active={editing === "end"}
-            placeholder={t("종료일")}
+            placeholder={t("End date")}
             onFocus={() => setEditing("end")}
             onDate={(iso) => onChange({ end: iso })}
             onTime={(hm) => onChange({ endTime: hm })}
@@ -489,7 +495,7 @@ export function DatePickerPanel({
       <div ref={rowsRef} className="relative space-y-px px-1">
         <OptRow
           testid={`db-date-endtoggle-${idBase}`}
-          label={t("종료일")}
+          label={t("End date")}
           onClick={() => {
             const next = !hasEnd;
             setHasEnd(next);
@@ -504,7 +510,7 @@ export function DatePickerPanel({
         <div className="relative">
           <OptRow
             testid={`db-date-format-${idBase}`}
-            label={t("날짜 형식")}
+            label={t("Date format")}
             onClick={() => setSub((s) => (s === "format" ? "" : "format"))}
           >
             <span className="flex items-center gap-1 text-[#7d7a75]">
@@ -527,7 +533,7 @@ export function DatePickerPanel({
 
         <OptRow
           testid={`db-date-timetoggle-${idBase}`}
-          label={t("시간 포함")}
+          label={t("Include time")}
           onClick={() =>
             includeTime
               ? onChange({ time: "", endTime: "" })
@@ -540,11 +546,11 @@ export function DatePickerPanel({
         <div className="relative">
           <OptRow
             testid={`db-date-reminder-${idBase}`}
-            label={t("리마인더")}
+            label={t("Remind")}
             onClick={() => setSub((s) => (s === "reminder" ? "" : "reminder"))}
           >
             <span className="flex items-center gap-1 text-[#7d7a75]">
-              {t(REMINDERS.find((r) => r.id === parts.reminder)?.label ?? "알림 없음")}
+              {t(REMINDERS.find((r) => r.id === parts.reminder)?.label ?? "No reminder")}
               <Caret size={14} />
             </span>
           </OptRow>
@@ -565,7 +571,7 @@ export function DatePickerPanel({
       <Divider />
 
       <div className="px-1">
-        <OptRow testid={`db-date-clear-${idBase}`} label={t("삭제")} onClick={onClear} />
+        <OptRow testid={`db-date-clear-${idBase}`} label={t("Delete")} onClick={onClear} />
       </div>
 
       <Divider />
@@ -573,7 +579,7 @@ export function DatePickerPanel({
       <div className="px-1">
         <div className="flex h-7 items-center gap-3 px-2 text-[14px] leading-[16.8px] text-[#7d7a75]">
           <HelpCircle size={16} />
-          <span>{t("리마인더에 대해 알아보기")}</span>
+          <span>{t("Learn about reminders")}</span>
         </div>
       </div>
     </div>

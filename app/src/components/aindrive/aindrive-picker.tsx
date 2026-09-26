@@ -42,7 +42,7 @@ function fmtSize(n?: number): string {
 }
 
 /**
- * "aindrive에서 가져오기": pick a file from the aindrive folders offered here.
+ * "Import from aindrive": pick a file from the aindrive folders offered here.
  * Nothing is uploaded — the block gets the file's aindrive link, and the
  * preview reads the file from the drive whenever the page is opened.
  */
@@ -127,13 +127,13 @@ export function AindrivePicker({
         if (!alive) return;
         if (!r.ok) {
           setEntries([]);
-          setError(d.error ?? t("폴더를 읽을 수 없습니다"));
+          setError(d.error ?? t("Could not read the folder"));
         } else {
           setError(null);
           setEntries(d.entries ?? []);
         }
       })
-      .catch(() => alive && setError(t("폴더를 읽을 수 없습니다")));
+      .catch(() => alive && setError(t("Could not read the folder")));
     return () => {
       alive = false;
     };
@@ -162,13 +162,13 @@ export function AindrivePicker({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("aindrive에서 가져오기")}
+        aria-label={t("From aindrive")}
         data-testid="aindrive-picker"
         className="flex max-h-[80vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl dark:bg-neutral-900"
       >
         <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
           <HardDrive size={16} className="text-neutral-400" />
-          <h2 className="text-sm font-semibold">{t("aindrive에서 가져오기")}</h2>
+          <h2 className="text-sm font-semibold">{t("From aindrive")}</h2>
           {sources.length > 1 && (
             <select
               data-testid="aindrive-picker-drive"
@@ -179,7 +179,7 @@ export function AindrivePicker({
               {(["mine", "shared"] as const).map((g) => {
                 const inGroup = sources.filter((x) => x.group === g);
                 return inGroup.length ? (
-                  <optgroup key={g} label={g === "mine" ? t("내 aindrive") : t("팀스페이스에 공유된 폴더")}>
+                  <optgroup key={g} label={g === "mine" ? t("My aindrive") : t("Shared in teamspaces")}>
                     {inGroup.map((x) => (
                       <option key={x.key} value={x.key}>
                         {x.label}
@@ -190,7 +190,7 @@ export function AindrivePicker({
               })}
             </select>
           )}
-          <button onClick={onClose} aria-label={t("닫기")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+          <button onClick={onClose} aria-label={t("Close")} className="ml-auto rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
             <X size={16} />
           </button>
         </div>
@@ -200,7 +200,7 @@ export function AindrivePicker({
           </div>
         )}
         <p className="px-4 pt-1 text-[11px] text-neutral-400">
-          {t("파일을 복사하지 않고 링크로 넣습니다. 드라이브의 파일이 바뀌면 미리보기도 바뀝니다.")}
+          {t("Inserted as a link, not a copy — the preview follows the file on the drive.")}
         </p>
 
         {info && info.configured && !info.connected && !shared.length ? (
@@ -216,9 +216,9 @@ export function AindrivePicker({
             />
           </div>
         ) : info && !info.configured ? (
-          <p className="p-4 text-sm text-neutral-500">{t("이 서버에는 aindrive가 설정되어 있지 않습니다.")}</p>
+          <p className="p-4 text-sm text-neutral-500">{t("aindrive is not configured on this server.")}</p>
         ) : info && sources.length === 0 ? (
-          <p className="p-4 text-sm text-neutral-500">{t("가져올 수 있는 aindrive 폴더가 없습니다.")}</p>
+          <p className="p-4 text-sm text-neutral-500">{t("No aindrive folders to pick from.")}</p>
         ) : (
           <>
             <nav className="flex flex-wrap items-center gap-0.5 px-4 py-2 text-xs text-neutral-500">
@@ -239,10 +239,10 @@ export function AindrivePicker({
               ))}
             </nav>
             <ul data-testid="aindrive-picker-list" className="min-h-[12rem] flex-1 overflow-y-auto px-2 pb-3">
-              {entries === null && <li className="px-2 py-2 text-xs text-neutral-400">{t("불러오는 중…")}</li>}
+              {entries === null && <li className="px-2 py-2 text-xs text-neutral-400">{t("Loading…")}</li>}
               {error && <li className="px-2 py-2 text-xs text-red-600">{error}</li>}
               {entries && !error && entries.length === 0 && (
-                <li className="px-2 py-2 text-xs text-neutral-400">{t("빈 폴더입니다")}</li>
+                <li className="px-2 py-2 text-xs text-neutral-400">{t("The folder is empty")}</li>
               )}
               {entries?.map((e) => {
                 const path = dir ? `${dir}/${e.name}` : e.name;
@@ -252,7 +252,7 @@ export function AindrivePicker({
                       data-testid={`aindrive-picker-entry-${e.name}`}
                       onClick={() => {
                         if (e.isDir) return setDir(path);
-                        if (!info?.base) return setError(t("aindrive 주소를 알 수 없습니다"));
+                        if (!info?.base) return setError(t("Unknown aindrive address"));
                         onPick({ url: aindriveFileUrl(info.base, { driveId, path }), name: e.name });
                       }}
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"

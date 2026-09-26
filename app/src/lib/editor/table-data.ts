@@ -14,7 +14,7 @@ export type CellField = "color" | "bg" | "align";
 export type Align = "left" | "center" | "right";
 
 /** Text alignment is ours, not the original's — Notion's simple table has no
- * alignment at all (measured: e2e/fixtures/notion-table-grip.json §menu.ours).
+ * alignment at all (measured: src/i18n/content/e2e-fixtures/notion-table-grip.json §menu.ours).
  * "left" is the default and is stored as nothing. */
 export const ALIGNS: Align[] = ["left", "center", "right"];
 const ALIGN_CLASS: Record<Align, string> = {
@@ -83,7 +83,7 @@ export function moveLine(table: TableData, kind: LineKind, from: number, to: num
     : mapGrids(table, (grid) => shift(grid));
 }
 
-/** "콘텐츠 삭제": blank the text (and its html) but keep colour and alignment. */
+/** "Clear contents": blank the text (and its html) but keep colour and alignment. */
 export function clearLineContents(table: TableData, kind: LineKind, i: number): TableData {
   const blank = (grid: string[][]) =>
     grid.map((row, r) => row.map((v, c) => ((kind === "row" ? r === i : c === i) ? "" : v)));

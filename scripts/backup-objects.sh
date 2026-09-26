@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 #
-# 오브젝트 스토리지 백업 — 오브젝트 단위 미러 + 판독 검증.
+# Object storage backup — a per-object mirror + read-back verification.
 #
-#   scripts/backup-objects.sh [목적지]
+#   scripts/backup-objects.sh [destination]
 #
-# **왜 tar 가 아니라 미러인가.** tar 는 (a) 라이브 데이터 디렉터리를 쓰기 중간에 잡을 수
-# 있고 (b) 복원이 볼륨 통째 교체뿐이며 (c) 원본과 대조할 단위가 없다. `mc mirror` 는 API 를
-# 거쳐 오브젝트 단위로 읽으므로 일관되고, 개수·총바이트를 원본과 맞춰볼 수 있다.
-# 그리고 결정적으로 — **앱을 얼릴 필요가 없다.** 백업이 3분 10초 동안 앱을 정지시키던 것이
-# 매일 04:01 워치독 재시작을 부른 원인이었다(docs/object-storage.md).
+# **Why a mirror and not tar.** tar can (a) catch the live data directory mid-write,
+# (b) only restore by replacing the whole volume, and (c) has no unit to compare with the source. `mc mirror` reads
+# object by object through the API, so it is consistent and its count and total bytes can be checked against the source.
+# And crucially — **the app does not have to be frozen.** The backup freezing the app for 3m10s was
+# what triggered the daily 04:01 watchdog restarts (docs/object-storage.md).
 #
-# **DB 는 여기서 안 뜬다.** Postgres 는 `s3://` 경로 **문자열**만 갖고 있어 바이트를 대신
-# 지켜주지 않고, 반대로 오브젝트만 있으면 누가 무엇을 붙였는지 알 수 없다. 둘 다 떠야 하고
-# 주기는 서로 달라도 된다 — 오브젝트는 내용 주소라 한 번 쓰인 키의 바이트가 절대 바뀌지
-# 않으므로, DB 보다 드물게 떠도 안전하다.
+# **The DB is not dumped here.** Postgres only holds the `s3://` path **strings**, so it does not
+# protect the bytes, and objects alone don't tell you who attached what. Both must be backed up, and
+# the intervals may differ — objects are content-addressed, so the bytes of a written key never change,
+# which makes it safe to back them up less often than the DB.
 #
-# MinIO 는 포트를 노출하지 않으므로 호스트에서 직접 못 붙는다 — `minio/mc` 컨테이너를
-# 같은 네트워크에 붙여 쓴다.
+# MinIO exposes no port, so the host can't connect directly — attach a `minio/mc` container
+# to the same network.
 #
-# 목적지 기본값은 **레포 밖** ~/ainmem-backups/objects 다. 레포 안에 두면 `git add -A` 한
-# 번에 사용자 파일이 커밋될 수 있다(backup-prod.sh 와 같은 이유).
+# The default destination is ~/ainmem-backups/objects, **outside the repo**. Inside the repo a single `git add -A`
+# could commit user files (same reason as backup-prod.sh).
 set -euo pipefail
 
-# cron 은 환경이 비어 있다 — 안 주면 .env.prod 에서 읽는다(레포 밖 목적지와 같은 이유로
-# 자격증명을 스크립트에 박지 않는다).
+# cron has an empty environment — if not given, read from .env.prod (for the same reason as the outside-repo
+# destination, credentials are not hard-coded in the script).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -z "${MINIO_ACCESS_KEY:-}" ] && [ -f "$REPO/.env.prod" ]; then
   set -a; . "$REPO/.env.prod"; set +a
@@ -34,15 +34,15 @@ KEEP="${KEEP:-4}"
 NET="${MINIO_NETWORK:-ainmem_prod_default}"
 ENDPOINT="${MINIO_ENDPOINT:-minio:9000}"
 BUCKET="${MINIO_BUCKET:-ainmem-files}"
-: "${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY 가 필요하다}"
-: "${MINIO_SECRET_KEY:?MINIO_SECRET_KEY 가 필요하다}"
+: "${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}"
+: "${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}"
 
 STAMP=$(date +%Y%m%d_%H%M%S)
 DEST="$OUT/$STAMP"
 mkdir -p "$DEST"
 
-# --user 를 붙이는 이유: 안 붙이면 컨테이너가 root 로 써서 **사본이 root 소유**가 되고,
-# 보존 정리(rm -rf)가 조용히 실패해 세트가 무한히 쌓인다. 실측으로 잡았다.
+# Why --user: without it the container writes as root, so **the copy is owned by root**, and
+# retention cleanup (rm -rf) fails silently and sets pile up forever. Caught by measurement.
 mc_cmd() {
   docker run --rm --network "$NET" --user "$(id -u):$(id -g)" \
     -e MC_HOST_src="http://${MINIO_ACCESS_KEY}:${MINIO_SECRET_KEY}@${ENDPOINT}" \
@@ -53,14 +53,14 @@ mc_cmd() {
 echo "▸ mirror src/$BUCKET → $DEST"
 mc_cmd mirror --quiet --overwrite "src/$BUCKET" "/backup/$BUCKET"
 
-# 판독 검증 — 원본과 개수·총바이트를 맞춰본다. `mc mirror` 의 exit 0 은 "명령이 실패하지
-# 않았다"이지 "다 왔다"가 아니다.
+# Read-back verification — compare count and total bytes with the source. `mc mirror` exiting 0 means "the command did not
+# fail", not "everything arrived".
 SRC_N=$(mc_cmd ls --recursive "src/$BUCKET" | wc -l)
 DST_N=$(find "$DEST/$BUCKET" -type f 2>/dev/null | wc -l)
 SRC_B=$(mc_cmd du "src/$BUCKET" | awk '{print $1}')
 DST_B=$(du -sh "$DEST/$BUCKET" 2>/dev/null | cut -f1)
 if [ "$SRC_N" -ne "$DST_N" ] || [ "$SRC_N" -eq 0 ]; then
-  echo "판독 검증 실패: 원본 ${SRC_N}개 / 사본 ${DST_N}개 — 세트를 폐기한다" >&2
+  echo "read-back verification failed: source ${SRC_N} / copy ${DST_N} objects — discarding the set" >&2
   rm -rf "$DEST"
   exit 1
 fi
@@ -69,13 +69,13 @@ fi
   echo "taken_at:   $(date -Is)"
   echo "host:       $(hostname)"
   echo "bucket:     $BUCKET @ $ENDPOINT"
-  echo "objects:    $SRC_N (원본과 개수 일치 확인)"
+  echo "objects:    $SRC_N (count matches the source)"
   echo "size_src:   $SRC_B"
   echo "size_dst:   $DST_B"
-  echo "note:       DB 는 별도다 — scripts/backup-prod.sh (db.dump). 둘 다 있어야 복원된다."
+  echo "note:       the DB is separate — scripts/backup-prod.sh (db.dump). A restore needs both."
 } > "$DEST/MANIFEST"
 
 mapfile -t OLD < <(ls -1d "$OUT"/[0-9]*_[0-9]* 2>/dev/null | sort | head -n -"$KEEP")
 for d in "${OLD[@]:-}"; do [ -n "$d" ] && rm -rf "$d" && echo "pruned $(basename "$d")"; done
 
-echo "objects: $DEST ($DST_B, ${SRC_N}개)"
+echo "objects: $DEST ($DST_B, ${SRC_N} objects)"

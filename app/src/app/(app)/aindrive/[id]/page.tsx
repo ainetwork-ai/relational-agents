@@ -54,10 +54,10 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
     fetch(`/api/aindrive/links/${id}`)
       .then(async (res) => {
         if (!alive) return;
-        if (!res.ok) return setError(await errorOf(res, t("찾을 수 없습니다")));
+        if (!res.ok) return setError(await errorOf(res, t("Not found")));
         setMeta((await res.json()) as DriveMeta);
       })
-      .catch(() => alive && setError(t("찾을 수 없습니다")));
+      .catch(() => alive && setError(t("Not found")));
     return () => {
       alive = false;
     };
@@ -100,13 +100,13 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
     setBackingUp(true);
     const res = await fetch(`/api/aindrive/links/${id}/backup`, { method: "POST" });
     setBackingUp(false);
-    if (!res.ok) setError(await errorOf(res, t("동기화할 수 없습니다")));
+    if (!res.ok) setError(await errorOf(res, t("Could not sync")));
     else setError(null);
     reload();
   }
 
   async function unlink() {
-    if (!window.confirm(t("이 팀스페이스의 aindrive 연결을 해제할까요? 동기화가 멈추고, 드라이브의 파일은 지워지지 않습니다.")))
+    if (!window.confirm(t("Unlink this teamspace from aindrive? Syncing stops; files on the drive are not deleted.")))
       return;
     await fetch(`/api/aindrive/links/${id}`, { method: "DELETE" });
     window.dispatchEvent(new Event("aindrive:teamspace-changed"));
@@ -131,8 +131,8 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
 
       {!d.backup && (
         <p data-testid="teamspace-drive-shared" className="mb-6 rounded-xl border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
-          {t("{who}님이 {ts} 팀스페이스와 공유한 aindrive 폴더입니다. 팀스페이스 멤버 누구나 열어 보고 고칠 수 있고, 바뀐 내용은 {who}님의 드라이브에 바로 반영됩니다.", {
-            who: meta.linkedBy ?? t("멤버"),
+          {t("An aindrive folder {who} shared with the {ts} teamspace. Any member can open and edit it; changes go straight to {who}'s drive.", {
+            who: meta.linkedBy ?? t("Members"),
             ts: meta.teamspaceName,
           })}
         </p>
@@ -156,14 +156,14 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
             }`}
           >
             <span className={`h-2 w-2 rounded-full ${STATE_DOT[state]}`} />
-            {t("연동됨")} · {t(STATE_LABEL[state])}
+            {t("Linked")} · {t(STATE_LABEL[state])}
           </span>
           <span data-testid="teamspace-drive-backup-status" className="text-xs text-neutral-500">
             {pending
-              ? t("첫 동기화 중…")
+              ? t("First sync running…")
               : d.lastBackupError
-                ? t("마지막 동기화 실패: {error}", { error: d.lastBackupError })
-                : t("마지막 동기화 {time} · 파일 {n}개", {
+                ? t("Last sync failed: {error}", { error: d.lastBackupError })
+                : t("Last sync {time} · {n} files", {
                     time: new Date(d.lastBackupAt!).toLocaleString(),
                     n: d.lastBackupFiles ?? 0,
                   })}
@@ -174,11 +174,11 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
             disabled={backingUp || !meta.available}
             className="ml-auto flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            <CloudUpload size={14} /> {backingUp ? t("동기화 중…") : t("지금 동기화")}
+            <CloudUpload size={14} /> {backingUp ? t("Syncing…") : t("Sync now")}
           </button>
         </div>
         <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-          {t("{ts}의 페이지와 데이터베이스는 편집할 때마다 몇 초 뒤 OKF 형식으로 {folder}/ 에 자동 동기화됩니다. 바로 반영하려면 ‘지금 동기화’를 누르세요. 같은 폴더의 다른 파일은 그대로 두고 함께 보여줍니다.", {
+          {t("{ts}'s pages and databases sync as OKF to {folder}/ a few seconds after each edit. Press ‘Sync now’ to sync right away. Other files in the folder are left as they are and shown alongside.", {
             ts: meta.teamspaceName,
             folder: meta.backupFolder,
           })}
@@ -192,7 +192,7 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
               onClick={() => setShowPages((v) => !v)}
               className="flex w-full flex-wrap items-center gap-3 text-left text-xs text-neutral-500"
             >
-              <span className="font-medium text-neutral-700 dark:text-neutral-200">{t("페이지 {n}개", { n: sync.length })}</span>
+              <span className="font-medium text-neutral-700 dark:text-neutral-200">{t("{n} pages", { n: sync.length })}</span>
               {(["synced", "pending", "failed", "excluded"] as SyncState[])
                 .filter((k) => counts[k] > 0)
                 .map((k) => (
@@ -201,7 +201,7 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
                     {t(SYNC_LABEL[k])} {counts[k]}
                   </span>
                 ))}
-              <span className="ml-auto text-neutral-400">{showPages ? t("접기") : t("펼치기")}</span>
+              <span className="ml-auto text-neutral-400">{showPages ? t("Collapse") : t("Expand")}</span>
             </button>
             {showPages && (
               <ul data-testid="teamspace-drive-pages" className="mt-2 divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -210,10 +210,10 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${SYNC_DOT[p.status]}`} />
                     <Link href={`/p/${p.id}`} className="truncate text-neutral-700 hover:underline dark:text-neutral-200">
                       {p.icon ? `${p.icon} ` : ""}
-                      {p.title || t("제목 없음")}
+                      {p.title || t("Untitled")}
                     </Link>
                     <span className="ml-auto shrink-0 truncate font-mono text-[11px] text-neutral-400">
-                      {p.path ? p.path.slice(meta.backupFolder.length + 1) : t("비공개 페이지라 동기화하지 않습니다")}
+                      {p.path ? p.path.slice(meta.backupFolder.length + 1) : t("Private page — not synced")}
                     </span>
                     <span className="w-16 shrink-0 text-right text-[11px] text-neutral-500">{t(SYNC_LABEL[p.status])}</span>
                   </li>
@@ -238,7 +238,7 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
           rawUrl={(path) => aindriveRawUrl({ driveId: d.driveId, path: d.root ? `${d.root}/${path}` : path })}
         />
       ) : (
-        <p className="text-sm text-neutral-500">{t("이 폴더는 이 서버에서 더 이상 제공되지 않습니다.")}</p>
+        <p className="text-sm text-neutral-500">{t("This folder is no longer offered on this server.")}</p>
       )}
     </div>
   );

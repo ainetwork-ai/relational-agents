@@ -1,22 +1,24 @@
-// 행 피크(사이드 페이지)의 여백을 원본 실측과 대조한다.
+// Compares the row peek (side page) insets against measurements of the original.
 //
-// 기준은 fixtures/notion-peek-inset.json — 노션 Projects에서 창 1000~1800으로
-// 피크를 새로 열어가며 잰 값이다(콘텐츠 인셋 76px 고정, 피크 폭 = 창의 50%,
-// 하한 564). 재는 법과 함정(에뮬레이션 스크롤바 16px)은 픽스처의 note 에.
+// The reference is src/i18n/content/e2e-fixtures/notion-peek-inset.json — values measured in Notion
+// Projects by freshly opening the peek at window widths 1000–1800 (content inset fixed at 76px,
+// peek width = 50% of the window, minimum 564). How it was measured and the pitfall (the 16px
+// emulated scrollbar) are in the fixture's note.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] node e2e/peek-inset.check.mjs
 //
-// 읽기 전용: 행을 열어 재고 닫는다. 저장된 피크 폭(localStorage)은 지우고 잰다.
+// Read-only: opens a row, measures, closes. Clears the saved peek width (localStorage) before measuring.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "af7fc488-3666-4935-9eb9-92d23ebe8238";
 const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
 const G = JSON.parse(
-  fs.readFileSync(new URL("./fixtures/notion-peek-inset.json", import.meta.url), "utf8")
+  fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-peek-inset.json", import.meta.url), "utf8")
 );
 
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
@@ -42,9 +44,9 @@ for (const win of [1200, 1000]) {
   await page.waitForSelector("[data-cellnav]", { timeout: 60_000 });
   await page.evaluate(() => localStorage.removeItem("row-peek-width"));
   await page.locator("[data-cellnav]").first().hover();
-  await page.locator("text=열기").first().click({ timeout: 5000 });
+  await page.locator(`text=${ko("Open")}`).first().click({ timeout: 5000 });
   await page.waitForSelector("[data-testid='db-peek-open-full']", { timeout: 10_000 });
-  // 본문 블록은 별도 fetch 로 뒤늦게 그려진다 — 에디터가 뜰 때까지 기다린다
+  // Body blocks are drawn late by a separate fetch — wait until the editor appears
   await page.waitForSelector("[data-block-type] [contenteditable]", { timeout: 30_000 });
   await page.waitForTimeout(400);
 
@@ -63,15 +65,15 @@ for (const win of [1200, 1000]) {
   });
 
   const wantW = Math.max(G.minWidth, Math.round(win * G.widthFraction));
-  ok(near(m.peekW, wantW), `창 ${win}: 피크 폭 ${m.peekW} ≈ ${wantW}`);
-  ok(near(m.insetL, G.insetL), `창 ${win}: 왼쪽 인셋 ${m.insetL} ≈ ${G.insetL}`);
-  ok(near(m.insetR, G.insetR), `창 ${win}: 오른쪽 인셋 ${m.insetR} ≈ ${G.insetR}`);
+  ok(near(m.peekW, wantW), `window ${win}: peek width ${m.peekW} ≈ ${wantW}`);
+  ok(near(m.insetL, G.insetL), `window ${win}: left inset ${m.insetL} ≈ ${G.insetL}`);
+  ok(near(m.insetR, G.insetR), `window ${win}: right inset ${m.insetR} ≈ ${G.insetR}`);
   await ctx.close();
 }
 
 await browser.close();
 if (fails.length) {
-  console.error(`\n${fails.length}개 실패`);
+  console.error(`\n${fails.length} failed`);
   process.exit(1);
 }
-console.log("\n원본과 차이 없음 — exit 0");
+console.log("\nNo difference from the original — exit 0");

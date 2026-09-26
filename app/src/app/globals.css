@@ -101,7 +101,7 @@ body {
   color: #5a5a58;
 }
 
-/* A database's 설명 keeps its hint while empty whether or not it has focus: the
+/* A database's Description keeps its hint while empty whether or not it has focus: the
    row is open because someone asked for it, and an empty unfocused block would
    otherwise be an invisible gap under the title. Blocks keep the :focus rule —
    a page of always-on placeholders reads as clutter. */
@@ -194,7 +194,7 @@ body {
 }
 .peek-anim-right { animation: peek-in-right 200ms ease; }
 
-/* The 속성 편집 sidebar docks under the view toolbar and slides in the same
+/* The Edit property sidebar docks under the view toolbar and slides in the same
    way (the original transitions transform+opacity over 200ms ease). */
 @keyframes prop-panel-in {
   from { transform: translateX(24px); opacity: 0.6; }
@@ -282,9 +282,9 @@ header {
 [data-testid^="db-col-drag-"]:active { cursor: grabbing; }
 [data-testid^="db-col-resize-"] { cursor: col-resize; }
 
-/* 거터 +로 연 타입 메뉴의 필터 플레이스홀더 (2026-08-26 실측): 회색이 아니라
-   본문과 같은 잉크색 글자에, 글자를 감싸는 옅은 알약 배경(rgba(66,35,3,.03)).
-   :focus 색 규칙보다 뒤에 와서 색을 덮어써야 한다. */
+/* The filter placeholder of the type menu opened from the gutter + (measured 2026-08-26):
+   not grey but the same ink as body text, on a faint pill background wrapping the text
+   (rgba(66,35,3,.03)). It has to come after the :focus colour rule to override its colour. */
 [contenteditable][data-bare-menu]:empty:focus::before {
   color: #2c2c2b;
   background: rgba(66, 35, 3, 0.03);

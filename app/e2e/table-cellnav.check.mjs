@@ -1,15 +1,15 @@
-// 표 블록 안에서의 캐럿 이동(방향키·Tab)과 셀 범위 선택(드래그·Shift+방향키)을
-// 원본에서 잰 값(fixtures/notion-table-cellnav.json)과 대조한다.
+// Compares caret movement (arrow keys, Tab) and cell-range selection (drag, Shift+arrows) inside
+// a table block with the values measured on the original (src/i18n/content/e2e-fixtures/notion-table-cellnav.json).
 //
-// 원본은 CDP 로 노션 '표' 블록을 직접 두드려서 쟀다(2026-08-28, 테이블 테스트 페이지).
-// 규칙 요약:
-//   · 텍스트 끝에서 →  다음 셀 맨 앞 / 앞에서 ←  이전 셀 맨 끝 (행을 넘어 이어진다)
-//   · ↑↓ 는 셀 안의 줄을 먼저 옮기고, 줄이 없으면 위·아래 셀로 (캐럿 x 유지)
-//   · 표 끝에서 더 나가면 표 앞·뒤 블록으로 빠진다
-//   · Tab/Shift+Tab 은 다음·이전 셀의 **맨 끝**, 마지막 셀 Tab 은 아무 일도 없다
-//   · 캐럿이 있는 셀에는 2px 파란 테두리 한 겹, 드래그가 셀을 넘으면 텍스트가 아니라
-//     **셀 범위**가 선택된다(테두리 하나로 union 을 감싸고 오른쪽 변 가운데 손잡이)
-//   · 한 셀 안에서의 드래그는 그냥 텍스트 선택이고 서식 툴바가 뜬다
+// The original was measured by driving a Notion 'Table' block directly over CDP (2026-08-28, table test page).
+// Rules in short:
+//   · → at the end of the text goes to the start of the next cell / ← at the start to the end of the previous cell (wraps across rows)
+//   · ↑↓ first move between lines inside the cell, and with no more lines go to the cell above/below (caret x kept)
+//   · going further past the table edge exits to the block before/after the table
+//   · Tab/Shift+Tab go to the **very end** of the next/previous cell; Tab in the last cell does nothing
+//   · the cell with the caret gets a single 2px blue border; once a drag crosses cells, a **cell range**
+//     is selected, not text (one border wraps the union, with a handle at the middle of the right edge)
+//   · a drag within one cell is just a text selection and brings up the format toolbar
 //
 //   [BASE_URL=http://localhost:3110] [USER_ID=…] node e2e/table-cellnav.check.mjs
 import fs from "node:fs";
@@ -18,7 +18,7 @@ import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-table-cellnav.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-table-cellnav.json", import.meta.url), "utf8"));
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -33,9 +33,9 @@ const blocks = [
 ];
 const created = await fetch(`${BASE}/api/pages`, { method: "POST", headers: H, body: JSON.stringify({ title: "table-cellnav.check" }) }).then((r) => r.json());
 const pageId = created.page?.id ?? created.id;
-if (!pageId) { console.error("페이지를 못 만들었습니다:", created); process.exit(1); }
+if (!pageId) { console.error("Could not create the page:", created); process.exit(1); }
 const put = await fetch(`${BASE}/api/pages/${pageId}/blocks`, { method: "PUT", headers: H, body: JSON.stringify({ blocks, deletedIds: [], newIds: blocks.map((b) => b.id) }) });
-if (!put.ok) { console.error("블록 저장 실패:", put.status, await put.text()); process.exit(1); }
+if (!put.ok) { console.error("Saving blocks failed:", put.status, await put.text()); process.exit(1); }
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -53,7 +53,7 @@ const eq = (label, got, want, tol = 1.5) => {
 };
 const cellSel = (r, c) => `[data-testid="table-cell-${tableId}-${r}-${c}"]`;
 
-/** 캐럿이 어느 셀 몇 번째 글자에 있나 + 그 x 좌표 */
+/** Which cell and character offset the caret is at + its x coordinate */
 const state = () => page.evaluate((tid) => {
   const s = getSelection();
   const out = { text: s && !s.isCollapsed ? s.toString() : "", collapsed: !s || s.isCollapsed };
@@ -71,7 +71,7 @@ const state = () => page.evaluate((tid) => {
       out.offset = pre.toString().length;
       out.cellText = cell.innerText;
     }
-    // 접힌 range 가 엘리먼트에 걸려 있으면 client rect 가 비어 있다 — 옆 글자로 잰다
+    // a collapsed range anchored on an element has empty client rects — measure via the neighboring character
     const rng = s.getRangeAt(0).cloneRange(); rng.collapse(true);
     let box = [...rng.getClientRects()].find((q) => q.width || q.height) ?? null;
     if (!box) {
@@ -104,7 +104,7 @@ const state = () => page.evaluate((tid) => {
   return out;
 }, tableId);
 
-/** 셀 안에 캐럿을 맨 앞/맨 끝으로 놓는다 */
+/** Put the caret at the very start/end of a cell */
 const putCaret = async (r, c, where = "end") => {
   await page.evaluate(({ sel, where }) => {
     const el = document.querySelector(sel);
@@ -117,7 +117,7 @@ const putCaret = async (r, c, where = "end") => {
 };
 const cellBox = (r, c) => page.locator(cellSel(r, c)).boundingBox();
 
-// ── 1. 방향키·Tab ──────────────────────────────────────────────
+// ── 1. Arrow keys / Tab ──────────────────────────────────────────────
 for (const t of G.nav) {
   await page.keyboard.press("Escape").catch(() => {});
   await putCaret(t.from[0], t.from[1], t.caret ?? "end");
@@ -126,16 +126,16 @@ for (const t of G.nav) {
   const s = await state();
   const tag = `nav:${t.id}`;
   if (t.outside) {
-    eq(`${tag} 표 밖으로`, s.cell ?? "밖", "밖");
+    eq(`${tag} out of the table`, s.cell ?? "outside", "outside");
   } else {
-    eq(`${tag} 셀`, s.cell, t.cell);
-    if (["ArrowDown", "ArrowUp"].includes(t.key)) eq(`${tag} 캐럿 x 유지`, s.caretX, pre.caretX, 6);
+    eq(`${tag} cell`, s.cell, t.cell);
+    if (["ArrowDown", "ArrowUp"].includes(t.key)) eq(`${tag} caret x kept`, s.caretX, pre.caretX, 6);
     else eq(`${tag} offset`, s.offset, t.offset, 0);
   }
-  if (t.rows != null) eq(`${tag} 행 수`, await page.locator(`[data-testid^="table-cell-${tableId}-"]`).count() / G.table.cells[0].length, t.rows);
+  if (t.rows != null) eq(`${tag} row count`, await page.locator(`[data-testid^="table-cell-${tableId}-"]`).count() / G.table.cells[0].length, t.rows);
 }
 
-// ── 2. 줄바꿈된 셀 안에서의 세로 이동 ─────────────────────────────
+// ── 2. Vertical movement inside a wrapped cell ─────────────────────────────
 {
   await page.evaluate(({ sel, text }) => {
     const el = document.querySelector(sel);
@@ -144,16 +144,16 @@ for (const t of G.nav) {
   }, { sel: cellSel(1, 1), text: G.wrapped.text });
   await page.waitForTimeout(300);
   const box = await cellBox(1, 1);
-  eq("wrapped 셀이 두 줄", box.height > G.geometry.cellMinHeight + 10, true);
+  eq("wrapped cell has two lines", box.height > G.geometry.cellMinHeight + 10, true);
   await putCaret(1, 1, "end");
   const end = await state();
   await page.keyboard.press("ArrowUp"); await page.waitForTimeout(90);
   const up = await state();
-  eq("wrapped ↑ 는 셀 안 첫 줄로", up.cell, [1, 1]);
-  eq("wrapped ↑ 줄이 올라감", up.caretY < end.caretY, true);
+  eq("wrapped ↑ goes to the first line in the cell", up.cell, [1, 1]);
+  eq("wrapped ↑ moves up a line", up.caretY < end.caretY, true);
   await page.keyboard.press("ArrowDown"); await page.waitForTimeout(90);
-  eq("wrapped ↓ 는 셀 안 둘째 줄로", (await state()).cell, [1, 1]);
-  // 원래 값으로 되돌린다
+  eq("wrapped ↓ goes to the second line in the cell", (await state()).cell, [1, 1]);
+  // restore the original value
   await page.evaluate(({ sel, text }) => {
     const el = document.querySelector(sel); el.focus(); el.textContent = text;
     el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -161,38 +161,38 @@ for (const t of G.nav) {
   await page.waitForTimeout(250);
 }
 
-// ── 3. 캐럿이 있는 셀의 파란 테두리 ────────────────────────────────
+// ── 3. Blue border on the caret's cell ────────────────────────────────
 {
   await putCaret(1, 1, "end");
   const s = await state();
   const box = await cellBox(1, 1);
   const sel = G.geometry.selection;
-  if (!s.overlay) fails.push("캐럿 셀 테두리: 없음"), checks++;
+  if (!s.overlay) fails.push("caret cell border: missing"), checks++;
   else {
-    eq("캐럿 셀 테두리 굵기", s.overlay.bw, `${sel.borderWidth}px`);
-    eq("캐럿 셀 테두리 색", s.overlay.bc, sel.borderColor);
-    eq("캐럿 셀 테두리 라운드", s.overlay.radius, `${sel.borderRadius}px`);
-    eq("캐럿 셀 테두리 배경", s.overlay.bg, sel.background);
-    eq("캐럿 셀 테두리 x", s.overlay.x, box.x + sel.insetFromUnion);
-    eq("캐럿 셀 테두리 y", s.overlay.y, box.y + sel.insetFromUnion);
-    eq("캐럿 셀 테두리 w", s.overlay.w, box.width - 2 * sel.insetFromUnion);
-    eq("캐럿 셀 테두리 h", s.overlay.h, box.height - 2 * sel.insetFromUnion);
+    eq("caret cell border width", s.overlay.bw, `${sel.borderWidth}px`);
+    eq("caret cell border color", s.overlay.bc, sel.borderColor);
+    eq("caret cell border radius", s.overlay.radius, `${sel.borderRadius}px`);
+    eq("caret cell border background", s.overlay.bg, sel.background);
+    eq("caret cell border x", s.overlay.x, box.x + sel.insetFromUnion);
+    eq("caret cell border y", s.overlay.y, box.y + sel.insetFromUnion);
+    eq("caret cell border w", s.overlay.w, box.width - 2 * sel.insetFromUnion);
+    eq("caret cell border h", s.overlay.h, box.height - 2 * sel.insetFromUnion);
   }
-  eq("캐럿만 있을 때 손잡이는 없다", !!s.handle, false);
+  eq("no handle with just a caret", !!s.handle, false);
 }
 
-// ── 4. Escape / Shift+방향키 로 셀 범위 ────────────────────────────
+// ── 4. Cell range via Escape / Shift+arrows ────────────────────────────
 for (const t of G.select) {
   await page.keyboard.press("Escape").catch(() => {});
   await putCaret(t.from[0], t.from[1], t.caret ?? "end");
   for (const k of t.keys ?? [t.key]) { await page.keyboard.press(k); await page.waitForTimeout(90); }
   const s = await state();
   const tag = `select:${t.id}`;
-  eq(`${tag} 범위`, s.range, t.range.flat().join(","));
-  eq(`${tag} 텍스트 선택 없음`, s.text, "");
+  eq(`${tag} range`, s.range, t.range.flat().join(","));
+  eq(`${tag} no text selection`, s.text, "");
 }
 
-// ── 5. 드래그 ────────────────────────────────────────────────────
+// ── 5. Drag ────────────────────────────────────────────────────
 {
   await page.keyboard.press("Escape").catch(() => {});
   const t = G.drag.find((d) => d.id === "cross-cell");
@@ -204,29 +204,29 @@ for (const t of G.select) {
   await page.mouse.up();
   await page.waitForTimeout(200);
   const s = await state();
-  eq("drag:cross-cell 범위", s.range, t.range.flat().join(","));
-  eq("drag:cross-cell 텍스트 선택 없음", s.text, "");
-  eq("drag:cross-cell 툴바 없음", s.toolbar, false);
+  eq("drag:cross-cell range", s.range, t.range.flat().join(","));
+  eq("drag:cross-cell no text selection", s.text, "");
+  eq("drag:cross-cell no toolbar", s.toolbar, false);
   const sel = G.geometry.selection;
-  if (!s.overlay) fails.push("drag:cross-cell 테두리: 없음"), checks++;
+  if (!s.overlay) fails.push("drag:cross-cell border: missing"), checks++;
   else {
-    eq("drag 테두리 x", s.overlay.x, a.x + sel.insetFromUnion);
-    eq("drag 테두리 y", s.overlay.y, a.y + sel.insetFromUnion);
-    eq("drag 테두리 w", s.overlay.w, b.x + b.width - a.x - 2 * sel.insetFromUnion);
-    eq("drag 테두리 h", s.overlay.h, b.y + b.height - a.y - 2 * sel.insetFromUnion);
+    eq("drag border x", s.overlay.x, a.x + sel.insetFromUnion);
+    eq("drag border y", s.overlay.y, a.y + sel.insetFromUnion);
+    eq("drag border w", s.overlay.w, b.x + b.width - a.x - 2 * sel.insetFromUnion);
+    eq("drag border h", s.overlay.h, b.y + b.height - a.y - 2 * sel.insetFromUnion);
   }
   const hd = sel.handle;
-  if (!s.handle) fails.push("drag 손잡이: 없음"), checks++;
+  if (!s.handle) fails.push("drag handle: missing"), checks++;
   else {
-    eq("손잡이 크기", `${s.handle.w}x${s.handle.h}`, `${hd.w}x${hd.h}`);
-    eq("손잡이 배경", s.handle.bg, hd.bg);
-    eq("손잡이 테두리", `${s.handle.bw} ${s.handle.bc}`, `${hd.borderWidth}px ${hd.borderColor}`);
-    eq("손잡이 x (선택 오른쪽 변)", s.handle.x + s.handle.w / 2, s.overlay.x + s.overlay.w - 1, 2);
-    eq("손잡이 y (세로 가운데)", s.handle.y + s.handle.h / 2, s.overlay.y + s.overlay.h / 2, 2);
+    eq("handle size", `${s.handle.w}x${s.handle.h}`, `${hd.w}x${hd.h}`);
+    eq("handle background", s.handle.bg, hd.bg);
+    eq("handle border", `${s.handle.bw} ${s.handle.bc}`, `${hd.borderWidth}px ${hd.borderColor}`);
+    eq("handle x (selection right edge)", s.handle.x + s.handle.w / 2, s.overlay.x + s.overlay.w - 1, 2);
+    eq("handle y (vertical middle)", s.handle.y + s.handle.h / 2, s.overlay.y + s.overlay.h / 2, 2);
   }
 }
 {
-  // 한 셀 안에서의 드래그 → 텍스트 선택 + 서식 툴바
+  // drag within one cell → text selection + format toolbar
   await page.keyboard.press("Escape").catch(() => {});
   await page.waitForTimeout(150);
   const box = await cellBox(0, 0);
@@ -237,19 +237,19 @@ for (const t of G.select) {
   await page.mouse.up();
   await page.waitForTimeout(350);
   const s = await state();
-  eq("drag:in-cell 텍스트가 선택됨", s.text.length > 0, true);
-  eq("drag:in-cell 셀 범위 선택 아님", s.range ?? null, null);
-  eq("drag:in-cell 서식 툴바", s.toolbar, true);
+  eq("drag:in-cell text is selected", s.text.length > 0, true);
+  eq("drag:in-cell not a cell-range selection", s.range ?? null, null);
+  eq("drag:in-cell format toolbar", s.toolbar, true);
 }
 
 await browser.close();
 await fetch(`${BASE}/api/pages/${pageId}`, { method: "PATCH", headers: H, body: JSON.stringify({ isArchived: true }) }).catch(() => {});
 
 if (fails.length) {
-  console.log(`  ┌─ 표 안 캐럿 이동·셀 선택이 원본과 다릅니다 (${fails.length}/${checks}) ─────`);
+  console.log(`  ┌─ caret movement / cell selection in tables differs from the original (${fails.length}/${checks}) ─────`);
   for (const f of fails.slice(0, 40)) console.log(`  │ ${f}`);
   if (fails.length > 40) console.log(`  │ … ${fails.length - 40} more`);
   console.log("  └──────────────────────────────────────────────────");
   process.exit(1);
 }
-console.log(`표 안 캐럿 이동·셀 범위 선택 원본과 일치 — ${checks}개 체크`);
+console.log(`caret movement / cell-range selection in tables matches the original — ${checks} checks`);

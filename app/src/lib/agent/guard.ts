@@ -46,7 +46,7 @@ const ALLOW_UNCHECKED: GuardResult = { verdict: "allow", checked: false };
 
 /** Character-bigram set that works for Korean text too (relevance estimation without morphology). */
 function bigrams(s: string): Set<string> {
-  const t = s.replace(/[^0-9A-Za-z가-힣]/g, "");
+  const t = s.replace(/[^0-9A-Za-z\uAC00-\uD7A3]/g, "");
   const out = new Set<string>();
   for (let i = 0; i + 1 < t.length; i++) out.add(t.slice(i, i + 2));
   return out;

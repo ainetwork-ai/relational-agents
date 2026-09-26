@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET ?drive=<id>&path=<folder> → { base, entries } — one folder of the
- * caller's own drive (their connected aindrive account), for "aindrive에서 가져오기".
+ * caller's own drive (their connected aindrive account), for "Import from aindrive".
  * GET ?link=<teamspace link id>&path=<folder> — one folder of a folder a
  * teammate shared into a teamspace the caller can see, read as that teammate;
  * nothing above the shared folder opens.

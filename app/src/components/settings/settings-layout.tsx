@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-/** Building blocks of a settings panel, sized from the original's 기본 설정
+/** Building blocks of a settings panel, sized from the original's Preferences
  *  tab (docs/settings_my_settings.html): the column is max 800px with 36px
  *  between blocks; a section heading is 16px/500 over a 1px rule (pb 12,
  *  mb 16); rows inside a section sit 24px apart, label 14/20 500 with a

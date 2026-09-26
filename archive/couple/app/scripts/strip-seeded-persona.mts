@@ -57,7 +57,7 @@ for (const agent of agents) {
 
   if (!changes.length) continue;
   touched++;
-  console.log(`${WRITE ? "정리" : "정리 예정"}: ${agent.displayName} — ${changes.join(", ")}`);
+  console.log(`${WRITE ? "cleaned" : "would clean"}: ${agent.displayName} — ${changes.join(", ")}`);
   if (WRITE)
     await db
       .update(users)
@@ -65,6 +65,6 @@ for (const agent of agents) {
       .where(eq(users.id, agent.id));
 }
 
-console.log(`\n에이전트 ${agents.length}개 중 ${touched}개${WRITE ? " 정리함" : " 정리 예정"}`);
-if (!WRITE) console.log("실제로 적용하려면 --write");
+console.log(`\n${touched} of ${agents.length} agents${WRITE ? " cleaned" : " would be cleaned"}`);
+if (!WRITE) console.log("pass --write to actually apply");
 process.exit(0);

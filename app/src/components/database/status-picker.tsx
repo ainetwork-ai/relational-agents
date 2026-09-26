@@ -29,14 +29,14 @@ import { OptionChip } from "./option-chip";
 //   109  1px divider, x=12 w=216, rgba(42,28,0,.07)   ← 9px after the group
 //   …    (…, 13px below a divider comes the next label)
 //   339  1px divider, 4px after the last option
-//   340  footer row 240×36: sliders icon 20×20 at x=12, "속성 편집" at x=40/14px
+//   340  footer row 240×36: sliders icon 20×20 at x=12, "Edit property" at x=40/14px
 //
 // While a query is typed the group labels disappear entirely and the list is
 // just the matches, 4px under the bar (measured with "ho" → only Hold).
 //
 // What the original does NOT have, and so neither do we any more: a Clear row
 // (hovering the chip in the search bar shows no ✕), and a create-option row
-// (typing "zzq" leaves the bar and 속성 편집 with nothing between them).
+// (typing "zzq" leaves the bar and Edit property with nothing between them).
 // ===========================================================================
 
 const SHADOW =
@@ -44,13 +44,6 @@ const SHADOW =
 const HOVER = "rgba(33, 27, 23, 0.051)"; // the row highlight, read off the keyboard-focused match
 const RULE = "rgba(42, 28, 0, 0.07)";
 const LABEL = "rgb(125, 122, 117)";
-
-/** The three canonical group names, as the original's Korean UI writes them. */
-const GROUP_LABEL: Record<string, string> = {
-  "To-do": "할 일",
-  "In progress": "진행 중",
-  Complete: "완료",
-};
 
 interface Opt {
   id: string;
@@ -106,7 +99,7 @@ export function StatusPicker({
     return [
       ...groups.map((g) => ({
         id: g.id,
-        label: GROUP_LABEL[g.name] ?? g.name,
+        label: g.name,
         options: g.optionIds.map((id) => options.find((o) => o.id === id)).filter(Boolean) as Opt[],
       })),
       ...(rest.length ? [{ id: "__rest", label: "", options: rest }] : []),
@@ -230,7 +223,7 @@ export function StatusPicker({
           className="mx-1 flex h-7 w-[232px] items-center gap-2 rounded-[6px] px-2 text-left hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700"
         >
           <SlidersHorizontal size={20} strokeWidth={1.6} className="shrink-0 text-[rgb(44,44,43)] dark:text-neutral-200" />
-          <span className="text-[14px] text-[rgb(44,44,43)] dark:text-neutral-200">{t("속성 편집")}</span>
+          <span className="text-[14px] text-[rgb(44,44,43)] dark:text-neutral-200">{t("Edit property")}</span>
         </button>
       </div>
     </div>,

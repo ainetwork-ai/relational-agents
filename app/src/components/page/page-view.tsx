@@ -44,8 +44,8 @@ export function PageView({
   /** database pages render near-full-width , not the 836px column */
   wide?: boolean;
   /** Rendered inside the center peek popup (PagePeek): the header trades the
-   *  breadcrumb trail for Notion's destination line — ⤢ 전체 페이지로 열기, then
-   *  "추가 대상 🏠 <parent>" — and gains a ✕. */
+    *  breadcrumb trail for Notion's destination line — ⤢ Open as full page, then
+    *  "Add to 🏠 <parent>" — and gains a ✕. */
   peek?: { parent: Page | null; onClose: () => void };
 }) {
   const t = useT();
@@ -65,7 +65,7 @@ export function PageView({
  // returns to where the reader left off. Restore retries briefly
  // because block content can grow the scroll height after mount.
   const isPeek = !!peek;
- // a row page's 속성 sidebar takes its width off the page's box (row-details.ts)
+ // a row page's Properties sidebar takes its width off the page's box (row-details.ts)
   const detailsOpen = useRowDetails((st) => st.open);
   useEffect(() => {
  // A peek scrolls inside its own panel — touching <main> here would move the
@@ -117,7 +117,7 @@ export function PageView({
   );
   const databaseId = (fullPageDb?.content as { databaseId?: string } | undefined)?.databaseId;
 
- // 설명 — a database page's own text under the title (Notion's collection
+ // Description — a database page's own text under the title (Notion's collection
  // description), not a block: it lives on the database row, so the block editor
  // never sees it and the view tabs sit below it.
   const [desc, setDesc] = useState("");
@@ -156,8 +156,8 @@ export function PageView({
     });
   }, 400);
 
- // the toggle is the whole feature: 설명 추가 → write, 설명 숨기기 → keep the text
- // and fold it away, 설명 표시 → bring it back.
+ // the toggle is the whole feature: Add description → write, Hide description → keep the text
+ // and fold it away, Show description → bring it back.
   function toggleDesc() {
     const next = !descShown;
     setDescShown(next);
@@ -248,14 +248,14 @@ export function PageView({
       {/* React 19 hoists this and keeps ownership — direct document.title
           writes get reverted to the layout metadata on re-commits. A peek is
           a popup over another page: it must not take the tab's title. */}
-      {!peek && <title>{title.trim() ? title : t("제목 없음")}</title>}
+      {!peek && <title>{title.trim() ? title : t("Untitled")}</title>}
       {/* 44px tall like Notion's .notion-topbar (measured 2026-08-27: the frame
           starts at y=44). It was py-1.5 around 28px buttons = 40. */}
       <div className="sticky top-0 z-30 flex h-11 items-center justify-between gap-1 bg-white px-3 dark:bg-[#191919]">
         {peek ? (
           /* Notion's peek header: open-as-full-page, a divider, then where the
              page went. A page with no parent went to Private, which Notion
-             names 개인 페이지 rather than leaving the line blank. */
+             labels "Private" rather than leaving the line blank. */
           <div className="flex min-w-0 items-center">
             <Link
               href={`/p/${initialPage.id}`}
@@ -274,8 +274,8 @@ export function PageView({
                 });
               }}
               data-testid="peek-open-full"
-              aria-label={t("전체 페이지로 열기")}
-              data-tip={t("전체 페이지로 열기")}
+              aria-label={t("Open as full page")}
+              data-tip={t("Open as full page")}
               className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
               <Maximize2 size={14} />
@@ -285,7 +285,7 @@ export function PageView({
               className="mx-1.5 h-3.5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700"
             />
             <span className="flex min-w-0 items-center gap-1 text-sm">
-              <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{t("추가 대상")}</span>
+              <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{t("Add to")}</span>
               {peek.parent ? (
                 <Link
                   href={`/p/${peek.parent.id}`}
@@ -296,7 +296,7 @@ export function PageView({
                   <span className="shrink-0 text-[15px] leading-none">
                     <PageIcon icon={peek.parent.icon} fallback="📄" />
                   </span>
-                  <span className="truncate">{peek.parent.title || t("제목 없음")}</span>
+                  <span className="truncate">{peek.parent.title || t("Untitled")}</span>
                 </Link>
               ) : (
                 <span
@@ -304,7 +304,7 @@ export function PageView({
                   className="flex min-w-0 items-center gap-1 px-1 font-semibold text-neutral-700 dark:text-neutral-200"
                 >
                   <LockIcon size={12} className="shrink-0 text-neutral-400" />
-                  <span className="truncate">{t("개인 페이지")}</span>
+                  <span className="truncate">{t("Private")}</span>
                 </span>
               )}
             </span>
@@ -320,7 +320,7 @@ export function PageView({
             data-testid="page-locked-banner"
             className="mr-1 flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
           >
-            <LockIcon size={11} /> {t("잠김")}
+            <LockIcon size={11} /> {t("Locked")}
           </span>
         )}
         {editedAgo(page.updatedAt, t) && (
@@ -337,8 +337,8 @@ export function PageView({
         <button
           data-testid="page-fav-toggle"
           onClick={() => updatePage(initialPage.id, { isFavorite: !page.isFavorite })}
-          aria-label={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
-          data-tip={page.isFavorite ? t("즐겨찾기에서 제거") : t("즐겨찾기에 추가")}
+          aria-label={page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
+          data-tip={page.isFavorite ? t("Remove from Favorites") : t("Add to Favorites")}
           className={`rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
             page.isFavorite ? "text-yellow-500" : "text-neutral-500 dark:text-neutral-400"
           }`}
@@ -348,8 +348,8 @@ export function PageView({
         <button
           data-testid="page-comments-button"
           onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
-          aria-label={t("댓글")}
-          data-tip={t("댓글")}
+          aria-label={t("Comments")}
+          data-tip={t("Comments")}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
           <MessageSquare size={16} />
@@ -358,16 +358,16 @@ export function PageView({
         <SharePopover pageId={initialPage.id} />
         <PageOptionsMenu
           page={page}
- // 휴지통으로 이동한 뒤 지운 페이지 위에 남지 않는다: 피크면 피크를 닫고,
- // 전체 페이지면 사이드바 행 메뉴와 같이 홈으로 나간다
+ // after Move to Trash, don't stay on the deleted page: in a peek, close the peek;
+ // on a full page, go home the same way the sidebar row menu does
           onDeleted={peek ? peek.onClose : () => router.push("/")}
         />
         {peek && (
           <button
             data-testid="peek-close"
             onClick={peek.onClose}
-            aria-label={t("닫기")}
-            data-tip={t("닫기")}
+            aria-label={t("Close")}
+            data-tip={t("Close")}
             className="rounded-md px-1.5 py-1 text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <X size={16} />
@@ -407,7 +407,7 @@ export function PageView({
  // stylesheet over CDP) — 723px of content in the 975px panel.
               ? "max-w-none px-[126px]"
               : page.fullWidth
- // 전체 너비 in the original: no width cap, the same 96px inset every page
+ // Full width in the original: no width cap, the same 96px inset every page
  // carries (measured off the user's capture: 1521px blocks in a 1728px
  // window = 2×96 + scrollbar). We had a 1500px cap and 64px insets.
               ? "max-w-none px-24"
@@ -442,7 +442,7 @@ export function PageView({
             <IconPicker
               icon={page.icon}
               allowImage
-              placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> {t("아이콘 추가")}</span>}
+              placeholder={<span className="flex items-center gap-1.5 text-sm text-neutral-400"><EmojiFaceIcon /> {t("Add icon")}</span>}
               triggerClassName="rounded px-1.5 py-0.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
               onChange={(icon) => updatePage(initialPage.id, { icon })}
             />
@@ -458,11 +458,11 @@ export function PageView({
             onClick={() => { if (!focusPageComposer()) openComments(PAGE_ANCHOR); }}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
-            <CommentIcon /> {t("댓글 추가")}
+            <CommentIcon /> {t("Add comment")}
           </button>
-          {/* 설명 추가 / 설명 숨기기 / 설명 표시 — only a database page has a
+          {/* Add description / Hide description / Show description — only a database page has a
               description, and the row it sits in is the same hover row as
-              아이콘 추가 · 커버 추가 (Notion's .notion-page-controls). */}
+              Add icon · Add cover (Notion's .notion-page-controls). */}
           {databaseId && descLoaded && (
             <button
               data-testid="db-description-toggle"
@@ -470,7 +470,7 @@ export function PageView({
               className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <InfoCircleIcon />
-              {descShown ? t("설명 숨기기") : desc.trim() ? t("설명 표시") : t("설명 추가")}
+              {descShown ? t("Hide description") : desc.trim() ? t("Show description") : t("Add description")}
             </button>
           )}
         </div>
@@ -497,7 +497,7 @@ export function PageView({
           rows={1}
           value={title}
           disabled={page.isLocked}
-          placeholder={fullPageDb ? t("새 데이터베이스") : t("제목 없음")}
+          placeholder={fullPageDb ? t("New database") : t("Untitled")}
           onChange={(e) => {
             const v = e.target.value.replace(/\n/g, "");
             mergedTitleRef.current = null;
@@ -548,8 +548,8 @@ export function PageView({
             suppressContentEditableWarning
             role="textbox"
             aria-multiline="true"
-            aria-label={t("설명")}
-            data-placeholder={t("설명을 추가하세요")}
+            aria-label={t("Description")}
+            data-placeholder={t("Add a description")}
             data-placeholder-persist=""
             onInput={(e) => {
  // domToPlainText, never innerText — innerText counts a pasted blank line
@@ -606,9 +606,9 @@ export function PageView({
           {page.isLocked ? (
             <ReadOnlyBlocks blocks={initialBlocks} />
           ) : fullPageDb && databaseId ? (
- // 원본(2026-08-20 실측): full-page 데이터베이스 페이지에는 블록 캔버스가
- // 없다 — 편집 가능한 곳은 제목과 설명뿐. 에디터를 안 그리므로 드롭도 블록
- // 추가도 여기서는 불가능하고, 과거에 잘못 붙은 블록이 있어도 렌더되지 않는다.
+ // The original (measured 2026-08-20): a full-page database page has no block
+ // canvas — only the title and the description are editable. The editor isn't drawn, so
+ // neither drops nor adding blocks work here, and blocks wrongly attached in the past don't render.
             <DatabaseBlock databaseId={databaseId} fullPage />
           ) : (
             <BlockEditor
@@ -654,7 +654,7 @@ export function PageView({
   );
 }
 
-/** Notion's own infoCircleFill glyph, kept as-is next to 설명 추가/숨기기/표시 —
+/** Notion's own infoCircleFill glyph, kept as-is next to Add/Hide/Show description —
  *  lucide has no filled info circle and the outline one reads as a different
  *  control. Path and viewBox are Notion's (docs/target.html). */
 function InfoCircleIcon() {
@@ -670,7 +670,7 @@ function InfoCircleIcon() {
 }
 
 /** Page cover: add/change/remove a cover image by URL. Exported so the
- *  database row peek shows the same 커버 추가 control the page does. */
+  *  database row peek shows the same Add cover control the page does. */
 export function CoverControls({
   coverUrl,
   onSet,
@@ -716,7 +716,7 @@ export function CoverControls({
           data-testid="page-cover-url-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={t("이미지 URL을 붙여넣으세요…")}
+          placeholder={t("Paste an image URL…")}
           className="w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
         />
         <button
@@ -727,7 +727,7 @@ export function CoverControls({
           }}
           className="rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-600"
         >
-          {t("저장")}
+          {t("Save")}
         </button>
       </div>
       {/* preset gallery */}
@@ -740,14 +740,14 @@ export function CoverControls({
               onSet(`gradient:${name}`);
               setEditing(false);
             }}
-            aria-label={t("{name} 커버", { name })}
+            aria-label={t("{name} cover", { name })}
             style={{ background: css }}
             className="h-7 w-9 rounded border border-neutral-200 dark:border-neutral-600"
           />
         ))}
       </div>
       <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600">
-        ⬆ {t("이미지 업로드…")}
+        ⬆ {t("Upload image…")}
         <input
           data-testid="page-cover-upload"
           type="file"
@@ -805,7 +805,7 @@ export function CoverControls({
         )}
         {repositioning && (
           <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-black/50 px-2 py-1 text-xs text-white">
-            {t("이미지를 드래그해 위치를 변경하세요")}
+            {t("Drag image to reposition")}
           </span>
         )}
         <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100">
@@ -818,7 +818,7 @@ export function CoverControls({
               }}
               className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
             >
-              {t("위치 변경")}
+              {t("Reposition")}
             </button>
           )}
           <button
@@ -829,14 +829,14 @@ export function CoverControls({
             }}
             className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
           >
-            {t("커버 변경")}
+            {t("Change cover")}
           </button>
           <button
             data-testid="page-cover-remove"
             onClick={() => onSet(null)}
             className="rounded bg-white/80 px-2 py-1 text-xs text-neutral-600 shadow hover:bg-white dark:bg-neutral-800/80 dark:text-neutral-300"
           >
-            {t("제거")}
+            {t("Remove")}
           </button>
         </div>
         {repositioning && (
@@ -863,7 +863,7 @@ export function CoverControls({
               }}
               className="rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white hover:bg-blue-600"
             >
-              {t("위치 저장")}
+              {t("Save position")}
             </button>
           </div>
         )}
@@ -883,7 +883,7 @@ export function CoverControls({
         }}
         className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <PhotoIcon /> {t("커버 추가")}
+        <PhotoIcon /> {t("Add cover")}
       </button>
       {editor}
     </div>
@@ -917,7 +917,7 @@ export function CopyLinkButton({ pageId }: { pageId: string }) {
           setTimeout(() => setCopied(false), 1500);
         }
       }}
-      aria-label={t("링크 복사")}
+      aria-label={t("Copy link")}
       className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
     >
       {copied ? <Check size={16} /> : <Link2 size={16} />}
@@ -936,9 +936,9 @@ export function editedAgo(
   const ms = new Date(updatedAt).getTime();
   if (isNaN(ms)) return "";
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
-  if (mins < 1) return t("방금 전 편집");
-  if (mins < 60) return t("{n}분 전 편집", { n: mins });
+  if (mins < 1) return t("Edited just now");
+  if (mins < 60) return t("Edited {n} minutes ago", { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return t("{n}시간 전 편집", { n: hours });
-  return t("{n}일 전 편집", { n: Math.round(hours / 24) });
+  if (hours < 24) return t("Edited {n} hours ago", { n: hours });
+  return t("Edited {n} days ago", { n: Math.round(hours / 24) });
 }

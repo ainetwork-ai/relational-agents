@@ -6,25 +6,25 @@ import { encodeId, ensureFolder, nodeExists, readNode, writePage } from "@/lib/o
 import type { RelationshipProfile } from "./profiles/types";
 
 /**
- * 관계 문서의 OKF 저장.
+ * OKF storage for relationship documents.
  *
- * <OKF root>/관계 문서 — <방이름>-<room6>/
- * index.md 루트 (폴더 = 페이지)
- * 개요.md 섹션 5개 = 하위 페이지
- * 타임라인.md
+ * <OKF root>/<doc title> — <room name>-<room6>/
+ * index.md             root (folder = page)
+ * <Overview>.md        one file per section = subpages
+ * <Timeline>.md
  * …
  *
- * 채팅/봇/토큰 같은 런타임 상태는 Postgres에 남는다 — 노션 "문서"만 파일이다.
+ * Runtime state such as chat, bots and tokens stays in Postgres — only the Notion-style "documents" are files.
  */
 
 export interface OkfDocTree {
-  /** 문서 루트 폴더의 OKF 상대 경로 */
+  /** OKF-relative path of the document root folder */
   rootPath: string;
-  /** 섹션 key → .md 상대 경로 */
+  /** section key → relative .md path */
   sectionPaths: Record<string, string>;
 }
 
-/** 파일명으로 안전하게 (경로 구분자·제어문자 제거, 길이 제한). */
+/** Make safe as a file name (strip path separators and control characters, cap the length). */
 function safeName(s: string): string {
   return (
     s
@@ -40,20 +40,23 @@ export function docRootTitle(roomName: string, profile: RelationshipProfile): st
 }
 
 /**
- * OKF `type` — relation-agent(읽기 담당)의 파서 계약: `type` 프론트매터가 없으면
- * OkfError로 문서를 거부한다. 허용값 Memory | Fact | Preference.
- * (docs/contract-alignment-relation-agent.md 결정 2)
+ * OKF `type` — the parser contract of relation-agent (the reading side): without
+ * a `type` front-matter field it rejects the document with OkfError. Allowed
+ * values: Memory | Fact | Preference.
+ * (docs/contract-alignment-relation-agent.md, decision 2)
  *
- * 섹션마다의 값은 프로필이 정한다 — 어떤 관계든 연대기 섹션은 Memory, 나머지는
- * Fact 라는 규칙 자체는 같지만 섹션 구성이 프로필마다 다르다.
+ * The value per section is set by the profile — the rule itself is the same for
+ * every relationship (the chronicle section is Memory, the rest are Fact), but
+ * which sections exist differs by profile.
  */
 function sectionOkfType(profile: RelationshipProfile, sectionKey?: string): string {
   if (!sectionKey) return "Fact";
   return profile.sections.find((s) => s.key === sectionKey)?.okfType ?? "Fact";
 }
 
-/** 섹션(또는 루트) 파일의 프론트매터. 읽는 쪽이 파일만 보고 관계를 역추적할 수
- * 있도록 relationId·roomId를 같은 값으로 함께 박는다 (결정 4의 식별자 통일). */
+/** Front matter of a section (or root) file. relationId and roomId are written
+ * together with the same value so a reader can trace the relationship back from
+ * the file alone (decision 4: one identifier). */
 export function okfDocMeta(
   roomId: string,
   profile: RelationshipProfile,
@@ -68,13 +71,13 @@ export function okfDocMeta(
   };
 }
 
-/** 문서 루트를 앱 라우트에서 열 수 있는 페이지 id로 (/p/{id}). */
+/** The document root as a page id the app route can open (/p/{id}). */
 export function okfDocPageId(rootPath: string): string {
   return encodeId(rootPath);
 }
 
 /**
- * 폴더+섹션 파일을 보장한다. 이미 있으면 그대로 재사용(멱등).
+ * Ensures the folder and the section files. Reuses them as-is when they exist (idempotent).
  *
  * CALLER CONTRACT: this WRITES the folder to disk, and the OKF tree has no
  * permissions of its own — an unregistered path is workspace-readable (see
@@ -113,7 +116,7 @@ export function ensureOkfDocTree(
         : path.posix.join(rootPath, `${safeName(s.title)}.md`);
   }
 
- // 루트는 섹션으로 들어가는 목차다 — 죽은 텍스트가 아니라 링크 불릿으로.
+ // The root is a table of contents into the sections — link bullets, not dead text.
  // The index is the table of contents, so it is rewritten whenever the section
  // set changes — a new section that nothing links to is a file nobody finds.
   const indexRel = path.posix.join(rootPath, "index.md");
@@ -173,8 +176,8 @@ export function ensureOkfDocTree(
   return { rootPath, sectionPaths };
 }
 
-/** 저장된 상태로 문서 트리를 **읽기 전용**으로 복원한다 (파일을 만들지 않음).
- * guard처럼 "문서가 있으면 참고, 없으면 스킵"인 경로에서 쓴다. */
+/** Restores the document tree from saved state **read-only** (creates no files).
+ * Used on paths like the guard: "consult the document if there is one, skip if not". */
 export function okfDocTreeFromState(
   state: { rootOkfPath?: string | null; sectionOkfPaths?: Record<string, string> | null } | undefined,
   profile: RelationshipProfile
@@ -204,7 +207,7 @@ function block(type: ParsedBlock["type"], text: string, position: number): Parse
   return { id: randomUUID(), type, content: { text }, position };
 }
 
-/** 섹션들의 현재 본문(평문) — LLM 컨텍스트용. */
+/** The sections' current bodies (plain text) — for LLM context. */
 export function readOkfSectionTexts(
   tree: OkfDocTree,
   profile: RelationshipProfile
@@ -262,9 +265,9 @@ export interface NewLine {
   icon?: string;
 }
 
-/** 섹션 파일 끝에 줄을 덧붙인다 (기존 내용 보존 — 통째 덮어쓰기 금지).
- * `meta`를 주면 기존 프론트매터 위에 덮어쓴다 — 계약 필드(type/relationId)가
- * 이전 버전에 없던 파일도 append 한 번으로 보정된다. */
+/** Appends lines to the end of a section file (keeps existing content — never overwrite the whole file).
+ * Given `meta`, it is written over the existing front matter — so a file from an
+ * earlier version that lacks the contract fields (type/relationId) is fixed by a single append. */
 export function appendOkfLines(
   relPath: string,
   fallbackTitle: string,

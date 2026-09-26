@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/user-avatar";
+import { RELATIONSHIP_DOC_PREFIXES } from "@/i18n/content/components";
 
 interface Person {
   key: string;
@@ -25,7 +26,7 @@ interface PageRow {
   isArchived: boolean;
 }
 
-/** A title side → a comparable key: "· 할머니" / "엄마 · 할머니" → "할머니" */
+/** A title side → a comparable key: "· Grandma" / "Mom · Grandma" → "grandma" */
 const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
@@ -52,9 +53,11 @@ const partnerOf = (title: string, myName?: string | null) => {
 };
 
 /** File-primary relationship docs are OKF root folders titled
- * "Family doc — <A> · <B>" (가족 문서 — …; older ones "Relationship doc — A ❤️ B"). */
+ * "Family doc — <A> · <B>" (or its Korean form; older ones "Relationship doc — A ❤️ B").
+ * The prefixes live in RELATIONSHIP_DOC_PREFIXES. */
+const RELATIONSHIP_DOC_RE = new RegExp(`^(${RELATIONSHIP_DOC_PREFIXES.join("|")})\\s*—`, "i");
 const isRelationshipDoc = (title: string) =>
-  /^(relationship doc|관계 문서|family doc|가족 문서)\s*—/i.test(title.trim());
+  RELATIONSHIP_DOC_RE.test(title.trim());
 
 /** Sidebar Chats tab, horizontal people strip: one round face per relation.
  * Faces come from file-primary OKF docs titled "Family doc — A · B"

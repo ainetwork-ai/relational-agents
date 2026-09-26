@@ -57,7 +57,7 @@ export function inlineHtmlToMd(html: string): string {
 
 /**
  * Plain text → inline HTML with bare URLs turned into links, for text that is
- * STORED as plain text but rendered in a contenteditable (a database's 설명).
+ * STORED as plain text but rendered in a contenteditable (a database's Description).
  *
  * Line breaks are <br>, not literal newlines: Chrome's editing engine treats a
  * newline character in a contenteditable as removable whitespace and eats it as

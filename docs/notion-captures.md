@@ -1,71 +1,76 @@
-# 노션 캡처 — 어떤 화면이고 무엇을 읽었나
+# Notion captures — what each screen is and what we read from it
 
-2026-08-05, 사이드바·팀스페이스·데이터베이스를 노션과 맞추는 작업에서 받은 DOM 캡처다.
-**모두 실제 노션 화면을 그 상황에서 저장한 것**이라, "노션은 어떻게 하나"를 기억이나 짐작이
-아니라 파일로 확인할 수 있다. 새 세션이 같은 작업을 이어받으면 여기서 시작하면 된다.
+DOM captures taken on 2026-08-05 while aligning the sidebar, teamspaces, and databases with Notion.
+**Every file is the real Notion screen saved in that exact situation**, so "how does Notion do it" can be
+checked against a file instead of memory or guesswork. A new session picking up the same work should start here.
 
-> 읽는 방법: 파일이 크므로(최대 1.4MB) 브라우저로 열지 말고 문자열로 뒤진다.
-> `aria-label`, `placeholder`, `role="treeitem"`, `notion-*-block` 클래스가 구조를 드러낸다.
-> 예: `grep -o 'notion-[a-z_]*-block' docs/target.html | sort | uniq -c`
+> How to read them: the files are large (up to 1.4MB), so do not open them in a browser — search them as text.
+> `aria-label`, `placeholder`, `role="treeitem"`, and the `notion-*-block` classes reveal the structure.
+> Example: `grep -o 'notion-[a-z_]*-block' docs/target.html | sort | uniq -c`
+>
+> The captures were taken with the Notion account language set to Korean, so the UI strings inside them are
+> Korean. Below, each string is written as its English UI name; the exact captured Korean is the corresponding
+> entry in the ko dictionary (`app/src/i18n/ko.ts`). Expected Korean strings used by the e2e golden-set scripts
+> are being moved into `app/src/i18n/content/` modules.
 
-## 파일별 상황
+## Situation per file
 
-| 파일 | 어떤 상황 | 여기서 확인한 것 |
+| File | Situation | What we confirmed from it |
 |---|---|---|
-| `target.html` (1.4MB) | **풀페이지 데이터베이스** `Projects`를 연 화면 (`collection_view_page`) | 폭 규칙: 콘텐츠 상한이 **없다**(`width:100%`, 96px 인셋). 산문 페이지의 708px 칼럼과 다른 이유는 **블록 타입**이지 토글이 아니다. 본문 블록이 **0개** — 제목·설명·커버 외에 문단을 가질 수 없는 블록이다. 뷰 탭 7개. **선택된 뷰는 사람 속성 `TL`로 그룹된 표**: 그룹 10개, 컬럼 23개(`Project name`·`TL`·`Effort`·`Assignee`·`Status`…), 폭 `516/134/100/562`. 그룹마다 **자기 컬럼 헤더 행**(`notion-table-view-header-row` 10개)과 add-row `새 프로젝트`를 갖고, 그룹 헤더는 `닫기` 캐럿 + 아바타·이름 + `그룹 옵션 표시` + `그룹에 새 페이지 추가`(개수 슬롯은 비어 있다). 첫 컬럼은 고정(`notion-table-view-frozen-column-repositioner`). 사람 셀은 여러 명을 담고 넘치면 `1개 더 보기`. 행 상한/load-more는 **없다** |
-| `sidebar1.html` (118KB) | **개인 페이지** 사이드바, 섹션 헤더에 호버 | 섹션 헤더 버튼 3종: `라이브러리에서 열기` · `메뉴 열기`(⋯) · `페이지 추가`(+). 페이지 행은 `열기` · `제거, 이름 바꾸기 등...` · `하위 페이지 추가` |
-| `sidebar_team1.html` (705KB) | **팀스페이스** 사이드바 | `+`는 **페이지 행에만** 붙는다. 팀스페이스 행(`General`)의 버튼은 `팀스페이스 설정과 멤버` 하나뿐이고 `+`가 없다. `팀스페이스` 섹션 헤더에도 `+`가 없다(`라이브러리에서 열기`·`메뉴 열기`만) |
-| `personal_hover_plus.html` (166KB) | 개인 페이지 행의 `+`를 눌러 **하위 페이지가 생긴 직후** | 새 페이지의 제목 placeholder는 `새 페이지` |
-| `plus_page_personalpage_html` (28KB) | 위와 같은 상황의 **본문만** | 빈 페이지가 제시하는 것: `시작하기` → `AI에게 질문하기` · `AI 노트` · `데이터베이스` · `템플릿`. 헤더에 `아이콘 추가` · `커버 추가` · `댓글 추가` |
-| `page_add_popup.html` (30KB) | **팀스페이스 하위 페이지**(`팀스페이스 홈`)의 `+` → 새 페이지 | 위와 같은 `시작하기` 줄에 **`폼`이 하나 더** 있다. 상단에 `추가 대상: 🏠 팀스페이스 홈`(부모 표시)과 `전체 페이지로 열기` — 새 페이지가 **peek(사이드 오버레이)** 로 열린다 |
-| `plus_popup_full1_teamspace.html` (29KB) | 팀스페이스 행에서 `+` → 새 페이지 peek | `공유`·`링크 복사하기`·`즐겨찾기`·`보기 옵션 변경`·`작업` 버튼 구성 |
-| `teamspace_add_popup.html` (12KB) | **팀스페이스 만들기 1단계** | 제목/부제, `아이콘과 이름`(placeholder `예: 엔지니어링`), `설명`(`이 팀스페이스의 용도는 무엇인가요?`, rows=3), `보안`(기본 `공개 / 누구나 이 팀스페이스를 보고 참여할 수 있음`). 기본 버튼은 이름이 비면 `aria-disabled`. 폭 440px |
-| `teamspace_add_popup_member_search_list.html` (22KB) | 1단계에서 **멤버 선택 목록**을 펼친 상태 | `사용자 선택` 헤더, 로딩 문구 `불러오는 중...`, 이름 + `게스트` 배지 |
-| `teamspace_add_process_popup_1.html` (8KB) | **팀스페이스 만들기 2단계** (멤버 초대) | `초대할 팀스페이스:` + 아이콘 + 이름, 검색 placeholder `사용자나 그룹을 검색하세요`, 역할 드롭다운 `팀스페이스 멤버`, 하단 `초대 링크 복사` · **`건너뛰기`** |
-| `after_teamspace_popup_body1.html` (633KB) | 2단계에서 **`건너뛰기`를 누른 직후** | 팀스페이스는 이미 만들어져 있다(건너뛰기가 취소하지 않는다). 사이드바에 새 팀스페이스가 뜨고 그 아래 **`🏠 팀스페이스 홈`** 페이지 하나, 목록 맨 끝에 **`새로 추가`** 행 |
-| `database_tableview_newpage2.html` (2.1MB) | 표 뷰에서 **`새로 만들기`로 행을 만든 직후**의 사이드 피크 (2026-08-06) | 피크 폭 **1141px**. 제목 placeholder **`신규 프로젝트`**(= 신규 + 항목 이름). 제목 아래 **`세부 정보 보기/숨기기`** 토글. 그 아래 **고정 속성 4개**(`TL`·`Assignee`·`End date`·`Evaluation`)가 가로 스크롤 밴드(`data-pinned-row`, `min-width:max-content`, gap 8px)로 라벨 위/값 아래, 빈 값은 **`비어 있음`**. 이어서 `댓글`, 그리고 **기본 템플릿 본문**(Objectives / KPIs ☐할 일 / Action items ☐할 일). 생성 시 자동으로 채워지는 값은 둘뿐 — `Status = In progress`(뷰 필터에서 상속), `Created time` |
-| `database_tableview_newpage_details.html` (2.1MB) | 위 피크에서 **`세부 정보 보기`를 누른 상태** | 피크 **안쪽 오른쪽에 380px 패널**(`width:380px; flex-shrink:0; border-inline-start:1px`, 200ms 전환). 헤더 `속성`, 나머지 속성 18개가 전부 `비어 있음`, 맨 아래 **`Add a property`**(페이지 본문에는 없다). 피크 자체 폭은 그대로라 **본문 칼럼이 좁아진다**. ⚠️ 먼저 받은 `database_tableview_newpage.html`은 속성이 렌더되기 전에 저장돼 속성 이름이 하나도 없다 — 그걸 보고 "새 행은 속성 0개"로 잘못 구현한 적이 있다 |
-| `database_date_picker.html` (24KB) | 표 뷰의 **`Start date` 셀을 눌러 연 날짜 팝오버** (2026-08-06) | 패널 **248x500**. 위에서부터 날짜 입력 박스(224x28, radius 6, bg `rgba(66,35,3,.03)`, 12px 인셋, 열릴 때 전체 선택) → 달력(react-day-picker: 캡션 `2026년 8월` 14px/500 + `오늘` 12px `#8E8B86` + `‹ ›` `#A5A5A5`, 요일 32x32 12px `#8B9898`, 날짜는 32x32 칸 안의 28x28 버튼 radius 6, 이번 달 `#2C2C2B`·다른 달 `#8B9898`, 선택 `#2783DE` 흰 글자, 오늘은 `::after` 원 `#E56458`) → 구분선(1px `rgba(42,28,0,.07)`, 좌우 12px 인셋) → **`종료일`(토글 30x18) · `날짜 형식` · `시간 포함`(토글) · `리마인더`** (240x28 행, 값 `#7D7A75`) → `삭제` → `리마인더에 대해 알아보기`. 세로 리듬: 입력 12~40, 달력 49~298, 구분선마다 위아래 4px, 행 28px에 1px 간격. **`날짜 형식`은 속성 단위**(180x181 서브메뉴: 전체 날짜 / 날짜 간단히 표기 / 월/일/년 / 일/월/년 / 년/월/일 / 상대) — 그래서 같은 표에서 `Start date`가 `08/04/2026`, `End date`가 `2026년 8월 4일`로 동시에 보인다 |
-| `new_database.html` (666KB) | 빈 페이지에서 **`데이터베이스`** 를 눌러 만들어진 화면 | **페이지 자체가 데이터베이스**가 된다(제목 `<h1>`의 block-id = DB 블록 id). 제목 placeholder `새 데이터베이스`, 뷰 탭 `표` 1개, 컬럼 `이름` 1개, 행 없음, 헤더에 `커버 추가`·`설명 추가`. 사이드바에도 `새 데이터베이스`로 표기 |
-| `notion-clip-flow-page/` (2026-08-09) | 산문 페이지(`상담/모니터링 화면 FLOW 및 1차 UI 확정`)에서 **Cmd+A×2, Cmd+C 로 뜬 클립보드 4종**(`paste.*.txt`) + 원본 라이브 DOM 블록 카탈로그(`original-catalog.json`) + 대조 완료 기대 트리(`expected-tree.json`) | **새 노션(app.notion.com)은 클립보드에 live DOM 을 싣지 않는다** — `text/html`은 마크다운 왕복의 찌꺼기(콜아웃이 리터럴 `&lt;aside&gt;`, 공백 경계 볼드가 리터럴 `**`, 토글은 그냥 `<li>`)이고, 진짜는 **`text/_notion-blocks-v3-production`**(타입·볼드 런·체크·아이콘·색·접힌 토글 자식까지 든 블록 레코드 JSON). `e2e/notion-paste.check.mjs` 의 입력 |
+| `target.html` (1.4MB) | The **full-page database** `Projects` open (`collection_view_page`) | Width rule: there is **no** content cap (`width:100%`, 96px inset). The reason it differs from the 708px column of prose pages is the **block type**, not a toggle. The body has **0 blocks** — this block cannot hold paragraphs besides title, description, and cover. 7 view tabs. **The selected view is a table grouped by the person property `TL`**: 10 groups, 23 columns (`Project name`·`TL`·`Effort`·`Assignee`·`Status`…), widths `516/134/100/562`. Each group has **its own column header row** (10 `notion-table-view-header-row`s) and an add-row `New project`; the group header is a `Close` caret + avatar·name + `Show group options` + `Add new page to group` (the count slot is empty). The first column is frozen (`notion-table-view-frozen-column-repositioner`). Person cells hold multiple people and overflow into `Show 1 more`. There is **no** row cap/load-more |
+| `sidebar1.html` (118KB) | **Private pages** sidebar, hovering a section header | Three section header buttons: `Open in library` · `Open menu` (⋯) · `Add page` (+). A page row has `Open` · `Delete, rename, and more...` · `Add a page inside` |
+| `sidebar_team1.html` (705KB) | **Teamspace** sidebar | `+` appears **only on page rows**. The teamspace row (`General`) has only one button, `Teamspace settings and members`, and no `+`. The `Teamspaces` section header has no `+` either (only `Open in library`·`Open menu`) |
+| `personal_hover_plus.html` (166KB) | **Right after a sub-page is created** by pressing `+` on a private page row | The new page's title placeholder is `New page` |
+| `plus_page_personalpage_html` (28KB) | **Body only** of the same situation as above | What an empty page offers: `Get started with` → `Ask AI` · `AI Meeting Notes` · `Database` · `Templates`. Header has `Add icon` · `Add cover` · `Add comment` |
+| `page_add_popup.html` (30KB) | `+` on a **teamspace sub-page** (`Teamspace Home`) → new page | The same `Get started with` row has **one more item, `Form`**. At the top, `Add to: 🏠 Teamspace Home` (parent indicator) and `Open as full page` — the new page opens as a **peek (side overlay)** |
+| `plus_popup_full1_teamspace.html` (29KB) | `+` on a teamspace row → new page peek | Button set: `Share`·`Copy link`·`Favorite`·`Change view options`·`Actions` |
+| `teamspace_add_popup.html` (12KB) | **Create teamspace, step 1** | Title/subtitle, `Icon & name` (placeholder `e.g. Engineering`), `Description` (`What is this teamspace for?`, rows=3), `Security` (default `Open / Anyone can see and join this teamspace`). The primary button is `aria-disabled` while the name is empty. Width 440px |
+| `teamspace_add_popup_member_search_list.html` (22KB) | Step 1 with the **member picker list** expanded | `Select people` header, loading text `Loading...`, name + `Guest` badge |
+| `teamspace_add_process_popup_1.html` (8KB) | **Create teamspace, step 2** (invite members) | `Invite to teamspace:` + icon + name, search placeholder `Search for people or groups`, role dropdown `Teamspace member`, footer `Copy invite link` · **`Skip`** |
+| `after_teamspace_popup_body1.html` (633KB) | **Right after pressing `Skip`** in step 2 | The teamspace already exists (Skip does not cancel). The new teamspace appears in the sidebar with one page under it, **`🏠 Teamspace Home`**, and an **`Add new`** row at the end of the list |
+| `database_tableview_newpage2.html` (2.1MB) | The side peek **right after creating a row with `New`** in a table view (2026-08-06) | Peek width **1141px**. Title placeholder **`New project`** (= "New" + item name). Below the title, a **`Show/Hide details`** toggle. Below that, **4 pinned properties** (`TL`·`Assignee`·`End date`·`Evaluation`) in a horizontally scrolling band (`data-pinned-row`, `min-width:max-content`, gap 8px), label above / value below; empty values read **`Empty`**. Then `Comments`, and the **default template body** (Objectives / KPIs ☐To-do / Action items ☐To-do). Only two values are auto-filled on creation — `Status = In progress` (inherited from the view filter) and `Created time` |
+| `database_tableview_newpage_details.html` (2.1MB) | The peek above **with `Show details` pressed** | A **380px panel on the right, inside the peek** (`width:380px; flex-shrink:0; border-inline-start:1px`, 200ms transition). Header `Properties`, the remaining 18 properties all `Empty`, and **`Add a property`** at the bottom (not in the page body). The peek's own width is unchanged, so **the body column gets narrower**. ⚠️ The earlier `database_tableview_newpage.html` was saved before the properties rendered and contains no property names at all — it was once misread as "a new row has 0 properties" and implemented that way |
+| `database_date_picker.html` (24KB) | **Date popover opened by clicking a `Start date` cell** in the table view (2026-08-06) | Panel **248x500**. Top to bottom: date input box (224x28, radius 6, bg `rgba(66,35,3,.03)`, 12px inset, fully selected on open) → calendar (react-day-picker: caption `August 2026` (Korean year-month format) 14px/500 + `Today` 12px `#8E8B86` + `‹ ›` `#A5A5A5`, weekdays 32x32 12px `#8B9898`, days are 28x28 buttons radius 6 inside 32x32 cells, this month `#2C2C2B`·other months `#8B9898`, selected `#2783DE` with white text, today is a `::after` circle `#E56458`) → divider (1px `rgba(42,28,0,.07)`, 12px inset left/right) → **`End date` (toggle 30x18) · `Date format` · `Include time` (toggle) · `Remind`** (240x28 rows, values `#7D7A75`) → `Clear` → `Learn about reminders`. Vertical rhythm: input 12–40, calendar 49–298, 4px above and below each divider, 28px rows with 1px gaps. **`Date format` is per property** (180x181 submenu: Full date / Short date / Month/Day/Year / Day/Month/Year / Year/Month/Day / Relative) — which is why, in the same table, `Start date` shows `08/04/2026` while `End date` shows `August 4, 2026` (Korean full-date format) at the same time |
+| `new_database.html` (666KB) | Screen created by clicking **`Database`** on an empty page | **The page itself becomes the database** (block-id of the title `<h1>` = DB block id). Title placeholder `New database`, one view tab `Table`, one column `Name`, no rows, header has `Add cover`·`Add description`. The sidebar also shows it as `New database` |
+| `notion-clip-flow-page/` (2026-08-09) | From a prose page (the "Consultation/monitoring screen FLOW and first UI sign-off" page), **the 4 clipboard flavors produced by Cmd+A×2, Cmd+C** (`paste.*.txt`) + a catalog of the original live DOM blocks (`original-catalog.json`) + the verified expected tree (`expected-tree.json`) | **The new Notion (app.notion.com) does not put live DOM on the clipboard** — `text/html` is the residue of a markdown round-trip (callouts as a literal `&lt;aside&gt;`, bold at whitespace boundaries as a literal `**`, toggles as plain `<li>`); the real payload is **`text/_notion-blocks-v3-production`** (block-record JSON containing type, bold runs, checks, icons, colors, and even children of collapsed toggles). Input to `e2e/notion-paste.check.mjs` |
 
-## 이 캡처들로 고친 것 (2026-08-05)
+## What these captures fixed (2026-08-05)
 
-- 사이드바 섹션 헤더(`Private`·`Teamspaces`)의 `+`를 **호버 노출**로, `⋯` 메뉴 추가(정렬·모두 접기). `Private` 라벨이 두 번 렌더되던 버그도 함께
-- 팀스페이스 생성을 **2단계 모달**로 (인라인 이름 입력 폐기). 스키마에 `description`·`visibility`와 `teamspace_members` 추가, 생성 시 **`🏠 팀스페이스 홈`** 페이지를 같은 트랜잭션에서 만들고, 팀스페이스 목록 끝에 **`새로 추가`** 행
-- 멤버 검색은 **입력이 있을 때만** 목록을 열고, 매칭은 이름 단어 접두어 + 이메일 local part 접두어 (전원이 `@comcom.ai`라 부분 문자열은 `m` 하나로 전원이 걸렸다)
-- 빈 페이지에 **`시작하기`** 줄. 구현된 것만 활성(`데이터베이스`·`템플릿`), 나머지는 이유를 툴팁으로 달고 비활성
-- `데이터베이스` 버튼은 **페이지 자체를 풀페이지 DB로** 전환하고 `이름`·`표`만 있는 최소 형태로 프로비저닝. 제목은 페이지와 DB 양쪽에 저장
-- 풀페이지 DB 페이지는 사이드바·브레드크럼·제목에서 **`새 데이터베이스`** + 표 아이콘 (`GET /api/pages`가 `isDatabase`를 계산)
-- 팀스페이스 페이지가 `Private`에도 중복 노출되던 버그, 브레드크럼이 팀스페이스를 못 보여주던 문제
-- **표 뷰를 캡처의 그룹된 표로**: 사람·체크박스도 그룹 기준이 되고, 그룹마다 컬럼 헤더 행과
-  add-row를 갖고(그 add-row로 만든 행은 그 그룹의 값을 갖는다), 헤더에 접기·`그룹 옵션 표시`
-  ·`그룹에 새 페이지 추가`. 접힘은 뷰에 저장돼 새로고침에도 남는다. 첫 컬럼 고정도 함께
-- **사람 속성이 여러 명**을 담는다. 한 줄을 유지한 채 컬럼 폭에 맞는 만큼만 보여주고 나머지는
-  `N개 더 보기`. 필터 `is`/`is me`는 셀 안 누구든 맞으면 통과하고, 두 명인 행은 두 그룹에
-  모두 나온다. 목록·갤러리·대시보드가 같은 그룹 빌더를 쓴다
+- The `+` on sidebar section headers (`Private`·`Teamspaces`) now **appears on hover**, and a `⋯` menu was added (sort, collapse all). Also fixed the bug where the `Private` label was rendered twice
+- Teamspace creation became a **2-step modal** (the inline name input was dropped). Added `description`·`visibility` and `teamspace_members` to the schema; on creation, the **`🏠 Teamspace Home`** page is created in the same transaction, and an **`Add new`** row sits at the end of the teamspace list
+- Member search opens the list **only when there is input**; matching is name-word prefix + email local-part prefix (everyone is `@comcom.ai`, so substring matching let a single `m` match everyone)
+- A **`Get started with`** row on empty pages. Only implemented items are enabled (`Database`·`Templates`); the rest are disabled with a tooltip explaining why
+- The `Database` button **turns the page itself into a full-page DB** and provisions the minimal form with only `Name`·`Table`. The title is stored on both the page and the DB
+- Full-page DB pages show **`New database`** + a table icon in the sidebar, breadcrumbs, and title (`GET /api/pages` computes `isDatabase`)
+- Fixed the bug where teamspace pages were also listed under `Private`, and breadcrumbs failing to show the teamspace
+- **The table view now matches the captured grouped table**: person and checkbox properties can also be grouping keys, each group has a column header row and
+  an add-row (a row created from that add-row gets the group's value), and the header has collapse·`Show group options`
+  ·`Add new page to group`. Collapse state is stored on the view and survives a refresh. First-column freezing too
+- **Person properties hold multiple people.** The cell stays on one line and shows as many as fit the column width; the rest become
+  `Show N more`. Filters `is`/`is me` pass if anyone in the cell matches, and a row with two people shows up in both
+  groups. List, gallery, and dashboard use the same group builder
 
-## 아직 노션과 다른 것
+## Still different from Notion
 
-- **peek(사이드 오버레이)이 없다.** `+`로 만든 페이지가 노션은 오버레이로 열리고 `전체 페이지로 열기` 버튼이 있다. 우리는 바로 이동한다 (`page_add_popup.html`, `plus_popup_full1_teamspace.html`)
-- **팀스페이스 행의 버튼**이 우리는 `+`, 노션은 `팀스페이스 설정과 멤버`. 바꾸려면 설정 화면(이름·설명·보안·멤버)이 먼저 필요하다 (`sidebar_team1.html`)
-- **`라이브러리에서 열기`** 에 해당하는 화면이 우리에게 없다 (`sidebar1.html`)
-- **사이드바 행 전체 클릭**: 노션은 행 어디를 눌러도 이동, 우리는 제목 텍스트만 링크다
-- 풀페이지 폭의 **상한**(우리 1500px vs 노션 무제한)과 **좌우 인셋**(64px vs 96px) (`target.html`)
-- 그룹 add-row 문구가 노션은 **`새 프로젝트`** — 데이터베이스마다 정할 수 있는 "항목 이름"이
-  있다는 뜻이다. 우리는 `새 페이지` 고정이라, 그 설정을 만들기 전까지는 다르다 (`target.html`)
-- 그룹 헤더의 **이름이 노션은 버튼**(`aria-haspopup="dialog"`)이라 눌러서 그룹 값을 바꾼다.
-  우리는 텍스트다 (`target.html`)
-- 행 호버의 **`Open comments`** 가 우리에게 없다. 행 코멘트는 행의 페이지에 달리는 것이라
-  행↔페이지 작업과 같이 가야 한다 (`target.html`)
+- **No peek (side overlay).** In Notion, a page created with `+` opens as an overlay with an `Open as full page` button. We navigate immediately (`page_add_popup.html`, `plus_popup_full1_teamspace.html`)
+- **The teamspace row button** is `+` for us and `Teamspace settings and members` in Notion. Changing it first needs a settings screen (name, description, security, members) (`sidebar_team1.html`)
+- We have no screen corresponding to **`Open in library`** (`sidebar1.html`)
+- **Whole-row click in the sidebar**: in Notion, clicking anywhere on the row navigates; for us only the title text is a link
+- The full-page width **cap** (ours 1500px vs Notion unlimited) and **side insets** (64px vs 96px) (`target.html`)
+- The group add-row label in Notion is **`New project`** — meaning each database can set an "item name".
+  Ours is fixed to `New page`, so it will differ until that setting exists (`target.html`)
+- **The group header name is a button in Notion** (`aria-haspopup="dialog"`) that changes the group value when clicked.
+  Ours is plain text (`target.html`)
+- We lack the row-hover **`Open comments`**. Row comments attach to the row's page, so this has to go together with
+  the row↔page work (`target.html`)
 
-| `settings_my_settings.html` (74KB) | **설정과 멤버** 모달, `기본 설정` 탭 (2026-08-26, 개인 워크스페이스) | 진입: 좌상단 워크스페이스 스위처 → `설정`. 사이드바에는 `설정` 행이 없다. 모달 `.notion-dialog` 90vw·max 1512·높이 calc(100%-100px)·r12, 좌측 nav 240px(`role=tablist`, 섹션 라벨 `계정`/`워크스페이스`/…, 탭 28px). `언어 및 시간` 섹션(제목 16/24 500) → `언어` 행(라벨 14/20 500, 설명 13/18 `rgb(125,122,117)`), 우측 끝에 드롭다운 버튼 `한국어` 69×28 r6 테두리 `rgba(28,19,1,.11)` 14px. 드롭다운 216px 폭, 항목 43px, 22개 언어 `원어 | 한국어명` 2줄 |
+| `settings_my_settings.html` (74KB) | **Settings & members** modal, `Preferences` tab (2026-08-26, personal workspace) | Entry: workspace switcher at the top left → `Settings`. There is no `Settings` row in the sidebar. Modal `.notion-dialog` 90vw·max 1512·height calc(100%-100px)·r12, left nav 240px (`role=tablist`, section labels `Account`/`Workspace`/…, tabs 28px). `Language & Time` section (title 16/24 500) → `Language` row (label 14/20 500, description 13/18 `rgb(125,122,117)`), dropdown button at the far right showing `Korean` (the language's own name, ko dictionary) 69×28 r6 border `rgba(28,19,1,.11)` 14px. Dropdown 216px wide, items 43px, 22 languages as two lines `native name | name in Korean` |
 
-## 영어판 캡처 — `docs/en/` (2026-08-26, 계정 언어 English (US))
+## English captures — `docs/en/` (2026-08-26, account language English (US))
 
-`en.ts` 의 어휘 기준. 텍스트 요약은 `docs/en/_texts.json`(화면별 innerText), HTML 은 화면별 파일.
-설정 모달 3탭(`settings_*`), 언어 목록, 스위처 메뉴, 페이지 `⋯`(`page_more_menu`), 사이드바 행/섹션 메뉴,
-공유 팝업, 검색, 페이지 hover 컨트롤(`Add icon / Add cover / Add comment`), Projects 표(`projects_table.html`)의
-속성 헤더 메뉴(`header_menu_*`), Status/날짜/사람 셀 피커(`cell_*`), 속성 편집(`edit_property_*`), 유형 목록
-(`change_type_submenu`), 템플릿 메뉴(`new_more_options`), 그룹 옵션, 선택 툴바(`bulk_toolbar`).
-필터/정렬/보기 설정 패널은 오버레이가 아니라 프레임 안에 열려 텍스트 diff 로만 일부 잡혔다.
+The vocabulary reference for `en.ts`. Text summary in `docs/en/_texts.json` (innerText per screen), HTML as one file per screen.
+Settings modal, 3 tabs (`settings_*`), the language list, the switcher menu, the page `⋯` (`page_more_menu`), sidebar row/section menus,
+the share popup, search, page hover controls (`Add icon / Add cover / Add comment`), the Projects table (`projects_table.html`)
+property header menus (`header_menu_*`), Status/date/person cell pickers (`cell_*`), property editing (`edit_property_*`), the type list
+(`change_type_submenu`), the template menu (`new_more_options`), group options, and the selection toolbar (`bulk_toolbar`).
+The filter/sort/view settings panels open inside the frame rather than as overlays, so they were only partly captured through text diffs.

@@ -3,7 +3,7 @@
 A workspace that remembers the conversations inside it.
 
 **🌐 [ainmem.ainetwork.xyz](https://ainmem.ainetwork.xyz)** — the family demo: sign in with aindrive, or
-"데모 계정으로 시작" (엄마) and "다른 가족으로" to switch to 할머니 · 아빠 · 서연. Walkthrough: [`docs/demo.md`](docs/demo.md).
+"Start with the demo account" (Mom) and "As another family member" to switch to Grandma · Dad · Seoyeon. Walkthrough: [`docs/demo.md`](docs/demo.md).
 
 Pages, databases and chat in one place, plus an agent per conversation that keeps a written
 record of it. The memory is a folder of Markdown, not a vector store, and each conversation's

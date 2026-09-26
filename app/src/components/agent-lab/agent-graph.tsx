@@ -217,7 +217,7 @@ export function AgentGraph() {
   return (
     <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">{t("관계 그래프")}</h1>
+        <h1 className="text-lg font-semibold">{t("Relation graph")}</h1>
         <Link
           data-testid="agent-graph-back"
           href="/agent-lab"
@@ -227,23 +227,23 @@ export function AgentGraph() {
         </Link>
         <span data-testid="agent-graph-counts" className="text-xs text-neutral-500">
           {error
-            ? t("오류: {error}", { error })
+            ? t("Error: {error}", { error })
             : counts
-              ? t("노드 {nodes}개 · 엣지 {edges}개", { nodes: counts.nodes, edges: counts.edges })
-              : t("불러오는 중…")}
+              ? t("{nodes} nodes · {edges} edges", { nodes: counts.nodes, edges: counts.edges })
+              : t("Loading…")}
         </span>
         <span className="ml-auto flex items-center gap-3 text-xs text-neutral-500">
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.room }} />{t("방 (관계)")}</span>
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.root }} />{t("관계 문서")}</span>
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.section }} />{t("섹션")}</span>
-          <span className="text-pink-400">┄ {t("출처")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.room }} />{t("Room (relation)")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.root }} />{t("Relation doc")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: COLORS.section }} />{t("Section")}</span>
+          <span className="text-pink-400">┄ {t("Sources")}</span>
         </span>
       </div>
       <div className="min-h-0 flex-1 rounded border border-neutral-200 dark:border-neutral-800">
         <canvas data-testid="agent-graph-canvas" ref={canvasRef} className="block w-full" />
       </div>
       <p className="text-xs text-neutral-400">
-        {t("노드를 끌어 배치를 바꾸고, 클릭하면 해당 방이나 문서가 열립니다.")}
+        {t("Drag nodes to rearrange them; click one to open its room or doc.")}
       </p>
     </div>
   );

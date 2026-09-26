@@ -12,6 +12,7 @@
 import type { BlockType, BlockContent } from "@/lib/db/schema";
 import type { PastedBlock } from "./html-paste";
 import { CODE_LANGUAGES } from "./block-defs";
+import { notionDateTextKo } from "@/i18n/content/editor";
 
 // A rich-text run: ["text"] or ["text", [["b"], ["a", href], …]].
 type Run = [string, ...unknown[][][]];
@@ -31,11 +32,11 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** date mention → the text Notion shows ("2026년 7월 16일") */
+/** date mention → the text (Korean) Notion shows — see notionDateTextKo */
 function dateText(d: unknown): string {
   const start = (d as { start_date?: string })?.start_date ?? "";
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(start);
-  return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : "";
+  return m ? notionDateTextKo(m[1], Number(m[2]), Number(m[3])) : "";
 }
 
 /** rich-text runs → {text, html?} — annotations map 1:1 to sanitized inline

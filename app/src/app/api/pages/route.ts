@@ -10,6 +10,10 @@ import { getWorkspaceRole } from "@/lib/auth/workspace-role";
 import { scheduleMirror } from "@/lib/md-mirror";
 import { listPages, okfSyntheticPage } from "@/lib/okf-store";
 import { okfGateFor } from "@/lib/okf-acl";
+import { RELATIONSHIP_DOC_PREFIXES } from "@/i18n/content/components";
+
+/** "<relationship/family doc prefix> — <sides>[-<room6>]", Korean or English prefix. */
+const RELATIONSHIP_DOC_TITLE = new RegExp(`^(?:${RELATIONSHIP_DOC_PREFIXES.join("|")})\\s*—\\s*(.+?)(?:-[0-9a-f]{6})?$`, "iu");
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +40,7 @@ export async function GET(req: NextRequest) {
 
  // isDatabase: this page's body IS a database (a fullPage database block), not a
  // page that happens to contain one. The sidebar needs it to name and icon the
- // row the way Notion does — "새 데이터베이스" with a table glyph, not "Untitled"
+ // row the way Notion does — "New database" with a table glyph, not "Untitled"
  // with a page glyph — and only the block knows.
  //
  // Two queries rather than a correlated subquery: `${pages.id}` inside a raw sql
@@ -163,7 +167,7 @@ export async function GET(req: NextRequest) {
       // membership rule — a relationship doc belongs where its partner is a
       // member. Docs that don't parse as "… — <partner>" stay visible.
       const base = rel.split("/")[0];
-      const m = base.match(/^(?:relationship doc|관계 문서|family doc|가족 문서)\s*—\s*(.+?)(?:-[0-9a-f]{6})?$/iu);
+      const m = base.match(RELATIONSHIP_DOC_TITLE);
       if (!m) return true;
       const sides = m[1].split(/(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|\s·\s)+/u).map((x) => x.trim()).filter(Boolean);
       const partner = sides[sides.length - 1];
@@ -207,7 +211,7 @@ export async function POST(req: NextRequest) {
   // A page belongs to the workspace of whatever it hangs off — NOT to the
   // session's active workspace. Taking the active one put a row made in
   // ComCom > Projects into the creator's personal workspace whenever that was
-  // the one selected, so after 휴지통으로 이동 the page sat in the other
+  // the one selected, so after Move to Trash the page sat in the other
   // workspace's trash and could not be restored from where it was deleted.
   // The active workspace is only the answer for a page with no parent.
   let workspaceId = await getDefaultWorkspaceId(auth.user.id);
@@ -270,8 +274,8 @@ export async function POST(req: NextRequest) {
     );
 
  // A sub-page belongs where its parent belongs. The + on a teamspace row
- // ("추가 대상: 🏠 팀스페이스 홈") adds to that teamspace; without this the child
- // came out with teamspace_id NULL — a 개인 페이지 that merely happened to sit
+ // ("Add to: 🏠 Teamspace Home") adds to that teamspace; without this the child
+ // came out with teamspace_id NULL — a Private page that merely happened to sit
  // under a team page. Only the topmost ancestor is sure to carry the id on
  // rows created before this, so walk up until one does.
   let inheritedTeamspaceId = typeof teamspaceId === "string" ? teamspaceId : null;

@@ -34,17 +34,17 @@ export function AindriveSection() {
             <Link
               href={`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`}
               data-testid="aindrive-section-share"
-              title={t("팀스페이스에 폴더 공유")}
+              title={t("Share folders with a teamspace")}
               className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
-              <Share2 size={11} /> {t("팀과 공유")}
+              <Share2 size={11} /> {t("Share with team")}
             </Link>
           )}
         </span>
       </div>
       {!collapsed &&
         (info.drives.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-neutral-400">{t("드라이브가 없습니다")}</p>
+          <p className="px-2 py-1 text-xs text-neutral-400">{t("No drives")}</p>
         ) : (
           info.drives.map((d) => {
             const href = `/aindrive/d/${d.id}`;
@@ -56,7 +56,7 @@ export function AindriveSection() {
                 href={href}
                 data-testid={`aindrive-section-drive-${d.id}`}
                 data-online={offline ? "false" : "true"}
-                title={offline ? t("꺼져 있음") : t("연결됨")}
+                title={offline ? t("Offline") : t("Connected")}
                 className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
                   active
                     ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"

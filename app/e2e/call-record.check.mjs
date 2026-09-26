@@ -111,5 +111,5 @@ await page.waitForTimeout(300);
 check("clicking again folds it away", (await panel.count()) === 0);
 
 await browser.close();
-console.log(failed ? `\n${failed} FAILED` : "\n전부 통과");
+console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

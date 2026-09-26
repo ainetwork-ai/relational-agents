@@ -1,7 +1,7 @@
-// 대시보드 카운터 위젯 숫자 포매팅 — 소수 자릿수 / 접두·접미어 / ±부호색.
+// Dashboard counter widget number formatting — decimal places / prefix and suffix / ± sign color.
 //
-// 임시 데이터베이스를 API로 만들고, 편집 모드에서 새 컨트롤 4개를 실제로 눌러
-// 값 표기가 바뀌는지 확인한다. 끝나면 만든 것들을 지운다.
+// Creates a temporary database through the API, actually operates the 4 new controls in edit
+// mode, and checks that the displayed value changes. Deletes what it made at the end.
 //
 //   [BASE_URL=…] node e2e/dashboard-counter.check.mjs
 
@@ -48,7 +48,7 @@ const valueIs = async (want, label) => {
     );
   } catch {
     const got = await page.locator("[data-testid='db-dashw-value-w-c']").textContent();
-    fails.push(`${label}: 표기 "${got}" / 기대 "${want}"`);
+    fails.push(`${label}: shown "${got}" / expected "${want}"`);
   }
 };
 
@@ -58,48 +58,49 @@ const dashTab = page.getByTestId(/^db-view-tab-/).filter({ hasText: "Dash" }).fi
 if (await dashTab.isVisible().catch(() => false)) await dashTab.click();
 await page.waitForSelector("[data-testid='db-dashboard-view']", { timeout: 60_000 });
 
-// 기본: 자동 소수 (최대 2자리, 천 단위 구분)
-await valueIs("1,200.25", "기본(자동 소수)");
+// default: automatic decimals (at most 2 places, thousands separators)
+await valueIs("1,200.25", "default (automatic decimals)");
 
 await page.getByTestId("db-dash-edit").click();
 
-// 소수 0자리
+// 0 decimal places
 await page.getByTestId("db-dashw-decimals-w-c").selectOption("0");
-await valueIs("1,200", "소수 0자리");
+await valueIs("1,200", "0 decimal places");
 
-// 접두어 $
+// prefix $
 await page.getByTestId("db-dashw-prefix-w-c").fill("$");
 await page.getByTestId("db-dashw-prefix-w-c").blur();
-await valueIs("$1,200", "접두어 $");
+await valueIs("$1,200", "prefix $");
 
-// 접미어
+// suffix
 await page.getByTestId("db-dashw-suffix-w-c").fill(" USD");
 await page.getByTestId("db-dashw-suffix-w-c").blur();
-await valueIs("$1,200 USD", "접미어 USD");
+await valueIs("$1,200 USD", "suffix USD");
 
-// ±부호색: 양수는 + 와 초록
+// ± sign color: positive gets + and green
 await page.getByTestId("db-dashw-sign-w-c").click();
-await valueIs("+$1,200 USD", "부호색 켬(+)");
-// Tailwind v4는 색을 lab()으로 계산한다 — a축이 음수면 초록, 양수면 빨강
+await valueIs("+$1,200 USD", "sign color on (+)");
+// Tailwind v4 computes colors as lab() — a negative a axis is green, positive is red
 const labA = (c) => { const m = c.match(/lab\([\d.]+ (-?[\d.]+)/); return m ? Number(m[1]) : NaN; };
 const color = await page.locator("[data-testid='db-dashw-value-w-c']").evaluate((e) => getComputedStyle(e).color);
-if (!(labA(color) < -20)) fails.push(`부호색: 양수 색이 초록이 아닙니다 (${color})`);
+if (!(labA(color) < -20)) fails.push(`sign color: the positive color is not green (${color})`);
 
-// 음수로 뒤집으면 - 와 빨강 (행 하나를 크게 음수로)
+// flipped negative gives - and red (one row made strongly negative)
 await api("POST", `/api/databases/${dbId}/rows`, { values: { [amountId]: -2000 } });
-await valueIs("-$800 USD", "부호색 음수(-)");
+await valueIs("-$800 USD", "sign color negative (-)");
 const negColor = await page.locator("[data-testid='db-dashw-value-w-c']").evaluate((e) => getComputedStyle(e).color);
-if (!(labA(negColor) > 20)) fails.push(`부호색: 음수 색이 빨강이 아닙니다 (${negColor})`);
+if (!(labA(negColor) > 20)) fails.push(`sign color: the negative color is not red (${negColor})`);
 
-// 정리
+// cleanup
 await page.request.fetch(`${BASE}/api/pages/${pageId}`, { method: "DELETE" });
 await page.request.fetch(`${BASE}/api/databases/${dbId}`, { method: "DELETE" });
 await browser.close();
 
 if (fails.length) {
-  console.error(`\n  ┌─ 카운터 포매팅 불일치 (${fails.length}건) ─────────────`);
+  console.error(`\n  ┌─ Counter formatting mismatch (${fails.length}) ─────────────`);
   for (const f of fails) console.error(`  │ ${f}`);
   console.error("  └──────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("카운터 포매팅 OK — 자동/0자리 소수, $ 접두어, USD 접미어, ± 부호색(초록/빨강)");
+console.log("counter formatting OK — automatic/0-place decimals, $ prefix, USD suffix, ± sign color (green/red)");
+

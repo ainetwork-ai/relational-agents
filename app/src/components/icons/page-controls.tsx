@@ -1,4 +1,4 @@
-/** Notion's .notion-page-controls glyphs (아이콘 추가 · 커버 추가 · 댓글 추가),
+/** Notion's .notion-page-controls glyphs (Add icon · Add cover · Add comment),
  *  paths lifted verbatim from docs/page_add_popup.html so they match the
  *  original instead of a platform emoji. Filled with currentColor, 16px. */
 import type { SVGProps } from "react";

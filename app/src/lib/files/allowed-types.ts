@@ -12,9 +12,10 @@
 // these two have to come out with it.
 
 export const ALLOWED_EXTENSIONS = new Set([
-  // Images — heic/heif 는 iPhone 기본 사진 포맷. avif 는 렌더 판정(isImageFile)과 정합
-  // (기존엔 allowlist 누락으로 불일치였다). heic 인라인 렌더는 브라우저별(Safari O/Chrome X)이라
-  // best-effort — 못 그리면 파일 카드/다운로드로 degrade.
+  // Images — heic/heif is the iPhone's default photo format. avif matches the render check
+  // (isImageFile) (it used to be missing from the allowlist, so the two disagreed). Inline heic
+  // rendering depends on the browser (Safari yes / Chrome no), so it is best-effort — when it
+  // cannot be drawn it degrades to a file card/download.
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'heic', 'heif', 'bmp', 'tif', 'tiff',
   // Video (UX audit #14)
   'mp4', 'mov', 'webm', 'm4v',
@@ -22,19 +23,20 @@ export const ALLOWED_EXTENSIONS = new Set([
   'mp3', 'm4a', 'wav', 'ogg', 'aac',
   // Documents
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf',
-  // Text / data — 개발팀 협업용. 스크립트 실행형(js/mjs/exe 등)은 여전히 제외.
-  // lottie: 디자이너가 넘기는 애니메이션 자산(dotLottie = JSON+이미지를 담은 zip). 인라인
-  // 재생은 하지 않고 파일 카드/다운로드로만 다룬다 — 실행형이 아니라 zip 과 동급이다.
+  // Text / data — for dev-team collaboration. Executable script types (js/mjs/exe, etc.) stay excluded.
+  // lottie: animation assets designers hand over (dotLottie = a zip holding JSON + images). Not
+  // played inline, only handled as a file card/download — it is on par with zip, not executable.
   'md', 'markdown', 'json', 'xml', 'yaml', 'yml', 'log', 'lottie',
-  // html/htm — 리포트·저장한 웹페이지 공유 수요. 활성 콘텐츠를 담을 수 있지만 앱 origin
-  // 문서로 렌더되는 서빙 경로가 없다: download=attachment 고정, stream=isStreamableMedia
-  // 게이트(streamable-media.ts), /uploads=CSP sandbox+nosniff(next.config.ts). 같은
-  // 위험도의 svg 가 이미 기대고 있는 방어선이다. 앞의 둘은 라우트 테스트가 고정한다
-  // (download/route.test.ts · stream/route.test.ts) — /uploads 헤더만 정적 설정이다.
+  // html/htm — people want to share reports and saved web pages. They can carry active content,
+  // but no serving path renders them as an app-origin document: download = always attachment,
+  // stream = the isStreamableMedia gate (streamable-media.ts), /uploads = CSP sandbox + nosniff
+  // (next.config.ts). These are the same defences svg, with the same risk, already relies on.
+  // The first two are pinned by route tests (download/route.test.ts · stream/route.test.ts) —
+  // only the /uploads header is static config.
   'html', 'htm',
   // OpenDocument (LibreOffice/OpenOffice)
   'odt', 'ods', 'odp',
-  // Korean Hancom (한글) documents
+  // Korean Hancom (Hangul word processor) documents
   'hwp', 'hwpx',
   // Archives
   'zip', 'tar', 'gz', 'rar', '7z', 'bz2',
@@ -52,8 +54,9 @@ export const ALLOWED_EXTENSIONS = new Set([
   'tgz', 'xz',
 ]);
 
-// text/* 는 md/xml/yaml/log/plain/html 등을 커버 — 확장자 게이트가 먼저 실행형(js 등 미허용
-// 확장자)을 막으므로 안전. video/audio/image prefix 는 그 계열 mime 전반 허용.
+// text/* covers md/xml/yaml/log/plain/html, etc. — safe because the extension gate runs first and
+// blocks executable types (js and other disallowed extensions). The video/audio/image prefixes
+// allow every mime in those families.
 // font/* too: a font is data, not code (ttf/otf/woff previews as a specimen)
 export const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audio/', 'text/', 'font/'];
 
@@ -65,7 +68,7 @@ export const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  // Korean Hancom (한글) — .hwp / .hwpx (only sent when Hancom Office is
+  // Korean Hancom (Hangul word processor) — .hwp / .hwpx (only sent when Hancom Office is
   // installed; otherwise browsers fall back to octet-stream/empty, handled below)
   'application/x-hwp',
   'application/haansofthwp',
@@ -117,7 +120,7 @@ export const ALLOWED_MIME_TYPES = new Set([
   'application/x-shockwave-flash',
 ]);
 
-/** 확장자 추출(node path 비의존) — 점 없거나 끝점이면 빈 문자열. */
+/** Extracts the extension (no node path dependency) — empty string when there is no dot or it ends in one. */
 export function fileExtension(fileName: string): string {
   const dot = fileName.lastIndexOf('.');
   if (dot < 0 || dot === fileName.length - 1) return '';
@@ -129,10 +132,11 @@ export type UploadTypeCheck =
   | { allowed: false; reason: 'ext' | 'mime'; ext: string; mimeType: string };
 
 /**
- * 확장자·MIME 타입 허용 여부(크기 검증은 호출자 몫 — 서버 route/클라가 각자 제한). 확장자
- * 게이트를 먼저 통과해야 하고, MIME 은 prefix/allowlist/unknown 중 하나여야 한다. 브라우저가
- * OS 매핑 없는 포맷에 ""·application/octet-stream 을 주므로(예: Hancom 미설치 .hwp) 이는
- * 확장자 게이트 통과 후 신뢰한다.
+ * Whether the extension and MIME type are allowed (size checks are the caller's job — the server
+ * route and the client each enforce their own limit). The extension gate must pass first, and the
+ * MIME must be one of prefix/allowlist/unknown. Browsers send "" or application/octet-stream for
+ * formats the OS has no mapping for (e.g. .hwp without Hancom installed), so that is trusted once
+ * the extension gate has passed.
  */
 export function checkUploadType(fileName: string, mimeType: string): UploadTypeCheck {
   const ext = fileExtension(fileName);

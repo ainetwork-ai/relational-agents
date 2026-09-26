@@ -6,7 +6,7 @@ import { startPairing } from "@/lib/aindrive-account";
 export const dynamic = "force-dynamic";
 
 /**
- * POST → { pairingId, approveUrl, expiresAt } — "aindrive로 로그인".
+ * POST → { pairingId, approveUrl, expiresAt } — "Sign in with aindrive".
  * Open approveUrl (aindrive, where the person is signed in already) and
  * approve; then poll /api/auth/aindrive/poll. The pairing is tied to this
  * browser's session, so no one else can finish it.

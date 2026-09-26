@@ -1,31 +1,34 @@
-// 페이지 삭제 — 우측 상단 ⋯ 의 `휴지통으로 이동`. docs/notion-page-delete.md
+// Page delete — `Move to Trash` in the top-right ⋯. docs/notion-page-delete.md
 //
-// comcom 보고: Projects 표에서 행을 문서로 열었을 때 우측 상단 ⋯ 에 삭제가 없다.
-// 원본(노션, 2026-09-10 실측):
-//   · 메뉴 카드 256 폭 / radius 10
-//   · `옮기기` 바로 다음이 `휴지통으로 이동` — 다른 항목과 같은 잉크, 빨강이 아니다
-//   · 행은 곧 페이지다: 행 페이지를 휴지통에 넣으면 표에서도 빠지고, 복원하면 돌아온다
+// comcom report: opening a row from the Projects table as a document, the top-right ⋯ has no delete.
+// Original (Notion, measured 2026-09-10):
+//   · menu card 256 wide / radius 10
+//   · `Move to Trash` comes right after `Move to` — same ink as the other items, not red
+//   · a row is a page: putting the row page in the Trash drops it from the table, restoring brings it back
 //
-// 세 화면이 같은 메뉴를 쓴다 — 셋 다 잰다:
-//   A. 표에서 연 행의 사이드 피크   B. 같은 종류의 행을 /p/<id> 전체 페이지로   C. 일반 페이지
-// 그리고
-//   D. 거절: "edit" 로만 공유받은 게스트는 지우지 못한다(서버 403, UI 는 실패 토스트 + 그대로)
-//   E. ?permanent=1 은 행 레코드까지 지운다
+// Three screens share the same menu — all three are measured:
+//   A. side peek of a row opened from the table   B. the same kind of row as a full /p/<id> page   C. a plain page
+// and
+//   D. refusal: a guest shared with "edit" only cannot delete (server 403, UI shows a failure toast + stays put)
+//   E. ?permanent=1 deletes the row record too
 //
 //   [BASE_URL=…] [USER_ID=…] node e2e/page-delete.check.mjs
 //
-// 자기가 만든 데이터베이스·페이지·행·사용자만 쓰고, finally 에서 전부 지운다.
+// Uses only the databases, pages, rows, and users it creates, and deletes them all in finally.
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
 import { Client } from "pg";
+import { ko, content } from "./i18n.mjs";
+
+const C = content.PAGE_DELETE;
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const OWNER = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj@comcom.ai
 const MENU_W = 256, MENU_RADIUS = "10px";
-const LABEL = "휴지통으로 이동";
-const OK_TOAST = "휴지통으로 이동했습니다";
-const FAIL_TOAST = "휴지통으로 이동하지 못했습니다";
+const LABEL = ko("Move to Trash");
+const OK_TOAST = ko("Moved to Trash");
+const FAIL_TOAST = ko("Couldn't move to Trash");
 // Chromium reports Tailwind v4 colours as lab(L a b), not rgb() — read both,
 // and treat an unreadable colour as a failure rather than "not red".
 const isRed = (css) => {
@@ -51,9 +54,9 @@ const api = (path, init, cookie = ownerCookie) =>
 const json = async (res, what) => { if (!res.ok) throw new Error(`${what}: ${res.status} ${await res.text().catch(() => "")}`.slice(0, 300)); return res.json(); };
 
 const stamp = Date.now();
-const madePages = [];   // 만든 페이지 id — 끝나면 영구 삭제
-const madeDbs = [];     // 만든 데이터베이스 id — 끝나면 지운다(속성·행·뷰는 cascade)
-const temps = [];       // 만든 사용자
+const madePages = [];   // ids of pages we made — permanently deleted at the end
+const madeDbs = [];     // ids of databases we made — deleted at the end (properties, rows, views cascade)
+const temps = [];       // users we made
 
 const pg = new Client({ connectionString: pgUrl });
 await pg.connect();
@@ -68,13 +71,13 @@ const newPage = async (cookie) => {
   return p;
 };
 
-// ── fixtures: UI 와 같은 API 로 ─────────────────────────────────────────────
+// ── fixtures: through the same API as the UI ───────────────────────────────
 const mkPage = async (title, cookie = ownerCookie) => {
   const { page } = await json(await api("/api/pages", { method: "POST", body: JSON.stringify({ title }) }, cookie), "POST /api/pages");
   madePages.push(page.id);
   return page.id;
 };
-/** database-block.tsx addRow + ensureRowPage 와 같은 두 걸음 */
+/** The same two steps as database-block.tsx addRow + ensureRowPage */
 const mkRowWithPage = async (dbId, titlePropId, title) => {
   const { row } = await json(await api(`/api/databases/${dbId}/rows`, { method: "POST", body: JSON.stringify({ values: { [titlePropId]: title } }) }), "POST rows");
   const { page } = await json(await api("/api/pages", { method: "POST", body: JSON.stringify({ title, rowForDatabaseId: dbId }) }), "POST /api/pages rowFor");
@@ -88,9 +91,9 @@ const rowState = async (rowId, pageId) => {
   return { rowExists: !!r, marked: r?.marked ?? null, pageArchived: p?.is_archived ?? null };
 };
 
-/** ⋯ 를 눌러 메뉴를 연다. page-root 는 서버 렌더라 하이드레이션 전에 보이고, 그때의
- *  클릭은 아무 일도 하지 않는다 — 메뉴 카드(page-opt-moveto, 모든 페이지에 있다)가 뜰
- *  때까지 다시 누른다. 삭제 항목의 유무는 이 뒤에 따로 잰다. */
+/** Clicks ⋯ to open the menu. page-root is server-rendered, so it shows before hydration, and a
+ *  click at that point does nothing — keep clicking until the menu card (page-opt-moveto, present
+ *  on every page) appears. Whether the delete item is there is measured separately afterwards. */
 const openMenu = async (page, scope = "") => {
   const opts = page.locator(`${scope} [data-testid="page-options"]`.trim()).first();
   await opts.waitFor({ timeout: 60_000 });
@@ -102,12 +105,12 @@ const openMenu = async (page, scope = "") => {
   return false;
 };
 
-/** 1·2: 메뉴를 열고 항목·기하를 잰다. scope 는 피크처럼 ⋯ 가 둘인 화면을 가른다. */
+/** 1·2: opens the menu and measures the item and geometry. scope tells apart screens with two ⋯, like the peek. */
 const inspectMenu = async (page, tag, scope = "") => {
   const opened = await openMenu(page, scope);
   const del = page.locator(`${scope} [data-testid="page-opt-delete"]`.trim()).first();
   const present = opened && (await del.waitFor({ timeout: 5000 }).then(() => true, () => false));
-  check(`${tag}1. ⋯ 메뉴에 휴지통으로 이동이 있다`, present && (await del.innerText()).trim() === LABEL, present ? (await del.innerText()).trim() : "없음");
+  check(`${tag}1. the ⋯ menu has Move to Trash`, present && (await del.innerText()).trim() === LABEL, present ? (await del.innerText()).trim() : "missing");
   if (!present) return false;
   const g = await del.evaluate((el) => {
     const card = el.closest(".popover-anim") ?? el.parentElement;
@@ -121,9 +124,9 @@ const inspectMenu = async (page, tag, scope = "") => {
       prev: el.previousElementSibling?.getAttribute("data-testid") ?? null,
     };
   });
-  check(`${tag}2. 카드 폭 256 · radius 10`, g.w === MENU_W && g.radius === MENU_RADIUS, JSON.stringify({ w: g.w, radius: g.radius }));
-  check(`${tag}2. 옮기기와 같은 잉크, 빨강이 아니다`, g.moveColor !== null && g.color === g.moveColor && !isRed(g.color), JSON.stringify({ color: g.color, moveto: g.moveColor }));
-  check(`${tag}2. 옮기기 바로 다음 자리`, g.prev === "page-opt-moveto", `prev=${g.prev}`);
+  check(`${tag}2. card width 256 · radius 10`, g.w === MENU_W && g.radius === MENU_RADIUS, JSON.stringify({ w: g.w, radius: g.radius }));
+  check(`${tag}2. same ink as Move to, not red`, g.moveColor !== null && g.color === g.moveColor && !isRed(g.color), JSON.stringify({ color: g.color, moveto: g.moveColor }));
+  check(`${tag}2. right after Move to`, g.prev === "page-opt-moveto", `prev=${g.prev}`);
   return true;
 };
 const toastText = async (page, want, timeout = 8000) => {
@@ -135,120 +138,120 @@ const gotoDb = async (page, hostPageId) => {
   await page.waitForSelector('[data-testid^="db-row-"]', { timeout: 120_000 }).catch(() => {});
   await page.waitForTimeout(800);
 };
-/** 5: 휴지통 모달에서 복원 → 표에 행이 돌아오고 표식이 지워진다 */
+/** 5: restore from the Trash modal → the row comes back to the table and the mark is cleared */
 const restoreViaTrash = async (page, tag, hostPageId, rowId, pageId) => {
   await gotoDb(page, hostPageId);
   await page.locator('[data-testid="trash-button"]').click();
   await page.locator('[data-testid="trash-modal"]').waitFor({ timeout: 10_000 });
   const btn = page.locator(`[data-testid="trash-restore-${pageId}"]`);
   const listed = await btn.waitFor({ timeout: 10_000 }).then(() => true, () => false);
-  check(`${tag}5. 휴지통 모달에 그 페이지가 있다`, listed);
+  check(`${tag}5. the page is in the Trash modal`, listed);
   if (!listed) return;
   await btn.hover();
   await btn.click();
   await page.waitForTimeout(1500);
   const s = await rowState(rowId, pageId);
-  check(`${tag}5. 복원하면 DB 표식이 사라진다`, s.rowExists && s.marked === false && s.pageArchived === false, JSON.stringify(s));
+  check(`${tag}5. restoring clears the DB mark`, s.rowExists && s.marked === false && s.pageArchived === false, JSON.stringify(s));
   await page.keyboard.press("Escape");
   await gotoDb(page, hostPageId);
-  check(`${tag}5. 새로고침한 표에 행이 돌아와 있다`, (await page.locator(`[data-testid="db-row-${rowId}"]`).count()) === 1);
+  check(`${tag}5. the row is back in the reloaded table`, (await page.locator(`[data-testid="db-row-${rowId}"]`).count()) === 1);
 };
-/** 4: 표에서 빠졌는가 — 새로고침 뒤에 행 testid 가 없고, DB 는 보관 + 표식 */
+/** 4: did it leave the table — no row testid after reload, and the DB has it archived + marked */
 const assertRowGone = async (page, tag, hostPageId, rowId, pageId) => {
   const s = await rowState(rowId, pageId);
-  check(`${tag}4. DB: pages.is_archived=true 이고 행에 __archived 표식`, s.pageArchived === true && s.rowExists && s.marked === true, JSON.stringify(s));
+  check(`${tag}4. DB: pages.is_archived=true and the row has the __archived mark`, s.pageArchived === true && s.rowExists && s.marked === true, JSON.stringify(s));
   await gotoDb(page, hostPageId);
-  check(`${tag}4. 새로고침한 표에서 행이 사라졌다`, (await page.locator(`[data-testid="db-row-${rowId}"]`).count()) === 0);
+  check(`${tag}4. the row is gone from the reloaded table`, (await page.locator(`[data-testid="db-row-${rowId}"]`).count()) === 0);
 };
 
 try {
   const ws = (await pg.query("select workspace_id from workspace_members where user_id=$1 order by case role when 'owner' then 0 when 'admin' then 1 when 'member' then 2 else 3 end, joined_at limit 1", [OWNER])).rows[0]?.workspace_id;
 
-  // 데이터베이스 (전체 페이지 · 표 뷰 하나 · 이름 속성 하나)
-  const snap = await json(await api("/api/databases", { method: "POST", body: JSON.stringify({ shape: "minimal", title: `e2e 삭제 검사 ${stamp}` }) }), "POST /api/databases");
+  // database (full page · one table view · one name property)
+  const snap = await json(await api("/api/databases", { method: "POST", body: JSON.stringify({ shape: "minimal", title: `${C.dbTitle} ${stamp}` }) }), "POST /api/databases");
   const dbId = snap.database.id;
   madeDbs.push(dbId);
   const titleProp = snap.properties.find((p) => p.type === "title").id;
   const { pageId: hostPageId } = await json(await api(`/api/databases/${dbId}/fullpage`, { method: "POST" }), "POST fullpage");
   madePages.push(hostPageId);
-  check("0. 픽스처: 데이터베이스와 호스트 페이지", !!dbId && !!hostPageId && snap.database.workspaceId === ws, `db=${dbId} host=${hostPageId}`);
+  check("0. fixture: database and host page", !!dbId && !!hostPageId && snap.database.workspaceId === ws, `db=${dbId} host=${hostPageId}`);
 
-  const rowA = await mkRowWithPage(dbId, titleProp, `A 피크 ${stamp}`);
-  const rowB = await mkRowWithPage(dbId, titleProp, `B 전체 ${stamp}`);
-  const rowE = await mkRowWithPage(dbId, titleProp, `E 영구 ${stamp}`);
-  const plainC = await mkPage(`C 일반 ${stamp}`);
+  const rowA = await mkRowWithPage(dbId, titleProp, `${C.rowA} ${stamp}`);
+  const rowB = await mkRowWithPage(dbId, titleProp, `${C.rowB} ${stamp}`);
+  const rowE = await mkRowWithPage(dbId, titleProp, `${C.rowE} ${stamp}`);
+  const plainC = await mkPage(`${C.pageC} ${stamp}`);
 
   const page = await newPage(ownerCookie);
 
-  // ── A. 표에서 연 행의 사이드 피크 ─────────────────────────────────────────
+  // ── A. side peek of a row opened from the table ──────────────────────────
   {
     await gotoDb(page, hostPageId);
     const tr = page.locator(`[data-testid="db-row-${rowA.rowId}"]`);
-    check("A0. 표에 행이 보인다", (await tr.count()) === 1);
+    check("A0. the row shows in the table", (await tr.count()) === 1);
     await tr.hover();
     await page.locator(`[data-testid="db-title-open-${rowA.rowId}"]`).click();
     const peek = page.locator('[data-testid="db-row-peek"]');
     await peek.waitFor({ timeout: 30_000 });
     if (await inspectMenu(page, "A", '[data-testid="db-row-peek"]')) {
       await peek.locator('[data-testid="page-opt-delete"]').click();
-      check("A3. 성공 토스트", await toastText(page, OK_TOAST));
+      check("A3. success toast", await toastText(page, OK_TOAST));
       const closed = await peek.waitFor({ state: "detached", timeout: 8000 }).then(() => true, () => false);
-      check("A3. 피크가 닫힌다", closed);
+      check("A3. the peek closes", closed);
       await page.waitForTimeout(1500);
-      check("A4. 새로고침 없이도 열린 표에서 빠진다", (await page.locator(`[data-testid="db-row-${rowA.rowId}"]`).count()) === 0);
+      check("A4. leaves the open table even without a reload", (await page.locator(`[data-testid="db-row-${rowA.rowId}"]`).count()) === 0);
       await assertRowGone(page, "A", hostPageId, rowA.rowId, rowA.pageId);
       await restoreViaTrash(page, "A", hostPageId, rowA.rowId, rowA.pageId);
     }
   }
 
-  // ── B. 행을 /p/<id> 전체 페이지로 ─────────────────────────────────────────
+  // ── B. the row as a full /p/<id> page ────────────────────────────────────
   {
     await page.goto(`${BASE}/p/${rowB.pageId}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
     await page.waitForSelector('[data-testid="page-root"]', { timeout: 120_000 });
     if (await inspectMenu(page, "B")) {
       await page.locator('[data-testid="page-opt-delete"]').first().click();
-      check("B3. 성공 토스트", await toastText(page, OK_TOAST));
+      check("B3. success toast", await toastText(page, OK_TOAST));
       const left = await page.waitForURL((u) => !u.pathname.includes(rowB.pageId), { timeout: 15_000 }).then(() => true, () => false);
-      check("B3. /p/<행 페이지> 를 떠난다", left, page.url());
+      check("B3. leaves /p/<row page>", left, page.url());
       await page.waitForTimeout(800);
       await assertRowGone(page, "B", hostPageId, rowB.rowId, rowB.pageId);
       await restoreViaTrash(page, "B", hostPageId, rowB.rowId, rowB.pageId);
     }
   }
 
-  // ── C. 일반 페이지 ───────────────────────────────────────────────────────
+  // ── C. plain page ────────────────────────────────────────────────────────
   {
     await page.goto(`${BASE}/p/${plainC}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
     await page.waitForSelector('[data-testid="page-root"]', { timeout: 120_000 });
     if (await inspectMenu(page, "C")) {
       await page.locator('[data-testid="page-opt-delete"]').first().click();
-      check("C3. 성공 토스트", await toastText(page, OK_TOAST));
+      check("C3. success toast", await toastText(page, OK_TOAST));
       const left = await page.waitForURL((u) => !u.pathname.includes(plainC), { timeout: 15_000 }).then(() => true, () => false);
-      check("C3. /p/<id> 를 떠난다", left, page.url());
+      check("C3. leaves /p/<id>", left, page.url());
       await page.waitForTimeout(800);
       const { rows: [p] } = await pg.query("select is_archived from pages where id=$1", [plainC]);
       check("C4. DB: pages.is_archived=true", p?.is_archived === true, JSON.stringify(p));
       await page.locator('[data-testid="trash-button"]').click();
       const btn = page.locator(`[data-testid="trash-restore-${plainC}"]`);
       const listed = await btn.waitFor({ timeout: 10_000 }).then(() => true, () => false);
-      check("C5. 휴지통 모달에 있다", listed);
+      check("C5. it is in the Trash modal", listed);
       if (listed) {
         await btn.hover();
         await btn.click();
         await page.waitForTimeout(1500);
         const { rows: [q] } = await pg.query("select is_archived from pages where id=$1", [plainC]);
-        check("C5. 복원하면 보관이 풀린다", q?.is_archived === false, JSON.stringify(q));
+        check("C5. restoring unarchives it", q?.is_archived === false, JSON.stringify(q));
         await page.keyboard.press("Escape");
         await page.reload({ waitUntil: "domcontentloaded" });
         const back = await page.locator(`[data-testid="page-tree-item-${plainC}"]`).waitFor({ timeout: 60_000 }).then(() => true, () => false);
-        check("C5. 새로고침한 사이드바에 돌아와 있다", back);
+        check("C5. it is back in the reloaded sidebar", back);
       }
     }
   }
 
-  // ── D. 거절: edit 공유만 받은 게스트 ──────────────────────────────────────
+  // ── D. refusal: a guest shared with edit only ────────────────────────────
   {
-    const pageD = await mkPage(`D 게스트 거절 ${stamp}`);
+    const pageD = await mkPage(`${C.pageD} ${stamp}`);
     const { rows: [u] } = await pg.query("insert into users (display_name, email) values ($1,$2) returning id", ["e2e-guest", `e2e-page-delete-guest-${stamp}@example.invalid`]);
     temps.push(u.id);
     await pg.query("insert into workspace_members (workspace_id, user_id, role) values ($1,$2,'guest')", [ws, u.id]);
@@ -256,60 +259,61 @@ try {
     const guest = await seal(u.id);
 
     const del = await api(`/api/pages/${pageD}`, { method: "DELETE" }, guest);
-    check("D1. 게스트 DELETE 는 403", del.status === 403, `status=${del.status}`);
+    check("D1. guest DELETE is 403", del.status === 403, `status=${del.status}`);
     const patch = await api(`/api/pages/${pageD}`, { method: "PATCH", body: JSON.stringify({ isArchived: true }) }, guest);
-    check("D1. PATCH {isArchived} 도 403", patch.status === 403, `status=${patch.status}`);
+    check("D1. PATCH {isArchived} is 403 too", patch.status === 403, `status=${patch.status}`);
     const { rows: [d0] } = await pg.query("select is_archived from pages where id=$1", [pageD]);
-    check("D2. 페이지는 그대로다", d0?.is_archived === false, JSON.stringify(d0));
+    check("D2. the page is untouched", d0?.is_archived === false, JSON.stringify(d0));
 
     const gp = await newPage(guest);
     await gp.goto(`${BASE}/p/${pageD}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
     const opened = await gp.waitForSelector('[data-testid="page-root"]', { timeout: 120_000 }).then(() => true, () => false);
-    check("D3. 게스트가 공유받은 페이지를 연다", opened, gp.url());
+    check("D3. the guest opens the shared page", opened, gp.url());
     if (opened) {
       const menuOpen = await openMenu(gp);
       const item = gp.locator('[data-testid="page-opt-delete"]').first();
       const present = menuOpen && (await item.waitFor({ timeout: 5000 }).then(() => true, () => false));
-      check("D3. 게스트 메뉴에도 항목이 있다 (누르면 거절)", present);
+      check("D3. the guest menu has the item too (clicking it is refused)", present);
       if (present) {
         await item.click();
-        check("D4. 실패 토스트 휴지통으로 이동하지 못했습니다", await toastText(gp, FAIL_TOAST));
-        check("D4. 성공 토스트는 뜨지 않는다", (await gp.locator('[data-testid="toast-message"]', { hasText: new RegExp(`^${OK_TOAST}$`) }).count()) === 0);
+        check("D4. failure toast Couldn't move to Trash", await toastText(gp, FAIL_TOAST));
+        check("D4. no success toast", (await gp.locator('[data-testid="toast-message"]', { hasText: new RegExp(`^${OK_TOAST}$`) }).count()) === 0);
         await gp.waitForTimeout(1500);
-        check("D4. 페이지에 그대로 머문다", gp.url().includes(pageD) && (await gp.locator('[data-testid="page-root"]').count()) > 0, gp.url());
+        check("D4. stays on the page", gp.url().includes(pageD) && (await gp.locator('[data-testid="page-root"]').count()) > 0, gp.url());
         const { rows: [d1] } = await pg.query("select is_archived from pages where id=$1", [pageD]);
-        check("D4. DB 도 그대로", d1?.is_archived === false, JSON.stringify(d1));
+        check("D4. the DB is untouched too", d1?.is_archived === false, JSON.stringify(d1));
         await gp.reload({ waitUntil: "domcontentloaded" });
         const inTree = await gp.locator(`[data-testid="page-tree-item-${pageD}"]`).waitFor({ timeout: 60_000 }).then(() => true, () => false);
-        check("D5. 새로고침 뒤에도 사이드바 트리에 있다", inTree);
+        check("D5. still in the sidebar tree after reload", inTree);
       }
     }
     await gp.context().close();
   }
 
-  // ── E. 영구 삭제는 행 레코드까지 ──────────────────────────────────────────
+  // ── E. permanent delete takes the row record too ─────────────────────────
   {
     const soft = await api(`/api/pages/${rowE.pageId}`, { method: "DELETE" });
     const s0 = await rowState(rowE.rowId, rowE.pageId);
-    check("E1. 소프트 삭제: 행은 남고 표식만", soft.ok && s0.rowExists && s0.marked === true && s0.pageArchived === true, JSON.stringify({ status: soft.status, ...s0 }));
+    check("E1. soft delete: the row stays, only marked", soft.ok && s0.rowExists && s0.marked === true && s0.pageArchived === true, JSON.stringify({ status: soft.status, ...s0 }));
     const hard = await api(`/api/pages/${rowE.pageId}?permanent=1`, { method: "DELETE" });
     const s1 = await rowState(rowE.rowId, rowE.pageId);
-    check("E2. ?permanent=1: 페이지와 db_rows 레코드 모두 사라진다", hard.ok && !s1.rowExists && s1.pageArchived === null, JSON.stringify({ status: hard.status, ...s1 }));
+    check("E2. ?permanent=1: both the page and the db_rows record are gone", hard.ok && !s1.rowExists && s1.pageArchived === null, JSON.stringify({ status: hard.status, ...s1 }));
   }
 
-  check("Z. 페이지 오류 없음", errors.length === 0, errors.join(" | ").slice(0, 400));
+  check("Z. no page errors", errors.length === 0, errors.join(" | ").slice(0, 400));
 } catch (e) {
-  check("실행", false, String(e?.stack ?? e).slice(0, 400));
+  check("run", false, String(e?.stack ?? e).slice(0, 400));
 } finally {
-  // 행 페이지는 호스트 아래라 호스트를 지우면 cascade 가 아니다(parent 는 FK 아님) — 하나씩
-  for (const id of madePages) await pg.query("delete from pages where id=$1", [id]).catch((e) => console.log(`  · 페이지 ${id} 정리 실패: ${e.message}`));
-  for (const id of madeDbs) await pg.query("delete from databases where id=$1", [id]).catch((e) => console.log(`  · DB ${id} 정리 실패: ${e.message}`));
+  // row pages sit under the host, but deleting the host does not cascade (parent is not an FK) — one by one
+  for (const id of madePages) await pg.query("delete from pages where id=$1", [id]).catch((e) => console.log(`  · cleanup of page ${id} failed: ${e.message}`));
+  for (const id of madeDbs) await pg.query("delete from databases where id=$1", [id]).catch((e) => console.log(`  · cleanup of DB ${id} failed: ${e.message}`));
   for (const id of temps) {
     await pg.query("delete from page_members where user_id=$1", [id]).catch(() => {});
     await pg.query("delete from workspace_members where user_id=$1", [id]).catch(() => {});
     await pg.query("delete from notifications where actor_id=$1 or user_id=$1", [id]).catch(() => {});
     const drop = await pg.query("delete from users where id=$1", [id]).catch((e) => e);
-    if (drop instanceof Error) console.log(`  · 검사용 사용자 ${id} 를 못 지웠습니다: ${drop.message}`);
+    if (drop instanceof Error) console.log(`  · could not delete test user ${id}: ${drop.message}`);
+
   }
   await pg.end().catch(() => {});
   await browser.close();

@@ -1,21 +1,22 @@
-// 고정 속성 밴드가 원본과 같은지 — 무엇이 나오는가(집합·순서·행 불변), 사람이 여러 명일 때,
-// 항목 폭 규칙, 화살표, 그리고 피크/풀페이지 차이. 원본 실측은 fixtures/notion-row-props-band.json.
-// 기하(라벨 24 · 값 30 · gap 8 · 화살표 32)는 row-props.check.mjs 가 본다 — 여기서는 겹치지 않는 것만.
+// Is the pinned property band the same as the original — what shows (set, order, same for every row), several people,
+// the item width rule, the arrows, and the peek/full-page difference. Measured original: src/i18n/content/e2e-fixtures/notion-row-props-band.json.
+// Geometry (label 24 · value 30 · gap 8 · arrow 32) is row-props.check.mjs's job — here only what does not overlap.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] node e2e/band-props.check.mjs
 //
-// 밴드에 무엇이 서는지는 데이터베이스의 선택(config.pinned/pinnedOrder)이라, dev DB 를
-// 다시 시드했다면 먼저 피크의 `레이아웃 사용자 지정` 에서 TL · Assignee · End date ·
-// Evaluation 을 이 순서로 고정해야 한다 — 안 그러면 첫 대조부터 어긋난다.
+// What stands in the band is the database's choice (config.pinned/pinnedOrder), so if the dev DB was
+// reseeded, first pin TL · Assignee · End date · Evaluation in this order from the peek's
+// `Customize layout` — otherwise the very first comparison is off.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-row-props-band.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-row-props-band.json", import.meta.url), "utf8"));
 
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
@@ -25,7 +26,7 @@ const fails = [];
 const ok = (cond, label) => { console.log(`${cond ? "✓" : "✗"} ${label}`); if (!cond) fails.push(label); };
 const near = (a, b, tol = G.tolerance) => a != null && b != null && Math.abs(a - b) <= tol;
 
-// 밴드를 훑어 항목마다 이름·폭·라벨 폭·값의 실제 내용 폭·사람 칩/+N 을 읽는다
+// walk the band and read, per item, name · width · label width · the value's real content width · person chips/+N
 const MEASURE = `(root) => {
   const band = root.querySelector("[data-pinned-row]");
   if (!band) return null;
@@ -36,7 +37,7 @@ const MEASURE = `(root) => {
     const label = it.querySelector("[data-role='label']");
     const value = it.querySelector("[data-role='value']");
     const vr = value.getBoundingClientRect();
- // 값의 잉크 폭: 셀 안쪽 내용 + 좌우 패딩 6+6
+ // the value's ink width: the cell's inner content + side padding 6+6
     const inner = value.firstElementChild;
     const ink = inner ? Math.ceil(inner.scrollWidth) + 12 : 0;
     const chips = value.querySelectorAll("img, [data-avatar], span > span").length;
@@ -79,7 +80,7 @@ const rowIds = [...new Set(await page.$$eval("[data-testid^='db-row-']", (els) =
 ))];
 const openPeek = async (rowIndex) => {
   const id = rowIds[rowIndex];
- // 같은 행이 그룹마다 그려질 수 있어 첫 번째만 쓴다
+ // the same row can be drawn once per group, so use only the first
   await page.locator(`[data-testid='db-row-${id}']`).first().hover();
   await page.locator(`[data-testid='db-title-open-${id}']`).first().click({ timeout: 8000 });
   await page.waitForSelector("[data-testid='db-row-peek'] [data-pinned-row]", { timeout: 20_000 });
@@ -87,28 +88,28 @@ const openPeek = async (rowIndex) => {
 };
 const closePeek = async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(400); };
 
-// ── 1. 무엇이 나오는가: 행이 달라도 같은 집합·같은 순서, 빈 값도 자리를 지킨다 ──
-console.log("\n— 집합과 순서 (원본: 33행 전부 같은 4개) —");
+// ── 1. What shows: same set, same order on every row; empty values keep their place ──
+console.log("\n— set and order (original: the same 4 on all 33 rows) —");
 const WANT = G.set.properties;
 let sawEmpty = false;
 for (const i of [0, 1, 2, 3, 4]) {
   await openPeek(i);
   const m = await measure("[data-testid='db-row-peek']");
   const names = m.items.map((x) => x.name);
-  ok(JSON.stringify(names) === JSON.stringify(WANT), `행 ${i + 1}: ${names.join(" · ")}`);
+  ok(JSON.stringify(names) === JSON.stringify(WANT), `row ${i + 1}: ${names.join(" · ")}`);
   if (m.items.some((x) => x.empty)) {
     sawEmpty = true;
     for (const it of m.items.filter((x) => x.empty)) {
-      ok(/비어 있음|비어있음/.test(it.text), `행 ${i + 1} ${it.name}: 빈 값도 자리를 지킴 ("${it.text}")`);
-      ok(near(it.item, Math.max(80, it.label)), `행 ${i + 1} ${it.name}: 빈 항목 폭 = max(80, 라벨) — ${it.item} vs ${Math.max(80, it.label)}`);
+      ok(it.text.replace(/\s+/g, "").includes(ko("Empty").replace(/\s+/g, "")), `row ${i + 1} ${it.name}: an empty value keeps its place ("${it.text}")`);
+      ok(near(it.item, Math.max(80, it.label)), `row ${i + 1} ${it.name}: empty item width = max(80, label) — ${it.item} vs ${Math.max(80, it.label)}`);
     }
   }
   await closePeek();
 }
-ok(sawEmpty, "빈 값인 고정 속성을 가진 행이 표본에 있었다");
+ok(sawEmpty, "the sample had a row with an empty pinned property");
 
-// ── 2. 사람이 여러 명일 때: 칩 하나 + `+ N` ──
-console.log("\n— 사람이 여러 명일 때 —");
+// ── 2. Several people: one chip + `+ N` ──
+console.log("\n— several people —");
 let checkedMany = false, checkedOne = false;
 for (let i = 0; i < 8 && !(checkedMany && checkedOne); i++) {
   await openPeek(i);
@@ -118,35 +119,35 @@ for (let i = 0; i < 8 && !(checkedMany && checkedOne); i++) {
     if (n) {
       if (checkedMany) continue;
       checkedMany = true;
-      ok(it.chipCount === G.people.chipsShown, `${it.name}: 칩 ${it.chipCount}개 (원본 1개) + "${it.overflowText}"`);
-      ok(it.overflowText === `+ ${n}`, `${it.name}: 넘침 배지 "${it.overflowText}"`);
-      ok(near(it.valueH, G.people.valueHeight.withOverflow), `${it.name}: 값 높이 ${it.valueH} (원본 31)`);
-      ok(it.item <= G.width.max, `${it.name}: 항목 폭 ${it.item} ≤ 200`);
+      ok(it.chipCount === G.people.chipsShown, `${it.name}: ${it.chipCount} chips (original 1) + "${it.overflowText}"`);
+      ok(it.overflowText === `+ ${n}`, `${it.name}: overflow badge "${it.overflowText}"`);
+      ok(near(it.valueH, G.people.valueHeight.withOverflow), `${it.name}: value height ${it.valueH} (original 31)`);
+      ok(it.item <= G.width.max, `${it.name}: item width ${it.item} ≤ 200`);
     } else if (!checkedOne) {
       checkedOne = true;
-      ok(near(it.valueH, G.people.valueHeight.plain), `${it.name}: 한 명일 때 값 높이 ${it.valueH} (원본 30)`);
+      ok(near(it.valueH, G.people.valueHeight.plain), `${it.name}: value height with one person ${it.valueH} (original 30)`);
     }
   }
   await closePeek();
 }
-ok(checkedMany, "사람이 둘 이상인 고정 속성을 재봤다");
+ok(checkedMany, "measured a pinned property with two or more people");
 
-// ── 2b. 값 높이: 날짜는 30, 사람은 +N 이 있을 때만 31 ──
-console.log("\n— 값 높이 —");
+// ── 2b. Value height: 30 for dates, 31 for people only when there is a +N ──
+console.log("\n— value height —");
 {
   await openPeek(0);
   const m = await measure("[data-testid='db-row-peek']");
   for (const it of m.items) {
     if (it.type === "date")
-      ok(near(it.valueH, 30, 0.5), `${it.name}(날짜): 값 높이 ${it.valueH} (원본 30 — 패딩 4/4 + 21px 한 줄)`);
+      ok(near(it.valueH, 30, 0.5), `${it.name}(date): value height ${it.valueH} (original 30 — padding 4/4 + one 21px line)`);
     if (it.type === "person" && !it.empty)
-      ok(near(it.valueH, it.overflowText ? 31 : 30, 0.5), `${it.name}(사람${it.overflowText ? " +N" : ""}): 값 높이 ${it.valueH} (원본 ${it.overflowText ? 31 : 30})`);
+      ok(near(it.valueH, it.overflowText ? 31 : 30, 0.5), `${it.name}(person${it.overflowText ? " +N" : ""}): value height ${it.valueH} (original ${it.overflowText ? 31 : 30})`);
   }
   await closePeek();
 }
 
-// ── 3. 폭 규칙: clamp(max(라벨, 값), 80, 200), 창 폭·표면과 무관 ──
-console.log("\n— 항목 폭 —");
+// ── 3. Width rule: clamp(max(label, value), 80, 200), independent of window width and surface ──
+console.log("\n— item width —");
 await openPeek(0);
 const widthsByWin = {};
 for (const w of [1000, 1200, 1500]) {
@@ -156,48 +157,48 @@ for (const w of [1000, 1200, 1500]) {
   widthsByWin[w] = m.items.map((x) => x.item);
   for (const it of m.items) {
     ok(it.item >= G.width.min - G.tolerance && it.item <= G.width.max + G.tolerance, `@${w} ${it.name}: 80 ≤ ${it.item} ≤ 200`);
-    ok(it.item >= it.label - G.tolerance, `@${w} ${it.name}: 라벨(${it.label})보다 좁지 않음`);
+    ok(it.item >= it.label - G.tolerance, `@${w} ${it.name}: not narrower than the label (${it.label})`);
     if (!it.empty && it.valueInk < G.width.max)
-      ok(near(it.item, Math.max(G.width.min, it.label, it.valueInk), 4), `@${w} ${it.name}: 폭 ${it.item} = max(80, 라벨 ${it.label}, 값 ${it.valueInk})`);
+      ok(near(it.item, Math.max(G.width.min, it.label, it.valueInk), 4), `@${w} ${it.name}: width ${it.item} = max(80, label ${it.label}, value ${it.valueInk})`);
   }
 }
 ok(JSON.stringify(widthsByWin[1000]) === JSON.stringify(widthsByWin[1200]) &&
    JSON.stringify(widthsByWin[1200]) === JSON.stringify(widthsByWin[1500]),
-  `창 폭이 달라도 항목 폭은 그대로: ${JSON.stringify(widthsByWin[1200])}`);
+  `item widths stay the same across window widths: ${JSON.stringify(widthsByWin[1200])}`);
 await page.setViewportSize({ width: 1200, height: 900 });
 await page.waitForTimeout(400);
 
-// ── 4. 화살표: 넘칠 때만, 한 번에 (보이는 폭 − 200) ──
-console.log("\n— 스크롤 화살표 —");
+// ── 4. Arrows: only on overflow, one step = (visible width − 200) ──
+console.log("\n— scroll arrows —");
 {
- // 창을 좁혀 밴드를 넘치게 만든다
+ // narrow the window so the band overflows
   await page.setViewportSize({ width: 900, height: 900 });
   await page.waitForTimeout(600);
   const m = await measure("[data-testid='db-row-peek']");
   const over = m.scrollW - m.clientW;
-  ok(over > 0, `밴드가 넘침 (${m.clientW} / ${m.scrollW})`);
-  ok(m.arrows[0]?.op === 0, "맨 앞에서 왼쪽 화살표 숨김");
-  ok(m.arrows[1]?.op === 1, "넘치면 오른쪽 화살표 보임 (호버 없이)");
+  ok(over > 0, `band overflows (${m.clientW} / ${m.scrollW})`);
+  ok(m.arrows[0]?.op === 0, "left arrow hidden at the start");
+  ok(m.arrows[1]?.op === 1, "right arrow shown on overflow (without hover)");
   await page.mouse.click(m.arrows[1].cx, m.arrows[1].cy);
   await page.waitForTimeout(900);
   const m2 = await measure("[data-testid='db-row-peek']");
   const want = Math.min(m.clientW - 200, over);
-  ok(near(m2.scrollLeft, want, 4), `한 번 누르면 ${m2.scrollLeft} 만큼 (원본 규칙 clientW−200 = ${want})`);
-  ok(m2.arrows[0]?.op === 1, "스크롤한 뒤 왼쪽 화살표 보임");
-  if (near(m2.scrollLeft, over, 4)) ok(m2.arrows[1]?.op === 0, "끝에 닿으면 오른쪽 화살표 숨김");
+  ok(near(m2.scrollLeft, want, 4), `one click scrolls ${m2.scrollLeft} (original rule clientW−200 = ${want})`);
+  ok(m2.arrows[0]?.op === 1, "left arrow shown after scrolling");
+  if (near(m2.scrollLeft, over, 4)) ok(m2.arrows[1]?.op === 0, "right arrow hidden at the end");
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.waitForTimeout(500);
 }
 
-// ── 4b. 상한에 닿은 값은 줄임표로 줄어든다 ──
-console.log("\n— 200px 에 닿았을 때 —");
+// ── 4b. A value at the cap shrinks with an ellipsis ──
+console.log("\n— at 200px —");
 {
   const capped = await page.evaluate(() => {
     const items = [...document.querySelectorAll("[data-testid='db-row-peek'] [data-testid^='row-props-item-']")];
     const hit = items.find((it) => Math.round(it.getBoundingClientRect().width) >= 199);
     if (!hit) return null;
     const value = hit.querySelector("[data-role='value']");
- // 글자를 담은 가장 안쪽 요소 — 원본은 여기에 nowrap/ellipsis 를 걸어 둔다
+ // the innermost element holding the text — the original puts nowrap/ellipsis here
     const leaf = [...value.querySelectorAll("*")].find((e) => e.scrollWidth > e.clientWidth + 1) ?? value;
     const s = getComputedStyle(leaf);
     return { name: hit.querySelector("[data-role='label-text']").textContent.trim(),
@@ -207,30 +208,30 @@ console.log("\n— 200px 에 닿았을 때 —");
       te: s.textOverflow, ws: s.whiteSpace, ov: s.overflow, text: value.innerText.trim() };
   });
   if (!capped) {
-    console.log("· 상한에 닿은 고정 속성이 이 행에 없음 — 줄임표 대조 생략");
+    console.log("· no pinned property at the cap on this row — ellipsis comparison skipped");
   } else {
-    ok(capped.valueOverflow === "hidden", `${capped.name}: 값 셀이 넘침을 감춤 (${capped.valueOverflow})`);
-    ok(capped.ws === "nowrap", `${capped.name}: 한 줄 유지 (${capped.ws})`);
-    ok(capped.te === "ellipsis", `${capped.name}: 줄임표로 줄임 (${capped.te}) — "${capped.text.slice(0, 24)}…"`);
-    ok(capped.inkW > capped.leafW, `${capped.name}: 실제 글자 폭 ${capped.inkW} > 보이는 폭 ${capped.leafW} (원본 232.3 → 188)`);
+    ok(capped.valueOverflow === "hidden", `${capped.name}: value cell hides overflow (${capped.valueOverflow})`);
+    ok(capped.ws === "nowrap", `${capped.name}: stays on one line (${capped.ws})`);
+    ok(capped.te === "ellipsis", `${capped.name}: shortened with an ellipsis (${capped.te}) — "${capped.text.slice(0, 24)}…"`);
+    ok(capped.inkW > capped.leafW, `${capped.name}: real text width ${capped.inkW} > visible width ${capped.leafW} (original 232.3 → 188)`);
   }
 }
 
-// ── 5. 피크 / 풀페이지: 같은 규칙, 가용 폭만 다름 ──
-console.log("\n— 피크와 풀페이지 —");
+// ── 5. Peek / full page: same rules, only the available width differs ──
+console.log("\n— peek and full page —");
 const peek = await measure("[data-testid='db-row-peek']");
 const peekTitle = await page.locator("[data-testid='db-peek-title']").boundingBox();
-ok(near(peek.bandX - peekTitle.x, G.surface.peek.bandOffsetFromTitle), `피크: 밴드가 제목보다 ${(peek.bandX - peekTitle.x).toFixed(1)}px 오른쪽 (원본 2)`);
+ok(near(peek.bandX - peekTitle.x, G.surface.peek.bandOffsetFromTitle), `peek: band is ${(peek.bandX - peekTitle.x).toFixed(1)}px right of the title (original 2)`);
 await page.locator("[data-testid='db-peek-open-full']").click();
 await page.waitForSelector("[data-testid='page-row-props'] [data-pinned-row]", { timeout: 30_000 });
 await page.waitForTimeout(1200);
 const full = await measure("[data-testid='page-root']");
-ok(JSON.stringify(full.items.map((x) => x.name)) === JSON.stringify(WANT), `풀페이지도 같은 집합: ${full.items.map((x) => x.name).join(" · ")}`);
+ok(JSON.stringify(full.items.map((x) => x.name)) === JSON.stringify(WANT), `full page has the same set: ${full.items.map((x) => x.name).join(" · ")}`);
 ok(JSON.stringify(full.items.map((x) => x.item)) === JSON.stringify(peek.items.map((x) => x.item)),
-  `풀페이지 항목 폭이 피크와 같음: ${JSON.stringify(full.items.map((x) => x.item))}`);
+  `full-page item widths equal the peek's: ${JSON.stringify(full.items.map((x) => x.item))}`);
 const fullTitle = await page.locator("[data-testid='page-title']").boundingBox();
-ok(near(full.bandX - fullTitle.x, G.surface.peek.bandOffsetFromTitle), `풀페이지: 밴드가 제목보다 ${(full.bandX - fullTitle.x).toFixed(1)}px 오른쪽 (원본 2)`);
+ok(near(full.bandX - fullTitle.x, G.surface.peek.bandOffsetFromTitle), `full page: band is ${(full.bandX - fullTitle.x).toFixed(1)}px right of the title (original 2)`);
 
 await browser.close();
-if (fails.length) { console.error(`\n${fails.length}개 실패`); process.exit(1); }
-console.log("\n원본과 차이 없음 — exit 0");
+if (fails.length) { console.error(`\n${fails.length} failed`); process.exit(1); }
+console.log("\nno difference from the original — exit 0");

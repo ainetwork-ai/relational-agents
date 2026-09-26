@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { DEFAULT_PROFILE } from "./profiles";
+import { SALES_PIPELINE_EXAMPLE } from "@/i18n/content/agent";
 import {
   agentAccessTokens,
   chatRoomBots,
@@ -137,7 +138,7 @@ export function buildAgentCard(agentUserId: string, roomName: string) {
         id: "sales-pipeline",
         name: "Integrated sales pipeline",
         description:
-          "Reads the call histories in the aindrive folders linked to the workspace and builds one pipeline database per customer (\"통합 sales pipeline 만들어줘\")",
+          "Reads the call histories in the aindrive folders linked to the workspace and builds one pipeline database per customer (\"" + SALES_PIPELINE_EXAMPLE + "\")",
         tags: ["sales", "aindrive"],
       },
     ],

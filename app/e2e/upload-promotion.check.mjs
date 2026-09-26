@@ -1,12 +1,12 @@
-// tus 완료 → 저장 계약으로의 승격.
+// tus completion → promotion to the storage contract.
 //
-//   키 = 내용의 SHA-256 (files/<sha256>.<ext>)
-//   같은 바이트 = 오브젝트 1개 (dedup)
-//   완료 훅 재실행이 안전해야 한다 (클라 재시도가 실제로 그렇게 만든다)
-//   MinIO 미설정이면 예전 그대로 디스크
+//   key = SHA-256 of the content (files/<sha256>.<ext>)
+//   same bytes = one object (dedup)
+//   re-running the completion hook must be safe (client retries really do cause it)
+//   with MinIO unconfigured, the disk as before
 //
-// 공유 dev 서버의 env 를 건드리지 않으려고 이 프로세스 안에서만 MINIO_* 를 세운다.
-// 실제 MinIO 가 필요하다:
+// MINIO_* is set only inside this process so the shared dev server's env is left alone.
+// Needs a real MinIO:
 //   docker compose -f docker-compose.local.yml up -d minio
 //
 //   npx tsx e2e/upload-promotion.check.mjs
@@ -14,6 +14,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { content } from "./i18n.mjs";
+
+const C = content.UPLOAD_PROMOTION;
 
 process.env.MINIO_ENDPOINT ||= "127.0.0.1:9000";
 process.env.MINIO_ACCESS_KEY ||= "ainmem";
@@ -29,7 +32,7 @@ const reachable = await storage
   .then(() => true)
   .catch((e) => String(e));
 if (reachable !== true) {
-  console.error(`\n  MinIO 에 붙지 못했습니다: ${reachable}`);
+  console.error(`\n  Could not reach MinIO: ${reachable}`);
   console.error("  docker compose -f docker-compose.local.yml up -d minio\n");
   process.exit(1);
 }
@@ -45,65 +48,65 @@ const BYTES = Buffer.from("the same bytes, twice over".repeat(500));
 const HASH = createHash("sha256").update(BYTES).digest("hex");
 const made = [];
 
-// 1) 승격 — 키가 내용 해시여야 한다
+// 1) promotion — the key must be the content hash
 const a = await finalizeTusUpload({
   id: stage(BYTES),
   size: BYTES.length,
-  metadata: { filename: "보고서.pdf", filetype: "application/pdf" },
+  metadata: { filename: C.report, filetype: "application/pdf" },
 });
 made.push(a.storageUrl);
 const wantKey = `files/${HASH}.pdf`;
-// 클라이언트 몫(url)은 서빙 경로, 행 몫(storageUrl)은 s3:// 토큰 — 둘을 섞지 않는다
-if (a.url !== `/api/files/key/${wantKey}`) d.push(`클라이언트에 줄 url 이 ${a.url} 입니다 — /api/files/key/${wantKey} 여야 합니다`);
+// the client's part (url) is the serving path, the row's part (storageUrl) is an s3:// token — never mix them
+if (a.url !== `/api/files/key/${wantKey}`) d.push(`the url for the client is ${a.url} — it should be /api/files/key/${wantKey}`);
 const parsed = storage.parseStorageUrl(a.storageUrl ?? "");
-if (!parsed) d.push(`승격 결과의 storageUrl 이 s3:// 가 아닙니다: ${a.storageUrl}`);
-else if (parsed.key !== wantKey) d.push(`키가 ${parsed.key} 입니다 — ${wantKey} 여야 합니다`);
-if (a.name !== "보고서.pdf") d.push(`이름이 ${a.name} 입니다 — 사람이 준 이름이 보존돼야 합니다`);
-if (a.size !== BYTES.length) d.push(`크기가 ${a.size} 입니다 — ${BYTES.length} 여야 합니다`);
+if (!parsed) d.push(`the promoted storageUrl is not s3://: ${a.storageUrl}`);
+else if (parsed.key !== wantKey) d.push(`the key is ${parsed.key} — it should be ${wantKey}`);
+if (a.name !== C.report) d.push(`the name is ${a.name} — the name the person gave must be kept`);
+if (a.size !== BYTES.length) d.push(`the size is ${a.size} — it should be ${BYTES.length}`);
 const stat1 = parsed && (await storage.statFile(parsed.bucket, parsed.key));
-if (!stat1) d.push("오브젝트가 실제로 올라가지 않았습니다");
-else if (stat1.size !== BYTES.length) d.push(`오브젝트 크기가 ${stat1.size} 입니다`);
+if (!stat1) d.push("the object was not actually uploaded");
+else if (stat1.size !== BYTES.length) d.push(`the object size is ${stat1.size}`);
 
-// 2) 같은 바이트, 다른 이름 → 같은 오브젝트 하나. 이름은 DB 행 몫이지 키가 아니다.
+// 2) same bytes, different name → the same single object. The name belongs to the DB row, not the key.
 const b = await finalizeTusUpload({
   id: stage(BYTES),
   size: BYTES.length,
-  metadata: { filename: "완전히 다른 이름.pdf", filetype: "application/pdf" },
+  metadata: { filename: C.otherName, filetype: "application/pdf" },
 });
-if (b.storageUrl !== a.storageUrl) d.push(`같은 바이트인데 키가 다릅니다:\n      ${a.storageUrl}\n      ${b.storageUrl}`);
-if (b.name !== "완전히 다른 이름.pdf") d.push("두 번째 업로드가 이름을 잃었습니다");
+if (b.storageUrl !== a.storageUrl) d.push(`same bytes but a different key:\n      ${a.storageUrl}\n      ${b.storageUrl}`);
+if (b.name !== C.otherName) d.push("the second upload lost its name");
 
-// 3) 완료 훅 재실행 — 던지지 않고 같은 답을 줘야 한다 (클라 재시도)
+// 3) re-running the completion hook — must not throw and must give the same answer (client retry)
 const again = await finalizeTusUpload({
   id: stage(BYTES),
   size: BYTES.length,
-  metadata: { filename: "보고서.pdf", filetype: "application/pdf" },
+  metadata: { filename: C.report, filetype: "application/pdf" },
 }).catch((e) => ({ __err: String(e).slice(0, 120) }));
-if (again.__err) d.push(`완료 훅 재실행이 던졌습니다: ${again.__err}`);
-else if (again.storageUrl !== a.storageUrl) d.push("재실행이 다른 키를 만들었습니다 — 멱등이 아닙니다");
+if (again.__err) d.push(`re-running the completion hook threw: ${again.__err}`);
+else if (again.storageUrl !== a.storageUrl) d.push("the re-run made a different key — not idempotent");
 
-// 4) 다른 바이트 → 다른 키
+// 4) different bytes → different key
 const other = Buffer.from("different");
 const c = await finalizeTusUpload({
   id: stage(other),
   size: other.length,
-  metadata: { filename: "보고서.pdf", filetype: "application/pdf" },
+  metadata: { filename: C.report, filetype: "application/pdf" },
 });
 made.push(c.storageUrl);
-if (c.storageUrl === a.storageUrl) d.push("다른 바이트가 같은 키를 받았습니다");
+if (c.storageUrl === a.storageUrl) d.push("different bytes got the same key");
 
-// 5) MinIO 미설정 → 예전처럼 디스크
+// 5) MinIO unconfigured → the disk, as before
 for (const k of ["MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY"]) delete process.env[k];
 const fb = await finalizeTusUpload({
   id: stage(Buffer.from("fallback")),
   size: 8,
   metadata: { filename: "note.txt", filetype: "text/plain" },
 });
-if (!/^\/uploads\//.test(fb.url)) d.push(`MinIO 미설정인데 ${fb.url} 를 돌려줬습니다 — 디스크여야 합니다`);
-if (fb.storageUrl) d.push("디스크 모드인데 storageUrl 이 있습니다");
+if (!/^\/uploads\//.test(fb.url)) d.push(`MinIO is unconfigured but it returned ${fb.url} — it should be the disk`);
+if (fb.storageUrl) d.push("disk mode but there is a storageUrl");
 else fs.rmSync(path.join("public", fb.url.replace(/^\//, "")), { force: true });
 
-// 정리 — 검사가 만든 오브젝트를 남기지 않는다
+// cleanup — leave none of the objects the check made
 process.env.MINIO_ENDPOINT = "127.0.0.1:9000";
 process.env.MINIO_ACCESS_KEY = "ainmem";
 process.env.MINIO_SECRET_KEY = "ainmem-local-secret";
@@ -115,9 +118,10 @@ for (const f of fs.readdirSync(TUS_LOCAL_DIRECTORY))
   if (f.startsWith("tus-check-")) fs.rmSync(path.join(TUS_LOCAL_DIRECTORY, f), { force: true });
 
 if (d.length) {
-  console.error("\n  ┌─ 업로드 승격이 계약과 다릅니다 ───────────────────────────");
+  console.error("\n  ┌─ Upload promotion differs from the contract ─────────────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`승격 OK — 키가 내용 해시(files/${HASH.slice(0, 12)}….pdf), 같은 바이트는 오브젝트 1개, 완료 훅 재실행 안전, MinIO 미설정 시 디스크`);
+console.log(`promotion OK — key is the content hash (files/${HASH.slice(0, 12)}….pdf), same bytes are one object, re-running the completion hook is safe, disk when MinIO is unconfigured`);
+

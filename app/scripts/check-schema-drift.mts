@@ -10,5 +10,5 @@ import { checkSchemaDrift, reportSchemaDrift } from "@/lib/db/schema-drift";
 
 const drift = await checkSchemaDrift();
 reportSchemaDrift(drift);
-if (drift.ok) console.log("스키마 일치 ✓");
+if (drift.ok) console.log("schema matches ✓");
 process.exit(drift.ok ? 0 : 1);

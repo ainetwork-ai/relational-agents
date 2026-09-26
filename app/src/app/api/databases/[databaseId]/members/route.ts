@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /** GET → members of the workspace THIS database lives in — not the session's
  * active workspace. Person cells resolve ids against this roster, and a member
  * whose switcher points at another workspace (their personal one, say) must
- * still see names here, not "알 수 없는 사용자". An OKF (file-backed) database
+ * still see names here, not "Unknown user". An OKF (file-backed) database
  * has no workspace row, so it answers with the active workspace's roster. */
 export async function GET(
   _req: NextRequest,

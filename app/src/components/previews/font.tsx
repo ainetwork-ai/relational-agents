@@ -6,16 +6,17 @@ import type { PreviewProps } from "./types";
 import { usePreviewBytes } from "./use-preview-bytes";
 import { PreviewLoading, PreviewMessage } from "./status";
 import { readFontNames, type FontNames } from "./font-name";
+import { HANGUL_PANGRAM, HANGUL_SYLLABLES } from "@/i18n/content/components";
 
 const SIZES = [12, 18, 24, 36, 48, 72];
-const DEFAULT_SAMPLE = "다람쥐 헌 쳇바퀴에 타고파 · The quick brown fox jumps over the lazy dog";
+const DEFAULT_SAMPLE = `${HANGUL_PANGRAM} · The quick brown fox jumps over the lazy dog`;
 const CHARSET = [
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
   "abcdefghijklmnopqrstuvwxyz",
   "0123456789",
   "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
-  "다람쥐 헌 쳇바퀴에 타고파",
-  "가나다라마바사아자차카타파하",
+  HANGUL_PANGRAM,
+  HANGUL_SYLLABLES,
 ];
 
 let seq = 0;

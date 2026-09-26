@@ -1,65 +1,68 @@
-# 댓글의 멘션(@) — 노션 측정 (2026-09-10)
+# Mentions (@) in comments — Notion measurements (2026-09-10)
 
-comcom: "댓글의 언급 기능 측정하고 @를 쳤을때 사람 검색되는 알고리즘, 공백 포함의 경우,
-그리고 셀렉트 모달 등 체계적으로 측정해서 노션과 동일하게 구현해줘. 알람 박스에 알람도 같이"
+comcom: "Measure the comment mention feature — the algorithm that searches people when you type @,
+the case where the query contains spaces, the select modal, and so on — systematically, and implement it
+exactly like Notion. Include the notifications in the inbox too."
 
-원본에서 **댓글 입력줄에 실제로 `@` 를 쳐 가며** 잰 것이다. 잰 곳은 `현정 테스트 › 새 페이지`
-의 페이지 댓글 입력줄과 좌측 `수신함`. 댓글은 **한 건도 보내지 않았다** — 입력줄에 쳤다 지웠을
-뿐이라 원본에는 아무것도 남지 않는다. 측정 스크립트는 세션 scratchpad(`mn1*.mjs`),
-원자료는 `n-mention-*.jsonl`.
+Measured on the original by **actually typing `@` into the comment input**. Measured in the page
+comment input of `Hyeonjeong test › New page` and in the left-hand `Inbox`. **Not a single comment
+was sent** — text was only typed into the input and erased, so nothing was left behind in the original.
+Measurement scripts are in the session scratchpad (`mn1*.mjs`), raw data in `n-mention-*.jsonl`.
 
-## 0. 잴 때의 전제 두 가지 (다음 사람용)
+## 0. Two preconditions for measuring (for the next person)
 
-- **입력줄을 진짜 마우스로 클릭해야** 메뉴가 열린다. JS `.focus()` 로 캐럿을 잡으면 글자는
-  들어가지만 노션은 트리거를 못 보고 메뉴가 안 뜬다. 이걸 몰라 세 번을 헛돌았다.
-- `Input.dispatchKeyEvent({type:'keyDown', text})` **한 번이 한 글자**다. 여기에 `char` 이벤트를
-  더하면 두 글자가 들어간다(`@` 가 `@@` 로). 지우기는 ⌘A → Backspace 가 확실하다.
+- The menu only opens if you **click the input with a real mouse**. If you place the caret with JS
+  `.focus()`, characters are inserted but Notion never sees the trigger and the menu does not open.
+  Not knowing this cost three wasted attempts.
+- **One** `Input.dispatchKeyEvent({type:'keyDown', text})` **is one character**. Adding a `char` event
+  on top inserts two characters (`@` becomes `@@`). ⌘A → Backspace is the reliable way to clear.
 
-## 1. 언제 열리고 언제 닫히나
+## 1. When it opens and when it closes
 
-| 입력 | 메뉴 |
+| Input | Menu |
 |---|---|
-| 빈 입력줄에서 `@` | **열린다** |
-| `x@` (글자 바로 뒤, 앞에 공백 없음) | **열린다** — 단어 경계를 따지지 않는다 |
-| `x @` | 열린다 |
-| 입력줄 오른쪽의 `@` 버튼(24×24, `aria-label="멘션하려는 사용자, 페이지, 날짜를 입력하세요."`) | 열린다. 누르면 `@` 가 **입력줄에 실제로 삽입**된다 |
-| `@` 다음 **첫 글자가 공백**(`@ `) | **닫힌다** |
-| `@hyeon ` (질의 뒤 공백) | **닫히지 않는다.** 결과도 `@hyeon` 과 같다 |
-| `@hyeon jeong` (질의 가운데 공백) | 열린 채로 **공백을 포함한 질의 전체**로 계속 찾는다 |
+| `@` in an empty input | **Opens** |
+| `x@` (directly after a character, no preceding space) | **Opens** — word boundaries are not checked |
+| `x @` | Opens |
+| The `@` button to the right of the input (24×24, `aria-label` = the "Type the person, page, or date you want to mention." string in the ko dictionary) | Opens. Pressing it **actually inserts** `@` **into the input** |
+| **The first character after `@` is a space** (`@ `) | **Closes** |
+| `@hyeon ` (space after the query) | **Does not close.** Results are the same as `@hyeon` |
+| `@hyeon jeong` (space in the middle of the query) | Stays open and keeps searching with **the whole query, space included** |
 
-즉 comcom이 물은 **"공백 포함의 경우"** 의 답: **`@` 바로 뒤의 공백만 취소이고, 그 뒤로는 공백이
-질의의 일부**다. 우리 블록 편집기는 지금 `/\s/` 만 보이면 무조건 닫는데(`block-editor.tsx`
-의 `@-mention live query`), 그게 원본과 다르다.
+So the answer to comcom's question about **"the case with spaces"**: **only a space immediately after
+`@` cancels; after that, spaces are part of the query**. Our block editor currently closes
+unconditionally as soon as it sees `/\s/` (the `@-mention live query` in `block-editor.tsx`), which
+differs from the original.
 
-## 2. 검색 알고리즘 — 사람
+## 2. Search algorithm — people
 
-23개 질의를 쳐서 나온 목록을 그대로 기록했다(`n-mention-battery.jsonl`).
+23 queries were typed and the resulting lists recorded verbatim (`n-mention-battery.jsonl`).
 
-| 질의 | 사람 결과(순서대로) | 무엇을 말해주나 |
+| Query | People results (in order) | What it tells us |
 |---|---|---|
-| `hy` | HyeonJeong Jun(나) · Hyoeun Lee · Hyemin Kwak · 장현욱 · Minhyun Kim | **앞부분 일치가 위**, `Minhyun` 은 가운데 일치라 아래 |
-| `eon` | HyeonJeong Jun(나) · Seonghwa Yun · Bobae Jeon · Seongmin · Jaeyeon Ahn | **가운데 부분 문자열도 잡는다**(접두사 전용이 아니다) |
-| `HYEON` | `hyeon` 과 **완전히 동일** | 대소문자 무시 |
-| `jun` | HyeonJeong Jun(나) · eunjung jo · 이준민 | **두 번째 단어**도, **한글 이름의 로마자**도 잡는다 |
-| `kim` | KimSan · Minhyun Kim · Bansuk Kim · KimGloria · kimHyunJeong | 접두사가 위, 두 번째 단어가 아래 |
-| `hyeonjj` | **HyeonJeong Jun(나) 하나** | **이메일 아이디(hyeonjj@)로 찾힌다** |
-| `comcom` | 사내 구성원 전원 + `15개 결과 더 보기` | **이메일 도메인도 찾힌다** |
-| `ㅎ` | 현제 김 · 홍혜령 · 하선혜 · 황지혜 · 조해창 | **한글 초성 검색이 된다** |
-| `현정` | **결과 없음** | 표시 이름이 로마자면 한글로는 안 잡힌다(로마자 ↔ 한글 변환은 없다) |
-| `zzzqqq` | 결과 없음 | 아래 §4 |
+| `hy` | HyeonJeong Jun (me) · Hyoeun Lee · Hyemin Kwak · Jang Hyeonuk (Hangul display name) · Minhyun Kim | **Prefix matches rank higher**; `Minhyun` is a mid-word match so it is lower |
+| `eon` | HyeonJeong Jun (me) · Seonghwa Yun · Bobae Jeon · Seongmin · Jaeyeon Ahn | **Also matches mid-string substrings** (not prefix-only) |
+| `HYEON` | **Exactly the same** as `hyeon` | Case-insensitive |
+| `jun` | HyeonJeong Jun (me) · eunjung jo · Lee Junmin (Hangul display name) | Matches the **second word** too, and **the romanization of a Hangul name** |
+| `kim` | KimSan · Minhyun Kim · Bansuk Kim · KimGloria · kimHyunJeong | Prefix first, second word below |
+| `hyeonjj` | **Only HyeonJeong Jun (me)** | **Matches the email local part (hyeonjj@)** |
+| `comcom` | Every internal member + `15 more results` | **Matches the email domain too** |
+| The bare Hangul initial consonant *h* (U+314E) | Five members with Hangul display names whose syllables start with *h* | **Hangul initial-consonant (choseong) search works** |
+| `Hyeonjeong` spelled in Hangul | **No results** | If the display name is romanized, Hangul does not match it (there is no romanization ↔ Hangul conversion) |
+| `zzzqqq` | No results | See §4 below |
 
-정리한 규칙:
+Rules derived:
 
-1. **부분 문자열, 대소문자 무시.** 접두사 전용이 아니다.
-2. **표시 이름과 이메일을 함께 본다.** 이메일은 아이디·도메인 모두.
-3. **한글은 초성으로도 찾는다**(`ㅎ` → 홍혜령).
-4. **순서**: 이름의 맨 앞에서 일치 > 단어의 맨 앞에서 일치 > 가운데 일치. 같은 등급 안에서는
-   **나 자신이 위**, **게스트는 아래**(게스트 행에는 `게스트` 배지가 붙는다).
-5. **사람은 5개까지** 보이고 그 아래 `N개 결과 더 보기` 행이 붙는다(그 행도 목록의 한 줄이다).
+1. **Substring, case-insensitive.** Not prefix-only.
+2. **Display name and email are both searched.** For email, both the local part and the domain.
+3. **Hangul is also matched by initial consonants** (the initial *h* → a name whose first syllable starts with *h*).
+4. **Order**: match at the very start of the name > match at the start of a word > mid-word match.
+   Within the same tier, **yourself first** and **guests last** (guest rows carry the `Guest` badge).
+5. **Up to 5 people** are shown, followed by a `N more results` row (that row is itself one line of the list).
 
-## 3. 셀렉트 모달 — 잰 값
+## 3. Select modal — measured values
 
-카드는 **330 × 최대 325**, radius **10px**, 흰 배경, 테두리 없음, `overflow-y: auto`.
+Card is **330 × max 325**, radius **10px**, white background, no border, `overflow-y: auto`.
 
 ```
 box-shadow: rgba(25,25,25,0.05) 0 20px 24px,
@@ -67,31 +70,31 @@ box-shadow: rgba(25,25,25,0.05) 0 20px 24px,
             rgba(42,28,0,0.07) 0 0 0 1px;
 ```
 
-| 부분 | 값 |
+| Part | Value |
 |---|---|
-| 카드 위 여백 → 첫 섹션 머리 | 14 |
-| 섹션 머리(`날짜`·`사람`·`페이지 링크`·`그룹`) | 12px / 500 / rgb(125,122,117), 높이 14, 왼쪽 **12** 들여씀 |
-| 섹션 머리 아래 → 첫 행 | 9 (머리 위 기준 23) |
-| 행 | **322 × 28**, radius **6px**, 좌우 **4** 안쪽, 세로 간격(pitch) **29** |
-| 행 아이콘/아바타 | **20 × 20**, 왼쪽 **8** |
-| 행 이름 | 14px / 400 / rgb(44,44,43), 왼쪽 **36** |
-| 내 행의 `(나)` 꼬리표 | 같은 14px, rgb(125,122,117) |
-| 강조(키보드·호버) 배경 | `rgba(33,27,23,0.051)` (= `color(srgb .1294 .1059 .0902 / .051)`) |
-| 페이지 행 | 높이 **45**(두 줄), 제목 14px rgb(44,44,43), 그 아래 경로 12px rgb(161,158,153) |
-| 그룹 행 | 이름 + `멤버 N명` |
+| Card top padding → first section header | 14 |
+| Section header (`Date` · `People` · `Link to page` · `Groups`) | 12px / 500 / rgb(125,122,117), height 14, indented **12** from the left |
+| Below section header → first row | 9 (23 from the header top) |
+| Row | **322 × 28**, radius **6px**, **4** horizontal inset, vertical pitch **29** |
+| Row icon/avatar | **20 × 20**, left **8** |
+| Row name | 14px / 400 / rgb(44,44,43), left **36** |
+| `(me)` tag on my row | Same 14px, rgb(125,122,117) |
+| Highlight (keyboard/hover) background | `rgba(33,27,23,0.051)` (= `color(srgb .1294 .1059 .0902 / .051)`) |
+| Page row | Height **45** (two lines), title 14px rgb(44,44,43), path below it 12px rgb(161,158,153) |
+| Group row | Name + `N members` |
 
-섹션 순서는 고정이 아니다. 맨 처음(`@` 만)은 **날짜 → 사람 → 페이지 링크 → 그룹**이지만,
-질의에 따라 잘 맞는 섹션이 위로 온다(`@ye` 는 사람 → 날짜 → 페이지 링크).
+Section order is not fixed. Initially (just `@`) it is **Date → People → Link to page → Groups**, but
+the best-matching section moves up depending on the query (`@ye` gives People → Date → Link to page).
 
-**키보드**: ↓/↑ 는 섹션을 가로질러 **한 줄씩** 움직인다(섹션 단위가 아니다). 목록은
-날짜·사람·페이지가 이어진 **한 줄짜리 평면 목록**이고, `N개 결과 더 보기` 도 그 줄 중 하나다.
+**Keyboard**: ↓/↑ move **one row at a time** across sections (not section by section). The list is a
+**single flat list** spanning dates, people and pages, and `N more results` is one of those rows.
 
-## 4. 결과가 없을 때
+## 4. When there are no results
 
-카드가 **330 × 65** 로 줄고 `결과 없음` 한 줄만 남는다 — 14px / 400 / rgb(125,122,117),
-카드 왼쪽에서 **12**, 위에서 **9**. (그 아래 `검색 피드백 보내기` 는 노션 자체 링크라 따라하지 않는다.)
+The card shrinks to **330 × 65** and only a single `No results` line remains — 14px / 400 / rgb(125,122,117),
+**12** from the card's left, **9** from the top. (The `Send search feedback` link below it is Notion's own, so we do not copy it.)
 
-## 5. 골랐을 때 입력줄에 들어가는 것
+## 5. What goes into the input when you pick
 
 ```html
 <span contenteditable="false" style="color:var(--c-texSec)"
@@ -103,82 +106,87 @@ box-shadow: rgba(25,25,25,0.05) 0 20px 24px,
 ></span>&nbsp;
 ```
 
-- **칩이 아니다.** 배경·라운드·패딩이 전부 0이고, 글자만 보조색(rgb(125,122,117))이며
-  **`@` 글리프만 그 색의 60%** 로 연하다. (`e2e/fixtures/notion-row-comments.json` 의
-  `mention` 항목이 보낸 뒤의 모습을 같은 값으로 이미 기록해 두었다 — 입력 중과 보낸 뒤가 같다.)
-- 뒤에 **공백 한 칸이 함께** 들어간다.
-- 토큰은 `contenteditable="false"` 라 **통째로 하나**다. 바로 뒤에서 Backspace 를 치면
-  **첫 번째는 공백**, **두 번째에 멘션 전체**가 사라진다. 글자 단위로 깎이지 않는다.
+- **It is not a chip.** Background, radius and padding are all 0; only the text is in the secondary
+  color (rgb(125,122,117)), and **only the `@` glyph is lighter, at 60% of that color**. (The `mention`
+  entry in `src/i18n/content/e2e-fixtures/notion-row-comments.json` already records the post-send look with the same
+  values — while typing and after sending look the same.)
+- **One trailing space** is inserted along with it.
+- The token is `contenteditable="false"`, so it is **one atomic unit**. Pressing Backspace right after
+  it removes **the space first**, and **the whole mention on the second press**. It is not trimmed character by character.
 
-## 6. 알림함(`수신함`)
+## 6. Notification inbox (`Inbox`)
 
-좌측 상단 28×28 버튼(`aria-label="수신함"`), 안 읽은 수는 그 위에 빨간 배지.
-패널 폭 **366**, 제목 `수신함` 14px/500 rgb(44,44,43). 시간대 머리(`이전` 등)로 묶는다.
+28×28 button at the top left (`aria-label` = the `Inbox` string in the ko dictionary), with a red badge
+for the unread count on top. Panel width **366**, title `Inbox` 14px/500 rgb(44,44,43). Grouped by
+time headers (`Earlier`, etc.).
 
-한 줄의 생김새:
+Anatomy of one row:
 
-| 부분 | 값 |
+| Part | Value |
 |---|---|
-| 아바타 | 24 × 24, 왼쪽 **8**, 위에서 **10** (사진이 없으면 이니셜 한 글자, 11px rgb(142,139,134)) |
-| 첫 줄 | **{보낸 사람}**(14px/500) + 문구 + [페이지 아이콘] + **{페이지 제목}**(14px/500), 오른쪽 끝에 날짜 12px rgb(161,158,153) |
-| 멘션 문구 | `다음에서 나를 멘션함` |
-| 댓글 문구 | `님이 … 에 댓글을 달았습니다.` |
-| 미리보기 줄 | 본문, 14px/400 rgb(125,122,117) — **여기서도 멘션은 같은 방식으로** 연한 `@` + 이름 |
-| 안 읽음 | 날짜 오른쪽의 **파란 점** |
-| 행 높이 | 미리보기가 없으면 87, 있으면 108 |
-| 호버 | 오른쪽에 아이콘 3개(알림 끄기 · 읽음 표시 · 보관) |
+| Avatar | 24 × 24, left **8**, top **10** (without a photo, one initial letter, 11px rgb(142,139,134)) |
+| First line | **{sender}** (14px/500) + phrase + [page icon] + **{page title}** (14px/500), date on the far right 12px rgb(161,158,153) |
+| Mention phrase | "mentioned you in" (the corresponding ko dictionary string) |
+| Comment phrase | "commented on …" (the corresponding ko dictionary string) |
+| Preview line | Body, 14px/400 rgb(125,122,117) — **mentions are rendered the same way here too**: light `@` + name |
+| Unread | **Blue dot** to the right of the date |
+| Row height | 87 without a preview, 108 with one |
+| Hover | Three icons on the right (mute · mark as read · archive) |
 
-## 7. 우리 쪽 현황 (구현 전)
+## 7. Our state (before implementation)
 
-- **댓글 입력줄에는 멘션 기능이 아예 없다.** `CommentComposer` 는 평범한 `<input>` 이고,
-  오른쪽 `@` 버튼은 `onClick` 이 없는 **장식**이다(`comment-thread.tsx`).
-- 그래서 **댓글로 누구를 멘션해도 알림이 가지 않는다.** 서버는 `notifyMentions` 에
-  평문 본문을 `html` 로 넘기는데, 평문에는 `data-mention-*` 태그가 없어 수신자가 늘 0명이다
+- **The comment input has no mention feature at all.** `CommentComposer` is a plain `<input>`, and
+  the `@` button on the right is **decoration** with no `onClick` (`comment-thread.tsx`).
+- So **mentioning anyone in a comment sends no notification.** The server passes the plain-text body
+  to `notifyMentions` as `html`, but plain text has no `data-mention-*` tags, so there are always 0 recipients
   (`api/pages/[pageId]/comments/route.ts`).
-- 블록 편집기의 `MentionMenu` 는 있지만 폭 256, 이름만 부분 일치, **공백이면 무조건 닫힘**,
-  정렬 없음, 5개 자르기만 있고 `N개 결과 더 보기`·`결과 없음` 이 없다.
-- 보낸 뒤의 멘션 렌더링(`CommentBody`)은 **이미 원본과 같다** — 연한 `@` + 보조색 이름.
-  다만 `@단어` 면 **아무 이름이나** 물들여서, 실제 멤버가 아닌 글자도 멘션처럼 보인다.
-- 수신함은 15초 폴링이고, `님이 나를 멘션했습니다` 류 문구가 `en.ts` 에 없어 영어 UI 에서
-  한국어가 그대로 나온다. 안 읽음 표시는 왼쪽 파란 점(원본은 오른쪽).
+- The block editor's `MentionMenu` exists, but it is 256 wide, does name-only substring matching,
+  **closes unconditionally on a space**, has no ranking, only truncates to 5, and has neither
+  `N more results` nor `No results`.
+- Post-send mention rendering (`CommentBody`) **already matches the original** — light `@` + name in
+  the secondary color. However, it colors **any** `@word`, so text that is not an actual member also looks like a mention.
+- The inbox polls every 15 seconds, and "mentioned you"-type phrases are missing from `en.ts`, so the
+  English UI shows the Korean text as-is. The unread indicator is a blue dot on the left (the original has it on the right).
 
-## 8. 원본과 일부러 다르게 둔 것 (2026-09-10 구현 후)
+## 8. Deliberate differences from the original (after implementation, 2026-09-10)
 
-구현하고 적대적 검토를 돌려 확인한 두 가지다. 숨기지 않고 여기 적는다.
+Two things confirmed after implementing and running an adversarial review. Recorded here rather than hidden.
 
-### 8.1 이메일 주소에서는 메뉴를 열지 않는다
+### 8.1 The menu does not open inside an email address
 
-원본은 `x@` 에서도 연다(§1 T2). 우리도 그대로 두면 이렇게 된다: 이메일도 검색 대상이라(§2)
-`ping hyeonjj@comcom.ai` 를 치는 순간 `comcom.ai` 로 **사내 구성원 전원**이 걸리고, Enter 가
-첫 사람을 골라 주소를 이름으로 바꿔 버린다 — 보내려던 문장이 조용히 망가진다(dev 에서 재현:
-입력줄이 `ping hyeonjj@HyeonJeong Jun ` 이 되고 댓글은 전송되지 않았다).
+The original opens even on `x@` (§1 T2). If we kept that, this happens: since email is also searched (§2),
+the moment you type `ping hyeonjj@comcom.ai`, `comcom.ai` matches **every internal member**, and Enter
+picks the first person and replaces the address with a name — the sentence you meant to send is silently
+corrupted (reproduced in dev: the input became `ping hyeonjj@HyeonJeong Jun ` and the comment was not sent).
 
-그래서 **앞이 글자이고 질의에 점이 있을 때만** 닫는다. 그게 이메일의 모양이고, 그 밖의
-`x@name` 은 원본대로 연다. 이 레포의 챗 멘션도 같은 이유로 같은 판단을 이미 하고 있었다.
-검사 `e2e/mention.check.mjs` 의 **T8** 이 이 경계를 지킨다.
+So we close **only when the preceding character is a letter and the query contains a dot**. That is the
+shape of an email; any other `x@name` opens as in the original. Chat mentions in this repo already made
+the same call for the same reason. **T8** in the check `e2e/mention.check.mjs` guards this boundary.
 
-### 8.2 입력 중인 멘션은 색이 없다
+### 8.2 Mentions being typed are not colored
 
-원본이 넣는 토큰은 보조색 이름 + 60% 연한 `@` 다(§5). 우리 댓글 입력줄은 평범한 `<input>`
-이라 **글자 일부만 물들일 수 없다.** 보낸 뒤의 렌더(`CommentBody`)는 원본과 같은 색이고,
-Backspace 한 번에 통째로 지워지는 원자성도 흉내냈다. 색까지 맞추려면 입력줄을
-contenteditable 로 바꿔야 하는데, 그건 IME·첨부·전송 버튼·높이 35 검사까지 함께 건드리는
-별개의 일이라 이번 범위에서 뺐다.
+The token the original inserts is a name in the secondary color + a 60%-light `@` (§5). Our comment
+input is a plain `<input>`, so **we cannot color only part of the text.** The post-send render
+(`CommentBody`) uses the same colors as the original, and we also mimicked the atomicity of being
+deleted whole with one Backspace. Matching the color would require turning the input into a
+contenteditable, which also touches IME, attachments, the send button and the height-35 check — a
+separate piece of work, so it was left out of this scope.
 
-## 9. 구현하며 잡은 결함 (검토가 찾은 것들)
+## 9. Defects caught during implementation (found by review)
 
-- **보안**: 블록 저장 경로(`lib/transactions/apply.ts`)가 **클라이언트 HTML 에서 수신자 id 를
-  그대로 꺼내** 알림을 넣고 있었다. 페이지 접근 검사가 하나도 없어서, 로그인한 아무나
-  임의의 사용자 수신함에 원하는 문구의 알림을 심을 수 있었다(계정 두 개로 재현). 게이트를
-  호출부가 아니라 **`insertMentions` 안**(`mentionableUserIds`)으로 옮겨 어떤 호출부도
-  빼먹을 수 없게 했다.
-- `mentionQueryAt` 의 캐럿 0: `lastIndexOf("@", -1)` 이 음수를 0 으로 죄어 index 0 을 맞혀,
-  캐럿이 맨 앞 `@` **앞**에 있어도 빈 질의로 열리고 Enter 가 초안 한가운데에 멘션을 끼웠다.
-- 순위: 이메일 접두사가 이름 접두사를 이기고 게스트 벌점이 순위 **뒤**에 붙어 있어 §2 의
-  측정 순서를 재현하지 못했다. 이름 우선(+0.5) · 게스트 한 등급(+1) 모델로 바꿔
-  `kim`·`hy` 두 측정 순서를 그대로 재현한다.
-- 결과가 없을 때 Enter 가 먹히던 것(입력줄과 블록 편집기 양쪽): `preventDefault` 가 고를
-  대상이 있는지 보기 **전에** 돌았다.
-- 블록 편집기가 여전히 첫 공백에서 닫히던 것 — §1 이 지적한 바로 그 자리.
-- 알림 읽음 처리에 uuid 가 아닌 id 를 주면 500(Postgres 22P02)이 나던 것 → 400.
-- 댓글 본문에 길이 상한이 없어 한 번의 POST 가 멘션 수만큼 알림 행으로 불어나던 것.
+- **Security**: the block save path (`lib/transactions/apply.ts`) was **pulling recipient ids straight
+  out of client HTML** and inserting notifications. There was no page access check at all, so any
+  logged-in user could plant a notification with arbitrary text into any user's inbox (reproduced with
+  two accounts). The gate was moved from the call sites **into `insertMentions`** (`mentionableUserIds`)
+  so no call site can skip it.
+- Caret 0 in `mentionQueryAt`: `lastIndexOf("@", -1)` clamps the negative index to 0 and hits index 0,
+  so even with the caret **before** a leading `@`, the menu opened with an empty query and Enter inserted
+  a mention into the middle of the draft.
+- Ranking: an email prefix beat a name prefix, and the guest penalty was applied **after** ranking, so
+  the measured orders in §2 could not be reproduced. Switched to a model of name priority (+0.5) · guests
+  one tier down (+1), which reproduces both measured orders for `kim` and `hy` exactly.
+- Enter being swallowed when there were no results (both in the input and the block editor):
+  `preventDefault` ran **before** checking whether there was anything to pick.
+- The block editor still closing on the first space — exactly the spot §1 pointed out.
+- Marking a notification read with a non-uuid id returned 500 (Postgres 22P02) → now 400.
+- Comment bodies had no length cap, so a single POST could fan out into as many notification rows as it had mentions.

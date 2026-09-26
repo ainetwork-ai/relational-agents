@@ -29,10 +29,10 @@ export const SYNC_DOT: Record<SyncState, string> = {
   excluded: "bg-neutral-300 dark:bg-neutral-600",
 };
 export const SYNC_LABEL: Record<SyncState, string> = {
-  synced: "동기화됨",
-  pending: "동기화 대기",
-  failed: "동기화 실패",
-  excluded: "동기화 제외",
+  synced: "Synced",
+  pending: "Sync pending",
+  failed: "Sync failed",
+  excluded: "Not synced",
 };
 
 /** The part of a folder this app writes (a teamspace's OKF backup): shown as
@@ -119,7 +119,7 @@ export function LinkForm({
       {withName && (
         <div className="mb-3">
           <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="aindrive-name">
-            {t("이름")}
+            {t("Name")}
           </label>
           <input
             id="aindrive-name"
@@ -127,14 +127,14 @@ export function LinkForm({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={t("비우면 폴더 이름")}
+            placeholder={t("Blank = the folder's name")}
             className={inputCls}
           />
         </div>
       )}
       <div className="mb-3">
         <div className="mb-1 flex items-center gap-2">
-          <span className="text-xs font-medium text-neutral-500">{t("드라이브")}</span>
+          <span className="text-xs font-medium text-neutral-500">{t("Drive")}</span>
           {accountBadge}
           {onRefresh && (
             <button
@@ -148,14 +148,14 @@ export function LinkForm({
               }}
               className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 disabled:opacity-50 dark:hover:bg-neutral-800"
             >
-              <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} /> {t("상태 새로고침")}
+              <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} /> {t("Refresh status")}
             </button>
           )}
         </div>
         {drives.length ? (
           <ul
             role="radiogroup"
-            aria-label={t("드라이브")}
+            aria-label={t("Drive")}
             data-testid="aindrive-drive-list"
             className="max-h-56 divide-y divide-neutral-100 overflow-y-auto rounded-md border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700"
           >
@@ -199,7 +199,7 @@ export function LinkForm({
                       }`}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full ${offline ? "bg-neutral-300 dark:bg-neutral-600" : "bg-emerald-500"}`} />
-                      {offline ? t("꺼져 있음") : t("연결됨")}
+                      {offline ? t("Offline") : t("Connected")}
                     </span>
                   </button>
                 </li>
@@ -212,20 +212,20 @@ export function LinkForm({
             data-testid="aindrive-drive-input"
             value={driveId}
             onChange={(e) => setDriveId(e.target.value)}
-            placeholder={t("드라이브 ID")}
+            placeholder={t("Drive ID")}
             className={inputCls}
           />
         )}
         {drives.some((d) => d.online === false) && (
           <p className="mt-1.5 text-[11px] leading-snug text-neutral-400">
-            {t("꺼져 있는 드라이브는 그 폴더가 있는 컴퓨터에서 aindrive를 실행하면 고를 수 있습니다.")}
+            {t("Offline drives become selectable once aindrive is running on the computer that holds the folder.")}
           </p>
         )}
       </div>
       <div className="mb-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-neutral-500" htmlFor="aindrive-root">
-            {t("폴더 (비우면 드라이브 전체)")}
+            {t("Folder (blank = whole drive)")}
           </label>
           <input
             id="aindrive-root"
@@ -240,10 +240,10 @@ export function LinkForm({
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="rounded-md px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800">
-          {t("취소")}
+          {t("Cancel")}
         </button>
         <button data-testid="aindrive-link-submit" onClick={() => void submit()} disabled={busy || !driveId.trim()} className={primaryCls}>
-          {busy ? t("연결 중…") : t("연결")}
+          {busy ? t("Linking…") : t("Connect")}
         </button>
       </div>
     </div>
@@ -290,7 +290,7 @@ export function Browser({
       .then(async (res) => {
         if (!alive) return;
         if (!res.ok) {
-          const msg = await errorOf(res, t("폴더를 읽을 수 없습니다"));
+          const msg = await errorOf(res, t("Could not read the folder"));
           if (!alive) return;
           setEntries([]);
           setTreeError(msg);
@@ -301,14 +301,14 @@ export function Browser({
         setTreeError(null);
         setEntries(entries);
       })
-      .catch(() => alive && setTreeError(t("폴더를 읽을 수 없습니다")));
+      .catch(() => alive && setTreeError(t("Could not read the folder")));
     return () => {
       alive = false;
     };
   }, [version, t, api]);
 
   const dirty = open ? open.content !== open.saved : false;
-  const leaveOk = () => !dirty || window.confirm(t("저장하지 않은 변경 사항이 사라집니다. 계속할까요?"));
+  const leaveOk = () => !dirty || window.confirm(t("Unsaved changes will be lost. Continue?"));
 
   const isManaged = (path: string) =>
     !!managed && (path === managed.prefix || path.startsWith(`${managed.prefix}/`));
@@ -331,7 +331,7 @@ export function Browser({
     setBusy(true);
     const res = await fetch(`${api}/file?path=${encodeURIComponent(path)}`);
     setBusy(false);
-    if (!res.ok) return setFileError(await errorOf(res, t("파일을 읽을 수 없습니다")));
+    if (!res.ok) return setFileError(await errorOf(res, t("Could not read the file")));
     const { content } = (await res.json()) as { content: string };
     setOpen({ path, content, saved: content, binary: looksBinary(content) });
   }
@@ -346,7 +346,7 @@ export function Browser({
       body: JSON.stringify({ path: open.path, content: open.content }),
     });
     setBusy(false);
-    if (!res.ok) return setFileError(await errorOf(res, t("저장할 수 없습니다")));
+    if (!res.ok) return setFileError(await errorOf(res, t("Can't save")));
     setOpen({ ...open, saved: open.content });
     // a new file only shows up in the tree once it exists on the drive
     if (!entries?.some((e) => e.path === open.path)) loadTree();
@@ -354,12 +354,12 @@ export function Browser({
 
   async function remove(e: Entry) {
     const message = e.isDir
-      ? t("{path} 폴더와 그 안의 모든 파일을 드라이브에서 삭제할까요?", { path: e.path })
-      : t("{path} 파일을 드라이브에서 삭제할까요?", { path: e.path });
+      ? t("Delete the folder {path} and everything in it from the drive?", { path: e.path })
+      : t("Delete {path} from the drive?", { path: e.path });
     if (!window.confirm(message)) return;
     setFileError(null);
     const res = await fetch(`${api}/file?path=${encodeURIComponent(e.path)}`, { method: "DELETE" });
-    if (!res.ok) return setFileError(await errorOf(res, t("삭제할 수 없습니다")));
+    if (!res.ok) return setFileError(await errorOf(res, t("Could not delete")));
     // whatever was open inside what just went is gone with it
     if (open && (open.path === e.path || open.path.startsWith(`${e.path}/`))) setOpen(null);
     loadTree();
@@ -381,7 +381,7 @@ export function Browser({
         <HardDrive size={14} className="text-neutral-400" />
         <span className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
         {entries && (
-          <span className="text-xs text-neutral-400">{t("파일 {n}개", { n: files })}</span>
+          <span className="text-xs text-neutral-400">{t("{n} files", { n: files })}</span>
         )}
         <div className="ml-auto flex items-center gap-1">
           <button
@@ -393,14 +393,14 @@ export function Browser({
             }}
             className={btnCls}
           >
-            <FilePlus size={13} /> {t("새 파일")}
+            <FilePlus size={13} /> {t("New file")}
           </button>
           <button data-testid="aindrive-refresh" onClick={loadTree} className={btnCls}>
-            <RefreshCw size={13} /> {t("새로고침")}
+            <RefreshCw size={13} /> {t("Refresh")}
           </button>
           {onUnlink && (
             <button data-testid="aindrive-unlink" onClick={onUnlink} className={btnCls}>
-              <Unlink size={13} /> {unlinkLabel ?? t("연결 해제")}
+              <Unlink size={13} /> {unlinkLabel ?? t("Disconnect")}
             </button>
           )}
         </div>
@@ -411,10 +411,10 @@ export function Browser({
           data-testid="aindrive-tree"
           className="max-h-[28rem] overflow-y-auto border-b border-neutral-100 py-1 md:border-b-0 md:border-r dark:border-neutral-800"
         >
-          {entries === null && <li className="px-3 py-2 text-xs text-neutral-400">{t("불러오는 중…")}</li>}
+          {entries === null && <li className="px-3 py-2 text-xs text-neutral-400">{t("Loading…")}</li>}
           {treeError && <li className="px-3 py-2 text-xs text-red-600">{treeError}</li>}
           {entries && !treeError && entries.length === 0 && (
-            <li className="px-3 py-2 text-xs text-neutral-400">{t("빈 폴더입니다")}</li>
+            <li className="px-3 py-2 text-xs text-neutral-400">{t("The folder is empty")}</li>
           )}
           {(managed
             ? [
@@ -432,20 +432,20 @@ export function Browser({
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                   {group.key === "managed" ? (
                     <>
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {t("팀스페이스에서 동기화됨")}
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {t("Synced from the teamspace")}
                     </>
                   ) : (
                     <>
-                      <span className="h-1.5 w-1.5 rounded-full border border-neutral-300 dark:border-neutral-600" /> {t("aindrive 원본 · 연동 안 됨")}
+                      <span className="h-1.5 w-1.5 rounded-full border border-neutral-300 dark:border-neutral-600" /> {t("aindrive originals · not synced")}
                     </>
                   )}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-snug text-neutral-400">
                   {group.key === "managed"
-                    ? t("페이지에서 자동으로 동기화되는 파일입니다. 수정은 페이지에서 하세요.")
-                    : t("ainmem과 동기화되지 않는 드라이브의 파일입니다. 여기서 고치면 드라이브에만 반영됩니다.")}
+                    ? t("Files synced from pages. Edit them in the page.")
+                    : t("Files on the drive that ainmem does not sync. Edits here change the drive only.")}
                 </p>
-                {group.rows.length === 0 && <p className="py-1 text-xs text-neutral-400">{t("없음")}</p>}
+                {group.rows.length === 0 && <p className="py-1 text-xs text-neutral-400">{t("None")}</p>}
               </li>
             ),
             ...group.rows.map((e) => {
@@ -484,7 +484,7 @@ export function Browser({
                   {group.key === "managed" && !e.isDir && (
                     <span
                       data-testid={`aindrive-sync-${e.path}`}
-                      title={page ? `${page.title || t("제목 없음")} · ${t(SYNC_LABEL[page.status])}` : t("자동 생성")}
+                      title={page ? `${page.title || t("Untitled")} · ${t(SYNC_LABEL[page.status])}` : t("Generated")}
                       className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${page ? SYNC_DOT[page.status] : "bg-neutral-300 dark:bg-neutral-600"}`}
                     />
                   )}
@@ -493,7 +493,7 @@ export function Browser({
                 <button
                   data-testid={`aindrive-delete-${e.path}`}
                   onClick={() => void remove(e)}
-                  aria-label={t("삭제")}
+                  aria-label={t("Delete")}
                   className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 opacity-0 hover:bg-neutral-200 hover:text-red-600 focus-visible:opacity-100 group-hover/entry:opacity-100 dark:hover:bg-neutral-700"
                 >
                   <Trash2 size={13} />
@@ -513,7 +513,7 @@ export function Browser({
                 autoFocus
                 value={newPath}
                 onChange={(e) => setNewPath(e.target.value)}
-                placeholder={t("새 파일 경로 (예: memo/today.md)")}
+                placeholder={t("New file path (e.g. memo/today.md)")}
                 className={inputCls}
               />
               <button
@@ -522,7 +522,7 @@ export function Browser({
                 onClick={() => {
                   const path = newPath.trim().replace(/^\/+|\/+$/g, "");
                   const existing = entries?.find((e) => e.path === path);
-                  if (existing?.isDir) return setFileError(t("같은 이름의 폴더가 있습니다"));
+                  if (existing?.isDir) return setFileError(t("A folder with that name already exists"));
                   // an existing file is opened, not replaced with an empty one
                   if (existing) return void openFile(path);
                   setFileError(null);
@@ -531,7 +531,7 @@ export function Browser({
                 }}
                 className={primaryCls}
               >
-                {t("만들기")}
+                {t("Create")}
               </button>
             </div>
           )}
@@ -552,12 +552,12 @@ export function Browser({
                 </span>
                 {isManaged(open.path) ? (
                   <span className="flex items-center gap-1 text-xs text-neutral-400">
-                    <Lock size={11} /> {t("읽기 전용")}
+                    <Lock size={11} /> {t("Read-only")}
                   </span>
                 ) : open.binary ? (
-                  <span className="text-xs text-neutral-400">{t("텍스트 파일이 아니라 읽기 전용입니다")}</span>
+                  <span className="text-xs text-neutral-400">{t("Not a text file — read-only")}</span>
                 ) : (
-                  dirty && <span className="text-xs text-amber-600">{t("저장 안 됨")}</span>
+                  dirty && <span className="text-xs text-amber-600">{t("Unsaved")}</span>
                 )}
                 {!openReadOnly && (
                   <button
@@ -566,7 +566,7 @@ export function Browser({
                     disabled={busy || !dirty}
                     className={`ml-auto ${primaryCls}`}
                   >
-                    {busy ? t("저장 중…") : t("저장")}
+                    {busy ? t("Saving…") : t("Save")}
                   </button>
                 )}
               </div>
@@ -579,8 +579,8 @@ export function Browser({
                     <>
                       <span className={`h-1.5 w-1.5 rounded-full ${SYNC_DOT[openManaged.status]}`} />
                       <span>
-                        {t("페이지 {title}에서 자동으로 동기화되는 파일입니다 ({status}).", {
-                          title: `‘${openManaged.title || t("제목 없음")}’`,
+                        {t("Synced from the page {title} ({status}).", {
+                          title: `‘${openManaged.title || t("Untitled")}’`,
                           status: t(SYNC_LABEL[openManaged.status]),
                         })}
                       </span>
@@ -589,11 +589,11 @@ export function Browser({
                         href={`/p/${openManaged.pageId}`}
                         className="ml-auto font-medium underline underline-offset-2"
                       >
-                        {t("페이지에서 수정")}
+                        {t("Edit in the page")}
                       </Link>
                     </>
                   ) : (
-                    <span>{t("동기화가 자동으로 만드는 파일입니다.")}</span>
+                    <span>{t("A file the sync generates.")}</span>
                   )}
                 </div>
               )}
@@ -609,7 +609,7 @@ export function Browser({
           ) : (
             newPath === null && (
               <p className="m-auto text-sm text-neutral-400">
-                {busy ? t("불러오는 중…") : t("왼쪽에서 파일을 고르면 내용이 여기에 보입니다.")}
+                {busy ? t("Loading…") : t("Pick a file on the left to see it here.")}
               </p>
             )
           )}
@@ -645,7 +645,7 @@ export function AindrivePanel() {
   }, [version]);
 
   async function unlink() {
-    if (!window.confirm(t("aindrive 연결을 해제할까요? 드라이브의 파일은 지워지지 않습니다."))) return;
+    if (!window.confirm(t("Unlink aindrive? Files on the drive are not deleted."))) return;
     await fetch("/api/aindrive", { method: "DELETE" });
     load();
   }
@@ -666,7 +666,7 @@ export function AindrivePanel() {
         </div>
       )}
       {!state.configured ? (
-        <p className="text-sm text-neutral-400">{t("이 서버에는 aindrive가 설정되어 있지 않습니다.")}</p>
+        <p className="text-sm text-neutral-400">{t("aindrive is not configured on this server.")}</p>
       ) : !state.connected ? (
         <AindriveConnect onConnected={load} />
       ) : state.link ? (
@@ -691,7 +691,7 @@ export function AindrivePanel() {
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
             });
-            if (!res.ok) return errorOf(res, t("연결할 수 없습니다"));
+            if (!res.ok) return errorOf(res, t("Could not link"));
             setLinking(false);
             load();
             return null;
@@ -700,10 +700,10 @@ export function AindrivePanel() {
       ) : (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-neutral-300 px-4 py-4 dark:border-neutral-700">
           <p className="text-sm text-neutral-500">
-            {t("내 컴퓨터의 폴더를 aindrive로 연결하면 여기서 파일을 보고 고칠 수 있습니다.")}
+            {t("Link a folder on your computer through aindrive to view and edit its files here.")}
           </p>
           <button data-testid="aindrive-link" onClick={() => setLinking(true)} className={`shrink-0 ${primaryCls}`}>
-            {t("aindrive 연결")}
+            {t("Link aindrive")}
           </button>
         </div>
       )}

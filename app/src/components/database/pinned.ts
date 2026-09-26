@@ -2,8 +2,8 @@
 
 import type { DbProperty } from "@/lib/db/schema";
 
-/** How many properties sit above the body rather than in the 속성 panel until
- *  someone chooses (레이아웃 사용자 지정). The original pins four
+/** How many properties sit above the body rather than in the Properties panel until
+ *  someone chooses (Customize layout). The original pins four
  *  (TL · Assignee · End date · Evaluation). */
 export const PINNED_COUNT = 4;
 
@@ -25,8 +25,8 @@ export function hasValue(v: unknown): boolean {
  *
  *  The band's order is its own (`config.pinnedOrder`), not the property list's:
  *  measured on the original, its band reads TL · Assignee · End date ·
- *  Evaluation while neither the table's columns nor the 속성 panel start there
- *  (e2e/fixtures/notion-row-props-band.json §set). Properties with no order
+ *  Evaluation while neither the table's columns nor the Properties panel start there
+ *  (src/i18n/content/e2e-fixtures/notion-row-props-band.json §set). Properties with no order
  *  yet fall back to their position, after the ordered ones. */
 export function splitPinned(properties: DbProperty[]): {
   pinned: DbProperty[];

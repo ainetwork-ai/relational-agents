@@ -4,7 +4,7 @@ import { paymentQuote, serveSongpyeon } from "@/lib/seller";
 export const dynamic = "force-dynamic";
 
 /**
- * 달빛떡집, the whole store.
+ * The demo rice-cake shop (SELLER.name), the whole store.
  *
  * No payment header → 402 with the quote (the x402 shape: price, payTo,
  * network). With `X-Payment-Tx` → the payment is checked on-chain and then the

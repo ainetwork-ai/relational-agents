@@ -47,7 +47,7 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
       onClose();
       router.push(`/dm/${room.id}`);
     } catch (err) {
-      show(err instanceof Error ? err.message : t("대화를 시작할 수 없습니다"));
+      show(err instanceof Error ? err.message : t("Couldn't start the chat"));
       setBusy(false);
     }
   }
@@ -63,13 +63,13 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("새 관계")}
+        aria-label={t("New relation")}
         data-testid="dm-new-modal"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-4 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
       >
         <h2 className="mb-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-          {t("새 관계")}
+          {t("New relation")}
         </h2>
 
         {!members ? (
@@ -80,9 +80,9 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : members.length === 0 ? (
           <p className="py-4 text-center text-xs text-neutral-400" data-testid="dm-no-members">
-            {t("아직 초대할 사람이 없습니다.")}
+            {t("No one to invite yet.")}
             <br />
-            {t("먼저 설정에서 워크스페이스에 멤버를 추가하세요.")}
+            {t("Add members to your workspace in Settings first.")}
           </p>
         ) : (
           <ul className="max-h-64 space-y-0.5 overflow-y-auto">
@@ -119,7 +119,7 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
             data-testid="dm-group-name"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder={t("그룹 이름 (선택 사항)")}
+            placeholder={t("Group name (optional)")}
             className="mt-2 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900"
           />
         )}
@@ -130,7 +130,7 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="rounded-md px-3 py-1.5 text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            {t("취소")}
+            {t("Cancel")}
           </button>
           <button
             data-testid="dm-create"
@@ -138,7 +138,7 @@ export function NewDmModal({ onClose }: { onClose: () => void }) {
             disabled={selected.length === 0 || busy}
             className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
           >
-            {busy ? t("시작하는 중…") : t("채팅 시작")}
+            {busy ? t("Starting…") : t("Start chat")}
           </button>
         </div>
       </div>

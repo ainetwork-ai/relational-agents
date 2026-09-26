@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /**
  * The agent spends.
  *
- * A member asks their relationship agent to buy from 달빛떡집. The agent pays
+ * A member asks their relationship agent to buy from the demo rice-cake shop. The agent pays
  * with its OWN wallet, then presents the payment to the seller, which decides
  * whether two humans stand behind it. Either answer — the songpyeon or the refusal
  * — is posted back into the room by the agent, because the room is where the

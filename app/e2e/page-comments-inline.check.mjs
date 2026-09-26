@@ -1,24 +1,25 @@
-// 페이지의 댓글은 페이지 안에 있어야 한다 — 창에 도킹된 패널이 아니라.
+// A page's comments belong inside the page — not in a panel docked to the window.
 //
-// 원본은 행 페이지를 열면 속성 밴드와 본문 사이에 `댓글` 섹션을 두고 거기에
-// 스레드를 깐다. `.notion-page-view-discussion` 은 overflow-y: visible / max-height:
-// none 이라 댓글이 늘면 섹션이 길어지고 페이지가 스크롤된다 — 안쪽 스크롤이 없다.
-// 우리는 오른쪽 340px 패널을 열고 있었다.
+// When the original opens a row page it puts a `Comments` section between the property band and the body
+// and lays the threads out there. `.notion-page-view-discussion` is overflow-y: visible / max-height:
+// none, so as comments grow the section gets longer and the page scrolls — no inner scroll.
+// We used to open a 340px panel on the right.
 //
 //   [BASE_URL=…] [ROW_PAGE_ID=…] [USER_ID=…] node e2e/page-comments-inline.check.mjs
 //
-// 읽기 전용: 행 페이지를 열어 좌표만 읽는다.
+// Read-only: opens a row page and only reads coordinates.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { content } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
- // 댓글 3개가 달린 행의 페이지 (e2e/fixtures/notion-row-comments.json 의 rowsWithComments)
+ // The page of a row with 3 comments (rowsWithComments in src/i18n/content/e2e-fixtures/notion-row-comments.json)
 const ROW_PAGE_ID = process.env.ROW_PAGE_ID ?? "";
 
-const F = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-row-comments.json", import.meta.url), "utf8"));
+const F = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-row-comments.json", import.meta.url), "utf8"));
 const I = F.inline;
 const C = F.comment;
 const M = F.mention;
@@ -27,8 +28,8 @@ const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-ch
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
 
 if (!ROW_PAGE_ID) {
-  console.error("\n  ROW_PAGE_ID 를 주세요 — 댓글이 달린 행의 페이지 id 입니다.");
-  console.error("  찾는 법: 표에서 배지가 붙은 행을 열고 URL 의 /p/<id>.\n");
+  console.error("\n  Give ROW_PAGE_ID — the page id of a row that has comments.");
+  console.error("  How to find it: open a row with a badge in the table, take /p/<id> from the URL.\n");
   process.exit(1);
 }
 
@@ -74,68 +75,68 @@ const got = await page.evaluate(() => {
       return { label: b.getAttribute("aria-label"), w: px(q.width), h: px(q.height),
                radius: getComputedStyle(b).borderRadius, x: px(q.x - sr.x) };
     }),
- // 페이지 댓글이 여전히 패널로도 열리고 있지는 않은가
+ // Are page comments still also opening as a panel?
     dockedPanel: !!document.querySelector("[data-testid='comment-thread-panel']"),
   };
 });
 await browser.close();
 
 const d = [];
-const eq = (what, a, b) => { if (String(a) !== String(b)) d.push(`${what}: 우리 ${a} / 노션 ${b}`); };
+const eq = (what, a, b) => { if (String(a) !== String(b)) d.push(`${what}: ours ${a} / Notion ${b}`); };
 const near = (what, a, b, tol = 0.5) => {
   if (a === null || a === undefined || Math.abs(Number(a) - Number(b)) > tol)
-    d.push(`${what}: 우리 ${a} / 노션 ${b}`);
+    d.push(`${what}: ours ${a} / Notion ${b}`);
 };
 
-if (!got.count) d.push("댓글이 하나도 안 그려졌습니다 (이 페이지에 댓글이 있어야 잽니다)");
-if (got.dockedPanel) d.push("도킹된 댓글 패널이 아직 떠 있습니다 — 원본에는 없습니다");
+if (!got.count) d.push("Not a single comment was drawn (this page needs comments to measure)");
+if (got.dockedPanel) d.push("A docked comment panel is still up — the original has none");
 
-eq("바깥 스크롤 (안쪽 스크롤 금지)", got.overflowY, I.container.overflowY);
-eq("최대 높이 없음", got.maxHeight, I.container.maxHeight);
+eq("outer scroll (no inner scroll)", got.overflowY, I.container.overflowY);
+eq("no max height", got.maxHeight, I.container.maxHeight);
 
-near("아바타 왼쪽", got.avatar?.x, I.avatarLeft);
-near("아바타 크기", got.avatar?.w, C.avatar.size);
-near("이름 왼쪽", got.author?.x, I.textColumnLeftInset);
-eq("이름 크기", got.author?.fs, I.author.fs);
-eq("이름 굵기", got.author?.fw, I.author.fw);
-eq("이름 색", got.author?.color, I.author.color);
-eq("날짜 크기", got.date?.fs, I.date.fs);
-eq("날짜 색", got.date?.color, I.date.color);
-near("본문 왼쪽", got.body?.x, I.textColumnLeftInset);
-eq("본문 크기", got.body?.fs, I.body.fs);
-eq("본문 줄높이", got.body?.lh, I.body.lh);
-eq("본문 색", got.body?.color, I.body.color);
-if (got.avatar && got.body) near("본문 위 - 아바타 위", got.body.y - got.avatar.y, C.bodyTopFromAvatarTop);
-if (got.pitch !== null) near("댓글 한 칸", got.pitch, I.avatarPitch);
+near("avatar left", got.avatar?.x, I.avatarLeft);
+near("avatar size", got.avatar?.w, C.avatar.size);
+near("name left", got.author?.x, I.textColumnLeftInset);
+eq("name size", got.author?.fs, I.author.fs);
+eq("name weight", got.author?.fw, I.author.fw);
+eq("name color", got.author?.color, I.author.color);
+eq("date size", got.date?.fs, I.date.fs);
+eq("date color", got.date?.color, I.date.color);
+near("body left", got.body?.x, I.textColumnLeftInset);
+eq("body size", got.body?.fs, I.body.fs);
+eq("body line height", got.body?.lh, I.body.lh);
+eq("body color", got.body?.color, I.body.color);
+if (got.avatar && got.body) near("body top - avatar top", got.body.y - got.avatar.y, C.bodyTopFromAvatarTop);
+if (got.pitch !== null) near("one comment step", got.pitch, I.avatarPitch);
 
 if (got.mention) {
-  eq("멘션 배경 (칩이 아님)", got.mention.bg, M.bg);
-  eq("멘션 라운드 (칩이 아님)", got.mention.radius, M.radius);
-  eq("멘션 여백 (칩이 아님)", got.mention.pad, M.padding);
-  eq("멘션 색", got.mention.color, M.name.color);
+  eq("mention background (not a chip)", got.mention.bg, M.bg);
+  eq("mention radius (not a chip)", got.mention.radius, M.radius);
+  eq("mention padding (not a chip)", got.mention.pad, M.padding);
+  eq("mention color", got.mention.color, M.name.color);
 } else {
-  console.log("· 멘션이 든 댓글이 없어 멘션은 못 쟀습니다");
+  console.log("· no comment with a mention, so the mention was not measured");
 }
 
-if (!got.composer) d.push("입력줄이 없습니다");
+if (!got.composer) d.push("No input row");
 for (const want of I.composerButtons) {
   const b = got.composerButtons.find((x) => x.label === want.label);
-  if (!b) { d.push(`입력줄 버튼 없음: ${want.label}`); continue; }
-  near(`${want.label} 폭`, b.w, want.w);
-  near(`${want.label} 높이`, b.h, want.h);
-  eq(`${want.label} 라운드`, b.radius, want.radius);
+  if (!b) { d.push(`input row button missing: ${want.label}`); continue; }
+  near(`${want.label} width`, b.w, want.w);
+  near(`${want.label} height`, b.h, want.h);
+  eq(`${want.label} radius`, b.radius, want.radius);
 }
 
 if (d.length) {
-  console.error("\n  ┌─ 페이지 안 댓글 섹션이 원본과 다릅니다 ───────────────────");
+  console.error("\n  ┌─ The in-page comment section differs from the original ─────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-row-comments.json (inline / comment / mention)");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-row-comments.json (inline / comment / mention)");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-// 이 섹션은 **데이터베이스 행의 페이지에만** 있다. 풀페이지 DB 와 일반 페이지에
-// 달아버린 적이 있어(2026-08-27) 여기서 같이 본다. F.inline.surfaces 가 기준.
+// This section exists **only on database row pages**. It was once attached to full-page DBs and plain pages
+// (2026-08-27), so that is checked here too. F.inline.surfaces is the reference.
 const FULL_PAGE_DB = process.env.FULLPAGE_DB_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf";
 const EMPTY_ROW = process.env.EMPTY_ROW_PAGE_ID ?? "";
 
@@ -178,41 +179,41 @@ await browser2.close();
 const s = [];
 const want = (label, got, exp) => {
   for (const k of ["commentLabel", "discussion", "composer"])
-    if (got[k] !== exp[k]) s.push(`${label} ${k}: 우리 ${got[k]} / 노션 ${exp[k]}`);
+    if (got[k] !== exp[k]) s.push(`${label} ${k}: ours ${got[k]} / Notion ${exp[k]}`);
 };
-want("풀페이지 DB", dbPage, F.inline.surfaces.find((x) => /풀페이지/.test(x.page)));
+want("full-page DB", dbPage, F.inline.surfaces.find((x) => new RegExp(content.PAGE_COMMENTS_INLINE.fullPageDb).test(x.page)));
 if (emptyRow) {
-  want("댓글 없는 행 페이지", emptyRow, F.inline.surfaces.find((x) => /댓글 없음/.test(x.page)));
- // 댓글이 하나도 없어도 내 아바타 + `댓글 추가` + 버튼이 처음부터 있어야 한다.
- // 한 번 "누르면 나온다"로 잘못 만든 적이 있다(2026-08-27).
+  want("row page with no comments", emptyRow, F.inline.surfaces.find((x) => new RegExp(content.PAGE_COMMENTS_INLINE.noComments).test(x.page)));
+ // Even with no comments, my avatar + `Add a comment` + the buttons must be there from the start.
+ // It was once wrongly built as "appears when you click" (2026-08-27).
   const E = F.inline.emptyState;
   const nearE = (what, a, b, tol = 0.5) => {
     if (a === null || a === undefined || Math.abs(Number(a) - Number(b)) > tol)
-      s.push(`빈 상태 ${what}: 우리 ${a} / 노션 ${b}`);
+      s.push(`empty state ${what}: ours ${a} / Notion ${b}`);
   };
-  nearE("아바타 왼쪽", emptyRow.avatar?.x, E.avatar.x);
-  nearE("아바타 위", emptyRow.avatar?.y, E.avatar.y);
-  nearE("아바타 크기", emptyRow.avatar?.w, E.avatar.size);
-  nearE("입력칸 왼쪽", emptyRow.input?.x, E.input.x);
+  nearE("avatar left", emptyRow.avatar?.x, E.avatar.x);
+  nearE("avatar top", emptyRow.avatar?.y, E.avatar.y);
+  nearE("avatar size", emptyRow.avatar?.w, E.avatar.size);
+  nearE("input left", emptyRow.input?.x, E.input.x);
   if (emptyRow.placeholder !== E.input.placeholder)
-    s.push(`빈 상태 플레이스홀더: 우리 ${emptyRow.placeholder} / 노션 ${E.input.placeholder}`);
+    s.push(`empty state placeholder: ours ${emptyRow.placeholder} / Notion ${E.input.placeholder}`);
   if (emptyRow.inputPad !== E.input.padding)
-    s.push(`빈 상태 입력칸 여백: 우리 ${emptyRow.inputPad} / 노션 ${E.input.padding}`);
+    s.push(`empty state input padding: ours ${emptyRow.inputPad} / Notion ${E.input.padding}`);
   if (emptyRow.sendOpacity !== E.sendOpacityWhenEmpty)
-    s.push(`빈 상태 보내기 버튼 투명도: 우리 ${emptyRow.sendOpacity} / 노션 ${E.sendOpacityWhenEmpty}`);
-} else console.log("· EMPTY_ROW_PAGE_ID 를 안 줘서 '댓글 없는 행 페이지'는 못 쟀습니다");
+    s.push(`empty state send button opacity: ours ${emptyRow.sendOpacity} / Notion ${E.sendOpacityWhenEmpty}`);
+} else console.log("· EMPTY_ROW_PAGE_ID not given, so the 'row page with no comments' was not measured");
 
 if (s.length) {
-  console.error("\n  ┌─ 댓글 섹션이 있으면 안 되는 페이지에 있습니다 ────────────");
+  console.error("\n  ┌─ A comment section is on a page that must not have one ─────");
   for (const l of s) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-row-comments.json (inline.surfaces)");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-row-comments.json (inline.surfaces)");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
 
 console.log(
-  `페이지 안 댓글 ${got.count}개 — 안쪽 스크롤 없음, 아바타 ${got.avatar.w} @x${got.avatar.x}, 한 칸 ${got.pitch}, 도킹 패널 없음` +
-    `\n섹션이 붙는 곳도 원본과 같음 — 풀페이지 DB 0/0/0` +
-    (emptyRow ? `, 댓글 없는 행 페이지도 입력 UI 있음(아바타 @${emptyRow.avatar?.y})` : "")
+  `${got.count} in-page comments — no inner scroll, avatar ${got.avatar.w} @x${got.avatar.x}, step ${got.pitch}, no docked panel` +
+    `\nwhere the section appears also matches the original — full-page DB 0/0/0` +
+    (emptyRow ? `, the row page with no comments has the input UI too (avatar @${emptyRow.avatar?.y})` : "")
 );

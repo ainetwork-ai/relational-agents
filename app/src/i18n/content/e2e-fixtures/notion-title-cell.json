@@ -1,0 +1,17 @@
+{
+  "_source": "app.notion.com ComCom > Projects, 'on-going projects', Project name cell hovered and its Open (열기) pressed, 2026-08-06. Read-only: hover, one click on Open, Escape.",
+  "cell": { "w": 565, "h": 37, "padding": "7.5px 8px", "iconSize": 20, "titleFs": "14px" },
+  "openButton": {
+    "pad": { "w": 55, "h": 24, "radius": "6px", "bg": "rgb(255, 255, 255)", "padding": "2px", "rightInset": 5,
+      "shadow": "rgba(25, 25, 25, 0.027) 0px 8px 12px 0px, rgba(25, 25, 25, 0.027) 0px 2px 6px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px" },
+    "inner": { "w": 51, "h": 20, "radius": "4px", "padding": "0px 4px", "gap": "6px", "fs": "12px", "fw": "500", "color": "rgb(125, 122, 117)" },
+    "icon": { "size": 15, "color": "rgb(142, 139, 134)" },
+    "label": "열기",
+    "ariaLabel": "사이드 보기에서 열기"
+  },
+  "behaviour": {
+    "click on the title text": "edits in place inside the cell (focus goes to the contenteditable). The page does not open",
+    "click on Open": "side peek docked on the right. In that window x=1128 w=600 h=992 (full height)"
+  },
+  "unmeasured": ["how the side peek width follows the window size (600 is just one value measured in that window, and the user can resize this panel and have it remembered)", "the side peek's inner design"]
+}

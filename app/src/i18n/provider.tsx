@@ -19,7 +19,7 @@ export function LocaleProvider({ locale, children }: { locale: Locale; children:
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
-/** `t("아이콘 추가")` — the Korean source string is the key. */
+/** `t("Add icon")` — the English source string is the key. */
 export function useT(): T {
   return useContext(LocaleContext).t;
 }

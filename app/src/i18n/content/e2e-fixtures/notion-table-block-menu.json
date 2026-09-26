@@ -1,0 +1,34 @@
+{
+  "_": "The table block's ⠿ (block handle) menu — the handle next to + in the gutter, not the row/column grips inside the table. Measured over CDP on the 2026-08-28 table test page; colors are computed style values.",
+  "gutter": {
+    "handle": { "w": 18, "h": 24, "dxFromTableLeft": -36, "cursor": "grab", "aria": "드래그하여 이동하고 클릭하여 메뉴를 여세요" },
+    "plus": { "w": 24, "h": 24, "dxFromTableLeft": -60, "aria": "블록을 아래에 추가하려면 클릭하고 위에 추가하려면 Option + 클릭하세요." }
+  },
+  "panel": {
+    "width": 265, "radius": 10, "bg": "rgb(255, 255, 255)",
+    "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+    "search": { "placeholder": "작업을 검색하세요", "w": 229, "h": 20, "fontSize": "14px" }
+  },
+  "section": {
+    "_": "Group added at the top only for table blocks. Header is 12px/500 gray.",
+    "title": "표", "fontSize": "12px", "weight": "500", "color": "rgb(125, 122, 117)", "dxFromPanel": 12
+  },
+  "item": { "w": 257, "h": 28, "pitch": 29, "radius": 6, "iconBox": 20, "iconDx": 8, "labelDx": 36, "groupGap": 37, "accessoryInset": 8 },
+  "switch": { "w": 30, "h": 18, "radius": 44, "knob": 14, "knobInset": 2, "on": "rgb(39, 131, 222)", "off": "rgba(135, 131, 120, 0.3)" },
+  "tableItems": [
+    { "label": "데이터베이스로 전환", "icon": "arrowSquarePathUpDown" },
+    { "label": "너비에 맞추기", "icon": "arrowExpandHorizontal" },
+    { "label": "제목 행", "icon": "tableHeaderRow", "switch": true },
+    { "label": "제목 행", "icon": "tableHeaderColumn", "switch": true, "really": "Header column — the label is identical to the one above and only the icon differs (Notion's i18n as-is)" }
+  ],
+  "genericItems": ["블록 링크 복사", "복제", "옮기기", "삭제", "댓글", "편집 내용 제안", "여기에서 발표", "AI에게 질문하기"],
+  "footer": ["<이름> 최종 편집", "<시각>", "<n> words, <m> characters"],
+  "ours": {
+    "_": "What we did differently on this branch. Do not delete it to restore parity.",
+    "headerColLabel": "제목 열 — in the original both lines say '제목 행' (Header row), so side by side it looks like the same line twice. We took the icon-only difference as a Notion i18n slip and changed just one word.",
+    "extraItems": ["정렬"],
+    "alignSubmenu": { "options": ["왼쪽", "가운데", "오른쪽"], "default": "왼쪽", "scope": "whole table — this menu has no row/column context" },
+    "panelGeometry": "The panel itself keeps our block menu's existing width/padding (every block uses this menu, so it was not widened just for tables). What we took from the original: item set, order, switches and the section header.",
+    "notBuilt": ["데이터베이스로 전환", "너비에 맞추기", "옮기기", "편집 내용 제안", "여기에서 발표", "AI에게 질문하기", "footer last-edited / character count"]
+  }
+}

@@ -1,7 +1,7 @@
-import { en } from "./en";
+import { ko } from "./ko";
 import type { Locale } from "./locales";
 
-const DICTS: Record<Locale, Record<string, string> | null> = { ko: null, en };
+const DICTS: Record<Locale, Record<string, string> | null> = { en: null, ko };
 
 export type Vars = Record<string, string | number>;
 
@@ -11,8 +11,8 @@ function fill(s: string, vars?: Vars) {
   return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }
 
-/** Translate a Korean source string for `locale`. Unknown keys fall back to
- *  the Korean text itself. */
+/** Translate an English source string for `locale`. Unknown keys fall back to
+ *  the English text itself. */
 export function translate(locale: Locale, key: string, vars?: Vars): string {
   const dict = DICTS[locale];
   return fill((dict && dict[key]) ?? key, vars);

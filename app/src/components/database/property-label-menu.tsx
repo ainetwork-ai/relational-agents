@@ -12,19 +12,20 @@ import { CustomizeLayoutList } from "./customize-layout";
 
 /**
  * The menu a pinned property's LABEL opens, and the property editor behind two
- * of its rows. Both measured on the original 2026-08-28 (row `X 관리 + Telegram
- * EN/KR (Round 1)`, fixtures/notion-row-props-band.json §labelMenu / §editPopover):
+ * of its rows. Both measured on the original 2026-08-28 (the `X admin + Telegram
+ * EN/KR (Round 1)` row, fixtures/notion-row-props-band.json §labelMenu / §editPopover):
  *
- *   메뉴 220×168, radius 10, 라벨 왼쪽에 맞춰 라벨 아래 1px. 항목 28×212 (좌우 4
- *   여백), radius 6, 아이콘 20 at x8, 글자 x36 14px/400 rgb(44,44,43), 항목 사이 1.
- *   구분선 1px rgba(42,28,0,0.07) 이 댓글 뒤와 속성 삭제 뒤에 각각 위아래 4px 을 두고.
+ *   Menu 220×168, radius 10, left-aligned with the label, 1px under it. Items 28×212
+ *   (4 margin each side), radius 6, icon 20 at x8, text x36 14px/400 rgb(44,44,43), 1 between items.
+ *   Dividers 1px rgba(42,28,0,0.07) after Comment and after Delete property, 4px above and below each.
  *
- *   편집 팝오버 290×253: 이름 줄(타입 아이콘 28×28 at x12, 입력 x54 14px, ⓘ x256.7),
- *   그 아래 28px 줄 네 개 (유형 · 제한 · 기본값 · 알림, 아이콘 20 at x8, 값과 chevron
- *   오른쪽), 구분선, 속성 복제 · 속성 삭제.
+ *   Edit popover 290×253: name row (type icon 28×28 at x12, input x54 14px, ⓘ x256.7),
+ *   then four 28px rows (Type · Limit · Default value · Notify, icon 20 at x8, value and
+ *   chevron on the right), a divider, Duplicate property · Delete property.
  *
- * 제한 · 기본값 · 알림 · 속성 복제 · ⓘ 는 원본에 있지만 우리에게 없는 기능이라
- * 비활성으로 그린다 — 빼버리면 원본을 잘못 옮기는 것이 된다 (속성 추가 팝오버와 같은 규칙).
+ * Limit · Default value · Notify · Duplicate property · ⓘ are in the original but are features
+ * we lack, so they are drawn disabled — leaving them out would copy the original wrong (the
+ * same rule as the Add-a-property popover).
  */
 
 const MENU_SHADOW =
@@ -33,11 +34,11 @@ const HOVER = "hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-neutral-700";
 const TEXT = "text-[rgb(44,44,43)] dark:text-neutral-200";
 
 const TYPE_LABEL: Record<string, string> = {
-  text: "텍스트", number: "숫자", select: "선택", multi_select: "다중 선택", status: "상태",
-  date: "날짜", person: "사람", files: "파일과 미디어", checkbox: "체크박스", url: "URL",
-  email: "이메일", phone: "전화번호", formula: "수식", relation: "관계형", rollup: "롤업",
-  created_time: "생성 일시", last_edited_time: "최종 편집 일시", created_by: "생성자",
-  last_edited_by: "최종 편집자",
+  text: "Text", number: "Number", select: "Select", multi_select: "Multi-select", status: "Status",
+  date: "Date", person: "Person", files: "Files & media", checkbox: "Checkbox", url: "URL",
+  email: "Email", phone: "Phone", formula: "Formula", relation: "Relational", rollup: "Rollup",
+  created_time: "Created time", last_edited_time: "Last edited time", created_by: "Created by",
+  last_edited_by: "Last edited by",
 };
 
 function Row({
@@ -81,21 +82,21 @@ const Separator = ({ air = 3 }: { air?: number }) => (
   />
 );
 
-/** 속성 표시 여부 — what the panel's submenu sets. The band never asks: a pinned
+/** Property visibility — what the panel's submenu sets. The band never asks: a pinned
  *  property keeps its slot however empty it is (fixtures §set.emptyKeepsSlot). */
 export type PageVisibility = "always" | "hide_empty" | "never";
 const VISIBILITY: { value: PageVisibility; label: string }[] = [
-  { value: "always", label: "항상 표시" },
-  { value: "hide_empty", label: "비어있을 때 숨기기" },
-  { value: "never", label: "항상 숨기기" },
+  { value: "always", label: "Always show" },
+  { value: "hide_empty", label: "Hide when empty" },
+  { value: "never", label: "Always hide" },
 ];
 
 export function PropertyLabelMenu({
   prop,
   anchor,
   onClose,
- // the band's menu and the 속성 panel's are different lists in the original:
- // the band has 댓글, the panel has 속성 표시 여부 · 속성 복제 instead
+ // the band's menu and the Properties panel's are different lists in the original:
+ // the band has Comment, the panel has Property visibility · Duplicate property instead
   surface = "band",
 }: {
   prop: DbProperty;
@@ -108,17 +109,17 @@ export function PropertyLabelMenu({
   const boxRef = useRef<HTMLDivElement | null>(null);
   const subRef = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<"menu" | "edit" | "layout">("menu");
- // the 속성 표시 여부 row's box, so the submenu can hang off it
+ // the Property visibility row's box, so the submenu can hang off it
   const [subAnchor, setSubAnchor] = useState<DOMRect | null>(null);
   useDismiss(true, onClose, boxRef, subRef);
   const visibility: PageVisibility =
     (prop.config?.pageVisibility as PageVisibility | undefined) ?? "always";
 
- // 라벨 왼쪽에 맞춰 라벨 아래 1px; 창 밖으로 나가면 안쪽으로 당긴다
+ // left-aligned with the label, 1px under it; pulled back inside if it would leave the window
   const width = view === "edit" ? 290 : view === "layout" ? 260 : 220;
   const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
- // The measured position is 1px under the label. A long list (레이아웃 사용자
- // 지정 on a database with many properties) would run off the bottom from
+ // The measured position is 1px under the label. A long list (Customize
+ // layout on a database with many properties) would run off the bottom from
  // there, so the box is capped to the room it has and scrolls inside; when the
  // label sits low enough that the room below is not worth having, it opens
  // upward instead.
@@ -146,7 +147,7 @@ export function PropertyLabelMenu({
         <CustomizeLayoutList />
       ) : view === "edit" ? (
         <>
-          {/* 이름 줄 — 타입 아이콘, 이름 입력, ⓘ */}
+          {/* name row — type icon, name input, ⓘ */}
           <div className="mb-4 mt-1 flex h-7 items-center gap-2">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[rgb(142,139,134)]">
               <PropertyTypeIcon type={prop.type} size={20} className="text-current" />
@@ -163,26 +164,26 @@ export function PropertyLabelMenu({
               <Info size={15} />
             </span>
           </div>
-          <Row icon={<RefreshCw size={16} />} label={t("유형")} value={t(TYPE_LABEL[prop.type] ?? prop.type)} chevron disabled />
-          <Row icon={<Hash size={16} />} label={t("제한")} value={t("제한 없음")} chevron disabled />
-          <Row icon={<UserCircle2 size={16} />} label={t("기본값")} value={t("기본값 없음")} chevron disabled />
-          <Row icon={<Bell size={16} />} label={t("알림")} value={t("사용자만")} chevron disabled />
+          <Row icon={<RefreshCw size={16} />} label={t("Type")} value={t(TYPE_LABEL[prop.type] ?? prop.type)} chevron disabled />
+          <Row icon={<Hash size={16} />} label={t("Limit")} value={t("No limit")} chevron disabled />
+          <Row icon={<UserCircle2 size={16} />} label={t("Default value")} value={t("No default")} chevron disabled />
+          <Row icon={<Bell size={16} />} label={t("Notifications")} value={t("Members only")} chevron disabled />
           <Separator air={7} />
-          <Row icon={<Copy size={16} />} label={t("속성 복제")} disabled />
+          <Row icon={<Copy size={16} />} label={t("Duplicate property")} disabled />
           <Row
             icon={<Trash2 size={16} />}
-            label={t("속성 삭제")}
+            label={t("Delete property")}
             testid="db-prop-edit-delete"
             onClick={() => { db.deleteProperty(prop.id); onClose(); }}
           />
         </>
       ) : (
         <>
-          <Row icon={<Pencil size={16} />} label={t("이름 바꾸기")} testid="db-prop-menu-rename" onClick={() => setView("edit")} />
-          <Row icon={<SlidersHorizontal size={16} />} label={t("속성 편집")} testid="db-prop-menu-edit" onClick={() => setView("edit")} />
+          <Row icon={<Pencil size={16} />} label={t("Rename")} testid="db-prop-menu-rename" onClick={() => setView("edit")} />
+          <Row icon={<SlidersHorizontal size={16} />} label={t("Edit property")} testid="db-prop-menu-edit" onClick={() => setView("edit")} />
           {surface === "band" ? (
             <>
-              <Row icon={<MessageSquare size={16} />} label={t("댓글")} disabled />
+              <Row icon={<MessageSquare size={16} />} label={t("Comments")} disabled />
               <Separator />
             </>
           ) : (
@@ -190,21 +191,21 @@ export function PropertyLabelMenu({
               <Separator />
               <Row
                 icon={<Eye size={16} />}
-                label={t("속성 표시 여부")}
+                label={t("Property visibility")}
                 chevron
                 testid="db-prop-menu-visibility"
                 onMouseEnter={(box) => setSubAnchor(box)}
                 onClick={(box) => setSubAnchor((cur) => (cur ? null : box))}
               />
-              <Row icon={<Copy size={16} />} label={t("속성 복제")} disabled />
+              <Row icon={<Copy size={16} />} label={t("Duplicate property")} disabled />
             </>
           )}
-          <Row icon={<Trash2 size={16} />} label={t("속성 삭제")} testid="db-prop-menu-delete"
+          <Row icon={<Trash2 size={16} />} label={t("Delete property")} testid="db-prop-menu-delete"
             onClick={() => { db.deleteProperty(prop.id); onClose(); }} />
           <Separator />
           <Row
             icon={<LayoutPanelLeft size={16} />}
-            label={t("레이아웃 사용자 지정")}
+            label={t("Customize layout")}
             testid="db-prop-menu-layout"
             onClick={() => setView("layout")}
           />
@@ -224,8 +225,8 @@ export function PropertyLabelMenu({
             role="menu"
             data-testid="db-prop-visibility-menu"
             style={{
-             // 원본은 패널이 창 오른쪽에 붙어 있어 왼쪽으로 펼친다: 하위 메뉴의
-             // 오른쪽 끝이 부모 메뉴 왼쪽 +4, 위쪽은 누른 줄보다 33 위
+             // the original's panel hugs the window's right edge, so it opens leftward: the
+             // submenu's right edge is the parent menu's left +4, its top 33 above the pressed row
               left: Math.max(8, left + 4 - 180),
               top: Math.min(Math.max(8, subAnchor.top - 33), window.innerHeight - 94 - 8),
               width: 180,

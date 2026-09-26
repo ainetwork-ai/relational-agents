@@ -22,6 +22,7 @@ import {
   supportsSkinTone,
 } from "@/lib/emoji-data";
 import { initial, firstGlyphs, isEmojiGlyph } from "@/lib/glyph";
+import { CHECK_EMOJI_DATA } from "@/i18n/content/scripts";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -142,7 +143,7 @@ check("initial letter", initial("ainmem"), "A");
 check("initial fallback", initial(""), "?");
 check("firstGlyphs 2 of emoji name", firstGlyphs("🧑‍💻🎉 notes", 2), "🧑‍💻🎉");
 check("firstGlyphs letters", firstGlyphs("Memory Lab", 2), "Me");
-check("firstGlyphs flag", firstGlyphs("🇰🇷 팀", 1), "🇰🇷");
+check("firstGlyphs flag", firstGlyphs(CHECK_EMOJI_DATA.flagName, 1), "🇰🇷");
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

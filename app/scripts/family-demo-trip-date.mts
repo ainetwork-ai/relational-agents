@@ -1,7 +1,7 @@
 /**
  * Moves the family's trip photos in time, on the phones themselves: every
  * photo's EXIF date (taken/modified) shifts so the trip ends on --end. For a
- * live demo — "오늘 여행사진 정리해서 앨범으로 만들어줘" then really means
+ * live demo — "Make an album from today's trip photos." then really means
  * today's photos. Files are read and written over aindrive MCP, as each owner.
  *
  *   pnpm tsx scripts/family-demo-trip-date.mts [--end today|YYYY-MM-DD] [--home ~/.ainmem-demo]

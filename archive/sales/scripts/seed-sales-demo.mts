@@ -1,5 +1,5 @@
 /**
- * The sales demo's workspace: "누리소프트 영업팀", where three salespeople's
+ * The sales demo's workspace: "Nurisoft Sales Team", where three salespeople's
  * phones meet.
  *
  *   pnpm demo:sales [--home ~/.ainmem-demo] [--reset]
@@ -8,16 +8,16 @@
  * (aindrive accounts + one drive per phone + ainmem accounts) and writes
  * <home>/sales.json. This script then, as those people:
  *   1. makes the team lead's workspace with the two others as members, and an
- *      "영업 1팀" teamspace for the three of them;
+ *      "Sales Team 1" teamspace for the three of them;
  *   2. links each phone's drive into the teamspace (the lead's first, so the
  *      teamspace's OKF backup lands in his drive);
  *   3. writes the team's home page — each phone's latest calls, linked from
  *      aindrive, not copied — and how the stages are judged;
  *   4. opens the team chat with its agent (business profile);
- *   5. points the demo login ("데모 계정으로 시작", DEMO_LOGIN_ADDRESS) at the lead.
+ *   5. points the demo login ("Start with demo account", DEMO_LOGIN_ADDRESS) at the lead.
  *
  * The pipeline itself is NOT seeded: the demo is asking the agent for it —
- * "@agent 통합 sales pipeline 만들어줘" in the team chat.
+ * "@agent build a unified sales pipeline" in the team chat.
  *
  * --reset removes the workspace this script made before (and its pages, chat,
  * links) and builds it again. Without it, a second run changes nothing.
@@ -47,12 +47,12 @@ const arg = (name: string, fallback?: string) => {
 };
 const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
 const RESET = process.argv.includes("--reset");
-const WORKSPACE = "누리소프트 영업팀";
-const TEAMSPACE = "영업 1팀";
+const WORKSPACE = "Nurisoft Sales Team";
+const TEAMSPACE = "Sales Team 1";
 
 type Key = "kim" | "lee" | "park";
 const KEYS: Key[] = ["park", "lee", "kim"]; // the lead first
-const ROLE: Record<Key, string> = { park: "팀장", lee: "과장", kim: "대리" };
+const ROLE: Record<Key, string> = { park: "Team Lead", lee: "Manager", kim: "Assistant Manager" };
 const team = JSON.parse(fs.readFileSync(path.join(HOME, "sales.json"), "utf8")) as {
   aindrive: string;
   members: Record<Key, { name: string; drive: string; ainmemUserId: string }>;
@@ -72,7 +72,7 @@ for (const k of KEYS) {
   });
   console.log(`${M[k].name}: drive ${drive[k].id}, ${drive[k].files.length} files`);
 }
-const calls = (k: Key) => drive[k].files.filter((f) => f.startsWith("통화기록/") && f.endsWith(".md")).sort();
+const calls = (k: Key) => drive[k].files.filter((f) => f.startsWith("call-records/") && f.endsWith(".md")).sort();
 
 // ── reset ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ if (existing) {
 
 const [ws] = await db
   .insert(S.workspaces)
-  .values({ name: WORKSPACE, iconText: "📈", description: "영업팀 세 사람의 폰 통화기록이 aindrive로 모이는 곳", createdBy: ids.park })
+  .values({ name: WORKSPACE, iconText: "📈", description: "Where the three sales team members' phone call histories come together via aindrive", createdBy: ids.park })
   .returning();
 // Signing in made each of them a personal workspace first, and with no
 // workspace picked the app lands on the oldest one a person owns (then the
@@ -122,7 +122,7 @@ await db
   .values(KEYS.map((k) => ({ workspaceId: ws.id, userId: ids[k], role: k === "park" ? "owner" : "member", joinedAt })));
 const [ts] = await db
   .insert(S.teamspaces)
-  .values({ workspaceId: ws.id, name: TEAMSPACE, icon: "📞", description: "각자의 폰 통화기록 → 하나의 영업 파이프라인", createdBy: ids.park })
+  .values({ workspaceId: ws.id, name: TEAMSPACE, icon: "📞", description: "Each person's phone call history → one sales pipeline", createdBy: ids.park })
   .returning();
 await db.insert(S.teamspaceMembers).values(KEYS.map((k) => ({ teamspaceId: ts.id, userId: ids[k], role: k === "park" ? "owner" : "member" })));
 // each phone is linked by its owner; the lead's first, so the OKF backup goes there
@@ -159,29 +159,29 @@ async function page(title: string, icon: string, body: B[], by: Key = "park") {
   return pg;
 }
 
-const stages = await page("영업 단계 기준", "🧭", [
-  p("파이프라인의 단계는 통화 내용으로 정해요. 한 거래처를 여러 사람이 통화했으면 가장 최근 통화가 기준입니다."),
-  bullet("리드 — 첫 통화, 관심만 확인"),
-  bullet("니즈 파악 — 필요한 기능·예산 이야기, 데모나 방문 일정 잡는 중"),
-  bullet("제안 — 제안서·견적을 보냈거나 설명함"),
-  bullet("협상 — 가격이나 계약 조건을 조정 중"),
-  bullet("계약 완료 — 계약서 날인 또는 확정"),
-  bullet("보류 — 연기되었거나 무산"),
+const stages = await page("Sales Stage Criteria", "🧭", [
+  p("The pipeline stage is decided by the call content. If several people have called the same account, the most recent call is the one that counts."),
+  bullet("Lead — first call, confirming interest only"),
+  bullet("Needs assessment — discussing required features/budget, scheduling a demo or visit"),
+  bullet("Proposal — proposal or quote sent or explained"),
+  bullet("Negotiation — adjusting price or contract terms"),
+  bullet("Contract closed — contract signed or finalized"),
+  bullet("On hold — postponed or fell through"),
 ]);
 
-const home = await page("영업 1팀 홈", "📞", [
+const home = await page("Sales Team 1 Home", "📞", [
   callout(
     "📱",
-    "세 사람의 폰이 통화가 끝날 때마다 통화기록(요약 + 녹취)을 각자의 aindrive에 마크다운으로 올려요. " +
-      "그 aindrive 폴더 세 개가 이 팀스페이스에 연결되어 있습니다 — 파일은 각자의 aindrive에 그대로 있고, 여기서는 링크로 봅니다."
+    "Every time a call ends, the three phones upload the call history (summary + transcript) to each person's aindrive as markdown. " +
+      "Those three aindrive folders are connected to this teamspace — the files stay on each person's aindrive, and here we just view them as links."
   ),
-  callout("✨", "팀 채팅에서 「@agent 통합 sales pipeline 만들어줘」라고 하면, 에이전트가 세 폰의 통화기록을 모두 읽어 거래처별 파이프라인 페이지를 만들어요."),
+  callout("✨", "Say \"@agent build a unified sales pipeline\" in the team chat, and the agent reads all three phones' call histories and builds a pipeline page broken down by account."),
   ...KEYS.flatMap((k) => [
-    h2(`${M[k].name} ${ROLE[k]} — ${M[k].drive}`),
-    p(`통화기록 ${calls(k).length}건 · 최근 통화`),
+    h2(`${M[k].name}, ${ROLE[k]} — ${M[k].drive}`),
+    p(`${calls(k).length} calls · recent calls`),
     ...calls(k).slice(-3).reverse().map((f) => file(k, f)),
   ]),
-  h2("참고"),
+  h2("Reference"),
   { type: "link_to_page", content: { childPageId: stages.id } },
 ]);
 await db.update(S.pages).set({ position: 0 }).where(eq(S.pages.id, home.id));
@@ -199,9 +199,9 @@ await db
   .set({ agentConfig: { profile: "business", skills: ["relationship-doc", "sales-pipeline"] } })
   .where(eq(S.users.id, agent.agentUserId));
 const talk: [Key, string][] = [
-  ["kim", "대한물산 건 팀장님께 넘긴 뒤로 어떻게 됐어요? 제 폰엔 9일 통화까지만 있어서요."],
-  ["lee", "서진푸드 오늘 아침에 계약서 받았어요! 20매장 4,800만 원이에요 🎉"],
-  ["park", "다들 수고했어요. 이번 주 거래처가 여기저기 흩어져 있으니 한 번에 봅시다."],
+  ["kim", "How did the Daehan Trading deal go after I handed it off to you? My phone only has calls up through the 9th."],
+  ["lee", "Got the signed contract for Seojin Foods this morning! 20 stores, 48 million won 🎉"],
+  ["park", "Great work, everyone. Accounts are scattered all over this week, let's look at them all at once."],
 ];
 let t = Date.now() - talk.length * 60_000;
 for (const [k, text] of talk)
@@ -223,5 +223,5 @@ const synced = await runBackup(ts.id);
 console.log(`OKF sync → 「${M.park.drive}」: ${synced.files} files${synced.error ? ` (error: ${synced.error})` : ""}`);
 
 console.log(`\n"${WORKSPACE}" ready: workspace ${ws.id}, teamspace ${ts.id}, team chat ${room.id}`);
-console.log(`demo: in the team chat, "@agent 통합 sales pipeline 만들어줘"`);
+console.log(`demo: in the team chat, "@agent build a unified sales pipeline"`);
 process.exit(0);

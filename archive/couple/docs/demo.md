@@ -82,7 +82,7 @@ Prep (once, after the consent scene): from Chanho's session, `POST /api/dm/rooms
 **VO**:
 > "And that's how it grows — the agent plans from what these two share: she loves sunsets, so it finds the tower where the sun goes down."
 
-## 2:52–3:00 · Closing — Chanho's home (담당: hyeonjj)
+## 2:52–3:00 · Closing — Chanho's home (owner: hyeonjj)
 
 **Screen**: Cut to **Chanho's home** — the progress dashboard over all ten relationships ("Chanho ❤️ …" with Isla, Hannah, Ava, Sophie, Olivia, Emma and the rest): per-relationship progress bars, upcoming dates, last-memory timestamps, one very busy Chanho at the center. Then the graph view zooms out — ten nodes orbiting him → title card.
 

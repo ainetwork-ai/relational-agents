@@ -12,7 +12,7 @@ import { useEffect, type RefObject } from "react";
  * the first mousedown *on the popover* as an outside click. It closes on
  * mousedown and the button's click never arrives — which is exactly how picking
  * a person in the table silently did nothing (docs/notion-projects-spec.md,
- * "재보다 틀렸던 것들").
+ * "Things we got wrong after measuring").
  *
  *   const trigger = useRef<HTMLDivElement>(null);
  *   const popover = useRef<HTMLDivElement>(null);
@@ -32,7 +32,7 @@ export function useDismiss(
       // portalled to <body> too, so it is not inside any ref we were given — and
       // a mousedown on it read as "outside": the popover closed, unmounting the
       // component that owned the menu, and the click never arrived. That is how
-      // 삭제하기 in the table's comment card did nothing. Such layers carry
+      // Delete in the table's comment card did nothing. Such layers carry
       // data-dismiss-layer; a press on one is not a press outside us.
       if (target instanceof Element && target.closest("[data-dismiss-layer]")) return;
       onDismiss();

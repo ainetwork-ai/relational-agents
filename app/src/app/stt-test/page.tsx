@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/provider";
 
 /**
  * /stt-test — step-by-step STT diagnosis, no call required.
@@ -26,6 +27,7 @@ interface RecLike {
 }
 
 export default function SttTestPage() {
+  const t = useT();
   const [log, setLog] = useState<string[]>([]);
   const [level, setLevel] = useState(0);
   const [micOn, setMicOn] = useState(false);
@@ -97,14 +99,14 @@ export default function SttTestPage() {
     };
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) {
-      add("ENGINE: NONE — 이 브라우저에는 Web Speech가 없습니다 (Chrome 필요)");
+      add("ENGINE: NONE — this browser has no Web Speech (Chrome required)");
       return;
     }
     const rec = new Ctor();
     rec.lang = lang;
     rec.continuous = true;
     rec.interimResults = true;
-    rec.onstart = () => add(`STT started (lang=${lang}) — 말하세요`);
+    rec.onstart = () => add(`STT started (lang=${lang}) — speak now`);
     rec.onresult = (ev) => {
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
@@ -130,7 +132,7 @@ export default function SttTestPage() {
       }
     };
     rec.onerror = (ev) => add(`ERROR: ${ev.error}`);
-    rec.onend = () => add("ended (엔진이 세션을 닫음 — 재시작하려면 Start STT)");
+    rec.onend = () => add("ended (the engine closed the session — Start STT to restart)");
     rec.start();
     recRef.current = rec;
     setSttOn(true);
@@ -170,10 +172,10 @@ export default function SttTestPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-8 font-mono text-sm">
-      <h1 className="text-lg font-bold">STT 진단 (/stt-test)</h1>
+      <h1 className="text-lg font-bold">{t("STT diagnostics (/stt-test)")}</h1>
 
       <section className="space-y-2 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 className="font-semibold">1단계 — 마이크가 소리를 받고 있는가</h2>
+        <h2 className="font-semibold">{t("Step 1 — is the mic picking up sound?")}</h2>
         <div className="flex items-center gap-3">
           <button onClick={micOn ? stopMic : startMic} className={`${btn} ${micOn ? "bg-red-600" : "bg-blue-600"}`}>
             {micOn ? "Stop Mic" : "Start Mic"}
@@ -184,54 +186,54 @@ export default function SttTestPage() {
           <span className="w-10 text-right">{level}</span>
         </div>
         <p className="text-xs text-neutral-500">
-          {device ? `입력 장치: ${device}` : "Start Mic 후 말하면 초록 막대가 움직여야 합니다. 안 움직이면 macOS 사운드 입력 장치 문제."}
+          {device ? t("Input device: {device}", { device }) : t("After Start Mic, the green bar should move when you speak. If it doesn't, it's a macOS sound input device problem.")}
         </p>
       </section>
 
       <section className="space-y-2 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 className="font-semibold">2단계 — Web Speech가 텍스트를 만드는가</h2>
+        <h2 className="font-semibold">{t("Step 2 — does Web Speech produce text?")}</h2>
         <div className="flex items-center gap-3">
           <select value={lang} onChange={(e) => setLang(e.target.value)} className="rounded border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700">
-            <option value="en-US">en-US (영어)</option>
-            <option value="ko-KR">ko-KR (한국어)</option>
+            <option value="en-US">{t("en-US (English)")}</option>
+            <option value="ko-KR">{t("ko-KR (Korean)")}</option>
           </select>
           <button onClick={sttOn ? stopStt : startStt} className={`${btn} ${sttOn ? "bg-red-600" : "bg-blue-600"}`}>
             {sttOn ? "Stop STT" : "Start STT"}
           </button>
         </div>
         <p className="text-xs text-neutral-500">
-          모든 이벤트를 필터 없이 기록합니다. 말했는데 interim조차 없으면 → 1단계 확인;
-          ERROR: network → 구글 음성 서비스 차단 (Web Speech 불가, Azure/외부 STT 필요);
-          FINAL이 찍히면 → STT 정상, 통화의 utterance 전송도 동작합니다 (그 뒷단은 e2e로 증명됨).
+          {t("Every event is logged, nothing filtered. Spoke but not even an interim → check step 1;")}
+          {" "}{t("ERROR: network → Google's speech service is blocked (no Web Speech; Azure/external STT needed);")}
+          {" "}{t("FINAL shows up → STT is fine, and the call's utterance sending works too (the rest of the chain is proven by e2e).")}
         </p>
       </section>
 
       <section className="space-y-2 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 className="font-semibold">3단계 — FINAL이 utterance API를 실제로 타는가</h2>
+        <h2 className="font-semibold">{t("Step 3 — does a FINAL actually go through the utterance API?")}</h2>
         <div className="flex items-center gap-3">
           <input
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
-            placeholder="room id (예: 184cc64d-44c6-48e6-9b20-267cd64d4559)"
+            placeholder={t("room id (e.g. {id})", { id: "184cc64d-44c6-48e6-9b20-267cd64d4559" })}
             className="w-96 rounded border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
           />
           <label className="flex items-center gap-1.5">
             <input type="checkbox" checked={postOn} onChange={(e) => setPostOn(e.target.checked)} />
-            FINAL 시 POST
+            {t("POST on FINAL")}
           </label>
         </div>
         <p className="text-xs text-neutral-500">
-          확정 문장마다 POST /api/calls/&#123;room&#125;/utterance 로 전송하고 응답 코드를 로그에 남깁니다.
-          201 = 성공(에이전트가 읽음). 409 &quot;No active call&quot; = 그 방에 <b>진행 중인 통화</b>가 있어야 합니다
-          (다른 창에서 통화를 연결해 두고 테스트). 401/403 = 이 브라우저 세션이 방 멤버가 아님.
-          ?room=&lt;id&gt; 로 미리 채울 수 있습니다.
+          {t("Each finalized sentence is sent to POST /api/calls/{room}/utterance and the response code is logged.")}
+          {" "}{t("201 = success (the agent read it). 409 \"No active call\" = that room needs a")} <b>{t("call in progress")}</b>
+          {t(" (connect a call in another window, then test). 401/403 = this browser session is not a member of the room.")}
+          {" "}{t("Prefill with ?room=<id>.")}
         </p>
       </section>
 
       <section className="rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 className="mb-2 font-semibold">이벤트 로그</h2>
+        <h2 className="mb-2 font-semibold">{t("Event log")}</h2>
         <div ref={logRef} className="h-64 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-950 p-3 text-xs text-green-400">
-          {log.length ? log.join("\n") : "(비어 있음)"}
+          {log.length ? log.join("\n") : t("(empty)")}
         </div>
       </section>
     </div>

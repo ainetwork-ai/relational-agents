@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET → { counts: { [pageId]: n } } for every row of this database that has
  * comments. Feeds the table's title-cell badge, which the original shows on a
- * commented row (e2e/fixtures/notion-row-comments.json).
+ * commented row (src/i18n/content/e2e-fixtures/notion-row-comments.json).
  *
  * One query for the whole table: the badge is per row, but 20 round-trips to
  * paint one column is not worth it, and the count is cheap to group.

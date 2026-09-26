@@ -1,16 +1,17 @@
-# 로컬 인프라 — 앱은 호스트에서 `scripts/dev.sh`(hot reload)로 돌리고, 여기서는
-# backing service 만 띄운다.
+# Local infrastructure — the app runs on the host via `scripts/dev.sh` (hot
+# reload); only the backing services run here.
 #
-# ⚠️ ainteams 가 여기서 한 번 데였다: 스택 스크립트가 minio 를 빼먹은 채로 오래 돌았고,
-# `isStorageConfigured()` 는 env 때문에 true 인데 접속이 안 돼 **첫 업로드가 500** 이었다
-# (디스크 폴백에 도달조차 못 했다). 그래서 규칙은 하나다 — **MINIO_* env 를 켰으면 이
-# 컨테이너도 같이 떠 있어야 한다.** 반대로 env 를 비워두면 앱은 디스크 경로로 동작하고
-# 이 컨테이너는 필요 없다.
+# ⚠️ ainteams got burned here once: the stack script ran for a long time without
+# minio, `isStorageConfigured()` was true because of the env, but nothing could
+# connect, so **the first upload was a 500** (it never even reached the disk
+# fallback). Hence one rule — **if the MINIO_* env is on, this container must be
+# up too.** Conversely, with the env empty the app uses the disk path and this
+# container is not needed.
 #
 #   docker compose -f docker-compose.local.yml up -d minio
 #   docker compose -f docker-compose.local.yml down
 #
-# dev Postgres 는 이 파일이 아니라 별도 compose(포트 5434)로 이미 떠 있다 — 건드리지 않는다.
+# The dev Postgres is already up from a separate compose (port 5434), not this file — leave it alone.
 
 services:
   minio:
@@ -21,8 +22,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-ainmem}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-ainmem-local-secret}
-    # 로컬에서만 127.0.0.1 로 publish 한다. prod 는 포트를 열지 않는다 — 바이트는
-    # 앱의 프록시 라우트로만 나간다.
+    # Published on 127.0.0.1 locally only. prod opens no port — bytes leave only
+    # through the app's proxy route.
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"

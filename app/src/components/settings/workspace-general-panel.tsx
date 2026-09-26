@@ -21,7 +21,7 @@ const INPUT =
 const BTN =
   "flex h-7 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700";
 
-/** 설정 › 워크스페이스 › 일반: name / icon / description / export.
+/** Settings › Workspace › General: name / icon / description / export.
  *  (Was the standalone workspace-settings-modal.) */
 export function WorkspaceGeneralPanel({
   workspace,
@@ -53,7 +53,7 @@ export function WorkspaceGeneralPanel({
     try {
       const res = await fetch("/api/workspace/export");
       if (!res.ok) {
-        setError(t("내보내기에 실패했습니다"));
+        setError(t("Export failed"));
         return;
       }
       const blob = await res.blob();
@@ -64,7 +64,7 @@ export function WorkspaceGeneralPanel({
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError(t("내보내기에 실패했습니다"));
+      setError(t("Export failed"));
     } finally {
       setExporting(false);
     }
@@ -81,7 +81,7 @@ export function WorkspaceGeneralPanel({
       const d = await res.json();
       if (d?.url) setIconUrl(d.url as string);
     } catch {
-      setError(t("업로드하지 못했습니다"));
+      setError(t("Upload failed"));
     } finally {
       setUploading(false);
     }
@@ -91,7 +91,7 @@ export function WorkspaceGeneralPanel({
     if (saving) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError(t("이름을 입력하세요"));
+      setError(t("Enter a name"));
       return;
     }
     setSaving(true);
@@ -116,14 +116,14 @@ export function WorkspaceGeneralPanel({
       return;
     }
     const d = await res.json().catch(() => ({}));
-    setError(d.error ?? t("저장하지 못했습니다"));
+    setError(d.error ?? t("Couldn't save"));
   }
 
   return (
     <>
-      <SettingsHeader title={t("일반")} subtitle={t("워크스페이스 이름, 아이콘 등을 관리하세요")} />
-      <SettingsSection title={t("워크스페이스 설정")}>
-        <SettingsRow label={t("워크스페이스 이름")}>
+      <SettingsHeader title={t("General")} subtitle={t("Manage your workspace name, icon, and more")} />
+      <SettingsSection title={t("Workspace settings")}>
+        <SettingsRow label={t("Workspace name")}>
           <input
             data-testid="workspace-name-input"
             value={name}
@@ -135,8 +135,8 @@ export function WorkspaceGeneralPanel({
           />
         </SettingsRow>
         <SettingsRow
-          label={t("아이콘")}
-          description={t("이미지를 업로드하거나 이모지를 선택하세요. 이 아이콘은 사이드바에 표시됩니다.")}
+          label={t("Icon")}
+          description={t("Upload an image or pick an emoji. This icon shows in the sidebar.")}
         >
           <div className="flex items-center gap-2">
             {iconUrl ? (
@@ -152,7 +152,7 @@ export function WorkspaceGeneralPanel({
               /* clamped by visible character, not by UTF-16 unit */
               onChange={(e) => setIconText(firstGlyphs(e.target.value, 2))}
               className={`${INPUT} w-12 text-center`}
-              aria-label={t("아이콘")}
+              aria-label={t("Icon")}
             />
             <IconPicker
               icon={null}
@@ -176,7 +176,7 @@ export function WorkspaceGeneralPanel({
                 }}
               />
               <span className={BTN}>
-                <ImagePlus size={13} /> {uploading ? t("업로드 중…") : t("이미지 업로드")}
+                <ImagePlus size={13} /> {uploading ? t("Uploading…") : t("Upload image")}
               </span>
             </label>
             {iconUrl && (
@@ -185,18 +185,18 @@ export function WorkspaceGeneralPanel({
                 onClick={() => setIconUrl(null)}
                 className="text-xs text-neutral-500 underline-offset-2 hover:underline"
               >
-                {t("제거")}
+                {t("Remove")}
               </button>
             )}
           </div>
         </SettingsRow>
-        <SettingsRow label={t("설명")}>
+        <SettingsRow label={t("Description")}>
           <textarea
             data-testid="workspace-desc-input"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            placeholder={t("이 워크스페이스는 무엇을 위한 것인가요?")}
+            placeholder={t("What is this workspace for?")}
             className="w-72 resize-none rounded-md border border-[rgba(28,19,1,0.11)] bg-transparent px-2 py-1 text-sm outline-none focus:border-neutral-400 dark:border-neutral-600 dark:text-neutral-100"
           />
         </SettingsRow>
@@ -207,17 +207,17 @@ export function WorkspaceGeneralPanel({
             disabled={saving || !dirty}
             className="h-7 rounded-md bg-blue-500 px-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
           >
-            {saving ? t("저장 중…") : t("변경 사항 저장")}
+            {saving ? t("Saving…") : t("Save changes")}
           </button>
-          {saved && <span className="text-xs text-neutral-500">{t("저장했습니다")}</span>}
+          {saved && <span className="text-xs text-neutral-500">{t("Saved")}</span>}
           {error && <span className="text-xs text-red-500">{error}</span>}
         </div>
       </SettingsSection>
-      <SettingsSection title={t("내보내기")}>
-        <SettingsRow label={t("워크스페이스 콘텐츠")} description={t("이 워크스페이스의 모든 페이지를 내보냅니다.")}>
+      <SettingsSection title={t("Export")}>
+        <SettingsRow label={t("Workspace content")} description={t("Exports all pages in this workspace.")}>
           <button data-testid="workspace-export" onClick={() => void exportWorkspace()} disabled={exporting} className={BTN}>
             <Download size={14} />
-            {exporting ? t("내보내는 중…") : t("내보내기")}
+            {exporting ? t("Exporting…") : t("Export")}
           </button>
         </SettingsRow>
       </SettingsSection>

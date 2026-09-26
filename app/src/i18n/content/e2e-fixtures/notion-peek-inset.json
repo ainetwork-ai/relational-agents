@@ -1,0 +1,8 @@
+{
+  "note": "Measured on the original (Projects row peek) on 2026-08-10. Freshly opened and measured at window widths 1000/1200/1500/1800 — the content inset is fixed at 76px left and right regardless of width, and the peek width is 50% of the window (minimum 564). The right inset looking like 92 was the emulation's classic scrollbar (16px); measured against clientWidth, 76 is correct. Measuring script: scratchpad/measure-peek3.mjs",
+  "insetL": 76,
+  "insetR": 76,
+  "widthFraction": 0.5,
+  "minWidth": 564,
+  "tolerance": 2
+}

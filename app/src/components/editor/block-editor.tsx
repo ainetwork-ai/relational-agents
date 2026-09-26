@@ -33,6 +33,7 @@ import { htmlToText, sanitizeInline } from "@/lib/rich-text";
 import { parseMarkdown } from "@/lib/memory-parse";
 import { SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu, filterSlashItems } from "./slash-menu";
+import { useT } from "@/i18n/provider";
 import { MentionMenu, mentionChipHtml, type MentionItem } from "./mention-menu";
 import { mentionQueryAt } from "@/lib/mention/search";
 import { isImeComposing } from "@/hooks/use-ime-guard";
@@ -325,11 +326,12 @@ export const BlockEditor = forwardRef<
      * keep the old no-op. */
     onMergeIntoTitle?: (text: string) => { undo: () => void; redo: () => void } | void;
     shareToken?: string;
-    /** What an empty body offers. A page gets the 시작하기 row; a database row
+    /** What an empty body offers. A page gets the Get started row; a database row
      *  opened in a peek gets Notion's quieter line there instead. */
     emptyVariant?: "page" | "row";
   }
 >(function BlockEditor({ pageId, initialBlocks, shareToken, emptyVariant = "page", onMergeIntoTitle }, apiRef) {
+  const t = useT();
   const [blocks, setBlocks] = useState<EBlock[]>(() => {
     const mapped = initialBlocks.map(fromRow);
     return mapped.length > 0 ? mapped : [bootstrapParagraph(pageId)];
@@ -1020,8 +1022,8 @@ export const BlockEditor = forwardRef<
     []
   );
 
- // 같은 종류의 리스트 조상이 몇 개인가 — 마커 주기(•/◦/▪, 1./a./i.)가 이걸로 정해진다.
- // 문단 밑에 들어간 글머리는 여전히 `•` 였다(T21) — 그래서 깊이가 아니라 리스트 조상이다.
+ // How many list ancestors of the same kind — this decides the marker cycle (•/◦/▪, 1./a./i.).
+ // A bullet placed under a paragraph was still `•` (T21) — so it is list ancestors, not depth.
   const listLevel = useCallback((b: EBlock) => {
     const byId = new Map(blocksRef.current.map((x) => [x.id, x]));
     let n = 0;
@@ -1239,11 +1241,11 @@ export const BlockEditor = forwardRef<
   );
 
   /**
-   * The empty-page 데이터베이스 button: this page BECOMES the database.
+   * The empty-page Database button: this page BECOMES the database.
    *
    * Notion does not put an inline table inside a prose page here — the page's
    * own title turns into the database's, so the block is flagged fullPage and
-   * the database is provisioned bare (one 이름 column, one 표 view). The inline
+   * the database is provisioned bare (one Name column, one Table view). The inline
    * table is what /database gives you.
    */
   const becomeDatabasePage = useCallback(
@@ -2629,8 +2631,8 @@ export const BlockEditor = forwardRef<
  // While an IME is composing, the keystroke belongs to the IME, not to us:
  // Chrome delivers keydown with isComposing=true BEFORE it commits the
  // syllable. Splitting here moved focus to the new block while the IME still
- // owned "트", so its commit landed there — 프로젝트 + Enter came out as
- // "프로젝트" / "트". Remember the Enter and split once the text is committed
+ // owned the last syllable, so its commit landed there — a Korean word + Enter
+ // came out split, its final syllable on the new line. Remember the Enter and split once the text is committed
  // (Latin typing never composes, which is why it looked fine in English).
  // The event's own flag decides, never composingRef: were a compositionend
  // ever missed, a sticky ref would swallow every keystroke that follows.
@@ -3636,7 +3638,7 @@ export const BlockEditor = forwardRef<
             data-testid={saveState === "offline" ? "offline-badge" : "save-error-badge"}
             className="pointer-events-none fixed right-4 top-3 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
           >
-            {saveState === "offline" ? "오프라인" : "저장 실패"} — 변경 내용은 이 브라우저에 보관됨
+            {t(saveState === "offline" ? "Offline — changes are kept in this browser" : "Save failed — changes are kept in this browser")}
           </span>
         )}
         {rows}
@@ -3644,9 +3646,9 @@ export const BlockEditor = forwardRef<
           blocks[0].type === "paragraph" &&
           !(blocks[0].content.text ?? "").trim() && (
           <>
-            {/* An empty page offers what it can become — Notion's 시작하기 row.
+            {/* An empty page offers what it can become — Notion's Get started row.
                 The template list below is the same one that used to sit here
-                unconditionally; it now opens from the 템플릿 button. A row opened
+                unconditionally; it now opens from the Templates button. A row opened
                 in a peek gets the one line Notion shows there instead: the row
                 is an entry in a database, not a page you are starting fresh. */}
             {emptyVariant === "row" ? (
@@ -3654,13 +3656,13 @@ export const BlockEditor = forwardRef<
                 data-testid="empty-row-hint"
                 className="pb-6 pl-2 pt-2 text-sm text-neutral-400"
               >
-                &apos;Enter&apos; 키를 눌러 빈 페이지에 입력을 시작하거나{" "}
+                {t("Press 'Enter' to start typing on an empty page, or")}{" "}
                 <button
                   data-testid="empty-row-templates"
                   onClick={() => setTemplatesOpen((v) => !v)}
                   className="underline decoration-neutral-300 transition-colors hover:text-neutral-600 dark:hover:text-neutral-200"
                 >
-                  템플릿을 생성하세요
+                  {t("create a template")}
                 </button>
                 .
               </p>

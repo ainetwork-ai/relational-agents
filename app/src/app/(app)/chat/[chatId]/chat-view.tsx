@@ -76,13 +76,13 @@ function formatRelativeTime(iso: string, t: T): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const diffSec = Math.floor((Date.now() - then) / 1000);
-  if (diffSec < 60) return t("방금 전");
+  if (diffSec < 60) return t("Just now");
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return t("{n}분 전", { n: diffMin });
+  if (diffMin < 60) return t("{n} minutes ago", { n: diffMin });
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return t("{n}시간 전", { n: diffHour });
+  if (diffHour < 24) return t("{n} hours ago", { n: diffHour });
   const diffDay = Math.floor(diffHour / 24);
-  return t("{n}일 전", { n: diffDay });
+  return t("{n} days ago", { n: diffDay });
 }
 
 // A. Long-chat pagination: deterministic e2e hook — a localStorage page size,
@@ -307,7 +307,7 @@ export function ChatView({ chatId }: { chatId: string }) {
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
-        let msg = t("보내지 못했습니다");
+        let msg = t("Couldn't send");
         try {
           const errBody = await res.clone().json();
           if (typeof errBody?.error === "string") msg = errBody.error;
@@ -354,7 +354,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               .catch(() => {});
             void useAiChatsStore.getState().load();
           } else if (evt.event === "error") {
-            setError(evt.data?.message ?? t("문제가 발생했습니다"));
+            setError(evt.data?.message ?? t("Something went wrong"));
             setErrorKind(
               evt.data?.kind === "ratelimit" || evt.data?.kind === "server" ? evt.data.kind : null
             );
@@ -372,7 +372,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           ]);
         }
       } else {
-        setError(err instanceof Error && err.message ? err.message : t("메시지를 보내는 중 문제가 발생했습니다"));
+        setError(err instanceof Error && err.message ? err.message : t("Something went wrong while sending the message"));
         setErrorKind(null);
       }
     } finally {
@@ -481,7 +481,7 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   async function createPageFromContent(content: string) {
     try {
-      // an untitled page stores "" and is displayed as 제목 없음 in the current language (Notion)
+      // an untitled page stores "" and is displayed as Untitled in the current language (Notion)
       const title = chat?.title || "";
       const pageRes = await fetch("/api/pages", {
         method: "POST",
@@ -543,7 +543,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200"
           >
             {chat?.icon ? `${chat.icon} ` : ""}
-            {chat?.title ?? (loading ? t("불러오는 중…") : t("제목 없는 채팅"))}
+            {chat?.title ?? (loading ? t("Loading…") : t("Untitled chat"))}
           </h1>
           {chat?.agentName && (
             <span
@@ -565,7 +565,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           >
             <Plug size={14} />
-            {t("연결")}
+            {t("Connect")}
           </button>
           <button
             type="button"
@@ -577,7 +577,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           >
             <Bell size={14} />
-            {t("알림")}
+            {t("Notifications")}
           </button>
           <button
             type="button"
@@ -586,7 +586,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           >
             <Share2 size={14} />
-            {t("공유")}
+            {t("Share")}
           </button>
         </div>
       </header>
@@ -608,7 +608,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             onClick={handleCopyShare}
             className="shrink-0 rounded px-2 py-1 text-neutral-500 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
           >
-            {shareCopied ? t("복사됨") : t("복사")}
+            {shareCopied ? t("Copied") : t("Copy")}
           </button>
           <button
             type="button"
@@ -616,7 +616,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             onClick={handleRevokeShare}
             className="shrink-0 rounded px-2 py-1 text-neutral-500 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
           >
-            {t("공유 해제")}
+            {t("Unshare")}
           </button>
         </div>
       )}
@@ -632,7 +632,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 data-testid="chat-error-ratelimit"
                 className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-950/50 dark:text-red-300"
               >
-                {t("요청 한도 초과")}
+                {t("Rate limit exceeded")}
               </span>
             )}
             {errorKind === "server" && (
@@ -640,7 +640,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 data-testid="chat-error-server"
                 className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-950/50 dark:text-red-300"
               >
-                {t("서버 오류")}
+                {t("Server error")}
               </span>
             )}
             <span className="min-w-0 flex-1 truncate">{error}</span>
@@ -651,7 +651,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             onClick={() => void handleRetry()}
             className="shrink-0 rounded px-2 py-1 font-medium text-red-600 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-950/40"
           >
-            {t("다시 시도")}
+            {t("Try again")}
           </button>
         </div>
       )}
@@ -661,7 +661,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           data-testid="chat-report-done"
           className="pointer-events-none fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-md bg-neutral-800 px-3 py-1.5 text-xs text-white shadow-lg dark:bg-neutral-200 dark:text-neutral-900"
         >
-          {t("신고가 접수되었습니다")}
+          {t("Report submitted")}
         </div>
       )}
 
@@ -670,7 +670,7 @@ export function ChatView({ chatId }: { chatId: string }) {
         data-testid="chat-messages"
         role="log"
         aria-live="polite"
-        aria-label={t("대화")}
+        aria-label={t("Chat")}
         className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-4"
       >
         {hasMoreMessages && (
@@ -682,7 +682,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               disabled={loadingOlder}
               className="rounded-md px-3 py-1 text-xs text-neutral-500 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
-              {loadingOlder ? t("불러오는 중…") : t("이전 메시지 불러오기")}
+              {loadingOlder ? t("Loading…") : t("Load earlier messages")}
             </button>
           </div>
         )}
@@ -713,7 +713,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                         data-testid="chat-edit-last"
                         onClick={() => handleEditLast(m.content)}
                         className="shrink-0 rounded p-1 text-neutral-400 opacity-0 hover:bg-neutral-200 hover:text-neutral-600 group-hover:opacity-100 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                        title={t("편집")}
+                        title={t("Edit")}
                       >
                         <Pencil size={13} />
                       </button>
@@ -743,7 +743,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-sources"
                       className="mt-2 space-y-0.5 text-xs text-neutral-400 dark:text-neutral-500"
                     >
-                      <p>{t("출처")}</p>
+                      <p>{t("Sources")}</p>
                       <ul className="space-y-0.5">
                         {m.sources.map((s, sIdx) => (
                           <li key={s.id}>
@@ -765,7 +765,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-action-copy"
                       onClick={() => copyText(m.content)}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                      title={t("복사")}
+                      title={t("Copy")}
                     >
                       <Copy size={13} />
                     </button>
@@ -779,7 +779,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                           ? "text-blue-500 dark:text-blue-400"
                           : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                       }`}
-                      title={t("좋은 응답")}
+                      title={t("Good response")}
                     >
                       <ThumbsUp size={13} />
                     </button>
@@ -793,7 +793,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                           ? "text-blue-500 dark:text-blue-400"
                           : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                       }`}
-                      title={t("나쁜 응답")}
+                      title={t("Bad response")}
                     >
                       <ThumbsDown size={13} />
                     </button>
@@ -802,7 +802,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-feedback-report"
                       onClick={() => handleReport(m.id)}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                      title={t("신고")}
+                      title={t("Report")}
                     >
                       <Flag size={13} />
                     </button>
@@ -811,7 +811,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-quote-ask"
                       onClick={() => handleQuoteAsk(m.content)}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                      title={t("인용해서 질문")}
+                      title={t("Ask with quote")}
                     >
                       <Quote size={13} />
                     </button>
@@ -820,7 +820,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-action-insert"
                       onClick={() => createPageFromContent(m.content)}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                      title={t("페이지에 삽입")}
+                      title={t("Insert into page")}
                     >
                       <FilePlus2 size={13} />
                     </button>
@@ -829,7 +829,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       data-testid="chat-action-newpage"
                       onClick={() => createPageFromContent(m.content)}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                      title={t("새 페이지로 저장")}
+                      title={t("Save as new page")}
                     >
                       <Send size={13} />
                     </button>
@@ -839,7 +839,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                         data-testid="chat-regenerate"
                         onClick={() => void handleRegenerate()}
                         className="rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600 dark:hover:bg-neutral-700 dark:hover:text-neutral-300"
-                        title={t("다시 생성")}
+                        title={t("Regenerate")}
                       >
                         <RefreshCw size={13} />
                       </button>
@@ -895,14 +895,14 @@ export function ChatView({ chatId }: { chatId: string }) {
             data-testid="composer-editing"
             className="mb-2 flex items-center justify-between rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
           >
-            <span>{t("메시지를 수정해서 다시 보내세요")}</span>
+            <span>{t("Edit the message and send it again")}</span>
             <button
               type="button"
               data-testid="composer-editing-cancel"
               onClick={handleCancelEdit}
               className="rounded px-1.5 py-0.5 font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
             >
-              {t("취소")}
+              {t("Cancel")}
             </button>
           </div>
         )}
@@ -914,7 +914,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             <span data-testid="context-scope-badge">
-              {contextScope === "workspace" ? t("전체 워크스페이스") : t("이 페이지만")}
+              {contextScope === "workspace" ? t("Entire workspace") : t("This page only")}
             </span>
           </button>
           {scopeMenuOpen && (
@@ -933,7 +933,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 }}
                 className="block w-full px-3 py-1.5 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700/60"
               >
-                {t("전체 워크스페이스")}
+                {t("Entire workspace")}
               </button>
               <button
                 type="button"
@@ -945,7 +945,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 }}
                 className="block w-full px-3 py-1.5 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700/60"
               >
-                {t("이 페이지만")}
+                {t("This page only")}
               </button>
             </div>
           )}
@@ -973,7 +973,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           <textarea
             ref={composerRef}
             data-testid="chat-composer-input"
-            aria-label={t("워크스페이스 AI에게 메시지 보내기")}
+            aria-label={t("Message workspace AI")}
             value={input}
             onChange={(e) => mention.handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -984,7 +984,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             onCompositionEnd={() => {
               isComposingRef.current = false;
             }}
-            placeholder={t("워크스페이스 AI에게 물어보기")}
+            placeholder={t("Ask workspace AI")}
             rows={1}
             disabled={composerDisabled}
             className="max-h-40 min-h-[40px] flex-1 resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-500"
@@ -995,7 +995,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               data-testid="chat-stop"
               onClick={handleStop}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
-              aria-label={t("중지")}
+              aria-label={t("Stop")}
             >
               <Square size={15} />
             </button>
@@ -1009,7 +1009,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 composerDisabled
               }
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-800 text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
-              aria-label={t("보내기")}
+              aria-label={t("Send")}
             >
               <Send size={15} />
             </button>
@@ -1021,7 +1021,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               data-testid="composer-charwarn"
               className="font-medium text-amber-600 dark:text-amber-400"
             >
-              {t("글자 수 제한에 가까워지고 있습니다")}
+              {t("Approaching the character limit")}
             </span>
           )}
           <span data-testid="composer-charcount">

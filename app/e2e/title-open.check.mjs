@@ -1,9 +1,9 @@
-// 제목 셀에 호버하면 나오는 `열기` 버튼을 원본 수치와 대조한다.
-// 기준: fixtures/notion-title-cell.json (원본은 흰 55×24 패드 안에 51×20 버튼).
+// Compares the `Open` button that appears on hovering a title cell against the original's numbers.
+// Reference: src/i18n/content/e2e-fixtures/notion-title-cell.json (the original is a 51×20 button inside a white 55×24 pad).
 //
 //   [BASE_URL=…] [PAGE_ID=…] [USER_ID=…] [TITLE_PROP=…] node e2e/title-open.check.mjs
 //
-// 읽기 전용: 호버만 한다.
+// Read-only: it only hovers.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
@@ -14,7 +14,7 @@ const PAGE_ID = process.env.PAGE_ID ?? "af7fc488-3666-4935-9eb9-92d23ebe8238";
 const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
 const TITLE = process.env.TITLE_PROP ?? "3c55e8de-8e4b-4257-8321-3467eeb8ff6a";
 
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-title-cell.json", import.meta.url), "utf8")).openButton;
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-title-cell.json", import.meta.url), "utf8")).openButton;
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -52,36 +52,37 @@ const m = await page.evaluate((c) => {
 await browser.close();
 
 const d = [];
-const eq = (w, got, want) => { if (String(got) !== String(want)) d.push(`${w}: 우리 ${got} / 노션 ${want}`); };
-const near = (w, got, want, tol = 1) => { if (Math.abs(Number(got) - Number(want)) > tol) d.push(`${w}: 우리 ${got} / 노션 ${want}`); };
+const eq = (w, got, want) => { if (String(got) !== String(want)) d.push(`${w}: ours ${got} / Notion ${want}`); };
+const near = (w, got, want, tol = 1) => { if (Math.abs(Number(got) - Number(want)) > tol) d.push(`${w}: ours ${got} / Notion ${want}`); };
 
-if (!m) d.push("호버해도 열기 버튼이 없습니다");
+if (!m) d.push("no Open button even on hover");
 else {
-  if (m.pad.opacity < 0.9) d.push(`호버했는데 열기가 안 보입니다 (opacity ${m.pad.opacity})`);
-  near("패드 높이", m.pad.h, G.pad.h);
-  eq("패드 radius", m.pad.radius, G.pad.radius);
-  eq("패드 배경", m.pad.bg, G.pad.bg);
-  eq("패드 padding", m.pad.padding, G.pad.padding);
-  eq("패드 그림자", m.pad.shadow, G.pad.shadow);
-  near("오른쪽 여백", m.pad.rightInset, G.pad.rightInset);
-  near("버튼 높이", m.inner.h, G.inner.h);
-  eq("버튼 radius", m.inner.radius, G.inner.radius);
-  eq("버튼 padding", m.inner.padding, G.inner.padding);
-  eq("버튼 gap", m.inner.gap, G.inner.gap);
-  eq("라벨 크기", m.inner.fs, G.inner.fs);
-  eq("라벨 굵기", m.inner.fw, G.inner.fw);
-  eq("라벨 색", m.inner.color, G.inner.color);
-  near("아이콘 크기", m.icon?.size, G.icon.size);
-  eq("아이콘 색", m.icon?.color, G.icon.color);
-  eq("라벨", m.label, G.label);
+  if (m.pad.opacity < 0.9) d.push(`hovered but Open is not visible (opacity ${m.pad.opacity})`);
+  near("pad height", m.pad.h, G.pad.h);
+  eq("pad radius", m.pad.radius, G.pad.radius);
+  eq("pad background", m.pad.bg, G.pad.bg);
+  eq("pad padding", m.pad.padding, G.pad.padding);
+  eq("pad shadow", m.pad.shadow, G.pad.shadow);
+  near("right inset", m.pad.rightInset, G.pad.rightInset);
+  near("button height", m.inner.h, G.inner.h);
+  eq("button radius", m.inner.radius, G.inner.radius);
+  eq("button padding", m.inner.padding, G.inner.padding);
+  eq("button gap", m.inner.gap, G.inner.gap);
+  eq("label size", m.inner.fs, G.inner.fs);
+  eq("label weight", m.inner.fw, G.inner.fw);
+  eq("label color", m.inner.color, G.inner.color);
+  near("icon size", m.icon?.size, G.icon.size);
+  eq("icon color", m.icon?.color, G.icon.color);
+  eq("label", m.label, G.label);
   eq("aria-label", m.aria, G.ariaLabel);
 }
 
 if (d.length) {
-  console.error(`\n  ┌─ 제목 셀의 열기 버튼이 원본과 다릅니다 (${d.length}건) ────────`);
+  console.error(`\n  ┌─ The title cell's Open button differs from the original (${d.length}) ─`);
   for (const x of d) console.error(`  │ ${x}`);
-  console.error("  │\n  │ 기준: e2e/fixtures/notion-title-cell.json");
+  console.error("  │\n  │ reference: src/i18n/content/e2e-fixtures/notion-title-cell.json");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("제목 셀의 열기 버튼 원본과 일치 — 흰 패드 24 + 버튼 20, 12px/500, 아이콘 15");
+console.log("title cell Open button matches the original — white pad 24 + button 20, 12px/500, icon 15");
+

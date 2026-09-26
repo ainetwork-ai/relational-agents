@@ -1,6 +1,6 @@
-// The ⠿ handle menu's 전환 (Turn into) — measured on Notion 2026-09-09:
-//   • on a text block the ⠿ menu lists 전환 first; HOVERING it opens a panel to
-//     the right (menu.right − 4px, 220 wide, 28px rows) with 텍스트 · 제목1… ;
+// The ⠿ handle menu's Turn into — measured on Notion 2026-09-09:
+//   • on a text block the ⠿ menu lists Turn into first; HOVERING it opens a panel to
+//     the right (menu.right − 4px, 220 wide, 28px rows) with Text · Heading 1… ;
 //     clicking a type converts the block
 //   • on an EMPTY line the ⠿ click opens the block-type picker straight away
 // Ours had the panel inside the scrolling menu → clipped → "does nothing".
@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER = "30790fd0-9bdb-4c6c-abb8-3903fff5fd6d";
 const COMCOM = "2c88615f-4a30-43f8-9608-6ac977919dc0";
@@ -33,26 +34,26 @@ check("0. fixture: a text paragraph and an empty paragraph on the page", !!para 
 if (!para || !empty) { await browser.close(); process.exit(1); }
 const show = async (id) => { await page.evaluate((id) => { const b = document.querySelector(`[data-testid="block-${id}"]`); document.querySelector("main").scrollTop += b.getBoundingClientRect().top - 300; }, id); await page.waitForTimeout(250); const r = await page.evaluate((id) => { const b = document.querySelector(`[data-testid="block-${id}"]`); const ce = b.querySelector("[contenteditable]") || b; const cr = ce.getBoundingClientRect(); return { x: cr.left + 30, y: cr.top + cr.height / 2 }; }, id); await page.mouse.move(r.x, r.y); await page.waitForTimeout(200); return r; };
 
-// 1. text block: ⠿ → menu → hover 전환 → panel → click 제목1 → heading1 → ⌘Z
+// 1. text block: ⠿ → menu → hover Turn into → panel → click Heading 1 → heading1 → ⌘Z
 { await show(para.id);
   const handle = page.locator(`[data-testid="block-handle-${para.id}"]`);
   await handle.click(); await page.waitForTimeout(300);
   const turn = page.locator(`[data-testid="block-turninto-${para.id}"]`);
-  check("1a. ⠿ click opens the actions menu with 전환", await turn.isVisible());
+  check("1a. ⠿ click opens the actions menu with Turn into", await turn.isVisible());
   const tb = await turn.boundingBox();
   await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.waitForTimeout(350);
   const panel = page.locator(`[data-testid="block-turninto-menu-${para.id}"]`);
   const pv = await panel.isVisible();
-  check("1b. hovering 전환 opens the type panel", pv);
+  check("1b. hovering Turn into opens the type panel", pv);
   if (pv) {
     const pb = await panel.boundingBox(); const mb = await page.locator(`[data-testid="block-turninto-${para.id}"]`).evaluate((el) => { const m = el.closest(".popover-anim"); const r = m.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top }; });
-    check("1c. panel sits beside the menu (left ≈ menu.right − 4), top on the 전환 row, fully inside the window", Math.abs(pb.x - (mb.right - 4)) < 2 && Math.abs(pb.y - tb.y) < 2 && pb.x + pb.width <= 1400 && pb.y + pb.height <= 900, `panel x=${pb.x} menu.right=${mb.right} panel.y=${pb.y} row.y=${tb.y} h=${pb.height}`);
+    check("1c. panel sits beside the menu (left ≈ menu.right − 4), top on the Turn into row, fully inside the window", Math.abs(pb.x - (mb.right - 4)) < 2 && Math.abs(pb.y - tb.y) < 2 && pb.x + pb.width <= 1400 && pb.y + pb.height <= 900, `panel x=${pb.x} menu.right=${mb.right} panel.y=${pb.y} row.y=${tb.y} h=${pb.height}`);
     const first = await panel.locator("button").first().innerText();
     const rowH = await panel.locator("button").first().evaluate((b) => b.getBoundingClientRect().height);
-    check("1d. panel lists the original's order, starting 텍스트 / 제목1, rows 28px", /텍스트|Text/.test(first) && rowH === 28, `first="${first}" rowH=${rowH}`);
+    check("1d. panel lists the original's order, starting Text / Heading 1, rows 28px", new RegExp(`${ko("Text")}|Text`).test(first) && rowH === 28, `first="${first}" rowH=${rowH}`);
     await page.locator(`[data-testid="block-turninto-${para.id}-heading1"]`).click(); await page.waitForTimeout(400);
     const type = await page.evaluate((id) => document.querySelector(`[data-testid="block-${id}"]`)?.getAttribute("data-block-type"), para.id);
-    check("1e. clicking 제목1 turns the block into heading1 and closes the menus", type === "heading1" && !(await turn.isVisible()) && !(await panel.isVisible()), `type=${type}`);
+    check("1e. clicking Heading 1 turns the block into heading1 and closes the menus", type === "heading1" && !(await turn.isVisible()) && !(await panel.isVisible()), `type=${type}`);
     await page.keyboard.press("Control+z"); await page.waitForTimeout(500);
     const back = await page.evaluate((id) => document.querySelector(`[data-testid="block-${id}"]`)?.getAttribute("data-block-type"), para.id);
     check("1f. ⌘Z restores the paragraph", back === "paragraph", `type=${back}`);

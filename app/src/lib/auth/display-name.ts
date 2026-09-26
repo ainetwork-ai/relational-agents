@@ -37,7 +37,7 @@ export function fallbackDisplayName(address: string): string {
   return `User-${address.slice(0, 8)}`;
 }
 
-/** Auto-generated 1:1 relationship room title — creator first, e.g. "엄마 · 아빠".
+/** Auto-generated 1:1 relationship room title — creator first, e.g. "Mom · Dad".
  *  Single source of truth: room creation and rename propagation must agree
  *  byte-for-byte. */
 export function relationshipRoomName(creator: string, partner: string): string {

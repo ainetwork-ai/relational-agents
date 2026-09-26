@@ -34,8 +34,8 @@ export default function AindriveDrivePage({ params }: { params: Promise<{ driveI
       <p className="mb-6 flex items-center gap-1.5 text-xs text-neutral-500">
         <span className={`h-1.5 w-1.5 rounded-full ${offline ? "bg-neutral-300" : "bg-emerald-500"}`} />
         {offline
-          ? t("꺼져 있음 — 이 드라이브의 폴더가 있는 컴퓨터에서 aindrive를 실행하면 열립니다.")
-          : t("연결됨 — 파일은 그 컴퓨터에 있고, 여기서 보고 고친 내용이 바로 그곳에 반영됩니다.")}
+          ? t("Offline — opens once aindrive is running on the computer that holds this drive's folder.")
+          : t("Online — the files live on that computer; what you view and edit here changes them there.")}
       </p>
       {!offline && (
         <Browser

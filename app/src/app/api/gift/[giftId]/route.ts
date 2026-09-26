@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  b64,
-  findGift,
-  ledgerDriveOf,
-  markUnlocked,
-  requirementsFor,
-  settle,
-  unb64,
-  unlocked,
-  userByWallet,
-  verifyPayment,
-  type PaymentPayload,
-} from "@/lib/gift";
+import { getT } from "@/i18n/server";
+import { b64, findGift, markUnlocked, requirementsFor, unb64, unlocked, verifyPayment, type PaymentPayload } from "@/lib/gift";
+import { providerById } from "@/lib/x402";
+import { recipientSettlement } from "@/lib/x402/pay";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +11,9 @@ export const dynamic = "force-dynamic";
  *   no PAYMENT-SIGNATURE → 402, PAYMENT-REQUIRED header (base64 JSON), and the
  *                           same requirements in the body for a person to read
  *   PAYMENT-SIGNATURE     → verified (EIP-3009 over USDC, to the recipient),
- *                           settled in the family ledger, gift unlocked →
- *                           200 with PAYMENT-RESPONSE
+ *                           settled by the provider the 402 named (family
+ *                           ledger, or aindrive's x402 — lib/x402), gift
+ *                           unlocked → 200 with PAYMENT-RESPONSE
  * Already unlocked → 200 without paying again.
  */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ giftId: string }> }) {
@@ -32,8 +24,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ giftId: str
   const video = `/api/gift/${encodeURIComponent(giftId)}/video`;
   if (unlocked(gift)) return NextResponse.json({ ok: true, unlocked: true, video });
 
-  const requirements = requirementsFor(gift.spec);
-  const resource = { url: req.nextUrl.toString(), description: `${gift.spec.title} — ${gift.spec.recipientName}에게 용돈`, mimeType: gift.spec.file.mime };
+  let via;
+  try {
+    via = await recipientSettlement(gift.spec);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 503 });
+  }
+  const requirements = requirementsFor(gift.spec, via);
+  const provider = providerById(via.settlement)!;
+  const t = await getT();
+  const resource = { url: req.nextUrl.toString(), description: t("{title} — pocket money for {name}", { title: gift.spec.title, name: gift.spec.recipientName }), mimeType: gift.spec.file.mime };
   const gate = (error: string) =>
     NextResponse.json(
       { x402Version: 2, error, accepts: [requirements], resource },
@@ -46,13 +46,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ giftId: str
   const check = await verifyPayment(payment, requirements);
   if (!check.ok) return gate(check.error);
 
-  const payer = await userByWallet(check.from);
-  if (!payer) return gate("the paying wallet is not a family wallet here");
-  const payerDrive = await ledgerDriveOf(payer.id);
-  if (!payerDrive) return gate("the payer has no aindrive device for the ledger");
-  const settled = await settle(gift.spec, payment!, { userId: payer.id, name: payer.displayName, driveId: payerDrive }, gift.spec.file.driveId);
-  if ("error" in settled) return gate(settled.error);
-  await markUnlocked(found.blockId, gift, { userId: payer.id, name: payer.displayName }, settled.receipt);
-  const response = { success: true, transaction: settled.receipt, network: requirements.network, payer: check.from, settlement: "family-ledger" };
+  // a payment signed for one settlement is never settled by another
+  if (String(payment!.accepted.extra?.settlement ?? "") !== provider.id) return gate(`payment was signed for a different settlement (${provider.id} expected)`);
+  const payer = await provider.payerOf(payment!);
+  if (!payer) return gate("the paying wallet is nobody's here");
+  const settled = await provider.settle(gift.spec, payment!, payer);
+  if (!settled.ok) return gate(settled.error);
+  await markUnlocked(found.blockId, gift, payer, settled.receipt);
+  const response = { success: true, transaction: settled.transaction ?? settled.receipt, network: settled.network ?? requirements.network, payer: check.from, settlement: provider.id };
   return NextResponse.json({ ok: true, receipt: settled.receipt, video }, { headers: { "PAYMENT-RESPONSE": b64(response) } });
 }

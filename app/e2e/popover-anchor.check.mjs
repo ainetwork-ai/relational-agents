@@ -108,9 +108,9 @@ await anchored("Add view", '[data-testid="db-add-view"]', ".popover-anim", "star
 await browser.close();
 
 if (diffs.length) {
-  console.error("\n  ┌─ 팝오버가 트리거에 붙어 있지 않습니다 ──────────");
+  console.error("\n  ┌─ Popovers are not attached to their triggers ───");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  └────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("모두 트리거에 붙어서 열립니다 (창 밖으로 나가지 않음).");
+console.log("All open attached to their triggers (none leave the window).");

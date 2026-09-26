@@ -1,4 +1,4 @@
-# 박지훈의 Galaxy Z Fold7
+# Park Ji-hoon's Galaxy Z Fold7
 
-이 폴더는 박지훈의 휴대폰(010-5520-7731)이 aindrive에 올리는 통화기록입니다.
-통화가 끝날 때마다 `통화기록/`에 한 건씩 마크다운으로 쌓입니다(요약 + 녹취).
+This folder holds the call log records that Park Ji-hoon's phone (010-5520-7731) uploads to aindrive.
+Each time a call ends, one markdown file is added to the call-log subfolder (summary + transcript).

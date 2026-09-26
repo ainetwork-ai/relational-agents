@@ -8,7 +8,7 @@ import { isNativeVideo } from "@/lib/preview-kind";
 import type { PreviewProps } from "./types";
 import { PreviewMessage } from "./status";
 
-export const CANT_PLAY_VIDEO = "브라우저에서 재생할 수 없는 동영상입니다 — 다운로드해서 열어 주세요.";
+export const CANT_PLAY_VIDEO = "This video can't be played in the browser — download it to open it.";
 
 export default function VideoPreview({ src }: PreviewProps) {
   // Keyed by URL so switching files starts native again.

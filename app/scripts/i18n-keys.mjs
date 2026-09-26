@@ -1,4 +1,4 @@
-// Which Korean source keys does the UI use, and which are missing from en.ts?
+// Which English source keys does the UI use, and which are missing from ko.ts?
 //
 //   node scripts/i18n-keys.mjs           # summary + missing keys
 //   node scripts/i18n-keys.mjs --json    # { keys, missing }
@@ -29,15 +29,15 @@ for (const f of files) {
   }
 }
 
-const enSrc = fs.readFileSync(path.join(root, "i18n/en.ts"), "utf8");
-const enKeys = new Set();
-for (const m of enSrc.matchAll(/^\s*(?:"((?:\\.|[^"\\])*)"|([\p{L}\p{N}_ ()]+))\s*:/gmu)) enKeys.add((m[1] ?? m[2]).replace(/\\"/g, '"').trim());
+const koSrc = fs.readFileSync(path.join(root, "i18n/ko.ts"), "utf8");
+const koKeys = new Set();
+for (const m of koSrc.matchAll(/^\s*(?:"((?:\\.|[^"\\])*)"|([\p{L}\p{N}_ ()]+))\s*:/gmu)) koKeys.add((m[1] ?? m[2]).replace(/\\"/g, '"').trim());
 
-const missing = [...keys.keys()].filter((k) => !enKeys.has(k) && !enKeys.has(k.trim())).sort();
+const missing = [...keys.keys()].filter((k) => !koKeys.has(k) && !koKeys.has(k.trim())).sort();
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ keys: [...keys.keys()].sort(), missing }, null, 2));
 } else {
-  console.log(`keys in use: ${keys.size} · in en.ts: ${enKeys.size} · missing from en.ts: ${missing.length}`);
+  console.log(`keys in use: ${keys.size} · in ko.ts: ${koKeys.size} · missing from ko.ts: ${missing.length}`);
   for (const k of missing) console.log(`  ${k}   ← ${keys.get(k)}`);
 }
 process.exit(missing.length ? 1 : 0);

@@ -1,186 +1,186 @@
-# Relation Treasury — World 바운티 시나리오 (팀 공유용, 확정 2026-09-25)
+# Relation Treasury — World Bounty Scenario (for team sharing, confirmed 2026-09-25)
 
-> **슬로건**: AI manages the money. Humans approve it.
-> **한 문장**: A Relation Agent manages a shared wallet, while World ID enables
+> **Slogan**: AI manages the money. Humans approve it.
+> **One sentence**: A Relation Agent manages a shared wallet, while World ID enables
 > verified humans to authorize critical financial actions.
-> **3축**: World ID = 인간성 증명 · Relation Agent = 관계·권한 이해 · Multi-approval = 공동자산 보호
+> **Three pillars**: World ID = proof of humanity · Relation Agent = understands relationships and permissions · Multi-approval = protects shared assets
 
-## 1. 트랙 이름
+## 1. Track names
 
 - **[Continuity] Best Use of World ID for Agents** — $2,500
-- **[Continuity] Best IDKit Use Case** — $2,500 (같은 데모로 동시 지원)
-- (연계 검토) Uniswap Foundation — 운용 장면에서 스왑 사용 시
+- **[Continuity] Best IDKit Use Case** — $2,500 (applying to both with the same demo)
+- (Possible tie-in) Uniswap Foundation — if the investment scene uses a swap
 
-## 2. 트랙 요구사항 → 우리의 충족
+## 2. Track requirements → how we meet them
 
-| 요구사항 | 충족 |
+| Requirement | How we meet it |
 |---|---|
-| 공식 dev 환경(sandbox.auth.world.org, mock proofs) 통합 | OIDC(authorization code+PKCE), pairwise `sub`를 멤버에 바인딩 |
-| 전체 여정: 요청→인간 완료→검증→보호 행동 | 채팅 명령→에이전트가 보호행동 분류→World 인증→정족수→온체인 실행 |
-| 거부/실패 경로 (보호 행동 미실행) | ① 단독 대량출금 BLOCKED ② 부계정 승인(같은 sub) 무효 ③ 미인증 멤버 거절 |
-| 백엔드 검증, 시크릿 미노출 | 서버 콜백에서 토큰 검증, sub 저장. 클라 응답 신뢰 안 함 |
-| 통합 디브리프 | 문서로 제출 (time-to-success, 마찰, 개선 1가지) |
-| (IDKit) 크레덴셜 최소충분 설명 | 이름·신원 불필요, "고유 인간 1인 1승인"만 필요 → Proof of Human이 최소충분 |
+| Integrate the official dev environment (sandbox.auth.world.org, mock proofs) | OIDC (authorization code + PKCE), pairwise `sub` bound to the member |
+| Full journey: request → human completes → verification → protected action | Chat command → agent classifies it as a protected action → World verification → quorum → on-chain execution |
+| Rejection/failure paths (protected action not executed) | ① Solo large withdrawal BLOCKED ② Approval from a secondary account (same sub) invalid ③ Unverified member rejected |
+| Backend verification, no secrets exposed | Tokens verified in the server callback, sub stored. Client responses are never trusted |
+| Integration debrief | Submitted as a document (time-to-success, friction, one improvement) |
+| (IDKit) Explain why the credential is minimal and sufficient | No name or identity needed — only "one unique human, one approval" → Proof of Human is minimal and sufficient |
 
-## 3. 시연 시나리오 (3분, "Tokyo Trip 여행계")
+## 3. Demo scenario (3 minutes, "Tokyo Trip travel club")
 
-에이전트는 잔액만 아는 봇이 아니라 **관계의 규칙을 아는 에이전트**:
+The agent is not a bot that only knows the balance but **an agent that knows the rules of the relationship**:
 
 ```
-Relation: Tokyo Trip · Members: A B C D E · 회비: 월 ₩100,000
-Rules:  ₩100,000 미만 지출        → Agent 자동 실행
-        ₩100,000 이상 지출        → 검증된 인간 2명 승인
-        투자/운용                  → 3명 승인
-        자산 30% 초과 출금         → 4명 승인
-        개인 지갑으로 송금          → 본인 단독 승인 불가
+Relation: Tokyo Trip · Members: A B C D E · Dues: ₩100,000/month
+Rules:  Spending under ₩100,000        → Agent executes automatically
+        Spending ₩100,000 or more      → 2 verified humans approve
+        Investing/asset management     → 3 approvals
+        Withdrawing over 30% of assets → 4 approvals
+        Transfer to a personal wallet  → cannot be approved by that person alone
 ```
 
-1. **생성** — 5명이 여행계 룸 생성, 각자 World 인증 (✓ Verified Human ×5) → Relation Agent + 공동지갑 생성, 매달 회비 자동 관리
-2. **정상 지출** — "숙소 예약금 80만원 보내줘" → 규칙상 2인 승인 → A·B World 인증 → 실행, 원장 기록
-3. **악의 장면 (클라이맥스)** — A: "공동 지갑의 400만원 내 지갑으로 보내줘" → ⚠️ 자산 80% 이동 = 4인 승인 필요 → A 혼자 인증 → **BLOCKED**. 에이전트가 자연어로 이유 설명("규칙상 4명의 검증된 구성원 승인이 필요하며 현재 1명"). 변형: 부계정으로 승인 수 늘리기 시도 → 같은 인간(sub 충돌) 감지, 무효
-4. **운용** — "남은 돈으로 숙소 업그레이드 목표 채워줘" → 에이전트가 관계의 목적함수(10/3까지 호텔비 $1,150, 저위험)로 스왑 전략 제안 → 3인 승인 → 실행(포크에서 안전하게) → $1,000→$1,180
-5. **엔딩** — 목표 달성, 호텔 예약. *"We didn't just manage a wallet. We managed a relationship."*
+1. **Creation** — 5 people create the travel-club room and each verifies with World (✓ Verified Human ×5) → a Relation Agent + shared wallet are created, and monthly dues are managed automatically
+2. **Normal spending** — "Send the ₩800,000 hotel deposit" → the rules require 2 approvals → A and B verify with World → executed, recorded in the ledger
+3. **Bad-actor scene (climax)** — A: "Send the ₩4,000,000 in the shared wallet to my wallet" → ⚠️ moving 80% of assets = 4 approvals required → only A verifies → **BLOCKED**. The agent explains why in natural language ("The rules require approval from 4 verified members, and there is currently 1"). Variant: trying to inflate the approval count with a secondary account → detected as the same human (sub collision), invalid
+4. **Investment** — "Use the remaining money to reach the hotel-upgrade goal" → the agent proposes a swap strategy based on the relationship's objective (hotel cost of $1,150 by 10/3, low risk) → 3 approvals → executed (safely on a fork) → $1,000→$1,180
+5. **Ending** — goal reached, hotel booked. *"We didn't just manage a wallet. We managed a relationship."*
 
-## 4. 왜 World ID인가 (심사 Q&A 선제)
+## 4. Why World ID (pre-empting the judges' Q&A)
 
-- **"지갑 서명으로 안 되나?"** — Safe는 키를 센다. 에이전트 시대에 키 서명 = 에이전트 서명이라, "3명 승인"이 한 사람의 지갑 10개가 될 수 있다. pairwise sub는 계정이 아니라 **인간**을 세므로 정족수의 의미가 복원된다. *Wallet proves ownership. World proves humanity. Relation Agent connects the two.*
-- **"왜 에이전트가 필요한가?"** — 모임 회계는 노동(걷기·독촉·장부·정산)이고, 총무 1인이 단일 장애점(유용·잠적). 노동은 에이전트가, 권한은 인간이.
-- **"왜 지갑인가?"** — 지갑 소유권(에이전트)과 인간 권한(World ID)의 분리가 이 구조의 발명. Human → World Verification → Relation Membership → Agent Authorization → Wallet → Transaction.
+- **"Wouldn't wallet signatures do?"** — Safe counts keys. In the agent era, a key signature = an agent signature, so "3 approvals" could be one person's 10 wallets. A pairwise sub counts **humans**, not accounts, which restores the meaning of a quorum. *Wallet proves ownership. World proves humanity. Relation Agent connects the two.*
+- **"Why do you need an agent?"** — Group bookkeeping is labor (collecting, chasing, keeping the books, settling up), and a single treasurer is a single point of failure (embezzlement, disappearing). The agent does the labor; humans hold the authority.
+- **"Why a wallet?"** — Separating wallet ownership (the agent) from human authority (World ID) is the invention of this design. Human → World Verification → Relation Membership → Agent Authorization → Wallet → Transaction.
 
-## 5. 구현 계획 v2 (2026-09-25 재검토 — 스토리 구체화 반영)
+## 5. Implementation plan v2 (reviewed 2026-09-25 — reflects the more concrete story)
 
-### 설계 원칙 (스토리에서 온 것)
+### Design principles (derived from the story)
 
-- **별도 앱 아님.** Relation Agent = AINmem(기억/규칙) + AINDrive(데이터/권한, P2) +
-  Wallet(공동자산)을 잇는 기존 제품의 새 capability. 해커톤 데모와 제품 아키텍처가 동일.
-- **정책은 설정 화면이 아니라 관계의 기억이다.** Treasury Rules는 관계 문서(OKF)의
-  섹션으로 존재하고, 에이전트가 그걸 읽어 인용하며 판단한다 —
+- **Not a separate app.** Relation Agent = a new capability of the existing product, connecting AINmem (memory/rules) + AINDrive (data/permissions, P2) +
+  Wallet (shared assets). The hackathon demo and the product architecture are the same.
+- **Policy is not a settings screen but the relationship's memory.** Treasury Rules live as a
+  section of the relationship document (OKF), and the agent reads it, quotes it, and decides from it —
   *"I know who we are, what our relationship is, and what we agreed to."*
-  단, **집행은 결정적 코드**: 문서의 규칙 표를 타입드 정책으로 파싱해 정족수·한도를
-  코드가 비교한다. LLM은 명령 분류와 사유 설명만 담당 (파싱 실패 = 실행 거부가 기본값).
-- **차단은 2계층**: ① 정책 위반(개인 출금 불허 등) → 승인 요청조차 없이 거절 + 기억 인용
-  설명 ② 허용되지만 큰 행동 → 정족수 미달이면 미실행. 데모의 상황②는 ①이 주인공.
-- **모든 결정이 다시 기억이 된다**: 승인·집행·거절이 관계 문서(Treasury Activity)와
-  원장 대시보드에 기록 — AINmem이 relation의 financial memory.
+  But **enforcement is deterministic code**: the rules table in the document is parsed into a typed policy, and code compares
+  the quorum and limits. The LLM only classifies commands and explains the reasons (parse failure = refusal to execute by default).
+- **Blocking has two layers**: ① Policy violation (e.g., personal withdrawals not allowed) → rejected without even requesting approval, with an explanation
+  quoting the memory ② Allowed but large action → not executed if quorum is not met. Situation ② in the demo stars layer ①.
+- **Every decision becomes memory again**: approvals, executions, and rejections are recorded in the relationship document (Treasury Activity) and
+  the ledger dashboard — AINmem is the relation's financial memory.
 
-### Continuity 자산 (재조사 결과 — 생각보다 훨씬 많다)
+### Continuity assets (re-survey result — far more than we thought)
 
-| 이미 있는 것 | 어디에 | 리뷰 교정 |
+| What already exists | Where | Review correction |
 |---|---|---|
-| **World ID 통합 (7월)**: IDKit v4 서버 검증, 인증 버튼 UI, consent의 인당 nullifier 바인딩, 온체인 Sybil 가드 | `lib/worldid.ts`, `components/dm/world-id-button.tsx`, `api/worldid/verify`, `contracts/*` | ⚠️ dev-simulator 경로는 IDKit이 **아님**(서버 자작 nullifier) — 심사용은 Portal staging app + 공식 simulator로 진짜 proof 필요 |
-| 에이전트 지갑 인프라 (spend/agentkit, sepolia, native transfer + 펀딩 톱업) | `lib/agent/agentkit.ts`, `spend.ts` | ⚠️ **키 발급이 8/3 커밋에서 제거됨**(`provision.ts`) — 복원 필수, ERC20 미구현이라 **ETH native로** |
-| 룸/멤버/채팅/에이전트 파이프라인 + OKF 기억·근거 인용, **결정적 스킬 매처 선례**("돈 명령은 모델이 아니라 문장으로") | `lib/agent/respond.ts:385`, `family-skills.ts` | treasury 분류는 `matchFamilySkill` 옆자리 |
-| 멀티 계정 데모 로그인(멤버 전환), **consent-banner**(멤버별 배지+인증 버튼+폴링) | PR #5, `components/dm/consent-banner.tsx` | 승인 UI는 consent-banner 복제. ~~agent dock~~(개인 어시스턴트 패널이라 제외) |
-| 원장 대시보드 위젯(±색 카운터/차트), watcher 패턴, 알림(`notifyConsent`) | 1inch 단계, `lib/notifications.ts` | |
+| **World ID integration (July)**: IDKit v4 server verification, verify-button UI, per-person nullifier binding at consent, on-chain Sybil guard | `lib/worldid.ts`, `components/dm/world-id-button.tsx`, `api/worldid/verify`, `contracts/*` | ⚠️ The dev-simulator path is **not** IDKit (a server-made nullifier) — for judging we need a Portal staging app + the official simulator for real proofs |
+| Agent wallet infrastructure (spend/agentkit, sepolia, native transfer + funding top-up) | `lib/agent/agentkit.ts`, `spend.ts` | ⚠️ **Key issuance was removed in the 8/3 commit** (`provision.ts`) — must be restored; ERC20 is not implemented, so **use ETH native** |
+| Room/member/chat/agent pipeline + OKF memory and source citation, **precedent for a deterministic skill matcher** ("money commands are sentences, not the model") | `lib/agent/respond.ts:385`, `family-skills.ts` | Treasury classification goes right next to `matchFamilySkill` |
+| Multi-account demo login (member switching), **consent-banner** (per-member badge + verify button + polling) | PR #5, `components/dm/consent-banner.tsx` | Approval UI is a clone of consent-banner. ~~agent dock~~ (excluded — it is a personal assistant panel) |
+| Ledger dashboard widgets (±colored counters/charts), watcher pattern, notifications (`notifyConsent`) | 1inch stage, `lib/notifications.ts` | |
 
-→ **Continuity 서사**: "7월엔 에이전트의 *탄생*에 인간 증명을 물었다(consent 시
-nullifier 바인딩). 이번 주말엔 *돈이 움직이는 모든 순간*에 같은 질문을 묻는다 —
-World의 새 IdP(for Agents)와 fresh 다중 승인으로."
+→ **Continuity narrative**: "In July we asked for proof of humanity at the agent's *birth* (nullifier binding at
+consent). This weekend we ask the same question at *every moment money moves* —
+with World's new IdP (for Agents) and fresh multi-approval."
 
-### 두 트랙 = 두 인증 표면, 한 제품
+### Two tracks = two verification surfaces, one product
 
-- **IDKit 트랙**: 인앱 승인 버튼 = 기존 `world-id-button`/verify 경로 재사용, **새 신뢰
-  순간**(action `treasury-approval`, 승인 건별 nullifier). 크레덴셜 최소충분 논리 그대로.
-- **Agents 트랙**: 신규 sandbox IdP(OIDC step-up) — 에이전트 흐름에서 챌린지 → World
-  인증 → pairwise sub 검증 → 보호 행동. (P1: notion-mcp의 treasury 도구에 step-up 챌린지
-  — 워크숍 데모와 같은 구조를 우리 MCP에서.)
+- **IDKit track**: in-app approve button = reuse the existing `world-id-button`/verify path, a **new moment
+  of trust** (action `treasury-approval`, a nullifier per approval). The minimal-and-sufficient credential argument as-is.
+- **Agents track**: the new sandbox IdP (OIDC step-up) — challenge in the agent flow → World
+  verification → pairwise sub verification → protected action. (P1: step-up challenge on the treasury tool in notion-mcp
+  — the same structure as the workshop demo, in our MCP.)
 
-### 리뷰로 확정된 설계 결정 (2026-09-25 밤, 3-에이전트 교차 리뷰)
+### Design decisions settled by review (night of 2026-09-25, 3-agent cross-review)
 
-- **승인 = 건별 fresh 의식(ceremony), 저장값 조회 아님.** "worldSub 1회 바인딩 후
-  카운트"는 트랙이 배제한 '로그인 붙이기'다. 승인 행위의 식별자는 **IDKit nullifier
-  (action `treasury-approval`, signal=actionId)**, `users.worldSub`(IdP)는 멤버십
-  배지·계정 단위 인간 바인딩용. IdP 표면은 `max_age=0`+`auth_time` 창 강제.
-- **표면↔순간 고정 매핑**: 인앱 멤버 승인 = IDKit(사람이 화면 앞) / 에이전트가 발신하는
-  step-up = IdP(부재중 인간 소환). 데모·README에 명시. 승인 카드는 **에이전트가 채팅에
-  게시**(에이전트가 챌린지 발행 주체로 보이게).
-- **시빌 장면 = 바인딩 시점 거절**: `worldSub` unique 위반(23505)을 "이 인간은 이미
-  이 관계에 투표권이 있음" 카드로 렌더. 승인 중복은 unique(actionId, approverKey)가
-  자연 차단. 등록 직후 mock 신원의 양방향(같은 인간/다른 인간) 동작을 **최우선 테스트**.
-- **분류는 정규식, 집행은 SQL**: `matchTreasuryCommand()`를 `matchFamilySkill` 옆에
-  (`respond.ts:385` seam, "돈 명령은 문장으로" 선례). 실행은
-  `UPDATE … WHERE status='pending' RETURNING`으로 원자적. 승인 POST는 `{actionId}`만
-  받고 approverKey는 서버가 결정 — 클라이언트 페이로드는 절대 권한이 아님.
-- **규칙은 불릿 문법**(`- ₩100,000 이상: 2명 승인`) — md 표는 `readOkfSectionTexts`에서
-  증발. Treasury Rules 섹션은 profile 메뉴에 넣지 않고(기록 LLM의 append 오염 방지)
-  시드가 파일 생성 후 `sectionOkfPaths`에 직접 등록. 파싱 실패 = 실행 거부.
-- **지갑**: 에이전트 키 발급 복원(8/3 제거됨) 후 **sepolia ETH native transfer만**
-  (ERC20 미구현). 오늘 밤 펀딩+잔고 확인, 온체인 장면은 사전 녹화.
-- **확정 컷**: Uniswap 스왑, MCP step-up(37h에 산술적 불가 — 디브리프에 설계로 서술,
-  9/26 정오까지 앞서면 유일한 스트레치), agent dock 연동, ERC20, 크레덴셜 티어링.
-  **컷 금지**: 거부 4경로(정책 위반/정족수 미달/부계정 바인딩 거절/미인증) — 트랙 요건.
-- **디브리프는 hour-0부터 타임스탬프 로그** → IDKit/IdP 각 1부. 커밋은 작업 단위마다
-  제출 리포(origin=relational-agents, 확인 완료)에 즉시.
+- **Approval = a fresh ceremony per action, not a lookup of a stored value.** "Bind worldSub once, then
+  count" is the "bolt-on login" the track rules out. The identifier of an approval act is the **IDKit nullifier
+  (action `treasury-approval`, signal=actionId)**; `users.worldSub` (IdP) is for the membership
+  badge and account-level human binding. The IdP surface enforces a `max_age=0` + `auth_time` window.
+- **Fixed surface↔moment mapping**: in-app member approval = IDKit (a person in front of the screen) / step-up issued by the
+  agent = IdP (summoning an absent human). Stated in the demo and README. The approval card is **posted by the agent in the
+  chat** (so the agent is seen as the one issuing the challenge).
+- **Sybil scene = rejection at binding time**: render a `worldSub` unique violation (23505) as a card saying "this human already has
+  a vote in this relationship". Duplicate approvals are naturally blocked by unique(actionId, approverKey). Right after registration,
+  **top-priority test**: the mock identity's behavior in both directions (same human / different human).
+- **Classification by regex, enforcement by SQL**: `matchTreasuryCommand()` next to `matchFamilySkill`
+  (the `respond.ts:385` seam, the "money commands are sentences" precedent). Execution is atomic via
+  `UPDATE … WHERE status='pending' RETURNING`. The approval POST accepts only `{actionId}`, and the server
+  decides approverKey — a client payload never grants authority.
+- **Rules use bullet syntax** (`- ₩100,000 or more: 2 approvals`) — md tables evaporate in `readOkfSectionTexts`.
+  The Treasury Rules section is not added to the profile menu (to keep the recording LLM's appends from polluting it);
+  the seed creates the file and registers it directly in `sectionOkfPaths`. Parse failure = refusal to execute.
+- **Wallet**: after restoring agent key issuance (removed 8/3), **sepolia ETH native transfers only**
+  (ERC20 not implemented). Fund and check balances tonight; pre-record the on-chain scene.
+- **Confirmed cuts**: Uniswap swap, MCP step-up (arithmetically impossible in 37h — described as a design in the debrief;
+  the only stretch goal if we are ahead by noon 9/26), agent dock integration, ERC20, credential tiering.
+  **Must not cut**: the 4 rejection paths (policy violation / quorum not met / secondary-account binding rejected / unverified) — track requirement.
+- **Debrief = a timestamped log from hour 0** → one each for IDKit/IdP. Commit each unit of work immediately
+  to the submission repo (origin=relational-agents, confirmed).
 
-### v3.1 (구현 착수 시 확정, 2026-09-26 00:10) — 표면↔순간 재배치
+### v3.1 (settled when implementation started, 2026-09-26 00:10) — surface↔moment reassignment
 
-리뷰 합의("건별 fresh", "표면 고정 매핑")를 유지하되 **어느 표면이 어느 순간을 맡는지**를
-트랙 문구에 맞춰 뒤집었다:
+We kept the review consensus ("fresh per action", "fixed surface mapping") but flipped **which surface handles which moment**
+to match the track wording:
 
-- **승인(에이전트의 돈 이동 직전) = World ID for Agents IdP step-up** — Agents 트랙
-  문구가 정확히 "fresh verification at the moment"이고, 이벤트 공식 리소스가 sandbox
-  IdP(`sandbox.auth.world.org`)다. `max_age=0`+`prompt=login`, 서버에서 JWKS·nonce·
-  `auth_time ≥ action.createdAt` 검증, 정족수 = 액션별 DISTINCT pairwise sub.
-  같은 인간의 두 번째 계정 = 같은 sub → 무효(`treasury_approvals` unique).
-- **투표권(승인권) 획득 = IDKit Proof of Human** — "희소한 권리(표)에 대한 공정한 접근",
-  크레덴셜 최소충분 논리 그대로. signal=roomId, `treasury_seats(room, nullifier)` unique →
-  한 인간 한 표(IDKit 대안 경로 "ineligible user").
-- **IDKit v4 실모드 요건(문서 확인)**: rp_context는 요청마다 서버가 서명
-  (`signRequest` @worldcoin/idkit-core/signing, Portal의 RP signing key), 검증은
-  `developer.world.org/api/v4/verify/{rp_id}`로 결과를 그대로 전달, 테스트는
-  `environment="staging"` + simulator.worldcoin.org. 7월 코드의 정적 rp_context·v2
-  verify는 v4에서 유효하지 않음 → 투표권 획득 경로를 v4로 이식(빌드 후 후속 작업).
-- **Portal에서 받아야 할 값**: `app_id`, `rp_id`, RP signing key, action `treasury-seat`
-  등록(화면 표기가 seat → vote로 바뀐 뒤에도 액션 id는 Portal에 등록된 이 값 그대로 —
-  바꾸면 검증이 깨진다). **sandbox IdP**: client_id/secret, redirect
+- **Approval (right before the agent moves money) = World ID for Agents IdP step-up** — the Agents track
+  wording is exactly "fresh verification at the moment", and the event's official resource is the sandbox
+  IdP (`sandbox.auth.world.org`). `max_age=0` + `prompt=login`; the server verifies JWKS, nonce, and
+  `auth_time ≥ action.createdAt`; quorum = DISTINCT pairwise subs per action.
+  A second account of the same human = the same sub → invalid (`treasury_approvals` unique).
+- **Earning a vote (the right to approve) = IDKit Proof of Human** — "fair access to a scarce right (a vote)",
+  the minimal-and-sufficient credential argument as-is. signal=roomId, `treasury_seats(room, nullifier)` unique →
+  one human, one vote (IDKit's alternative path "ineligible user").
+- **IDKit v4 real-mode requirements (checked in the docs)**: the server signs rp_context for every request
+  (`signRequest` @worldcoin/idkit-core/signing, with the Portal's RP signing key); verification forwards the result as-is to
+  `developer.world.org/api/v4/verify/{rp_id}`; testing uses
+  `environment="staging"` + simulator.worldcoin.org. The July code's static rp_context and v2
+  verify are not valid in v4 → port the vote-earning path to v4 (follow-up after the build).
+- **Values we need from the Portal**: `app_id`, `rp_id`, the RP signing key, registration of action `treasury-seat`
+  (even after the UI label changed from seat → vote, the action id stays exactly as registered in the Portal —
+  changing it breaks verification). **sandbox IdP**: client_id/secret, redirect
   `https://ainmem.ainetwork.ai/api/auth/world/callback`.
-- 공식 문서의 human-in-the-loop 가이드(IDKit 승인 + `${action}:${nullifier}` 1회 소비)가
-  우리 액션 바인딩 설계와 같은 원리임을 확인 — 디브리프에 인용.
+- Confirmed that the official docs' human-in-the-loop guide (IDKit approval + one-time consumption of `${action}:${nullifier}`) follows
+  the same principle as our action-binding design — cite it in the debrief.
 
-### P0 — 확정 실행 순서 (총 ~30h, 크리티컬 패스 = 등록→배포→실IdP 검증→리허설)
+### P0 — confirmed execution order (~30h total, critical path = registration → deploy → real IdP verification → rehearsal)
 
-0. **[완료] 즉시 조치** — dev DB에 `world_sub`/`world_verified_at`/`teamspace_drives.backup`
-   수동 적용(health 200 복구), WIP 커밋. **[대기] vLLM(:8100) 복구 또는 AI_URL 폴백** —
-   treasury 메시지는 전부 템플릿 폴백으로 설계해 모델 없이도 데모 성립.
-1. **스키마 1회 push** — `treasuryActions`(id·roomId·kind·params·paramsHash·
-   requiredApprovals·status) + `treasuryApprovals`(actionId·userId·approverKey·
-   unique(actionId, approverKey)) 를 worldSub와 **같은 배포 단위로**.
-2. **목 IdP**(authorize/token/jwks 3라우트, `WORLD_ISSUER` 스왑, **"같은 인간으로 두 계정
-   로그인" 지원**) → **callback**(체크리스트: requireAuth / state / **시작-유저 쿠키
-   `world_uid`==세션**(demo-login 전환 오바인딩 방지) / one-time 쿠키 삭제 / 23505→거절
-   카드 / returnTo 재검증) + connect에 nonce·`max_age=0` 추가.
-3. **지갑 키 복원**(lazy, spend.ts 경로 재활) + 펀딩.
-4. **Treasury Rules 시드**(불릿 문법) + 결정적 파서(`lib/agent/treasury/policy.ts`).
-5. **분류+게이트+거절**(기억 인용 카드, 템플릿 우선) — 공유 파일엔 훅 한 줄만, 신규
-   로직은 `lib/agent/treasury/` 새 파일로 (팀원 병행 작업과 충돌 최소화).
-6. **승인 흐름** — TreasuryApprovalBanner(consent-banner 복제) + `notifyConsent` 알림 +
-   IDKit verify(action 화이트리스트 `{relation-consent, treasury-approval}`) + 정족수 +
-   원자적 집행 + Treasury Activity(OKF `appendOkfLines`)/원장 기록.
-7. **거부 4경로** + e2e check 1본.
-8. **시드 완성**: Tokyo Trip 5인(데모 워크스페이스 멤버, displayName 유니크, consentAt
-   스탬프, @agent 멘션 필요 유의) + 부계정 6번째 + 3인 사전 인증. `--reset` 재구성.
-9. **프로드 배포 #1**(9/26 오전) → 실 IdP 왕복 검증 → 드라이런 → **17:00 피처 프리즈**
-   → 배포 #2 → 위험 장면 3종(OIDC 왕복/온체인/시빌) 사전 녹화 → 라이브 장면(명령→승인
-   →집행, 정책 위반 즉시 거절)과 함께 영상.
+0. **[Done] Immediate fixes** — manually applied `world_sub`/`world_verified_at`/`teamspace_drives.backup`
+   to the dev DB (health back to 200), WIP commit. **[Waiting] Restore vLLM (:8100) or fall back via AI_URL** —
+   all treasury messages are designed with template fallbacks, so the demo works without a model.
+1. **One schema push** — `treasuryActions` (id·roomId·kind·params·paramsHash·
+   requiredApprovals·status) + `treasuryApprovals` (actionId·userId·approverKey·
+   unique(actionId, approverKey)), in **the same deploy unit** as worldSub.
+2. **Mock IdP** (3 routes: authorize/token/jwks, `WORLD_ISSUER` swap, **supports "logging in with two accounts as the same
+   human"**) → **callback** (checklist: requireAuth / state / **initiating-user cookie
+   `world_uid`==session** (prevents mis-binding when switching via demo-login) / delete one-time cookies / 23505→rejection
+   card / re-validate returnTo) + add nonce and `max_age=0` to connect.
+3. **Restore wallet keys** (lazy, reviving the spend.ts path) + funding.
+4. **Treasury Rules seed** (bullet syntax) + deterministic parser (`lib/agent/treasury/policy.ts`).
+5. **Classification + gate + rejection** (cards quoting memory, templates first) — only a one-line hook in shared files; new
+   logic goes in new files under `lib/agent/treasury/` (to minimize conflicts with teammates working in parallel).
+6. **Approval flow** — TreasuryApprovalBanner (consent-banner clone) + `notifyConsent` notification +
+   IDKit verify (action whitelist `{relation-consent, treasury-approval}`) + quorum +
+   atomic execution + Treasury Activity (OKF `appendOkfLines`)/ledger recording.
+7. **The 4 rejection paths** + one e2e check.
+8. **Complete the seed**: Tokyo Trip with 5 people (demo workspace members, unique displayName, consentAt
+   stamp, note that an @agent mention is needed) + a 6th secondary account + 3 people pre-verified. Rebuild with `--reset`.
+9. **Prod deploy #1** (morning of 9/26) → real IdP round-trip verification → dry run → **17:00 feature freeze**
+   → deploy #2 → pre-record the 3 risky scenes (OIDC round trip / on-chain / Sybil) → video together with the live scenes (command → approval
+   → execution, instant rejection of policy violations).
 
-### P2 — 제품 확장 (문서 언급만)
+### P2 — product expansion (mentioned in docs only)
 
-- AINDrive 권한 부여를 같은 승인 흐름으로("돈과 데이터에 같은 정책"), x402, MCP step-up.
+- AINDrive permission grants through the same approval flow ("the same policy for money and data"), x402, MCP step-up.
 
-### W5 문서 — 데모 대본(3분, 호텔 엔딩, 라이브 vs 사전녹화 배치 포함) +
-**integration debrief 2종**(hour-0 로그 기반: time-to-success/마찰 3개/최대 개선 1개) +
-README(영어, pre-existing(7월 personhood) vs built-this-weekend 표) + 폼.
+### W5 docs — demo script (3 minutes, hotel ending, including the live vs. pre-recorded layout) +
+**2 integration debriefs** (based on the hour-0 log: time-to-success / 3 friction points / 1 biggest improvement) +
+README (English, a table of pre-existing (July personhood) vs. built-this-weekend) + the form.
 
-## 6. 남은 일 & 리스크
+## 6. Remaining work & risks
 
-- [ ] **(사람, 오늘 밤 — hour-0 블로커)** ① Developer Portal staging app 생성 + action
-      `treasury-approval`(max verifications **unlimited**) — IDKit 트랙은 이것 없이
-      요건 1·2·4 시연 불가(dev-simulator는 IDKit이 아님) ② sandbox IdP 클라이언트 등록
-      (20분 승인 창, redirect=`https://ainmem.ainetwork.ai/api/auth/world/callback`).
-      등록 실패 시 Agents 트랙은 폴백 없음 — 최종 마감 9/26 오전.
-- [ ] vLLM 복구/AI_URL 폴백, sepolia 펀딩 (에이전트가 오늘 밤)
-- [ ] 데모 영상 육성 녹음 (사람, 9/26 저녁 — 세그먼트 촬영)
-- 리스크: 마감 09-27 09:00 JST. 배포는 2회로 제한(버그당 배포 루프 방지 — 목 IdP로
-  로컬 검증 후), 배포 불능 시 HTTPS 터널을 redirect로 추가 등록. 리허설은 반드시
-  localhost/HTTPS(LAN IP는 Secure 쿠키 소실). 심사 중 IdP 가용성은 통제 불가 —
-  제출물의 본체는 영상.
+- [ ] **(Human, tonight — hour-0 blocker)** ① Create a Developer Portal staging app + action
+      `treasury-approval` (max verifications **unlimited**) — without this the IDKit track cannot
+      demonstrate requirements 1, 2, and 4 (the dev-simulator is not IDKit) ② Register the sandbox IdP client
+      (20-minute approval window, redirect=`https://ainmem.ainetwork.ai/api/auth/world/callback`).
+      If registration fails there is no fallback for the Agents track — final deadline is the morning of 9/26.
+- [ ] Restore vLLM / AI_URL fallback, sepolia funding (the agent, tonight)
+- [ ] Record the demo video voice-over (human, evening of 9/26 — shoot in segments)
+- Risks: deadline 09-27 09:00 JST. Deploys are limited to 2 (to avoid a deploy loop per bug — verify locally
+  with the mock IdP first); if deploying is impossible, register an HTTPS tunnel as an additional redirect. Rehearsals must
+  use localhost/HTTPS (on a LAN IP the Secure cookies are lost). IdP availability during judging is out of our control —
+  the core of the submission is the video.

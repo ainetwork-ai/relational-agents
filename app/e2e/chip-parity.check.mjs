@@ -1,16 +1,16 @@
-// Our chips vs the original's — the numbers in e2e/fixtures/notion-chips.json.
+// Our chips vs the original's — the numbers in src/i18n/content/e2e-fixtures/notion-chips.json.
 //
 //   node e2e/chip-parity.check.mjs      # 0 = no difference, 1 = differs
 //
 // Read-only on our dev server (3110) and dev DB: it opens the imported Projects
 // page, reads computed styles off the chips the table paints, and compares them
-// with what was measured on app.notion.com. "고쳤다" means this exits 0.
+// with what was measured on app.notion.com. "fixed" means this exits 0.
 import fs from "node:fs";
 import { chromium } from "@playwright/test";
 import { sealData } from "iron-session";
 import pg from "pg";
 
-const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-chips.json", import.meta.url)));
+const FIX = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-chips.json", import.meta.url)));
 const BASE = process.env.BASE ?? "http://localhost:3110";
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const val = (k) => env.match(new RegExp(`^${k}=(.+)$`, "m"))?.[1]?.trim();
@@ -126,11 +126,11 @@ for (const [k, exp] of [["firstChipInsetLeft", FIX.cell.firstChipInsetLeft], ["g
 
 console.log(`compared ${chips.length} chips (${seen.size} distinct kind+colour) and the cell layout against the original`);
 if (diffs.length) {
-  console.error("\n  ┌─ 원본과 다릅니다 ──────────────────────────────");
+  console.error("\n  ┌─ Differs from the original ────────────────────");
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-chips.json (원본에서 잰 값)");
+  console.error("  │ reference: src/i18n/content/e2e-fixtures/notion-chips.json (values measured on the original)");
   console.error("  └───────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("차이 0 — 칩의 모양·색이 원본과 같습니다.");
+console.log("0 diffs — chip shapes and colours match the original.");

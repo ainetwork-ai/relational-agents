@@ -22,20 +22,20 @@ import { useT } from "@/i18n/provider";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The  page "..." menu: Full width, Lock, Duplicate, Move to, 휴지통으로 이동, Export.
+/** The  page "..." menu: Full width, Lock, Duplicate, Move to, Move to Trash, Export.
  *
- * 원본 실측은 docs/notion-page-delete.md — 카드 256 / radius 10, 삭제 항목은
- * `옮기기` 바로 다음이고 그 뒤에 구분선이 온다. 라벨은 `삭제`가 아니라
- * **휴지통으로 이동**이며 **빨강이 아니다**(14px/400/rgb(44,44,43), 다른 항목과
- * 같은 잉크). 사이드바 행 메뉴의 빨간 `danger` 관례는 여기로 가져오지 않는다. */
+ * Measured on the original in docs/notion-page-delete.md — card 256 / radius 10, the delete item
+ * comes right after `Move to` with a divider after it. The label is not `Delete` but
+ * **Move to Trash**, and it is **not red** (14px/400/rgb(44,44,43), the same ink as the other
+ * items). The sidebar row menu's red `danger` convention is not carried over here. */
 export function PageOptionsMenu({
   page,
   onDeleted,
 }: {
   page: Page;
-  /** 이 페이지를 담고 있던 화면을 닫거나 떠나는 일 — 전체 페이지는 router.push("/"),
-   *  가운데 피크와 행 사이드 피크는 각자의 onClose. 지운 페이지 위에 그대로 남아
-   *  있지 않도록 각 화면이 자기 방식을 건네준다(메뉴는 피크를 알지 못한다). */
+  /** Closing or leaving the view that held this page — a full page does router.push("/"),
+    *  the center peek and the row side peek each use their own onClose. Each view hands in its own way
+    *  so nothing stays sitting on top of a deleted page (the menu doesn't know about peeks). */
   onDeleted?: () => void;
 }) {
   const t = useT();
@@ -84,7 +84,7 @@ export function PageOptionsMenu({
       }
       return true;
     })
-    .filter((p) => (p.title || t("제목 없음")).toLowerCase().includes(q.toLowerCase()))
+    .filter((p) => (p.title || t("Untitled")).toLowerCase().includes(q.toLowerCase()))
     .slice(0, 12);
 
   const item =
@@ -94,9 +94,9 @@ export function PageOptionsMenu({
     <div ref={ref} className="relative">
       <button
         data-testid="page-options"
-        data-tip={t("더 보기")}
+        data-tip={t("Show more")}
         onClick={toggle}
-        aria-label={t("페이지 옵션")}
+        aria-label={t("Page options")}
         className="flex items-center rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
       >
         <MoreHorizontal size={16} />
@@ -108,8 +108,8 @@ export function PageOptionsMenu({
             onClick={() => void updatePage(page.id, { fullWidth: !page.fullWidth })}
             className={item}
           >
-            <Maximize size={14} /> {t("전체 너비")}
-            <span className="ml-auto text-xs text-neutral-400">{page.fullWidth ? t("켜짐") : t("꺼짐")}</span>
+            <Maximize size={14} /> {t("Full width")}
+            <span className="ml-auto text-xs text-neutral-400">{page.fullWidth ? t("On") : t("Off")}</span>
           </button>
           <button
             data-testid="page-opt-lock"
@@ -120,7 +120,7 @@ export function PageOptionsMenu({
             className={item}
           >
             {page.isLocked ? <Unlock size={14} /> : <Lock size={14} />}
-            {page.isLocked ? t("페이지 잠금 해제") : t("페이지 잠금")}
+            {page.isLocked ? t("Unlock page") : t("Lock page")}
           </button>
           <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
           {isPostgres && (
@@ -136,7 +136,7 @@ export function PageOptionsMenu({
               }}
               className={item}
             >
-              <Copy size={14} /> {t("복제")}
+              <Copy size={14} /> {t("Duplicate")}
             </button>
           )}
           {isPostgres && (
@@ -145,7 +145,7 @@ export function PageOptionsMenu({
               onClick={() => setMoveOpen((v) => !v)}
               className={item}
             >
-              <CornerUpRight size={14} /> {t("옮기기")}
+              <CornerUpRight size={14} /> {t("Move")}
             </button>
           )}
           {moveOpen && (
@@ -155,7 +155,7 @@ export function PageOptionsMenu({
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder={t("페이지 이동 위치…")}
+                placeholder={t("Move page to…")}
                 className="mb-1 w-full rounded border border-neutral-200 px-2 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
               />
               <div className="max-h-44 overflow-y-auto">
@@ -167,7 +167,7 @@ export function PageOptionsMenu({
                   }}
                   className="block w-full rounded px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 >
-                  {t("워크스페이스 최상위")}
+                  {t("Workspace root")}
                 </button>
                 {candidates.map((p) => (
                   <button
@@ -180,15 +180,15 @@ export function PageOptionsMenu({
                     className="block w-full truncate rounded px-2 py-1 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700"
                   >
                     {p.icon ? <><PageIcon icon={p.icon} />{" "}</> : ""}
-                    {p.title || t("제목 없음")}
+                    {p.title || t("Untitled")}
                   </button>
                 ))}
               </div>
             </div>
           )}
-          {/* 휴지통으로 이동 — 원본에서 `옮기기` 바로 다음, 그 뒤가 구분선(아래 것).
-              OKF(비 UUID) 페이지는 소프트 삭제가 아무 일도 하지 않으므로 복제·옮기기와
-              같은 조건으로 숨긴다 — 눌러도 조용한 항목보다 없는 편이 낫다. */}
+          {/* Move to Trash — right after `Move to` in the original, followed by the divider (the one below).
+              OKF (non-UUID) pages: soft delete does nothing for them, so it hides under the same
+              condition as Duplicate/Move to — no item beats one that silently does nothing. */}
           {isPostgres && (
             <button
               data-testid="page-opt-delete"
@@ -199,15 +199,15 @@ export function PageOptionsMenu({
                 // level is refused, and then nothing was deleted — say so and
                 // stay on the page instead of closing it over a success toast
                 if (!(await archivePage(page.id))) {
-                  toast.show(t("휴지통으로 이동하지 못했습니다"));
+                  toast.show(t("Couldn't move to Trash"));
                   return;
                 }
-                toast.show(t("휴지통으로 이동했습니다"), { onUndo: () => restorePage(page.id) });
+                toast.show(t("Moved to Trash"), { onUndo: () => restorePage(page.id) });
                 onDeleted?.();
               }}
               className={item}
             >
-              <Trash2 size={14} /> {t("휴지통으로 이동")}
+              <Trash2 size={14} /> {t("Move to Trash")}
             </button>
           )}
           <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
@@ -218,7 +218,7 @@ export function PageOptionsMenu({
             onClick={() => setOpen(false)}
             className={item}
           >
-            <Download size={14} /> {t("Markdown 내보내기")}
+            <Download size={14} /> {t("Export Markdown")}
           </a>
           <a
             data-testid="page-opt-export-pdf"
@@ -227,7 +227,7 @@ export function PageOptionsMenu({
             onClick={() => setOpen(false)}
             className={item}
           >
-            <Download size={14} /> {t("PDF 내보내기")}
+            <Download size={14} /> {t("Export PDF")}
           </a>
           <button
             data-testid="page-opt-history"
@@ -237,7 +237,7 @@ export function PageOptionsMenu({
             }}
             className={item}
           >
-            <History size={14} /> {t("페이지 기록")}
+            <History size={14} /> {t("Page history")}
           </button>
         </div>
       )}

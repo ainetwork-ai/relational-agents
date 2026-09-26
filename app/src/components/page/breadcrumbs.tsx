@@ -37,7 +37,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
   }
 
  // A page inside a teamspace is named by that teamspace first — Notion shows
- // "현정 테스트 / 🏠 팀스페이스 홈" rather than starting the trail at Home. The
+ // "<teamspace> / 🏠 Teamspace Home" rather than starting the trail at Home. The
  // teamspace comes from the topmost ancestor, since only top-level pages carry
  // the id; children inherit their place from it.
   const teamspace = rootPage?.teamspaceId
@@ -65,7 +65,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
           data-testid="breadcrumb-home"
           className="shrink-0 rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          {t("홈")}
+          {t("Home")}
         </Link>
       )}
       {(expanded || chain.length <= 3
@@ -79,7 +79,7 @@ export function Breadcrumbs({ pageId, current }: { pageId: string; current?: Pag
               data-testid="breadcrumb-ellipsis"
               onClick={() => setExpanded(true)}
               className="rounded px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              aria-label={t("전체 경로 표시")}
+              aria-label={t("Show full path")}
             >
               …
             </button>

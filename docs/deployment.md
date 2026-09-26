@@ -1,183 +1,195 @@
-# 프로덕션 배포 — ainmem prod (`ainmem_prod`)
+# Production deployment — ainmem prod (`ainmem_prod`)
 
-> 2026-07-25 첫 라이브 배포(memory.ainetwork.ai)에서 내린 결정과 그 이유로 시작한
-> 문서다. 2026-07-30 이 프로젝트를 **v100-02 호스트로 가져와 ainmem prod로 새로
-> 띄우면서** §1·§2·§4.3·§4.8·§5·§6을 이 호스트 기준으로 갱신했고, 08-03에 도메인·TLS
-> (§3.7), 구글 로그인(§3.8), 지갑·데모 제거(§3.9), General 팀스페이스(§3.10)를 더했다.
-> 나머지 §3·§4의 결정과 함정은 호스트와 무관하게 유효해 그대로 둔다.
+> This document started as the decisions (and their reasons) made during the first
+> live deployment on 2026-07-25 (memory.ainetwork.ai). On 2026-07-30, when this
+> project was **brought over to the v100-02 host and stood up fresh as ainmem prod**,
+> §1, §2, §4.3, §4.8, §5 and §6 were updated for this host, and on 08-03 domain/TLS
+> (§3.7), Google sign-in (§3.8), wallet/demo removal (§3.9) and the General
+> teamspace (§3.10) were added. The remaining decisions and pitfalls in §3 and §4
+> hold regardless of host, so they are left as they were.
 >
-> **확정본이 아니라 이어받기 위한 기준점**이다. 결정된 것, 폐기된 것(과 그 이유),
-> 아직 열린 것을 구분해 적었다. 새 세션은 §1로 현황을 잡고 §6(열린 질문)부터
-> 이어가면 된다.
+> **This is not a final version but a reference point for picking the work up.**
+> It separates what is decided, what was discarded (and why), and what is still
+> open. A new session should get the current state from §1 and continue from §6
+> (open questions).
 
-## 1. 지금 떠 있는 것
+## 1. What is running now
 
-호스트 `v100-02`, 리포 `/home/comcom/ainmem`. 2026-08-03 기준.
+Host `v100-02`, repo `/home/comcom/ainmem`. As of 2026-08-03.
 
-| 항목 | 값 |
+| Item | Value |
 |---|---|
-| URL | `https://ainmem.ainetwork.ai` — 라이브. Let's Encrypt(만료 2026-11-01, `certbot.timer` 자동 갱신), 80 → 301 (§3.7) |
-| nginx | **정본** `/etc/nginx/sites-available/ainmem.ainetwork.ai` · `deploy/nginx/…conf`는 설치 전 스냅샷일 뿐이다 (§3.7) |
-| 앱 | 컨테이너 `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3100` |
-| DB | 컨테이너 `ainmem_prod_postgres`, DB/롤 `ainmem_prod` (포트 미공개) |
-| 콘텐츠(OKF) | 호스트 바인드 마운트 `deploy/okf-content/` (프로젝트 안, gitignore) |
-| 볼륨 | `ainmem_prod_pgdata`, `ainmem_prod_mdmirror` |
-| compose | `docker-compose.prod.yml` (프로젝트명 `ainmem_prod`) |
-| 시크릿 | `.env.prod` (600, `.env*` 룰로 gitignore) |
-| LLM | **보류** — `.env.prod`에 후보만 주석으로 (§4.8) |
-| 로그인 | **구글 하나** (§3.8). 지갑·데모 로그인은 제거됨 (§3.9) |
-| 데이터 | 스키마 32테이블. 사용자 1명, 워크스페이스 2개 — 라이브 사용 시작 |
+| URL | `https://ainmem.ainetwork.ai` — live. Let's Encrypt (expires 2026-11-01, auto-renewed by `certbot.timer`), 80 → 301 (§3.7) |
+| nginx | **Source of truth** `/etc/nginx/sites-available/ainmem.ainetwork.ai` · `deploy/nginx/…conf` is only a pre-install snapshot (§3.7) |
+| App | Container `ainmem_prod_app` (`ainmem_prod:app-<sha>`) → `127.0.0.1:3100` |
+| DB | Container `ainmem_prod_postgres`, DB/role `ainmem_prod` (port not exposed) |
+| Content (OKF) | Host bind mount `deploy/okf-content/` (inside the project, gitignored) |
+| Volumes | `ainmem_prod_pgdata`, `ainmem_prod_mdmirror` |
+| compose | `docker-compose.prod.yml` (project name `ainmem_prod`) |
+| Secrets | `.env.prod` (600, gitignored by the `.env*` rule) |
+| LLM | **On hold** — only candidates, as comments in `.env.prod` (§4.8) |
+| Sign-in | **Google only** (§3.8). Wallet and demo sign-in were removed (§3.9) |
+| Data | Schema has 32 tables. 1 user, 2 workspaces — live use has begun |
 
-구조는 `nginx(443, TLS 종료) → 127.0.0.1:3100 → app 컨테이너 → postgres 컨테이너`다.
+The structure is `nginx (443, TLS termination) → 127.0.0.1:3100 → app container → postgres container`.
 
-이름은 이 호스트 규칙(`ainteams_prod_*`, `ainmem_dev_postgres`)에 맞췄다. 처음엔
-가져온 리포에 있던 `memory-live` 정체성(프로젝트·컨테이너·이미지·DB·볼륨)으로
-띄웠는데, **ainmem prod는 그 스택과 이름 말고는 아무것도 공유하지 않는 별개
-서비스**라 전부 개명했다. `docker ps` 한 줄에서 어느 서비스·어느 환경인지 읽혀야
-한다. 개명 시점에 DB 행이 0이라 덤프 없이 `down -v` 후 재기동으로 끝났다 —
-데이터가 쌓인 뒤엔 이 비용이 훨씬 커진다.
+Names follow this host's conventions (`ainteams_prod_*`, `ainmem_dev_postgres`). At
+first it was brought up with the `memory-live` identity (project, container, image,
+DB, volume) that came with the imported repo, but **ainmem prod is a separate
+service that shares nothing with that stack except the name**, so everything was
+renamed. A single `docker ps` line should tell you which service and which
+environment it is. At rename time the DB had 0 rows, so it was done with `down -v`
+and a restart, no dump needed — once data accumulates, this cost is much higher.
 
-### 1.1 ainmem.ainetwork.xyz — 가족 데모 (랩 호스트, 2026-09-25)
+### 1.1 ainmem.ainetwork.xyz — family demo (lab host, 2026-09-25)
 
-`v100-02`에 닿지 않는 동안 데모는 이 랩 호스트(`/mnt/newdata/git/relational-agents`)에서 띄운다.
+While `v100-02` is unreachable, the demo runs on this lab host (`/mnt/newdata/git/relational-agents`).
 
-| 항목 | 값 |
+| Item | Value |
 |---|---|
-| URL | `https://ainmem.ainetwork.xyz` — Cloudflare 프록시 A 레코드 → 이 호스트 nginx(443, Let's Encrypt, certbot 자동 갱신) → `127.0.0.1:3150` |
-| nginx | `/etc/nginx/sites-available/ainmem-xyz` (SSE용 버퍼링 off, 80 → 301) |
-| compose | `docker-compose.xyz.yml` (프로젝트 `ainmem_xyz`) · 시크릿 `.env.xyz` (600, gitignore) |
-| 앱 / DB | `ainmem_xyz-app-1` (`ainmem_xyz-app:<sha>`) · `ainmem_xyz-postgres-1` (DB/롤 `ainmem_xyz`, `127.0.0.1:5439`만) |
-| 콘텐츠 | `deploy-xyz/okf-content`, `deploy-xyz/uploads`, `deploy-xyz/avatars` (gitignore) |
-| LLM | 호스트 vLLM gemma `:8110` |
-| 스키마 | 빈 DB에 `POSTGRES_URL=…127.0.0.1:5439/ainmem_xyz npx drizzle-kit push` (처음 한 번, 이후 변경은 §3.6처럼 손으로) |
-| 데이터 | 가족 데모 — `family-demo-accounts.mts --app http://127.0.0.1:3150 --home ~/.ainmem-demo-xyz --no-cli` 후 `seed-family-demo.mts --home ~/.ainmem-demo-xyz`를 `POSTGRES_URL`·`SESSION_SECRET`(.env.xyz 값)·`OKF_ROOT=deploy-xyz/okf-content`로. 폰(aindrive 드라이브)은 dev와 같은 것 — CLI를 새로 띄우지 않는다 |
+| URL | `https://ainmem.ainetwork.xyz` — Cloudflare-proxied A record → this host's nginx (443, Let's Encrypt, certbot auto-renew) → `127.0.0.1:3150` |
+| nginx | `/etc/nginx/sites-available/ainmem-xyz` (buffering off for SSE, 80 → 301) |
+| compose | `docker-compose.xyz.yml` (project `ainmem_xyz`) · secrets `.env.xyz` (600, gitignored) |
+| App / DB | `ainmem_xyz-app-1` (`ainmem_xyz-app:<sha>`) · `ainmem_xyz-postgres-1` (DB/role `ainmem_xyz`, `127.0.0.1:5439` only) |
+| Content | `deploy-xyz/okf-content`, `deploy-xyz/uploads`, `deploy-xyz/avatars` (gitignored) |
+| LLM | Host vLLM gemma `:8110` |
+| Schema | On the empty DB, `POSTGRES_URL=…127.0.0.1:5439/ainmem_xyz npx drizzle-kit push` (once at first; later changes by hand as in §3.6) |
+| Data | Family demo — `family-demo-accounts.mts --app http://127.0.0.1:3150 --home ~/.ainmem-demo-xyz --no-cli`, then `seed-family-demo.mts --home ~/.ainmem-demo-xyz` with `POSTGRES_URL`, `SESSION_SECRET` (values from .env.xyz) and `OKF_ROOT=deploy-xyz/okf-content`. The phone (aindrive drive) is the same one as dev — do not start a new CLI |
 
-`docker-compose.prod.yml`(프로젝트 `memory-live`)은 **쓰지 않는다** — 같은 이름의 스택을 다른 리포가 이 호스트에서 돌린다.
+**Do not use** `docker-compose.prod.yml` (project `memory-live`) — another repo runs a stack with that same name on this host.
 
 ```bash
 cd /mnt/newdata/git/relational-agents
-# 이미지는 origin/main의 깨끗한 worktree에서 — 공용 체크아웃엔 다른 세션의 미커밋 파일이 섞여 있다
+# Build the image from a clean worktree of origin/main — the shared checkout has other sessions' uncommitted files mixed in
 git fetch origin && TAG=$(git rev-parse --short origin/main)
 git worktree add -f /tmp/ainmem-build-$TAG origin/main
 docker build -t ainmem_xyz-app:$TAG /tmp/ainmem-build-$TAG/app && git worktree remove --force /tmp/ainmem-build-$TAG
-# 실행은 이 디렉터리에서 (볼륨·.env.xyz가 여기 있다)
+# Run from this directory (the volumes and .env.xyz live here)
 APP_TAG=$TAG docker compose --env-file .env.xyz -f docker-compose.xyz.yml up -d
 sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.xyz
 curl -s -o /dev/null -w '%{http_code}\n' https://ainmem.ainetwork.xyz/api/health
 ```
 
-## 2. 배포 / 롤백
+## 2. Deploy / rollback
 
 ```bash
 cd /home/comcom/ainmem
 E=.env.prod
 
-# 배포 — 이미지를 커밋 SHA로 태깅해 라이브 버전을 특정 가능하게 만든다.
-# APP_TAG 를 build 에도 넘긴다: compose 의 image 는 memory-live-app:${APP_TAG:-latest}
-# 라서, .env.prod 에 APP_TAG 가 들어 있으면 build 는 :latest 를 만들지 않고
-# 그 태그를 덮어쓴다 — 되돌릴 지점 하나가 조용히 사라진다.
-TAG=$(git rev-parse --short HEAD)   # 미커밋 변경을 담았다면 접미사를 붙인다 (예: $TAG-ui)
+# Deploy — tag the image with the commit SHA so the live version can be identified.
+# Pass APP_TAG to build as well: compose's image is memory-live-app:${APP_TAG:-latest},
+# so if .env.prod contains APP_TAG, build does not create :latest but overwrites
+# that tag instead — one rollback point silently disappears.
+TAG=$(git rev-parse --short HEAD)   # if it includes uncommitted changes, add a suffix (e.g. $TAG-ui)
 APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml build app
 APP_TAG=$TAG docker compose --env-file $E -f docker-compose.prod.yml up -d app
-sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" $E   # 파일이 라이브와 어긋나면 다음 사람의
-                                          # 인자 없는 up 이 프로덕션을 롤백시킨다
+sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" $E   # if the file drifts from live, the next person's
+                                          # argument-less up rolls production back
 
-# 롤백 — 이전 태그로 되돌린다 (소스만이 아니라 node_modules까지 그 시점 그대로)
-APP_TAG=<이전-SHA> docker compose --env-file $E -f docker-compose.prod.yml up -d app
+# Rollback — go back to a previous tag (not just the source, node_modules too, exactly as of that point)
+APP_TAG=<previous-SHA> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
-docker images ainmem_prod   # 되돌릴 수 있는 후보 목록
+docker images ainmem_prod   # list of candidates you can roll back to
 
-# 동시에 배포하지 않는다. 두 세션이 같은 순간에 `up -d app` 을 치면 한쪽이
-# 컨테이너를 지운 뒤 다른 쪽이 같은 이름으로 만들려다 실패해 — 이름 충돌로
-# 끝나고 프로덕션에는 아무 컨테이너도 남지 않는다(502). 복구는 이렇다:
-#   docker ps -a --filter name=memory-live-app   # <해시>_memory-live-app-1 이 보인다
-#   docker rm -f <그 컨테이너>
-#   APP_TAG=<태그> docker compose --env-file $E -f docker-compose.prod.yml up -d app
+# Do not deploy concurrently. If two sessions run `up -d app` at the same moment, one
+# removes the container and the other then fails trying to create one with the same
+# name — it ends in a name conflict and production is left with no container (502).
+# Recovery:
+#   docker ps -a --filter name=memory-live-app   # you'll see <hash>_memory-live-app-1
+#   docker rm -f <that container>
+#   APP_TAG=<tag> docker compose --env-file $E -f docker-compose.prod.yml up -d app
 
-# 배포 후 검증 — curl은 API가 응답하는 것만 증명한다. 화면이 그려지는지는
-# 실제 브라우저로 봐야 한다(읽기 전용, 라이브 데이터를 건드리지 않는다).
-# PROD_URL 을 반드시 준다: 기본값이 memory.ainetwork.ai(다른 머신, §4.3)다.
+# Post-deploy verification — curl only proves the API responds. Whether the screens
+# render must be checked with a real browser (read-only, does not touch live data).
+# Always pass PROD_URL: its default is memory.ainetwork.ai (a different machine, §4.3).
 cd app && PROD_URL=https://ainmem.ainetwork.ai \
   PROD_SESSION_SECRET="$(grep '^SESSION_SECRET=' ../.env.prod | cut -d= -f2-)" \
   PROD_USER_ID=8ccf17a7-24fb-4ae9-974c-94bf5db0cf85 \
   PROD_PAGE_ID=2ccdf2b6-66f6-4d58-9ea7-0c5fff97d2db \
   PROD_IMAGE_PAGE_ID=27b5c5e5-467c-4620-bde7-8d087e8a9875 \
   npx playwright test -c playwright.prod.config.ts
-# 비밀값 없이 돌리면 익명으로 볼 수 있는 것(헬스·로그인 화면·파일 접근 거부)만 돈다.
+# Without the secrets, only what's visible anonymously runs (health, sign-in screen, file access denial).
 
-# 스키마가 이 빌드에 못 미치면 503 (무엇이 없는지는 서버 로그와 pnpm db:check).
-# -f 를 쓰면 안 된다: 400 이상에서 본문을 버리므로 "문제가 있을 때만" 아무것도
-# 보이지 않는다. 상태코드를 직접 찍는다.
+# 503 if the schema is behind this build (what's missing: server log and pnpm db:check).
+# Don't use -f: it discards the body on 400+, so you see nothing precisely
+# "when there is a problem". Print the status code directly.
 curl -s -o /dev/null -w '%{http_code}\n' https://ainmem.ainetwork.ai/api/health
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health   # nginx 를 건너뛴 확인
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/api/health   # check that bypasses nginx
 
-# 컨테이너 헬스체크도 같은 엔드포인트를 본다 — unhealthy 는 "프로세스가 죽었다"가
-# 아니라 "스키마가 이 빌드에 못 미친다"까지 포함한다.
+# The container healthcheck looks at the same endpoint — unhealthy covers not just
+# "the process died" but also "the schema is behind this build".
 docker inspect -f '{{.State.Health.Status}}' ainmem_prod_app
 ```
 
-`app/e2e-prod/prod-smoke.spec.ts`는 방문자가 보는 것을 검사한다 — 로그인 화면이
-뜨는지, 방과 문서가 그려지는지, 콘텐츠 트리가 비어 있지 않은지, 업로드 에셋이
-뜨는지. 전부 읽기 전용이다. **기존 `playwright.config.ts`를 프로덕션에 겨누면 안
-된다** — 그건 자체 dev 서버를 띄우고 공유 DB를 쓰며, 데이터를 실제로 변경하는
-스펙이 섞여 있다.
+`app/e2e-prod/prod-smoke.spec.ts` checks what a visitor sees — that the sign-in
+screen appears, rooms and documents render, the content tree is not empty, and
+uploaded assets load. It is all read-only. **Do not point the existing
+`playwright.config.ts` at production** — it starts its own dev server, uses the
+shared DB, and includes specs that actually modify data.
 
-> 이 호스트에서는 아직 **통과하지 못한다.** 스펙이 기대하는 방·문서·업로드가 없고
-> (계정은 이제 있다), 로그인 방식이 구글로 바뀌어 스펙의 사인인 단계부터 다시 써야
-> 한다(§6-8). 그때까지 배포 검증은 `/api/health` 200과 컨테이너 healthy까지다.
+> On this host it **does not pass yet.** The rooms, documents and uploads the spec
+> expects don't exist (the account does now), and sign-in has moved to Google, so the
+> spec must be rewritten starting from its sign-in step (§6-8). Until then, deploy
+> verification stops at `/api/health` 200 and a healthy container.
 
-## 2.1 백업 / 복원
+## 2.1 Backup / restore
 
 ```bash
-scripts/backup-prod.sh                # 기본값: 앱을 잠깐 pause, 14세트 보존
+scripts/backup-prod.sh                # default: briefly pause the app, keep 14 sets
 scripts/backup-prod.sh --no-pause --keep 30
 scripts/backup-prod.sh --out /mnt/backup
-COPY_TO=user@host:/path scripts/backup-prod.sh   # 호스트 밖 사본까지
+COPY_TO=user@host:/path scripts/backup-prod.sh   # also an off-host copy
 ```
 
-자동 실행: **매일 04:00, 사용자 crontab.** 이 호스트 최초의 자동 백업이다(같은 호스트의
-ainteams 는 릴리스 절차에 묶인 수동 덤프만 있고 cron 은 비어 있었다). 로그는
-`~/ainmem-backups/cron.log` 에 append 되고, **그날의 `backup:` 줄이 없으면 실패한
-것이다** — 스크립트가 판독 검증에 실패하면 세트를 지우고 exit 1 한다.
+Automatic run: **daily at 04:00, user crontab.** This is the first automated backup on
+this host (ainteams on the same host only has manual dumps tied to its release
+procedure, and its cron was empty). The log is appended to
+`~/ainmem-backups/cron.log`, and **if there is no `backup:` line for the day, it
+failed** — when the script fails read-back verification it deletes the set and exits 1.
 
 ```cron
 0 4 * * * /home/comcom/ainmem/scripts/backup-prod.sh >> /home/comcom/ainmem-backups/cron.log 2>&1
 ```
 
-경로는 절대경로여야 한다 — cron 의 cwd 는 `$HOME` 이다. 등록 후 `env -i` 로 cron 과 같은
-환경에서 한 번 돌려 확인했다.
+Paths must be absolute — cron's cwd is `$HOME`. After registering, it was run once
+with `env -i` in the same environment as cron to confirm.
 
-**배포 직전에도 손으로 한 번 뜬다.** cron 은 바닥값이고, 배포는 되돌릴 지점이 필요한
-순간이다 — 마지막 04:00 이후 쌓인 것이 배포 사고로 날아가면 cron 이 있어도 잃는다.
-ainteams 의 릴리스 절차가 배포 전 덤프를 뜨는 것과 같은 이유다(§2 참조).
+**Also take one by hand right before deploying.** cron is the floor, and a deploy is
+the moment you need a rollback point — if what accumulated since the last 04:00 is
+lost in a deploy accident, it's lost even with cron. It's the same reason the ainteams
+release procedure takes a pre-deploy dump (see §2).
 
-한 세트는 `~/ainmem-backups/<타임스탬프>/` 에 `db.dump`(pg_dump -Fc),
-`files.tar.gz`(okf-content·uploads·avatars), `MANIFEST` 로 떨어진다. md-mirror 는
-파생물이라, `.env.prod` 는 데이터와 같은 아카이브에 시크릿을 넣지 않기 위해 제외한다.
+One set lands in `~/ainmem-backups/<timestamp>/` as `db.dump` (pg_dump -Fc),
+`files.tar.gz` (okf-content, uploads, avatars) and `MANIFEST`. md-mirror is excluded
+because it is derived, and `.env.prod` is excluded so secrets don't go into the same
+archive as data.
 
-목적지는 **레포 밖**이다. 처음엔 `deploy/okf-content` 처럼 프로젝트 안에 뒀는데(§3.5),
-백업만은 밖으로 뺐다 — `.gitignore` 는 실수를 줄이지만 `git add -f` 나 룰 변경 한 번에
-무력화되고, 그때 커밋되는 것이 prod 사용자 데이터다. ainteams 도 `~/db-backups`,
-`~/minio-backups` 로 같은 선택을 했다.
+The destination is **outside the repo**. At first it lived inside the project like
+`deploy/okf-content` (§3.5), but backups alone were moved out — `.gitignore` reduces
+mistakes but is defeated by a single `git add -f` or rule change, and what gets
+committed then is prod user data. ainteams made the same choice with `~/db-backups`
+and `~/minio-backups`.
 
-**순서가 곧 안전장치다.** DB 행이 OKF 경로와 업로드 URL을 가리키므로 두 시점이
-어긋나면 참조가 깨진다. 스크립트는 항상 **DB → 파일** 순으로 뜬다: 그 사이 생긴
-파일은 덤프에 없으니 고아로 남을 뿐 무해하고, 반대 순서면 DB가 없는 파일을 가리켜
-깨진다. `--pause`(기본)는 그 틈마저 없앤다. 부작용이 하나 있다 — pause 동안
-헬스체크가 돌지 못해 컨테이너가 잠시 `unhealthy`로 보인다. 다음 검사(30s)에서
-스스로 복구되지만, 헬스 상태를 보고 반응하는 것이 생기면 이 깜빡임을 알고 있어야
-한다.
+**The order is the safety mechanism.** DB rows point to OKF paths and upload URLs, so
+if the two snapshots are taken at different moments the references break. The script
+always goes **DB → files**: files created in between are not in the dump, so they are
+merely harmless orphans; in the reverse order the DB would point to files that don't
+exist. `--pause` (the default) removes even that gap. It has one side effect — while
+paused, the healthcheck can't run, so the container briefly shows as `unhealthy`. It
+recovers on its own at the next check (30s), but if anything ever reacts to health
+status, it needs to know about this flicker.
 
-**판독 검증.** `pg_dump` 의 exit 0 은 "쓰기가 실패하지 않았다" 이지 "읽을 수 있다" 가
-아니다 — 디스크가 차거나 파이프가 끊기면 잘린 파일이 성공으로 남는다. 그래서 매번
-`pg_restore -l` 로 TOC 를 파싱해 객체 수를 세고(현재 150), `tar tzf` 로 아카이브를
-훑고, 둘 중 하나라도 실패하면 세트를 지운다. 읽히지 않는 백업을 보존 목록에 남기면
-롤백 후보가 있다고 착각하게 된다. ainteams 릴리스 스킬의 함정 ⑥ 과 같은 태도다.
+**Read-back verification.** `pg_dump` exiting 0 means "the write didn't fail", not
+"it can be read" — if the disk fills or the pipe breaks, a truncated file is left
+looking like a success. So every run parses the TOC with `pg_restore -l` and counts
+objects (currently 150), scans the archive with `tar tzf`, and deletes the set if
+either fails. Keeping an unreadable backup in the retention list makes you believe
+you have a rollback candidate. Same attitude as pitfall ⑥ of the ainteams release skill.
 
-복원은 이렇게 한다(prod를 덮어쓰므로 손으로):
+Restore like this (by hand, since it overwrites prod):
 
 ```bash
-B=~/ainmem-backups/<타임스탬프>
+B=~/ainmem-backups/<timestamp>
 docker compose --env-file .env.prod -f docker-compose.prod.yml stop app
 docker exec -i ainmem_prod_postgres psql -U ainmem_prod -d postgres \
   -c 'drop database ainmem_prod' -c 'create database ainmem_prod'
@@ -188,274 +200,309 @@ docker run --rm -v "$PWD/deploy:/d" alpine chown -R 1001:1001 /d/okf-content /d/
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
 ```
 
-`MANIFEST`의 `git_commit`이 지금 코드와 다르면 스키마도 다를 수 있다 — 복원 후
-`/api/health`가 503이면 그 이야기다(§3.6).
+If `git_commit` in `MANIFEST` differs from the current code, the schema may differ
+too — if `/api/health` returns 503 after a restore, that's what's going on (§3.6).
 
-2026-07-30에 빈 DB로 복원까지 한 바퀴 검증했다: 일회용 postgres 컨테이너에 `db.dump`를
-복원해 테이블이 그대로 올라오는 것, `files.tar.gz`가 세 디렉터리를 담고 있는 것,
-pause된 앱이 스크립트 종료 후 반드시 unpause되는 것(트랩)을 확인했다.
+On 2026-07-30 a full round trip through restore was verified with an empty DB:
+restoring `db.dump` into a throwaway postgres container brought the tables back
+intact, `files.tar.gz` contained the three directories, and the paused app was always
+unpaused after the script exited (trap).
 
-## 3. 결정된 것과 그 이유
+## 3. What was decided and why
 
-### 3.1 Docker — systemd + 파일 복사를 폐기하고 채택
+### 3.1 Docker — adopted, replacing systemd + file copy
 
-처음엔 리포에 Dockerfile이 없어서 systemd + rsync 사본으로 띄웠다. **폐기했다.**
-git이 없는 파일 더미라 라이브에 뭐가 떠 있는지 커밋으로 특정할 수 없고 롤백이 불가능했다.
-첫 배포 호스트의 `aindrive`가 이미 커밋 SHA로 태깅한 이미지(`predeploy-88e1755`)를
-남기는 방식으로 도는 걸 보고 그 관례를 따랐다. git worktree 방식도 검토했으나 소스만
-되돌릴 뿐 `node_modules`까지 되돌려주지 않아 이미지 태깅이 낫다. v100-02에서도
-`ainmem_prod:app-<sha>`로 유지한다 — 이 호스트의 `ainteams_prod:web`은 SHA 없이
-고정 태그라 롤백 후보가 남지 않는데, 그 관례는 따르지 않았다.
+At first the repo had no Dockerfile, so it ran under systemd from an rsync copy.
+**That was discarded.** It was a pile of files without git, so you couldn't pin what
+was live to a commit, and rollback was impossible. Seeing that `aindrive` on the
+first deploy host already ran by leaving images tagged with the commit SHA
+(`predeploy-88e1755`), we followed that convention. A git worktree approach was also
+considered, but it only rolls back the source, not `node_modules`, so image tagging
+is better. On v100-02 we keep `ainmem_prod:app-<sha>` — this host's
+`ainteams_prod:web` uses a fixed tag without a SHA, leaving no rollback candidates,
+and that convention was not followed.
 
-### 3.2 OKF 콘텐츠는 이미지가 아니라 바인드 마운트
+### 3.2 OKF content is a bind mount, not part of the image
 
-`okf-store.ts`가 런타임에 `writeFileSync`/`mkdirSync`로 콘텐츠를 쓴다 — 폴더 트리가 곧
-콘텐츠 DB다. 이미지에 구우면 **재배포마다 라이브에서 쌓인 문서가 날아간다.**
-named volume 대신 호스트 바인드 마운트를 쓴 이유는 라이브에서 생성된 문서를 직접 열어보고
-git으로 회수할 수 있어야 해서다. 컨테이너가 uid 1001로 돌기 때문에 마운트 경로는
-`chown -R 1001:1001`이 되어 있어야 쓰기가 된다.
+`okf-store.ts` writes content at runtime with `writeFileSync`/`mkdirSync` — the
+folder tree *is* the content DB. Baking it into the image means **documents
+accumulated in live are wiped on every redeploy.** A host bind mount was used instead
+of a named volume because documents created in live need to be openable directly and
+recoverable via git. The container runs as uid 1001, so the mount path must be
+`chown -R 1001:1001` for writes to work.
 
-### 3.3 프로덕션 DB는 별도 컨테이너, 포트 미공개
+### 3.3 The production DB is a separate container with no exposed port
 
-dev는 이 호스트에서 `ainmem_dev_postgres`(5434, DB/롤 `notion_clone`)를 쓴다. 초기엔
-라이브도 같은 DB를 봤는데, dev에서 `drizzle-kit push` 한 번이면 라이브 스키마가 그
-자리에서 바뀌는 구조라 분리했다. 프로덕션 DB는 **포트를 공개하지 않는다** — dev
-도구가 실수로 접근할 경로 자체를 없앤 것이다. DB·롤 이름도 `ainmem_prod`로 달라서
-접속 문자열이 섞일 여지가 없다(값은 compose에 박지 않고 `.env.prod`의
-`POSTGRES_DB`/`POSTGRES_USER`에서 온다. 빠뜨리면 `:?required` 가드가 기동 전에
-멈춘다).
+On this host, dev uses `ainmem_dev_postgres` (5434, DB/role `notion_clone`). Early on,
+live pointed at the same DB, but a single `drizzle-kit push` in dev would change the
+live schema on the spot, so they were split. The production DB **does not expose a
+port** — this removes the very path by which a dev tool could reach it by mistake.
+The DB and role names also differ (`ainmem_prod`), so connection strings can't get
+mixed up (the values aren't baked into compose; they come from `POSTGRES_DB`/
+`POSTGRES_USER` in `.env.prod`. If missing, the `:?required` guard stops before
+startup).
 
-첫 배포에서는 초기 데이터를 dev DB에서 `pg_dump --no-owner --no-acl`로 떠서 넣었다
-(롤 이름이 다르므로 `--no-owner`가 필수다). 이 호스트에서는 아직 넣지 않았다.
-넣을 때 **DB만 옮기면 안 된다** — 행이 가리키는 OKF 경로가 `deploy/okf-content/`에
-없으면 가리키는 문서가 없는 행만 남는다. 파일 트리도 같이 복사해야 정합이 맞는다.
+For the first deployment, initial data was dumped from the dev DB with
+`pg_dump --no-owner --no-acl` and loaded (`--no-owner` is mandatory because the role
+names differ). On this host nothing has been loaded yet. When loading, **don't move
+the DB alone** — if the OKF paths the rows point to aren't in `deploy/okf-content/`,
+you're left with rows pointing at documents that don't exist. Copy the file tree too
+for consistency.
 
-### 3.4 compose 파일 분리
+### 3.4 Separate compose file
 
-`docker-compose.prod.yml`은 별도 파일이고 프로젝트명도 `ainmem_prod`로 다르다.
-개발 중 `docker compose up`이 라이브를 건드리는 일이 없어야 한다. 실행할 때
-`-f docker-compose.prod.yml`을 명시해야만 뜬다.
+`docker-compose.prod.yml` is a separate file, and its project name is also different
+(`ainmem_prod`). A `docker compose up` during development must never touch live. It
+only comes up when you explicitly pass `-f docker-compose.prod.yml`.
 
-### 3.5 배포 상태는 전부 프로젝트 안에 둔다
+### 3.5 All deployment state lives inside the project
 
-`.env.prod`, OKF 콘텐츠(`deploy/okf-content/`) 는 리포 안에 있다. **백업만은
-예외로 밖에 둔다**(`~/ainmem-backups`, §2.1) — 다른 배포 상태는 잘못 커밋돼도 설정이
-새는 정도지만, 백업은 prod 사용자 데이터 전체다. 처음엔 시크릿을 git에서 떼어놓는다며 `/mnt/newdata/deploy/` 아래로
-뺐다가 **되돌렸다.** `.gitignore`에 이미 `.env*`가 있어 리포 안에 둬도 커밋될 일이
-없는데, 밖으로 빼면 배포 상태가 파일시스템 여기저기 흩어져 다음 사람이 찾지 못한다.
-`/deploy/`는 gitignore에 추가했다 — 프로젝트 안에 있되 소스가 아니라 데이터다.
+`.env.prod` and the OKF content (`deploy/okf-content/`) are inside the repo. **Backups
+alone are the exception and live outside** (`~/ainmem-backups`, §2.1) — other
+deployment state, if committed by mistake, only leaks configuration, but backups are
+all of prod's user data. At first, secrets were moved out under `/mnt/newdata/deploy/`
+to keep them away from git, and **that was reverted.** `.gitignore` already has
+`.env*`, so they can't get committed even inside the repo, while moving them out
+scatters deployment state across the filesystem where the next person can't find it.
+`/deploy/` was added to gitignore — it lives inside the project, but it is data, not
+source.
 
-덕분에 compose의 경로도 절대경로가 아니라 `./deploy/okf-content`, `.env.prod`처럼
-프로젝트 상대경로다. 리포만 있으면 배포가 재현된다.
+As a result, compose paths are project-relative, like `./deploy/okf-content` and
+`.env.prod`, not absolute. With just the repo, the deployment is reproducible.
 
-### 3.6 스키마는 자동으로 밀지 않는다 — 대신 뜰 때 알려준다
+### 3.6 The schema is not pushed automatically — instead, it tells you at startup
 
-> **지금 라이브에 없는 컬럼이 있다.** 2026-08-06의 Projects 이식 작업에서
-> `databases.item_name`, `databases.icon`이 추가됐다(그 전에 `description_visible`도).
-> dev에는 손으로 넣었고 라이브에는 아직 없다. **이 커밋들을 라이브에 올리기 전에
-> `pnpm db:push`를 먼저 돌려야 한다** — drizzle이 컬럼을 명시해서 SELECT 하기 때문에,
-> 컬럼이 없으면 데이터베이스 API가 통째로 500이 된다. 헬스체크가 503으로 잡아준다.
+> **There are columns that don't exist in live right now.** The Projects port work on
+> 2026-08-06 added `databases.item_name` and `databases.icon` (and before that,
+> `description_visible`). They were added to dev by hand and are not in live yet.
+> **Before shipping these commits to live, run `pnpm db:push` first** — drizzle
+> SELECTs columns explicitly, so if a column is missing the whole database API returns
+> 500. The healthcheck catches it as 503.
 
-`drizzle-kit push`는 손으로, DB 하나씩 돌린다. 부팅 때 자동으로 밀면 배포가
-컬럼을 지우는 권한까지 갖게 되고, 아무도 그 diff를 읽지 않는다(3.3에서 dev와
-라이브 DB를 분리한 이유와 같은 이야기다).
+`drizzle-kit push` is run by hand, one DB at a time. Pushing automatically at boot
+would give the deploy the power to drop columns, and nobody would read that diff
+(the same story as why dev and live DBs were separated in 3.3).
 
-대신 읽기 전용 드리프트 검사를 세 곳에 뒀다. 셋 다 같은 함수를 부른다:
+Instead, read-only drift checks were placed in three places. All three call the same
+function:
 
-- **부팅 로그** — `src/instrumentation.ts`. 스키마가 맞으면 아무 말도 하지 않고,
-  모자라면 없는 테이블·컬럼과 적용 명령을 한 블록으로 찍는다. 기동을 막지는
-  않는다 — 컬럼 하나가 없다고 나머지 화면까지 못 열 이유는 없다.
-- **`GET /api/health`** — 맞으면 200, 모자라면 **503**. 그게 전부다: 무엇이
-  없는지는 본문에 담지 않는다. 인증이 없는 엔드포인트라 테이블·컬럼 목록이나
-  드라이버 에러 문자열(`connect ECONNREFUSED <host>:5432`, DB 계정명)을 실으면
-  묻는 사람 누구에게나 내부 지도를 건네는 셈이다. 세부는 서버 로그와
-  `pnpm db:check` 로 — 고치는 사람은 이미 거기를 보고 있다.
-- **`pnpm db:check`** — 아무 DB나 겨눠서 미리 확인. 모자라면 exit 1이라 게이트로
-  쓸 수 있다.
-- **컨테이너 헬스체크** — `docker-compose.prod.yml`의 app 서비스가 같은
-  `/api/health`를 본다(node 내장 fetch로 — 런너 이미지에 curl이 없다). 그래서
-  `docker ps`의 unhealthy가 "프로세스가 죽었다"만이 아니라 "스키마가 이 빌드에
-  못 미친다"까지 포함한다.
+- **Boot log** — `src/instrumentation.ts`. If the schema matches it says nothing; if
+  something is missing it prints the missing tables/columns and the command to apply
+  them in one block. It does not block startup — one missing column is no reason the
+  rest of the screens can't open.
+- **`GET /api/health`** — 200 if it matches, **503** if something is missing. That's
+  all: it doesn't put what's missing in the body. It's an unauthenticated endpoint,
+  so including table/column lists or driver error strings
+  (`connect ECONNREFUSED <host>:5432`, DB account names) would hand an internal map to
+  anyone who asks. Details go to the server log and `pnpm db:check` — whoever is
+  fixing it is already looking there.
+- **`pnpm db:check`** — point it at any DB to check ahead of time. It exits 1 if
+  something is missing, so it can be used as a gate.
+- **Container healthcheck** — the app service in `docker-compose.prod.yml` looks at
+  the same `/api/health` (via node's built-in fetch — the runner image has no curl).
+  So unhealthy in `docker ps` covers not only "the process died" but also "the schema
+  is behind this build".
 
-이게 없으면 증상이 이렇게 나온다: 배포는 성공하고, 며칠 뒤 어떤 요청 하나가
-`column "call_id" does not exist`로 죽는다. 어느 배포부터 그랬는지는 아무도
-모른다.
+Without this, the symptom looks like this: the deploy succeeds, and days later some
+request dies with `column "call_id" does not exist`. Nobody knows which deploy it
+started with.
 
-푸시는 `migrator` 서비스로 돈다 — `profiles: ["migrate"]`라서 `up -d`에는 절대
-뜨지 않고 `--profile migrate run --rm migrator`로만 실행된다. 런타임 이미지에는
-drizzle-kit도 스키마 소스도 없어서(standalone 번들) **builder 스테이지**를 쓴다.
-레이어는 앱 빌드와 공유되므로 추가 비용이 없다.
+The push runs as the `migrator` service — it has `profiles: ["migrate"]`, so it never
+comes up with `up -d` and only runs via `--profile migrate run --rm migrator`. The
+runtime image has neither drizzle-kit nor the schema source (standalone bundle), so it
+uses the **builder stage**. Layers are shared with the app build, so there's no extra
+cost.
 
-### 3.7 도메인은 `ainmem.ainetwork.ai`, TLS는 certbot이 관리한다
+### 3.7 The domain is `ainmem.ainetwork.ai`, TLS is managed by certbot
 
-2026-08-03 적용. `memory.ainetwork.ai`는 다른 머신(`101.202.37.14`)이라 쓰지 않았고
-(§4.3), 새 이름을 이 호스트로 향하게 했다. DNS는 A가 아니라 **CNAME →
-`ainteams.ainetwork.ai` → `101.202.37.107`** 로 들어갔다 — 동작에 문제는 없고
-(certbot HTTP-01도 CNAME을 따라간다) ainteams의 IP가 바뀌면 같이 따라간다.
+Applied 2026-08-03. `memory.ainetwork.ai` is a different machine (`101.202.37.14`) so
+it wasn't used (§4.3); a new name was pointed at this host. DNS went in not as an A
+record but as a **CNAME → `ainteams.ainetwork.ai` → `101.202.37.107`** — it works fine
+(certbot HTTP-01 follows CNAMEs too), and if ainteams' IP changes it follows along.
 
-설치는 `deploy/nginx/ainmem.ainetwork.ai.conf`(HTTP 전용 초안)를 넣고
-`certbot --nginx --redirect`를 돌리는 순서였다. certbot이 443 블록과 인증서 경로,
-80 → 301 리다이렉트를 live 설정에 직접 써 넣는다. **그 순간부터
-`/etc/nginx/sites-available/ainmem.ainetwork.ai`가 정본**이고, `deploy/nginx/`의
-초안은 설치 전 스냅샷일 뿐이다. 다시 복사하면 HTTPS가 벗겨진다 —
-`~/NGINX-README.md`에 기록된 `setup-nginx.sh` 사고와 같은 함정이라 초안 헤더에도
-적어 뒀다.
+Installation went: put in `deploy/nginx/ainmem.ainetwork.ai.conf` (an HTTP-only draft)
+and run `certbot --nginx --redirect`. certbot writes the 443 block, certificate paths
+and the 80 → 301 redirect directly into the live config. **From that moment on,
+`/etc/nginx/sites-available/ainmem.ainetwork.ai` is the source of truth**, and the
+draft in `deploy/nginx/` is only a pre-install snapshot. Copying it again strips
+HTTPS — it's the same pitfall as the `setup-nginx.sh` incident recorded in
+`~/NGINX-README.md`, so it's also noted in the draft's header.
 
-conf 값의 근거: `client_max_body_size 52M`. 업로드 요청 하나가 통과해야 하는 관문이
-셋이고 이 순서로 좁아진다 — **tus 청크 8MB ≤ `proxyClientMaxBodySize` 50MB ≤ nginx
-`client_max_body_size`**(`app/src/lib/files/upload-protocol.ts` 가 정본).
-기본값 1M이면 사진 업로드가 nginx 단에서 413으로 잘리고, 12M 이던 시절엔 댓글에
-붙이는 14~65MiB 짜리 hwp/pdf/zip 이 앱에 닿기도 전에 잘렸다. 가운데 관문을 빼먹으면
-더 나쁘다 — Next 16 은 proxy 바디를 기본 10MB 에서 **거절이 아니라 절단**한다
-(ainteams 2026-08-06 실측). 파일 총 한도는 `MAX_UPLOAD_MB`(기본 1024MB)다,
-`proxy_buffering off`(SSE 4곳 — AI 채팅 스트리밍, `dm/events`,
-`pages/[pageId]/events`. 버퍼링이 켜지면 토큰이 뭉쳐 오거나 응답이 끝날 때까지
-안 온다), `300s` 타임아웃(`/api/import`의 `maxDuration 300`과 LLM 호출 타임아웃
-120s를 덮는다), `X-Forwarded-Proto`를 포함한 프록시 헤더 5종(빠지면 앱이 자기
-주소를 http로 만들어 리다이렉트가 틀어진다).
+Rationale for the conf values: `client_max_body_size 52M`. An upload request must pass
+three gates, narrowing in this order — **tus chunk 8MB ≤ `proxyClientMaxBodySize` 50MB
+≤ nginx `client_max_body_size`** (`app/src/lib/files/upload-protocol.ts` is the source
+of truth). With the default 1M, photo uploads get cut off at nginx with a 413, and back
+when it was 12M, 14–65MiB hwp/pdf/zip files attached to comments were cut off before
+even reaching the app. Missing the middle gate is worse — Next 16 **truncates rather
+than rejects** proxy bodies at a default of 10MB (measured by ainteams on 2026-08-06).
+The total file limit is `MAX_UPLOAD_MB` (default 1024MB); `proxy_buffering off` (4 SSE
+places — AI chat streaming, `dm/events`, `pages/[pageId]/events`. With buffering on,
+tokens arrive in clumps or not at all until the response ends); `300s` timeout (covers
+`/api/import`'s `maxDuration 300` and the 120s LLM call timeout); 5 proxy headers
+including `X-Forwarded-Proto` (without it the app builds its own address as http and
+redirects go wrong).
 
-공개에 맞춰 `.env.prod`의 `A2A_BASE_URL`을 `https://ainmem.ainetwork.ai`로 바꿨다
-(§4.10 — DB가 비어 있는 동안은 공짜다). 데모 로그인은 공개 직후 `0`으로 껐다가,
-곧이어 **로그인 경로 자체를 코드에서 들어냈다**(§3.8).
+For the launch, `A2A_BASE_URL` in `.env.prod` was changed to
+`https://ainmem.ainetwork.ai` (§4.10 — it's free while the DB is empty). Demo sign-in
+was turned off with `0` right after launch, and shortly after **the sign-in path itself
+was removed from the code** (§3.8).
 
-인증서는 `2026-11-01` 만료, `certbot.timer`가 자동 갱신한다. 갱신이 조용히 실패하는
-경우를 대비해 만료 전에 한 번은 `sudo certbot renew --dry-run`으로 확인해 둘 것.
+The certificate expires `2026-11-01` and `certbot.timer` auto-renews it. In case
+renewal fails silently, confirm once before expiry with `sudo certbot renew --dry-run`.
 
-### 3.8 로그인은 구글 하나
+### 3.8 Google is the only sign-in
 
-2026-08-03. 있던 경로는 셋이었다: 데모 로그인(누구나 `DemoUser`), MetaMask 서명,
-AIN 개인키 붙여넣기. 전부 걷어내고 **구글 로그인 하나로** 바꿨다.
+2026-08-03. There were three paths: demo sign-in (anyone as `DemoUser`), MetaMask
+signature, and pasting an AIN private key. All were removed and **replaced with Google
+sign-in only**.
 
-구현은 서버 사이드 **인가 코드 플로우**를 직접 썼다. 라이브러리(Auth.js 등)를 넣지
-않은 이유는 이 앱이 이미 세션을 소유하고 있어서다(`iron-session`) — 필요한 것은
-리디렉트 두 번과 토큰 교환 한 번이고, 프레임워크는 세션 관리를 가져가면서 그 이상을
-주지 않는다. 덤으로 콜백 경로도 우리가 정한다(`/api/auth/google/callback`; Auth.js를
-쓰면 `/api/auth/callback/google`로 고정된다).
+The implementation is a hand-written server-side **authorization code flow**. No
+library (Auth.js etc.) was added because this app already owns the session
+(`iron-session`) — what's needed is two redirects and one token exchange, and a
+framework takes over session management without giving anything more. As a bonus, we
+choose the callback path ourselves (`/api/auth/google/callback`; with Auth.js it's
+fixed at `/api/auth/callback/google`).
 
-- `GET /api/auth/google/start` — state를 세션에 넣고 구글로 302. 로그인 버튼은
-  `fetch`가 아니라 `<a>` 링크라, 사인인에 클라이언트 JS가 한 줄도 필요 없다.
-- `GET /api/auth/google/callback` — state 대조(성공·실패 무관하게 1회용으로 소각)
-  → 코드 교환 → 계정 조회/생성 → 세션 발급 → 홈.
+- `GET /api/auth/google/start` — puts state in the session and 302s to Google. The
+  sign-in button is an `<a>` link, not a `fetch`, so signing in needs not a single
+  line of client JS.
+- `GET /api/auth/google/callback` — compare state (burned as single-use regardless of
+  success or failure) → exchange code → look up/create account → issue session → home.
 
-**id_token 서명은 검증하지 않는다.** 우리 서버가 클라이언트 시크릿으로 인증해
-구글 토큰 엔드포인트에서 TLS로 직접 받아온 값이라 중간에 손댈 주체가 없다(구글도
-코드 플로우에 한해 이 생략을 문서화한다). 대신 그 보장이 덮지 못하는 것은 전부
-검사한다: `aud`가 우리 클라이언트인지, `iss`가 구글인지, `exp`가 안 지났는지.
-그리고 `email_verified`가 false면 거부한다 — 미인증 주소를 정체성으로 삼으면 진짜
-주인이 나중에 로그인했을 때 남의 계정에 들어가게 된다.
+**The id_token signature is not verified.** It's a value our server fetched directly
+over TLS from Google's token endpoint, authenticating with the client secret, so there
+is no party in between to tamper with it (Google also documents this omission for the
+code flow). Instead, everything that guarantee doesn't cover is checked: that `aud` is
+our client, `iss` is Google, and `exp` hasn't passed. And if `email_verified` is false
+it's rejected — using an unverified address as identity means that when the real owner
+later signs in, they'd land in someone else's account.
 
-계정 매칭은 **`sub` 우선, 이메일 폴백**이다. 이메일은 바뀔 수 있어서 그것만 키로
-쓰면 같은 사람이 남남이 된다. 폴백이 있는 덕에 `page_invites`(이메일 초대)로 만들어진
-행이 첫 구글 로그인에 흡수된다 — 그 초대는 `users`에 이메일이 없던 동안 매칭 상대가
-아예 없었다.
+Account matching is **`sub` first, email fallback**. Emails can change, so using only
+email as the key turns the same person into strangers. Thanks to the fallback, rows
+created by `page_invites` (email invites) are absorbed on first Google sign-in — while
+`users` had no emails, those invites had no match at all.
 
-스키마: `users`에 `google_sub`·`email`(둘 다 nullable UNIQUE)이 생기고
-`ain_address`·`encrypted_private_key`는 사라졌다(§3.9). 브라우저가 구글에 직접
-요청하지 않으므로 OAuth 클라이언트에 **JavaScript 원본은 필요 없다** — 리디렉션
-URI만 있으면 되고, 그 값은 `GOOGLE_REDIRECT_URI`와 한 글자도 달라선 안 된다.
+Schema: `users` gained `google_sub` and `email` (both nullable UNIQUE), and
+`ain_address` and `encrypted_private_key` went away (§3.9). Since the browser doesn't
+call Google directly, the OAuth client **needs no JavaScript origins** — only a
+redirect URI, and that value must not differ by a single character from
+`GOOGLE_REDIRECT_URI`.
 
-dev 포트를 **3110**으로 고정한 것도 이 때문이다(`next dev -p 3110`). 자동 할당
-포트로는 리디렉션 URI를 등록해둘 수가 없다. 원격 호스트에서 개발할 때는
-`ssh -L 3110:localhost:3110 …`로 터널을 열어야 한다 — 구글은 http를 `localhost`에만
-허용하고 문자열을 그대로 비교하므로 LAN IP나 `127.0.0.1`은 다른 출처다.
+This is also why the dev port is fixed at **3110** (`next dev -p 3110`). You can't
+register a redirect URI for an auto-assigned port. When developing on a remote host,
+open a tunnel with `ssh -L 3110:localhost:3110 …` — Google allows http only for
+`localhost` and compares the string as-is, so a LAN IP or `127.0.0.1` is a different
+origin.
 
-### 3.9 지갑과 데모는 제거했다
+### 3.9 Wallet and demo were removed
 
-2026-08-03. 서명할 주체가 사라진 뒤 지갑 위에 얹혀 있던 것 전부(약 1,700줄):
-서명·검증 라이브러리(`lib/wallet/*`), 브라우저 프로바이더 훅과 버튼,
-consent·dissolve 라우트, EIP-712 타입 빌더, `RelationalAgentRegistry` 온체인 릴레이,
-그리고 `/wallet-sign-demo`. 마지막 것은 **공개 도메인에서 200으로 응답하면서 방문자에게
-지갑 서명을 요구하는 페이지**였다 — 지갑 확장이 경고를 띄우는 바로 그 모양이라
-남겨둘 이유가 없었다.
+2026-08-03. Everything that sat on top of the wallet once there was no one left to
+sign (about 1,700 lines): the signing/verification library (`lib/wallet/*`), browser
+provider hooks and buttons, consent/dissolve routes, EIP-712 type builders, the
+`RelationalAgentRegistry` on-chain relay, and `/wallet-sign-demo`. The last one was
+**a page that responded 200 on the public domain and asked visitors for a wallet
+signature** — exactly the shape wallet extensions warn about, so there was no reason
+to keep it.
 
-UI의 막다른 길 둘도 함께 사라졌다. DM의 consent·dissolve 배너는 버튼이 비활성인
-채로 "Sign in with a wallet to sign"이라고 안내하고 있었다 — 아무도 따를 수 없는
-지시다. 방 나가기도 서명을 요구하지 않는다.
+Two dead ends in the UI went away too. The consent/dissolve banners in DMs showed
+disabled buttons with the instruction "Sign in with a wallet to sign" — an instruction
+nobody could follow. Leaving a room no longer requires a signature either.
 
-동작이 바뀐 곳:
+Where behavior changed:
 
-- **`chat_rooms.consent_at`을 방 생성 시 찍는다.** 예전엔 전원이 서명할 때까지
-  `null`이었고, 지갑이 없어진 뒤로는 영원히 null이 될 상태였다. 컬럼은 남긴다 —
-  "이 시점 이전 메시지는 메모리로 수집하지 않는다"는 기준선으로 아직 읽힌다.
-- **에이전트가 키를 받지 않는다.** 생성된 AIN 키는 `encrypted_private_key`에 평문
-  hex로 있었고, 마지막 독자는 `dispatch.ts`가 "키가 있으면 우리가 만든 에이전트"라는
-  판별로 쓰던 것이었다. `a2aUrl`이 우리를 가리키는지가 그 사실을 직접 말한다.
-- **외부 A2A 봇이 `ain_address`에 `a2a:<url>` 마커를 쓰지 않는다.** `a2a_url`과
-  `a2a_id`가 이미 있다.
+- **`chat_rooms.consent_at` is set when the room is created.** Previously it was
+  `null` until everyone signed, and with wallets gone it would have stayed null
+  forever. The column is kept — it's still read as the baseline "messages before this
+  point are not collected into memory".
+- **Agents don't receive keys.** Generated AIN keys sat in `encrypted_private_key` as
+  plaintext hex, and the last reader was `dispatch.ts`, which used "has a key" to
+  decide "an agent we created". Whether `a2aUrl` points at us states that fact directly.
+- **External A2A bots no longer write an `a2a:<url>` marker into `ain_address`.**
+  `a2a_url` and `a2a_id` already exist.
 
-데모 픽스처도 같이 제거했다: `demo-cast`/`seed-demo-room`/`demo-ask` 스크립트,
-sunset 시더와 그 라우트, 페르소나 홈 커버, `package.json`의 `demo:*` 스크립트.
-`viem`과 `@ainblockchain/ain-js`는 마지막 import를 잃어 `serverExternalPackages`
-항목과 함께 의존성에서 빠졌다(락파일 981줄, 패키지 115개 감소).
+Demo fixtures were removed too: the `demo-cast`/`seed-demo-room`/`demo-ask` scripts,
+the sunset seeder and its route, persona home covers, and the `demo:*` scripts in
+`package.json`. `viem` and `@ainblockchain/ain-js` lost their last imports and were
+dropped from dependencies along with their `serverExternalPackages` entries (lockfile
+down 981 lines, 115 packages).
 
-DB에서 지운 것: `relation_contracts`·`relation_dissolves` 테이블(두 DB 모두 0행이었다),
-`users.ain_address`, `users.encrypted_private_key`.
+Removed from the DB: the `relation_contracts` and `relation_dissolves` tables (0 rows
+in both DBs), `users.ain_address`, `users.encrypted_private_key`.
 
-### 3.10 새 워크스페이스는 General 팀스페이스와 함께 시작한다
+### 3.10 New workspaces start with a General teamspace
 
-빈 Teamspaces 섹션은 초대가 아니라 고장으로 읽힌다. 워크스페이스를 만드는 경로가
-둘(첫 로그인의 `ensureWorkspace`, 스위처의 `POST /api/workspaces`)이라 공용 헬퍼
-`ensureGeneralTeamspace()`를 양쪽에서 부른다. 이름 기준 멱등이라 두 번 불려도 하나만
-남는다. 이 규칙이 붙기 전에 만들어진 워크스페이스 2개는 한 번의 INSERT로 채웠다 —
-코드는 소급 적용되지 않는다.
+An empty Teamspaces section reads as broken, not as an invitation. There are two paths
+that create a workspace (`ensureWorkspace` on first sign-in, and `POST /api/workspaces`
+from the switcher), so both call a shared helper `ensureGeneralTeamspace()`. It's
+idempotent by name, so even if called twice only one remains. The 2 workspaces created
+before this rule existed were filled in with a single INSERT — code doesn't apply
+retroactively.
 
-### 3.11 aindrive 연동 — 사람마다 자기 aindrive 계정으로 (2026-09-24)
+### 3.11 aindrive integration — each person with their own aindrive account (2026-09-24)
 
-aindrive(https://aindrive.ainetwork.ai) 연동은 **사람마다 자기 aindrive 계정**으로
-돈다. 연결은 aindrive의 장치 승인(`aindrive login`과 같은 방식)을 쓴다. 앱에서 "연결"을
-누르면 aindrive 승인 창이 열리고, 브라우저에 이미 aindrive 로그인이 돼 있으면 승인만
-누르면 된다. 받은 aindrive 세션(30일)은 사람별로 AES-GCM 암호화해 `aindrive_accounts`에
-둔다. 키는 `SESSION_SECRET`에서 만든다. 이 값을 바꾸면 모두 다시 연결해야 한다. 이후
-모든 aindrive 호출은 MCP(`<AINDRIVE_SERVER>/mcp`)로 나가며, 그 사람 본인 계정으로
-실행된다.
+The aindrive (https://aindrive.ainetwork.ai) integration runs **with each person's own
+aindrive account**. Connecting uses aindrive's device approval (the same mechanism as
+`aindrive login`). Clicking "Connect" in the app opens the aindrive approval window,
+and if the browser is already signed in to aindrive, you just click approve. The
+aindrive session received (30 days) is AES-GCM encrypted per person and stored in
+`aindrive_accounts`. The key is derived from `SESSION_SECRET`. Changing that value
+means everyone has to reconnect. After that, every aindrive call goes out via MCP
+(`<AINDRIVE_SERVER>/mcp`) and runs as that person's own account.
 
-**이 기능을 라이브에 올리기 전에 할 것**
+**To do before shipping this feature to live**
 
-1. 스키마. 새 테이블 세 개(`aindrive_accounts`, `aindrive_links`, `teamspace_drives`)와
-   새 컬럼 `users.aindrive_sub`(unique, "aindrive로 로그인"의 계정 키)가 필요하다.
-   §3.6대로 손으로 민다.
-   **주의:** 행이 있는 `users`에 unique 컬럼을 더하면 drizzle-kit 이 "users 테이블을
-   truncate 할까요?"라고 묻는다. **절대 truncate 하지 않는다(No).** 새 컬럼은 전부
-   NULL 이라 unique 에 걸리지 않는다. 비대화형이라 이 질문 때문에 멈추면 SQL로 직접 넣는다.
+1. Schema. It needs three new tables (`aindrive_accounts`, `aindrive_links`,
+   `teamspace_drives`) and a new column `users.aindrive_sub` (unique, the account key
+   for "Sign in with aindrive"). Push by hand as in §3.6.
+   **Caution:** adding a unique column to a `users` table that has rows makes
+   drizzle-kit ask "truncate the users table?". **Never truncate (No).** The new column
+   is all NULL, so it doesn't violate unique. If this question stalls a non-interactive
+   run, add it directly with SQL.
    ```sql
    ALTER TABLE users ADD COLUMN IF NOT EXISTS aindrive_sub text;
    ALTER TABLE users ADD CONSTRAINT users_aindrive_sub_unique UNIQUE (aindrive_sub);
    ```
    ```bash
-   # migrator 서비스가 있는 compose 라면
+   # if the compose file has a migrator service
    docker compose --env-file .env.prod -f docker-compose.prod.yml --profile migrate run --rm migrator
-   # 이 리포의 docker-compose.prod.yml 에는 migrator 서비스가 없다(2026-09-24 기준).
-   # 호스트 사본에도 없으면, 운영 DB를 가리키는 POSTGRES_URL 로 app/ 에서:
-   #   pnpm db:check   # 무엇이 모자란지 먼저 확인 (exit 1 = 모자람)
-   #   pnpm db:push    # 표시된 diff 를 읽고 나서
+   # This repo's docker-compose.prod.yml has no migrator service (as of 2026-09-24).
+   # If the host copy doesn't have one either, from app/ with POSTGRES_URL pointing at the production DB:
+   #   pnpm db:check   # first confirm what's missing (exit 1 = something missing)
+   #   pnpm db:push    # after reading the diff it shows
    ```
-   이 테이블들은 추가만 하고 기존 컬럼은 건드리지 않는다. 그래도 push 가 보여주는
-   diff 는 읽고 넘어간다.
+   These tables are add-only and don't touch existing columns. Still, read the diff
+   push shows before moving on.
 2. env (`.env.prod`):
    ```bash
    AINDRIVE_SERVER=https://aindrive.ainetwork.ai
-   # AINDRIVE_CLIENT_NAME=ainmem   # aindrive 승인 창에 보일 이름 (기본 ainmem)
-   # AINDRIVE_TOKEN 은 넣지 않는다 — 서버 공용 토큰이 있으면 개인 계정이 없는 작업이
-   #   그 계정으로 돈다. 사람마다 연결하는 것이 기본이다.
+   # AINDRIVE_CLIENT_NAME=ainmem   # name shown in the aindrive approval window (default ainmem)
+   # Do not set AINDRIVE_TOKEN — with a shared server token, work without a personal
+   #   account runs as that account. Connecting per person is the default.
    ```
-   `NEXT_PUBLIC_*` 가 아니라 런타임 값이다. 컨테이너를 다시 띄우면(`up -d app`) 반영된다.
-3. 로그인 화면의 "aindrive로 로그인"은 같은 승인 방식으로 로그인까지 한다. 계정은
-   aindrive id(`users.aindrive_sub`)로만 찾는다. 같은 이메일의 기존 계정을 넘겨받지
-   않는 것은 aindrive가 이메일 인증을 보장하지 않기 때문이다. 기존 사용자는 앱 안에서
-   aindrive를 한 번 연결하면, 이후 두 로그인 방식이 같은 계정으로 들어온다.
-4. 배포 후 `/api/health` 200 을 확인한다. 스키마가 모자라면 503 이다. 그다음 앱에서
-   사이드바의 팀스페이스 → "aindrive에 동기화하기"로 연결 창이 뜨는지 본다.
+   These are runtime values, not `NEXT_PUBLIC_*`. Restarting the container
+   (`up -d app`) picks them up.
+3. "Sign in with aindrive" on the sign-in screen goes all the way to signing in using
+   the same approval mechanism. Accounts are looked up only by aindrive id
+   (`users.aindrive_sub`). It does not take over an existing account with the same
+   email because aindrive doesn't guarantee email verification. Once an existing user
+   connects aindrive inside the app, both sign-in methods land in the same account.
+4. After deploying, confirm `/api/health` 200. If the schema is behind, it's 503. Then
+   in the app, check that the connect window appears from the sidebar's teamspace →
+   "Sync to aindrive".
 
-aindrive 쪽: 승인 창이 앱 이름을 보여주는 변경(ainetwork-ai/aindrive#99)과 삭제 도구
-`delete_path`(#97)가 aindrive 운영에 배포돼 있어야 문구와 동기화 삭제가 제대로 된다.
-배포 전이라도 연결과 동기화는 된다(창 문구가 CLI 용으로 나오고, 지운 페이지 파일이
-백업에 남는다).
+On the aindrive side: the change that makes the approval window show the app name
+(ainetwork-ai/aindrive#99) and the delete tool `delete_path` (#97) must be deployed in
+aindrive production for the wording and sync deletion to work properly. Connecting
+and syncing work even before that (the window wording is the CLI one, and deleted page
+files remain in the backup).
 
-### 3.12 가족 초대 — `family_invites` (2026-09-25)
+### 3.12 Family invites — `family_invites` (2026-09-25)
 
-가족 폴더 시트의 "가족 초대하기"가 만드는 링크(`/family/<token>`)는 `family_invites`에 한 줄로 남는다
-(누가·어느 팀스페이스에·누구를(이름) 초대했는지, 수락한 사람). 스키마는 손으로 민다 — dev에는
-적용됐고, 운영 DB에는 배포 전에 아래를 한 번 실행한다(drizzle-kit push가 users 등을 건드리려 하면 멈출 것):
+The link (`/family/<token>`) created by "Invite family" in the family folder sheet is
+recorded as one row in `family_invites` (who invited whom (by name) to which
+teamspace, and who accepted). The schema is pushed by hand — it's applied to dev, and
+on the production DB run the following once before deploying (stop if drizzle-kit push
+tries to touch users etc.):
 
 ```sql
 CREATE TABLE IF NOT EXISTS family_invites (
@@ -473,230 +520,248 @@ CREATE TABLE IF NOT EXISTS family_invites (
 CREATE INDEX IF NOT EXISTS family_invites_teamspace_idx ON family_invites (teamspace_id);
 ```
 
-## 4. 함정 — 여기서 시간을 썼다
+## 4. Pitfalls — where the time went
 
-### 4.1 프로덕션 빌드는 원래 깨져 있었다 (해소됨)
+### 4.1 The production build was broken from the start (resolved)
 
-`next build`가 `/api/agent/[agentUserId]/spend`에서 `TypeError: Y is not a function`
-(@noble/hashes sha3)으로 죽던 문제였다. AgentKit이 publish 시점에 선번들한 코드를
-Turbopack이 다시 번들하면서 ESM interop이 깨진 것이 원인이었고,
-`serverExternalPackages`에 `@coinbase/agentkit`을 넣어 우회했다. World 트랙(AgentKit
-지불 데모)이 제거되면서 해당 라우트와 의존성이 함께 사라져 이 함정은 더 이상 없다.
-`serverExternalPackages`에는 `viem`, `@ainblockchain/ain-js`만 남아 있다.
+`next build` died on `/api/agent/[agentUserId]/spend` with `TypeError: Y is not a function`
+(@noble/hashes sha3). The cause was Turbopack re-bundling code that AgentKit had
+pre-bundled at publish time, breaking ESM interop; it was worked around by adding
+`@coinbase/agentkit` to `serverExternalPackages`. When the World track (AgentKit
+payment demo) was removed, that route and its dependency went with it, so this pitfall
+no longer exists. Only `viem` and `@ainblockchain/ain-js` remain in
+`serverExternalPackages`.
 
-### 4.2 `| tail`이 빌드 실패를 exit 0으로 가린다
+### 4.2 `| tail` hides a build failure as exit 0
 
-`next build ... | tail -40`은 종료 코드를 삼킨다. 실제로 실패한 빌드가 성공으로 보고돼
-한참 헤맸다. **빌드/게이트 검증은 반드시 `set -o pipefail`.**
+`next build ... | tail -40` swallows the exit code. A build that actually failed was
+reported as a success, and we went around in circles for a while. **Always use
+`set -o pipefail` for build/gate verification.**
 
-### 4.3 공인 IP는 egress ≠ ingress
+### 4.3 Public IP: egress ≠ ingress
 
-`curl ifconfig.me`가 답하는 `103.139.119.10`은 **egress** IP다. DNS A 레코드가
-가리켜야 하는 것은 **ingress**고, 둘은 다르다 — 이 서버는 NAT 뒤에 있다. 헷갈리면
-certbot HTTP-01이 실패한다.
+`103.139.119.10`, which `curl ifconfig.me` returns, is the **egress** IP. What the DNS
+A record must point to is **ingress**, and the two differ — this server is behind NAT.
+Mixing them up makes certbot HTTP-01 fail.
 
-2026-07-30 v100-02에서 확인한 값:
+Values confirmed on v100-02 on 2026-07-30:
 
-| 이름 | 값 | 비고 |
+| Name | Value | Notes |
 |---|---|---|
-| egress (`ifconfig.me`) | `103.139.119.10` | 첫 배포 호스트와 같다 — 같은 NAT |
-| `ainteams.ainetwork.ai` | `101.202.37.107` | 이 호스트의 nginx가 서브한다 → 이게 **이 호스트의 ingress** |
-| `memory.ainetwork.ai` | `101.202.37.14` | `aindrive.ainetwork.ai`와 같다 = **다른 머신** |
-| `ainmem.ainetwork.ai` | (레코드 없음) | |
+| egress (`ifconfig.me`) | `103.139.119.10` | Same as the first deploy host — same NAT |
+| `ainteams.ainetwork.ai` | `101.202.37.107` | Served by this host's nginx → this is **this host's ingress** |
+| `memory.ainetwork.ai` | `101.202.37.14` | Same as `aindrive.ainetwork.ai` = **a different machine** |
+| `ainmem.ainetwork.ai` | (no record) | |
 
-즉 **`memory.ainetwork.ai`는 이 스택을 가리키지 않는다.** 그 이름은 첫 배포 호스트
-(`.14`)에 그대로 남아 있다. 이 호스트의 ainmem prod에 도메인을 붙이려면 새 이름을
-`101.202.37.107`로 향하게 하거나, `memory.ainetwork.ai`의 A 레코드를 옮겨야 한다
-(그러면 저쪽이 죽는다). 실제로는 새 이름을 CNAME으로 붙였다 — §3.7.
+So **`memory.ainetwork.ai` does not point at this stack.** That name remains on the
+first deploy host (`.14`). To attach a domain to ainmem prod on this host, you either
+point a new name at `101.202.37.107` or move the A record of `memory.ainetwork.ai`
+(which kills the other side). In practice a new name was attached via CNAME — §3.7.
 
-로컬 리졸버 부정 캐시 탓에 **이 호스트에서** 자기 도메인 curl이 000으로 죽는 일이
-있는데 장애가 아니다. 그때는 ingress를 직접 지정한다:
+Because of the local resolver's negative cache, curling our own domain **from this
+host** sometimes dies with 000, which is not an outage. In that case specify ingress
+directly:
 
 ```bash
-curl --resolve <도메인>:443:101.202.37.107 https://<도메인>/login
+curl --resolve <domain>:443:101.202.37.107 https://<domain>/login
 ```
 
-### 4.4 pnpm 24시간 격리 정책
+### 4.4 pnpm's 24-hour quarantine policy
 
-pnpm 11은 최근 24시간 내 게시된 패키지를 거부한다(`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`).
-리포 설정이 아니라 pnpm 기본값이다. 락파일이 frozen이고 각 항목에 sha512 무결성 해시가
-있어 버전이 이미 고정·검증된 상태라, 이미지 빌드에서만
-`--config.minimumReleaseAge=0`으로 해제했다. 켜두면 의존성이 하나 게시될 때마다
-하루 동안 이미지 빌드가 막힌다.
+pnpm 11 rejects packages published within the last 24 hours
+(`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`). This is a pnpm default, not a repo setting.
+The lockfile is frozen and each entry has a sha512 integrity hash, so versions are
+already pinned and verified; it was lifted only for image builds with
+`--config.minimumReleaseAge=0`. Left on, every time a dependency is published the image
+build is blocked for a day.
 
-### 4.5 pnpm 빌드 스크립트 승인이 이미지 빌드를 막는다
+### 4.5 pnpm build-script approval blocks the image build
 
-`app/pnpm-workspace.yaml`의 `allowBuilds:`에 21개 항목이
-`set this to true or false` 플레이스홀더 그대로 남아 있다. 아무도 답하지 않은 상태라
-strict 설치가 `ERR_PNPM_IGNORED_BUILDS`로 멈춘다. dev에도 컴파일된 `.node` 산출물이
-하나도 없다(전부 순수 JS 폴백으로 돈다) — 그래서 이미지에서도 빌드 스크립트를 건너뛰는 게
-dev와 **일치**시키는 선택이지 이탈이 아니다. `--config.strictDepBuilds=false`.
+In `app/pnpm-workspace.yaml`, `allowBuilds:` still has 21 entries left as the
+`set this to true or false` placeholder. Nobody has answered them, so a strict install
+stops with `ERR_PNPM_IGNORED_BUILDS`. Dev has no compiled `.node` artifacts at all
+either (everything runs on pure-JS fallbacks) — so skipping build scripts in the image
+too is a choice that **matches** dev, not a deviation. `--config.strictDepBuilds=false`.
 
-이어서 `pnpm exec next build`도 실행 전 의존성 상태 재검사에서 같은 검사에 다시 걸린다.
-빌더 스테이지는 `node_modules/.bin/next build`로 바이너리를 직접 부른다.
+Next, `pnpm exec next build` also hits the same check again when it re-verifies
+dependency state before running. The builder stage calls the binary directly with
+`node_modules/.bin/next build`.
 
-> 근본 해결은 누군가 `pnpm approve-builds`로 21개 항목에 답하고 그 결과를 커밋하는 것이다.
-> 그 전까지는 위 두 우회가 필요하다.
+> The root fix is for someone to answer the 21 entries with `pnpm approve-builds` and
+> commit the result. Until then, the two workarounds above are needed.
 
-### 4.6 dev 서버가 prod 빌드를 덮어쓴다
+### 4.6 The dev server overwrites the prod build
 
-`next.config.ts` 주석대로, 워크트리에서 `next build`를 하면 동시에 도는 dev 서버가
-기본 `.next`를 덮어써 빌드를 날린다. Docker로 옮기면서 해소됐지만, 호스트에서 직접
-빌드해야 할 일이 있으면 `NEXT_DIST_DIR=.next-prodcheck`로 격리할 것.
+As the `next.config.ts` comment says, running `next build` in the worktree lets a
+concurrently running dev server overwrite the default `.next` and wipe the build. Moving
+to Docker resolved this, but if you ever need to build directly on the host, isolate it
+with `NEXT_DIST_DIR=.next-prodcheck`.
 
-### 4.7 컨테이너에서 쓰는 경로는 전부 볼륨이어야 한다
+### 4.7 Every path the container writes to must be a volume
 
-이미지 안에 굽힌 런타임 쓰기 경로는 두 번 문제를 일으킨다. `COPY`가 root 소유로
-넣으므로 uid 1001이 못 쓰고(EACCES), 설령 쓰더라도 재배포 때 통째로 사라진다.
-`/api/upload`가 이걸로 500을 뱉었다. 현재 볼륨: OKF(`/data/okf`),
-uploads·avatars(`/app/public/*`), md-mirror(`/data/md-mirror`).
+Runtime write paths baked into the image cause trouble twice. `COPY` puts them in owned
+by root, so uid 1001 can't write (EACCES), and even if it could, they vanish entirely on
+redeploy. `/api/upload` threw 500 because of this. Current volumes: OKF (`/data/okf`),
+uploads/avatars (`/app/public/*`), md-mirror (`/data/md-mirror`).
 
-`process.env.X ?? path.join(process.cwd(), ...)` 형태의 fallback이 세 곳
-(`okf-store.ts`, `md-mirror.ts`, `workspace/export/route.ts`) 남아 있다.
-env가 빠지면 컨테이너 안 존재하지 않는 경로로 조용히 흘러가고, md-mirror는
-실패를 `catch`로 삼킨다. compose가 env를 넣고 있어 지금은 안전하지만,
-**추적되지 않는 `docker-compose.yml`에는 `MD_MIRROR_ROOT`가 없다** — 그 파일로
-배포하면 즉시 이 함정에 빠진다.
+Three fallbacks of the form `process.env.X ?? path.join(process.cwd(), ...)` remain
+(`okf-store.ts`, `md-mirror.ts`, `workspace/export/route.ts`). If the env is missing,
+they silently drift to a nonexistent path inside the container, and md-mirror swallows
+the failure with `catch`. It's safe now because compose sets the env, but **the
+untracked `docker-compose.yml` has no `MD_MIRROR_ROOT`** — deploying with that file
+falls straight into this pitfall.
 
-### 4.8 컨테이너의 `localhost`는 호스트가 아니다 — 그리고 엔드포인트는 호스트마다 다르다
+### 4.8 The container's `localhost` is not the host — and the endpoint differs per host
 
-`AI_URL` 기본값 `localhost:8100`이 컨테이너 안에서는 자기 자신을 가리켜 모든 LLM
-호출이 `ECONNREFUSED`로 죽었다. 로그에만 남고 결정론적 폴백으로 조용히 넘어가서
-겉으로는 멀쩡해 보인다. 첫 배포 호스트에는 vLLM이 있어서
-`host.docker.internal` + `extra_hosts: host-gateway`로 해결했다.
+The `AI_URL` default `localhost:8100` points to the container itself inside the
+container, so every LLM call died with `ECONNREFUSED`. It only showed up in logs and
+silently fell through to a deterministic fallback, so on the surface everything looked
+fine. The first deploy host had vLLM, so it was fixed with `host.docker.internal` +
+`extra_hosts: host-gateway`.
 
-**v100-02에는 vLLM(:8100)이 없다.** 그런데 compose에 `AI_URL`이 하드코딩돼 있어서,
-그 값이 이 호스트에서는 아무 데도 없는 곳을 가리켰다 — 같은 함정의 재발이다.
-그래서 compose에서 뺐다. `AI_URL`/`AI_MODEL`/`AI_API_KEY`는 **런타임** 변수이므로
-`.env.prod`에만 있고, 바꾸려면 재시작만 필요하다(재빌드·새 태그 불필요 — §4.9의
-`NEXT_PUBLIC_*`와 정반대다). `host.docker.internal` 별칭은 남겨 뒀다.
+**v100-02 has no vLLM (:8100).** Yet `AI_URL` was hardcoded in compose, so on this host
+it pointed at nothing — a recurrence of the same pitfall. So it was taken out of compose.
+`AI_URL`/`AI_MODEL`/`AI_API_KEY` are **runtime** variables, so they live only in
+`.env.prod`, and changing them only needs a restart (no rebuild or new tag — the exact
+opposite of `NEXT_PUBLIC_*` in §4.9). The `host.docker.internal` alias was kept.
 
-현재는 **보류** 상태다. 후보 세 개(ainetwork 공용 `llm.ainetwork.ai/v1`,
-Azure OpenAI, 호스트 로컬)를 `.env.prod` 주석에 적어 뒀다. Azure는 신형 v1 서피스
-(`/openai/v1`)만 코드 수정 없이 맞는다 — 구형은 `?api-version=` 쿼리와 `api-key`
-헤더를 쓰므로 `src/lib/ai/openai-compat.ts`를 손봐야 한다.
+It is currently **on hold**. Three candidates (ainetwork's shared
+`llm.ainetwork.ai/v1`, Azure OpenAI, host-local) are written as comments in
+`.env.prod`. For Azure, only the new v1 surface (`/openai/v1`) fits without code
+changes — the old one uses an `?api-version=` query and an `api-key` header, so
+`src/lib/ai/openai-compat.ts` would need changes.
 
-미설정 상태에서 실제로 일어나는 일(모두 확인함):
+What actually happens when it's unset (all confirmed):
 
-| 경로 | 동작 |
+| Path | Behavior |
 |---|---|
-| 메모리 쓰기 `agent/pipeline.ts` | throw → catch → `fakeEdits`로 기록. 에러 로그 남음 |
-| send-guard `agent/guard.ts` | throw → catch → 전송 허용. 에러 로그 남음 |
-| AI 채팅 패널 `ai-chat.ts` | **catch 없음 → 화면에 에러** |
+| Memory writes `agent/pipeline.ts` | throw → catch → recorded as `fakeEdits`. Error logged |
+| send-guard `agent/guard.ts` | throw → catch → sending allowed. Error logged |
+| AI chat panel `ai-chat.ts` | **no catch → error on screen** |
 
-`AI_FAKE_LLM=1`로 켜는 선택도 있었지만 채택하지 않았다. 마지막 줄이 뒤집히는데 —
-가짜 답변이 **진짜 답변처럼** 스트리밍되고 로그도 남지 않는다. 엔드포인트가 없으면
-없는 대로 드러나는 편이 낫다. fake 플래그는 e2e/CI용이다.
+Turning on `AI_FAKE_LLM=1` was an option, but it was not adopted. It flips the last
+row — fake answers stream **as if they were real** and nothing is logged. If there's no
+endpoint, it's better for that to show. The fake flag is for e2e/CI.
 
-### 4.9 `NEXT_PUBLIC_*`는 빌드타임, 서버는 런타임 — 반쪽만 켜면 침묵한다
+### 4.9 `NEXT_PUBLIC_*` is build-time, the server is runtime — setting only half is silent
 
-Dockerfile이 선언한 ARG 중 일부만 compose가 넘기고 있었다. 빠진 값은 브라우저
-번들에서 영원히 `undefined`인데 **서버는 같은 이름을 런타임에 읽는다.** 그래서
-`.env.prod`에만 값을 넣고 재시작하면 서버와 브라우저가 서로 다른 상태를 믿게 되고,
-그 불일치는 **로그 한 줄 없이** 기능을 죽인다. 지금은 Dockerfile의 ARG와 compose의
-build args가 1:1로 맞아 있다. 값을 바꾸려면 재시작이 아니라 `build` + 새 `APP_TAG`가
-필요하다.
+compose was passing only some of the ARGs the Dockerfile declares. Missing values are
+forever `undefined` in the browser bundle, but **the server reads the same names at
+runtime.** So if you set a value only in `.env.prod` and restart, the server and the
+browser believe different states, and that mismatch kills features **without a single
+log line**. Now the Dockerfile's ARGs and compose's build args match 1:1. Changing a
+value requires `build` + a new `APP_TAG`, not a restart.
 
-### 4.10 한 번 저장된 값은 env를 바꿔도 따라오지 않는다
+### 4.10 A value, once stored, doesn't follow env changes
 
-에이전트의 `a2a_url`과 `agent_card_json.url`은 provision 시점에 DB에 굳는다.
-`A2A_BASE_URL`을 프로덕션 주소로 바꿔도 기존 8개 에이전트는 dev LAN 주소
-(`http://192.168.1.193:36625/...`)를 계속 광고했다. 인앱 호출은 `dispatch.ts`의
-느슨한 `url.includes("/api/a2a/")` 매칭 덕에 우연히 살아 있어서 더 안 보인다.
-일회성 UPDATE로 정정했다.
+An agent's `a2a_url` and `agent_card_json.url` are frozen into the DB at provision time.
+Even after changing `A2A_BASE_URL` to the production address, the existing 8 agents kept
+advertising the dev LAN address (`http://192.168.1.193:36625/...`). In-app calls happened
+to keep working thanks to the loose `url.includes("/api/a2a/")` match in `dispatch.ts`,
+which made it even harder to see. It was corrected with a one-off UPDATE.
 
-### 4.11 `req.url`은 컨테이너의 바인드 주소다
+### 4.11 `req.url` is the container's bind address
 
-구글 로그인이 성공한 직후 브라우저가 **`https://0.0.0.0:3000/`** 으로 갔다. 지갑
-확장이 피싱 경고를 띄웠는데, 그 판단은 맞다 — 정상 사이트는 그런 주소로 보내지
-않는다. 원인은 콜백의 마지막 한 줄이었다:
+Right after a successful Google sign-in, the browser went to
+**`https://0.0.0.0:3000/`**. The wallet extension raised a phishing warning, and it was
+right — legitimate sites don't send you to an address like that. The cause was the last
+line of the callback:
 
 ```ts
 NextResponse.redirect(new URL("/", req.url))   // req.url = http://0.0.0.0:3000/...
 ```
 
-컨테이너는 `HOSTNAME=0.0.0.0 PORT=3000`으로 바인딩되고, standalone 서버의 `req.url`은
-프록시가 넘긴 `Host`가 아니라 그 바인드 주소를 담는다. 로그인 자체는 이미 성공한
-상태였다(계정·세션·워크스페이스 생성 완료) — 마지막 리다이렉트만 틀렸다는 점이
-디버깅을 헷갈리게 한다.
+The container binds with `HOSTNAME=0.0.0.0 PORT=3000`, and the standalone server's
+`req.url` holds that bind address, not the `Host` the proxy passed along. The sign-in
+itself had already succeeded (account, session and workspace all created) — the fact
+that only the last redirect was wrong is what makes debugging confusing.
 
-고친 방법은 **`GOOGLE_REDIRECT_URI`의 origin을 기준으로 삼는 것**이다. 그 값은 구글이
-콘솔 등록값과 한 글자 단위로 검증하므로 정의상 이 앱의 공개 origin이고, 프록시 헤더
-(`X-Forwarded-Host`)를 신뢰하지 않아도 된다. 앱에서 요청으로부터 절대 URL을 만드는
-곳은 여기뿐이라는 것도 확인했다.
+The fix was **to use the origin of `GOOGLE_REDIRECT_URI` as the base**. Google verifies
+that value character by character against the console registration, so by definition it
+is this app's public origin, and there's no need to trust proxy headers
+(`X-Forwarded-Host`). We also confirmed this is the only place in the app that builds an
+absolute URL from the request.
 
-### 4.12 프로세스는 살았는데 리슨 소켓만 죽는다 — unhealthy는 아무도 안 고친다
+### 4.12 The process lives but only the listen socket dies — nobody fixes unhealthy
 
-2026-08-13 10:17:53Z, `ainmem_prod_app`의 next-server(PID 1)가 **살아 있는 채로
-3000 리슨 소켓만 사라졌다**. 이후 ~70분간 502. 진단 당시의 모습:
+At 2026-08-13 10:17:53Z, `ainmem_prod_app`'s next-server (PID 1) **stayed alive while
+only its 3000 listen socket disappeared**. ~70 minutes of 502s followed. What it looked
+like at diagnosis:
 
-- 컨테이너 `Up (unhealthy)`, healthcheck 연속 실패 142회 — 그런데 아무 일도
-  일어나지 않았다. `restart: unless-stopped`는 **프로세스 종료**에만 반응하고,
-  docker 는 unhealthy 상태에 어떤 조치도 하지 않는다.
-- 컨테이너 안 `/proc/net/tcp`에 3000 LISTEN 없음, 밖에서 `wget` → refused.
-  nginx 에러 로그는 `recv() failed (104: Connection reset by peer)` 530건 —
-  111(refused)이 아니라 104인 이유는 docker-proxy 가 먼저 accept 하기 때문이다.
-- 근본 원인은 **못 찾았다**: 앱 로그는 컨테이너 3일 수명 동안 13줄(배너 +
-  Server Action 스팸)뿐이고, OOM 아님, fd 26/1048576, 커널 로그 조용함.
-  54초 전 같은 호스트의 무관한 컨테이너(multica) 재시작이 있었지만 인과 불명.
+- Container `Up (unhealthy)`, 142 consecutive healthcheck failures — yet nothing
+  happened. `restart: unless-stopped` reacts only to **process exit**, and docker takes
+  no action on the unhealthy state.
+- No 3000 LISTEN in `/proc/net/tcp` inside the container, `wget` from outside → refused.
+  The nginx error log had 530 `recv() failed (104: Connection reset by peer)` — it's 104
+  rather than 111 (refused) because docker-proxy accepts first.
+- The root cause was **not found**: the app log had only 13 lines over the container's
+  3-day lifetime (banner + Server Action spam), no OOM, fd 26/1048576, kernel log quiet.
+  An unrelated container (multica) on the same host restarted 54 seconds earlier, but
+  causality is unknown.
 
-조치: `docker restart ainmem_prod_app` 으로 즉시 복구 + 재발 대비로
-`scripts/watchdog-prod.sh` 를 cron(1분)에 걸었다 — unhealthy 면 재시작하되,
-/api/health 는 스키마 드리프트로도 실패하므로(§3.6) 10분 쿨다운으로 무한
-재시작을 막고 `~/ainmem-backups/watchdog.log` 에 남긴다. **로그에 restart 가
-반복되면 재시작으로 낫지 않는 문제라는 신호다.**
+Action: recovered immediately with `docker restart ainmem_prod_app`, and to guard
+against recurrence, `scripts/watchdog-prod.sh` was put on cron (every minute) — it
+restarts when unhealthy, but since /api/health also fails on schema drift (§3.6), a
+10-minute cooldown prevents infinite restarts, and it logs to
+`~/ainmem-backups/watchdog.log`. **Repeated restarts in the log are a signal that the
+problem isn't one a restart fixes.**
 
-## 5. dev ↔ prod 격리 현황
+## 5. dev ↔ prod isolation status
 
-| 자원 | 상태 |
+| Resource | Status |
 |---|---|
-| 소스 / `node_modules` / 빌드 | **분리** — HEAD 스냅샷에서 빌드, 이미지 안에서 clean install |
-| Postgres | **분리** — 별도 컨테이너(`ainmem_prod_postgres`) + 별도 볼륨 + 별도 DB·롤 이름 |
-| OKF 콘텐츠 | **분리** — 바인드 마운트 (단, git으로 자동 회수되지 않음) |
-| 포트 | **분리** — prod 3100, dev 3110(고정, §3.8) / dev DB 5434 |
-| 포트 대역 | 이 호스트 규칙: **ainteams 30xx, ainmem 31xx**. `ss -tlnp` 한 줄로 어느 서비스인지 읽힌다 |
-| `SESSION_SECRET` | **분리** — 라이브 전용 값 |
-| 구글 OAuth 클라이언트 | **공유** — 같은 클라이언트에 dev/prod 리디렉션 URI를 함께 등록. 계정 판별만 하고 데이터는 건드리지 않는다 |
-| LLM | **해당 없음** — 이 호스트에 vLLM이 없고 prod는 보류 상태(§4.8) |
+| Source / `node_modules` / build | **Separated** — built from a HEAD snapshot, clean install inside the image |
+| Postgres | **Separated** — separate container (`ainmem_prod_postgres`) + separate volume + separate DB/role names |
+| OKF content | **Separated** — bind mount (but not automatically recovered via git) |
+| Ports | **Separated** — prod 3100, dev 3110 (fixed, §3.8) / dev DB 5434 |
+| Port ranges | This host's convention: **ainteams 30xx, ainmem 31xx**. A single `ss -tlnp` line tells you which service |
+| `SESSION_SECRET` | **Separated** — a live-only value |
+| Google OAuth client | **Shared** — dev/prod redirect URIs registered on the same client. It only identifies accounts and doesn't touch data |
+| LLM | **N/A** — this host has no vLLM and prod is on hold (§4.8) |
 
-같은 호스트의 다른 서비스(`ainteams_prod_*`, `ainteams_staging_*`)와도 포트·DB·볼륨이
-전부 다르다. 겹치는 자원은 없다.
+Ports, DBs and volumes also all differ from other services on the same host
+(`ainteams_prod_*`, `ainteams_staging_*`). No resources overlap.
 
-## 6. 열린 질문
+## 6. Open questions
 
-1. **OKF 회수 정책.** 라이브가 쓴 문서는 바인드 마운트에만 쌓이고 git에 안 돌아온다.
-   주기적으로 커밋할지, 버릴지 정해야 한다.
-2. **origin/main 히스토리 재작성.** 2026-07-25 01:35 UTC `18084c0` 직후 GitHub 웹 UI
-   업로드 커밋을 rebase로 통합하면서 179개 커밋의 SHA가 새로 찍혔다. 로컬 main이
-   origin/main의 내용상 상위 집합(+ call 작업 10개)이라 `push --force-with-lease` 한 번이면
-   정리되지만, 히스토리 재작성이라 합의가 필요하다. 배포 브랜치는 그 다음에 따는 게 깔끔하다.
-5. **백업.** 프로덕션 DB 볼륨과 OKF 바인드 마운트에 대한 백업이 아직 없다.
-   (`deploy/backups/`에 수동 스냅샷만 있다.)
-6. **ENS 레코드가 옛 A2A 주소를 가리킨다.** DB는 §4.10에서 정정했지만 온체인
-   `agent-endpoint[a2a]` 텍스트 레코드는 아직 `192.168.1.193:36625`다.
-   8개 에이전트에 대해 재발행이 필요하고, 가스와 키가 든다.
-7. **통화 STT가 꺼져 있다.** `NEXT_PUBLIC_CALL_WEB_SPEECH` 미설정이라 브라우저
-   음성 인식이 항상 off고, 에이전트는 통화를 듣지 못한다(리캡은 100% 발화 기반).
-   dev도 동일하므로 회귀는 아니지만, 데모에서 "에이전트가 통화를 듣는다"를
-   보여줄 거라면 build arg로 `1`을 넘기고 재빌드해야 한다. 끌 거라면
-   `call-view.tsx`의 "STT unavailable" 안내를 항상 노출하도록 바꿔야 한다.
-8. **human-backed 결제가 전부 403이다.** World ID / humanbacked 레지스트리 주소가
-   양쪽 다 미설정이라 `readIsHumanBacked()`가 무조건 false를 돌려주고
-   `seller.ts`가 모든 지불을 거부한다. 켤지(빌드 arg + 런타임 env 동시) 끌지
-   (`seller.ts` 게이트 완화) 정해야 한다. 이것도 dev와 동일 상태다.
-9. **배포를 `flock`으로 직렬화하기 — 데모 후로 미룸(2026-07-26 합의).** §2의 두
-   함정은 둘 다 사람이 규율로 막을 수 없는 종류다. 동시 `up -d`는 그날 실제로
-   프로덕션을 40초 내렸고, `.env.prod`의 `APP_TAG`는 배포와 별개 단계라 계속
-   어긋난다(그날 세 번 손으로 맞췄고 세 번 다 다음 배포에 밀렸다). 스크립트
-   하나가 둘 다 없앤다:
+1. **OKF recovery policy.** Documents written by live accumulate only in the bind mount
+   and don't come back to git. We need to decide whether to commit them periodically or
+   discard them.
+2. **origin/main history rewrite.** Right after `18084c0` at 2026-07-25 01:35 UTC, a
+   GitHub web UI upload commit was folded in via rebase, which re-stamped the SHAs of 179
+   commits. Local main is a content superset of origin/main (+ 10 call-work commits), so
+   a single `push --force-with-lease` would clean it up, but it's a history rewrite and
+   needs agreement. It's cleanest to cut the deploy branch after that.
+5. **Backups.** There are no backups yet for the production DB volume and the OKF bind
+   mount. (Only manual snapshots in `deploy/backups/`.)
+6. **ENS records point to the old A2A address.** The DB was corrected in §4.10, but the
+   on-chain `agent-endpoint[a2a]` text record is still `192.168.1.193:36625`. It needs to
+   be reissued for 8 agents, which costs gas and keys.
+7. **Call STT is off.** `NEXT_PUBLIC_CALL_WEB_SPEECH` is unset, so browser speech
+   recognition is always off and agents can't hear calls (recaps are 100%
+   utterance-based). Dev is the same, so it's not a regression, but if a demo is going
+   to show "the agent listens to the call", you need to pass `1` as a build arg and
+   rebuild. If it stays off, `call-view.tsx` should be changed to always show the
+   "STT unavailable" notice.
+8. **Every human-backed payment is 403.** The World ID / humanbacked registry addresses
+   are both unset, so `readIsHumanBacked()` always returns false and `seller.ts` rejects
+   every payment. We need to decide whether to turn it on (build arg + runtime env
+   together) or off (relax the `seller.ts` gate). This is also the same state as dev.
+9. **Serializing deploys with `flock` — postponed until after the demo (agreed
+   2026-07-26).** Both pitfalls in §2 are the kind people can't prevent through
+   discipline. The concurrent `up -d` actually took production down for 40 seconds that
+   day, and `APP_TAG` in `.env.prod` is a step separate from the deploy, so it keeps
+   drifting (it was fixed by hand three times that day, and all three were overrun by
+   the next deploy). A single script removes both:
 
    ```bash
    exec 9>/tmp/memory-live-deploy.lock
-   flock -w 900 9 || exit 1                          # 동시 배포 차단
+   flock -w 900 9 || exit 1                          # block concurrent deploys
    APP_TAG=$TAG compose build app && APP_TAG=$TAG compose up -d app
-   sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.prod    # 핀을 배포의 일부로
+   sed -i "s/^APP_TAG=.*/APP_TAG=$TAG/" .env.prod    # make the pin part of the deploy
    ```
 
-   지금 만들지 않은 이유: 모든 세션이 이 스크립트를 써야 잠금이 의미가 있는데,
-   데모 준비 중에는 다들 `docker compose`를 직접 친다. 반쪽 잠금은 "보호받고
-   있다"는 착각만 준다. 데모가 끝나고 배포자가 한 명일 때 넣는다.
+   Why not now: the lock only means something if every session uses this script, and
+   during demo prep everyone types `docker compose` directly. A half lock only gives
+   the illusion of "being protected". Add it once the demo is over and there's a single
+   deployer.

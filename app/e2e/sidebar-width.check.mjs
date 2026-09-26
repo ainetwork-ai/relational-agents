@@ -1,15 +1,16 @@
-// 사이드바가 처음 열렸을 때의 폭 — 원본은 270이다.
+// The sidebar's width when first opened — the original is 270.
 //
-// 우리 기본값은 240이었다. 30px 차이는 사이드바 안에서는 티가 잘 안 나지만,
-// 본문 시작 x 가 통째로 밀리기 때문에 표·툴바처럼 오른쪽 끝까지 가는 것들의
-// 잰 값이 전부 어긋난다 — 열 폭이 맞는데도 표가 다르게 보이는 원인이 된다.
+// Our default was 240. A 30px difference is barely noticeable inside the sidebar,
+// but the body's starting x shifts as a whole, so every measurement of things that
+// run to the right edge, like tables and toolbars, is off — it is why a table looks
+// different even when its column widths match.
 //
-// 저장된 폭이 있으면 그걸 쓰는 건 원본과 같다(노션도 localStorage 에 들고 있다).
-// 그래서 여기서는 **저장된 값이 없는 새 프로필**의 첫 렌더만 본다.
+// Using the saved width when there is one matches the original (Notion keeps it in
+// localStorage too). So this only looks at the first render of a **fresh profile with no saved value**.
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] [USER_ID=…] node e2e/sidebar-width.check.mjs
 //
-// 읽기 전용: 페이지를 열어 좌표만 읽는다.
+// Read-only: opens the page and only reads coordinates.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
@@ -19,7 +20,7 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf"; // Projects
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj@comcom.ai
 
-const G = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-sidebar-width.json", import.meta.url), "utf8"));
+const G = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-sidebar-width.json", import.meta.url), "utf8"));
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 const cookie = await sealData({ userId: USER_ID }, { password: secret, ttl: 0 });
@@ -30,7 +31,7 @@ await ctx.addCookies([{ name: "rm-session", value: cookie, domain: new URL(BASE)
 const page = await ctx.newPage();
 await page.goto(`${BASE}/p/${PAGE_ID}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
 await page.waitForSelector("[data-testid='sidebar']", { timeout: 120_000 });
-// 저장된 폭을 읽는 effect 는 마이크로태스크로 미뤄져 있다 — 그것까지 지나간 뒤에 잰다
+// The effect that reads the saved width is deferred to a microtask — measure after it has run
 await page.waitForTimeout(1000);
 
 const got = await page.evaluate(() => {
@@ -46,18 +47,18 @@ const got = await page.evaluate(() => {
 await browser.close();
 
 const d = [];
-if (got.saved !== null) d.push(`새 프로필인데 저장된 폭이 있습니다: ${got.saved} (테스트가 오염됐습니다)`);
-if (Math.abs(got.width - G.width) > 0.5) d.push(`폭: 우리 ${got.width} / 노션 ${G.width}`);
-if (Math.abs(got.x - G.x) > 0.5) d.push(`왼쪽 끝 x: 우리 ${got.x} / 노션 ${G.x}`);
+if (got.saved !== null) d.push(`fresh profile but a saved width exists: ${got.saved} (the test is contaminated)`);
+if (Math.abs(got.width - G.width) > 0.5) d.push(`width: ours ${got.width} / Notion ${G.width}`);
+if (Math.abs(got.x - G.x) > 0.5) d.push(`left edge x: ours ${got.x} / Notion ${G.x}`);
 if (Math.abs(got.right - G.frameStartsAt) > 0.5)
-  d.push(`본문 시작 x: 우리 ${got.right} / 노션 ${G.frameStartsAt}`);
+  d.push(`body start x: ours ${got.right} / Notion ${G.frameStartsAt}`);
 
 if (d.length) {
-  console.error("\n  ┌─ 사이드바 폭이 원본과 다릅니다 ───────────────────────────");
+  console.error("\n  ┌─ Sidebar width differs from the original ─────────────────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-sidebar-width.json");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-sidebar-width.json");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log(`사이드바 폭 ${got.width}px, 본문 시작 ${got.right}px — 원본과 일치`);
+console.log(`Sidebar width ${got.width}px, body starts at ${got.right}px — matches the original`);

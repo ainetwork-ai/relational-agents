@@ -81,8 +81,8 @@ export function SlashMenu({
   return (
     <div
       data-testid="slash-menu"
- // 원본(2026-08-26 실측): 324 wide, radius 10, layered shadow, no border; a
- // scrolling list of 32px rows capped at 354.8, then a 42px "메뉴 닫기 esc" footer
+ // Original (measured 2026-08-26): 324 wide, radius 10, layered shadow, no border; a
+ // scrolling list of 32px rows capped at 354.8, then a 42px "Close menu esc" footer
       className="popover-anim fixed z-50 w-[324px] overflow-hidden rounded-[10px] bg-white shadow-[0_20px_24px_rgba(25,25,25,0.05),0_5px_8px_rgba(25,25,25,0.027),0_0_0_1px_rgba(42,28,0,0.07)] dark:bg-neutral-800 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
       style={{ visibility: "hidden" }}
       ref={menuRef}
@@ -91,10 +91,10 @@ export function SlashMenu({
         {items.map((item, i) => {
           const SECTION_LABEL: Record<string, string> = {
             aindrive: "aindrive",
-            basic: "기본 블록",
-            media: "미디어",
-            database: "데이터베이스",
-            advanced: "고급 블록",
+            basic: "Basic blocks",
+            media: "Media",
+            database: "Database",
+            advanced: "Advanced blocks",
             ai: "AI",
           };
           const cat = item.category ?? "basic";
@@ -155,7 +155,7 @@ export function SlashMenu({
         })}
       </div>
       <div className="flex h-[42px] items-center justify-between border-t border-[rgba(42,28,0,0.07)] px-3 text-[14px] text-[#2c2c2b] dark:border-white/10 dark:text-neutral-200">
-        <span>{t("메뉴 닫기")}</span>
+        <span>{t("Close menu")}</span>
         <span className="text-[12px] text-[#a19e99]">esc</span>
       </div>
     </div>

@@ -80,7 +80,7 @@ export function MemorySelect({
               : "max-w-32 truncate"
           }
         >
-          {current?.label ?? placeholder ?? t("선택…")}
+          {current?.label ?? placeholder ?? t("Select…")}
         </span>
         <ChevronDown size={11} className="shrink-0 text-neutral-400" />
       </button>
@@ -92,12 +92,12 @@ export function MemorySelect({
               data-testid={`${testid}-search`}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={t("검색…")}
+              placeholder={t("Search…")}
               className="mb-1 w-full rounded border border-neutral-200 px-1.5 py-1 text-xs outline-none dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200"
             />
           )}
           {shown.length === 0 && (
-            <p className="px-2 py-1 text-xs text-neutral-400">{t("결과 없음")}</p>
+            <p className="px-2 py-1 text-xs text-neutral-400">{t("No results")}</p>
           )}
           {shown.map((o) => (
             <button

@@ -1,0 +1,26 @@
+{
+  "_source": "app.notion.com sandbox page, measured 2026-08-26 (scratchpad/m-plus-4/5/6.mjs, + clicked after Page.bringToFront)",
+  "behaviour": {
+    "contentLine": "creates a new empty line below and the menu opens on that line",
+    "emptyLine": "adds no line; the menu opens on that line",
+    "noSlashCharacter": true,
+    "caretOffset": 0,
+    "clickOnSameLine": "menu closes, the line goes back to the default text"
+  },
+  "placeholder": {
+    "text": "필터링 기준을 입력하세요.",
+    "pillBg": "rgba(66, 35, 3, 0.03)",
+    "defaultText": "명령어는 '/'를 입력하세요.",
+    "_note": "The original prefixes \"AI 기능은 '스페이스 키', \" (\"AI features: press space, \"), but this service has no AI features, so it was dropped (comcom decision, 2026-08-26)"
+  },
+  "menu": {
+    "w": 324,
+    "h": 396.8,
+    "leftFromBlock": 0,
+    "gap": 8,
+    "radius": "10px",
+    "listMaxH": "354.8px",
+    "itemH": 32,
+    "footerH": 42
+  }
+}

@@ -9,6 +9,7 @@ export async function getLocale(saved?: string | null): Promise<Locale> {
   return resolveLocale({
     saved,
     cookie: c.get(LANG_COOKIE)?.value,
+    deployment: process.env.DEFAULT_LOCALE,
     acceptLanguage: h.get("accept-language"),
   });
 }

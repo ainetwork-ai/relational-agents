@@ -1,88 +1,93 @@
-# 언어 설정 설계 (i18n)
+# Language settings design (i18n)
 
-작성 2026-08-26. 원본 관찰은 모두 `docs/settings_my_settings.html` 과 그날 CDP 로 잰 값이다.
+Written 2026-08-26. Every observation of the original comes from `docs/settings_my_settings.html` and values measured over CDP that day.
 
-## 1. 노션은 어떻게 하나 (관찰)
+> **Update 2026-09-25: English is now the source language.** UI strings are written in English in the code (`t("Add icon")`), and Korean is a translation dictionary, `app/src/i18n/ko.ts` (`{ "Add icon": "<Korean>" }`). `en.ts` no longer exists. Outside `app/src/i18n/`, the repository contains no Korean. D3 below records the original Korean-keyed decision and the flip.
 
-- **진입 경로**: 좌상단 워크스페이스 스위처 클릭 → 메뉴 `업그레이드 / 설정 / 멤버 초대 / 계정 추가하기 / (워크스페이스 목록) / 워크스페이스 추가하기 / 로그아웃` → `설정`.
-  사이드바 본문에는 `설정` 행이 **없다** (하단은 `도움말 / 휴지통`).
-- **설정 모달** (`aria-label="설정과 멤버"`): 90vw(max 1512) × (100%-100px), r12. 좌 240px 세로 탭.
-  - `계정`: 프로필(이름) · **기본 설정** · 알림 · 메일 및 캘린더
-  - `워크스페이스`: 일반 · 사람 · 가져오기 / `기능`: Notion AI · 연결 · MCP · 공개 페이지 · 이모지 · 개발자 / 팀스페이스 / 요금제
-- **언어의 자리**: `기본 설정` 탭 → 섹션 `테마 / 입력 옵션 / **언어 및 시간** / 데스크톱 앱 / 시작 페이지 / 개인정보 보호`.
-  `언어 및 시간` 안: **언어**(드롭다운) · 숫자 형식 · 텍스트 방향 · 주 시작 요일 · 날짜 형식 · 시간대.
-- **범위**: 계정(사용자) 단위. 워크스페이스가 아니다. 22개 언어, 드롭다운 항목은 `원어 / 한국어명` 2줄(43px).
-- **적용**: UI 문자열 전체 + 날짜·숫자 기본 형식. 사용자 콘텐츠(페이지 제목·본문)는 당연히 안 바뀐다.
-  단, **템플릿/기본값 문자열**(새 DB 의 `이름`·`태그` 속성명, `제목 없음`, `새 페이지`)은 만들 때의 언어로 **콘텐츠에 박힌다**.
+## 1. How Notion does it (observed)
 
-## 2. 우리 현황
+- **Entry path**: click the workspace switcher at the top left → menu `Upgrade / Settings / Invite members / Add another account / (workspace list) / Add a workspace / Log out` → `Settings`.
+  The sidebar body has **no** `Settings` row (the bottom has `Help / Trash`).
+- **Settings modal** (`aria-label` is the "Settings & members" label): 90vw (max 1512) × (100%-100px), r12. Vertical tabs, 240px, on the left.
+  - `Account`: profile (name) · **Preferences** · Notifications · Mail & Calendar
+  - `Workspace`: General · People · Import / `Features`: Notion AI · Connections · MCP · Public pages · Emoji · Developers / Teamspaces / Plans
+- **Where language lives**: `Preferences` tab → sections `Appearance / Input options / **Language & Time** / Desktop app / Start page / Privacy`.
+  Inside `Language & Time`: **Language** (dropdown) · Number format · Text direction · Start week on · Date format · Time zone.
+- **Scope**: per account (user), not per workspace. 22 languages; each dropdown item is two lines (43px): the native name and the name in the current language.
+- **What it applies to**: every UI string plus the default date and number formats. User content (page titles, body) naturally does not change.
+  However, **template/default strings** (the `Name` and `Tags` property names of a new DB, `Untitled`, `New page`) are **baked into content** in the language active when they were created.
 
-- i18n 레이어 없음. 문자열 하드코딩 ≈ JSX 텍스트 131 + placeholder/title/aria 231 + `label:` 161 + toast 등 ≈ **600개**.
-- 한국어 우세 파일 27 / 영어 우세 30. 경계 = "원본 캡처로 맞춘 곳(한국어) vs 캡처 없이 만든 곳(영어)".
-- 날짜는 `src/lib/date-format.ts` 의 `const LOCALE="ko-KR"` 고정, 그 외 `toLocaleString("en-US")` 6곳 산재.
-- 설정 UI: `profile-settings.tsx`(이름 편집, 사이드바 하단 행) 와 `workspace-settings-modal.tsx`(스위처 메뉴에서 열림). 노션형 통합 설정 모달은 없음.
-- `users` 테이블에 언어 컬럼 없음. `<html lang>` 미지정.
+## 2. Where we stand (as of 2026-08-26)
 
-## 3. 결정 사항과 권고
+- No i18n layer. Hardcoded strings ≈ 131 JSX text + 231 placeholder/title/aria + 161 `label:` + toasts etc. ≈ **600**.
+- 27 files mostly Korean, 30 mostly English. The boundary is "places matched against original captures (Korean) vs places built without captures (English)".
+- Dates are fixed by `const LOCALE="ko-KR"` in `src/lib/date-format.ts`; besides that, `toLocaleString("en-US")` is scattered over 6 places.
+- Settings UI: `profile-settings.tsx` (name editing, a row at the bottom of the sidebar) and `workspace-settings-modal.tsx` (opened from the switcher menu). No Notion-style unified settings modal.
+- The `users` table has no language column. `<html lang>` is not set.
 
-### D1. 언어 설정의 범위 → **사용자 단위** (노션과 동일)
-`users.language text` (null = 미설정). 워크스페이스 기본 언어는 두지 않는다.
-미설정일 때: 브라우저 `Accept-Language` → 지원 언어에 있으면 그것, 없으면 `ko`(팀 기본).
-저장 즉시 반영(새로고침 없이), 쿠키 `lang` 에도 복사해 서버 렌더(첫 페인트·`<html lang>`) 에서 깜빡임 없이 맞춘다.
+## 3. Decisions and recommendations
 
-### D2. 진입 경로 → **스위처 메뉴 `설정` → 통합 설정 모달**, 첫 단계는 2탭만
-노션 nav 를 그대로 다 만들지 않는다. `계정: 내 계정(이름·아바타) / 기본 설정` + `워크스페이스: 일반(기존 workspace-settings-modal 내용 이관)`.
-`기본 설정` 에는 `테마`(기존 DarkModeToggle 이관) 와 `언어 및 시간`(언어 · 주 시작 요일 · 시간대는 뒤로) 만.
-사이드바 하단의 `ProfileSettings + DarkModeToggle + 로그아웃` 행은 모달로 흡수한 뒤 제거 (원본에 없는 행).
-치수는 캡처 기준(모달·nav 240·탭 28·섹션 제목 16/24·행 라벨 14/20·드롭다운 28h r6) — 구현 시 `e2e/settings-modal.check.mjs` 로 대조.
+### D1. Scope of the language setting → **per user** (same as Notion)
+`users.language text` (null = not set). No workspace default language.
+When not set: browser `Accept-Language` → use it if it is a supported language, otherwise `ko` (team default).
+Applied immediately on save (no reload), and copied into the `lang` cookie so server rendering (first paint, `<html lang>`) matches without flicker.
 
-### D3. 문자열 체계 → **`next-intl` 없이, 자체 경량 사전** (1 파일/언어, 키 = 원본 한국어)
-이유: (a) App Router 라우팅을 `/[locale]/` 로 바꾸지 않아도 됨 — 우리 URL(`/p/<id>`) 은 그대로. (b) 대조 작업의 원문이 한국어 캡처라, **키를 영문 슬러그가 아니라 한국어 원문 그대로** 쓰면 캡처와 코드가 1:1 로 읽히고, 키 이름 짓는 비용이 0.
+### D2. Entry path → **switcher menu `Settings` → unified settings modal**, only two tabs at first
+We do not build all of Notion's nav. `Account: My account (name, avatar) / Preferences` + `Workspace: General (content moved from the existing workspace-settings-modal)`.
+`Preferences` only holds `Appearance` (moved from the existing DarkModeToggle) and `Language & Time` (language only; start of week and time zone later).
+The `ProfileSettings + DarkModeToggle + Log out` row at the bottom of the sidebar is removed after being absorbed into the modal (the original has no such row).
+Dimensions follow the capture (modal, nav 240, tab 28, section title 16/24, row label 14/20, dropdown 28h r6); compare with `e2e/settings-modal.check.mjs` when implementing.
+
+### D3. String system → **no `next-intl`; our own lightweight dictionary** (one file per language)
+Reasons: (a) no need to move App Router routing to `/[locale]/`; our URLs (`/p/<id>`) stay as they are. (b) Originally (2026-08-26), because the source for comparison work was the Korean capture, **keys were the original Korean text rather than English slugs**, so captures and code read 1:1 and naming keys cost nothing.
+
+**Flipped 2026-09-25: keys are now English source text.** The owner decided the repository should contain no Korean outside `app/src/i18n/`. Every `t("<Korean>")` call site was rewritten to its English string, `en.ts` was removed, and `ko.ts` became the Korean dictionary over English keys. Korean content that is Korean by nature (demo family names, seeded paths, golden-set expected strings, IME test input) moved to modules under `app/src/i18n/content/`.
 
 ```ts
-// src/i18n/ko.ts  — 원문. 값 = 키. (자동 생성 가능)
-// src/i18n/en.ts  — { "아이콘 추가": "Add icon", "커버 추가": "Add cover", ... }
-// 사용:  t("아이콘 추가")   /  t("{n}개 선택", { n })
+// src/i18n/ko.ts  — Korean dictionary over English keys: { "Add icon": "<Korean>", "Add cover": "<Korean>", ... }
+// usage:  t("Add icon")   /  t("{n} selected", { n })
+// locale ko → the ko.ts value; any other locale → the key itself (English)
 ```
-- `t()` 는 클라이언트 훅 `useT()` + 서버용 `getT()` 둘 다 같은 사전. 미번역 키는 **한국어 원문 폴백**(빈칸이 뜨지 않음).
-- 복수형·성별은 필요할 때 ICU 대신 키 분리(`"1개"`, `"{n}개"`)로 간다 — 22개 언어를 다 할 계획이 아니면 ICU 는 과함.
-- 사전 누락 검사는 스크립트로: `t("…")` 호출을 grep 해 `en.ts` 에 없는 키를 빌드에서 경고.
-- 날짜·숫자는 `Intl` 에 `users.language` 를 넘긴다. `date-format.ts` 의 `LOCALE` 상수를 훅으로 교체하고 산재한 `"en-US"` 6곳을 한 곳으로 모은다.
+- `t()` is the same dictionary for the client hook `useT()`, server-side `getT()`, and `makeT(locale)` where code picks the language itself (agent replies). A key missing from `ko.ts` **falls back to the English source** (never blank).
+- Plurals and gender use separate keys (`"1 item"`, `"{n} items"`) instead of ICU when needed; ICU is overkill unless we plan all 22 languages.
+- Missing-translation check by script: `node scripts/i18n-keys.mjs` greps `t("…")` calls and reports keys that are not in `ko.ts`.
+- Dates and numbers pass `users.language` to `Intl`. Replace the `LOCALE` constant in `date-format.ts` with a hook and gather the 6 scattered `"en-US"` uses into one place.
 
-### D4. 첫 릴리스 언어 → **ko + en(US)** 만
-드롭다운은 노션처럼 `원어 | 현재 언어명` 2줄로 만들되 항목은 2개. 다른 언어는 사전 파일 하나 추가로 늘어난다.
+### D4. Languages in the first release → **ko + en (US)** only
+The dropdown uses Notion's two-line `native name | name in current language` form, with two items. Other languages come by adding one dictionary file.
 
-### D5. 기본값 문자열의 콘텐츠 박힘 → 노션과 같게 **만들 때의 언어로 저장**
-새 DB 속성명 `이름/Name`, `제목 없음/Untitled` 는 생성 시점의 `t()` 결과를 저장. 이후 언어를 바꿔도 안 바뀐다(원본과 동일, 사용자도 그렇게 기대).
-단 **표시용 폴백**(제목이 빈 페이지에 보이는 `제목 없음`)은 저장이 아니라 렌더이므로 현재 언어를 따른다.
+### D5. Default strings baked into content → like Notion, **stored in the language active at creation**
+New DB property names such as `Name` and `Untitled` store the result of `t()` at creation time. Changing the language later does not change them (same as the original, and what users expect).
+But the **display fallback** (the `Untitled` shown for a page with an empty title) is rendering, not storage, so it follows the current language.
 
-### D6. 한/영 섞임 정리 순서
-1. 사전 도입 + `t()` 배관 (문자열 0개 옮김, 동작 변화 없음)
-2. 영어로 남은 파일 30개 → 한국어 원문 키로 교체 (이 시점에 UI 가 한국어로 통일됨)
-3. `en.ts` 채우기 — 캡처가 있는 문구는 노션 영어판 표기를 따르고(확인 필요, 아래 열린 질문), 없는 건 직접
-4. 설정 모달 + `users.language` + 쿠키/`<html lang>`
-5. 날짜·숫자 로케일 연결
+### D6. Order for cleaning up the Korean/English mix
+1. Introduce the dictionary + `t()` plumbing (0 strings moved, no behaviour change)
+2. The 30 files still in English → replace with Korean source keys (at this point the UI is unified in Korean)
+3. Fill `en.ts`: wording that has a capture follows Notion's English edition (needs confirmation, see open questions below); the rest written directly
+4. Settings modal + `users.language` + cookie/`<html lang>`
+5. Wire up date and number locales
 
-## 4. 열린 질문 (사람 결정)
+## 4. Open questions (human decisions)
 
-- Q1. 영어 번역의 기준을 **노션 영어판 문구** 로 잡을 것인가? 그러려면 원본 계정 언어를 잠깐 영어로 바꿔 같은 화면을 캡처해야 한다(원본 설정 변경 — 규칙상 사람이 직접).
-- Q2. 사이드바 하단 행(이름·다크모드·로그아웃) 을 없애고 전부 모달로 옮기는 데 동의하는지. (로그아웃은 노션처럼 스위처 메뉴로.)
-- Q3. `언어 및 시간` 의 나머지(주 시작 요일·시간대·날짜 형식) 를 이번에 같이 넣을지, 언어만 먼저 넣을지. 권고: 언어만.
+- Q1. Should English translations follow **Notion's English-edition wording**? That requires briefly switching the original account's language to English and capturing the same screens (changing original settings; by the rules, a human does it).
+- Q2. Do we agree to remove the sidebar bottom row (name, dark mode, log out) and move everything to the modal? (Log out goes to the switcher menu, like Notion.)
+- Q3. Should the rest of `Language & Time` (start of week, time zone, date format) go in now, or language only first? Recommendation: language only.
 
-## 5. 결정 (2026-08-26)
-- Q1: 노션 영어판을 기준으로 한다. comcom 이 원본 계정을 English 로 바꿔 캡처 시간을 주고, 끝나면 한국어로 되돌린다. 그 전까지 `en.ts` 는 채우지 않는다.
-- Q2: 사이드바 하단 행(이름·다크모드·로그아웃) 제거, 모달/스위처 메뉴로 이관. 동의.
-- Q3: `언어 및 시간` 은 **언어만**. 주 시작 요일·시간대·날짜 형식은 나중.
+## 5. Decisions (2026-08-26)
+- Q1: Use Notion's English edition as the reference. comcom switches the original account to English to allow capture time, then switches it back to Korean. Until then, `en.ts` is not filled.
+- Q2: Remove the sidebar bottom row (name, dark mode, log out) and move it to the modal / switcher menu. Agreed.
+- Q3: `Language & Time` gets **language only**. Start of week, time zone, and date format come later.
 
-## 6. 진행 (2026-08-26)
-- [x] D6-1 사전 배관: `src/i18n/` (`useT`/`getT`/`useIntlLocale`, 쿠키 `lang`, `<html lang>`), `users.language` — `933500c`
-- [x] D6-4 설정 모달(내 계정 · 기본 설정 · 일반) + 언어 드롭다운, 스위처 메뉴 순서, 사이드바 하단 행 제거 — `5394b90`
-- [x] D6-5 날짜·숫자 로케일(`date-format.ts`, `dates.ts`, 산재한 `en-US`) — `612be96`, `8915c61`
-- [x] D6-2 한국어 통일: 695개 키가 `t()` 를 지남. 검사: `node scripts/i18n-keys.mjs` — `8915c61`
-- [x] D6-3 `en.ts` 채우기 — 영어판 캡처 `docs/en/`(2026-08-26) 어휘 기준으로 699개. 누락 0 (`node scripts/i18n-keys.mjs`). 새 키가 생기면 같은 스크립트가 알려준다.
+## 6. Progress (2026-08-26)
+- [x] D6-1 dictionary plumbing: `src/i18n/` (`useT`/`getT`/`useIntlLocale`, `lang` cookie, `<html lang>`), `users.language` — `933500c`
+- [x] D6-4 settings modal (My account · Preferences · General) + language dropdown, switcher menu order, sidebar bottom row removed — `5394b90`
+- [x] D6-5 date and number locales (`date-format.ts`, `dates.ts`, scattered `en-US`) — `612be96`, `8915c61`
+- [x] D6-2 Korean unification: 695 keys pass through `t()`. Check: `node scripts/i18n-keys.mjs` — `8915c61`
+- [x] D6-3 fill `en.ts`: 699 entries based on the vocabulary of the English-edition captures in `docs/en/` (2026-08-26). 0 missing (`node scripts/i18n-keys.mjs`). The same script reports new keys.
+- [x] (2026-09-25) Source language flipped to English: `t()` keys are English, `en.ts` removed, `ko.ts` is the Korean dictionary (see D3). `node scripts/i18n-keys.mjs` now reports keys missing from `ko.ts`.
 
-### D5 확정 (2026-08-26, 노션과 동일하게)
-- **페이지 제목은 비어 있으면 저장하지 않는다**(`""`). 표시 폴백(`제목 없음`/`Untitled`)은 현재 언어 — `pageLabel()` + `t()`. 채팅 "페이지로 만들기"와 행 페이지 생성에서 `Untitled`/`제목 없음`을 저장하던 것을 제거.
-- **속성·상태 옵션·뷰 이름은 만들 때의 언어로 저장**: `provisionDatabase(…, t)` 가 `getT(user.language)` 를 받아 `이름/상태/담당자/마감일`, `할 일/진행 중/완료`, `표/보드` 또는 영어를 넣는다. 유형 피커로 추가한 속성도 그 시점의 유형 라벨.
-- 멘션 칩의 `제목 없음` 텍스트는 블록 HTML 에 박힌다(노션도 멘션 텍스트를 콘텐츠로 저장).
-- 서버 전용 폴백(내보내기 파일명, 검색 인덱스, MCP 슬러그의 `Untitled`)은 표시가 아니라 파일/식별자라 영어 그대로.
+### D5 settled (2026-08-26, same as Notion)
+- **An empty page title is not stored** (`""`). The display fallback (`Untitled`, or its Korean dictionary entry) follows the current language via `pageLabel()` + `t()`. Removed the places where chat "Turn into page" and row page creation stored `Untitled` or its Korean equivalent.
+- **Property, status option, and view names are stored in the language active at creation**: `provisionDatabase(…, t)` receives `getT(user.language)` and inserts `Name/Status/Assignee/Due date`, `To do/In progress/Done`, `Table/Board` in that language. A property added through the type picker also gets the type label of that moment.
+- The `Untitled` text in a mention chip is baked into the block HTML (Notion also stores mention text as content).
+- Server-only fallbacks (export file names, the search index, the `Untitled` in MCP slugs) are files/identifiers, not display, so they stay in English.

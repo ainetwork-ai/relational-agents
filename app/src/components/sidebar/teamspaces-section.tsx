@@ -38,7 +38,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
   // Creation now lives in TeamspaceCreateModal, which follows Notion's two
   // steps (details, then invite) instead of a bare name field in the sidebar.
   /**
-   * A new teamspace arrives with its 팀스페이스 홈 page, so both lists have to be
+   * A new teamspace arrives with its Teamspace Home page, so both lists have to be
    * refetched — reloading only the teamspaces left the row expanding to "No
    * pages inside" while the page sat in the database.
    */
@@ -62,15 +62,15 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
           onClick={toggleCollapsed}
           className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
         >
-          {t("팀스페이스")}
+          {t("Teamspaces")}
         </button>
         <div className="flex items-center gap-0.5">
-          <SectionMenu testId="teamspaces-section-menu" label={t("팀스페이스")} />
+          <SectionMenu testId="teamspaces-section-menu" label={t("Teamspaces")} />
           <button
             data-testid="teamspace-create"
             onClick={() => setCreating((v) => !v)}
             className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
-            aria-label={t("새 팀스페이스")}
+            aria-label={t("New teamspace")}
           >
             <Plus size={14} />
           </button>
@@ -82,7 +82,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
       )}
 
       {teamspaces.length === 0 && !creating && (
-        <p className="px-2 py-1 text-xs text-neutral-400">{t("팀스페이스가 없습니다")}</p>
+        <p className="px-2 py-1 text-xs text-neutral-400">{t("No teamspaces")}</p>
       )}
 
       {!sectionCollapsed &&
@@ -115,7 +115,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                 data-testid={`teamspace-add-page-${ts.id}`}
                 onClick={() => void addPage(ts.id)}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-all hover:bg-neutral-300/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/row:opacity-100 dark:hover:bg-neutral-700"
-                aria-label={t("페이지 추가")}
+                aria-label={t("Add a page")}
               >
                 <Plus size={14} />
               </button>
@@ -127,7 +127,7 @@ export function TeamspacesSection({ workspaceId }: { workspaceId: string | null 
                 {sortRows(tsPages, sidebarSort).map((p) => (
                   <PageItem key={p.id} page={p} depth={1} />
                 ))}
-                {/* Notion closes a teamspace's list with a 새로 추가 row rather
+                {/* Notion closes a teamspace's list with an Add new row rather
                     than an empty-state sentence: the way to add a page should sit
                     where the pages are, not only behind a hover target. It
                     offers a page, or linking the teamspace to aindrive. */}

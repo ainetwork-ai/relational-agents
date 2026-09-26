@@ -1,13 +1,14 @@
-// 행 컨트롤(체크박스·⠿)이 가로 스크롤에서 어디에 있는가.
+// Where the row controls (checkbox · ⠿) sit under horizontal scroll.
 //
-// 스크롤하면 우리 것은 뷰포트 고정 위치에 남아 셀 내용을 덮고 있었다. 원본은
-// 스크롤되면 컨트롤을 스크롤러 왼쪽 끝으로 붙여서, 체크박스만 가장자리(+11)에
-// 남고 ⠿ 는 스크롤러 바깥으로 나가 보이지 않는다
-// (fixtures/notion-row-gutter.json).
+// When scrolled, ours stayed at a fixed viewport position and covered cell
+// content. The original pins the controls to the scroller's left edge once
+// scrolled, so only the checkbox stays at the edge (+11) and ⠿ moves outside
+// the scroller and is hidden
+// (src/i18n/content/e2e-fixtures/notion-row-gutter.json).
 //
 //   [BASE_URL=http://localhost:3110] [PAGE_ID=…] [USER_ID=…] node e2e/row-gutter.check.mjs
 //
-// 읽기 전용: 스크롤과 호버뿐.
+// Read-only: scrolling and hovering only.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
@@ -19,7 +20,7 @@ const USER_ID = process.env.USER_ID ?? "0be606ed-3a1a-4a9b-bc76-630628555f61";
 const SC = ".no-native-scrollbar.overflow-x-auto";
 
 const G = JSON.parse(
-  fs.readFileSync(new URL("./fixtures/notion-row-gutter.json", import.meta.url), "utf8"),
+  fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-row-gutter.json", import.meta.url), "utf8"),
 );
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret =
@@ -36,7 +37,7 @@ await page.goto(`${BASE}/p/${PAGE_ID}`, { waitUntil: "domcontentloaded", timeout
 await page.waitForSelector("[data-cellnav]", { timeout: 120_000 });
 await page.waitForTimeout(1200);
 
-// 표를 세로로만 화면에 넣는다 (scrollIntoView 는 가로로도 움직인다)
+// Bring the table on screen vertically only (scrollIntoView also moves horizontally)
 await page.evaluate((sc) => {
   const row = [...document.querySelectorAll("div")].find((d) => d.className.includes?.("group/dbrow"));
   const s = document.querySelector(sc);
@@ -86,32 +87,32 @@ const measure = async (left) => {
 };
 
 const diffs = [];
-const near = (w, got, want, tol = 1) => { if (Math.abs(Number(got) - Number(want)) > tol) diffs.push(`${w}: 우리 ${got} / 노션 ${want}`); };
+const near = (w, got, want, tol = 1) => { if (Math.abs(Number(got) - Number(want)) > tol) diffs.push(`${w}: ours ${got} / Notion ${want}`); };
 
 const at0 = await measure(0);
-near("스크롤 0 · 체크박스(행 기준)", at0.check?.x - at0.row, G.notScrolled.checkboxFromRow);
-near("스크롤 0 · ⠿(행 기준)", at0.grip?.x - at0.row, G.notScrolled.gripFromRow);
-if (!at0.check?.visible) diffs.push("스크롤 0 · 체크박스가 안 보입니다");
-if (!at0.grip?.visible) diffs.push("스크롤 0 · ⠿가 안 보입니다");
+near("scroll 0 · checkbox (from row)", at0.check?.x - at0.row, G.notScrolled.checkboxFromRow);
+near("scroll 0 · ⠿ (from row)", at0.grip?.x - at0.row, G.notScrolled.gripFromRow);
+if (!at0.check?.visible) diffs.push("scroll 0 · checkbox is not visible");
+if (!at0.grip?.visible) diffs.push("scroll 0 · ⠿ is not visible");
 
 for (const left of [400, 1250]) {
   const at = await measure(left);
-  near(`스크롤 ${left} · 체크박스(스크롤러 기준)`, at.check?.x - at.scroller, G.scrolled.checkboxFromScroller);
+  near(`scroll ${left} · checkbox (from scroller)`, at.check?.x - at.scroller, G.scrolled.checkboxFromScroller);
   if (at.grip?.visible !== G.scrolled.gripVisible)
-    diffs.push(`스크롤 ${left} · ⠿ 보임: 우리 ${at.grip?.visible} / 노션 ${G.scrolled.gripVisible}`);
- // 겹침의 정체: 컨트롤이 스크롤러 안쪽 깊숙이 남아 셀 위에 그려지던 것
+    diffs.push(`scroll ${left} · ⠿ visible: ours ${at.grip?.visible} / Notion ${G.scrolled.gripVisible}`);
+ // What the overlap was: the controls stayed deep inside the scroller and were drawn over the cells
   if (at.check && at.check.x - at.scroller > 24)
-    diffs.push(`스크롤 ${left} · 체크박스가 셀 위에 겹칩니다 (스크롤러+${at.check.x - at.scroller})`);
+    diffs.push(`scroll ${left} · checkbox overlaps the cells (scroller+${at.check.x - at.scroller})`);
 }
 
 await browser.close();
 
 if (diffs.length) {
-  console.error(`\n  ┌─ 행 컨트롤 위치가 원본과 다릅니다 (${diffs.length}건) ────────`);
+  console.error(`\n  ┌─ Row control positions differ from the original (${diffs.length}) ────────`);
   for (const d of diffs) console.error(`  │ ${d}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-row-gutter.json");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-row-gutter.json");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
-console.log("행 컨트롤 위치 원본과 일치 — 스크롤 전 행−26/−62, 스크롤 후 체크박스만 스크롤러+11");
+console.log("Row control positions match the original — before scroll row−26/−62, after scroll only the checkbox at scroller+11");

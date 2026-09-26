@@ -1,22 +1,23 @@
-// 행 댓글 배지를 누르면 열리는 카드 — 원본은 480px 팝오버다(사이드 패널이 아니다).
+// The card that opens from a row's comment badge — the original is a 480px popover (not a side panel).
 //
-// 우리가 갖고 있던 것은 오른쪽 340px 도킹 패널이었다: 헤더 줄, 테두리 친 스레드
-// 카드, 파란 답글 버튼, 해결 버튼. 원본은 이 자리에서 그중 아무것도 보여주지 않고
-// 아바타·이름·날짜·본문만 한 줄기로 쌓는다.
+// What we had was a 340px panel docked on the right: a header row, bordered thread
+// cards, a blue reply button, a resolve button. The original shows none of that here
+// and just stacks avatar·name·date·body in a single column.
 //
 //   [BASE_URL=…] [PAGE_ID=…] [USER_ID=…] node e2e/row-comment-popover.check.mjs
 //
-// 읽기 전용: 배지를 한 번 누르고 좌표만 읽는다.
+// Read-only: clicks the badge once and only reads coordinates.
 
 import fs from "node:fs";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
+import { ko } from "./i18n.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const PAGE_ID = process.env.PAGE_ID ?? "5722f40d-c3f6-4664-9bdb-5a24abe655cf"; // Projects
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85"; // hyeonjj@comcom.ai
 
-const F = JSON.parse(fs.readFileSync(new URL("./fixtures/notion-row-comments.json", import.meta.url), "utf8"));
+const F = JSON.parse(fs.readFileSync(new URL("../src/i18n/content/e2e-fixtures/notion-row-comments.json", import.meta.url), "utf8"));
 const G = F.popover;
 const C = F.comment;
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
@@ -35,7 +36,7 @@ await badge.click();
 await page.waitForSelector("[data-testid='row-comment-popover']", { timeout: 20_000 });
 await page.waitForTimeout(900);
 
-const got = await page.evaluate(() => {
+const got = await page.evaluate((resolveLabel) => {
   const px = (v) => +Number(v).toFixed(2);
   const e = document.querySelector("[data-testid='row-comment-popover']");
   const b = document.querySelector("[data-testid='comment-count-badge']");
@@ -64,63 +65,63 @@ const got = await page.evaluate(() => {
     body: at(first && first.querySelector("p")),
     composer: !!e.querySelector("[data-testid='comment-composer-input']"),
     placeholder: e.querySelector("[data-testid='comment-composer-input']")?.getAttribute("placeholder"),
- // 원본이 이 자리에서 안 보여주는 것들
-    hasResolve: /해결|Resolve/.test(e.innerText),
+ // Things the original does not show here
+    hasResolve: new RegExp(`${resolveLabel}|Resolve`).test(e.innerText),
     hasHeader: !!e.querySelector("header"),
     borderedCards: [...e.querySelectorAll("div")].filter(
       (n) => getComputedStyle(n).borderTopWidth !== "0px"
     ).length,
   };
-});
+}, ko("Resolve"));
 await browser.close();
 
 const d = [];
-const eq = (what, a, b) => { if (String(a) !== String(b)) d.push(`${what}: 우리 ${a} / 노션 ${b}`); };
+const eq = (what, a, b) => { if (String(a) !== String(b)) d.push(`${what}: ours ${a} / Notion ${b}`); };
 const near = (what, a, b, tol = 0.5) => {
-  if (a === null || Math.abs(Number(a) - Number(b)) > tol) d.push(`${what}: 우리 ${a} / 노션 ${b}`);
+  if (a === null || Math.abs(Number(a) - Number(b)) > tol) d.push(`${what}: ours ${a} / Notion ${b}`);
 };
 
-eq("폭", got.w, G.w);
-eq("라운드", got.radius, G.radius);
-eq("배경", got.bg, G.bg);
-eq("그림자", got.shadow, G.shadow);
-near("배지와의 가운데 정렬", got.centerDelta, 0);
-near("배지 아래 간격", got.gapBelowBadge, 4);
+eq("width", got.w, G.w);
+eq("radius", got.radius, G.radius);
+eq("background", got.bg, G.bg);
+eq("shadow", got.shadow, G.shadow);
+near("centered on the badge", got.centerDelta, 0);
+near("gap below the badge", got.gapBelowBadge, 4);
 
-near("아바타 왼쪽", got.avatar?.x, G.insetLeft);
-near("아바타 위", got.avatar?.y, G.insetTop);
-near("아바타 크기", got.avatar?.w, C.avatar.size);
+near("avatar left", got.avatar?.x, G.insetLeft);
+near("avatar top", got.avatar?.y, G.insetTop);
+near("avatar size", got.avatar?.w, C.avatar.size);
 
-near("이름 왼쪽", got.author?.x, C.textColumnLeftInset);
-near("이름 위", got.author?.y, G.insetTop + C.authorTopFromAvatarTop);
-eq("이름 크기", got.author?.fs, C.author.fs);
-eq("이름 굵기", got.author?.fw, C.author.fw);
-eq("이름 색", got.author?.color, C.author.color);
+near("name left", got.author?.x, C.textColumnLeftInset);
+near("name top", got.author?.y, G.insetTop + C.authorTopFromAvatarTop);
+eq("name size", got.author?.fs, C.author.fs);
+eq("name weight", got.author?.fw, C.author.fw);
+eq("name color", got.author?.color, C.author.color);
 
-eq("날짜 크기", got.date?.fs, C.date.fs);
-eq("날짜 색", got.date?.color, C.date.color);
-near("이름과 날짜 간격", got.date && got.author ? got.date.x - (got.author.x + got.author.w) : null, C.date.gapAfterAuthor);
+eq("date size", got.date?.fs, C.date.fs);
+eq("date color", got.date?.color, C.date.color);
+near("gap between name and date", got.date && got.author ? got.date.x - (got.author.x + got.author.w) : null, C.date.gapAfterAuthor);
 
-near("본문 왼쪽", got.body?.x, C.textColumnLeftInset);
-near("본문 위", got.body?.y, G.insetTop + C.bodyTopFromAvatarTop);
-eq("본문 크기", got.body?.fs, C.body.fs);
-eq("본문 줄높이", got.body?.lh, C.body.lineHeight);
-eq("본문 색", got.body?.color, C.body.color);
+near("body left", got.body?.x, C.textColumnLeftInset);
+near("body top", got.body?.y, G.insetTop + C.bodyTopFromAvatarTop);
+eq("body size", got.body?.fs, C.body.fs);
+eq("body line height", got.body?.lh, C.body.lineHeight);
+eq("body color", got.body?.color, C.body.color);
 
-if (!got.composer) d.push("아래쪽 입력줄이 없습니다");
-eq("입력줄 플레이스홀더", got.placeholder, F.composer.placeholder);
-if (got.hasResolve) d.push("해결 버튼이 있습니다 — 원본은 이 팝오버에 두지 않습니다");
-if (got.hasHeader) d.push("헤더 줄이 있습니다 — 원본에는 없습니다");
-if (got.borderedCards) d.push(`테두리 친 카드가 ${got.borderedCards}개 있습니다 — 원본은 한 줄기로 쌓기만 합니다`);
+if (!got.composer) d.push("No input row at the bottom");
+eq("input row placeholder", got.placeholder, F.composer.placeholder);
+if (got.hasResolve) d.push("There is a resolve button — the original does not put one in this popover");
+if (got.hasHeader) d.push("There is a header row — the original has none");
+if (got.borderedCards) d.push(`${got.borderedCards} bordered cards — the original just stacks in a single column`);
 
 if (d.length) {
-  console.error("\n  ┌─ 행 댓글 팝오버가 원본과 다릅니다 ────────────────────────");
+  console.error("\n  ┌─ The row comment popover differs from the original ──────────");
   for (const l of d) console.error(`  │ ${l}`);
   console.error("  │");
-  console.error("  │ 기준: e2e/fixtures/notion-row-comments.json (popover / comment / composer)");
+  console.error("  │ Reference: src/i18n/content/e2e-fixtures/notion-row-comments.json (popover / comment / composer)");
   console.error("  └──────────────────────────────────────────────────────────\n");
   process.exit(1);
 }
 console.log(
-  `팝오버 원본과 일치 — ${got.w}px, 배지 가운데, 아바타 ${got.avatar.w} @${got.avatar.y}, 본문 @${got.body.y}`
+  `Popover matches the original — ${got.w}px, centered on the badge, avatar ${got.avatar.w} @${got.avatar.y}, body @${got.body.y}`
 );

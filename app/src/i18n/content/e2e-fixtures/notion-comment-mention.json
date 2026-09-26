@@ -1,0 +1,134 @@
+{
+  "_": "Comment mentions (@) measured in Notion — docs/notion-comment-mention.md (2026-09-10). Measured by actually typing @ into the original comment input row; not a single comment was sent.",
+  "trigger": {
+    "_": "§1 When it opens and closes. No word-boundary check; only a space right after `@` cancels.",
+    "opensOnBareAt": true,
+    "opensAfterLetter": true,
+    "opensAfterSpace": true,
+    "closedBySpaceRightAfterAt": true,
+    "closedByTrailingSpace": false,
+    "queryKeepsInnerSpaces": true,
+    "buttonInsertsAt": true,
+    "buttonAria": "멘션하려는 사용자, 페이지, 날짜를 입력하세요.",
+    "buttonSize": 24
+  },
+  "search": {
+    "_": "§2 People search. Rules measured with 23 queries.",
+    "caseInsensitive": true,
+    "substringNotPrefixOnly": true,
+    "matchesEmail": true,
+    "matchesEmailDomain": true,
+    "matchesKoreanInitialJamo": true,
+    "romanizedNameNotFoundByHangul": true,
+    "rankOrder": ["name-prefix", "word-prefix", "mid-substring"],
+    "selfFirstWithinRank": true,
+    "guestsLastWithinRank": true,
+    "peopleShown": 5,
+    "moreRowText": "N개 결과 더 보기",
+    "selfSuffix": "(나)"
+  },
+  "menu": {
+    "_": "§3 The select modal.",
+    "card": {
+      "width": 330,
+      "maxHeight": 325,
+      "radius": "10px",
+      "background": "rgb(255, 255, 255)",
+      "border": "none",
+      "overflowY": "auto",
+      "shadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px"
+    },
+    "padTopToFirstHeader": 14,
+    "header": {
+      "fontSize": "12px",
+      "fontWeight": "500",
+      "color": "rgb(125, 122, 117)",
+      "height": 14,
+      "indentFromCard": 12,
+      "gapToFirstRow": 9,
+      "labels": ["날짜", "사람", "페이지 링크", "그룹"]
+    },
+    "row": {
+      "width": 322,
+      "height": 28,
+      "radius": "6px",
+      "insetFromCard": 4,
+      "pitch": 29,
+      "avatar": 20,
+      "avatarLeft": 8,
+      "labelLeft": 36,
+      "labelFontSize": "14px",
+      "labelFontWeight": "400",
+      "labelColor": "rgb(44, 44, 43)",
+      "highlightBackground": "rgba(33, 27, 23, 0.051)",
+      "selfSuffixColor": "rgb(125, 122, 117)"
+    },
+    "pageRow": {
+      "height": 45,
+      "titleFontSize": "14px",
+      "titleColor": "rgb(44, 44, 43)",
+      "pathFontSize": "12px",
+      "pathColor": "rgb(161, 158, 153)"
+    },
+    "keyboard": {
+      "flatAcrossSections": true,
+      "moreRowIsAnOrdinaryRow": true
+    },
+    "empty": {
+      "cardWidth": 330,
+      "cardHeight": 65,
+      "text": "결과 없음",
+      "fontSize": "14px",
+      "fontWeight": "400",
+      "color": "rgb(125, 122, 117)",
+      "left": 12,
+      "top": 9
+    },
+    "ours": {
+      "_": "In the original but deliberately not copied — do not delete.",
+      "notCopied": ["Send search feedback (Notion's own feedback link)"]
+    }
+  },
+  "inserted": {
+    "_": "§5 What goes into the input row when picked. Not a chip.",
+    "isChip": false,
+    "background": "none",
+    "radius": "0px",
+    "padding": "0px",
+    "nameColor": "rgb(125, 122, 117)",
+    "atOpacityOfName": 0.6,
+    "trailingSpace": true,
+    "atomicToken": true,
+    "backspacesToRemove": 2,
+    "backspaceOrder": ["trailing space", "whole mention"]
+  },
+  "inbox": {
+    "_": "§6 Inbox.",
+    "panelWidth": 366,
+    "title": "수신함",
+    "titleFontSize": "14px",
+    "titleFontWeight": "500",
+    "titleColor": "rgb(44, 44, 43)",
+    "avatar": 24,
+    "avatarLeft": 8,
+    "avatarTop": 10,
+    "initialFontSize": "11px",
+    "initialColor": "rgb(142, 139, 134)",
+    "actorFontSize": "14px",
+    "actorFontWeight": "500",
+    "pageTitleFontWeight": "500",
+    "dateFontSize": "12px",
+    "dateColor": "rgb(161, 158, 153)",
+    "dateAlign": "right",
+    "previewFontSize": "14px",
+    "previewFontWeight": "400",
+    "previewColor": "rgb(125, 122, 117)",
+    "unreadDot": "blue, right end of the first line, after the date",
+    "rowHeightNoPreview": 87,
+    "rowHeightWithPreview": 108,
+    "mentionPhrase": "다음에서 나를 멘션함",
+    "commentPhrase": "에 댓글을 달았습니다",
+    "hoverActions": ["알림 끄기", "읽음 표시", "보관"],
+    "hoverActionsWeBuild": ["읽음 표시"]
+  }
+}

@@ -15,9 +15,9 @@ import { loadAindriveInfo } from "@/lib/aindrive-client";
  * A teamspace's aindrive sync, as the sidebar shows it.
  *
  * Linked: a status badge beside the name (click → what the sync is doing, and
- * 지금 동기화 right there) and a row that opens the folder. Not linked: the same
- * spots offer to connect — a faint icon on hover and an "aindrive에 동기화하기"
- * row — so how to start syncing is visible without knowing the 새로 추가 menu.
+ * Sync now right there) and a row that opens the folder. Not linked: the same
+ * spots offer to connect — a faint icon on hover and a "Sync to aindrive"
+ * row — so how to start syncing is visible without knowing the Add new menu.
  * Pages announce a change with the `aindrive:teamspace-changed` window event.
  */
 
@@ -53,9 +53,9 @@ export const STATE_TEXT: Record<DriveState, string> = {
   failed: "text-red-600 dark:text-red-400",
 };
 export const STATE_LABEL: Record<DriveState, string> = {
-  synced: "동기화됨",
-  syncing: "동기화 중",
-  failed: "동기화 실패",
+  synced: "Synced",
+  syncing: "Syncing",
+  failed: "Sync failed",
 };
 
 // status drifts as syncs run after edits — re-read it now and then
@@ -130,7 +130,7 @@ function useLinkDialog(teamspaceId: string) {
   async function load(): Promise<boolean> {
     const d = await loadAindriveInfo(true);
     if (!d.configured) {
-      setError(t("이 서버에는 aindrive가 설정되어 있지 않습니다."));
+      setError(t("aindrive is not configured on this server."));
       return false;
     }
     setState({ connected: d.connected, drives: d.drives });
@@ -155,17 +155,17 @@ function useLinkDialog(teamspaceId: string) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("aindrive에 동기화하기")}
+        aria-label={t("Sync to aindrive")}
         data-testid="teamspace-aindrive-dialog"
         className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-neutral-900"
       >
         <h2 className="mb-2 flex items-center gap-2 text-base font-semibold">
-          <HardDrive size={16} className="text-neutral-400" /> {t("aindrive에 동기화하기")}
+          <HardDrive size={16} className="text-neutral-400" /> {t("Sync to aindrive")}
         </h2>
         <ol className="mb-4 list-decimal space-y-0.5 pl-5 text-xs text-neutral-500">
-          <li>{t("이 팀스페이스의 페이지와 데이터베이스가 고른 폴더에 OKF 형식으로 복사됩니다.")}</li>
-          <li>{t("그다음부터는 페이지를 편집할 때마다 자동으로 동기화됩니다.")}</li>
-          <li>{t("폴더에 원래 있던 파일은 그대로 두고, 사이드바의 aindrive에서 함께 볼 수 있습니다.")}</li>
+          <li>{t("This teamspace's pages and databases are copied to the folder you pick, in OKF format.")}</li>
+          <li>{t("After that, every edit syncs automatically.")}</li>
+          <li>{t("Files already in the folder stay as they are; browse them from aindrive in the sidebar.")}</li>
         </ol>
         {!state.connected ? (
           <AindriveConnect onConnected={() => void load()} />
@@ -186,7 +186,7 @@ function useLinkDialog(teamspaceId: string) {
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
             });
-            if (!res.ok) return errorOf(res, t("연결할 수 없습니다"));
+            if (!res.ok) return errorOf(res, t("Could not link"));
             const { drive: created } = (await res.json()) as { drive: TsDrive };
             close();
             window.dispatchEvent(new Event(CHANGED));
@@ -204,7 +204,7 @@ function useLinkDialog(teamspaceId: string) {
 }
 
 /** Beside the teamspace's name. Linked: a status dot that opens a small status
- *  card with 지금 동기화. Not linked: a faint connect icon on hover. */
+ *  card with Sync now. Not linked: a faint connect icon on hover. */
 /** Beside the teamspace's name: the family's folders at a glance (a dot for
  *  their state) — it opens the family folders sheet, where members, their
  *  phones, invites and the backup all live. */
@@ -213,7 +213,7 @@ export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
   const drive = useTeamspaceDrive(teamspaceId);
   if (drive === undefined) return null;
   const state = drive ? driveState(drive) : null;
-  const label = t("가족 폴더");
+  const label = t("Family folders");
   return (
     <button
       data-testid={`teamspace-drive-badge-${teamspaceId}`}
@@ -250,7 +250,7 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
           style={{ paddingLeft: "36px" }}
         >
           <HardDrive size={14} className="shrink-0" />
-          <span className="truncate">{t("aindrive에 동기화하기")}</span>
+          <span className="truncate">{t("Sync to aindrive")}</span>
         </button>
         {link.error && (
           <p className="py-1 pr-2 text-xs text-red-600" style={{ paddingLeft: "36px" }}>
@@ -274,7 +274,7 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
             data-state={drive.backup ? state : "linked"}
             href={`/aindrive/${drive.id}`}
             aria-current={active ? "page" : undefined}
-            title={drive.linkedBy ? t("{who}님이 연결한 aindrive 폴더", { who: drive.linkedBy }) : undefined}
+            title={drive.linkedBy ? t("aindrive folder linked by {who}", { who: drive.linkedBy }) : undefined}
             className={`flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
               active ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"
             }`}
@@ -297,7 +297,7 @@ export function TeamspaceDriveRow({ teamspaceId }: { teamspaceId: string }) {
   );
 }
 
-/** 새로 추가: a page, or — while the teamspace has none — an aindrive sync. */
+/** Add new: a page, or — while the teamspace has none — an aindrive sync. */
 export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: string; onAddPage: () => void }) {
   const t = useT();
   const drive = useTeamspaceDrive(teamspaceId);
@@ -315,7 +315,7 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
         style={{ paddingLeft: "36px" }}
       >
         <Plus size={14} className="shrink-0" />
-        {t("새로 추가")}
+        {t("Add new")}
       </button>
       {menu && (
         <div
@@ -332,7 +332,7 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
             }}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
-            <FileText size={14} className="text-neutral-400" /> {t("페이지")}
+            <FileText size={14} className="text-neutral-400" /> {t("Page")}
           </button>
           {drive !== undefined && (
             <button
@@ -346,9 +346,9 @@ export function TeamspaceAddRow({ teamspaceId, onAddPage }: { teamspaceId: strin
             >
               <HardDrive size={14} className="text-neutral-400" />
               <span>
-                {drive ? t("aindrive 폴더 추가") : t("aindrive에 동기화하기")}
+                {drive ? t("Add an aindrive folder") : t("Sync to aindrive")}
                 <span className="block text-[11px] text-neutral-400">
-                  {drive ? t("내 폴더를 이 팀스페이스와 공유") : t("이 팀스페이스를 OKF로 백업")}
+                  {drive ? t("Share my folders with this teamspace") : t("Back this teamspace up as OKF")}
                 </span>
               </span>
             </button>

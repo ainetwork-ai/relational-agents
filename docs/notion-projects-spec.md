@@ -1,376 +1,381 @@
-# 원본 `Projects` 명세 — 우리가 맞춰야 할 것
+# The original `Projects` spec — what we have to match
 
-2026-08-06, 노션의 ComCom `Projects` 페이지(풀페이지 데이터베이스)를 그대로 옮기는 작업의 기준
-문서다. 값은 **추정이 아니라** 그 페이지에서 받은 설정 그대로다: 사용자 브라우저에 CDP로 붙어
-`POST /api/v3/loadPageChunk`(읽기 전용)를 호출해 `collection` 1건과 `collection_view` 8건을
-받았고(`chunk.json`, 76KB), 아래는 그 내용을 풀어 쓴 것이다.
+2026-08-06. The reference document for reproducing Notion's ComCom `Projects` page (a full-page database) exactly.
+The values are **not estimates**; they are the settings received from that page as-is: we attached to the user's
+browser over CDP, called `POST /api/v3/loadPageChunk` (read-only), and received 1 `collection` and 8 `collection_view`
+records (`chunk.json`, 76KB). What follows spells out that content.
 
-> 읽는 방법: 속성 id는 노션이 4글자 코드(`L[OY`)나 UUID로 들고 있다. 아래 표의 이름으로 매칭하면 된다.
+> How to read this: Notion holds property ids as 4-character codes (`L[OY`) or UUIDs. Match them by the names in the tables below.
 
-## 속성 23개
+Note on UI strings: the original workspace runs in the Korean Notion UI. Where this document names a menu label,
+button, aria-label, or tab, it gives the English UI name; the exact Korean string measured in the capture is the
+corresponding entry in the ko dictionary (`app/src/i18n/ko.ts`).
 
-| 이름 | 타입 | 설정 |
+## 23 properties
+
+| Name | Type | Settings |
 |---|---|---|
 | Project name | `title` | |
-| TL / Assignee / Evaluator / Sherpa | `person` | 여러 명 담긴다 |
-| Start date / End date / Reg Date / Vulnerable Since / ` Sec.8 Deadline` | `date` | 이름 앞 공백까지 그대로 |
+| TL / Assignee / Evaluator / Sherpa | `person` | Holds multiple people |
+| Start date / End date / Reg Date / Vulnerable Since / ` Sec.8 Deadline` | `date` | Keep even the leading space in the name |
 | Effort | `number` | |
-| Status | `status` | 옵션 `Not started·In progress·Deprecated·Needs review·Hold·Done`, **그룹 `To-do·In progress·Complete`** |
-| Team | `multi_select` | 옵션 33개 (`AINSpace`, `KKaebi`, `Ops`, `한양대` …) |
+| Status | `status` | Options `Not started·In progress·Deprecated·Needs review·Hold·Done`, **groups `To-do·In progress·Complete`** |
+| Team | `multi_select` | 33 options (`AINSpace`, `KKaebi`, `Ops`, `Hanyang Univ.` (a Korean option name in the original) …) |
 | Created time | `created_time` | |
 | Evaluation | `select` | `Superb·Strongly Exceeds Expectation·Exceeds Expectations·Meets Expectations·Need Improvement·NA` |
 | Territory | `select` | `Japan·China·USA·EU·Singapore·Korea·Philippines·Malaysia` +2 |
 | Law Firm | `select` | `KNK·ANK` |
 | Action | `select` | `Re-file·Defend·Sec8 Filing·Counsel Review·None` |
 | Status 1 | `select` | `Urgent·In Progress·Safe·Monitor` |
-| Bonus 지급 여부 / Notes / Class / Reg Number | `text` | |
+| Bonus paid (the original property name is "Bonus" + a Korean suffix meaning "paid or not") / Notes / Class / Reg Number | `text` | |
 
-23종 전부 우리 스키마에 있는 타입이다. **없는 것은 `status`의 옵션 그룹**뿐이다.
+All 23 are types that exist in our schema. **The only thing missing is option groups for `status`.**
 
-## 뷰 8개
+## 8 views
 
-| 이름 | 타입 | 그룹 | 정렬 | 필터 | 보이는 컬럼 |
+| Name | Type | Group | Sort | Filter | Visible columns |
 |---|---|---|---|---|---|
-| on-going projects | 표 | `person` TL, 수동 정렬, **빈 그룹 숨김** | End date ↑ | — | 13개 (TL 250 · Project name 565 · Assignee 469 · Status 136 · Start 113 · End 130 · Evaluation 121 · Team 179 · Sherpa 117 · Evaluator · Created time · Effort · Bonus) |
-| My | 보드 | `status` 옵션별, 빈 그룹 숨김 | TL↑ Sherpa↑ Assignee↑ End↑ | Assignee **또는** TL **또는** Sherpa 가 나 | 카드에 Project name · Team · Evaluation · TL |
-| done projects | 표 | — | End date ↓ | Status **is 옵션** `Done` | 13개, `Team` 이 첫 컬럼 (266) |
-| superb projects | 표 | — | — | Evaluation is `Superb` | 13개, `Team` 첫 컬럼 (192) |
-| All Projects | 표 | **`multi_select` Team**, 빈 그룹 숨김 | End date ↑ | — | 8개 (`Status` 첫 컬럼 136) |
-| My Timeline | 타임라인 | — | End date ↑ | TL 가 나 (+ Assignee 조건 비어 있음) | 타임라인 `End date` 기준, **옆 표 켜짐**(Project name 340 · Status 141 · Evaluation 200), 확대 `quarter` |
-| TL | 표 | `person` TL, 빈 그룹 숨김 | End date ↑ | — | 12개 (Project name 516 · TL 134 · Effort 100 · Assignee 562 …) ← `docs/target.html` 이 이 뷰다 |
-| TL Chart | **차트** | 아래 참조 | — | Status **is 그룹** `In progress` | — |
+| on-going projects | Table | `person` TL, manual order, **hide empty groups** | End date ↑ | — | 13 (TL 250 · Project name 565 · Assignee 469 · Status 136 · Start 113 · End 130 · Evaluation 121 · Team 179 · Sherpa 117 · Evaluator · Created time · Effort · Bonus) |
+| My | Board | By `status` option, hide empty groups | TL↑ Sherpa↑ Assignee↑ End↑ | Assignee **or** TL **or** Sherpa is me | Cards show Project name · Team · Evaluation · TL |
+| done projects | Table | — | End date ↓ | Status **is option** `Done` | 13, `Team` is the first column (266) |
+| superb projects | Table | — | — | Evaluation is `Superb` | 13, `Team` first column (192) |
+| All Projects | Table | **`multi_select` Team**, hide empty groups | End date ↑ | — | 8 (`Status` first column 136) |
+| My Timeline | Timeline | — | End date ↑ | TL is me (+ an empty Assignee condition) | Timeline keyed on `End date`, **side table on** (Project name 340 · Status 141 · Evaluation 200), zoom `quarter` |
+| TL | Table | `person` TL, hide empty groups | End date ↑ | — | 12 (Project name 516 · TL 134 · Effort 100 · Assignee 562 …) ← `docs/target.html` is this view |
+| TL Chart | **Chart** | See below | — | Status **is group** `In progress` | — |
 
-컬럼 **순서와 폭은 뷰마다 다르다**(같은 DB인데 첫 컬럼이 TL·Team·Status로 갈린다). 즉 순서는
-데이터베이스가 아니라 **뷰가** 들고 있다.
+Column **order and width differ per view** (same DB, but the first column varies between TL, Team, and Status). That is,
+the order is held by **the view**, not the database.
 
-표 뷰가 공통으로 들고 있는 값: **`table_frozen_column_index: -1` — 고정 컬럼 없음**
-(확인: 원본에서 가로로 500px 밀면 첫 컬럼 `TL`의 x가 270 → −126으로 같이 움직인다.
-한동안 이 값을 "기본값=첫 컬럼 고정"으로 잘못 읽고 첫 컬럼을 붙여뒀었다),
-`table_subitem_toggle_column: "title"`(하위 항목 토글은 제목 셀 안), `table_wrap: false`,
+Values common to all table views: **`table_frozen_column_index: -1` — no frozen column**
+(verified: scrolling the original 500px horizontally moves the first column `TL`'s x from 270 → −126 along with it.
+For a while we misread this value as "default = first column frozen" and had pinned the first column),
+`table_subitem_toggle_column: "title"` (the sub-item toggle lives inside the title cell), `table_wrap: false`,
 `subitem_filter_scope: "parents_and_subitems"`.
 
-### TL Chart 설정
+### TL Chart settings
 
 ```
-type: column                      // 세로 막대
+type: column                      // vertical bars
 dataConfig: groups_reducer
-  groupBy:     person TL, 수동 정렬, hideEmptyGroups: false
+  groupBy:     person TL, manual order, hideEmptyGroups: false
   aggregation: sum(Effort)
-  stackOptions: title 기준으로 쌓기(오름차순)
+  stackOptions: stack by title (ascending)
 chartFormat:
   height: medium, mainSort: manual
-  caption: "[ in-progress 상태인 것만 표시됨 ]"  (표시 켜짐)
+  caption: "[ Only items in in-progress status are shown ]"  (display on; original caption is in Korean)
   axisShowDataLabels: true, axisHideEmptyGroups: false
-filter: Status is 그룹 "In progress"
+filter: Status is group "In progress"
 ```
 
-## 우리가 만들어야 하는 것
+## What we need to build
 
-2026-08-06에 아래 1~7을 전부 구현했다. 각 항목 끝의 커밋을 보면 된다.
+All of items 1–7 below were implemented on 2026-08-06. See the commit at the end of each item.
 
-1. ~~**뷰별 컬럼 순서**~~ ✅ `ff28c0d` — `ViewConfig.propertyOrder`. 컬럼 드래그가 그 뷰의 순서만 바꾼다
-2. ~~**`multi_select` 그룹**~~ ✅ `afd75f3` — 값이 여러 개인 행은 각 그룹에 모두 나온다
-3. ~~**빈 그룹 숨김**~~ ✅ `afd75f3` — 뷰별 플래그, 기본 켜짐, 그룹 메뉴에서 토글
-4. ~~**`status` 옵션 그룹**~~ ✅ `b605902`, `017541f` — `optionGroups`, `group:<이름>` 필터, 보드 컬럼의 밴드 라벨
-5. ~~**차트 뷰**~~ ✅ `72b0a74` — 세로막대·가로막대·선·도넛, 개수/합계, 쌓기, 데이터 라벨, 캡션, 높이
-6. ~~**타임라인 옆 표**~~ ✅ `7a20cd7` — 월/분기/연 확대, 창에 걸치는 막대, 옆 표
-7. ~~**행 추가 문구**~~ ✅ `f368b85` — `databases.item_name`("프로젝트"), 모든 추가 버튼이 이 이름을 쓴다
+1. ~~**Per-view column order**~~ ✅ `ff28c0d` — `ViewConfig.propertyOrder`. Dragging a column changes only that view's order
+2. ~~**`multi_select` grouping**~~ ✅ `afd75f3` — rows with multiple values appear in every matching group
+3. ~~**Hide empty groups**~~ ✅ `afd75f3` — per-view flag, on by default, toggled from the group menu
+4. ~~**`status` option groups**~~ ✅ `b605902`, `017541f` — `optionGroups`, `group:<name>` filter, band labels on board columns
+5. ~~**Chart view**~~ ✅ `72b0a74` — vertical bar, horizontal bar, line, donut; count/sum; stacking; data labels; caption; height
+6. ~~**Timeline side table**~~ ✅ `7a20cd7` — month/quarter/year zoom, bars spanning the window, side table
+7. ~~**Add-row wording**~~ ✅ `f368b85` — `databases.item_name` ("project"); every add button uses this name
 
-작업하면서 추가로 드러난 것도 함께 고쳤다:
+Other things that surfaced along the way were fixed too:
 
-- **풀페이지 데이터베이스 설명** ✅ `ddef3b8` — 제목 아래 800자 산문. 컬럼·API는 있었는데 렌더링이 없었다
-- **행 높이** ✅ `f368b85` — 원본은 어떤 값이 들어도 37px(`table_wrap: false`). 우리는 61px까지 늘어났다
-- **첫 빈 칸 제거** ✅ `5804c85` — 체크박스는 표 밖 여백(`-36px`)에 걸린다
-- **고정 컬럼은 뷰 설정대로** ✅ — `frozenColumnIndex`(기본 -1 = 고정 없음). 체크박스가 걸린
-  폭 0짜리 앵커만 왼쪽에 남는다(원본도 그렇다)
-- **가로 스크롤바** ✅ — 화면 하단 고정, 직접 그린 트랙·썸(이 브라우저의 오버레이 스크롤바는
-  스크롤 중에만 보여서 표가 옆으로 더 있다는 걸 알 수 없었다)
-- **행 아이콘** ✅ — 원본을 뜯어보니 규칙은 "DB 아이콘이 실시간으로 따라간다"가 아니다.
-  **행마다 자기 페이지가 `format.page_icon`을 들고 있다**: Projects의 행 100건 중 99건이
-  `/icons/iterate_blue.svg`(=DB 아이콘), 1건은 `/icons/anchor_blue.svg`로 개별 변경돼 있다.
-  즉 **행을 만들 때 DB 아이콘이 복사되고 이후 행별로 바꿀 수 있다** — 그래서 그 문서 안에
-  만든 하위 문서에는 안 따라간다. 다른 DB로 확인: `Master`(🎖)의 행은 일반 페이지 글리프,
-  `모두연 유지보수`의 행은 아이콘 없음. 그리고 **뷰마다 `show_page_icon` 토글**이 있어서
-  원본은 `My`·`All Projects`·`My Timeline`에서 끈다.
-  우리는 뷰 토글(`showPageIcon`)을 그대로 반영했고, 행이 아직 자기 아이콘을 못 가지므로
-  DB(=풀페이지 페이지) 아이콘을 대신 쓴다. 행↔페이지가 붙으면 행 아이콘 우선으로 바꾸면 된다
-- **사람 여러 명** ✅ `fc6bd1d` — `Assignee`는 여러 명을 담고, 넘치면 잘린다
-- **뷰 탭 id** ✅ `b605902` — 타입으로 키를 잡아 표 뷰 4개가 충돌했다. 오버플로 문구도 `N개 더 보기`
+- **Full-page database description** ✅ `ddef3b8` — 800 characters of prose under the title. The column and API existed but there was no rendering
+- **Row height** ✅ `f368b85` — the original is 37px no matter what the value is (`table_wrap: false`). Ours grew up to 61px
+- **Removed the leading empty cell** ✅ `5804c85` — the checkbox hangs in the margin outside the table (`-36px`)
+- **Frozen column follows the view setting** ✅ — `frozenColumnIndex` (default -1 = none frozen). Only a zero-width
+  anchor holding the checkbox remains on the left (the original does the same)
+- **Horizontal scrollbar** ✅ — pinned to the bottom of the screen, with a custom-drawn track and thumb (this browser's
+  overlay scrollbar only appears while scrolling, so you couldn't tell the table extended further sideways)
+- **Row icons** ✅ — digging into the original, the rule is not "the DB icon follows live."
+  **Each row's own page carries `format.page_icon`**: of 100 rows in Projects, 99 are
+  `/icons/iterate_blue.svg` (= the DB icon), and 1 was individually changed to `/icons/anchor_blue.svg`.
+  So **the DB icon is copied when a row is created and can be changed per row afterwards** — which is why it doesn't
+  carry over to sub-documents created inside that document. Checked against other DBs: rows of `Master` (🎖) show the
+  generic page glyph, and rows of `Modulabs maintenance` have no icon. There is also a **per-view `show_page_icon`
+  toggle**, which the original turns off in `My`, `All Projects`, and `My Timeline`.
+  We mirrored the view toggle (`showPageIcon`) as-is, and since rows can't yet hold their own icon, we use the
+  DB (= full-page page) icon instead. Once row↔page is wired up, switch to row-icon-first
+- **Multiple people** ✅ `fc6bd1d` — `Assignee` holds multiple people and truncates when it overflows
+- **View tab ids** ✅ `b605902` — keys were based on type, so the 4 table views collided. The overflow label is now `N more` too
 
-### 셀 hover 액션 (원본 측정, 2026-08-06)
+### Cell hover actions (measured on the original, 2026-08-06)
 
-행을 hover하면 **제목 셀에 `열기`**(aria `사이드 보기에서 열기`, 51×20)가 항상 뜨고, **지금
-가리키고 있는 컬럼의 셀**에 그 타입의 액션이 붙는다. 오른쪽 끝에서 7px, 버튼은 24×20.
-**값이 없는 셀에는 아무것도 안 뜬다.**
+Hovering a row always shows **`Open` in the title cell** (aria-label `Open in side peek`, 51×20), and **the cell in the
+column currently under the pointer** gets that type's actions. 7px from the right edge, buttons 24×20.
+**Nothing appears on cells with no value.**
 
-| 속성 타입 | hover 시 |
+| Property type | On hover |
 |---|---|
-| `title` | `열기` + 페이지 아이콘(22×22) + 댓글 수 배지(34×20, 항상 표시) |
-| `person`·`status`·`select`·`multi_select` | `댓글` |
-| `date` | `댓글` + `클립보드에 복사` |
-| `number` | `댓글` + `클립보드에 복사` |
-| `created_time` (읽기 전용) | **`클립보드에 복사`만** — 댓글 없음 |
-| 값이 빈 셀 | (없음) |
+| `title` | `Open` + page icon (22×22) + comment count badge (34×20, always shown) |
+| `person`·`status`·`select`·`multi_select` | `Comment` |
+| `date` | `Comment` + `Copy to clipboard` |
+| `number` | `Comment` + `Copy to clipboard` |
+| `created_time` (read-only) | **Only `Copy to clipboard`** — no comment |
+| Empty cell | (none) |
 
-우리 구현: **측정된 타입에만** 위 배치를 넣었다. `클립보드에 복사`는 실제로 동작하고, `댓글`은
-셀 댓글이 없어 비활성(이유는 툴팁).
+Our implementation: the layout above is applied **only to the measured types**. `Copy to clipboard` really works;
+`Comment` is disabled because there are no cell comments (the reason is in the tooltip).
 
-**아직 측정 못 한 타입 — 구현하지 않았다** (hover해도 아무것도 안 뜬다):
+**Types not yet measured — not implemented** (nothing appears on hover):
 `text` · `url` · `email` · `phone` · `checkbox` · `files` · `relation` · `rollup` · `formula` ·
 `last_edited_time` · `created_by` · `last_edited_by`.
-원본 Projects에서 이 타입들은 화면에 보이는 행에 값이 없었고(뒤쪽 컬럼이라 가로 스크롤도
-필요했다), 값 있는 셀을 찾지 못했다. 추측으로 넣지 않는다 — 한 번 그렇게 했다가 셀에 없는
-버튼을 만들었다.
+In the original Projects these types had no values in the visible rows (they are trailing columns, so horizontal
+scrolling was also needed), and we couldn't find cells with values. We don't add them by guesswork — we did that once
+and created buttons that don't exist on the cell.
 
-**다시 측정하는 법**: 노션 표는 행마다 **보이는 5칸만** DOM에 둔다. `scrollLeft`만 바꾸면
-가상화가 돌지 않아 뒤쪽 컬럼이 안 그려진다 — `scrollLeft`를 바꾼 뒤 그 스크롤러에
-`new Event('scroll', { bubbles: true })`를 디스패치해야 렌더된다. 그 다음 값이 있는 행과 없는
-행을 각각 hover해서 셀 안의 보이는 버튼(`[role=button]`)을 읽으면 된다.
+**How to re-measure**: Notion tables keep **only the 5 visible cells** per row in the DOM. Changing only `scrollLeft`
+doesn't trigger virtualization, so trailing columns aren't drawn — after changing `scrollLeft`, dispatch
+`new Event('scroll', { bubbles: true })` on that scroller to get them rendered. Then hover a row with a value and one
+without, and read the visible buttons (`[role=button]`) inside the cell.
 
-### 아직 남은 것
+### Still remaining
 
-- 제목 셀의 **댓글 수 배지**(`💬 3`) — 원본은 제목 셀 안에 `commentFilledSmall` svg와 개수를 같이
-  넣는다. 행↔페이지 작업과 겹쳐서 손대지 않았다
-- 행 호버의 **`Open comments`**
-- 그룹 헤더의 이름이 노션은 **버튼**(눌러서 그룹 값 변경), 우리는 텍스트
-- 사람 아바타 사진 — 우리 시드 사용자는 사진이 없어 이니셜로 뜬다
-- Status 드롭다운의 **빈 셀** 상태 — 이 뷰의 249행이 전부 값을 갖고 있어 열어볼 수가 없었다
-- ~~Status 드롭다운의 **다크 테마**, gray/blue/red/yellow/green 이외 색의 칩 색값~~ — 2026-09-09 잼.
-  다크 10색(배경·글자·스와치·링)은 `e2e/fixtures/notion-chips.json` §colorsDark, 토큰은
-  `globals.css` `--chip-*`, 대조는 `node e2e/chip-dark.check.mjs`. 점(dot)은 두 테마가 같다.
-- select / multi_select **셀 칩의 원본 수치** — status 칩만 쟀다. 셀 칩도 드롭다운 칩과 같은
-  모양으로 통일했지만(아래), 그 통일은 *지시*이지 측정이 아니다. 원본 캡처상 select 칩에는
-  점이 없어서 점은 status 에만 붙인다
+- The **comment count badge** (`💬 3`) in the title cell — the original puts the `commentFilledSmall` svg and the
+  count together inside the title cell. It overlaps with the row↔page work, so we left it alone
+- **`Open comments`** on row hover
+- Group header names are **buttons** in Notion (click to change the group value); ours are text
+- Person avatar photos — our seed users have no photos, so initials are shown
+- The **empty cell** state of the Status dropdown — all 249 rows in this view have values, so we couldn't open one
+- ~~The Status dropdown's **dark theme**, and chip color values for colors other than gray/blue/red/yellow/green~~ — measured 2026-09-09.
+  The 10 dark colors (background, text, swatch, ring) are in `src/i18n/content/e2e-fixtures/notion-chips.json` §colorsDark, the tokens
+  are `--chip-*` in `globals.css`, and the comparison is `node e2e/chip-dark.check.mjs`. The dot is the same in both themes.
+- **Original measurements for select / multi_select cell chips** — only status chips were measured. Cell chips were
+  unified to the same shape as dropdown chips (below), but that unification is an *instruction*, not a measurement.
+  In the original captures select chips have no dot, so the dot is only applied to status
 
-## dev에 같은 데이터 넣기
+## Loading the same data into dev
 
-비교하려면 같은 값이 있어야 해서, 원본을 그대로 dev의 `ComCom > Projects`
-(`cc027bcc-…`)에 넣었다. 생성기는 `scratchpad/gen-seed.mjs`이고 입력은 세 파일이다:
-`chunk.json`(스키마·뷰 8개), `rows-normalized.json`(행 249건 — `queryCollection`으로 받아
-노션 리치텍스트를 값으로 정규화), `notion-users.json`(사람 24명).
+Comparison requires the same values, so the original was loaded as-is into dev's `ComCom > Projects`
+(`cc027bcc-…`). The generator is `scratchpad/gen-seed.mjs`, with three input files:
+`chunk.json` (schema, 8 views), `rows-normalized.json` (249 rows — fetched with `queryCollection`, with Notion rich
+text normalized to values), and `notion-users.json` (24 people).
 
-- 속성 23개, 행 249건, 뷰 8개, 사용자 24명. id는 이름/노션 id의 sha1이라 **다시 돌려도 같은 id**다
-- 노션 사람 24명 중 dev에 없던 21명은 **dev 전용 사용자로 만들었다**(`email`/`google_sub` 없음 →
-  로그인 불가). 이름을 보이게 하려는 목적이고 dev DB에만 있다
-- 다시 넣으려면: `node gen-seed.mjs && psql -f seed.sql`, 그리고 설명은 `desc.sql`
+- 23 properties, 249 rows, 8 views, 24 users. Ids are sha1 hashes of names/Notion ids, so **re-running yields the same ids**
+- Of Notion's 24 people, the 21 who weren't in dev were **created as dev-only users** (no `email`/`google_sub` →
+  can't log in). The purpose is to make names visible; they exist only in the dev DB
+- To reload: `node gen-seed.mjs && psql -f seed.sql`, and for the description, `desc.sql`
 
-## Status 드롭다운 — 원본 수치와 대조 (2026-08-06)
+## Status dropdown — compared against the original (2026-08-06)
 
-값이 있는 Status 셀을 열어 실제로 잰 값이고, 같은 숫자가
-`app/e2e/fixtures/notion-status-dropdown.json`에 있다.
-`node app/e2e/status-dropdown.check.mjs`가 우리 것을 다시 재서 이 파일과 대조한다
-(다르면 `우리 x / 노션 y` 형태로 전부 찍고 exit 1).
+These are values actually measured by opening a Status cell with a value; the same numbers are in
+`app/src/i18n/content/e2e-fixtures/notion-status-dropdown.json`.
+`node app/e2e/status-dropdown.check.mjs` re-measures ours and compares it against this file
+(on mismatch it prints everything as `ours x / notion y` and exits 1).
 
-- 박스: 240×376, radius 6, 흰 배경, **셀을 덮는다**(셀 좌상단 기준 −1,−1). 우리는 176px 박스가
-  셀 아래에 붙어 있었다
-- 상단 바: 240×39, `rgba(242,241,238,.6)`, 선택값 칩 + 검색 입력(14px)
-- 그룹: 라벨 12px/500 `rgb(125,122,117)` x=12, 그룹 사이 1px 구분선(x=12 w=216
-  `rgba(42,28,0,.07)`), 이름은 한국어 UI라 **할 일 / 진행 중 / 완료**
-- 옵션 행: 232×28 x=4 radius 6, 칩은 x=12 알약(radius 10, 높이 20, 8px 점, 라벨 14px)
-- 하단: 구분선 + 36px 행에 슬라이더 아이콘(20px, x=12) + `속성 편집`(x=40, 14px)
-- 검색 중에는 **그룹 라벨이 사라지고** 결과만 4px 아래에 뜬다. 일치하는 게 없으면 바와
-  `속성 편집`만 남는다 — **옵션을 만들어 주지 않는다**
-- 원본에 **없는 것**: `Clear` 행(칩에 호버해도 ✕가 없다), 옵션별 그룹 `<select>`(우리가 지어낸
-  것이다). 둘 다 지웠다
-- 강조(hover/키보드) 배경은 `rgba(33,27,23,.051)`이고, **검색 전에는 어떤 행도 강조되지 않는다**
+- Box: 240×376, radius 6, white background, **covers the cell** (−1,−1 relative to the cell's top-left). Ours was a
+  176px box attached below the cell
+- Top bar: 240×39, `rgba(242,241,238,.6)`, selected-value chip + search input (14px)
+- Groups: label 12px/500 `rgb(125,122,117)` x=12, a 1px divider between groups (x=12 w=216
+  `rgba(42,28,0,.07)`); since the UI is Korean, the names are the ko-dictionary labels for **To-do / In progress / Complete**
+- Option rows: 232×28 x=4 radius 6; chip is a pill at x=12 (radius 10, height 20, 8px dot, 14px label)
+- Bottom: divider + a 36px row with a sliders icon (20px, x=12) + `Edit property` (x=40, 14px)
+- While searching, **group labels disappear** and only results appear, 4px lower. If nothing matches, only the bar and
+  `Edit property` remain — **it does not offer to create an option**
+- Things the original **doesn't have**: a `Clear` row (hovering a chip shows no ✕), and a per-option group `<select>`
+  (we invented it). Both were removed
+- The highlight (hover/keyboard) background is `rgba(33,27,23,.051)`, and **no row is highlighted before searching**
 
-## 속성 편집(Status) — 원본 수치와 대조 (2026-08-10)
+## Edit property (Status) — compared against the original (2026-08-10)
 
-Status 메뉴의 `속성 편집` 푸터가 여는 것은 **팝오버가 아니라 사이드바다**: 뷰 툴바
-아래(`top = 툴바 bottom`)에 도킹되고, 290px 메뉴 칼럼의 오른쪽 끝이 툴바 컨트롤
-(새로 만들기)의 오른쪽 끝에 정렬되며, 흰 배경만 창 오른쪽/아래 끝까지 번진다.
-(원본 raw 수치는 −387이지만 노션의 툴바 노드는 페이지 오른쪽 여백 96px을 포함한다
-— 사이드바가 `inset -96 / padding 96`으로 번지는 구조. 우리 `db-view-bar`는
-버튼에서 끝나므로 같은 규칙이 −291 = 290 + 보더 1px 이다. 처음에 −387을 그대로
-옮겼다가 칼럼 오른쪽에 ~100px 죽은 여백이 생겼었다.) 흰 배경, 그림자 없음,
-왼쪽 1px 보더(위 12px는 배경으로 페이드), 200ms 슬라이드인.
-원본 수치는 `app/e2e/fixtures/notion-status-edit-property.json`, 대조는
-`node app/e2e/status-edit-property.check.mjs`, 구현은
+What the `Edit property` footer of the Status menu opens is **a sidebar, not a popover**: it docks below the view
+toolbar (`top = toolbar bottom`), the right edge of its 290px menu column aligns with the right edge of the toolbar
+control (New), and only the white background bleeds to the right/bottom edges of the window.
+(The original raw value is −387, but Notion's toolbar node includes the page's 96px right margin — the sidebar
+bleeds via `inset -96 / padding 96`. Our `db-view-bar` ends at the button, so the same rule gives −291 = 290 + 1px
+border. We first copied −387 verbatim, which left ~100px of dead space to the right of the column.) White background,
+no shadow, 1px left border (the top 12px fades into the background), 200ms slide-in.
+Original values are in `app/src/i18n/content/e2e-fixtures/notion-status-edit-property.json`, the comparison is
+`node app/e2e/status-edit-property.check.mjs`, and the implementation is
 `components/database/property-edit-panel.tsx`.
 
-- 헤더 50px: ← / `속성 편집`(14px/600, x=43) / ✕(20px 원, bg `rgba(42,28,0,.07)`)
-- 이름 행: 타입 아이콘 28×28(1px 보더) + 인풋 박스 215×28(bg `rgba(66,35,3,.03)`,
-  링 `rgba(28,19,1,.11)`, radius 6, ⓘ)
-- `유형 · 상태 ›` 행 — **보여주기만 한다**(타입 변경 메뉴는 아직 없다)
-- 그룹 라벨(12px/500 `rgb(125,122,117)`, x=21) + 오른쪽 `+`(20px). `+`는 라벨 밑에
-  인라인 인풋(`새 옵션을 입력하세요`, 파란 링)을 만들고 Enter 로 **그룹 맨 위에** 추가
-- 옵션 행 259×28 x=9: ⠿(16px, 드래그로 그룹 안/간 재정렬) · 칩(x=43) · 기본 옵션엔
-  `기본`(12px/500, 오른쪽 끝 238) · ›(x=244). 라벨→행 간격은 첫 그룹만 9px, 나머지 8px
-  (원본 166/232/298 — 등간이 아니다)
-- 하단 고정 푸터: 1px 구분선(x=17, w=258) + 4행(274×28) — 콘텐츠 줄바꿈하기(30×18
-  스위치, `config.wrapContent`에 저장만 한다) · 다음과 같이 표시: 선택 ›(아직 메뉴 없음) ·
-  속성 복제 · 속성 삭제
-- **옵션 메뉴**(행 클릭): 220px, radius 10, 클릭한 x−1에 앵커, 아래 공간이 없으면
-  bottom을 행 top에 맞춰 **위로** 편다. 이름 인풋(전체선택) / 삭제 / 기본으로 설정 /
-  그룹화 → 250px 그룹 목록(현재 그룹 ✓, 행 bottom·오른쪽 끝 정렬) / `색`: **기본 + 9색**
-  스와치(18×18, radius 4) + 현재 색 ✓(x=192)
-- **색 이름 주의**: 노션은 `default`와 `gray`를 **다른 색으로 저장**한다(fixture의 Team에
-  둘 다 있다). 칩은 오늘 둘이 똑같이 칠해지지만(측정 일치) 색 메뉴에는 기본/회색 두 줄이
-  있고 ✓가 저장된 이름을 따라간다 — 그래서 `default`를 팔레트 키로 승격하고 dev DB 를
-  마이그레이션했다(`scratchpad/migrate-default-color.mjs`). `기본` 스와치(`rgba(42,28,0,.07)`)만
-  칩 배경과 다르다는 것도 측정 사실이다
-- status 의 `defaultOptionId`(기본 옵션)는 새 행 생성 시 자동으로 채워진다
-- Escape 는 한 겹씩 닫는다: 그룹 목록 → 옵션 메뉴 → (인라인 인풋) → 패널
+- Header 50px: ← / `Edit property` (14px/600, x=43) / ✕ (20px circle, bg `rgba(42,28,0,.07)`)
+- Name row: type icon 28×28 (1px border) + input box 215×28 (bg `rgba(66,35,3,.03)`,
+  ring `rgba(28,19,1,.11)`, radius 6, ⓘ)
+- `Type · Status ›` row — **display only** (there is no type-change menu yet)
+- Group label (12px/500 `rgb(125,122,117)`, x=21) + `+` on the right (20px). `+` creates an inline input under the
+  label (placeholder `Type a new option`, blue ring) and Enter adds it **at the top of the group**
+- Option rows 259×28 x=9: ⠿ (16px, drag to reorder within/between groups) · chip (x=43) · on the default option,
+  `Default` (12px/500, right edge 238) · › (x=244). The label→row gap is 9px for the first group only, 8px for the rest
+  (original 166/232/298 — not evenly spaced)
+- Fixed footer at the bottom: 1px divider (x=17, w=258) + 4 rows (274×28) — Wrap content (30×18 switch, only saved to
+  `config.wrapContent`) · Show as: Select › (no menu yet) · Duplicate property · Delete property
+- **Option menu** (click a row): 220px, radius 10, anchored at the clicked x−1; if there's no room below, it opens
+  **upward** with its bottom aligned to the row top. Name input (select-all) / Delete / Set as default /
+  Group → 250px group list (current group ✓, aligned to the row's bottom and right edge) / `Color`: **Default + 9 colors**
+  swatches (18×18, radius 4) + a ✓ on the current color (x=192)
+- **Beware of color names**: Notion **stores `default` and `gray` as different colors** (Team in the fixture has both).
+  Today the chips are painted identically (the measurements match), but the color menu has two rows, Default and Gray,
+  and the ✓ follows the stored name — so we promoted `default` to a palette key and migrated the dev DB
+  (`scratchpad/migrate-default-color.mjs`). It is also a measured fact that only the `Default` swatch
+  (`rgba(42,28,0,.07)`) differs from the chip background
+- The status `defaultOptionId` (default option) is filled in automatically when a new row is created
+- Escape closes one layer at a time: group list → option menu → (inline input) → panel
 
-## 칩은 컴포넌트 하나
+## Chips are a single component
 
-`components/database/option-chip.tsx` 의 `OptionChip` 하나만 쓴다. 셀, Status 메뉴,
-보드 열 머리글, 필터 칩, 리스트/갤러리/캘린더 값이 전부 이걸 부른다.
+Only `OptionChip` in `components/database/option-chip.tsx` is used. Cells, the Status menu,
+board column headers, filter chips, and list/gallery/calendar values all call it.
 
-모양은 **Status 드롭다운에서 잰 칩**이다 — 높이 20, radius 10(알약), padding 7/9,
-라벨 14px, status 는 라벨 앞에 8px 점(간격 5px). 색은 측정한 다섯 가지(gray/blue/red/
-yellow/green)를 쓰고, 나머지 네 색은 아직 못 재서 기존 `OPTION_COLORS` 클래스로 떨어진다.
+The shape is **the chip measured in the Status dropdown** — height 20, radius 10 (pill), padding 7/9,
+14px label, and for status an 8px dot before the label (5px gap). Colors use the five measured ones
+(gray/blue/red/yellow/green); the remaining four haven't been measured yet and fall back to the existing
+`OPTION_COLORS` classes.
 
-한때 셀 칩(12px 사각)과 메뉴 칩(20px 알약)이 따로 있어서 같은 값이 화면에서 두 가지로
-보였다. `node app/e2e/chip-consistency.check.mjs` 가 **같은 값을 셀에서 한 번, 메뉴에서
-한 번 재서 서로 비교**하고(높이·radius·배경·패딩·점 크기/색/간격·라벨 크기/색/행간),
-덤으로 그 모양이 노션 픽스처와 같은지도 본다. 갈라지면 `셀 x / 메뉴 y` 로 찍고 exit 1.
+At one point there was a separate cell chip (12px rectangle) and menu chip (20px pill), so the same value looked two
+different ways on screen. `node app/e2e/chip-consistency.check.mjs` **measures the same value once in a cell and once
+in the menu and compares them** (height, radius, background, padding, dot size/color/gap, label size/color/line height),
+and as a bonus checks that the shape matches the Notion fixture. If they diverge it prints `cell x / menu y` and exits 1.
 
-## 사람 피커 — 원본 수치와 대조 (2026-08-06)
+## Person picker — compared against the original (2026-08-06)
 
-TL(250px 셀) · Sherpa(117px **빈** 셀) · Assignee(469px 셀) 세 개를 열어 쟀다.
-같은 숫자가 `app/e2e/fixtures/notion-person-picker.json`, 대조는
+Measured by opening three: TL (250px cell) · Sherpa (117px **empty** cell) · Assignee (469px cell).
+The same numbers are in `app/src/i18n/content/e2e-fixtures/notion-person-picker.json`; the comparison is
 `node app/e2e/person-picker.check.mjs`.
 
-- 폭은 셀 폭이 **아니다**: `max(240, 셀 폭)`. 117px 셀에서도 240이 나온다(우리는 220이었다)
-- 높이는 **항상 333**, 리스트가 안에서 스크롤. 셀을 덮고(−1,−1), radius 6
-- 상단 바: `rgba(242,241,238,.6)`, radius 6, 최대 240까지 늘어나며 스크롤.
-  빈 셀이면 높이 **39**, 한 줄이면 **63**
-- 바 안의 선택된 사람: **칩 배경이 없다**. 아바타 20 → 6px → 이름 **14px** → 2px →
-  `항목 제거` 버튼 20×20(아이콘 12). 줄 간격 24, 첫 줄 y=9, 아래 여백 10.
-  입력은 남은 자리를 차지한다(높이 20, 14px)
-- 라벨 `원하는 만큼 선택`: x=12, 12px/500, 바 아래 10px
-- 후보 행: x=4, 높이 28, 간격 **29**, 아바타 20@x12, 이름 14px@x40, 라벨 아래 9px
-- 본인에게는 이름 바로 뒤에 `(나)`
+- Width is **not** the cell width: `max(240, cell width)`. Even a 117px cell gives 240 (ours was 220)
+- Height is **always 333**, with the list scrolling inside. Covers the cell (−1,−1), radius 6
+- Top bar: `rgba(242,241,238,.6)`, radius 6, grows up to 240 and then scrolls.
+  Height **39** for an empty cell, **63** for one line
+- Selected people in the bar: **no chip background**. Avatar 20 → 6px → name **14px** → 2px →
+  `Remove item` button 20×20 (icon 12). Line spacing 24, first line y=9, bottom padding 10.
+  The input takes the remaining space (height 20, 14px)
+- Label `Select as many as you like`: x=12, 12px/500, 10px below the bar
+- Candidate rows: x=4, height 28, spacing **29**, avatar 20@x12, name 14px@x40, 9px below the label
+- For yourself, `(me)` directly after the name
 
-우리가 틀렸던 것: 폭 하한 220, 위치 +1/+4, radius 8, 회색 바 없음, 선택된 사람을
-12px 글씨의 회색 칩으로, 검색창을 칩 아래 별도 줄에, 라벨 11px에 x=1.
+What we had wrong: minimum width 220, position +1/+4, radius 8, no gray bar, selected people as gray chips with 12px
+text, the search box on a separate line below the chips, the label at 11px with x=1.
 
-## 행 컨트롤과 가로 스크롤 (2026-08-06)
+## Row controls and horizontal scrolling (2026-08-06)
 
-스크롤 위치 0 / 400 / 1250 에서 행에 호버해 쟀다
-(`app/e2e/fixtures/notion-row-gutter.json`, 대조는 `node app/e2e/row-gutter.check.mjs`).
+Measured by hovering a row at scroll positions 0 / 400 / 1250
+(`app/src/i18n/content/e2e-fixtures/notion-row-gutter.json`, comparison `node app/e2e/row-gutter.check.mjs`).
 
-- 스크롤 전: 컨트롤은 표 왼쪽 여백에 있다 — ⠿ 는 행 시작 **−62**, 체크박스 **−26**
-  (원본 순서는 왼쪽부터 `+`, `⠿`, `☐`. 우리에겐 `+`가 없다)
-- 스크롤하면: 컨트롤이 스크롤러 왼쪽 끝으로 붙는다. **체크박스만 스크롤러+11** 에 남고
-  (셀 위에 살짝 겹친다 — 원본도 그렇다), **⠿ 는 스크롤러 바깥**으로 나가 보이지 않는다
-- 우리가 틀렸던 것: `sticky left-0` 이라 컨트롤이 **표 왼쪽 끝에 고정**돼 있었고, 스크롤하면
-  셀 내용이 그 밑으로 흘러 이름 위에 체크박스가 얹혔다
-- 원본의 aria-label(그대로 쓴다): ⠿ 는 `드래그하여 이동하고 클릭하여 메뉴를 여세요`,
-  `+` 는 `블록을 아래에 추가하려면 클릭하고 위에 추가하려면 Option + 클릭하세요.`,
-  체크박스는 **라벨이 없다**(우리는 접근성 때문에 `Select row` 를 남겨둔다)
-- 고친 방법: sticky 자식은 스크롤포트의 **콘텐츠 박스**(= full-bleed 패딩만큼 안쪽)에 붙는다.
-  그래서 앵커의 `left` 를 `37px − 표의 왼쪽 인셋`(`--db-inset`, `useFullBleed` 가 쓴다)으로 주면
-  안 붙었을 때는 행을 따라가고, 붙을 때는 스크롤러+37 에 서서 위 수치가 그대로 나온다
+- Before scrolling: the controls sit in the table's left margin — ⠿ at **−62** from the row start, the checkbox at **−26**
+  (the original order from the left is `+`, `⠿`, `☐`. We don't have `+`)
+- After scrolling: the controls stick to the scroller's left edge. **Only the checkbox stays at scroller+11**
+  (slightly overlapping the cell — the original does too), and **⠿ moves outside the scroller** and is not visible
+- What we had wrong: with `sticky left-0`, the controls were **pinned to the table's left edge**, and when scrolling
+  the cell contents flowed underneath, putting the checkbox on top of the name
+- The original's aria-labels (we use them as-is, via the ko dictionary): ⠿ is `Drag to move, click to open menu`,
+  `+` is `Click to add a block below, Option + click to add above.`,
+  and the checkbox has **no label** (we keep `Select row` for accessibility)
+- How it was fixed: a sticky child sticks to the scrollport's **content box** (= inset by the full-bleed padding).
+  So giving the anchor `left` = `37px − the table's left inset` (`--db-inset`, written by `useFullBleed`) makes it
+  follow the row when not stuck, and stand at scroller+37 when stuck, reproducing the values above exactly
 
-## 뷰 탭 줄과 툴바 (2026-08-06)
+## View tab row and toolbar (2026-08-06)
 
-표 위의 한 줄. 왼쪽은 뷰 탭, 오른쪽은 툴바다(창 1200×870에서 쟀다,
-`app/e2e/fixtures/notion-view-bar.json`, 대조는 `node app/e2e/view-bar.check.mjs`).
+The single row above the table. The left side is view tabs, the right side is the toolbar (measured in a 1200×870
+window, `app/src/i18n/content/e2e-fixtures/notion-view-bar.json`, comparison `node app/e2e/view-bar.check.mjs`).
 
-- 활성 탭: **알약** 32높이 radius 20, 배경 `rgba(33,27,23,.05)`, 안쪽 여백 12,
-  아이콘 20, 간격 6, 라벨 **14px/500** `rgb(44,44,43)`. 탭 안에 `⋯` 는 **없다**
-- 비활성 탭: 배경 없음, 같은 크기, 라벨 색 `rgb(125,122,117)`
-- 넘침: `N개 더 보기` 32높이 알약, 14px/400, **캐럿 없음**
-- 툴바: **28×28 아이콘 버튼 6개**(radius 6, 아이콘 16, 28px 간격) —
-  필터 · 정렬 · 자동화 · AI 자동 채우기 · 검색 · 설정. **개수 배지는 없고**,
-  활성 표시는 배경이 아니라 **아이콘이 파래지는 것**(`rgb(39,131,222)`)
-- 주 버튼: `새로 만들기` **분할 버튼** 80×28 + 캐럿 24×28, radius 6,
-  배경 `rgb(39,131,222)`. (그룹의 add-row 가 `새 프로젝트`다 — 둘을 헷갈리지 말 것)
+- Active tab: a **pill**, height 32, radius 20, background `rgba(33,27,23,.05)`, inner padding 12,
+  icon 20, gap 6, label **14px/500** `rgb(44,44,43)`. There is **no** `⋯` inside the tab
+- Inactive tab: no background, same size, label color `rgb(125,122,117)`
+- Overflow: `N more` pill, height 32, 14px/400, **no caret**
+- Toolbar: **six 28×28 icon buttons** (radius 6, icon 16, 28px spacing) —
+  Filter · Sort · Automations · AI autofill · Search · Settings. **No count badges**;
+  the active state is shown not by a background but by **the icon turning blue** (`rgb(39,131,222)`)
+- Primary button: the `New` **split button** 80×28 + caret 24×28, radius 6,
+  background `rgb(39,131,222)`. (The group's add-row is `New project` — don't confuse the two)
 
-눌러본 동작:
+Behavior observed by clicking:
 
-- **필터/정렬** → 탭 줄 아래에 칩 바가 **토글**된다: `↑ End date ⌄` ·
-  `Status: In progress,Needs… ⌄` · `+ 필터`, 그리고 버튼에 눌린 표시가 남는다.
-  우리는 이 바가 **항상** 떠 있다 (아직 안 고침)
-- **자동화** / **AI 자동 채우기** → 483×642 패널
-- **활성 탭 클릭** → 그 뷰의 메뉴
-- 못 잼: **검색**·**설정** 패널(클릭해도 패널을 못 잡았다), 탭 메뉴 항목, 호버 상태
+- **Filter/Sort** → a chip bar **toggles** below the tab row: `↑ End date ⌄` ·
+  `Status: In progress,Needs… ⌄` · `+ Filter`, and the button keeps a pressed state.
+  Ours shows this bar **always** (not fixed yet)
+- **Automations** / **AI autofill** → a 483×642 panel
+- **Clicking the active tab** → that view's menu
+- Not measured: the **Search** and **Settings** panels (clicking didn't let us capture the panel), tab menu items, hover states
 
-우리에게 아직 없는 것: 툴바 버튼 6개 중 자동화·AI 자동 채우기·검색(우리는 3개 + `⋯`),
-그리고 캐럿 메뉴(템플릿).
+What we still lack: of the six toolbar buttons, Automations, AI autofill, and Search (we have 3 + `⋯`),
+and the caret menu (templates).
 
-## 표의 오른쪽 끝 (2026-08-06)
+## The table's right edge (2026-08-06)
 
-원본을 가로로 끝까지 밀면 마지막 열 뒤에 `+` 열(56px)과 **페이지 여백**이 남는다
-(창 1443일 때 마지막 열 오른쪽 1617, 스크롤러 콘텐츠 오른쪽 1713 → **96px**).
-우리 표는 오른쪽 여백이 아예 없어서 창 끝에 딱 붙어 끝났고, 그래서 "끝까지
-스크롤이 안 된다"고 느껴졌다 — 끝이 없었던 것이다.
+Scrolling the original all the way to the right leaves a `+` column (56px) and **the page margin** after the last column
+(with a 1443 window, the last column's right edge is 1617 and the scroller content's right edge is 1713 → **96px**).
+Our table had no right margin at all and ended flush against the window edge, which is why it felt like "you can't
+scroll to the end" — there was no end.
 
-`useFullBleed` 가 왼쪽에만 넣던 인셋을 **오른쪽에도** 넣는다(현재 104px).
-대조는 `node app/e2e/table-right-edge.check.mjs` — 끝까지 스크롤되는지, 마지막
-열이 잘리지 않는지, 표 뒤 페이지 여백이 96±16 인지 본다. 원본 96 vs 우리 104 의
-8px 차이는 쫓지 않았다(왼쪽 인셋도 104다).
+`useFullBleed` now applies the inset it used to put only on the left **on the right as well** (currently 104px).
+The comparison is `node app/e2e/table-right-edge.check.mjs` — it checks that you can scroll to the end, that the last
+column isn't clipped, and that the page margin after the table is 96±16. We didn't chase the 8px difference between the
+original's 96 and our 104 (the left inset is also 104).
 
-## 제목 셀 — 호버 · 클릭 · 열기 (2026-08-06)
+## Title cell — hover · click · open (2026-08-06)
 
-`app/e2e/fixtures/notion-title-cell.json`, 대조는 `node app/e2e/title-open.check.mjs`.
+`app/src/i18n/content/e2e-fixtures/notion-title-cell.json`, comparison `node app/e2e/title-open.check.mjs`.
 
-- 호버하면 셀 오른쪽 끝에서 5px 안쪽에 **흰 패드 55×24**(radius 6, padding 2,
-  그림자 3겹 `rgba(25,25,25,.027) 0 8px 12px` + `0 2px 6px` + `rgba(42,28,0,.07) 0 0 0 1px`)가
-  뜨고, 그 안에 **51×20 버튼**(radius 4, padding 0 4, gap 6). 아이콘 15px
-  `rgb(142,139,134)`, 라벨 `열기` **12px/500** `rgb(125,122,117)`,
-  aria-label 은 `사이드 보기에서 열기`
-- **제목 글자를 클릭하면 셀 안에서 바로 편집**된다(contenteditable). 페이지가 열리지 않는다
-- **열기를 누르면** 오른쪽 도킹 사이드 보기 (그 창에서 x=1128 w=600 전체 높이)
-- 셀 자체: padding `7.5px 8px`, 아이콘 20px, 제목 14px
+- On hover, a **white pad 55×24** appears 5px in from the cell's right edge (radius 6, padding 2,
+  3-layer shadow `rgba(25,25,25,.027) 0 8px 12px` + `0 2px 6px` + `rgba(42,28,0,.07) 0 0 0 1px`),
+  containing a **51×20 button** (radius 4, padding 0 4, gap 6). Icon 15px
+  `rgb(142,139,134)`, label `Open` **12px/500** `rgb(125,122,117)`,
+  aria-label `Open in side peek`
+- **Clicking the title text edits it right in the cell** (contenteditable). The page does not open
+- **Clicking Open** shows the right-docked side peek (in that window x=1128 w=600, full height)
+- The cell itself: padding `7.5px 8px`, icon 20px, title 14px
 
-우리가 틀렸던 것: 11px 테두리 칩이었고, 무엇보다 **호버해도 아예 안 떴다** —
-버튼은 `group-hover/dbcell` 을 보는데 제목 셀은 `group/titlecell` 을 선언한다.
-게다가 `열기` 는 셀이 아니라 **행**에 딸린 버튼이다(원본은 행 어디에 올려도 뜬다).
-`db-hover-scope.check.mjs` 가 이걸 못 잡았던 이유도 적어둔다: 버튼이 아니라 그
-부모(셀)의 opacity 를 읽고 있었다 — 셀은 언제나 1이다.
+What we had wrong: it was an 11px bordered chip, and above all **it didn't appear on hover at all** —
+the button watched `group-hover/dbcell`, but the title cell declares `group/titlecell`.
+Moreover, `Open` is a button belonging to the **row**, not the cell (in the original it appears wherever you hover on the row).
+Also noting why `db-hover-scope.check.mjs` didn't catch this: it read the opacity of the button's parent (the cell)
+rather than the button — the cell is always 1.
 
-## 사이드바 페이지 행 (2026-08-06)
+## Sidebar page rows (2026-08-06)
 
-`app/e2e/fixtures/notion-sidebar-row.json`, 대조는 `node app/e2e/sidebar-row.check.mjs`.
+`app/src/i18n/content/e2e-fixtures/notion-sidebar-row.json`, comparison `node app/e2e/sidebar-row.check.mjs`.
 
-- 호버하면 버튼은 **세 개**뿐이다(각 20×20, radius 4): `열기`(펼치기 화살표, 아이콘 12 —
-  평소엔 페이지 아이콘 자리) · `삭제, 복제 등…`(⋯, 아이콘 16) · `하위 페이지 추가`(+, 아이콘 16)
-- **여섯 점 손잡이는 없다.** 순서 변경은 행 자체를 끌어서 한다 → 우리도 손잡이를 없애고
-  드래그를 행에 붙였다(행 안의 button/input 위에서 시작한 것은 드래그로 치지 않는다)
-- 우리 버그: 액션을 `group-hover:flex` 로만 보이게 해서, 포인터가 ⋯ 메뉴로 가는 순간
-  트리거가 `display:none` 이 되고 **CSS 앵커가 사라져 메뉴가 접혔다** — 항목을 누를 수가
-  없었다. 메뉴가 열려 있는 동안에는 액션을 계속 배치해 둔다
+- On hover there are only **three** buttons (each 20×20, radius 4): `Open` (expand arrow, icon 12 —
+  normally in the page icon's spot) · `Delete, duplicate, and more…` (⋯, icon 16) · `Add a page inside` (+, icon 16)
+- **There is no six-dot handle.** Reordering is done by dragging the row itself → we also removed the handle and
+  attached dragging to the row (drags starting on a button/input inside the row don't count)
+- Our bug: the actions were only shown via `group-hover:flex`, so the moment the pointer moved to the ⋯ menu,
+  the trigger became `display:none`, **the CSS anchor vanished and the menu collapsed** — you couldn't click any item.
+  While the menu is open, the actions stay laid out
 
-## 재보다 틀렸던 것들 — 같은 실수를 반복하지 않으려고 적는다
+## Things we measured wrong — written down so we don't repeat them
 
-전부 실제로 한 번씩 틀린 것이고, 옆에 "어떻게 확인하면 되는지"를 같이 적었다.
+Every one of these was actually gotten wrong once, and each comes with "how to check it."
 
-1. **`scrollIntoView()`는 가로로도 스크롤한다.** 표를 화면에 올리려고 부른 뒤 좌표를 읽어서
-   표의 왼쪽 끝을 104px 왼쪽으로 착각했고, 그 값으로 레이아웃을 바꿔 시작 위치를 깨뜨렸다.
-   → 재기 전에 `scroller.scrollLeft = 0` 으로 리셋하고, 세로만 움직여라.
-2. **노션 표는 행마다 보이는 5칸만 DOM에 둔다.** 게다가 `scrollLeft`만 바꾸면 가상화가 돌지
-   않아 뒤쪽 컬럼이 영영 안 그려진다. → `scrollLeft` 변경 뒤 그 스크롤러에
-   `dispatchEvent(new Event('scroll', { bubbles: true }))`.
-3. **DOM에 있다 ≠ 화면에 보인다.** `cell.querySelectorAll('button')` 으로 "셀마다 버튼이 붙었다"고
-   판단했는데, 실제로는 행 오른쪽 끝(2,900px 밖)에 그려지고 있었다. → 붙었는지가 아니라
-   **좌표**를 재라: `cellRect.right - buttonRect.right`.
-4. **`absolute` 는 positioned 조상을 찾는다.** 셀에 `relative` 가 없으면 행 기준이 된다. 제목 셀만
-   `relative` 라서 `열기`만 제대로 보였다.
-5. **포털은 ref 바깥이다.** 팝오버를 `createPortal` 로 옮긴 뒤에도 바깥클릭 감지가 `ref` 만
-   보고 있어서, 팝오버 안을 누르는 순간 mousedown 에서 닫혔고 클릭이 도달하지 못했다(사람 선택이
-   안 먹던 원인). → 포털 노드의 ref 도 같이 검사.
-6. **"hover 시 변화 없음"은 배경색만 본 결론이었다.** 노션은 행에 색을 칠하지 않는 대신 **버튼**을
-   띄운다. → 배경/보더뿐 아니라 그 순간 보이는 `[role=button]` 을 세라.
-7. **폭에 따라 기하가 달라진다.** 페이지가 `max-width + mx-auto` 로 가운데 정렬이면 창을 넓힐수록
-   시작 위치가 밀린다. 좁은 창에서만 확인하고 "고쳤다"고 세 번 말했다. → 최소 3개 폭
-   (1200/1600/2400)에서 재라.
-8. **값이 있는 셀과 빈 셀은 UI가 다르다.** 빈 셀은 hover 해도 아무것도 안 뜬다. → 두 경우를 다 보라.
-9. **호버 어포던스에는 "범위"가 있고, 범위는 켜진 것이 아니라 *안 켜진 것*을 봐야 보인다.**
-   댓글은 포인터가 있는 **셀 하나**, 열기는 **행 전체**인데 둘 다 행의 hover 그룹
-   (`group-hover/dbrow`)에 걸어서, 아무 셀에나 올려도 그 행의 모든 셀에 댓글 버튼이 떴다.
-   내가 확인한 셀은 늘 정답이었기 때문에(버튼이 있고, 위치도 맞고) 몇 번을 재도 통과였다.
-   → 호버 상태를 잴 때는 **호버한 것과 호버하지 않은 형제들을 같은 순간에 함께** 읽어라.
-   `e2e/db-hover-scope.check.mjs` 가 이걸 자동으로 확인한다(셀마다 hover → 켜진 셀 목록이
-   자기 자신 하나인지, 열기는 계속 켜져 있는지). 같은 종류의 누수를 커밋 e94e05f 도 겪었다
-   (`group-hover/block` 이 조상까지 켜던 문제) — 그룹 hover 는 **조상 전부**에 걸린다는 것을
-   기억할 것.
+1. **`scrollIntoView()` also scrolls horizontally.** After calling it to bring the table on screen, we read coordinates
+   and mistook the table's left edge as being 104px further left, then changed the layout based on that value and
+   broke the start position.
+   → Reset with `scroller.scrollLeft = 0` before measuring, and move only vertically.
+2. **Notion tables keep only the 5 visible cells per row in the DOM.** Worse, changing only `scrollLeft` doesn't
+   trigger virtualization, so trailing columns never get drawn. → After changing `scrollLeft`, call
+   `dispatchEvent(new Event('scroll', { bubbles: true }))` on that scroller.
+3. **In the DOM ≠ visible on screen.** We concluded "every cell has buttons attached" from
+   `cell.querySelectorAll('button')`, but they were actually drawn at the row's right end (2,900px away). → Measure
+   **coordinates**, not attachment: `cellRect.right - buttonRect.right`.
+4. **`absolute` looks for a positioned ancestor.** If the cell has no `relative`, the row becomes the reference. Only the
+   title cell was `relative`, so only `Open` appeared correctly.
+5. **Portals are outside the ref.** After moving the popover with `createPortal`, the outside-click detection still
+   only checked `ref`, so pressing inside the popover closed it on mousedown and the click never arrived (the reason
+   person selection didn't work). → Check the portal node's ref too.
+6. **"No change on hover" was a conclusion from looking only at the background color.** Notion doesn't paint the row;
+   instead it shows **buttons**. → Count the `[role=button]` elements visible at that moment, not just background/border.
+7. **Geometry varies with width.** When the page is centered with `max-width + mx-auto`, the start position shifts as
+   the window widens. We checked only in a narrow window and said "fixed" three times. → Measure at at least 3 widths
+   (1200/1600/2400).
+8. **Cells with values and empty cells have different UI.** Hovering an empty cell shows nothing. → Look at both cases.
+9. **Hover affordances have a "scope," and the scope is only visible by looking at what is *not* lit up, not what is.**
+   Comments belong to **the single cell** under the pointer, Open to **the whole row**, but both were hung on the row's
+   hover group (`group-hover/dbrow`), so hovering any cell showed comment buttons on every cell in that row.
+   The cell I checked was always correct (the button was there, in the right position), so it passed no matter how
+   many times I measured.
+   → When measuring hover states, read **the hovered element and its non-hovered siblings together at the same moment**.
+   `e2e/db-hover-scope.check.mjs` checks this automatically (hover each cell → is the list of lit cells just itself,
+   and does Open stay lit). Commit e94e05f hit the same kind of leak (`group-hover/block` lighting up ancestors too) —
+   remember that group hover applies to **all ancestors**.
 
-## 원본을 건드리지 않기 위한 규칙
+## Rules for not touching the original
 
-- 조작은 **읽기 전용 API 호출**과 hover, 뷰 탭 전환까지. 셀 클릭·행 추가·컬럼 드래그·설정 변경 없음
-- **"빈 곳을 클릭해서 메뉴 닫기"는 금지.** 한 번 그렇게 했다가 사용자의 탭이 라이브러리로 이동했다.
-  메뉴는 `Escape`로만 닫는다
-- 접속 경로는 `scratchpad/cdp-lib.mjs` — 사용자 맥의 크롬(포트 9333)에 ssh 역터널로 붙는다
+- Operations are limited to **read-only API calls**, hover, and switching view tabs. No cell clicks, row additions,
+  column drags, or settings changes
+- **"Click an empty area to close a menu" is forbidden.** We did that once and the user's tab navigated to the library.
+  Close menus only with `Escape`
+- The connection path is `scratchpad/cdp-lib.mjs` — it attaches to Chrome on the user's Mac (port 9333) via an ssh reverse tunnel

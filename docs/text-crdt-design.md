@@ -1,260 +1,272 @@
-# 3단계 설계 — 글자 단위 텍스트 CRDT
+# Stage 3 design — character-level text CRDT
 
-`docs/save-protocol-target.md` §1.2·§2·§5.5·§5.6·§6.2 를 구현 수준으로 푼 것. 기준은
-`docs/notion-save-protocol.md` 의 실측이다: 노션은 블록 안 텍스트를 글자 단위 연산으로 보내고
-(`insertText`/`deleteText`/`splitText`/`moveTextSlice`, `id:[clientId,seq]`, `originId`), 두 탭이 같은
-블록에 동시에 쳐도 양쪽이 같은 결과로 합쳐진다. 1·2 단계가 끝난 지금 남은 차이는 이것 하나다.
+This works out `docs/save-protocol-target.md` §1.2·§2·§5.5·§5.6·§6.2 at the implementation level. The reference is
+the measurements in `docs/notion-save-protocol.md`: Notion sends text inside a block as character-level operations
+(`insertText`/`deleteText`/`splitText`/`moveTextSlice`, `id:[clientId,seq]`, `originId`), and when two tabs type into the
+same block at the same time, both sides merge into the same result. Now that stages 1 and 2 are done, this is the one
+remaining difference.
 
-## 0. 목표와 비목표
+## 0. Goals and non-goals
 
-- 목표: 두 사람이 같은 블록을 동시에 고쳐도 서버·양쪽 화면이 같은 텍스트로 수렴한다. 자기 캐럿은
-  원격 삽입에 밀리지 않는다. 그 외 저장 동작(큐·재시도·팬아웃)은 2 단계 그대로다.
-- 비목표: 커서 위치 공유(이미 별도 `cursor` 이벤트), 블록 순서의 CRDT(`position` LWW 유지 — 노션도
-  `listAfter` 는 서버 검증형이고 실측상 문제가 없었다), 표 셀 이동 등 구조 편집의 재작성.
+- Goal: when two people edit the same block at the same time, the server and both screens converge on the same text. Your
+  own caret is not pushed around by remote insertions. All other save behavior (queue, retry, fan-out) stays as in stage 2.
+- Non-goals: sharing cursor positions (already a separate `cursor` event), a CRDT for block order (`position` stays LWW —
+  Notion's `listAfter` is also server-validated and caused no problems in measurements), and rewriting structural edits
+  such as moving table cells.
 
-## 1. 데이터 모델
+## 1. Data model
 
 ```ts
-type ItemId = [clientId: string, seq: number];        // seq 는 Lamport 시계: 내가 본 최대 seq + 1
+type ItemId = [clientId: string, seq: number];        // seq is a Lamport clock: largest seq seen so far + 1
 interface TextItem {
   id: ItemId;
-  origin: ItemId | "start";   // 삽입 당시 바로 왼쪽에 있던 item
-  text: string;               // 1 글자 이상 — 연속 입력은 클라이언트·서버가 run 으로 합친다(§6)
+  origin: ItemId | "start";   // the item immediately to the left at insertion time
+  text: string;               // one or more characters — consecutive input is merged into runs by client and server (§6)
   attrs?: Attrs;              // { b, i, u, s, code, a: { href }, color, mention: { userId } }
   deleted?: true;             // tombstone
 }
-interface TextInstance { items: TextItem[] }          // 정렬된 상태로 저장
+interface TextInstance { items: TextItem[] }          // stored in sorted order
 ```
 
-- 블록 `content` 에 `items: TextItem[]` 가 추가된다. `content.text` 와 `content.html` 은 **렌더 캐시**로
-  계속 저장한다 — 검색·미러·export·MCP 읽기·히스토리 스냅샷은 전부 캐시만 읽으므로 바뀌지 않는다.
-- 표 블록은 셀마다 instance: `content.table.cellItems[row][col]`. 캐시는 지금의 `cells[row][col]`.
-- 그 외 필드(`type`, `position`, `parentBlockId`, `checked`, `expanded`, 이미지 URL …)는 LWW 그대로.
+- Block `content` gains `items: TextItem[]`. `content.text` and `content.html` continue to be stored as a **render
+  cache** — search, mirror, export, MCP reads and history snapshots all read only the cache, so they do not change.
+- Table blocks have one instance per cell: `content.table.cellItems[row][col]`. The cache is the current `cells[row][col]`.
+- All other fields (`type`, `position`, `parentBlockId`, `checked`, `expanded`, image URL …) remain LWW.
 
-### 1.1 순서 규칙 (RGA, Lamport seq)
+### 1.1 Ordering rule (RGA, Lamport seq)
 
-`seq` 는 클라이언트별 카운터가 아니라 **Lamport 시계**다: 새 item 은 "그 instance 에서 지금까지 본 가장 큰
-seq + 1" 을 받는다. 그래야 방금 친 글자가 origin 바로 뒤에 놓인다(카운터였다면 오래된 이웃보다 작은 seq 라
-run 의 끝으로 밀린다 — `scripts/text-crdt.check.mts` 의 "삭제된 글자 뒤 삽입" 이 그 경우다).
+`seq` is not a per-client counter but a **Lamport clock**: a new item gets "the largest seq seen so far in that instance
++ 1". That is what places a just-typed character right after its origin (with a counter, it would have a smaller seq than
+older neighbours and get pushed to the end of the run — the "insert after a deleted character" case in
+`scripts/text-crdt.check.mts` is exactly that).
 
-item 은 origin 이 가리키는 item 의 **바로 오른쪽**에 들어간다. 같은 origin 을 가리키는 item 이 여럿이면
-`seq` 내림차순, 같으면 `clientId` 사전순 — 어떤 순서로 연산이 도착해도 결과가 같다. 정렬은 "origin 을
-찾아 그 뒤에서 규칙에 맞는 자리까지 오른쪽으로 이동" 이라 삽입 비용은 O(n)이고 블록 하나 안에서만
-일어난다(문단 하나 수천 글자가 상한).
+An item goes **immediately to the right** of the item its origin points to. If several items point to the same origin,
+they are ordered by `seq` descending, then by `clientId` lexicographically — the result is the same regardless of the order
+in which operations arrive. Ordering means "find the origin, then move right from there until the rule is satisfied", so
+insertion costs O(n) and happens only within one block (a single paragraph of a few thousand characters is the upper bound).
 
-예: 두 탭이 `"AB"` 의 B 뒤에 동시에 각각 `x`(탭1, seq 5)와 `y`(탭2, seq 3)를 넣으면 origin 이 둘 다 B.
-규칙에 따라 `x`(seq 5) 가 앞 → 양쪽 모두 `"ABxy"`. 실측(`… A탭 B탭`)과 같은 성질이다.
+Example: if two tabs simultaneously insert `x` (tab 1, seq 5) and `y` (tab 2, seq 3) after the B of `"AB"`, both have
+origin B. By the rule, `x` (seq 5) comes first → both sides get `"ABxy"`. This is the same property as in the measurement
+(`… A-tab B-tab`).
 
-### 1.2 삭제 = tombstone
+### 1.2 Deletion = tombstone
 
-`deleted:true` 로 표시하고 남긴다(누군가의 origin 일 수 있다). 렌더에서 빠진다. 서버가 캐시를 다시 만들
-때, **모든 세션이 확인했다고 볼 수 있는 시점**이 없으므로 30 일 지난 tombstone 만 지운다(`updatedAt`
-기준). 지운 tombstone 을 origin 으로 하는 늦은 삽입은 "origin 없음" 으로 거절되고(§5.3) 클라이언트가
-자기 상태로 다시 만든다.
+Mark with `deleted:true` and keep it (it may be someone's origin). It is skipped when rendering. When the server rebuilds
+the cache, there is no point at which **every session can be assumed to have acknowledged it**, so only tombstones older
+than 30 days are removed (based on `updatedAt`). A late insertion whose origin is a removed tombstone is rejected as
+"origin missing" (§5.3) and the client rebuilds it from its own state.
 
-## 2. 연산
+## 2. Operations
 
-`Operation` 유니온에 넷을 더한다. `pointer` 는 블록, `path` 가 instance 를 가리킨다
-(`["content","items"]` 또는 `["content","table","cellItems",r,c]`).
+Four are added to the `Operation` union. `pointer` points to the block and `path` to the instance
+(`["content","items"]` or `["content","table","cellItems",r,c]`).
 
-| command | args | 의미 |
+| command | args | meaning |
 |---|---|---|
-| `insertText` | `{ items: TextItem[] }` | item 들을 병합 삽입. 한 연산에 여러 item(붙여넣기 한 조각 등) |
-| `deleteText` | `{ ranges: [ItemId, number][] }` | id 부터 length 개 item 을 tombstone |
-| `formatText` | `{ ranges: [ItemId, number][], attrs: Partial<Attrs>, remove?: (keyof Attrs)[] }` | 범위 attrs 병합/제거. 범위 경계에 걸친 item 은 서버·클라이언트가 같은 규칙으로 쪼갠다(§6) |
-| `moveTextSlice` | `{ from: ItemId, toBlock: string, toPath, toOrigin: ItemId \| "start" }` | `from` 부터 끝까지의 item 열을 다른 instance 로 옮긴다(id 유지, origin 만 첫 item 이 `toOrigin` 으로) |
+| `insertText` | `{ items: TextItem[] }` | Merge-insert the items. Several items per operation (e.g. one pasted fragment) |
+| `deleteText` | `{ ranges: [ItemId, number][] }` | Tombstone `length` items starting at `id` |
+| `formatText` | `{ ranges: [ItemId, number][], attrs: Partial<Attrs>, remove?: (keyof Attrs)[] }` | Merge/remove attrs over the range. Items straddling a range boundary are split by server and client using the same rule (§6) |
+| `moveTextSlice` | `{ from: ItemId, toBlock: string, toPath, toOrigin: ItemId \| "start" }` | Move the item sequence from `from` to the end into another instance (ids kept; only the first item's origin becomes `toOrigin`) |
 
-노션의 `splitText` 는 `moveTextSlice` 로 대신한다(우리 블록 생성이 `set` 이라 "잘라서 새 블록으로" 는
-`set` + `moveTextSlice` 두 연산으로 한 트랜잭션이 된다).
+Notion's `splitText` is replaced by `moveTextSlice` (our block creation is a `set`, so "cut into a new block" becomes two
+operations, `set` + `moveTextSlice`, in one transaction).
 
-②에서 구현하며 확정된 세부(`lib/transactions/types.ts`, `lib/text-crdt/ops.ts`):
-- 모든 텍스트 연산 `args` 에 `instance`(연산을 만든 instance id)가 들어간다. 서버의 instance 와 다르면 트랜잭션
-  거절. **instance 가 아직 없는 블록은 연산이 들고 온 id 를 채택**한다 — 양쪽이 같은 html 에서 같은 items
-  (`["m",1..n]`)를 만들기 때문에 좌표가 일치한다. 게으른 마이그레이션은 이렇게 "첫 연산이 도착할 때" 일어난다.
-- `formatText` 는 attrs 객체가 아니라 **태그 스택** `tags: string[]`(sanitizer 가 내는 여는 태그, 바깥부터)을 범위에
-  덮어쓴다. ①의 item 모델이 서식을 태그 스택으로 들고 있어 그대로 맞췄다. `[]` 는 서식 해제.
-- `moveTextSlice` 에서 옮겨지는 조각 중 origin 이 **잘린 곳 왼쫀에 남은** 글자를 가리키는 item(동시 삽입이 그 자리에
-  걸린 경우)은 바로 앞 조각의 마지막 글자로 다시 건다. 조각 안에서만 결정되므로 모든 복제본이 같다.
-- 캐시 재생성은 `mergeRuns` 뒤 `renderHtml`/`renderText`. 표 셀은 `cells[r][c]`(text)와 `html[r][c]` 둘 다.
+Details settled while implementing ② (`lib/transactions/types.ts`, `lib/text-crdt/ops.ts`):
+- Every text operation's `args` carries `instance` (the id of the instance the operation was built against). If it differs
+  from the server's instance, the transaction is rejected. **A block that has no instance yet adopts the id carried by the
+  operation** — both sides build the same items (`["m",1..n]`) from the same html, so the coordinates match. This is how lazy
+  migration happens: "when the first operation arrives".
+- `formatText` overwrites the range not with an attrs object but with a **tag stack** `tags: string[]` (the opening tags the
+  sanitizer emits, outermost first). The item model from ① holds formatting as a tag stack, so we matched that. `[]` clears
+  formatting.
+- In `moveTextSlice`, any item in the moved slice whose origin points to a character **left behind on the left side of the
+  cut** (a concurrent insertion anchored there) is re-anchored to the last character of the preceding part of the slice. This
+  is decided entirely within the slice, so all replicas agree.
+- Cache rebuild is `mergeRuns` followed by `renderHtml`/`renderText`. For table cells, both `cells[r][c]` (text) and
+  `html[r][c]`.
 
-UI → 트랜잭션:
-- 글자 입력: `insertText`(item 1 개씩 보낸다 — 노션도 글자마다 연산). 자기 상태에서는 §6 규칙으로 바로 합친다.
-- Enter(중간): `set`(새 블록) · `moveTextSlice`(캐럿 이후 → 새 블록 `"start"`) · `update position`.
-- Backspace(블록 처음): `moveTextSlice`(이 블록 전부 → 앞 블록 끝) · `update {alive:false}`.
-- 서식 단축·툴바: `formatText`. 마크다운 자동서식(`**a**` → 굵게)은 `deleteText`(마커) + `formatText`.
-- 붙여넣기(한 줄): `insertText`(item 여러 개, 서식 경계마다). 여러 블록: 블록마다 `set`(items 포함).
-- 표 셀 입력: 같은 연산, `path` 만 셀.
+UI → transaction:
+- Typing a character: `insertText` (one item at a time — Notion also sends an operation per character). In local state it is
+  merged immediately by the §6 rule.
+- Enter (in the middle): `set` (new block) · `moveTextSlice` (after the caret → new block `"start"`) · `update position`.
+- Backspace (at block start): `moveTextSlice` (all of this block → end of the previous block) · `update {alive:false}`.
+- Formatting shortcuts/toolbar: `formatText`. Markdown auto-formatting (`**a**` → bold) is `deleteText` (markers) +
+  `formatText`.
+- Paste (single line): `insertText` (multiple items, split at formatting boundaries). Multiple blocks: one `set` per block
+  (including items).
+- Table cell input: the same operations, only `path` points at the cell.
 
-기존 `update {content}` 로 텍스트를 바꾸는 것은 **에디터에서는 사라진다**. 서버 쪽 쓰기(PUT /blocks,
-MCP, 히스토리 복원)에서 오는 `update {content:{text,html}}` / `set` 은 서버가 §6 규칙으로 items 를
-다시 만든다.
+Changing text via the existing `update {content}` **disappears from the editor**. For server-side writes (PUT /blocks, MCP,
+history restore), incoming `update {content:{text,html}}` / `set` has its items rebuilt by the server using the §6 rules.
 
-## 3. 클라이언트 — 에디터
+## 3. Client — editor
 
-### 3.1 상태
-`EBlock.content.items` 를 진실로 둔다. 렌더는 items → (tombstone 제외, attrs 같은 인접 조각 합침) →
-HTML. 지금의 `sanitizeInline` 결과와 같은 HTML 이 나오도록 렌더러를 맞춘다(기존 e2e 가 그걸 잰다).
+### 3.1 State
+`EBlock.content.items` is the source of truth. Rendering is items → (drop tombstones, merge adjacent pieces with equal attrs)
+→ HTML. The renderer is aligned to produce the same HTML as the current `sanitizeInline` output (the existing e2e measures
+exactly that).
 
-### 3.2 입력 → 연산 (실측에 맞춤: uncontrolled, mutation 기반)
+### 3.2 Input → operations (matching measurements: uncontrolled, mutation-based)
 
-노션은 `beforeinput` 을 막지 않는다(`defaultPrevented:false`). 브라우저가 DOM 을 먼저 바꾸고, 노션이
-바뀐 결과를 읽어 연산을 만든다(트랜잭션의 `userAction` 이 `Text.handleMutation`). 우리도 같게 한다 —
-지금의 `onInput`(DOM 을 읽는 방식)을 **유지**하되, "블록 텍스트를 통째로 저장" 대신 **이전 텍스트와 새
-텍스트의 차이(한 곳의 삽입/삭제 구간)를 계산해 연산으로 바꾼다.**
+Notion does not block `beforeinput` (`defaultPrevented:false`). The browser changes the DOM first, and Notion reads the result
+to build operations (the transaction's `userAction` is `Text.handleMutation`). We do the same — **keep** the current `onInput`
+(which reads the DOM), but instead of "save the whole block text", **compute the difference between the old and new text (a
+single insertion/deletion span) and turn it into operations.**
 
-| 상황 | 연산 |
+| situation | operations |
 |---|---|
-| 글자 입력·붙여넣기(한 줄) | 차이 구간의 왼쪽 글자 id 를 origin 으로 `insertText` |
-| 삭제 | 차이 구간을 `deleteText` |
-| 교체(선택 후 입력, 자동 교정) | `deleteText` + `insertText` |
-| Enter | `set`(새 블록) + `moveTextSlice` + `update position` |
-| Backspace(블록 처음) | `moveTextSlice` + `update {alive:false}` |
-| 서식 단축·툴바 | `formatText` |
-| IME 조합 | **조합 갱신마다** 연산을 만든다(노션 실측: ㅎ → `insertText:ㅎ`, 하 → `deleteText`+`insertText:하`). 확정을 기다리지 않는다 |
+| Typing / paste (single line) | `insertText` with the id of the character left of the diff span as origin |
+| Deletion | `deleteText` over the diff span |
+| Replacement (type over a selection, autocorrect) | `deleteText` + `insertText` |
+| Enter | `set` (new block) + `moveTextSlice` + `update position` |
+| Backspace (at block start) | `moveTextSlice` + `update {alive:false}` |
+| Formatting shortcut/toolbar | `formatText` |
+| IME composition | Emit operations **on every composition update** (Notion measurement: typing a Hangul syllable jamo by jamo produces `insertText` for the first jamo, then `deleteText`+`insertText` for each updated syllable). Do not wait for commit |
 
-차이 계산은 공통 접두·접미를 떼는 O(n) 이고 블록 하나 안에서만 한다. 원격 변경이 같은 블록에 끼어들면
-"이전 텍스트" 가 원격 반영 뒤의 것이어야 하므로, 원격 병합 → 렌더 → 그 결과를 다음 차이 계산의 기준으로
-삼는다(§3.5).
+The diff strips common prefix and suffix, is O(n), and runs only within one block. If a remote change lands in the same block,
+the "old text" must be the one after the remote change is applied, so the sequence is: merge remote → render → use that result
+as the baseline for the next diff (§3.5).
 
-### 3.3 캐럿
-캐럿을 DOM 오프셋이 아니라 **item 좌표**(`{ after: ItemId | "start" }`)로 들고 다닌다. 렌더 뒤 item →
-DOM 오프셋으로 되돌린다(`lib/editor/caret.ts` 확장). 원격 삽입이 캐럿 왼쪽에 들어와도 캐럿은 같은
-item 뒤에 남는다 — 이것이 지금 "캐럿 블록은 원격 변경을 미룬다" 규칙을 없앨 수 있는 근거다.
+### 3.3 Caret
+Carry the caret not as a DOM offset but as an **item coordinate** (`{ after: ItemId | "start" }`). After rendering, convert
+item → DOM offset (extending `lib/editor/caret.ts`). Even if a remote insertion lands left of the caret, the caret stays after
+the same item — this is what lets us drop the current rule "the caret's block defers remote changes".
 
 ### 3.4 undo/redo
-스냅샷 diff(`restoreSnapshot`)를 **역연산**으로 바꾼다. 트랜잭션마다 inverse 를 함께 만들어 둔다:
-`insertText` ↔ `deleteText`(같은 id 들), `deleteText` ↔ "되살리기"(`insertText` 로 같은 id·origin 재삽입 —
-서버는 tombstone 해제로 처리), `formatText` ↔ 이전 attrs 로 `formatText`, `set` ↔ `update {alive:false}`,
-`update` ↔ 이전 값 `update`. undo 도 보통 트랜잭션이다(`debug.userAction:"undo"`).
+Replace snapshot diffs (`restoreSnapshot`) with **inverse operations**. Build the inverse alongside each transaction:
+`insertText` ↔ `deleteText` (same ids), `deleteText` ↔ "revive" (`insertText` re-inserting the same id and origin — the server
+handles it by clearing the tombstone), `formatText` ↔ `formatText` with the previous attrs, `set` ↔ `update {alive:false}`,
+`update` ↔ `update` with the previous value. Undo is an ordinary transaction too (`debug.userAction:"undo"`).
 
-### 3.5 원격 병합
-SSE 로 온 텍스트 연산을 자기 items 에 병합하고 다시 그린다. 캐럿은 §3.3 으로 유지. 2 단계의
-"캐럿 블록 미루기" 는 삭제.
+### 3.5 Remote merge
+Merge text operations received over SSE into local items and re-render. The caret is preserved per §3.3. Stage 2's
+"defer the caret's block" is removed.
 
-### 3.6 성능 (6 번 항목 포함)
-- `BlockRow` 를 `memo` 로 감싸고 `blocks` 배열 대신 블록 하나를 props 로 받게 해서, 키 입력이 **그 블록만**
-  다시 그리게 한다. 목표: 229 블록에서 입력 → IndexedDB 완료 10ms 안(노션 실측 2~9ms).
-- 렌더러는 items 가 바뀐 블록만 HTML 을 다시 만든다.
+### 3.6 Performance (includes item 6)
+- Wrap `BlockRow` in `memo` and pass a single block as props instead of the `blocks` array, so a keystroke re-renders **only
+  that block**. Target: input → IndexedDB complete within 10ms on 229 blocks (Notion measured 2–9ms).
+- The renderer rebuilds HTML only for blocks whose items changed.
 
-## 4. 클라이언트 — 큐
-바뀌지 않는다. 트랜잭션 크기만 작아진다(item 1 개 ≈ 100 B).
+## 4. Client — queue
+Unchanged. Only transactions get smaller (one item ≈ 100 B).
 
-## 5. 서버
+## 5. Server
 
-### 5.1 적용기
-`applyTransactions` 에 텍스트 연산 적용기를 더한다: instance 를 읽고(없으면 §7 게으른 변환) items 에
-병합 → 캐시(`text`/`html`, 표는 `cells`) 재생성 → 저장. 한 트랜잭션 안의 여러 연산은 지금처럼 DB
-트랜잭션 하나.
+### 5.1 Applier
+Add a text-operation applier to `applyTransactions`: read the instance (if missing, lazy conversion per §7), merge into items →
+rebuild cache (`text`/`html`, `cells` for tables) → save. Multiple operations in one transaction share one DB transaction, as now.
 
-### 5.2 멱등
-지금 그대로(트랜잭션 id). 텍스트 연산은 그 자체로도 멱등이다(같은 id 의 item 재삽입은 무시).
+### 5.2 Idempotence
+Unchanged (transaction id). Text operations are also idempotent on their own (re-inserting an item with the same id is ignored).
 
-### 5.3 검증 (before/after)
-- `insertText`: origin 이 instance 에 없으면(tombstone GC 뒤의 늦은 삽입, 혹은 순서가 어긋난 재전송) **그
-  트랜잭션 거절** → 4xx `rejectedIds`. 클라이언트는 그 item 들을 현재 상태 기준으로 다시 만들어 보낸다.
-- `deleteText`/`formatText`: 없는 id 는 무시(이미 GC 된 tombstone).
-- `moveTextSlice`: 대상 블록이 다른 페이지면 거절.
+### 5.3 Validation (before/after)
+- `insertText`: if the origin is not in the instance (a late insertion after tombstone GC, or an out-of-order resend), **reject
+  that transaction** → 4xx `rejectedIds`. The client rebuilds those items against the current state and sends again.
+- `deleteText`/`formatText`: unknown ids are ignored (tombstones already GC'd).
+- `moveTextSlice`: rejected if the target block belongs to a different page.
 
-### 5.4 팬아웃
-2 단계 그대로(`type:"transactions"`).
+### 5.4 Fan-out
+Same as stage 2 (`type:"transactions"`).
 
-## 6. run 합치기 — 클라이언트와 서버 양쪽
+## 6. Merging runs — on both client and server
 
-**같은 사람이 연속 seq 로, 같은 attrs 로, 서로 origin 이 이어지는** 살아 있는 item 들은 하나로 합친다(id 는
-첫 item 것, `text` 를 이어 붙임). 실측: 글자마다 보낸 13 개 조각을 클라이언트가 다음 연산의 `prevItems`
-에서 `id:[…,1], length:13` 한 조각으로 들고 있었다 — 합치기는 **클라이언트가 자기 상태에서 즉시**, 서버는
-캐시 재생성 때 같은 규칙으로 한다. 합친 item 안의 글자를 가리키는 origin 은 `[clientId, seq+offset]` 로
-복원한다(seq 연속 조건). tombstone 도 같은 규칙으로 합친다. `formatText` 가 run 중간에 걸치면 경계에서
-쪼갠다(쪼갠 조각 id 는 `[clientId, seq+offset]` 로 결정적).
+Live items **by the same person, with consecutive seq, the same attrs, and chained origins** are merged into one (id of the first
+item, `text` concatenated). Measured: 13 pieces sent one per character were held by the client in the next operation's
+`prevItems` as a single piece `id:[…,1], length:13` — the **client merges immediately in its own state**, and the server applies
+the same rule when rebuilding the cache. An origin pointing to a character inside a merged item is resolved as
+`[clientId, seq+offset]` (thanks to the consecutive-seq condition). Tombstones are merged by the same rule. When `formatText`
+straddles the middle of a run, it is split at the boundary (split piece ids are deterministic: `[clientId, seq+offset]`).
 
-## 7. 마이그레이션
+## 7. Migration
 
-- 서버가 instance 를 **처음 필요로 할 때** 만든다: `items` 가 없으면 `html` 을 태그 경계에서 쪼개
-  `[{ id: ["migration", 1..n], origin: 이전 item, text, attrs }]` 로 저장한다. `html` 이 없으면 `text` 로 item
-  하나. 노션 실측의 `prevItems[0]`(`originId:"start"`, `id:[…,1]`)과 같은 형태다. 한 번에 밀지 않는다.
-- 서버 쪽 쓰기(PUT /blocks, MCP, 복원)의 `set`/`update {content}` 는 **새 instance**(`textInstance` 교체, html 로
-  items 재구성)가 된다 — 노션 실측과 같다(API 식 교체 뒤 새 `textInstanceId`, `prevItems:[start]`). 이전
-  instance 를 향한 늦은 연산은 instance 불일치로 거절되고 클라이언트가 다시 만든다. 이 변환이 에디터 전환보다
-  **먼저** 들어가야 캐시만 바꾸는 쓰기가 items 를 낡게 만들지 않는다. (①에서 구현: `lib/text-crdt/content.ts`
-  `withTextInstance`, `applyTransactions` 의 `normalizeContent` 가 모든 content 쓰기에 적용.)
-- **정규형.** `render(parse(h))` 는 바이트 동일이 아니라 DOM 동일을 목표로 한다: 저장된 html 에는 `&quot;` 와 `"`
-  가 섞여 있고 `</b><b>` 처럼 같은 태그가 붙은 것도 있어 한 표기로 모은다. dev 7,150 건·prod 4,643 건 전부
-  글자·태그 열 보존 + 멱등을 확인했고, 그중 58/53 건이 표기만 바뀐다.
-- 옛 클라이언트(`update {content}` 를 보내는 이전 빌드 탭)가 남아 있을 수 있으니, 그 형태도 같은 변환으로
-  받는다. 배포 뒤 열려 있던 탭은 새 코드가 아니어도 데이터를 깨지 않는다.
+- The server creates an instance **the first time it needs one**: if there are no `items`, split `html` at tag boundaries and
+  store `[{ id: ["migration", 1..n], origin: previous item, text, attrs }]`. If there is no `html`, a single item from `text`.
+  This is the same shape as `prevItems[0]` in the Notion measurement (`originId:"start"`, `id:[…,1]`). Not done all at once.
+- A `set`/`update {content}` from a server-side write (PUT /blocks, MCP, restore) becomes a **new instance** (`textInstance`
+  replaced, items rebuilt from html) — same as measured in Notion (after an API-style replacement, a new `textInstanceId`,
+  `prevItems:[start]`). Late operations targeting the old instance are rejected on instance mismatch and the client rebuilds
+  them. This conversion must land **before** the editor switch, so that writes which only change the cache do not leave items
+  stale. (Implemented in ①: `lib/text-crdt/content.ts` `withTextInstance`; `normalizeContent` in `applyTransactions` applies
+  to every content write.)
+- **Canonical form.** `render(parse(h))` aims for DOM equality, not byte equality: stored html mixes `&quot;` and `"`, and has
+  adjacent identical tags like `</b><b>`, which are normalized to one notation. All of dev's 7,150 and prod's 4,643 records were
+  confirmed to preserve the character and tag sequence and to be idempotent; 58/53 of them change notation only.
+- Old clients (tabs on a previous build that send `update {content}`) may still be around, so that shape is accepted via the
+  same conversion. Tabs left open across a deploy do not corrupt data even without the new code.
 
-## 8. 검증 — 완료 기준 (§7 에 추가)
+## 8. Verification — completion criteria (added to §7)
 
-| 항목 | 기준 |
+| item | criterion |
 |---|---|
-| 동시 편집 | 두 탭이 같은 블록 끝에 " A", " B" 를 동시에 → 서버·양쪽 화면 텍스트 동일, 둘 다 포함 |
-| 캐럿 유지 | 탭 B 가 캐럿 앞에 삽입해도 탭 A 의 캐럿은 같은 글자 뒤 |
-| 삭제 병합 | 한쪽이 지운 범위를 다른 쪽이 고쳐도 수렴 |
-| IME | 한글 조합 갱신마다 연산(노션과 같음), 조합 중 원격 삽입이 와도 조합이 깨지지 않음, 확정 뒤 서버 텍스트가 화면과 동일 |
-| 크기 | 글자 하나 요청 ≤ 1.2KB(item 1 개) |
-| 성능 | 229 블록에서 입력 → IndexedDB 완료 ≤ 10ms |
-| 회귀 | `block-spacing`(551)·`plus-menu`·`ime-enter`·`notion-paste`·`table-cellnav`·`table-grip` 전부 통과 |
-| 캐시 | 검색·export·미러·MCP 읽기 결과가 전환 전과 동일 |
+| Concurrent editing | Two tabs append " A" and " B" to the end of the same block simultaneously → server and both screens show identical text containing both |
+| Caret preservation | Even if tab B inserts before the caret, tab A's caret stays after the same character |
+| Delete merge | Converges even when one side edits a range the other side deleted |
+| IME | An operation per Hangul composition update (same as Notion); a remote insertion during composition does not break the composition; after commit the server text matches the screen |
+| Size | Single-character request ≤ 1.2KB (one item) |
+| Performance | Input → IndexedDB complete ≤ 10ms on 229 blocks |
+| Regression | `block-spacing`(551)·`plus-menu`·`ime-enter`·`notion-paste`·`table-cellnav`·`table-grip` all pass |
+| Cache | Search, export, mirror and MCP read results identical to before the switch |
 
-## 9. 순서
+## 9. Order
 
-1. **서버 변환 + 게으른 마이그레이션 + 캐시 재생성**(§5.1 캐시, §6, §7). 에디터 무변경. 기존 검사 전부 통과.
-2. **텍스트 연산 적용기 + 검증**(§2, §5.3). API 단위 검사(두 클라이언트 id 로 동시 삽입 → 수렴).
-3. **에디터**(§3.1~3.5). 회귀 검사 전부 + 동시 편집·캐럿·IME 검사.
-4. **성능**(§3.6). 10ms 기준.
+1. **Server conversion + lazy migration + cache rebuild** (§5.1 cache, §6, §7). No editor changes. All existing checks pass.
+2. **Text-operation applier + validation** (§2, §5.3). API-level check (concurrent insertion with two client ids → converges).
+3. **Editor** (§3.1–3.5). All regression checks + concurrent-editing, caret and IME checks.
+4. **Performance** (§3.6). 10ms criterion.
 
-각 단계마다 커밋·dev 실측·배포. 1 은 스키마 변경이 없다(jsonb 안).
+Each step gets a commit, a dev measurement and a deploy. Step 1 has no schema change (it lives inside jsonb).
 
-## 10. 결정 — 노션 실측으로 닫힘 (`docs/notion-save-protocol.md` §4b)
+## 10. Decisions — closed by Notion measurements (`docs/notion-save-protocol.md` §4b)
 
-| 질문 | 노션 | 우리 결정 |
+| question | Notion | our decision |
 |---|---|---|
-| 서버 쪽 전체 교체(`update {content}`)가 CRDT 이력을 끊어도 되는가 | `set properties.title` 뒤 새 `textInstanceId`, `prevItems:[start]` — 끊는다 | 같게. 새 instance 로 시작(§7) |
-| 삭제된 origin 을 가리키는 늦은 삽입 | 200, 그 자리에 놓임(tombstone 보존) | 같게. tombstone 보존 기간은 노션 값을 잴 수 없어 **30 일**은 우리 선택 |
-| 입력 처리 | uncontrolled, DOM 변경을 읽어 연산 생성, IME 조합 갱신마다 연산 | 같게(§3.2). controlled 재작성은 하지 않는다 — 위험이 크게 줄었다 |
-| 렌더 범위 | 키 입력 하나에 블록 1 개만 다시 그림 | §3.6 을 3 단계에 포함해 같게 |
-| 연속 입력 합치기 | 클라이언트도 합침 | 양쪽 모두(§6) |
+| May a server-side full replacement (`update {content}`) break CRDT history? | After `set properties.title`, a new `textInstanceId`, `prevItems:[start]` — it breaks it | Same. Start a new instance (§7) |
+| Late insertion pointing at a deleted origin | 200, placed at that spot (tombstone kept) | Same. Tombstone retention can't be measured in Notion, so **30 days** is our choice |
+| Input handling | Uncontrolled, builds operations by reading DOM changes, an operation per IME composition update | Same (§3.2). No controlled rewrite — the risk dropped substantially |
+| Render scope | One keystroke re-renders only 1 block | Include §3.6 in stage 3 to match |
+| Merging consecutive input | Client merges too | Both sides (§6) |
 
-## 11. 실측 결과 — 2026-09-09, 두 탭 동시 편집 (`scratchpad/notion-crdt-*.mjs`)
+## 11. Measurement results — 2026-09-09, two-tab concurrent editing (`scratchpad/notion-crdt-*.mjs`)
 
-골든셋 크롬으로 노션 스크래치 페이지에서 직접 잰 것. `saveTransactions` 요청 본문의 `insertText`
-(`id:[clientId,seq]`, `originId`, `prevItems`)과 두 탭의 수렴 텍스트, IndexedDB 를 읽었다.
+Measured directly on a Notion scratch page with the golden-set Chrome. We read the `insertText` in the `saveTransactions`
+request bodies (`id:[clientId,seq]`, `originId`, `prevItems`), the converged text in both tabs, and IndexedDB.
 
-**우리 구현과 정합함이 확인된 것 (그대로 간다):**
+**Confirmed consistent with our implementation (keep as is):**
 
-| 항목 | 노션 실측 | 우리 (`lib/text-crdt`) |
+| item | Notion measurement | ours (`lib/text-crdt`) |
 |---|---|---|
-| 동시 삽입 정렬 | 같은 origin·같은 seq 에서 clientId `X-2…` 가 `01N2…` 보다 앞 (사전순 큰 쪽 먼저) | `precedes`: seq 내림차순 → 큰 clientId. **일치** |
-| seq | 동시 편집 두 탭이 같은 seq 를 찍음(42, 57) = 논리 시계가 같은 지점 | Lamport("본 최대 +1"). **일치** |
-| 길이·seq 단위 | **UTF-16 코드 유닛**. 😀 len=4(`A😀B`, seq +4), 👨‍👩‍👧 len=8, 漢字 len=2, é(e+U+0301) len=2(정규화 안 함), 공백·탭 그대로 | `text.length`(UTF-16). **일치**. 정규화 안 함, 공백 보존도 같음 |
-| run 합치기·split | `prevItems` 에 `{id, length:2, content:"11"}` 한 조각 + `{type:"split", id, originId}` | `mergeRuns`·`splitAt`. **일치** |
-| 수렴 | 두 탭 최종 텍스트 항상 동일 | RGA. **일치** |
+| Concurrent insertion order | At the same origin and same seq, clientId `X-2…` comes before `01N2…` (lexicographically larger first) | `precedes`: seq descending → larger clientId. **Match** |
+| seq | Two concurrently editing tabs stamp the same seq (42, 57) = logical clocks at the same point | Lamport ("largest seen + 1"). **Match** |
+| Length and seq units | **UTF-16 code units**. 😀 len=4 (`A😀B`, seq +4), 👨‍👩‍👧 len=8, a two-character CJK word len=2, é (e+U+0301) len=2 (not normalized), spaces and tabs kept as is | `text.length` (UTF-16). **Match**. No normalization, whitespace preserved likewise |
+| Run merging and split | `prevItems` has one piece `{id, length:2, content:"11"}` + `{type:"split", id, originId}` | `mergeRuns`·`splitAt`. **Match** |
+| Convergence | Final text of both tabs always identical | RGA. **Match** |
 
-**차이 — 결정 필요 (서식 표현):**
+**Difference — decision needed (formatting representation):**
 
-노션의 서식은 item 태그가 아니라 **경계 앵커 범위 주석**이다:
+Notion's formatting is not an item tag but a **boundary-anchored range annotation**:
 ```
 addAnnotation / removeAnnotation {
   id, textInstanceId,
   start: { id:[c,seq], anchor:"before" },
   end:   { id:[c,seq], anchor:"before" },
-  annotationKey: "b"        // 굵게. 링크·색은 값이 붙는 형태로 추정
+  annotationKey: "b"        // bold. Links and colors presumably carry a value
 }
 ```
-우리 `formatText` 는 범위 item 에 태그 스택을 덮어쓴다(②에서 구현·배포). **한 사람에겐 렌더 결과가
-같지만, 동시 편집에서 갈린다**: 한 탭이 `[X,Y]` 를 굵게 하는 사이 다른 탭이 그 안에 글자를 넣으면,
-노션은 앵커 범위가 새 글자를 덮어 **굵게 물려받고**, 우리는 새 item 이 편집기가 정한 태그(왼쪽 이웃
-상속)를 가지므로 **동시성에서만** 결과가 다를 수 있다. 일반적인 "굵은 글 끝에 이어 치기" 는 왼쪽 상속으로
-양쪽이 같다.
+Our `formatText` overwrites the tag stack on items in the range (implemented and deployed in ②). **For a single user the rendered
+result is the same, but it diverges under concurrent editing**: if one tab bolds `[X,Y]` while another tab inserts characters
+inside it, in Notion the anchored range covers the new characters and they **inherit bold**, while in ours the new item carries
+the tags the editor chose (inherited from its left neighbour), so the result can differ **only under concurrency**. The common
+case, "keep typing at the end of bold text", is the same on both sides thanks to left inheritance.
 
-- **선택지 A (완전 정합):** 서식을 노션처럼 경계 앵커 범위 주석 레이어로 재구현. item 은 글자만, 서식은
-  별도 오버레이(`annotationKey` + start/end 앵커). 동시 서식까지 노션과 같아진다. ②의 태그 방식 폐기·재작업.
-- **선택지 B (현행 유지):** item 태그 유지. "두 사람이 같은 구간을 동시에 서식+타이핑" 하는 드문 경우만
-  다르고, 그 외에는 같다. ③ 에디터가 삽입 시 왼쪽 이웃 서식을 상속하게 해 흔한 경우를 맞춘다.
+- **Option A (full parity):** Reimplement formatting as a boundary-anchored range-annotation layer like Notion. Items hold only
+  characters; formatting is a separate overlay (`annotationKey` + start/end anchors). Even concurrent formatting would match
+  Notion. The tag approach from ② is discarded and reworked.
+- **Option B (keep current):** Keep item tags. Only the rare case "two people format and type in the same span at the same time"
+  differs; everything else matches. The ③ editor inherits the left neighbour's formatting on insertion to cover the common case.
 
-멘션·링크는 이 결정을 따른다(A면 주석, B면 지금처럼 `<a>`/`<span>` 태그). 노션에서 링크는 값이 붙은 주석일
-가능성이 높으나(형식상 같은 계열) 이번에 깨끗이 잰 것은 서식(b)까지다.
+Mentions and links follow this decision (annotations under A; `<a>`/`<span>` tags as now under B). In Notion, links are likely
+annotations with a value (same family by form), but what we measured cleanly this time only goes as far as formatting (b).
 
-**하네스 한계로 못 잰 것:** Shift+Enter 소프트 줄바꿈의 노션 표현(CDP 키 이벤트로 재현 실패 — 우리는 `br`
-item `\n` 유지), 동시 삭제-vs-삽입의 정확한 캐럿 시나리오(수렴은 확인, 정확한 위치 제어는 실패). 둘 다
-저위험이고 우리 구현은 `e2e/text-ops.check.mjs` 로 검증된다.
+**Not measured due to harness limits:** Notion's representation of a Shift+Enter soft line break (could not reproduce with CDP key
+events — we keep a `br` item `\n`), and the exact caret scenario for concurrent delete-vs-insert (convergence confirmed, precise
+position control failed). Both are low-risk, and our implementation is verified by `e2e/text-ops.check.mjs`.

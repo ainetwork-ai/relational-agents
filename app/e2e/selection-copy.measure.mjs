@@ -13,7 +13,7 @@ import { chromium } from "@playwright/test";
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER = "30790fd0-9bdb-4c6c-abb8-3903fff5fd6d"; // amy (ComCom member)
 const COMCOM = "2c88615f-4a30-43f8-9608-6ac977919dc0";
-const PAGE = process.env.PAGE_ID ?? "fa2188f1-ed08-414e-ab6c-345e5cf6a57f"; // "Knowledge Graph 기반 AI 전시 경험": 226 text blocks, 13 images
+const PAGE = process.env.PAGE_ID ?? "fa2188f1-ed08-414e-ab6c-345e5cf6a57f"; // the "Knowledge Graph-based AI exhibition experience" page: 226 text blocks, 13 images
 const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
 const secret = env.match(/^SESSION_SECRET=(.*)$/m)?.[1].trim() || "dev-secret-change-in-production-32ch";
 

@@ -17,7 +17,7 @@ export function ListView({ view }: { view: DbView }) {
   const rest = visibleColumns(db.properties, view.config).filter((p) => p.type !== "title");
   const groupable = db.properties.filter(isGroupable);
   const groupProp = groupable.find((p) => p.id === view.config.groupByPropertyId);
-  const groups = groupRowsBy(visible, groupProp, db.members);
+  const groups = groupRowsBy(visible, groupProp, db.members, t);
 
   const renderRow = (row: (typeof visible)[number]) => (
     <div
@@ -26,7 +26,7 @@ export function ListView({ view }: { view: DbView }) {
       className="flex items-center gap-3 border-b border-neutral-100 px-2 py-1.5 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/30"
     >
       <span className="min-w-[8rem] text-sm text-neutral-800 dark:text-neutral-100">
-        {(titleProp && (row.values[titleProp.id] as string)) || t("제목 없음")}
+        {(titleProp && (row.values[titleProp.id] as string)) || t("Untitled")}
       </span>
       <div className="flex flex-1 flex-wrap items-center gap-2">
         {rest.map((p) => (
@@ -65,7 +65,7 @@ export function ListView({ view }: { view: DbView }) {
         onClick={() => db.addRow()}
         className="flex w-full items-center gap-1 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-600 dark:hover:bg-neutral-800"
       >
-        <Plus size={13} /> {t("새 {name}", { name: db.itemName })}
+        <Plus size={13} /> {t("New {name}", { name: db.itemName })}
       </button>
     </div>
   );

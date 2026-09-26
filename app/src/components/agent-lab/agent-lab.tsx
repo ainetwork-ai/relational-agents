@@ -109,7 +109,7 @@ export function AgentLab() {
     await loadRooms();
     setActive({ ...data.room, rootPageId: null });
     setMessages([]);
-    appendLog(t("방 생성됨: {name}", { name: data.room.name }));
+    appendLog(t("Room created: {name}", { name: data.room.name }));
   }
 
   async function send(roomId: string, msg: string) {
@@ -122,7 +122,7 @@ export function AgentLab() {
     const data = await res.json();
     if (data.autoRun && !data.autoRun.skipped) {
       appendLog(
-        t("자동 실행: {processed}개 처리, {edits}개 편집", {
+        t("Auto-run: {processed} processed, {edits} edited", {
           processed: data.autoRun.processed,
           edits: data.autoRun.edits,
         })
@@ -147,7 +147,7 @@ export function AgentLab() {
     setBusy(true);
     try {
       for (const s of SEED) await send(active.id, s);
-      appendLog(t("메시지 {n}개 시드 완료", { n: SEED.length }));
+      appendLog(t("Seeded {n} messages", { n: SEED.length }));
     } finally {
       setBusy(false);
     }
@@ -159,11 +159,11 @@ export function AgentLab() {
     try {
       const res = await fetch(`/api/agent/rooms/${active.id}/run`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) appendLog(t("실패: {error}", { error: data.error }));
-      else if (data.skipped) appendLog(t("건너뜀: {reason}", { reason: data.skipped }));
+      if (!res.ok) appendLog(t("Failed: {error}", { error: data.error }));
+      else if (data.skipped) appendLog(t("Skipped: {reason}", { reason: data.skipped }));
       else
         appendLog(
-          t("정리 완료: 메시지 {processed}개 → 편집 {edits}개", {
+          t("Tidied up: {processed} messages → {edits} edits", {
             processed: data.processed,
             edits: data.edits,
           })
@@ -179,20 +179,20 @@ export function AgentLab() {
   return (
     <div className="mx-auto flex h-full max-w-4xl gap-6 overflow-y-auto p-8">
       <aside className="w-56 shrink-0 space-y-3">
-        <h2 className="text-sm font-semibold text-neutral-500">{t("Agent Lab — 관계 방")}</h2>
+        <h2 className="text-sm font-semibold text-neutral-500">{t("Agent Lab — Relation rooms")}</h2>
         <Link
           data-testid="agent-lab-graph-link"
           href="/agent-lab/graph"
           className="block text-xs text-blue-600 underline"
         >
-          {t("관계 그래프 보기 →")}
+          {t("View relation graph →")}
         </Link>
         <div className="flex gap-1">
           <input
             data-testid="agent-lab-room-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={t("방 이름")}
+            placeholder={t("Room name")}
             className="w-full rounded border border-neutral-200 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
           <button
@@ -225,7 +225,7 @@ export function AgentLab() {
 
       <main className="min-w-0 flex-1 space-y-4">
         {!active ? (
-          <p className="text-sm text-neutral-500">{t("방을 만들거나 선택하세요.")}</p>
+          <p className="text-sm text-neutral-500">{t("Create or select a room.")}</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
@@ -236,7 +236,7 @@ export function AgentLab() {
                 disabled={busy}
                 className="rounded border border-neutral-200 px-2 py-1 text-xs hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
               >
-                {t("대화 시드 넣기")}
+                {t("Seed chat")}
               </button>
               <button
                 data-testid="agent-lab-run"
@@ -244,7 +244,7 @@ export function AgentLab() {
                 disabled={busy}
                 className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                {busy ? t("정리하는 중…") : t("지금 정리")}
+                {busy ? t("Tidying up…") : t("Tidy up now")}
               </button>
               {active.rootPageId && (
                 <Link
@@ -252,14 +252,14 @@ export function AgentLab() {
                   href={`/p/${active.rootPageId}`}
                   className="text-xs text-blue-600 underline"
                 >
-                  {t("관계 문서 열기 →")}
+                  {t("Open relation doc →")}
                 </Link>
               )}
             </div>
 
             <ul className="max-h-80 space-y-1 overflow-y-auto rounded border border-neutral-200 p-3 text-sm dark:border-neutral-700">
               {messages.length === 0 && (
-                <li className="text-neutral-400">{t("메시지가 없습니다 — 시드를 넣거나 직접 입력하세요.")}</li>
+                <li className="text-neutral-400">{t("No messages — seed some or type your own.")}</li>
               )}
               {messages.map((m) => (
                 <li key={m.id} id={`msg-${m.id}`}>
@@ -274,17 +274,17 @@ export function AgentLab() {
                 className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
               >
                 <div className="font-medium text-amber-800 dark:text-amber-300">
-                  {t("⚠️ 기록과 충돌합니다")}
+                  {t("⚠️ Conflicts with history")}
                 </div>
                 <p className="text-neutral-700 dark:text-neutral-300">{guard?.reason}</p>
                 {guard?.evidence?.map((e, i) => (
                   <p key={i} className="text-neutral-500">
-                    {t("근거 [{section}] “{quote}”", { section: e.section, quote: e.quote })}
+                    {t("Evidence [{section}] “{quote}”", { section: e.section, quote: e.quote })}
                   </p>
                 ))}
                 {guard?.suggestion && (
                   <p className="text-neutral-700 dark:text-neutral-300">
-                    {t("제안: {suggestion}", { suggestion: guard.suggestion })}
+                    {t("Suggestion: {suggestion}", { suggestion: guard.suggestion })}
                   </p>
                 )}
                 <button
@@ -292,7 +292,7 @@ export function AgentLab() {
                   onClick={() => submitDraft(true)}
                   className="rounded border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-500 hover:bg-white dark:border-neutral-600 dark:hover:bg-neutral-800"
                 >
-                  {t("그래도 보내기")}
+                  {t("Send anyway")}
                 </button>
               </div>
             )}
@@ -308,7 +308,7 @@ export function AgentLab() {
                 data-testid="agent-lab-message-input"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={t("메시지 입력…")}
+                placeholder={t("Type a message…")}
                 className="w-full rounded border border-neutral-200 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
               />
               <button
@@ -316,7 +316,7 @@ export function AgentLab() {
                 type="submit"
                 className="rounded bg-neutral-900 px-3 py-1 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900"
               >
-                {t("보내기")}
+                {t("Send")}
               </button>
             </form>
           </>

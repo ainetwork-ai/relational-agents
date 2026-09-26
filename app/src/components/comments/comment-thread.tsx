@@ -16,10 +16,10 @@ import type { MentionPerson } from "@/lib/mention/search";
 
 /**
  * One comment, and the row of them — the shape the original uses in BOTH
- * places it shows comments (the table's popover and the page's own 댓글
+ * places it shows comments (the table's popover and the page's own Comments
  * section). Measured in both and identical:
  *
- *   [24 avatar]  Name(14/500)  5월 14일(12/400, rgb(161,158,153))   ← 24px line
+ *   [24 avatar]  Name(14/500)  May 14(12/400, rgb(161,158,153))   ← 24px line
  *                body (14, rgb(44,44,43))                          ← starts at avatar top + 24
  *                                                                  ← 16 to the next comment
  *
@@ -28,7 +28,7 @@ import type { MentionPerson } from "@/lib/mention/search";
 export function CommentRow({
   comment,
  // 8 instead of 16 underneath, for the row that sits right above the
- // "답글 N개 더 보기" line (the original keeps 8 on each side of it)
+ // "Show N more replies" line (the original keeps 8 on each side of it)
   tightBottom,
   pageId,
 }: {
@@ -47,12 +47,12 @@ export function CommentRow({
       data-testid={`comment-row-${comment.id}`}
       className={`group/comment relative flex ${tightBottom ? "pb-2" : "pb-4"}`}
     >
-      <UserAvatar user={comment.author ?? { displayName: t("누군가") }} size={24} />
+      <UserAvatar user={comment.author ?? { displayName: t("Someone") }} size={24} />
       <div className="ml-2 min-w-0 flex-1">
         {/* the name line is as tall as the avatar; the body sits straight under it */}
         <div className="flex h-6 items-center">
           <span className="text-[14px] font-medium leading-[21px] text-[#2c2c2b] dark:text-neutral-200">
-            {comment.author?.displayName ?? t("누군가")}
+            {comment.author?.displayName ?? t("Someone")}
           </span>
           <span className="ml-1.5 text-[12px] font-normal leading-4 text-[rgb(161,158,153)]">
             {fmtCommentDate(comment.createdAt, locale)}
@@ -78,19 +78,19 @@ export function CommentRow({
 }
 
 /**
- * The 댓글 작업 toolbar that appears on a comment when the pointer is over it,
+ * The Comment actions toolbar that appears on a comment when the pointer is over it,
  * and what its ⋯ opens. Measured on Notion 2026-09-10
  * (docs/notion-comment-delete.md):
  *
  *   toolbar   right-aligned, 28 tall, 24×24 buttons
  *   ⋯ menu    180 wide, radius 10, 28px rows, ink rgb(44,44,43) — NOT red
- *   items     your own comment adds 편집하기 and 삭제하기; someone else's gets
+ *   items     your own comment adds Edit and Delete; someone else's gets
  *             neither, so the whole toolbar is drawn only for the author
- *   confirm   324×145 modal, radius 12, "이 댓글을 삭제하시겠습니까?",
- *             삭제 in white on rgb(229,100,88) with 취소 under it
+ *   confirm   324×145 modal, radius 12, "Are you sure you want to delete this comment?",
+ *             Delete in white on rgb(229,100,88) with Cancel under it
  *
- * Only 삭제하기 is implemented — 리액션 추가 · 해결 · 편집하기 · 링크 복사 ·
- * 읽지 않음으로 표시 are measured but not built.
+ * Only Delete is implemented — Add reaction · Resolve · Edit · Copy link ·
+ * Mark as unread are measured but not built.
  */
 export function CommentActions({ comment, pageId }: { comment: PageComment; pageId: string }) {
   const t = useT();
@@ -111,15 +111,15 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
   return (
     <>
       <div
-        aria-label={t("댓글 작업")}
+        aria-label={t("Comment actions")}
         data-testid={`comment-actions-${comment.id}`}
         className="pointer-events-none absolute right-0 top-0 flex h-7 items-center opacity-0 transition-opacity group-hover/comment:pointer-events-auto group-hover/comment:opacity-100"
       >
         <button
           ref={btn}
           type="button"
-          aria-label={t("추가 작업")}
-          title={t("추가 작업")}
+          aria-label={t("More actions")}
+          title={t("More actions")}
           data-testid={`comment-more-${comment.id}`}
           onClick={() => setMenuOpen((v) => !v)}
           className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-white text-[rgb(142,139,134)] hover:bg-[rgba(33,27,23,0.051)] dark:bg-neutral-900 dark:hover:bg-white/10"
@@ -148,7 +148,7 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
               }}
               className="flex h-7 w-full items-center px-3 text-left text-[14px] leading-7 text-[#2c2c2b] hover:bg-[rgba(33,27,23,0.051)] dark:text-neutral-200 dark:hover:bg-white/10"
             >
-              {t("삭제하기")}
+              {t("Delete comment")}
             </button>
           </div>,
           document.body
@@ -168,11 +168,11 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
               onMouseDown={(e) => e.stopPropagation()}
             >
               <p className="px-1 pb-3 pt-1 text-[14px] leading-5 text-[#2c2c2b] dark:text-neutral-200">
-                {t("이 댓글을 삭제하시겠습니까?")}
+                {t("Delete this comment?")}
               </p>
               {failed && (
                 <p className="px-1 pb-2 text-[12px] leading-4 text-[rgb(229,100,88)]">
-                  {t("댓글을 삭제하지 못했습니다")}
+                  {t("Couldn't delete the comment")}
                 </p>
               )}
               <button
@@ -185,7 +185,7 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
                 }}
                 className="mb-1 flex h-8 w-full items-center justify-center rounded-[6px] bg-[rgb(229,100,88)] text-[14px] font-medium text-[rgb(253,246,246)] hover:brightness-95"
               >
-                {t("삭제")}
+                {t("Delete")}
               </button>
               <button
                 type="button"
@@ -193,7 +193,7 @@ export function CommentActions({ comment, pageId }: { comment: PageComment; page
                 onClick={() => setConfirming(false)}
                 className="flex h-8 w-full items-center justify-center rounded-[6px] text-[14px] text-[#2c2c2b] hover:bg-[rgba(33,27,23,0.051)] dark:text-neutral-200 dark:hover:bg-white/10"
               >
-                {t("취소")}
+                {t("Cancel")}
               </button>
             </div>
           </div>,
@@ -340,7 +340,7 @@ function mentionRe(members?: MentionPerson[] | null): RegExp | null {
 
 /**
  * The line that adds one. The original keeps three 24×24 buttons (radius 6) on
- * the right at a 30px pitch: 파일 첨부 · 멘션 · 댓글 보내기.
+ * the right at a 30px pitch: Attach file · Mention · Send comment.
  */
 export function CommentComposer({
   pageId,
@@ -402,7 +402,7 @@ export function CommentComposer({
         autoFocus={autoFocus}
         onChange={setDraft}
         onSubmit={() => void submit()}
-        placeholder={t("댓글 추가")}
+        placeholder={t("Add comment")}
        // 2.5px of its own padding, so the BOX starts at 29.5 and the text at
        // 32 — level with a comment's text column
         className="ml-[5.5px] min-w-0 flex-1 bg-transparent p-[2.5px] text-[14px] leading-5 text-[#2c2c2b] outline-none placeholder:text-[rgb(161,158,153)] dark:text-neutral-200"
@@ -411,7 +411,7 @@ export function CommentComposer({
         {/* the original's clip opens the OS picker straight away — no menu,
             many files at once, no type restriction (measured: fileChooser
             mode selectMultiple, accept null) */}
-        <ComposerButton label={t("파일 첨부")} onClick={attach.openFilePicker}>
+        <ComposerButton label={t("Attach file")} onClick={attach.openFilePicker}>
           <Paperclip size={16} />
         </ComposerButton>
         <input
@@ -425,14 +425,14 @@ export function CommentComposer({
         {/* measured: the original's @ button really types an `@` into the
             line, and the menu opens off that character like any other */}
         <ComposerButton
-          label={t("멘션하려는 사용자, 페이지, 날짜를 입력하세요.")}
+          label={t("Mention a person, page, or date")}
           testid="comment-composer-mention"
           onClick={() => mention.current?.insertAt()}
         >
           <AtSign size={16} />
         </ComposerButton>
         <ComposerButton
-          label={t("댓글 보내기")}
+          label={t("Send comment")}
           testid="comment-composer-submit"
           onClick={() => void submit()}
           disabled={!draft.trim() && !attach.attachments.length}
@@ -479,9 +479,9 @@ function ComposerButton({
  * (e2e/fixtures/notion-row-comments.json — collapse):
  *
  *   1·2·3 comments → all of them, no line
- *   4 → 2 shown, 답글 2개 더 보기      8 → 2 shown, 답글 6개 더 보기
- *   5 → 2 shown, 답글 3개 더 보기      9 → 2 shown, 답글 7개 더 보기
- *                                     11 → 2 shown, 답글 9개 더 보기
+ *   4 → 2 shown, Show 2 more replies    8 → 2 shown, Show 6 more replies
+ *   5 → 2 shown, Show 3 more replies    9 → 2 shown, Show 7 more replies
+ *                                     11 → 2 shown, Show 9 more replies
  *
  * Always the first and the last, and the number on the line is always
  * total − 2. Pressing it opens the thread and does not fold back — the
@@ -512,7 +512,7 @@ export function CommentList({ comments, pageId }: { comments: PageComment[]; pag
         onClick={() => setExpanded(true)}
         className="mb-2 ml-6 flex h-7 items-center rounded-[6px] text-[14px] font-normal leading-[16.8px] text-[rgb(125,122,117)] hover:bg-[rgba(33,27,23,0.051)] dark:hover:bg-white/10"
       >
-        {t("답글 {n}개 더 보기", { n: hidden })}
+        {t("Show {n} more replies", { n: hidden })}
       </button>
       <CommentRow comment={comments[comments.length - 1]} pageId={pageId} />
     </>
@@ -520,14 +520,14 @@ export function CommentList({ comments, pageId }: { comments: PageComment[]; pag
 }
 
 /**
- * Put the caret in the page's 댓글 composer, and say whether there was one.
+ * Put the caret in the page's Comments composer, and say whether there was one.
  * A database row's page has the section in the page, so its header button
  * goes there; an ordinary page has no such section in the original, so its
  * button falls back to the panel.
  *
  * `inline: "nearest"` on purpose — a plain scrollIntoView() also scrolls
  * sideways, which drags a wide table out from under the reader
- * (docs/notion-projects-spec.md, "재보다 틀렸던 것들").
+ * (docs/notion-projects-spec.md, "Things we got wrong after measuring").
  */
 export function focusPageComposer(): boolean {
   const el = document.querySelector<HTMLInputElement>('[data-testid="comment-composer-input"]');
@@ -537,7 +537,7 @@ export function focusPageComposer(): boolean {
   return true;
 }
 
-/** The original prints a comment's date as 5월 14일 — month/day, no year. */
+/** The original prints a comment's date as "May 14" — month/day, no year. */
 export function fmtCommentDate(iso: string, locale: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";

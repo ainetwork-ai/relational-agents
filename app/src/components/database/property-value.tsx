@@ -44,7 +44,7 @@ export function PropertyValue({ prop, row }: { prop: DbProperty; row: DbRow }) {
       );
     }
     case "person": {
-      const people = personLabels(db.members, v);
+      const people = personLabels(db.members, v, t);
       return people.length ? (
         <span className="flex flex-wrap items-center gap-1">
           {people.map((p) => (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/i18n/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { teamspaces, teamspaceMembers, pages } from "@/lib/db/schema";
@@ -40,8 +41,8 @@ const VISIBILITIES = ["open", "closed", "private"] as const;
 /**
  * POST { name, description?, icon?, visibility? } → create a teamspace.
  *
- * Mirrors step 1 of Notion's 팀스페이스 만들기 dialog: icon + name, an optional
- * description, and the 보안 choice. The creator is written into
+ * Mirrors step 1 of Notion's Create a teamspace dialog: icon + name, an optional
+ * description, and the Security choice. The creator is written into
  * teamspace_members as owner in the same transaction — a teamspace with no
  * members would be unreachable by the person who just made it.
  */
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
   const icon = typeof body.icon === "string" && body.icon ? body.icon.slice(0, 8) : null;
   const visibility = VISIBILITIES.includes(body.visibility) ? body.visibility : "open";
 
+  // the home page's title is stored content, so it is written in the
+  // requester's language (ko still stores the Korean title)
+  const t = await getT();
   const teamspace = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(teamspaces)
@@ -69,13 +73,13 @@ export async function POST(req: NextRequest) {
       .insert(teamspaceMembers)
       .values({ teamspaceId: row.id, userId: auth.user.id, role: "owner" })
       .onConflictDoNothing();
-    // Notion gives a new teamspace one page — 팀스페이스 홈 — so it is never an
+    // Notion gives a new teamspace one page — Teamspace Home — so it is never an
     // empty row you cannot click into. Same transaction: a teamspace that
     // exists without its home page would be a half-created thing.
     await tx.insert(pages).values({
       workspaceId,
       teamspaceId: row.id,
-      title: "팀스페이스 홈",
+      title: t("Teamspace Home"),
       icon: "🏠",
       parentPageId: null,
       position: Date.now(),

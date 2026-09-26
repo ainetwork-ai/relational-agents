@@ -28,7 +28,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
   const ref = parseAindriveUrl(url, info?.base);
   const realName = ref ? aindriveFileName(ref) : url.split("/").pop() || "file";
   const fileName = name || realName;
-  // the label may be a caption ("14:10 · 용두암 — 엄마 폰"); what the file IS
+  // the label may be a caption ("14:10 · Yongduam — Mom's phone"); what the file IS
   // comes from its own name when the label carries no extension
   const kindName = /\.[a-z0-9]{1,8}$/i.test(fileName) ? fileName : realName;
   const bytesUrl = ref ? aindriveRawUrl(ref) : url;
@@ -53,9 +53,9 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
               : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
           }`}
-          title={ref ? t("aindrive의 파일을 링크로 보여줍니다") : undefined}
+          title={ref ? t("Shows the file from aindrive as a link") : undefined}
         >
-          {ref ? t("aindrive 링크") : t("업로드됨")}
+          {ref ? t("aindrive link") : t("Uploaded")}
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {ref && (
@@ -64,7 +64,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              title={t("aindrive에서 열기")}
+              title={t("Open in aindrive")}
               className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
             >
               <ExternalLink size={14} />
@@ -74,7 +74,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
             data-testid={`file-block-download-${blockId}`}
             href={downloadUrl}
             download={fileName}
-            title={t("다운로드")}
+            title={t("Download")}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
           >
             <Download size={14} />
@@ -106,7 +106,7 @@ export function FileAttachPicker({
   const info = useAindriveInfo();
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
-    // inserted from the menu's "aindrive에서 가져오기": start on the picker
+    // inserted from the menu's "From aindrive": start on the picker
   const [picking, setPicking] = useState(() => aindrivePickPending.has(blockId));
   useEffect(() => {
     aindrivePickPending.delete(blockId);
@@ -124,7 +124,7 @@ export function FileAttachPicker({
 
   function submitLink() {
     const ref = parseAindriveUrl(link.trim(), info?.base);
-    if (!ref) return setLinkError(t("aindrive 파일 링크가 아닙니다 (…/d/<드라이브>?path=<파일>)"));
+    if (!ref) return setLinkError(t("Not an aindrive file link (…/d/<drive>?path=<file>)"));
     setLinkError(null);
     onFile({ url: link.trim(), name: aindriveFileName(ref) });
   }
@@ -150,12 +150,12 @@ export function FileAttachPicker({
     >
       {pendingName && (
         <p className="mb-2 text-xs text-neutral-400">
-          {t("{name} — 다시 올려 주세요", { name: pendingName })}
+          {t("{name} — please upload it again", { name: pendingName })}
         </p>
       )}
       {progress !== null ? (
         <div data-testid={`file-upload-progress-${blockId}`} className="flex items-center gap-2 text-xs text-neutral-500">
-          <span>{t("업로드 중… {p}%", { p: Math.round(progress * 100) })}</span>
+          <span>{t("Uploading… {p}%", { p: Math.round(progress * 100) })}</span>
           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
             <span className="block h-full bg-neutral-700 dark:bg-neutral-300" style={{ width: `${progress * 100}%` }} />
           </span>
@@ -167,7 +167,7 @@ export function FileAttachPicker({
             onClick={() => inputRef.current?.click()}
             className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
-            <Upload size={13} /> {t("내 컴퓨터에서 업로드")}
+            <Upload size={13} /> {t("Upload from this computer")}
           </button>
           {info?.configured && (
             <button
@@ -175,10 +175,10 @@ export function FileAttachPicker({
               onClick={() => setPicking(true)}
               className="flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-800"
             >
-              <HardDrive size={13} /> {t("aindrive에서 가져오기")}
+              <HardDrive size={13} /> {t("From aindrive")}
             </button>
           )}
-          <span className="text-xs text-neutral-400">{t("또는 여기로 끌어다 놓기")}</span>
+          <span className="text-xs text-neutral-400">{t("or drop it here")}</span>
           <input
             ref={inputRef}
             data-testid={`file-input-${blockId}`}
@@ -204,7 +204,7 @@ export function FileAttachPicker({
                 submitLink();
               }
             }}
-            placeholder={t("aindrive 파일 링크 붙여넣기")}
+            placeholder={t("Paste an aindrive file link")}
             className="flex-1 rounded-md border border-neutral-200 bg-transparent px-2 py-1 text-xs outline-none placeholder:text-neutral-400 dark:border-neutral-700"
           />
           <button
@@ -213,7 +213,7 @@ export function FileAttachPicker({
             disabled={!link.trim()}
             className="rounded-md bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            {t("넣기")}
+            {t("Insert")}
           </button>
         </div>
       )}

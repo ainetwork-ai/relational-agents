@@ -6,42 +6,47 @@ scope:
   - app/src/components/database/database-block.tsx
 db-migration: none
 depends-on: []
-verify: 아래 재현 절차 + dashboard-counter.check.mjs 반복 실행이 플레이크 없어야 함
+verify: the repro steps below + repeated runs of dashboard-counter.check.mjs must show no flakes
 status: pending
 ---
 
-# SSE 스냅샷 재조회가 편집 중인 뷰 설정을 되돌리는 버그 수정
+# Fix: SSE snapshot refetch reverting view settings being edited
 
-## 무엇
+## What
 
-`refreshSnapshot()`이 실시간 이벤트마다 `setViews(snap.views)`로 서버 사본을
-통째로 덮어서, 아직 PATCH가 서버에 착지하지 않은 뷰 설정 편집(필터·정렬·위젯
-설정)이 조용히 롤백되던 버그의 수정.
+Fixes a bug where `refreshSnapshot()` overwrote the whole server copy with
+`setViews(snap.views)` on every realtime event, silently rolling back view
+setting edits (filters, sorts, widget settings) whose PATCH had not yet landed on
+the server.
 
-## 왜
+## Why
 
-뷰 PATCH는 350ms debounce를 탄다. 그 창 안에(또는 서버 처리 전에) 다른
-클라이언트의 행 추가 등으로 SSE가 오면 재조회가 낡은 config를 가져와 로컬
-낙관적 상태를 덮는다. 사용자에겐 "방금 바꾼 설정이 저절로 풀리는" 증상.
-**ainmem에 같은 refreshSnapshot 패턴이 있으면 같은 버그가 있다.**
+View PATCHes go through a 350ms debounce. If an SSE arrives within that window
+(or before the server processes it) — e.g. because another client added a row —
+the refetch pulls a stale config and overwrites the local optimistic state. To
+the user it looks like "the setting I just changed reverted by itself".
+**If ainmem has the same refreshSnapshot pattern, it has the same bug.**
 
-## 변경 상세
+## Change details
 
-- `dirtyViewConfigs` ref(`Map<viewId, ViewConfig>`) 신설.
-- `patchViewConfig()`: 낙관적 `setViews` 직후 dirty 마킹; PATCH fetch의
-  `.finally()`에서 **자기 config가 아직 최신일 때만** 삭제(늦게 착지한 옛
-  PATCH가 새 편집의 보호를 풀면 안 됨).
-- `saveDraft()`도 동일 마킹/해제.
-- `refreshSnapshot()`: `snap.views`를 넣을 때 dirty한 뷰는 로컬 config 유지.
+- New `dirtyViewConfigs` ref (`Map<viewId, ViewConfig>`).
+- `patchViewConfig()`: marks dirty right after the optimistic `setViews`; in the
+  PATCH fetch's `.finally()`, deletes **only if its own config is still the
+  latest** (an old PATCH landing late must not lift the protection of a newer edit).
+- `saveDraft()` marks/clears the same way.
+- `refreshSnapshot()`: when applying `snap.views`, dirty views keep their local
+  config.
 
-## 검증
+## Verification
 
-재현(수정 전): 대시보드 편집 모드에서 위젯 설정을 0.5초 간격으로 연속 변경
-+ 다른 세션(또는 API)으로 행 추가 → 앞선 변경이 풀림.
-수정 후: `dashboard-counter.check.mjs`를 3회 연속 실행해 플레이크 없음 확인.
+Repro (before the fix): in dashboard edit mode, change widget settings repeatedly
+at 0.5s intervals + add a row from another session (or via the API) → earlier
+changes revert.
+After the fix: run `dashboard-counter.check.mjs` 3 times in a row and confirm no
+flakes.
 
-## 함정
+## Pitfalls
 
-- dirty 해제는 반드시 "최신 write 동일성" 비교(`get(vid) === config`)로.
-  무조건 delete하면 레이스가 다시 열린다.
-- `dirtyViewConfigs` 선언은 `refreshSnapshot`보다 위에 둘 것(클로저 참조).
+- Clearing dirty must always compare "identity with the latest write"
+  (`get(vid) === config`). Deleting unconditionally reopens the race.
+- Declare `dirtyViewConfigs` above `refreshSnapshot` (closure reference).
