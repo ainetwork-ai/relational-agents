@@ -16,6 +16,18 @@ const chain = chainByName();
 const api = webApi({ ledger: ledgerByName(), swap: swapProvider(undefined, chain), chain,
   account: privateKeyToAccount(key), member: process.env.MEMBER_PK ? privateKeyToAccount(process.env.MEMBER_PK) : undefined });
 const html = readFileSync(fileURLToPath(new URL("./index.html", import.meta.url)));
+const learn = readFileSync(fileURLToPath(new URL("./learn.html", import.meta.url)));
+
+// The learn page imports these three modules and runs them in the browser, so what it demonstrates
+// is the code that ships rather than a description of it that can drift. Exactly these three, by
+// name: serving a directory by pattern would hand out server.js and the keys it reads. The URLs
+// mirror the file layout, so check.js's own "./period.js" and "../address.js" resolve here too.
+const MODULES = {
+  "/src/mandate/check.js": "../mandate/check.js",
+  "/src/mandate/period.js": "../mandate/period.js",
+  "/src/address.js": "../address.js",
+};
+const moduleSource = (path) => readFileSync(fileURLToPath(new URL(MODULES[path], import.meta.url)));
 
 const json = (res, status, body) => {
   res.writeHead(status, { "content-type": "application/json" });
@@ -41,6 +53,11 @@ const routes = {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   if (req.method === "GET" && url.pathname === "/") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(html); }
+  if (req.method === "GET" && url.pathname === "/learn") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(learn); }
+  if (req.method === "GET" && Object.hasOwn(MODULES, url.pathname)) {
+    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+    return res.end(moduleSource(url.pathname));
+  }
   const route = routes[`${req.method} ${url.pathname}`];
   if (!route) return json(res, 404, { error: `no route ${req.method} ${url.pathname}` });
   try {
@@ -51,4 +68,4 @@ const server = createServer(async (req, res) => {
   }
 });
 const port = Number(process.env.WEB_PORT ?? 3120);
-server.listen(port, "127.0.0.1", () => console.log(`Family Passbook on http://127.0.0.1:${port} — chain ${chain.name}, agent ${privateKeyToAccount(key).address}`));
+server.listen(port, "127.0.0.1", () => console.log(`Family Passbook on http://127.0.0.1:${port} (how it works: /learn) — chain ${chain.name}, agent ${privateKeyToAccount(key).address}`));
