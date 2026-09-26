@@ -1,10 +1,10 @@
 {
   "chainId": 8453,
   "RecurringContribution": {
-    "address": "0x6Db42fBBB5A751F18B1585547867b3685F81DD9a",
-    "deployTx": "0x56939c41448b7ce0444e1877ef8f58215fae33bdcd349d748b31fe582013d165",
-    "block": 51830053,
+    "address": "0xE441d2DFa70fF34a20b98ddDB71433Ce8bDfC2E5",
+    "deployTx": "0x1c46cb8ac91fa3f46aee74bd0998b9908222aa3d219278ee97a730b734cc1565",
+    "block": 51830801,
     "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-    "sourcify": "https://repo.sourcify.dev/8453/0x6Db42fBBB5A751F18B1585547867b3685F81DD9a"
+    "sourcify": "https://repo.sourcify.dev/8453/0xE441d2DFa70fF34a20b98ddDB71433Ce8bDfC2E5"
   }
 }
