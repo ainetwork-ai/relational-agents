@@ -51,22 +51,30 @@ export const FAMILY_ALIASES: Record<string, string[]> = {
   제주: ["jeju"],
   서연: ["seoyeon", "seo-yeon"],
   할머니: ["grandma", "grandmother"],
+  // the English demo's recipe files (recipes/<dish>.md), as someone might say them
+  mung_bean_pancake: ["mung bean pancake", "mung-bean pancake", "nokdujeon", "bindaetteok"],
+  songpyeon: ["songpyeon", "rice cake"],
+  taro_soup: ["taro soup", "toranguk"],
+  sikhye: ["sikhye", "rice punch"],
+  doenjang_stew: ["doenjang", "soybean paste stew"],
+  cabbage_kimchi: ["kimchi"],
 };
 
-/** Folder and file-name words in the family's shared drives. */
+/** Folder and file-name words in the family's shared drives — the Korean
+ *  demo's and the English demo's (regex fragments, matched case-insensitively). */
 export const FAMILY_FILES = {
   /** the recipe folder */
-  recipeDir: "레시피",
-  /** the household measure table ("한 줌" → grams) sits next to the recipes */
-  measure: "계량",
+  recipeDir: ["레시피", "recipes?"],
+  /** the household measure table ("한 줌" / "a handful" → grams) sits next to the recipes */
+  measure: ["계량", "measure"],
   /** someone's review of a dish they cooked */
-  review: "후기",
+  review: ["후기", "review"],
   /** the trip folder */
-  tripDir: "여행",
+  tripDir: ["여행", "trip"],
   /** trip documents worth linking from the album: plan, budget, briefing */
-  tripDocs: ["계획", "경비", "브리핑"],
+  tripDocs: ["계획", "경비", "브리핑", "plan", "budget", "briefing"],
   /** a photo passed along rather than taken: "sent", "received", "copy" */
-  forwarded: ["보냄", "받음", "받은", "복사", "copy", "kakao"],
+  forwarded: ["보냄", "받음", "받은", "복사", "copy", "kakao", "forwarded", "received"],
 } as const;
 
 /** The household measure the recipe prompt gives as an example. */

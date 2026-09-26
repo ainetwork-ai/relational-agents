@@ -60,6 +60,75 @@ pnpm tsx scripts/family-demo-trip-date.mts --end today
   Below it, clicking **As another family member: Grandma · Dad · Seoyeon** signs in as that person directly (scenario 4 uses Grandma).
 - The source files and generation tools (photo download, EXIF, recording synthesis, video) are in `~/.ainmem-demo/source/`.
 
+## English demo (xyz)
+
+The same family and the same Chuseok, in English — English names ("Grandma", "Mom", "Dad", "Seoyeon",
+"Grandpa"), English drives ("Grandma's Kitchen & Album", "Mom's Household", "Dad's Records", "Seoyeon's Phone",
+"Grandpa's Phone"), English folders and files, and an English workspace ("The Kim Family", teamspaces "Our Family"
+and "Grandma's Birthday Plans"). It is a parallel data set, not a translation of the Korean one:
+its own wallets, drives and ainmem accounts, in its own home, `~/.ainmem-demo-en/`.
+
+**One switch picks the demo: `DEMO_CONTENT_LANG=ko|en`** (default `ko`), read only in
+`app/src/i18n/content/demo-lang.ts`. The server reads it at runtime (the pocket-money ledger paths, the family
+agent's names, the demo login's display name); the scripts take `--lang en`, which sets it and makes
+`~/.ainmem-demo-en` the default `--home`. A home remembers its language in `family.json`, and the scripts refuse
+to mix them. Dev (3110) stays Korean — do not put `DEMO_CONTENT_LANG` in `app/.env.local`.
+
+| | Korean (dev) | English (xyz) |
+|---|---|---|
+| Content | `i18n/content/family-seed.ts`, `family-demo.ts`, `scripts.ts` | `family-seed.en.ts`, `family-demo.en.ts` |
+| Source tree | `~/.ainmem-demo/source/family` | `~/.ainmem-demo-en/source/family` |
+| Generators | `~/.ainmem-demo/source/tools/gen.py`, `media.py` | `~/.ainmem-demo-en/source/tools/gen_en.py`, `media_en.py` |
+| Drive folders | `~/.ainmem-demo/drives/<person>` | `~/.ainmem-demo-en/drives/<person>` |
+| Ledgers | `LEDGER` in `family-demo.ts` (Korean paths) | `wallet/pocket_money_ledger.csv`, `wallet/received_pocket_money.csv` |
+
+The English tree has the same 90 files as the Korean one: text and office files from `gen_en.py`; photos copied
+from the Korean tree under English names (EXIF kept, the Jeju trip EXIF written in place); the handwritten
+recipe card, the batter video, the birthday-planning recording and its transcript, and Seoyeon's video and
+preview from `media_en.py` (edge-tts en-US voices — needs the network).
+
+```bash
+cd /mnt/newdata/git/relational-agents/app
+EN=~/.ainmem-demo-en
+
+# 0) (only when the content changes) regenerate the English source tree — text/office first, then media
+python3 $EN/source/tools/gen_en.py $EN/source/family
+(cd $EN/source/tools && uv run --with edge-tts --with piexif --with pillow python media_en.py $EN/source/family)
+
+# 1) The five people, on xyz: aindrive wallet accounts + drives + xyz ainmem accounts.
+#    Copies the tree into $EN/drives/<person> and STARTS FIVE NEW aindrive CLIs serving those folders
+#    (they are new drives, not dev's — unlike the Korean xyz data in deployment.md §1.1, no --no-cli).
+#    Run it again to bring the CLIs back up; running ones are left alone.
+pnpm tsx scripts/family-demo-accounts.mts --lang en --home $EN --data $EN/source/family --app http://127.0.0.1:3150
+
+# 2) xyz serves the English demo. In ../.env.xyz set
+#      DEMO_CONTENT_LANG=en
+#      DEMO_LOGIN_ADDRESS=<English Mom's wallet>     # jq -r .members.mom.wallet ~/.ainmem-demo-en/family.json
+#    and recreate the container (env_file is read on up -d)
+(cd .. && APP_TAG=$(grep ^APP_TAG= .env.xyz | cut -d= -f2) docker compose --env-file .env.xyz -f docker-compose.xyz.yml up -d)
+
+# 3) Seed against xyz's DB — POSTGRES_URL / SESSION_SECRET from .env.xyz, OKF_ROOT = xyz's content.
+#    DEMO_LOGIN_ADDRESS must be the English Mom's (step 2): app/.env.local's dev value would otherwise win.
+set -a; . ../.env.xyz; set +a
+export POSTGRES_URL="postgresql://ainmem_xyz:$POSTGRES_PASSWORD@127.0.0.1:5439/ainmem_xyz"
+export OKF_ROOT="$PWD/../deploy-xyz/okf-content"
+pnpm tsx --tsconfig scripts/tsconfig.json scripts/family-demo-push.mts --lang en --home $EN --from $EN/source/family  # optional: push over MCP, read back
+pnpm demo:family --lang en --home $EN                                                  # "The Kim Family"; --reset rebuilds it
+pnpm tsx --tsconfig scripts/tsconfig.json scripts/family-demo-trip-date.mts --lang en --home $EN --end today  # optional: the trip ends today
+
+curl -s -o /dev/null -w '%{http_code}\n' https://ainmem.ainetwork.xyz/api/health
+```
+
+- push and trip-date import `src/lib` (which imports `server-only`), so they need `--tsconfig scripts/tsconfig.json`
+  (it stubs `server-only`) — `pnpm demo:family` already passes it.
+- `--reset` finds the workspace by its English name, so it only ever removes the English "The Kim Family"; the Korean
+  workspace seeded into the same DB earlier stays, but the demo login no longer lands there.
+- Grandpa (Mom's father) joins by invite as in the Korean demo:
+  `pnpm tsx scripts/family-demo-approve.mts --lang en --as grandpa --invite <link> --app http://127.0.0.1:3150`.
+- The chat sentences for the four scenarios, in English: "@agent make a shopping list for mung bean pancakes for 4",
+  "@agent pull the to-dos out of the recording", "@agent make an album of the Jeju photos",
+  "@agent give Seoyeon her pocket money and let's watch the video".
+
 ## Demo run (about 3 minutes)
 
 ### 0:00 · Login — "Sign in with aindrive"

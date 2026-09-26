@@ -13,7 +13,7 @@ import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
-import { FAMILY, FAMILY_NAME_EN, LEDGER } from "@/i18n/content/family-demo";
+import { demoLang, familyDemo } from "@/i18n/content/demo-lang";
 import {
   ALBUM_REGIONS,
   FAMILY_ALIASES,
@@ -66,8 +66,16 @@ export function langOf(text: string): "ko" | "en" {
   return /[\uAC00-\uD7A3]/.test(text) ? "ko" : "en";
 }
 
-const mentions = (text: string, word: string) =>
-  text.includes(word) || (FAMILY_ALIASES[word] ?? []).some((a) => text.toLowerCase().includes(a));
+/** Whether the sentence names `word` — a dish, place or person as the family's data
+ *  names it ("mung_bean_pancake" is said "mung bean pancake"), or one of its aliases. */
+const mentions = (text: string, word: string) => {
+  const said = text.toLowerCase();
+  return (
+    said.includes(word.toLowerCase()) ||
+    said.includes(word.toLowerCase().replace(/_/g, " ")) ||
+    (FAMILY_ALIASES[word] ?? []).some((a) => said.includes(a))
+  );
+};
 
 export interface SkillContext {
   workspaceId: string;
@@ -83,7 +91,7 @@ export interface SkillContext {
 /** Translator for the language the request was written in. */
 const tOf = (ctx: SkillContext): T => makeT(ctx.lang);
 /** A family member as named in the answer's language. */
-const nm = (ctx: SkillContext, name: string) => (ctx.lang === "en" ? (FAMILY_NAME_EN[name] ?? name) : name);
+const nm = (ctx: SkillContext, name: string) => (ctx.lang === "en" ? (familyDemo().FAMILY_NAME_EN[name] ?? name) : name);
 /** A region as named in the answer's language. */
 const regionLabel = (ctx: SkillContext, r: string) => (ctx.lang === "en" ? (ALBUM_REGIONS[r]?.en ?? r) : r);
 const numLocale = (ctx: SkillContext) => (ctx.lang === "en" ? "en-US" : "ko-KR");
@@ -170,43 +178,48 @@ async function teamspaceOf(f: Found | undefined, workspaceId: string): Promise<{
 
 // ── 1. cooking: recipe → scaled shopping list ──────────────────────────────
 
-const RECIPE_DIR = new RegExp(`(^|/)${FAMILY_FILES.recipeDir}/`);
+const RECIPE_DIR = new RegExp(`(^|/)(${FAMILY_FILES.recipeDir.join("|")})/`, "i");
+const MEASURE = anyOf(FAMILY_FILES.measure);
+const REVIEW = anyOf(FAMILY_FILES.review);
 
 async function shopping(ctx: SkillContext): Promise<SkillResult> {
   const t = tOf(ctx);
   const files = await listAll(ctx);
-  const recipes = files.filter((f) => RECIPE_DIR.test(f.full) && /\.md$/i.test(f.rel) && !f.rel.includes(FAMILY_FILES.measure));
+  const recipes = files.filter((f) => RECIPE_DIR.test(f.full) && /\.md$/i.test(f.rel) && !MEASURE.test(f.rel));
   const dishOf = (f: Found) => nameOf(f.rel).replace(/\.md$/i, "");
+  /** a dish as said, not as filed ("mung_bean_pancake" → "mung bean pancake") */
+  const said = (d: string) => d.replace(/_/g, " ");
   const recipe = recipes.find((f) => mentions(ctx.text, dishOf(f)));
   if (!recipe)
     return {
       text: recipes.length
-        ? t("Which dish? Recipes the family shared: {list}", { list: recipes.map(dishOf).join(", ") })
+        ? t("Which dish? Recipes the family shared: {list}", { list: recipes.map((r) => said(dishOf(r))).join(", ") })
         : t("I couldn't find a recipe in the folders the family shared."),
     };
   const dish = dishOf(recipe);
+  const dishName = said(dish);
   const servings = Number(ctx.text.match(SERVINGS_NUM_RE)?.[1] ?? 4);
-  const measure = files.find((f) => f.src === recipe.src && f.rel.includes(FAMILY_FILES.measure));
+  const measure = files.find((f) => f.src === recipe.src && MEASURE.test(f.rel));
   const [recipeText, measureText] = await Promise.all([read(recipe), measure ? read(measure) : Promise.resolve("")]);
   const plan = await llmJson<{ originalServings?: number; items?: { name: string; amount: string; note?: string }[]; steps?: string[] }>(
     "You turn a Korean family recipe into a shopping list for a different number of servings. Use the household measure table when given " +
-      `("${HANDFUL}" → grams). Output JSON only: {"originalServings":<number the recipe makes>,"items":[{"name":"<ingredient>","amount":"<scaled amount, Korean units or grams>","note":"<short tip or empty>"}],` +
+      `("${demoLang() === "en" ? "a handful" : HANDFUL}" → grams). Output JSON only: {"originalServings":<number the recipe makes>,"items":[{"name":"<ingredient>","amount":"<scaled amount, Korean units or grams>","note":"<short tip or empty>"}],` +
       '"steps":["<short step>", …3 to 6]}. Keep every ingredient; do not invent any. ' +
       `Write names, amounts, notes and steps in ${outLang(ctx)}.`,
     `## Recipe\n${recipeText.slice(0, 5000)}\n\n## Household measures\n${measureText.slice(0, 2000)}\n\n## Servings wanted\n${servings}`
   );
   if (!plan?.items?.length)
-    return { text: t("I read the {dish} recipe but couldn't list the ingredients. Ask me once more?", { dish }) };
+    return { text: t("I read the {dish} recipe but couldn't list the ingredients. Ask me once more?", { dish: dishName }) };
   const media = files.filter((f) => f.src === recipe.src && f !== recipe && nameOf(f.rel).includes(dish));
-  const review = files.find((f) => f.rel.includes(FAMILY_FILES.review) && nameOf(f.rel).includes(dish));
+  const review = files.find((f) => REVIEW.test(f.rel) && nameOf(f.rel).includes(dish));
   const ts = await teamspaceOf(recipe, ctx.workspaceId);
   if (!ts) return { text: t("I couldn't find the teamspace the recipe is in.") };
-  const title = t("{dish} for {n} — shopping list", { dish, n: servings });
+  const title = t("{dish} for {n} — shopping list", { dish: dishName, n: servings });
   const cook = nm(ctx, who(recipe));
   const body: NewBlock[] = [
     b.callout(
       "🛒",
-      t("{who}'s {dish} recipe (makes {orig}) scaled to {n} servings.", { who: cook, dish, orig: plan.originalServings ?? "?", n: servings }) +
+      t("{who}'s {dish} recipe (makes {orig}) scaled to {n} servings.", { who: cook, dish: dishName, orig: plan.originalServings ?? "?", n: servings }) +
         (measure ? " " + t(`Measures like "a handful" are converted with grandma's measure table.`) : "")
     ),
     b.h2(t("To buy")),
@@ -223,7 +236,7 @@ async function shopping(ctx: SkillContext): Promise<SkillResult> {
   return {
     pageId,
     text:
-      t("Made the {dish} shopping list for {n} → /p/{pageId}", { dish, n: servings, pageId }) +
+      t("Made the {dish} shopping list for {n} → /p/{pageId}", { dish: dishName, n: servings, pageId }) +
       "\n" +
       plan.items.slice(0, 6).map((i) => `- ${i.name} ${i.amount}`).join("\n") +
       (plan.items.length > 6 ? "\n" + t("… and {n} more", { n: plan.items.length - 6 }) : "") +
@@ -249,10 +262,12 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
   if (!pick)
     return { text: t("I couldn't find a recording with a transcript (.txt) in the shared folders.") };
   const transcript = await read(pick.text);
+  const F = familyDemo().FAMILY;
   const out = await llmJson<{ title?: string; date?: string; tasks?: { task: string; owner: string; due?: string | null; note?: string }[] }>(
-    "You read a Korean family meeting transcript and list every action item someone took on. Resolve dates against the meeting date " +
+    `You read a ${demoLang() === "en" ? "" : "Korean "}family meeting transcript and list` +
+      " every action item someone took on. Resolve dates against the meeting date " +
       '(the year is in the header). Output JSON only: {"title":"<short meeting title>","date":"YYYY-MM-DD",' +
-      '"tasks":[{"task":"<what, short>","owner":"<who: one person\'s name as spoken, e.g. ${[FAMILY.mom, FAMILY.dad, FAMILY.seoyeon, FAMILY.doyun].map((f) => f.ko).join("/")}, or ${FAMILY.everyone.ko}>","due":"YYYY-MM-DD or null","note":"<detail or empty>"}]}. ' +
+      `"tasks":[{"task":"<what, short>","owner":"<who: one person's name as spoken, e.g. ${[F.mom, F.dad, F.seoyeon, F.doyun].map((f) => f.name).join("/")}, or ${F.everyone.name}>","due":"YYYY-MM-DD or null","note":"<detail or empty>"}]}. ` +
       `Write title, task and note in ${outLang(ctx)}; keep owner names exactly as spoken.`,
     transcript.slice(0, 6000),
     1500
@@ -312,7 +327,7 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
 const WEEKDAY_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const FORWARDED = new RegExp(`(${FAMILY_FILES.forwarded.join("|")})`, "i");
-const TRIP_DIR = new RegExp(`${FAMILY_FILES.tripDir}/`);
+const TRIP_DIR = new RegExp(`(${FAMILY_FILES.tripDir.join("|")})/`, "i");
 const TRIP_DOCS = new RegExp(`(${FAMILY_FILES.tripDocs.join("|")})`);
 
 async function album(ctx: SkillContext): Promise<SkillResult> {
@@ -487,7 +502,7 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
         ? " · " + t("{name}'s pocket-money ledger: ₩{left} left", { name: nm(ctx, asker?.name ?? ""), left: left.toLocaleString(numLocale(ctx)) })
         : "") +
       " " +
-      t("(both ledgers are in each person's aindrive 「{folder}」 folder)", { folder: LEDGER.out.slice(0, LEDGER.out.indexOf("/") + 1) }),
+      t("(both ledgers are in each person's aindrive 「{folder}」 folder)", { folder: familyDemo().LEDGER.out.slice(0, familyDemo().LEDGER.out.indexOf("/") + 1) }),
   };
 }
 

@@ -6,7 +6,10 @@
  *   pnpm tsx scripts/family-demo-accounts.mts --data <dir> [--app http://localhost:3110]
  *     --data   folder holding grandma/ mom/ dad/ seoyeon/ (the files each person shares)
  *     --app    the ainmem server to connect them to (default http://localhost:3110)
- *     --home   where keys, drive folders and CLI homes live (default ~/.ainmem-demo)
+ *     --lang   ko (default) | en — which family demo: names and drive names
+ *              (sets DEMO_CONTENT_LANG; see src/i18n/content/demo-lang.ts)
+ *     --home   where keys, drive folders and CLI homes live
+ *              (default ~/.ainmem-demo, or ~/.ainmem-demo-en with --lang en)
  *     --no-cli skip starting the aindrive CLIs (drives already running)
  *
  * aindrive (AINDRIVE_SERVER, default https://aindrive.ainetwork.ai) makes an
@@ -24,27 +27,34 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
-import { FAMILY_DEMO_ACCOUNTS } from "../src/i18n/content/scripts";
+import { demoHomeName, demoLangFromArgs, familyDemo } from "../src/i18n/content/demo-lang";
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
+const LANG = demoLangFromArgs();
 const DATA = arg("data");
 const APP = (arg("app", "http://localhost:3110") as string).replace(/\/+$/, "");
-const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
+const HOME = arg("home", path.join(os.homedir(), demoHomeName())) as string;
 const AINDRIVE = (process.env.AINDRIVE_SERVER || "https://aindrive.ainetwork.ai").replace(/\/+$/, "");
 const START_CLI = !process.argv.includes("--no-cli");
 if (!DATA) {
-  console.error("usage: family-demo-accounts.mts --data <dir with grandma/ mom/ dad/ seoyeon/> [--app URL] [--home DIR] [--no-cli]");
+  console.error("usage: family-demo-accounts.mts --data <dir with grandma/ mom/ dad/ seoyeon/> [--app URL] [--lang ko|en] [--home DIR] [--no-cli]");
   process.exit(2);
 }
 
 /** Who the demo family is: the folder they share, the drive's name on aindrive,
  *  and the name they go by in the workspace. */
-const FAMILY = FAMILY_DEMO_ACCOUNTS; // grandpa is not in the family workspace at first — the demo invites him
+const FAMILY = familyDemo().FAMILY_DEMO_ACCOUNTS; // grandpa is not in the family workspace at first — the demo invites him
 
 fs.mkdirSync(HOME, { recursive: true, mode: 0o700 });
+// one home holds one demo: its keys, drives and family.json are that language's
+const summaryFile = path.join(HOME, "family.json");
+if (fs.existsSync(summaryFile)) {
+  const was = (JSON.parse(fs.readFileSync(summaryFile, "utf8")) as { lang?: string }).lang ?? "ko";
+  if (was !== LANG) throw new Error(`${HOME} holds the ${was} demo, not ${LANG} — pass --home for the ${LANG} one`);
+}
 const keysFile = path.join(HOME, "family-keys.json");
 const keys: Record<string, `0x${string}`> = fs.existsSync(keysFile) ? JSON.parse(fs.readFileSync(keysFile, "utf8")) : {};
 for (const m of FAMILY) keys[m.key] ??= generatePrivateKey();
@@ -179,6 +189,5 @@ for (const m of FAMILY) {
   out[m.key] = { name: m.name, drive: m.drive, wallet: address, folder, ainmemUserId: ainmem.userId };
   console.log(`${m.name}: wallet ${address} · drive "${m.drive}" ${cli} · ainmem user ${ainmem.userId}`);
 }
-const summary = path.join(HOME, "family.json");
-fs.writeFileSync(summary, JSON.stringify({ app: APP, aindrive: AINDRIVE, members: out }, null, 2), { mode: 0o600 });
-console.log(`\nwrote ${summary}`);
+fs.writeFileSync(summaryFile, JSON.stringify({ lang: LANG, app: APP, aindrive: AINDRIVE, members: out }, null, 2), { mode: 0o600 });
+console.log(`\nwrote ${summaryFile}`);

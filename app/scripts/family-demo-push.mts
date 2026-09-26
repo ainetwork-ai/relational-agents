@@ -3,9 +3,11 @@
  * MCP (`write_file`), as each person's own account — not by copying into the
  * drive folder behind aindrive's back.
  *
- *   pnpm tsx scripts/family-demo-push.mts --from <dir> [--home ~/.ainmem-demo]
+ *   pnpm tsx scripts/family-demo-push.mts --from <dir> [--lang ko|en] [--home ~/.ainmem-demo]
  *     --from  a folder holding grandma/ mom/ dad/ seoyeon/ — each file lands at
  *             the same relative path on that person's drive
+ *     --lang  ko (default) | en — only picks the default --home
+ *             (~/.ainmem-demo or ~/.ainmem-demo-en)
  *
  * Text (md, csv, txt, json) is written as UTF-8, everything else as bytes.
  * Every file is read back and compared, so "pushed" means "there".
@@ -17,20 +19,24 @@ const os = await import("node:os");
 const path = await import("node:path");
 const { listDrives, writeFile, writeFileBytes, readFile, readFileBytes } = await import("../src/lib/aindrive");
 const { runAs } = await import("../src/lib/aindrive-account");
+const { demoHomeName, demoLangFromArgs } = await import("../src/i18n/content/demo-lang");
+const LANG = demoLangFromArgs();
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
 const FROM = arg("from");
-const HOME = arg("home", path.join(os.homedir(), ".ainmem-demo")) as string;
+const HOME = arg("home", path.join(os.homedir(), demoHomeName())) as string;
 if (!FROM) {
-  console.error("usage: family-demo-push.mts --from <dir with grandma/ mom/ dad/ seoyeon/> [--home DIR]");
+  console.error("usage: family-demo-push.mts --from <dir with grandma/ mom/ dad/ seoyeon/> [--lang ko|en] [--home DIR]");
   process.exit(2);
 }
 const family = JSON.parse(fs.readFileSync(path.join(HOME, "family.json"), "utf8")) as {
+  lang?: string;
   members: Record<string, { name: string; drive: string; ainmemUserId: string }>;
 };
+if ((family.lang ?? "ko") !== LANG) throw new Error(`${HOME} holds the ${family.lang ?? "ko"} demo — pass --lang ${family.lang ?? "ko"}`);
 const TEXT = /\.(md|markdown|csv|txt|json)$/i;
 const walk = (d: string): string[] =>
   fs.existsSync(d)

@@ -9,11 +9,11 @@
  *  case-insensitively against a top-level folder name. */
 export const FOLDER_KEYWORDS = {
   photos: ["사진", "앨범", "영상", "photo", "camera", "dcim", "album", "video"],
-  notes: ["레시피", "메모", "요리", "편지", "일기", "recipe", "note", "memo"],
+  notes: ["레시피", "메모", "요리", "편지", "일기", "recipe", "note", "memo", "cooking", "letter", "diary"],
   voice: ["녹음", "voice", "record"],
-  plans: ["일정", "계획", "여행", "추석", "귀성", "달력", "벌초", "plan", "trip"],
+  plans: ["일정", "계획", "여행", "추석", "귀성", "달력", "벌초", "plan", "trip", "travel", "chuseok", "calendar", "schedule", "graves"],
   health: ["건강", "병원", "약", "health"],
-  money: ["지갑", "가계부", "관리비", "wallet", "money"],
+  money: ["지갑", "가계부", "관리비", "wallet", "money", "budget"],
 } as const;
 
 /** The demo storefront (lib/seller.ts): a Korean rice-cake shop. */

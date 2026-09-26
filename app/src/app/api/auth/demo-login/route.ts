@@ -6,7 +6,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { workspaceMembers, workspaces } from "@/lib/db/schema";
 import { ensureWorkspace } from "@/lib/auth/provision";
 import { toPublicUser } from "@/lib/auth/public-user";
-import { FAMILY } from "@/i18n/content/family-demo";
+import { familyDemo } from "@/i18n/content/demo-lang";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
    // The demo world hangs off one specific account (Mom — who made the
-   // family workspace (FAMILY_WORKSPACE_NAME in i18n/content/family-demo) and linked her aindrive folder into it, beside
+   // family workspace (FAMILY_WORKSPACE_NAME via i18n/content/demo-lang) and linked her aindrive folder into it, beside
    // grandma's and dad's; scripts/seed-family-demo.mts). DEMO_LOGIN_ADDRESS points
    // "Try the demo" straight at that account so the demo opens with its
    // workspaces instead of a fresh empty one. There is no second-best account
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
    // creation, so a user-picked cover is never overwritten
     const user = await loginUser(
       configured.toLowerCase(),
-      FAMILY.mom.ko,
+      familyDemo().FAMILY.mom.name,
       "/covers/home-cover-family.jpg"
     );
     return NextResponse.json({ user: toPublicUser(user) });
