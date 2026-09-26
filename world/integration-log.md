@@ -256,3 +256,19 @@ Format: `JST time — surface — what happened`.
   and mainnet.base.org as fallbacks. The panel's "N/6 votes" counts World ID
   proofs only; seeded dev votes draw a red ring and count for nothing — the
   three off-camera votes (simulator Human 3·4·5) are what turn it into 4/6.
+- 2026-09-26 14:30 — IDKit — **the off-camera votes are real now**: Chris,
+  Dana and Eli each claimed their seat in room `cb5d981f…` through the
+  simulator, driven by `scripts/world-sim-vote.mjs` (one fresh browser per
+  member; the "Use the simulator" link is read out of the IDKit widget's
+  shadow root and opened in a tab, because the widget's overlay intercepts
+  clicks). Seats stored as `orb` with three distinct nullifiers (`0x134b…`,
+  `0x0516…`, `0x173d…`); the panel reads **3/6 votes** and Alex still sees
+  "Claim your vote". FRICTION: the simulator is not "one human per browser"
+  — every fresh browser gets the same five fixed test identities (#0–#4)
+  with #4 active. The first attempt seated Chris on #4, i.e. on the very
+  nullifier `0x11a2…` Alex's own simulator produced at 13:28; the next
+  member on the default identity — and Alex on camera — would have been
+  refused as "already has a vote". That row was deleted and the three were
+  re-seated on #3/#2/#1; #4 (the default) stays Alex's, #0 is Bea's, and the
+  second-account scene keeps #4 on purpose. Every reset means re-running the
+  script three times.
