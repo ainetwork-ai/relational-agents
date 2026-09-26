@@ -13,8 +13,10 @@ import { evaluateCommand } from "@/lib/agent/treasury/policy";
 import {
   RecurringBuyRefusal,
   authorityExposure,
+  boughtLine,
   digestShort,
   proposeRecurringBuy,
+  queuedLines,
   recurringBuyStatus,
   roomRecurringBuys,
   runRecurringBuy,
@@ -22,7 +24,7 @@ import {
   termsPhrase,
   type RecurringRunResult,
 } from "@/lib/agent/treasury/recurring";
-import { SKIP_REASON_TEXT, termsDigest } from "@/lib/agent/treasury/recurring-record";
+import { SKIP_REASON_TEXT, lastDayOf, relationDay, termsDigest } from "@/lib/agent/treasury/recurring-record";
 import { describeTreasuryAction } from "@/lib/agent/treasury/summary";
 import type { TreasuryKind } from "@/lib/agent/treasury/types";
 import { treasuryBalance, ensureAgentWallet } from "@/lib/agent/treasury/wallet";
@@ -97,22 +99,6 @@ const NOT_VOTER = {
 
 function usd(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
-}
-
-function shortAddress(a: string): string {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-/** "Mon 30 Mar 2027 00:00 UTC" */
-function whenUtc(unixSeconds: number): string {
-  const d = new Date(unixSeconds * 1000);
-  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  return `${day.replace(/,/g, "")} ${d.toISOString().slice(11, 16)} UTC`;
-}
-
-function weth(amount: string): string {
-  const n = Number(amount);
-  return n >= 0.01 ? n.toFixed(4) : n.toPrecision(3);
 }
 
 async function postAsAgent(ctx: TreasurerContext, text: string): Promise<void> {
@@ -212,8 +198,8 @@ export async function stopAndAnnounce(ctx: TreasurerContext): Promise<{ ok: true
   const terms = wasLive ? before.live : before.pending;
   const phrase = terms ? ` (${termsPhrase(terms)})` : "";
   const line = wasLive
-    ? `Stopped the recurring buy${phrase} at ${ctx.askerName}'s request. I won't buy again under it.`
-    : `Withdrew the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
+    ? `⏹ Stopped the recurring buy${phrase} at ${ctx.askerName}'s request.\nI won't buy again under it.`
+    : `✖ Withdrew the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
   await postAsAgent(ctx, line);
   return { ok: true, actionId: stopped.actionId, line };
 }
@@ -226,7 +212,7 @@ export async function stopAndAnnounce(ctx: TreasurerContext): Promise<{ ok: true
 export async function runAndAnnounce(ctx: TreasurerContext): Promise<{ run: RecurringRunResult; line: string | null }> {
   const run = await runRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (run.outcome !== "bought") return { run, line: null };
-  const line = `Bought at ${ctx.askerName}'s request: ${usd(run.weeklyUsd)} → ${weth(run.wethOut)} WETH on Base (week ${run.isoWeek}). tx ${run.txUrl}`;
+  const line = boughtLine(run, ctx.askerName);
   await postAsAgent(ctx, line);
   return { run, line };
 }
@@ -460,12 +446,8 @@ const proposeRecurring: TreasurerTool = {
     });
     if (!proposed.ok) return { result: { ok: false, refused: proposed.reason } };
     const { terms } = proposed.record;
-    const total = usd(authorityExposure(proposed.record));
-    const humans = `${proposed.required} verified human${proposed.required === 1 ? "" : "s"}`;
-    await postAsAgent(
-      ctx,
-      `Queued at ${ctx.askerName}'s request: a recurring buy — ${usd(terms.weeklyUsd)} of ETH every week for ${terms.weeks} week${terms.weeks === 1 ? "" : "s"}, until ${whenUtc(terms.expiresAt)}. It swaps USDC → WETH on Base through Uniswap v3 from my own wallet ${shortAddress(terms.agentAddress)}, at most ${total} in all. Our rule “${proposed.rule}” means it needs ${humans} — approve it with World ID on the card.\n${recurringBuyMarker(proposed.actionId)}`
-    );
+    const lines = queuedLines({ record: proposed.record, required: proposed.required, rule: proposed.rule, askedBy: ctx.askerName });
+    await postAsAgent(ctx, [...lines, recurringBuyMarker(proposed.actionId)].join("\n"));
     const surface = await recurringBuySurfaceFor(ctx.roomId, proposed.actionId, ctx.askerId, ctx.t);
     return {
       result: {
@@ -474,7 +456,7 @@ const proposeRecurring: TreasurerTool = {
         movedMoney: false,
         terms: termsPhrase(terms),
         atMostUsd: authorityExposure(proposed.record),
-        until: whenUtc(terms.expiresAt),
+        through: relationDay(lastDayOf(terms.expiresAt), true),
         requiredApprovals: proposed.required,
         rule: proposed.rule,
         postedToRoom: "the proposal card, so every member can approve it",
@@ -536,7 +518,7 @@ const buyThisWeek: TreasurerTool = {
             ok: true,
             outcome: "rehearsal",
             movedMoney: false,
-            line: `Rehearsal: I would buy ${usd(run.wouldBuyUsd)} of ETH for ${run.isoWeek} — real buys are off on this server.`,
+            line: `Rehearsal: I would buy ${usd(run.wouldBuyUsd)} of ETH this week — real buys are off on this server, so nothing moved.`,
           },
         };
       case "skipped":
@@ -547,7 +529,7 @@ const buyThisWeek: TreasurerTool = {
             movedMoney: false,
             isoWeek: run.isoWeek,
             reason: run.reason,
-            line: `Skipped this week (${SKIP_REASON_TEXT[run.reason]} — ${run.isoWeek}).`,
+            line: `Skipped this week: ${SKIP_REASON_TEXT[run.reason]}.`,
           },
         };
       case "bought":

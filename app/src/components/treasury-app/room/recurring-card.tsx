@@ -13,7 +13,7 @@ import { ArrowDown, Repeat } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import { useTreasuryRoomData } from "./room-data";
-import { dateOnly, dateTime, tokenAmount, usd } from "./room-model";
+import { dateOnly, dateTime, tokenAmount, usd, weekdayDate } from "./room-model";
 import type { RecurringLive, RecurringPending } from "./room-types";
 import styles from "./treasury-room.module.css";
 
@@ -143,8 +143,8 @@ function LiveCard({ live, realRuns }: { live: RecurringLive; realRuns: boolean }
           <div className={`${styles.progressFill} ${styles.progressCoral}`} style={{ width: `${pct}%` }} />
         </div>
         <p className={styles.weekNext}>
-          {live.nextRunAt ? t("Next buy: {when}", { when: dateTime(live.nextRunAt, intlLocale) }) : t("No buys left in its window")}
-          <span className={styles.muted}> · {t("until {date}", { date: dateOnly(live.expiresAt, intlLocale) })}</span>
+          {live.nextRunAt ? t("Next buy: {when}", { when: weekdayDate(live.nextRunAt, intlLocale) }) : t("No buys left in its window")}
+          <span className={styles.muted}> · {t("until {date}", { date: dateOnly(new Date(Date.parse(live.expiresAt) - 1000).toISOString(), intlLocale) })}</span>
         </p>
       </div>
 

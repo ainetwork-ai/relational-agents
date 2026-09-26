@@ -4,6 +4,7 @@ import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNo
 import { safeReturnTo } from "@/lib/auth/return-to";
 import { stamp, stampOk } from "@/lib/secret-box";
 import { approvalCard, type ApprovalCard } from "@/lib/agent/treasury/approvals";
+import { relationDay } from "@/lib/agent/treasury/recurring-record";
 
 export const dynamic = "force-dynamic";
 
@@ -226,7 +227,7 @@ function humansApprove(n: number): string {
 function recurringWhat(r: NonNullable<ApprovalCard["recurring"]>): string {
   return `<h1>Recurring buy</h1>
        <p class="to"><strong>${esc(usd(r.weeklyUsd))} of ETH every week for ${r.weeks} week${r.weeks === 1 ? "" : "s"}</strong> · at most ${esc(usd(r.exposureUsd))} in total</p>
-       <p class="muted">USDC → WETH on Uniswap v3 on Base, at most once a week, until ${esc(new Date(r.expiresAt).toUTCString())}. Anyone in the room can stop it without a vote.</p>
+       <p class="muted">USDC → WETH on Uniswap v3 on Base, at most once a week, through ${esc(relationDay(Date.parse(r.expiresAt) - 1000, true))}. Anyone in the room can stop it without a vote.</p>
        <p class="addr">From the agent's wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer">${esc(r.agentAddress)}</a> (basescan)</p>
        <p class="addr">Terms ${esc(r.digestShort)}</p>`;
 }
@@ -243,7 +244,9 @@ function confirmPage(
     : `No one yet — 0 of ${c.required} needed`;
   const bar = ratify
     ? `The agent follows this version only after ${humansApprove(c.required)} with World ID.`
-    : `The agent can't send this until ${humansApprove(c.required)} with World ID.`;
+    : c.recurring
+      ? `The agent starts buying only after ${humansApprove(c.required)} with World ID.`
+      : `The agent can't send this until ${humansApprove(c.required)} with World ID.`;
   const what = ratify
     ? `<h1>Adopt ${esc(c.memo)}</h1>
        ${

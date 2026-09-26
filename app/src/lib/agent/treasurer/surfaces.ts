@@ -17,6 +17,7 @@
 
 import type { T } from "@/i18n";
 import { A2UI_BASIC_CATALOG, A2UI_VERSION, type A2uiComponent, type A2uiMessage } from "@/lib/x402/a2ui";
+import { relationDay } from "@/lib/agent/treasury/recurring-record";
 
 export const TREASURY_APPROVE_ACTION = "ainmem.treasury.approve";
 export const TREASURY_STOP_ACTION = "ainmem.treasury.stop";
@@ -114,10 +115,6 @@ function weth(amount: string): string {
   return n >= 0.01 ? n.toFixed(4) : n.toPrecision(3);
 }
 
-function dayUtc(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-}
-
 const text = (id: string, value: string, variant?: string): A2uiComponent => ({
   id,
   component: "Text",
@@ -210,7 +207,7 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
         }),
         "body"
       ),
-      text("next", p.nextRunAt ? t("Next buy: {day}", { day: dayUtc(p.nextRunAt) }) : t("No more buys in this window"), "caption"),
+      text("next", p.nextRunAt ? t("Next buy: {day}", { day: relationDay(p.nextRunAt) }) : t("No more buys in this window"), "caption"),
       text("approved_by", t("Approved by {names}", { names: s.approvedBy.join(", ") || "—" }), "caption")
     );
   } else if (s.approvedBy.length) {

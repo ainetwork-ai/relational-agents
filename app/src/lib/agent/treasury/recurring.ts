@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { formatUnits } from "viem";
 import { db } from "@/lib/db";
 import { chatRoomBots, treasuryActions, treasuryApprovals, users } from "@/lib/db/schema";
-import { createTreasuryAction, voters } from "./approvals";
+import { createTreasuryAction, txLink, voters } from "./approvals";
 import { INVEST_CHAIN, investConfig, investViaUniswap, investedPosition, usdcForUsd, type InvestResult } from "./invest";
 import { appendTreasuryActivity, humanMemberIds, latestAdoption, loadRelationTreasury } from "./memory";
 import { evaluateCommand } from "./policy";
@@ -11,12 +11,15 @@ import {
   decideRun,
   exposureUsd,
   isoWeekKey,
-  mondayUtc,
+  lastDayOf,
+  nextWeekStart,
   parseAuthority,
   parseRun,
   SKIP_REASON_TEXT,
+  relationDay,
   termsDigest,
   validateTerms,
+  weekStart,
   windowFor,
   type RecurringBuyRecord,
   type RecurringBuyTerms,
@@ -39,7 +42,7 @@ import { ensureAgentWallet, treasuryBalance } from "./wallet";
  * A relation adopts ONE standing authority by quorum, through the same
  * request → World ID approvals → executeIfQuorum flow as any treasury action
  * (approvals.ts adopts it; it never pays itself). Afterwards a run buys at
- * most once per ISO week inside the approved terms by calling
+ * most once a week (the relation's week, recurring-record.ts) inside the approved terms by calling
  * investViaUniswap — the swap an approved investment makes — and leaves one
  * history row, bought or skipped.
  *
@@ -52,8 +55,6 @@ import { ensureAgentWallet, treasuryBalance } from "./wallet";
  */
 
 const WEEK_MS = 7 * 86_400_000;
-/** where status places the next buy — display only, nothing runs on a timer */
-const NEXT_RUN_HOUR_UTC = 9;
 const HISTORY_MAX = 26;
 /** a run nobody asked for; its skips are not recorded */
 const SCHEDULE = "schedule";
@@ -84,6 +85,32 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** "$20 of ETH weekly for 26 weeks" */
 export function termsPhrase(terms: Pick<RecurringBuyTerms, "weeklyUsd" | "weeks">): string {
   return `${usd(terms.weeklyUsd)} of ETH weekly for ${plural(terms.weeks, "week")}`;
+}
+
+/** "0.00003721" — WETH as chat says it: four significant digits */
+export function wethShort(whole: string): string {
+  return Number(whole).toLocaleString("en-US", { maximumSignificantDigits: 4 });
+}
+
+/**
+ * What the room reads when a recurring buy is queued. The chat command and the
+ * treasurer post these same lines, in the treasury's passbook shape — what,
+ * why, what to do, one line each. `askedBy` names the member the agent posts for.
+ */
+export function queuedLines(input: { record: RecurringBuyRecord; required: number; rule: string; askedBy?: string }): string[] {
+  const { terms } = input.record;
+  return [
+    `⏳ Queued${input.askedBy ? ` at ${input.askedBy}'s request` : ""}: a recurring buy — ${termsPhrase(terms)}, through ${relationDay(lastDayOf(terms.expiresAt), true)}.`,
+    `USDC → WETH on Base through Uniswap v3, from my own wallet ${terms.agentAddress.slice(0, 6)}…${terms.agentAddress.slice(-4)} — at most ${usd(authorityExposure(input.record))} in all.`,
+    `Needs ${plural(input.required, "verified human")} — our rules: “${input.rule}”`,
+    "Approve with World ID on the card below.",
+    ...(realRunsEnabled() ? [] : ["Real buys are off on this server — its weekly runs are rehearsals that move nothing."]),
+  ];
+}
+
+/** What the room reads after a real weekly buy. */
+export function boughtLine(run: { weeklyUsd: number; wethOut: string; txHash: string }, askedBy?: string): string {
+  return `📈 Bought this week's ETH${askedBy ? ` at ${askedBy}'s request` : ""}: ${usd(run.weeklyUsd)} → ${wethShort(run.wethOut)} WETH via Uniswap v3 on Base.\nInside the recurring buy we approved · tx ${run.txHash}`;
 }
 
 /** "0x1a2b3c4d…9f0e" — the terms' fingerprint as approvers and members see it */
@@ -551,7 +578,7 @@ export async function proposeRecurringBuy(input: {
     });
     await logActivity(
       input.roomId,
-      `⏳ Requested by ${asker}: a recurring buy — ${termsPhrase(terms)}, at most ${usd(exposure)} — needs ${plural(required, "verified human")} (“${record.rule}”)`
+      `📝 ${asker} asked: a recurring buy — ${termsPhrase(terms)}, at most ${usd(exposure)} — needs ${plural(required, "human")} to approve`
     );
     return { ok: true, actionId: action.id, required, rule: record.rule, record };
   });
@@ -676,7 +703,7 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
     if (sent)
       await logActivity(
         roomId,
-        `⚠️ Recurring buy for ${isoWeek}: the swap was sent but didn't complete — tx ${INVEST_CHAIN.explorer}/tx/${sent}. This week counts as used; check the explorer.`
+        `⚠️ Recurring buy, week of ${relationDay(weekStart(now))}: the swap was sent but didn't complete · ${txLink(sent, INVEST_CHAIN.explorer)} — this week counts as used; check the explorer.`
       );
     const message = (err as { message?: unknown } | null)?.message;
     const short = !sent && typeof message === "string" && INSUFFICIENT_USDC.test(message);
@@ -697,7 +724,7 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
   );
   await logActivity(
     roomId,
-    `📈 Recurring buy for ${isoWeek}: ${usd(terms.weeklyUsd)} of ETH — ${bought.note} — tx ${bought.txUrl}`
+    `📈 Recurring buy, week of ${relationDay(weekStart(now))}: ${usd(terms.weeklyUsd)} of ETH — ${bought.note.replace(/\.$/, "")}${by === SCHEDULE ? "" : ` — asked by ${await displayName(by)}`} · ${txLink(bought.txHash, INVEST_CHAIN.explorer)}`
   );
   return {
     outcome: "bought",
@@ -807,8 +834,8 @@ function liveView(
   const usdcIn = bought.reduce((sum, r) => sum + BigInt(r.usdcIn ?? "0"), zero);
   const wethOut = bought.reduce((sum, r) => sum + BigInt(r.wethOut ?? "0"), zero);
   const thisWeek = runs.filter((r) => r.isoWeek === isoWeekKey(now));
-  let next = mondayUtc(now).getTime() + NEXT_RUN_HOUR_UTC * 3_600_000;
-  if (next <= now.getTime()) next += WEEK_MS;
+  // the next week opens then; a buy runs when a member asks, nothing on a timer
+  const next = nextWeekStart(now).getTime();
   return {
     actionId: a.actionId,
     weeklyUsd: terms.weeklyUsd,

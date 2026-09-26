@@ -1,4 +1,5 @@
 import { keccak256, toBytes } from "viem";
+import { TREASURY_TIME_ZONE } from "./types";
 
 /**
  * Recurring buy — the pure rules. A relation adopts ONE standing authority
@@ -7,6 +8,11 @@ import { keccak256, toBytes } from "viem";
  * "recurring-buy-run" history row. This module holds the records stored in
  * those rows' `ruleText` and the decision whether a run may buy now. No IO and
  * no clock: `now` is always passed in (recurring.ts does the reading/writing).
+ *
+ * A week is the relation's week: Monday 00:00 to Monday 00:00 on its clock
+ * (TREASURY_TIME_ZONE), the clock Treasury Activity dates and chat times use.
+ * Weeks in UTC would let two buys land on the same Tokyo Monday, one either
+ * side of 09:00.
  */
 
 export interface RecurringBuyTerms {
@@ -22,9 +28,9 @@ export interface RecurringBuyTerms {
   /** story dollars (demo scale applies inside investViaUniswap) */
   weeklyUsd: number;
   weeks: number;
-  /** unix seconds, Monday 00:00 UTC of the first ISO week the buy may run in */
+  /** unix seconds, Monday 00:00 (the relation's clock) of the first week the buy may run in */
   startsAt: number;
-  /** unix seconds, Monday 00:00 UTC after the last week → at most `weeks` buys */
+  /** unix seconds, Monday 00:00 (the relation's clock) after the last week → at most `weeks` buys */
   expiresAt: number;
   /** ms timestamp at proposal */
   nonce: number;
@@ -80,7 +86,6 @@ export interface RecurringRunRecord {
 }
 
 const DAY_MS = 86_400_000;
-const WEEK_S = 7 * 86_400;
 const MAX_WEEKLY_USD = 10_000;
 const MAX_WEEKS = 52;
 
@@ -90,28 +95,89 @@ function assertValidDate(date: Date): void {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) throw new RangeError("invalid Date");
 }
 
-/** Monday 00:00 UTC of the ISO week `date` falls in (ISO weeks start on Monday). */
-export function mondayUtc(date: Date): Date {
-  assertValidDate(date);
-  const midnight = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
-  return new Date(midnight - daysSinceMonday * DAY_MS);
+// ── the relation's calendar ─────────────────────────────────────────────────
+// Days below are "calendar days": that day's 00:00 written as a UTC timestamp,
+// so adding DAY_MS moves one day on the relation's calendar, DST or not.
+
+const wallClock = new Intl.DateTimeFormat("en-US", {
+  timeZone: TREASURY_TIME_ZONE,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  second: "numeric",
+  hourCycle: "h23",
+});
+
+/** What the relation's clock reads at `ms`, as a UTC timestamp of that wall time. */
+function wallAsUtc(ms: number): number {
+  const p: Record<string, number> = {};
+  for (const { type, value } of wallClock.formatToParts(new Date(ms))) if (type !== "literal") p[type] = Number(value);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
 }
 
-/** ISO 8601 week key in UTC, e.g. "2026-W40". The ISO year is the year of the
- *  week's Thursday, so Fri 2027-01-01 belongs to 2026-W53. */
+/** The instant the relation's clock reads 00:00 on calendar day `day`. */
+function midnightOf(day: number): number {
+  // the zone's offset read at a first guess, then again there: a day that begins on a DST change still lands on 00:00
+  const guess = day - (wallAsUtc(day) - day);
+  return day - (wallAsUtc(guess) - guess);
+}
+
+/** The Monday of the relation's week `date` falls in, as a calendar day. */
+function mondayOf(date: Date): number {
+  assertValidDate(date);
+  const wall = wallAsUtc(Math.floor(date.getTime() / 1000) * 1000);
+  const day = wall - (((wall % DAY_MS) + DAY_MS) % DAY_MS);
+  return day - ((new Date(day).getUTCDay() + 6) % 7) * DAY_MS;
+}
+
+/** Monday 00:00 on the relation's clock, of the week `date` falls in. */
+export function weekStart(date: Date): Date {
+  return new Date(midnightOf(mondayOf(date)));
+}
+
+/** Monday 00:00 on the relation's clock, of the week after the one `date` falls in. */
+export function nextWeekStart(date: Date): Date {
+  return new Date(midnightOf(mondayOf(date) + 7 * DAY_MS));
+}
+
+/** ISO 8601 week key on the relation's calendar, e.g. "2026-W40". The ISO year
+ *  is the year of the week's Thursday, so Fri 2027-01-01 belongs to 2026-W53. */
 export function isoWeekKey(date: Date): string {
-  const thursday = new Date(mondayUtc(date).getTime() + 3 * DAY_MS);
-  const isoYear = thursday.getUTCFullYear();
-  const jan1 = Date.UTC(isoYear, 0, 1);
-  const week = Math.floor((thursday.getTime() - jan1) / (7 * DAY_MS)) + 1;
+  const thursday = mondayOf(date) + 3 * DAY_MS;
+  const isoYear = new Date(thursday).getUTCFullYear();
+  const week = Math.floor((thursday - Date.UTC(isoYear, 0, 1)) / (7 * DAY_MS)) + 1;
   return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
+const dayLabel = new Intl.DateTimeFormat("en-US", { timeZone: TREASURY_TIME_ZONE, weekday: "short", month: "short", day: "numeric" });
+const dayLabelWithYear = new Intl.DateTimeFormat("en-US", {
+  timeZone: TREASURY_TIME_ZONE,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+/** "Mon, Oct 5" (or "Sun, Mar 28, 2027") — a day on the relation's calendar, as chat, cards and the approval page say it. */
+export function relationDay(at: Date | number | string, withYear = false): string {
+  return (withYear ? dayLabelWithYear : dayLabel).format(new Date(at));
+}
+
+/** The last day a window can buy in — its expiresAt (unix seconds) is the Monday 00:00 after it. */
+export function lastDayOf(expiresAt: number): Date {
+  return new Date(expiresAt * 1000 - 1000);
 }
 
 /** The current week counts as week 1, so a buy can run right after adoption. */
 export function windowFor(now: Date, weeks: number): { startsAt: number; expiresAt: number; weeksTouched: number } {
-  const startsAt = Math.floor(mondayUtc(now).getTime() / 1000);
-  return { startsAt, expiresAt: startsAt + weeks * WEEK_S, weeksTouched: weeks };
+  const monday = mondayOf(now);
+  return {
+    startsAt: Math.floor(midnightOf(monday) / 1000),
+    expiresAt: Math.floor(midnightOf(monday + weeks * 7 * DAY_MS) / 1000),
+    weeksTouched: weeks,
+  };
 }
 
 /** The most the authority can ever spend — what the rule bar is judged against. */

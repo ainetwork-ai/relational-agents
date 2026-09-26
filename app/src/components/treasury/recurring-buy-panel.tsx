@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
-import { SKIP_REASON_TEXT } from "@/lib/agent/treasury/recurring-record";
+import { SKIP_REASON_TEXT, relationDay } from "@/lib/agent/treasury/recurring-record";
 import type { RecurringRunResult } from "@/lib/agent/treasury/recurring";
 
 type Tone = "ok" | "bad" | "info";
@@ -32,12 +32,6 @@ function usd(n: number): string {
 function tokens(amount: string): string {
   const n = Number(amount);
   return Number.isFinite(n) ? new Intl.NumberFormat("en-US", { maximumSignificantDigits: 6 }).format(n) : amount;
-}
-/** "Mon 12 Oct" — the window is in UTC weeks, so is the date. */
-function day(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
-    .format(new Date(iso))
-    .replace(",", "");
 }
 function hoursLeft(iso: string): string {
   const h = (new Date(iso).getTime() - Date.now()) / 3_600_000;
@@ -212,7 +206,7 @@ export function RecurringBuyPanel({
             <span title={`${tokens(live.usdcIn)} USDC paid on Base`}>Invested {usd(live.investedUsd)}</span>
             <span>{tokens(live.wethOut)} WETH accumulated</span>
             <span>Avg. entry {live.avgPriceUsdcPerEth === null ? "—" : `${usd(live.avgPriceUsdcPerEth)} / ETH`}</span>
-            {live.nextRunAt && <span className="text-neutral-500 dark:text-neutral-400">Next buy {day(live.nextRunAt)}</span>}
+            {live.nextRunAt && <span className="text-neutral-500 dark:text-neutral-400">Next buy {relationDay(live.nextRunAt)}</span>}
           </div>
 
           {recurring.history.length > 0 && (

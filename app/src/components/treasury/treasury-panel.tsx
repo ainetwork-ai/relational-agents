@@ -116,6 +116,11 @@ const RATIFY_COPY = {
   executing: "✅ That was the last approval needed — the agent is adopting the rules now.",
   executed: "✅ That was the last approval needed — the rules are adopted.",
 };
+// a recurring buy is adopted, not paid: nothing moves when its last approval lands
+const RECURRING_COPY = {
+  executing: "✅ That was the last approval needed — the agent is adopting the recurring buy now.",
+  executed: "✅ That was the last approval needed — the recurring buy is adopted.",
+};
 
 /**
  * A banner is kept as its code, not its text: "executing" becomes "executed"
@@ -175,7 +180,7 @@ function words(s: string): string[] {
  * memo only when it says more than the payee's name ("(hotel deposit)").
  */
 function pendingTitle(a: Action): string {
-  if (a.kind === "ratify") return `📜 Adopt ${a.memo}`;
+  if (a.kind === "ratify" || a.kind === "recurring-buy") return titleOf(a, usd);
   const label = a.recipient?.label;
   const memo = memoOf(a);
   if (!label) return `${usd(a.amountUsd)} · ${memo}`;
@@ -236,6 +241,7 @@ function bannerOf(r: Result | null, s: StatusView): Copy | null {
     if (target.status === "failed" || target.status === "blocked" || target.status === "cancelled") return null;
     const done = target.status === "executed";
     if (target.kind === "ratify") return { tone: "ok", text: done ? RATIFY_COPY.executed : RATIFY_COPY.executing };
+    if (target.kind === "recurring-buy") return { tone: "ok", text: done ? RECURRING_COPY.executed : RECURRING_COPY.executing };
     if (done) return RESULT_COPY.executed;
   }
   return RESULT_COPY[r.code] ?? null;

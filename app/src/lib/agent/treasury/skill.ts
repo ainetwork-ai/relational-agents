@@ -8,16 +8,17 @@ import { appendTreasuryActivity, loadRelationTreasury } from "./memory";
 import { ensureAgentWallet, treasuryBalance, USD_PER_ETH } from "./wallet";
 import { createTreasuryAction, executeIfQuorum } from "./approvals";
 import {
-  authorityExposure,
+  boughtLine,
   logLine,
   proposeRecurringBuy,
-  realRunsEnabled,
+  queuedLines,
   RecurringBuyRefusal,
   recurringBuyStatus,
   runRecurringBuy,
   stopRecurringBuy,
+  wethShort,
 } from "./recurring";
-import { SKIP_REASON_TEXT } from "./recurring-record";
+import { relationDay, SKIP_REASON_TEXT } from "./recurring-record";
 import { recurringBuyMarker } from "@/lib/agent/treasurer/surfaces";
 import {
   RATIFY_KIND,
@@ -646,25 +647,9 @@ function isRecurring(cmd: TreasuryCommand): cmd is RecurringCommand {
 }
 
 const RECURRING_EXAMPLE = "“@agent buy $20 of ETH every week for 26 weeks”";
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Mon 12 Oct", or with `full` "Mon 30 Mar 2027 00:00 UTC" — always UTC, the clock ISO weeks run on */
-function utcDay(at: string | number, full = false): string {
-  const d = new Date(at);
-  const day = `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-  if (!full) return day;
-  const hm = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-  return `${day} ${d.getUTCFullYear()} ${hm} UTC`;
-}
 
 function weeksWord(n: number): string {
   return `${n} week${n === 1 ? "" : "s"}`;
-}
-
-/** "0.0000254" WETH as said in chat: four significant digits */
-function wethAmount(whole: string): string {
-  return Number(whole).toLocaleString("en-US", { maximumSignificantDigits: 4 });
 }
 
 async function recurringProposeReply(
@@ -683,34 +668,26 @@ async function recurringProposeReply(
     weeks: cmd.weeks,
   });
   if (!r.ok) return r.reason;
-  const { terms } = r.record;
-  const addr = `${terms.agentAddress.slice(0, 6)}…${terms.agentAddress.slice(-4)}`;
-  const out = [
-    `Queued: a recurring buy — ${usd(terms.weeklyUsd)} of ETH every week for ${weeksWord(terms.weeks)}, until ${utcDay(terms.expiresAt * 1000, true)}.`,
-    `It swaps USDC → WETH on Base through Uniswap v3 from my own wallet ${addr}, at most ${usd(authorityExposure(r.record))} in all.`,
-    `Our rule “${r.rule}” means it needs ${humans(r.required)} — approve it in the treasury panel.`,
-  ];
-  if (!realRunsEnabled()) out.push("(Real buys are off on this server, so its weekly runs will be rehearsals that move nothing.)");
-  out.push(...seatShortfall(t, members, seated, r.required));
-  // the room chat draws this line as the request's live card, Approve button included
-  return `${out.join(" ")}\n${recurringBuyMarker(r.actionId)}`;
+  const out = [...queuedLines({ record: r.record, required: r.required, rule: r.rule }), ...seatShortfall(t, members, seated, r.required)];
+  // the room chat draws the marker line as the request's live card, Approve button included
+  return `${out.join("\n")}\n${recurringBuyMarker(r.actionId)}`;
 }
 
 async function recurringRunReply(ctx: TreasuryCommandContext): Promise<string> {
   const r = await runRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   switch (r.outcome) {
     case "bought":
-      return `Bought: ${usd(r.weeklyUsd)} → ${wethAmount(r.wethOut)} WETH on Base (week ${r.isoWeek}). tx ${r.txUrl}`;
+      return boughtLine(r);
     case "skipped":
-      if (r.reason === "already-bought-this-week") return `Skipped this week (already bought in ${r.isoWeek}).`;
+      if (r.reason === "already-bought-this-week") return "Already bought this week — the next buy opens next week.";
       // a failed swap may have sent a transaction: recurring.ts logged it, and it holds the week
       if (r.reason === "swap-failed")
-        return `Skipped ${r.isoWeek}: ${SKIP_REASON_TEXT[r.reason]}. If a transaction was sent, it's in Treasury Activity and this week counts as used — check it before asking again.`;
-      return `Skipped ${r.isoWeek}: ${SKIP_REASON_TEXT[r.reason]} — nothing was bought.`;
+        return `⚠️ Skipped this week: ${SKIP_REASON_TEXT[r.reason]}.\nIf a transaction was sent, Treasury Activity has it and this week counts as used — check it before asking again.`;
+      return `Skipped this week: ${SKIP_REASON_TEXT[r.reason]} — nothing was bought.`;
     case "rehearsal":
-      return `Rehearsal: I would buy ${usd(r.wouldBuyUsd)} of ETH for ${r.isoWeek} — real buys are off on this server.`;
+      return `Rehearsal: I would buy ${usd(r.wouldBuyUsd)} of ETH this week.\nReal buys are off on this server — nothing moved.`;
     case "none":
-      return `We have no adopted recurring buy — nothing was bought. ${RECURRING_EXAMPLE} sets one up for the members to approve.`;
+      return `We have no adopted recurring buy — nothing was bought.\n${RECURRING_EXAMPLE} sets one up for the members to approve.`;
   }
 }
 
@@ -720,8 +697,8 @@ async function recurringStopReply(ctx: TreasuryCommandContext): Promise<string> 
   const r = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (!r.ok) return r.reason;
   if (r.actionId === before?.pending?.actionId)
-    return "Withdrew the recurring buy request before it was adopted — it will never run.";
-  return "Stopped the recurring buy. I won't buy again under it.";
+    return "✖ Withdrew the recurring buy request before it was adopted — it will never run.";
+  return "⏹ Stopped the recurring buy.\nI won't buy again under it.";
 }
 
 async function recurringStatusReply(roomId: string): Promise<string> {
@@ -730,19 +707,21 @@ async function recurringStatusReply(roomId: string): Promise<string> {
   if (s.live) {
     const l = s.live;
     out.push(
-      `Recurring buy: week ${l.weekIndex} of ${l.weeks} · bought ${l.boughtWeeks} · ${usd(l.investedUsd)} invested · ${wethAmount(l.wethOut)} WETH · this week: ${l.thisWeek}.`,
-      l.nextRunAt ? `Next buy: ${utcDay(l.nextRunAt)}.` : "This is its last week."
+      `🔁 Recurring buy: ${usd(l.weeklyUsd)} of ETH a week — week ${l.weekIndex} of ${l.weeks}, this week ${l.thisWeek}.`,
+      `Bought ${weeksWord(l.boughtWeeks)} so far: ${usd(l.investedUsd)} → ${wethShort(l.wethOut)} WETH.`,
+      l.nextRunAt ? `Next buy: from ${relationDay(l.nextRunAt)}.` : "This is its last week."
     );
   }
   if (s.pending) {
     const p = s.pending;
     out.push(
-      `Waiting for approval: a recurring buy — ${usd(p.weeklyUsd)} of ETH every week for ${weeksWord(p.weeks)}, at most ${usd(p.exposureUsd)} in all — ${p.approvals} of ${p.required} verified approvals (“${p.rule}”).`
+      `⏳ Waiting for approval: a recurring buy — ${usd(p.weeklyUsd)} of ETH every week for ${weeksWord(p.weeks)}, at most ${usd(p.exposureUsd)} in all.`,
+      `${p.approvals} of ${p.required} verified humans so far — our rules: “${p.rule}”`
     );
   }
-  if (!out.length) return `We have no recurring buy running. ${RECURRING_EXAMPLE} sets one up for the members to approve.`;
-  if (!s.realRuns) out.push("(Real buys are off on this server — its runs are rehearsals.)");
-  return out.join(" ");
+  if (!out.length) return `We have no recurring buy running.\n${RECURRING_EXAMPLE} sets one up for the members to approve.`;
+  if (!s.realRuns) out.push("Real buys are off on this server — its runs are rehearsals.");
+  return out.join("\n");
 }
 
 /** Stop and status: any current human member. Proposing and running direct the treasury: the adopted electorate. */

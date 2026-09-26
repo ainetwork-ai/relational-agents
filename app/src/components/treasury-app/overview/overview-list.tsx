@@ -12,6 +12,7 @@ import { useIntlLocale, useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { agoPhrase, formatBalance, recurringPhrase, relationColor, type Phrase } from "./overview-model";
 import type { TreasurySummaryRoom } from "@/lib/agent/treasury/summary";
+import { TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
 import styles from "./treasury-overview.module.css";
 
 function say(t: T, phrase: Phrase): string {
@@ -21,7 +22,8 @@ function say(t: T, phrase: Phrase): string {
 function nextRunLabel(iso: string, intlLocale: string): string | null {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return null;
-  return new Intl.DateTimeFormat(intlLocale, { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(at);
+  // the day the next week opens, on the relation's clock — a buy runs when a member asks, not at a set hour
+  return new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric", timeZone: TREASURY_TIME_ZONE }).format(at);
 }
 
 function RecurringCell({ room }: { room: TreasurySummaryRoom }) {

@@ -110,7 +110,7 @@ function plural(n: number, word: string): string {
 
 /** "Chris and Alex", "Chris, Dana, and Alex" */
 const listFormat = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
-function nameList(list: string[]): string {
+export function nameList(list: string[]): string {
   return listFormat.format(list);
 }
 
@@ -125,7 +125,7 @@ const clockFormat = new Intl.DateTimeFormat("en-GB", {
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
 /** "[tx 0xbf04…bcab](https://sepolia.etherscan.io/tx/0x…)" — the doc renders it as a link */
-function txLink(txHash: string, explorer = SEPOLIA_EXPLORER): string {
+export function txLink(txHash: string, explorer = SEPOLIA_EXPLORER): string {
   return `[tx ${txHash.slice(0, 6)}…${txHash.slice(-4)}](${explorer}/tx/${txHash})`;
 }
 
@@ -798,7 +798,7 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⚠️ I didn't adopt the recurring buy (${what}): ${why} Nothing will be bought under it.`
+      `⚠️ Not adopted: the recurring buy (${what}).\n${why} Nothing will be bought under it.`
     );
     await logActivity(claimed.roomId, `⚠️ Not adopted: a recurring buy (${what}) — ${why}`);
     return { executed: false, approvals, required, error: why };
@@ -834,7 +834,7 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⏳ Things changed since this was asked: the recurring buy (${what}) now needs ${plural(verdict.required, "verified human")} — our rules say “${verdict.rule}”. ${approvals} so far.`
+      `⏳ Things changed since this was asked: the recurring buy (${what}) now needs ${plural(verdict.required, "verified human")}.\nOur rules: “${verdict.rule}” — ${approvals} so far.`
     );
     return { executed: false, approvals, required: verdict.required };
   }
@@ -851,11 +851,11 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `📌 Adopted: a recurring buy — ${what} — approved by ${names.join(", ")} (${approvals} of ${plural(required, "verified human")}). I'll buy at most once a week inside it; anyone can stop it.${superseded ? " It replaces the one we had before." : ""}`
+      `📌 Adopted: a recurring buy — ${what}.${superseded ? " It replaces the one we had before." : ""}\nI buy at most once a week inside it, and anyone can stop it.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
     );
     await logActivity(
       claimed.roomId,
-      `📌 Adopted a recurring buy: ${what}, at most ${usd(authorityExposure(record))} in all — approved by ${names.join(", ")}${superseded ? " — it replaces the one before" : ""}`
+      `📌 Adopted a recurring buy: ${what}, at most ${usd(authorityExposure(record))} in all — approved by ${nameList(names)}${superseded ? " — it replaces the one before" : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);

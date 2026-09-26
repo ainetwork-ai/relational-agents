@@ -8,7 +8,7 @@
 import type { T } from "@/i18n/translate";
 import { parseTreasuryPolicy } from "@/lib/agent/treasury/policy";
 import { SKIP_REASON_TEXT, type RecurringSkipReason } from "@/lib/agent/treasury/recurring-record";
-import type { TreasuryStatus } from "@/lib/agent/treasury/types";
+import { TREASURY_TIME_ZONE, type TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { RecurringRun, TreasuryAction } from "./room-types";
 
 // The pot is a Sepolia account; recurring buys and investments settle on Base from the same address.
@@ -176,12 +176,12 @@ export interface ActivityDay {
   items: ActivityItem[];
 }
 
-/** Groups newest-first items by local calendar day: "Today", "Yesterday", then "Mon, Sep 21". */
+/** Groups newest-first items by the relation's calendar day (as Treasury Activity does): "Today", "Yesterday", then "Mon, Sep 21". */
 export function groupByDay(t: T, items: ActivityItem[], intlLocale: string, now: Date): ActivityDay[] {
-  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  const dayKey = (d: Date) => DAY_KEY.format(d); // "2026-09-21"
   const today = dayKey(now);
-  const yesterday = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-  const fmt = new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric" });
+  const yesterday = dayKey(new Date(now.getTime() - 86_400_000));
+  const fmt = new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric", timeZone: TREASURY_TIME_ZONE });
   const days: ActivityDay[] = [];
   for (const item of items) {
     const d = new Date(item.at);
@@ -252,15 +252,23 @@ export function memberContributions(status: TreasuryStatus): MemberContribution[
   }));
 }
 
-/** "Mon, Oct 5, 09:00" in the viewer's locale and time zone. */
+// Dates and times below are on the relation's clock, in the viewer's locale — the room panel and Treasury Activity read the same clock.
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", { timeZone: TREASURY_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** "Mon, Oct 5, 09:00" */
 export function dateTime(iso: string, intlLocale: string): string {
-  return new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TREASURY_TIME_ZONE }).format(new Date(iso));
+}
+
+/** "Mon, Oct 5" — a day, for when a week opens: nothing runs at its midnight */
+export function weekdayDate(iso: string, intlLocale: string): string {
+  return new Intl.DateTimeFormat(intlLocale, { weekday: "short", month: "short", day: "numeric", timeZone: TREASURY_TIME_ZONE }).format(new Date(iso));
 }
 
 export function dateOnly(iso: string, intlLocale: string): string {
-  return new Intl.DateTimeFormat(intlLocale, { month: "short", day: "numeric", year: "numeric" }).format(new Date(iso));
+  return new Intl.DateTimeFormat(intlLocale, { month: "short", day: "numeric", year: "numeric", timeZone: TREASURY_TIME_ZONE }).format(new Date(iso));
 }
 
 export function timeOnly(iso: string, intlLocale: string): string {
-  return new Intl.DateTimeFormat(intlLocale, { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat(intlLocale, { hour: "2-digit", minute: "2-digit", timeZone: TREASURY_TIME_ZONE }).format(new Date(iso));
 }

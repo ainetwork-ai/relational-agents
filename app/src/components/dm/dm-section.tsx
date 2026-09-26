@@ -12,21 +12,25 @@ import { useIntlLocale, useT } from "@/i18n/provider";
 import { chipColors } from "@/components/database/option-chip";
 import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
+import { TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
+import { stripA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
 
 function preview(room: DmRoomSummary, t: T): string {
   const m = room.lastMessage;
   if (!m) return t("Start a chat");
   // one line: a multi-line message ("I won't do that.\nOur rules say…") reads
   // as sentences, not glued together where the line break was
-  if (m.text) return m.text.replace(/\s*\n\s*/g, " ");
+  // a proposal's [[a2ui:…]] card line is drawn in the room, never shown as text
+  if (m.text) return stripA2uiMarkers(m.text).replace(/\s*\n\s*/g, " ");
   if (m.hasAttachments) return t("📷 Photo");
   return "";
 }
 
-/** "Mon 9/28" — the mockup's short form in every locale (Intl's own short form changes order and punctuation per locale). */
+/** "Mon 9/28" on the relation's calendar — the mockup's short form in every locale (Intl's own changes order and punctuation per locale). */
 function weekdayMonthDay(d: Date, locale: string): string {
-  const weekday = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(d);
-  return `${weekday} ${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  const parts = new Intl.DateTimeFormat(locale, { weekday: "short", month: "numeric", day: "numeric", timeZone: TREASURY_TIME_ZONE }).formatToParts(d);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("weekday")} ${part("month")}/${part("day")}`;
 }
 
 /**
@@ -45,7 +49,7 @@ function MoneyLine({ money }: { money: TreasurySummaryRoom | undefined }) {
   if (money.pendingForMe > 0) {
     chip = { color: "orange", dot: true, label: t("{n} waiting for your approval", { n: money.pendingForMe }) };
   } else if (live) {
-    chip = { color: "green", dot: false, label: t("Buying {amount} weekly", { amount: `${live.weeklyUsd} USDC` }) };
+    chip = { color: "green", dot: false, label: t("Buying {amount} weekly", { amount: usd(live.weeklyUsd) }) };
     detail = live.boughtThisWeek
       ? t("Bought this week")
       : live.nextRunAt

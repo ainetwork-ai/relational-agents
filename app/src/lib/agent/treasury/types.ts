@@ -325,7 +325,7 @@ export interface RecurringBuyStatus {
     weekIndex: number;
     startsAt: string;
     expiresAt: string;
-    /** next Monday 09:00 UTC inside the window (display only — nothing runs on a timer) */
+    /** when the next week opens (Monday 00:00 on the relation's clock) inside the window; a buy runs when a member asks, nothing on a timer */
     nextRunAt: string | null;
     approvedBy: string[];
     approvals: number;

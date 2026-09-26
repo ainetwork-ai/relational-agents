@@ -11,7 +11,7 @@ import { ExternalLink } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { ActivityFeed } from "./activity-feed";
 import { useTreasuryRoomData } from "./room-data";
-import { BASE_EXPLORER, SEPOLIA_EXPLORER, dateOnly, dateTime, ruleBars, shortAddress, treasuryPath, usd } from "./room-model";
+import { BASE_EXPLORER, SEPOLIA_EXPLORER, dateOnly, dateTime, ruleBars, shortAddress, treasuryPath, usd, weekdayDate } from "./room-model";
 import styles from "./treasury-room.module.css";
 
 const BAR_TONE = { ok: styles.chipOk, wait: styles.chipWait, bad: styles.chipBad, info: styles.chipMuted } as const;
@@ -64,7 +64,7 @@ export function TreasurerTab() {
                 weekly: usd(live.weeklyUsd),
                 k: live.weekIndex,
                 n: live.weeks,
-                when: live.nextRunAt ? dateTime(live.nextRunAt, intlLocale) : "—",
+                when: live.nextRunAt ? weekdayDate(live.nextRunAt, intlLocale) : "—",
               })}
             </li>
           )}

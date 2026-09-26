@@ -5,11 +5,12 @@ import {
   decideRun,
   exposureUsd,
   isoWeekKey,
-  mondayUtc,
+  nextWeekStart,
   parseAuthority,
   parseRun,
   termsDigest,
   validateTerms,
+  weekStart,
   windowFor,
   type RecurringBuyRecord,
   type RecurringBuyTerms,
@@ -32,39 +33,44 @@ const sec = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 
 // ── ISO weeks ───────────────────────────────────────────────────────────────
 
-check("ISO week edges", () => {
-  assert.equal(isoWeekKey(at("2026-09-27T23:59:59Z")), "2026-W39"); // Sunday closes W39
-  assert.equal(isoWeekKey(at("2026-09-28T00:00:00Z")), "2026-W40"); // Monday opens W40
-  assert.equal(isoWeekKey(at("2027-01-01T12:00:00Z")), "2026-W53"); // Friday belongs to the previous ISO year
-  assert.equal(isoWeekKey(at("2027-01-04T00:00:00Z")), "2027-W01");
-  assert.equal(isoWeekKey(at("2025-12-29T00:00:00Z")), "2026-W01"); // Monday before Jan 1 belongs to the next ISO year
-  assert.equal(isoWeekKey(at("2026-01-05T00:00:00Z")), "2026-W02");
+check("ISO week edges, on the relation's (Tokyo) calendar", () => {
+  assert.equal(isoWeekKey(at("2026-09-27T23:59:59+09:00")), "2026-W39"); // Sunday closes W39
+  assert.equal(isoWeekKey(at("2026-09-28T00:00:00+09:00")), "2026-W40"); // Monday opens W40
+  assert.equal(isoWeekKey(at("2027-01-01T12:00:00+09:00")), "2026-W53"); // Friday belongs to the previous ISO year
+  assert.equal(isoWeekKey(at("2027-01-04T00:00:00+09:00")), "2027-W01");
+  assert.equal(isoWeekKey(at("2025-12-29T00:00:00+09:00")), "2026-W01"); // Monday before Jan 1 belongs to the next ISO year
+  assert.equal(isoWeekKey(at("2026-01-05T00:00:00+09:00")), "2026-W02");
 });
 
-check("ISO week is UTC, not local time", () => {
-  // 2026-09-28 08:00 in Tokyo is still Sunday in UTC
-  assert.equal(isoWeekKey(at("2026-09-28T08:00:00+09:00")), "2026-W39");
-  assert.equal(isoWeekKey(at("2026-09-28T09:00:00+09:00")), "2026-W40");
+check("a week is the relation's week, not UTC's", () => {
+  // Monday 08:00 in Tokyo is still Sunday in UTC — it is the new week all the same
+  assert.equal(isoWeekKey(at("2026-09-28T08:00:00+09:00")), "2026-W40");
+  // Monday 08:00 and 09:30 in Tokyo, the two sides of UTC midnight: one week, so one buy
+  assert.equal(isoWeekKey(at("2026-09-27T23:00:00Z")), isoWeekKey(at("2026-09-28T00:30:00Z")));
 });
 
-check("isoWeekKey and mondayUtc throw on an invalid Date", () => {
+check("the week functions throw on an invalid Date", () => {
   assert.throws(() => isoWeekKey(new Date("nope")));
-  assert.throws(() => mondayUtc(new Date(NaN)));
+  assert.throws(() => weekStart(new Date(NaN)));
+  assert.throws(() => nextWeekStart(new Date(NaN)));
+  assert.throws(() => windowFor(new Date(NaN), 4));
 });
 
-check("mondayUtc is Monday 00:00 UTC of the same ISO week", () => {
-  assert.equal(mondayUtc(at("2026-09-27T23:59:59Z")).toISOString(), "2026-09-21T00:00:00.000Z");
-  assert.equal(mondayUtc(at("2026-09-28T00:00:00Z")).toISOString(), "2026-09-28T00:00:00.000Z");
-  assert.equal(mondayUtc(at("2026-10-01T15:30:00Z")).toISOString(), "2026-09-28T00:00:00.000Z");
-  assert.equal(mondayUtc(at("2027-01-01T12:00:00Z")).toISOString(), "2026-12-28T00:00:00.000Z");
+check("weekStart is Monday 00:00 in Tokyo of the same week; nextWeekStart the Monday after", () => {
+  assert.equal(weekStart(at("2026-09-27T23:59:59+09:00")).toISOString(), "2026-09-20T15:00:00.000Z"); // Mon 21 Sep 00:00 JST
+  assert.equal(weekStart(at("2026-09-28T00:00:00+09:00")).toISOString(), "2026-09-27T15:00:00.000Z"); // Mon 28 Sep 00:00 JST
+  assert.equal(weekStart(at("2026-10-01T15:30:00+09:00")).toISOString(), "2026-09-27T15:00:00.000Z");
+  assert.equal(weekStart(at("2027-01-01T12:00:00+09:00")).toISOString(), "2026-12-27T15:00:00.000Z"); // Mon 28 Dec 00:00 JST
+  assert.equal(nextWeekStart(at("2026-09-30T10:00:00+09:00")).toISOString(), "2026-10-04T15:00:00.000Z"); // Mon 5 Oct 00:00 JST
+  assert.equal(nextWeekStart(at("2026-09-27T23:59:59+09:00")).toISOString(), "2026-09-27T15:00:00.000Z");
 });
 
 check("windowFor: the current week counts, expiry is the Monday after the last week", () => {
-  const w = windowFor(at("2026-09-30T10:00:00Z"), 26);
-  assert.equal(w.startsAt, sec("2026-09-28T00:00:00Z"));
-  assert.equal(w.expiresAt, sec("2027-03-29T00:00:00Z"));
+  const w = windowFor(at("2026-09-30T10:00:00+09:00"), 26);
+  assert.equal(w.startsAt, sec("2026-09-28T00:00:00+09:00"));
+  assert.equal(w.expiresAt, sec("2027-03-29T00:00:00+09:00"));
   assert.equal(w.weeksTouched, 26);
-  const one = windowFor(at("2026-09-28T00:00:00Z"), 1);
+  const one = windowFor(at("2026-09-28T00:00:00+09:00"), 1);
   assert.equal(one.expiresAt - one.startsAt, 7 * 86_400);
 });
 
@@ -98,7 +104,7 @@ check("validateTerms bounds", () => {
   }
 });
 
-const W = windowFor(at("2026-09-28T00:00:00Z"), 26);
+const W = windowFor(at("2026-09-28T00:00:00+09:00"), 26);
 const TERMS: RecurringBuyTerms = {
   v: 1,
   roomId: "room-1",
@@ -184,7 +190,7 @@ const run = (over: Partial<RecurringRunRecord>): RecurringRunRecord => ({
   txHash: TX,
   txUrl: `https://basescan.org/tx/${TX}`,
   by: "user-chris",
-  at: sec("2026-09-28T09:00:00Z"),
+  at: sec("2026-09-28T09:00:00+09:00"),
   ...over,
 });
 
@@ -223,8 +229,8 @@ check("parseRun: null on anything malformed", () => {
 
 // ── decideRun ───────────────────────────────────────────────────────────────
 
-const IN_WINDOW = at("2026-09-30T09:00:00Z"); // 2026-W40, week 1 of the window
-const BEFORE = at("2026-09-27T09:00:00Z"); // 2026-W39, before startsAt
+const IN_WINDOW = at("2026-09-30T09:00:00+09:00"); // 2026-W40, week 1 of the window
+const BEFORE = at("2026-09-27T09:00:00+09:00"); // 2026-W39, before startsAt
 const AFTER = new Date(TERMS.expiresAt * 1000); // first second past the last week
 
 const decide = (over: Partial<Parameters<typeof decideRun>[0]>) =>
@@ -257,7 +263,7 @@ check("refusal order: two faults stacked per adjacent pair, the earlier one wins
   // stopped > not-started
   assert.equal(reason(decide({ record: STOPPED, now: BEFORE })), "stopped");
   // not-started > expired: only an inverted window has both, which parseAuthority rejects, so build it directly
-  const invertedTerms = { ...TERMS, startsAt: sec("2026-10-05T00:00:00Z"), expiresAt: sec("2026-09-28T00:00:00Z") };
+  const invertedTerms = { ...TERMS, startsAt: sec("2026-10-05T00:00:00+09:00"), expiresAt: sec("2026-09-28T00:00:00+09:00") };
   const inverted: RecurringBuyRecord = { ...RECORD, terms: invertedTerms, digest: termsDigest(invertedTerms) };
   assert.equal(reason(decide({ record: inverted, now: IN_WINDOW })), "not-started");
   assert.equal(reason(decide({ now: BEFORE, rulesStillAllow: false })), "not-started");
