@@ -1694,4 +1694,5 @@ export const ko: Record<string, string> = {
   "Starting World ID…": "World ID 시작 중…",
   "{got} of {need} counted · 1 more verified human needed.": "{need}명 중 {got}명 반영 · 인증된 사람 1명이 더 필요해요.",
   "{got} of {need} counted · {left} more verified humans needed.": "{need}명 중 {got}명 반영 · 인증된 사람 {left}명이 더 필요해요.",
+  "Staging: answer with the World ID Simulator — “Use the simulator” under the QR, or open simulator.worldcoin.org on a phone and scan the QR. World App can't answer a staging request.": "스테이징: World ID 시뮬레이터로 답하세요 — QR 아래 “Use the simulator”를 누르거나, 폰에서 simulator.worldcoin.org를 열고 QR을 찍으세요. 스테이징 요청에는 World App이 답할 수 없어요.",
 };

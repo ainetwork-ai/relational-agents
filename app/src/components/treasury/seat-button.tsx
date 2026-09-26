@@ -8,6 +8,7 @@ import {
   type IDKitResult,
   type RpContext,
 } from "@worldcoin/idkit";
+import { STAGING_HINT } from "@/components/treasury/world-result-copy";
 
 export type SeatClaimError = { sameHuman: boolean; text: string };
 export type SeatEnvironment = "production" | "staging" | "sandbox";
@@ -64,6 +65,7 @@ export function SeatButton({
   onError,
   className,
   labels,
+  hintClassName,
 }: {
   roomId: string;
   appId: `app_${string}`;
@@ -78,7 +80,9 @@ export function SeatButton({
   /** the button's look where it sits (the treasury page draws its own); the room panel's by default */
   className?: string;
   /** the button's words where the page is translated; the room panel's English by default */
-  labels?: { idle: string; starting: string };
+  labels?: { idle: string; starting: string; stagingHint?: string };
+  /** the staging hint's look where it sits; the room panel's by default */
+  hintClassName?: string;
 }) {
   const [rpContext, setRpContext] = useState<RpContext | null>(null);
   const [open, setOpen] = useState(false);
@@ -150,6 +154,15 @@ export function SeatButton({
       >
         {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "🌍 Claim your vote with World ID")}
       </button>
+      {environment === "staging" && (
+        // a staging request shows a QR World App can't answer; the simulator is the only way in
+        <p
+          data-testid="treasury-seat-staging-hint"
+          className={hintClassName ?? "mt-1.5 text-xs text-neutral-500 dark:text-neutral-400"}
+        >
+          {labels?.stagingHint ?? STAGING_HINT}
+        </p>
+      )}
       {rpContext && (
         <IDKitRequestWidget
           app_id={appId}

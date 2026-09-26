@@ -11,6 +11,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useT } from "@/i18n/provider";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
+import { STAGING_HINT } from "@/components/treasury/world-result-copy";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import styles from "./treasury-room.module.css";
 
@@ -78,7 +79,8 @@ export function VoteClaimCard({ status, roomId, onSeated }: { status: TreasurySt
             action={status.seatAction}
             environment={status.seatEnvironment ?? ENV}
             className={styles.btnDark}
-            labels={{ idle: t("🌍 Claim your vote with World ID"), starting: t("Starting World ID…") }}
+            labels={{ idle: t("🌍 Claim your vote with World ID"), starting: t("Starting World ID…"), stagingHint: t(STAGING_HINT) }}
+            hintClassName={styles.cardSub}
             onSeated={() => setClaimed(true)}
             onClaimed={onSeated}
             onError={setError}

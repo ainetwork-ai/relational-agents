@@ -125,3 +125,8 @@ export const RESULT_CODES = [
   "stale-proof", "not-seated", "not-member", "not-electorate", "not-pending", "already-approved",
   "expired", "not-found", "not-allowed", "world-id-mismatch",
 ] as const;
+
+
+/** Shown under the claim button when proofs come from World's staging (simulator.worldcoin.org). */
+export const STAGING_HINT =
+  "Staging: answer with the World ID Simulator — “Use the simulator” under the QR, or open simulator.worldcoin.org on a phone and scan the QR. World App can't answer a staging request.";
