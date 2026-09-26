@@ -143,12 +143,25 @@ export default function TeamspaceDrivePage({ params }: { params: Promise<{ id: s
         {d.root ? ` / ${d.root}` : ""}
       </p>
 
-      {!d.backup && (
+      {!d.backup && fileInfo?.kind !== "file" && (
         <p data-testid="teamspace-drive-shared" className="mb-6 rounded-xl border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
           {t("An aindrive folder {who} shared with the {ts} teamspace. Any member can open and edit it; changes go straight to {who}'s drive.", {
             who: meta.linkedBy ?? t("Members"),
             ts: meta.teamspaceName,
           })}
+        </p>
+      )}
+      {!d.backup && fileInfo?.kind === "file" && (
+        <p data-testid="teamspace-drive-shared-file" className="mb-6 rounded-xl border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+          {fileInfo.sale && !fileInfo.owner
+            ? t("A file {who} shared with the {ts} teamspace and sells in aindrive. Buy it once with your wallet and it is yours to open here.", {
+                who: meta.linkedBy ?? t("Members"),
+                ts: meta.teamspaceName,
+              })
+            : t("A file {who} shared with the {ts} teamspace. Members can open and download it; it stays on {who}'s drive.", {
+                who: meta.linkedBy ?? t("Members"),
+                ts: meta.teamspaceName,
+              })}
         </p>
       )}
       {/* 1. the connection itself — is this teamspace linked, and is it current */}
