@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
-import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNonce, type WorldConfig } from "@/lib/auth/world";
+import { worldConfig, worldDiscovery, worldSiteUrl, pkcePair, randomToken, newNonce, type WorldConfig, type WorldIdpMode } from "@/lib/auth/world";
 import { safeReturnTo } from "@/lib/auth/return-to";
 import { stamp, stampOk } from "@/lib/secret-box";
 import { approvalCard, type ApprovalCard } from "@/lib/agent/treasury/approvals";
@@ -14,6 +14,10 @@ const EXPLORER = "https://sepolia.etherscan.io";
 /** The confirmation form is good for this long, for this member and this action only. */
 const CONFIRM_TTL_MS = 10 * 60_000;
 const CONFIRM_LABEL = "world-approval-confirm";
+
+/** Pretendard, as the treasury pages load it — the page reads as the same product. */
+const FONT_ORIGIN = "https://cdn.jsdelivr.net";
+const PRETENDARD_CSS = `${FONT_ORIGIN}/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css`;
 
 /**
  * /api/auth/world/connect — step-up to World ID: sends the signed-in member to
@@ -61,12 +65,14 @@ export async function GET(req: NextRequest) {
 
   const exp = Date.now() + CONFIRM_TTL_MS;
   const token = stamp(CONFIRM_LABEL, `${auth.user.id}:${actionId}:${exp}`);
-  return new NextResponse(confirmPage(card.card, { returnTo, exp, token, mock: cfg.mode === "mock" }), {
+  return new NextResponse(confirmPage(card.card, { returnTo, exp, token, mode: cfg.mode }), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
       // an approval page must not be framed under someone else's buttons
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      // no script at all; the one outside origin is the Pretendard stylesheet
+      // and its font files, the same CDN the treasury pages load it from
+      "content-security-policy": `default-src 'none'; style-src 'unsafe-inline' ${FONT_ORIGIN}; font-src ${FONT_ORIGIN}; frame-ancestors 'none'`,
       "x-frame-options": "DENY",
     },
   });
@@ -246,11 +252,34 @@ function recurringWhat(r: NonNullable<ApprovalCard["recurring"]>): string {
        <p class="addr">From the agent wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer" title="${esc(r.agentAddress)}">${esc(short)}</a> on Base</p>`;
 }
 
+/** One slot per approval the bar needs — filled with who approved, the rest waiting (the room panel's slots). */
+function slots(approvedBy: string[], required: number): string {
+  const n = Math.max(required, approvedBy.length);
+  return Array.from({ length: n }, (_, i) =>
+    i < approvedBy.length
+      ? `<li class="slot done">✓ ${esc(approvedBy[i])}</li>`
+      : `<li class="slot">verified human</li>`
+  ).join("");
+}
+
+/** What happens after the button — the World screen can't say it's an approval, so this page says it first. */
+function steps(mode: WorldIdpMode): string {
+  return `<ol class="steps" aria-label="What happens next">
+      <li class="now"><span class="n">1</span><span><strong>Review</strong><small>this page</small></span></li>
+      <li><span class="n">2</span><span><strong>World ID checks you're a unique human</strong><small>${
+        mode === "mock" ? "the local mock IdP" : "World's page · about 3 s"
+      }</small></span></li>
+      <li><span class="n">3</span><span><strong>Back here</strong><small>your approval is counted</small></span></li>
+    </ol>`;
+}
+
 function confirmPage(
   c: ApprovalCard,
-  f: { returnTo: string; exp: number; token: string; mock: boolean }
+  f: { returnTo: string; exp: number; token: string; mode: WorldIdpMode }
 ): string {
   const ratify = c.kind === "ratify";
+  const mock = f.mode === "mock";
+  const sandbox = f.mode === "sandbox";
   // the card grew these for this page; an older card without them still renders
   const { roomName, approverName } = c as ApprovalCard & { roomName?: string; approverName?: string };
   const so = c.approvedBy.length
@@ -285,46 +314,80 @@ function confirmPage(
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Approve with World ID</title>
+<link rel="stylesheet" href="${PRETENDARD_CSS}">
 <style>
-  :root { color-scheme: light dark; --fg:#171717; --muted:#737373; --line:#e5e5e5; --bg:#f5f5f4; --card:#fff; --btn:#171717; --btnfg:#fff; --shadow:0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.08); }
-  @media (prefers-color-scheme: dark) { :root { --fg:#e5e5e5; --muted:#a3a3a3; --line:#333; --bg:#0a0a0a; --card:#171717; --btn:#f5f5f5; --btnfg:#171717; --shadow:0 12px 32px rgba(0,0,0,.5); } }
-  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { width:100%; max-width:35rem; box-sizing:border-box; padding:2rem 1rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:2rem 2.25rem; box-shadow:var(--shadow); }
-  .kicker { font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); margin:0 0 .75rem; }
-  h1 { font-size:42px; line-height:1.1; letter-spacing:-.01em; margin:0; font-variant-numeric:tabular-nums; }
-  .to { font-size:18px; margin:.5rem 0 0; }
-  .addr { font-family:ui-monospace, monospace; font-size:12.5px; word-break:break-all; color:var(--muted); margin:.5rem 0 0; }
+  /* the treasury pages' palette (treasury-room.module.css), light-only like them */
+  :root { color-scheme: light; --coral:#ff6b4a; --coral-ink:#e8492b; --tint:#fff0ec; --fg:#191f28; --sub:#333d4b; --muted:#6b7684; --ter:#b0b8c1; --line:#e5e8eb; --hair:#f2f4f6; --bg:#f4f5f7; --card:#fff; --ok:#00a86b; --ok-bg:#e5f6ef; --ok-ink:#007a4d; --info-bg:#e8f3ff; --info-ink:#1b64da; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+    font:15px/1.5 "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-feature-settings:"tnum"; -webkit-font-smoothing:antialiased; }
+  main { width:100%; max-width:36rem; box-sizing:border-box; padding:2rem 1rem; }
+  .kicker { font-size:13px; font-weight:600; color:var(--muted); margin:0 0 .875rem .25rem; }
+  .steps { list-style:none; margin:0 0 .75rem; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.5rem; }
+  .steps li { display:flex; gap:.5rem; align-items:flex-start; padding:.625rem .75rem; border-radius:12px; background:var(--card); color:var(--muted); }
+  .steps li.now { background:var(--tint); color:var(--fg); }
+  .steps .n { flex:none; margin-top:1px; width:22px; height:22px; border-radius:11px; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--hair); color:var(--muted); }
+  .steps li.now .n { background:var(--coral); color:#fff; }
+  .steps strong { display:block; font-size:13px; line-height:1.35; font-weight:600; }
+  .steps li:not(.now) strong { color:var(--sub); }
+  .steps small { display:block; font-size:12px; line-height:1.4; margin-top:.125rem; color:var(--muted); }
+  .card { background:var(--card); border-radius:20px; padding:1.75rem 2rem; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+  h1 { font-size:40px; line-height:1.15; letter-spacing:-.02em; font-weight:700; margin:0; }
+  .to { font-size:18px; margin:.375rem 0 0; color:var(--sub); }
+  .to strong { color:var(--fg); }
+  .addr { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; word-break:break-all; color:var(--muted); margin:.5rem 0 0; }
   .addr a { color:inherit; }
-  dl { margin:1.5rem 0 0; padding-top:1.25rem; border-top:1px solid var(--line); display:grid; grid-template-columns:auto 1fr; gap:.5rem 1.25rem; font-size:15px; }
+  dl { margin:1.5rem 0 0; padding-top:1.25rem; border-top:1px solid var(--line); display:grid; grid-template-columns:auto 1fr; gap:.625rem 1.25rem; font-size:15px; }
   dt { color:var(--muted); }
-  dd { margin:0; }
-  .rule { font-style:italic; }
-  .digest { font-family:ui-monospace, monospace; font-size:13px; color:var(--muted); }
+  dd { margin:0; min-width:0; }
+  .rule { font-style:italic; color:var(--sub); }
+  .digest { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; color:var(--muted); }
   h1 .per { font-size:24px; font-weight:600; letter-spacing:0; }
+  .slots { list-style:none; margin:.5rem 0 0; padding:0; display:flex; flex-wrap:wrap; gap:.375rem; }
+  .slot { font-size:13px; padding:.25rem .625rem; border-radius:8px; border:1px dashed var(--ter); color:var(--muted); }
+  .slot.done { border:1px solid transparent; background:var(--ok-bg); color:var(--ok-ink); font-weight:600; }
   .changes { margin:.75rem 0 0; padding-left:1rem; font-size:15px; }
   .changes li { margin:.15rem 0; }
   .muted { color:var(--muted); font-size:14px; }
   .bar { font-size:15px; font-weight:600; margin:1.5rem 0 0; }
   .note { font-size:13px; color:var(--muted); margin:.25rem 0 0; }
-  .actions { display:flex; gap:1rem; align-items:center; margin-top:1.25rem; }
-  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:10px; padding:.75rem 1.25rem; font:inherit; font-weight:600; cursor:pointer; white-space:nowrap; }
-  a.cancel { color:var(--muted); }
+  .sandbox { font-size:13px; line-height:1.5; margin:1rem 0 0; padding:.625rem .75rem; border-radius:10px; background:var(--info-bg); color:var(--info-ink); }
+  .actions { display:flex; gap:.5rem; align-items:center; margin-top:1.25rem; }
+  button { background:var(--coral-ink); color:#fff; border:0; border-radius:12px; height:52px; padding:0 1.5rem; font:inherit; font-size:16px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  button:hover { background:#c93d22; }
+  a.cancel { display:inline-flex; align-items:center; height:52px; padding:0 1.25rem; border-radius:12px; background:var(--hair); color:var(--sub); font-weight:600; text-decoration:none; }
+  a.cancel:hover { background:var(--line); }
+  @media (max-width: 480px) {
+    main { padding:1rem .75rem; }
+    .steps { grid-template-columns:1fr; }
+    .card { padding:1.25rem; }
+    h1 { font-size:34px; }
+    dl { grid-template-columns:1fr; gap:.125rem; }
+    dd + dt { margin-top:.5rem; }
+    .actions { flex-direction:column; align-items:stretch; }
+    button, a.cancel { justify-content:center; }
+  }
 </style></head>
 <body><main>
+  <p class="kicker">${roomName ? `${esc(roomName)} · shared treasury` : "Shared treasury"} → World ID for Agents${mock ? " · local mock IdP" : ""}</p>
+  ${steps(f.mode)}
   <div class="card">
-    <p class="kicker">${roomName ? `${esc(roomName)} · shared treasury` : "Shared treasury"} → World ID for Agents${f.mock ? " · local mock IdP" : ""}</p>
     ${what}
     <dl>
       ${approverName ? `<dt>Approving as</dt><dd>${esc(approverName)}</dd>` : ""}
       <dt>Requested by</dt><dd>${esc(c.requestedBy)}</dd>
       <dt>Rule</dt><dd class="rule">“${esc(c.ruleText)}”</dd>
-      <dt>Approved so far</dt><dd>${so}</dd>
+      <dt>Approved so far</dt><dd>${so}<ul class="slots" aria-hidden="true">${slots(c.approvedBy, c.required)}</ul></dd>
       <dt>Expires</dt><dd>${esc(expiresIn(c.expiresAt))}</dd>
       ${c.recurring ? `<dt>Terms</dt><dd class="digest">${esc(c.recurring.digestShort)}</dd>` : ""}
     </dl>
     <p class="bar">${esc(bar)}</p>
-    <p class="note">World ID checks, right now, that you're a unique human. Your approval counts once and can't be withdrawn.</p>
+    <p class="note">Every payment gets its own check: World ID confirms, right now, that a unique human is approving. Your approval counts once and can't be withdrawn.</p>
+    ${
+      sandbox
+        ? `<p class="sandbox">Sandbox: World uses a fake identity and finishes by itself in about 3 seconds — its page says “Signing you in”; that is this check. In production this is World App on the member's phone.</p>`
+        : ""
+    }
     <form method="post" action="/api/auth/world/connect" class="actions">
       <input type="hidden" name="action" value="${esc(c.actionId)}">
       <input type="hidden" name="returnTo" value="${esc(f.returnTo)}">
