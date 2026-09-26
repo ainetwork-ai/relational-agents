@@ -9,6 +9,7 @@ import { hasDrive, readFile, readFileBytes, writeFile } from "@/lib/aindrive";
 import { runAs } from "@/lib/aindrive-account";
 import { seal, stamp, stampOk, unseal } from "@/lib/secret-box";
 import { familyDemo } from "@/i18n/content/demo-lang";
+import { createSale, type GiftSale } from "@/lib/x402/aindrive-share";
 
 /**
  * A gift behind x402: a file someone keeps unshared on their own device (Seoyeon's
@@ -54,6 +55,9 @@ export interface GiftSpec {
   file: { driveId: string; path: string; mime: string };
   /** an aindrive link anyone on the page may see (blurred frame) */
   previewUrl?: string;
+  /** sold as an aindrive paid share: the payer's own wallet (MetaMask) pays
+   *  real USDC through aindrive, instead of the family ledger */
+  sale?: GiftSale;
 }
 
 /** The block content that carries a gift: its spec, stamped by this server so
@@ -75,7 +79,8 @@ export interface GiftUnlock {
 
 const SPEC = "gift-spec";
 const UNLOCK = "gift-unlock";
-const specData = (s: GiftSpec) => JSON.stringify([s.id, s.recipientUserId, s.payTo.toLowerCase(), s.amount, s.file.driveId, s.file.path]);
+const specData = (s: GiftSpec) =>
+  JSON.stringify([s.id, s.recipientUserId, s.payTo.toLowerCase(), s.amount, s.file.driveId, s.file.path, ...(s.sale ? [s.sale.token] : [])]);
 
 export function krwToAtomic(krw: number): string {
   return String(Math.round((krw / KRW_PER_USDC) * 10 ** USDC_DECIMALS));
@@ -89,7 +94,7 @@ export function formatUsdc(atomic: string): string {
  *  whether the drive is theirs — nobody can put a price on someone else's file. */
 export async function createGift(
   ownerId: string,
-  input: { title: string; driveId: string; path: string; mime: string; amountKrw: number; previewUrl?: string }
+  input: { title: string; driveId: string; path: string; mime: string; amountKrw: number; previewUrl?: string; saleUsdc?: number }
 ): Promise<GiftContent> {
   if (!(await runAs(ownerId, () => hasDrive(input.driveId)))) throw new Error("That drive is not the owner's");
   const [owner] = await db.select().from(users).where(eq(users.id, ownerId));
@@ -101,10 +106,12 @@ export async function createGift(
     recipientName: owner?.displayName ?? "",
     payTo,
     amountKrw: input.amountKrw,
-    amount: krwToAtomic(input.amountKrw),
+    amount: input.saleUsdc ? String(Math.round(input.saleUsdc * 10 ** USDC_DECIMALS)) : krwToAtomic(input.amountKrw),
     file: { driveId: input.driveId, path: input.path, mime: input.mime },
     previewUrl: input.previewUrl,
   };
+  if (input.saleUsdc)
+    spec.sale = await createSale(ownerId, { driveId: input.driveId, path: input.path, payTo, price: input.saleUsdc, currency: "USDC" });
   return { spec, sig: stamp(SPEC, specData(spec)) };
 }
 

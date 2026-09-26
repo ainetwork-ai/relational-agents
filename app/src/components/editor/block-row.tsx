@@ -18,6 +18,7 @@ import { copyText, resolveAppUrl } from "@/lib/compat";
 import { uploadBlob } from "@/lib/upload";
 import { FileAttachment, FileAttachPicker } from "./file-attachment";
 import { GiftBlock } from "./gift-block";
+import { AlbumGrid, type AlbumFile } from "./album-grid";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { parseAindriveUrl } from "@/lib/aindrive-url";
 import { highlightCode } from "@/lib/editor/highlight";
@@ -280,6 +281,9 @@ function FileBlockBody({ block }: { block: EBlock }) {
   // a gift behind x402: a file its maker keeps unshared, opened with pocket money
   const gift = block.content.gift as Parameters<typeof GiftBlock>[0]["gift"] | undefined;
   if (gift?.spec?.id) return <GiftBlock blockId={block.id} gift={gift} />;
+  // an album: several photos in one block, shown as a grid
+  const files = block.content.files as AlbumFile[] | undefined;
+  if (Array.isArray(files) && files.length) return <AlbumGrid blockId={block.id} files={files} />;
   // an uploaded file or an aindrive link — both preview the same way
   if (block.content.url)
     return <FileAttachment blockId={block.id} url={block.content.url} name={block.content.text ?? ""} />;

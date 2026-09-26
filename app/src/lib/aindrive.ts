@@ -72,6 +72,21 @@ function config(): { server: string; token: string } | null {
   return server && token ? { server, token } : null;
 }
 
+/**
+ * aindrive's own web API (not MCP), as the current account — for what its MCP
+ * does not offer a session: paid share links (/api/drives/:id/shares, the
+ * payout wallet) and paying one (/api/s/:token). The session token is the one
+ * aindrive's browser cookie carries, so it rides as that cookie.
+ */
+export async function aindriveHttp(path: string, init: RequestInit = {}, timeoutMs = 30_000): Promise<Response> {
+  const c = config();
+  if (!c) throw new AindriveError("aindrive is not connected for this account");
+  const headers = new Headers(init.headers);
+  headers.set("cookie", `aindrive_session=${c.token}`);
+  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
+  return fetch(`${c.server}${path}`, { ...init, headers, cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+}
+
 /** aindrive is set up here (a server to talk to). Whether a given person can
  *  reach it depends on their connected account — see lib/aindrive-account. */
 export function aindriveConfigured(): boolean {

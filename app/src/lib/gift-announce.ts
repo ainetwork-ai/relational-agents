@@ -5,6 +5,7 @@ import { chatMessages, chatRoomBots, chatRoomMembers, chatRooms, users } from "@
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import type { GiftSpec } from "@/lib/gift";
 import { getT } from "@/i18n/server";
+import { giftPrice } from "@/lib/gift-price";
 
 /** Tells the family: in every room of the workspace where both the payer and
  *  the maker are, the room's agent says the gift was opened with pocket money.
@@ -32,7 +33,7 @@ export async function announceGift(workspaceId: string, payerId: string, spec: G
       text: t("🎁 {payer} sent {recipient} {amount} in pocket money and opened “{title}”. (x402 payment · receipt {receipt})", {
         payer: payer?.name ?? "",
         recipient: spec.recipientName,
-        amount: t("₩{n}", { n: spec.amountKrw.toLocaleString("ko-KR") }),
+        amount: giftPrice(spec, (n) => t("₩{n}", { n: n.toLocaleString("ko-KR") })),
         title: spec.title,
         receipt,
       }),

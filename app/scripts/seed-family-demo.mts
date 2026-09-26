@@ -202,6 +202,11 @@ const divider = (): B => ({ type: "divider", content: {} });
 const file = (k: Key, rel: string): B[] =>
   has(k, rel) ? [{ type: "file", content: { url: fileUrl(k, rel), text: rel.split("/").pop() } }] : [];
 const files = (k: Key, rels: string[]) => rels.flatMap((r) => file(k, r));
+/** photos from someone's drive as one album block — a grid on the page */
+const photoGrid = (k: Key, rels: string[]): B => ({
+  type: "file",
+  content: { files: rels.filter((r) => has(k, r)).map((r) => ({ url: fileUrl(k, r), text: r.split("/").pop() })) },
+});
 const from = (k: Key) => p(SEED.from(M[k].name, M[k].drive));
 
 let pagePos = 0;
@@ -435,7 +440,8 @@ const trip = await page(P.trip.title, "✈️", [
   hint(P.trip.hint),
 ], "dad");
 
-// ④ seoyeon's album, and the gift: her video for grandma, behind x402
+// ④ seoyeon's album, and the gift: her video for grandma, behind x402 — sold
+// as an aindrive paid share, so the payer's own MetaMask pays 1 real USDC
 const { createGift } = await import("../src/lib/gift");
 const giftVideo = SEED.gift.video;
 const gift = has("seoyeon", giftVideo)
@@ -444,14 +450,15 @@ const gift = has("seoyeon", giftVideo)
       driveId: drive.seoyeon.id,
       path: giftVideo,
       mime: "video/mp4",
-      amountKrw: 50_000,
+      amountKrw: 0,
+      saleUsdc: 1,
       previewUrl: fileUrl("seoyeon", SEED.gift.preview),
     })
   : null;
 const seoyeonAlbum = await page(P.seoyeonAlbum.title, "📷", [
   ...file("seoyeon", P.seoyeonAlbum.albumFile),
   h2(P.seoyeonAlbum.jejuHeading),
-  ...files("seoyeon", under("seoyeon", SEED.dirs.seoyeonJeju, /\.(jpe?g|png)$/i)),
+  photoGrid("seoyeon", under("seoyeon", SEED.dirs.seoyeonJeju, /\.(jpe?g|png)$/i)),
   h2(P.seoyeonAlbum.giftHeading),
   ...(gift ? [{ type: "file" as const, content: { text: gift.spec.title, gift } as BlockContent }] : []),
   callout("💌", P.seoyeonAlbum.callout),
