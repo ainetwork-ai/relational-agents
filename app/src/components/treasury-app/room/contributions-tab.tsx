@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Wallet } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { CONTRIBUTION_CHAIN as C, type ContributionPlanView, type PeriodState } from "@/lib/agent/treasury/contribution-plan";
@@ -231,7 +231,11 @@ function Grid({ rows, months, plans }: { rows: GridRow[]; months: string[]; plan
           return (
             <div key={row.key} className={c.gridRow} data-testid="contributions-row">
               <span className={c.gridWho}>
-                {row.person?.avatarUrl ? <img src={row.person.avatarUrl} alt="" className={c.dot} /> : <span className={c.dot}>{name.slice(0, 1).toUpperCase()}</span>}
+                {row.person?.avatarUrl ? (
+                  <img src={row.person.avatarUrl} alt="" className={c.dot} />
+                ) : (
+                  <span className={c.dot}>{row.person ? name.slice(0, 1).toUpperCase() : <Wallet size={13} aria-hidden />}</span>
+                )}
                 <span className={c.whoText}>
                   <span className={c.whoName}>{name}</span>
                   <span className={c.whoPlan}>{plan ? planLine(t, plan) : t("No plan")}</span>

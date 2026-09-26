@@ -207,6 +207,9 @@
 .whoName {
   font-size: 14px;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .whoPlan {
@@ -783,8 +786,8 @@ a.cell[data-tip]:focus-visible::after {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .gridHead {
-    display: none;
+  .facts dd {
+    white-space: normal;
   }
 
   /* one card per person: the name stays, the months scroll sideways inside it */
@@ -799,6 +802,11 @@ a.cell[data-tip]:focus-visible::after {
     background: var(--tr-hair);
     overflow-x: auto;
     overscroll-behavior-x: contain;
+  }
+
+  /* after .gridRow, which would show it again */
+  .gridRow.gridHead {
+    display: none;
   }
 
   .gridWho {

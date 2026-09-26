@@ -199,10 +199,13 @@ export function StartContributionDialog({
   /** One of the three calls, from the member's wallet; null when the wallet already allows it. */
   const send = async (i: number, w: BaseWallet, x: Terms): Promise<Hex | null> => {
     if (i === 0) {
+      // what Permit2 must be able to move for this contract: its live allowance here plus this plan's total
+      const [held, expiration] = await w.client.readContract({ address: C.permit2, abi: permit2Abi, functionName: "allowance", args: [w.address, C.usdc, C.contract] });
+      const needed = (expiration > Math.floor(Date.now() / 1000) ? held : BigInt(0)) + x.total;
       const now = await w.client.readContract({ address: C.usdc, abi: usdcAbi, functionName: "allowance", args: [w.address, C.permit2] });
-      if (now >= UNLIMITED) return null;
-      // on top of what the wallet already lets Permit2 use: this plan's total, and no more
-      return w.wallet.writeContract({ address: C.usdc, abi: usdcAbi, functionName: "approve", args: [C.permit2, now + x.total] });
+      // already enough (or unlimited, from another app): nothing to send; else exactly what's needed, never more
+      if (now >= needed || now >= UNLIMITED) return null;
+      return w.wallet.writeContract({ address: C.usdc, abi: usdcAbi, functionName: "approve", args: [C.permit2, needed] });
     }
     if (i === 1) {
       const [held, expiration] = await w.client.readContract({ address: C.permit2, abi: permit2Abi, functionName: "allowance", args: [w.address, C.usdc, C.contract] });
@@ -210,13 +213,19 @@ export function StartContributionDialog({
       const amountAllowed = live + x.total > UINT160_MAX ? UINT160_MAX : live + x.total;
       return w.wallet.writeContract({ address: C.permit2, abi: permit2Abi, functionName: "approve", args: [C.usdc, C.contract, amountAllowed, Math.max(expiration, x.until)] });
     }
-    const args = [pot, C.usdc, x.amount, x.period, x.until, contributionSalt(roomId, meId)] as const;
+    await refusalOf(w, x);
+    return w.wallet.writeContract({ address: C.contract, abi: contributionAbi, functionName: "start", args: startArgs(x) });
+  };
+
+  const startArgs = (x: Terms) => [pot, C.usdc, x.amount, x.period, x.until, contributionSalt(roomId, meId)] as const;
+
+  /** start() simulated from the member's wallet: it touches no tokens, so it can run before either approval. */
+  const refusalOf = async (w: BaseWallet, x: Terms) => {
     try {
-      await w.client.simulateContract({ account: w.address, address: C.contract, abi: contributionAbi, functionName: "start", args });
+      await w.client.simulateContract({ account: w.address, address: C.contract, abi: contributionAbi, functionName: "start", args: startArgs(x) });
     } catch (err) {
       throw new ContributionWalletError("other", startRefusal(t, revertName(err)));
     }
-    return w.wallet.writeContract({ address: C.contract, abi: contributionAbi, functionName: "start", args });
   };
 
   const runFrom = async (from: number, w: BaseWallet, x: Terms) => {
@@ -265,16 +274,31 @@ export function StartContributionDialog({
     await onChanged();
   };
 
+  /**
+   * Connect (once), check the contract would take this plan, then send from the first call not done.
+   * Both the first press and every Try again come here, so a retry never skips an approval.
+   */
   const connectAndRun = async () => {
     if (!terms) return;
     setConnectError(null);
+    setRows((prev) => prev.map((r) => (r.kind === "failed" ? { kind: "idle" } : r)));
+    let w: BaseWallet;
     try {
-      const w = wallet ?? (await connectBase());
+      w = wallet ?? (await connectBase());
       setWallet(w);
-      await runFrom(0, w, terms);
     } catch (err) {
       setConnectError(failureText(t, walletFailure(err)));
+      return;
     }
+    // a plan the contract would refuse is named before either approval goes out
+    try {
+      await refusalOf(w, terms);
+    } catch (err) {
+      setRow(2, { kind: "failed", why: (err as Error).message });
+      return;
+    }
+    const from = rows.findIndex((r) => r.kind !== "done");
+    await runFrom(from < 0 ? 0 : from, w, terms);
   };
 
   const toWallet = () => {
@@ -290,7 +314,7 @@ export function StartContributionDialog({
   const untilLabel = dateOnly(new Date(terms ? terms.until * 1000 : endsAt).toISOString(), locale);
   const titles = [
     t("Let Permit2 use {total} USDC", { total: whole(terms?.total ?? total) }),
-    t("Let the contribution contract draw up to {total} USDC until {date}", { total: whole(terms?.total ?? total), date: untilLabel }),
+    t("Let the contract draw up to {total} USDC until {date}", { total: whole(terms?.total ?? total), date: untilLabel }),
     t("Start the plan"),
   ];
   const failedAt = rows.findIndex((r) => r.kind === "failed");
@@ -417,7 +441,7 @@ export function StartContributionDialog({
                 title={title}
                 state={rows[i]}
                 skippedNote={t("Already allowed")}
-                onRetry={i === failedAt && wallet && terms && !running ? () => void runFrom(i, wallet, terms) : undefined}
+                onRetry={i === failedAt && !running ? () => void connectAndRun() : undefined}
               />
             ))}
           </ol>

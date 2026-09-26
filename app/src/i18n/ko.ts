@@ -1903,7 +1903,7 @@ export const ko: Record<string, string> = {
   "It reverted on Base — nothing moved.": "Base에서 되돌려졌어요 — 아무것도 옮겨지지 않았어요.",
   "Keep contributing": "계속 모금하기",
   "Let Permit2 use {total} USDC": "Permit2가 {total} USDC를 쓰도록 허용",
-  "Let the contribution contract draw up to {total} USDC until {date}": "{date}까지 모금 계약이 최대 {total} USDC를 가져가도록 허용",
+  "Let the contract draw up to {total} USDC until {date}": "{date}까지 계약이 최대 {total} USDC를 가져가도록 허용",
   "Missed": "놓침",
   "Monthly": "매달",
   "More": "늘리기",
