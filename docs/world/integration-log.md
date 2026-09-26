@@ -154,3 +154,21 @@ Format: `JST time — surface — what happened`.
   values, DB schema already matched (no migration). Not yet on xyz: the Tokyo
   Trip seed (treasury rows 0, seats 0) and any real IdP sign-in — both to do
   before recording.
+- 2026-09-26 03:58 — both — **Tokyo Trip seeded on ainmem.ainetwork.xyz**
+  (`seed-tokyo-trip.mts --reset --app https://ainmem.ainetwork.xyz`, run from a
+  clean worktree against the xyz DB/OKF with the xyz `SESSION_SECRET` — the
+  agent's wallet key is sealed under it; checked that it unseals with the xyz
+  secret and not the dev one). Room `3ed9f7fa…`, agent wallet
+  `0xe03F…Cf2a` funded to $1,000 (0.005 SepETH, tx `0x8088…32f2`), 6 rules
+  adopted, votes seeded for Chris·Dana·Eli, six demo accounts, no World
+  bindings. Pre-flight on the live app as Alex: `idpMode: sandbox`,
+  `seatMode: world-id-v4`, balance $1,000 — the takes would show World.
+  Backups before: `~/ainmem-xyz-backups/20260926T035439Z-pre-tokyo-seed/`.
+- 2026-09-26 04:06 — both — sign-in by link: `GET /api/auth/demo-login?as=<slug>`
+  (same guard and accounts as POST) so members can be switched by clicking,
+  deployed twice — `4574ae4` redirected to `https://0.0.0.0:3000/`
+  (deployment.md §4.11 again; this host has no GOOGLE_REDIRECT_URI to borrow
+  an origin from), `7dc7cd3` answers a relative `Location: /`. Verified like a
+  browser: link → 303 → `https://ainmem.ainetwork.xyz/` signed in as Alex.
+  Live: `ainmem_xyz-app:7dc7cd3`. Still to measure on xyz: a real vote through
+  the simulator and a real IdP approval (time to first success on the demo host).
