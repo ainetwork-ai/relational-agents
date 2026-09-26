@@ -84,6 +84,7 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
       relation: RELATIONS.includes(relation as Relation) ? (relation as Relation) : null,
       avatar: avatar || null,
       address: address ?? null,
+      registry: registry === zeroAddress ? null : registry,
       children,
     };
   }

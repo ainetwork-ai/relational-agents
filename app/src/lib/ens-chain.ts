@@ -1,6 +1,8 @@
 // app/src/lib/ens-chain.ts
 // The app's view of the ENS family (spec: ens/plan-family-namespace.md).
 import "server-only";
+import { createPublicClient, http, type PublicClient } from "viem";
+import { sepolia } from "viem/chains";
 import { createFamilyChain, type FamilyChain } from "@/lib/ens-family/chain";
 
 // One FamilyChain per root (each holds its own tree cache), shared by the env fallback and
@@ -28,6 +30,15 @@ export function familyChain(): FamilyChain | null {
   const root = process.env.ENS_FAMILY_ROOT?.trim();
   if (!root) return null;
   return chainForRoot(root, BigInt(process.env.ENS_FAMILY_FROM_BLOCK ?? "0"));
+}
+
+/** A Sepolia reader for availability and ownership checks (lib/ens-family/availability.ts). Read-only. */
+export function ensReader(): PublicClient {
+  const gr = globalThis as unknown as { __ensReader?: PublicClient };
+  return (gr.__ensReader ??= createPublicClient({
+    chain: sepolia,
+    transport: http(process.env.SEPOLIA_RPC || "https://ethereum-sepolia-rpc.publicnode.com"),
+  }) as PublicClient);
 }
 
 export function sendSecret(): string {

@@ -7,13 +7,27 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { workspaceEns } from "@/lib/db/schema";
 import type { FamilyChain } from "@/lib/ens-family/chain";
-import { chainForRoot, familyChain, forgetFamilyChain } from "@/lib/ens-chain";
+import { chainForRoot, ensReader, familyChain, forgetFamilyChain } from "@/lib/ens-chain";
+import { formatUnits } from "viem";
+import { availableSuggestions, ethNameStatus } from "@/lib/ens-family/availability";
+import { checkLabel } from "@/lib/ens-family/labels";
+import { USDC_DECIMALS } from "@/lib/ens-family/config";
 
 export { forgetFamilyChain };
 
 export interface WorkspaceFamily {
   rootName: string;
   fromBlock: bigint;
+}
+
+/** The workspace that already uses `rootName`, if any (the unique net behind setWorkspaceFamily). */
+export async function workspaceOfRoot(rootName: string): Promise<string | null> {
+  const [row] = await db
+    .select({ workspaceId: workspaceEns.workspaceId })
+    .from(workspaceEns)
+    .where(eq(workspaceEns.rootName, rootName))
+    .limit(1);
+  return row?.workspaceId ?? null;
 }
 
 export async function getWorkspaceFamily(workspaceId: string): Promise<WorkspaceFamily | null> {
@@ -91,4 +105,47 @@ export function reservedByOther(label: string, workspaceId: string, now = Date.n
 export function releaseLabel(label: string, workspaceId?: string): void {
   const h = holds.get(key(label));
   if (h && (workspaceId === undefined || h.workspaceId === workspaceId)) holds.delete(key(label));
+}
+
+// ── family label availability (F11, F14) ─────────────────────────────────────
+export type FamilyLabelAnswer = {
+  label: string;
+  status: "free" | "taken" | "reserved" | "invalid";
+  reason?: "empty" | "too-short" | "too-long" | "invalid";
+  /** Only for `free`: the 1-year fee in test USDC (base + premium), and the premium alone. */
+  price?: { usdc: string; premiumUsdc: string };
+  /** .eth labels free right now and not held by another workspace. Empty when `free`. */
+  suggestions: string[];
+};
+
+/** Up to 3 free .eth labels from `base`, skipping ones another workspace holds. */
+export async function familySuggestions(base: string, workspaceId: string): Promise<string[]> {
+  const free = await availableSuggestions(ensReader(), base, 6);
+  return free.filter((l) => !reservedByOther(l, workspaceId)).slice(0, 3);
+}
+
+/** Is `<input>.eth` free for this workspace? checkLabel (3+) → another workspace's hold →
+ *  the global registry. Throws when Sepolia cannot be read (the route answers 502). */
+export async function familyLabelStatus(input: string, workspaceId: string): Promise<FamilyLabelAnswer> {
+  const checked = checkLabel(input, { min: 3 });
+  if (!checked.ok) {
+    // a too-short label still has a usable base ("li" → "li-family")
+    const suggestions = checked.reason === "too-short" ? await familySuggestions(input, workspaceId) : [];
+    return { label: input.trim().toLowerCase(), status: "invalid", reason: checked.reason, suggestions };
+  }
+  const label = checked.label;
+  if (reservedByOther(label, workspaceId)) {
+    return { label, status: "reserved", suggestions: await familySuggestions(label, workspaceId) };
+  }
+  const st = await ethNameStatus(ensReader(), label);
+  if (st.status === "free" && st.price) {
+    const { base, premium } = st.price;
+    return {
+      label,
+      status: "free",
+      price: { usdc: formatUnits(base + premium, USDC_DECIMALS), premiumUsdc: formatUnits(premium, USDC_DECIMALS) },
+      suggestions: [],
+    };
+  }
+  return { label, status: "taken", suggestions: await familySuggestions(label, workspaceId) };
 }

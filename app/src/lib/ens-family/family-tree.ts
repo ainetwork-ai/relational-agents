@@ -17,6 +17,8 @@ export interface FamilyNode {
   relation: Relation | null;
   avatar: string | null;
   address: Address | null;
+  /** This name's own subregistry (where its children live); null for a leaf. Set by chain.ts. */
+  registry?: Address | null;
   children: FamilyNode[];
 }
 
