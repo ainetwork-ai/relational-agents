@@ -67,7 +67,8 @@ export async function photoPage(ctx: Ctx): Promise<{ text: string; pageId?: stri
     })
   );
   const found = listed.flat().slice(0, MAX_PHOTOS);
-  const offNote = off.length ? "\n⚠️ " + t("{names} did not answer, so their photos are not included.", { names: off.join(", ") }) : "";
+  // one name per person, however many of their folders were shared
+  const offNote = off.length ? "\n⚠️ " + t("{names} did not answer, so their photos are not included.", { names: [...new Set(off)].join(", ") }) : "";
   if (!found.length) return { text: t("There are no photos in the folders the family shared.") + offNote };
 
   await ctx.say?.(t("Looking through {n} photos from the family's phones…", { n: found.length }));
