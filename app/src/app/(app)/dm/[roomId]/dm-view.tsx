@@ -4,7 +4,7 @@ import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, Loader2, NotebookPen, TriangleAlert } from "lucide-react";
+import { FileText, Folder, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, Loader2, NotebookPen, TriangleAlert } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -43,6 +43,18 @@ const EXPLORER_BASE =
 // The agent-buys-songpyeon demo only makes sense where a human-backed registry is
 // deployed for the seller to check — otherwise the button would always fail.
 const HUMAN_BACKED_ON = Boolean(process.env.NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS);
+
+/** An aindrive folder the room's agent may read — "@handle" names it in a question. */
+interface RoomFolder {
+  handle: string;
+  label: string;
+  owner: string | null;
+}
+
+/** What the "@" menu offers and a chip holds: a member, or a folder the agent reads. */
+type Mention = { kind: "user"; user: DmUser } | { kind: "folder"; folder: RoomFolder };
+
+const mentionKey = (m: Mention) => (m.kind === "user" ? `u:${m.user.id}` : `f:${m.folder.handle}`);
 
 interface GuardResult {
   verdict: "allow" | "decline";
@@ -143,7 +155,9 @@ export function DmView({
   // Mentions lifted out of the text into chips (Notion draws a picked @mention
   // as a pill). The chips are merged back in front of the text at send time,
   // so the wire format — "@agent pay …" — is unchanged.
-  const [mentionChips, setMentionChips] = useState<DmUser[]>([]);
+  const [mentionChips, setMentionChips] = useState<Mention[]>([]);
+  /** The folders the agent reads here — offered in the "@" menu after the members. */
+  const [folders, setFolders] = useState<RoomFolder[]>([]);
   const [authors, setAuthors] = useState<DmUser[]>([]);
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
@@ -225,6 +239,12 @@ export function DmView({
     // the agent — keep what we know instead of an unhandled rejection
     const res = await fetch(`/api/dm/rooms/${roomId}/agent`).catch(() => null);
     if (res) setHasAgent(res.ok);
+    if (res?.ok) {
+      const f = await fetch(`/api/dm/rooms/${roomId}/folders`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ folders: RoomFolder[] }>) : null))
+        .catch(() => null);
+      if (f) setFolders(f.folders);
+    }
   }, [roomId]);
 
   const loadAll = useCallback(async () => {
@@ -398,7 +418,7 @@ export function DmView({
     room?.name || (others.length ? others.map((o) => o.displayName).join(", ") : t("(No participants)"));
 
   async function send(force = false) {
-    const text = [mentionChips.map((u) => `@${handleOf(u)}`).join(" "), input.trim()].filter(Boolean).join(" ");
+    const text = [mentionChips.map((m) => `@${chipHandle(m)}`).join(" "), input.trim()].filter(Boolean).join(" ");
     if ((!text && pendingAtt.length === 0) || sending) return;
  // a draft contradicting the record gets stopped once. Force-send is the human's call.
     if (declined && !force) return;
@@ -508,31 +528,34 @@ export function DmView({
     return [...list].sort((a, b) => Number(b.isAgent) - Number(a.isAgent));
   }, [members, meId]);
 
-  const mentionItems = useMemo(() => {
+  /** Members first, then the folders the agent reads ("@agent @Mom's-phone what's in here?"). */
+  const mentionItems = useMemo((): Mention[] => {
     const q = mentionQuery.trim().toLowerCase();
-    if (!q) return mentionCandidates.slice(0, 6);
-    return mentionCandidates
-      .filter(
-        (m) =>
-          m.displayName.toLowerCase().includes(q) || (m.isAgent && "agent".includes(q))
-      )
-      .slice(0, 6);
-  }, [mentionCandidates, mentionQuery]);
+    const users = mentionCandidates
+      .filter((m) => !q || m.displayName.toLowerCase().includes(q) || (m.isAgent && "agent".includes(q)))
+      .map((user): Mention => ({ kind: "user", user }));
+    const shared = folders
+      .filter((f) => !q || f.handle.toLowerCase().includes(q) || f.label.toLowerCase().includes(q))
+      .map((folder): Mention => ({ kind: "folder", folder }));
+    return [...users.slice(0, 6), ...shared.slice(0, 6)].filter((m) => !mentionChips.some((c) => mentionKey(c) === mentionKey(m)));
+  }, [mentionCandidates, folders, mentionQuery, mentionChips]);
 
   /** The handle "@" stands for — must match timeline's mentionHandle. */
   const handleOf = (u: DmUser) => (u.isAgent ? "agent" : u.displayName.split(/\s+/)[0]);
 
-  function addChip(user: DmUser) {
-    setMentionChips((prev) => (prev.some((c) => c.id === user.id) ? prev : [...prev, user]));
+  const chipHandle = (m: Mention) => (m.kind === "user" ? handleOf(m.user) : m.folder.handle);
+
+  function addChip(m: Mention) {
+    setMentionChips((prev) => (prev.some((c) => mentionKey(c) === mentionKey(m)) ? prev : [...prev, m]));
   }
 
   /** Lift the "@query" under the caret out of the text and into a chip. */
-  function pickMention(user: DmUser) {
+  function pickMention(m: Mention) {
     if (mentionStart === null) return;
     const caret = composerRef.current?.selectionStart ?? input.length;
     const next = `${input.slice(0, mentionStart)}${input.slice(caret).replace(/^\s+/, "")}`;
     setInput(next);
-    addChip(user);
+    addChip(m);
     setMentionOpen(false);
     setMentionStart(null);
     const pos = mentionStart;
@@ -548,10 +571,12 @@ export function DmView({
     // where typing happens, and it keeps a pasted "@agent pay …" untouched.
     const typed = /(^|\s)@([^\s@]+)\s$/.exec(v);
     if (typed) {
-      const user = mentionCandidates.find((m) => handleOf(m).toLowerCase() === typed[2].toLowerCase());
-      if (user) {
+      const key = typed[2].toLowerCase();
+      const user = mentionCandidates.find((m) => handleOf(m).toLowerCase() === key);
+      const folder = user ? undefined : folders.find((f) => f.handle.toLowerCase() === key);
+      if (user || folder) {
         v = v.slice(0, typed.index + typed[1].length);
-        addChip(user);
+        addChip(user ? { kind: "user", user } : { kind: "folder", folder: folder! });
       }
     }
     setInput(v);
@@ -1279,17 +1304,17 @@ export function DmView({
             role="listbox"
             className={`absolute bottom-full ${composerInset} z-30 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900`}
           >
-            {mentionItems.map((u, i) => (
+            {mentionItems.map((m, i) => (
               <button
-                key={u.id}
+                key={mentionKey(m)}
                 type="button"
                 role="option"
                 aria-selected={i === mentionIndex}
-                data-testid={`dm-mention-item-${u.id}`}
+                data-testid={m.kind === "user" ? `dm-mention-item-${m.user.id}` : `dm-mention-folder-${m.folder.handle}`}
                 onMouseEnter={() => setMentionIndex(i)}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  pickMention(u);
+                  pickMention(m);
                 }}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-left ${
                   i === mentionIndex
@@ -1297,21 +1322,41 @@ export function DmView({
                     : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
                 }`}
               >
-                <DmAvatar user={u} size={24} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-neutral-800 dark:text-neutral-200">
-                    @{u.isAgent ? "agent" : u.displayName.split(/\s+/)[0]}
-                  </span>
-                  {u.isAgent && (
-                    <span className="block truncate text-[11px] text-neutral-400">
-                      {t("Ask in the room — answers are based on your records")}
+                {m.kind === "user" ? (
+                  <>
+                    <DmAvatar user={m.user} size={24} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-neutral-800 dark:text-neutral-200">
+                        @{handleOf(m.user)}
+                      </span>
+                      {m.user.isAgent && (
+                        <span className="block truncate text-[11px] text-neutral-400">
+                          {t("Ask in the room — answers are based on your records")}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                {u.isAgent && (
-                  <span className="shrink-0 rounded bg-purple-100 px-1 text-[10px] text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
-                    AGENT
-                  </span>
+                    {m.user.isAgent && (
+                      <span className="shrink-0 rounded bg-purple-100 px-1 text-[10px] text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
+                        AGENT
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
+                      <Folder size={14} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-neutral-800 dark:text-neutral-200">
+                        @{m.folder.handle}
+                      </span>
+                      <span className="block truncate text-[11px] text-neutral-400">
+                        {m.folder.owner
+                          ? t("Folder shared by {name}", { name: m.folder.owner })
+                          : t("Shared folder")}
+                      </span>
+                    </span>
+                  </>
                 )}
               </button>
             ))}
@@ -1382,17 +1427,18 @@ export function DmView({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {mentionChips.length > 0 && (
             <div data-testid="dm-mention-chips" className="flex flex-wrap gap-1 px-0.5">
-              {mentionChips.map((u) => (
+              {mentionChips.map((m) => (
                 <span
-                  key={u.id}
+                  key={mentionKey(m)}
                   data-testid="dm-mention-chip"
                   className="inline-flex items-center gap-0.5 rounded-[3px] bg-[rgba(0,118,217,0.1)] py-0.5 pl-1.5 pr-1 text-[13px] font-medium leading-5 text-[rgb(38,74,114)] dark:bg-blue-500/15 dark:text-blue-300"
                 >
-                  @{handleOf(u)}
+                  {m.kind === "folder" && <Folder size={12} className="mr-0.5" />}
+                  @{chipHandle(m)}
                   <button
                     type="button"
-                    aria-label={t("Remove {name}", { name: `@${handleOf(u)}` })}
-                    onClick={() => setMentionChips((prev) => prev.filter((c) => c.id !== u.id))}
+                    aria-label={t("Remove {name}", { name: `@${chipHandle(m)}` })}
+                    onClick={() => setMentionChips((prev) => prev.filter((c) => mentionKey(c) !== mentionKey(m)))}
                     className="rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
                   >
                     <X size={11} />

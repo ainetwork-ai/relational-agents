@@ -48,6 +48,8 @@ export const ko: Record<string, string> = {
   "Deselect {name}": "{name} 선택 해제",
   "No {name}": "{name} 없음",
   "Remove {name}": "{name} 제거",
+  "Folder shared by {name}": "{name}님이 공유한 폴더",
+  "Shared folder": "공유 폴더",
   "Last edited by {name}": "{name} 최종 편집",
   "{name} cover": "{name} 커버",
   "Sum of {name}": "{name} 합계",

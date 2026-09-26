@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { chatRoomMembers, teamspaceDrives, teamspaces, users } from "@/lib/db/schema";
 import { parseLink, type AindriveLink } from "@/lib/aindrive";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
+import { isAssistantRoom } from "./assistant-room";
 
 /** One aindrive folder an agent may read, and whose account it is read as. */
 export interface DriveSource {
@@ -78,15 +79,14 @@ export async function sharedDriveSources(workspaceId: string, viewerIds: string[
   return out;
 }
 
-/** Files worth offering the model: readable text, not the teamspace's own
- *  OKF backup, not aindrive's bookkeeping. */
+/** Not the teamspace's own OKF backup, not aindrive's bookkeeping. */
+export function notBookkeeping(path: string): boolean {
+  return !/(^|\/)ainmem-/.test(path) && !/(^|\/)\.aindrive\//.test(path) && !/(^|\/)CREDITS[^/]*\.md$/i.test(path);
+}
+
+/** Files worth offering the model: readable text, not bookkeeping. */
 export function readableFile(path: string): boolean {
-  return (
-    /\.(md|markdown|txt|csv|json)$/i.test(path) &&
-    !/(^|\/)ainmem-/.test(path) &&
-    !/(^|\/)\.aindrive\//.test(path) &&
-    !/(^|\/)CREDITS[^/]*\.md$/i.test(path)
-  );
+  return /\.(md|markdown|txt|csv|json)$/i.test(path) && notBookkeeping(path);
 }
 
 /** The person's own aindrive drives (their connected account), read as them —
@@ -108,4 +108,19 @@ export async function ownDriveSources(userId: string, already: DriveSource[] = [
       labels.add(label);
       return { label, link: { driveId: d.id, root: "" }, linkedBy: userId, ownerName: me?.name ?? undefined };
     });
+}
+
+/** The aindrive folders a room's agent may read: what was shared into the
+ *  teamspaces everyone reading the answer can see — and, in a person's own
+ *  assistant room, their own drives too. Also what "@<folder>" offers there. */
+export async function roomSources(
+  room: { kind: string; name: string; workspaceId: string | null },
+  roomId: string,
+  authorId: string,
+  privateToUserId: string | null
+): Promise<DriveSource[]> {
+  if (!room.workspaceId) return [];
+  const shared = await sharedDriveSources(room.workspaceId, await answerViewers(roomId, authorId, privateToUserId));
+  if (!isAssistantRoom(room)) return shared;
+  return [...shared, ...(await ownDriveSources(authorId, shared).catch(() => []))];
 }
