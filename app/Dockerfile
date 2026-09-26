@@ -48,6 +48,12 @@ RUN node scripts/copy-preview-assets.mjs && node_modules/.bin/next build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+# Node 22's fetch races the addresses a name resolves to and gives each 250 ms to
+# connect (happy eyeballs). The World ID IdP sits behind CloudFront edges that
+# take ~300 ms from this host, so every hop to them failed as ETIMEDOUT while
+# curl on the same host succeeded — and it looked intermittent because the
+# resolver sometimes handed out nearer edges. Give each attempt 3 s.
+ENV NODE_OPTIONS="--network-family-autoselection-attempt-timeout=3000"
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # standalone bundles a traced node_modules; static/ and public/ are not traced.
 COPY --from=builder /app/.next/standalone ./

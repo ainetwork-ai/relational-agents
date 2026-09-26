@@ -197,3 +197,21 @@ Format: `JST time — surface — what happened`.
   host user, so the container (uid 1001) got EACCES logging to Treasury
   Activity — fixed with a+rw on the demo doc tree; the seed should chmod what
   it writes when OKF_ROOT is a bind mount.
+- 2026-09-26 09:05 — both — **why World hops "weren't reachable" all afternoon**:
+  not DNS, not docker NAT, not deploys (each was a real but smaller thing).
+  Node 22's `fetch` (undici) races a host's addresses and gives each 250 ms
+  to connect; `sandbox.auth.world.org` resolves to CloudFront edges that take
+  ~300 ms from this host (curl: tcp 0.32 s, fine), so the container's Node
+  reported `ETIMEDOUT` after ~1 s for every address — and it looked
+  intermittent because the resolver sometimes returned nearer edges
+  (52.84.x, 140 ms) that made it under the limit. Proven in the container:
+  default node FAIL 1.1 s; `--network-family-autoselection-attempt-timeout=3000`
+  ok 1.7 s; `--no-network-family-autoselection` ok 2.2 s. Fix: `NODE_OPTIONS`
+  in the runner image (and in `.env.xyz` for the running one). Along the way,
+  kept because each helped a real case: discovery/JWKS/token retries on
+  connect-level failures (a resolver `EAI_AGAIN` right after a swap, a swap
+  mid-hop), public resolvers, and host networking for the xyz app (moves the
+  app's egress off the docker bridge; bind 127.0.0.1:3150). Cost of the
+  detour: ~2 h of the last day. Lesson for the debrief: when a fetch fails
+  where curl succeeds on the same machine, suspect the runtime's connect
+  policy before the network.
