@@ -8,6 +8,7 @@ import {
   type IDKitResult,
   type RpContext,
 } from "@worldcoin/idkit";
+import { Globe } from "lucide-react";
 import { STAGING_HINT } from "@/components/treasury/world-result-copy";
 
 export type SeatClaimError = { sameHuman: boolean; text: string };
@@ -162,10 +163,11 @@ export function SeatButton({
         disabled={starting || open}
         className={
           className ??
-          "mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+          "mt-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
         }
       >
-        {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "🌍 Claim your vote with World ID")}
+        {!starting && <Globe size={14} strokeWidth={1.75} aria-hidden />}
+        {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "Claim your vote with World ID")}
       </button>
       {environment === "staging" && (
         // a staging request shows a QR World App can't answer; the simulator is the only way in

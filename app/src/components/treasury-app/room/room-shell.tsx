@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { countedLine, isResultCode, resultCopy, type ResultCopy } from "@/components/treasury/world-result-copy";
+import { ToneIcon } from "@/components/treasury/tone-icon";
 import { TreasurerChat } from "@/components/treasurer/treasurer-chat";
 import { TreasuryRoomProvider, useTreasuryRoom, type RoomLoad } from "./room-data";
 import { LatestMessage } from "./latest-message";
@@ -82,6 +83,7 @@ function ResultBanner() {
   const tone = copy.tone === "ok" ? styles.bannerOk : copy.tone === "bad" ? styles.bannerBad : styles.bannerInfo;
   return (
     <div className={`${styles.banner} ${tone}`} role="status" data-testid="treasury-room-result">
+      <ToneIcon tone={copy.tone} />
       <span>{copy.text}</span>
       <button type="button" className={styles.bannerClose} onClick={dismiss} aria-label={t("Dismiss")}>
         <X size={16} aria-hidden />

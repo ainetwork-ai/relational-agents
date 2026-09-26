@@ -307,7 +307,7 @@ export function RoomChatV2(props: RoomChatV2Props) {
             </div>
           ) : messages.length === 0 ? (
             <p className={`py-10 text-center text-sm ${TEXT_3}`} data-testid="dm-empty">
-              {t("No messages yet — say hello 👋")}
+              {t("No messages yet — say hello")}
             </p>
           ) : (
             timeline.map((item) => {

@@ -9,7 +9,7 @@
  *  row is a Tab stop, and the list moves focus between rows with the arrows. */
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy, Link2, Lock, MoreHorizontal } from "lucide-react";
+import { Bot, Copy, FileCheck, Link2, Lock, MoreHorizontal } from "lucide-react";
 import type { DmUser } from "@/stores/dm-rooms";
 import { useT } from "@/i18n/provider";
 import { AgentMark, PersonAvatar } from "./avatar";
@@ -262,18 +262,18 @@ export function MessageRow({
           tabIndex={active ? 0 : -1}
           data-testid="dm-msg-recorded"
           aria-label={t("Added to the relation's record · Open record")}
-          className={`block w-[18px] text-center text-[11px] opacity-75 transition-colors hover:opacity-100 group-hover/row:opacity-100 ${TEXT_3} group-hover/row:text-[#7D7A75]`}
+          className={`flex w-[18px] justify-center opacity-75 transition-colors hover:opacity-100 group-hover/row:opacity-100 ${TEXT_3} group-hover/row:text-[#7D7A75]`}
         >
-          ✦
+          <FileCheck size={11} strokeWidth={1.75} aria-hidden />
         </Link>
       ) : (
         <span
           role="img"
           data-testid="dm-msg-recorded"
           aria-label={t("Added to the relation's record")}
-          className={`block w-[18px] text-center text-[11px] opacity-75 ${TEXT_3}`}
+          className={`flex w-[18px] justify-center opacity-75 ${TEXT_3}`}
         >
-          ✦
+          <FileCheck size={11} strokeWidth={1.75} aria-hidden />
         </span>
       )}
     </LeftTip>
@@ -420,7 +420,7 @@ export function MessageRow({
               onClick={() => onAskAgent(message)}
               className={`${barButton} gap-1.5 whitespace-nowrap px-2 text-[12.5px] font-medium ${TEXT_BODY}`}
             >
-              <span aria-hidden>✦</span>
+              <Bot size={13} strokeWidth={1.75} aria-hidden />
               {t("Ask the agent")}
             </button>
             <span aria-hidden className="mx-0.5 h-4 w-px bg-[rgba(55,53,47,0.16)] dark:bg-white/15" />

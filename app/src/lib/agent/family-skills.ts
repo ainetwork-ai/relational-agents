@@ -182,7 +182,7 @@ function offNote(ctx: SkillContext): string {
   const t = tOf(ctx);
   const names = off.map((o) => nm(ctx, o)).join(", ");
   return (
-    "\n⚠️ " +
+    "\n" +
     (off.length > 1
       ? t("{names}'s phones are off, so nothing from them is included — ask again once they're on.", { names })
       : t("{names}'s phone is off, so nothing from it is included — ask again once it's on.", { names }))
@@ -263,7 +263,7 @@ async function shopping(ctx: SkillContext): Promise<SkillResult> {
   const cook = nm(ctx, who(recipe));
   const body: NewBlock[] = [
     b.callout(
-      "🛒",
+      "🛒", // emoji:data — the callout's icon on the page the agent writes
       t("{who}'s {dish} recipe (makes {orig}) scaled to {n} servings.", { who: cook, dish: dishName, orig: plan.originalServings ?? "?", n: servings }) +
         (measure ? " " + t(`Measures like "a handful" are converted with grandma's measure table.`) : "")
     ),
@@ -277,7 +277,7 @@ async function shopping(ctx: SkillContext): Promise<SkillResult> {
     ...(measure ? [b.file(urlOf(measure), nameOf(measure.rel))] : []),
     ...(review ? [b.h2(t("Tried it")), b.file(urlOf(review), `${nameOf(review.rel)} — ${who(review)}`)] : []),
   ];
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "🛒", byUserId: ctx.askerId, blocks: body });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "🛒", byUserId: ctx.askerId, blocks: body }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -347,16 +347,16 @@ async function todos(ctx: SkillContext): Promise<SkillResult> {
   const title = `${out.title ?? C.meeting} — ${C.suffix}`;
   const body: NewBlock[] = [
     b.callout(
-      "🎙️",
+      "🎙️", // emoji:data — the callout's icon on the page the agent writes
       t("{n} to-dos from the recording on {who}'s phone ({file}).", { n: out.tasks.length, who: nm(ctx, who(pick.audio)), file: nameOf(pick.audio.rel) }) +
-        (ts.private ? " " + t("🤫 Only in this teamspace ({ts}) — family members outside it can't see it.", { ts: ts.name }) : "")
+        (ts.private ? " " + t("Only in this teamspace ({ts}) — family members outside it can't see it.", { ts: ts.name }) : "")
     ),
     b.database(dbId),
     b.h2(t("Recording")),
     b.file(urlOf(pick.audio), nameOf(pick.audio.rel)),
     b.file(urlOf(pick.text), nameOf(pick.text.rel)),
   ];
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "✅", byUserId: ctx.askerId, blocks: body });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "✅", byUserId: ctx.askerId, blocks: body }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -441,7 +441,7 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
   const place = (f: Found) => nameOf(f.rel).replace(/\.[^.]+$/, "").replace(/_/g, " ");
   const body: NewBlock[] = [
     b.callout(
-      "📸",
+      "📸", // emoji:data — the callout's icon on the page the agent writes
       (regionName
         ? t("{n} {region} photos from {phones}'s phones, gathered by when and where they were taken and sorted by day.", {
             n: pick.length,
@@ -484,7 +484,7 @@ async function album(ctx: SkillContext): Promise<SkillResult> {
   const title = person
     ? t("{name}'s photo album", { name: nm(ctx, person) })
     : t("{region} trip album", { region: regionName || t("Family") });
-  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "📸", byUserId: ctx.askerId, blocks: body, fullWidth: true });
+  const pageId = await writeAgentPage({ workspaceId: ctx.workspaceId, teamspaceId: ts.id, title, icon: "📸", byUserId: ctx.askerId, blocks: body, fullWidth: true }); // emoji:data — the page's icon, as a Notion page has
   return {
     pageId,
     text:
@@ -523,7 +523,7 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
         : t("There's no pocket-money gift video yet."),
     };
   const { spec } = target.gift;
-  if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying 🙂") };
+  if (spec.recipientUserId === ctx.askerId) return { text: t("You can watch your own video without paying.") };
   if (unlocked(target.gift))
     return { pageId: target.pageId, text: t("「{title}」 is already open → /p/{pageId}", { title: spec.title, pageId: target.pageId }) };
   if (spec.sale)
@@ -543,7 +543,7 @@ async function allowance(ctx: SkillContext): Promise<SkillResult> {
   return {
     pageId: target.pageId,
     text:
-      t("🎁 Sent {name} ₩{krw} of pocket money ({usdc} USDC).", {
+      t("Sent {name} ₩{krw} of pocket money ({usdc} USDC).", {
         name: nm(ctx, spec.recipientName),
         krw: spec.amountKrw.toLocaleString(numLocale(ctx)),
         usdc: formatUsdc(spec.amount),

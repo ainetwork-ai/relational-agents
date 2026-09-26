@@ -4,7 +4,7 @@ import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, NotebookPen, TriangleAlert } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -665,7 +665,7 @@ export function DmView({
       const data = await res.json().catch(() => ({}));
  // 200 = the seller served us, 402 = it took the payment question seriously and
  // said no. Both are the feature working; anything else is the feature broken.
-      if (res.ok) show(`${SELLER.name} served the agent — two verified humans, one agent 🥮`);
+      if (res.ok) show(`${SELLER.name} served the agent — two verified humans, one agent`);
       else if (res.status === 402)
         show(`${SELLER.name} refused: ${data?.seller?.body?.error ?? "not human-backed"}`);
       else show(`Purchase failed: ${data?.error ?? res.status}`);
@@ -719,7 +719,8 @@ export function DmView({
         const section = isDoc ? okfSectionTitle(part.slice(3)) : null;
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 {section ?? (isDoc ? t("History") : t("Open page"))}
+            <FileText size={12} strokeWidth={1.75} aria-hidden className="mr-0.5 inline-block align-[-2px]" />
+            {section ?? (isDoc ? t("History") : t("Open page"))}
           </a>
         );
       }
@@ -928,7 +929,7 @@ export function DmView({
             data-tip={organizing ? t("Tidying up…") : t("Tidy up conversation now")}
             className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
           >
-            <Sparkles size={14} className={organizing ? "animate-pulse" : ""} />
+            <NotebookPen size={14} className={organizing ? "animate-pulse" : ""} />
           </button>
 
           <div className="relative">
@@ -1047,7 +1048,7 @@ export function DmView({
           </div>
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400" data-testid="dm-empty">
-            {t("No messages yet — say hello 👋")}
+            {t("No messages yet — say hello")}
           </p>
         ) : (
           messages.map((m, i) => {
@@ -1076,7 +1077,7 @@ export function DmView({
                   data-testid="dm-msg-recorded"
                   className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
                 >
-                  <Sparkles size={10} />
+                  <FileCheck size={10} />
                   {t("Added to history")}
                 </Link>
               ) : m.privateToUserId ? (
@@ -1227,7 +1228,10 @@ export function DmView({
           data-testid="dm-guard-card"
           className="mx-3 mb-2 space-y-1.5 rounded-lg border border-amber-300/80 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
         >
-          <div className="font-medium text-amber-800 dark:text-amber-300">{t("⚠️ Conflicts with history")}</div>
+          <div className="flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300">
+            <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+            {t("Conflicts with history")}
+          </div>
           <p className="text-neutral-700 dark:text-neutral-300">{guard?.reason}</p>
           {guard?.evidence?.map((e, i) => (
             <p key={i} className="text-neutral-500">

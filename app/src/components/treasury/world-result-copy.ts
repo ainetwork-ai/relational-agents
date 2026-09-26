@@ -17,12 +17,12 @@ export type ResultCopy = { tone: ResultTone; text: string };
 
 export const TREASURY_RESULT: Record<string, ResultCopy> = {
   // the approval counted
-  approved: { tone: "ok", text: "✅ Approved — World ID confirmed a unique human, just now." },
+  approved: { tone: "ok", text: "Approved — World ID confirmed a unique human, just now." },
   executing: {
     tone: "ok",
-    text: "✅ That was the last approval needed — the agent is paying now on Sepolia, usually in about 40 seconds.",
+    text: "That was the last approval needed — the agent is paying now on Sepolia, usually in about 40 seconds.",
   },
-  executed: { tone: "ok", text: "✅ That was the last approval needed — the agent paid." },
+  executed: { tone: "ok", text: "That was the last approval needed — the agent paid." },
   // a plain verification (?world=, but the callback also answers these on ?treasury=)
   verified: { tone: "ok", text: "World ID is now linked to your account." },
   mismatch: { tone: "bad", text: "This account is already linked to a different World ID — nothing was changed." },
@@ -30,15 +30,15 @@ export const TREASURY_RESULT: Record<string, ResultCopy> = {
   // it reached World ID but was not counted
   "same-human": {
     tone: "bad",
-    text: "⛔ Not counted — this human already approved from another account. One human, one vote.",
+    text: "Not counted — this human already approved from another account. One human, one vote.",
   },
   "stale-proof": {
     tone: "bad",
-    text: "⛔ Not counted — World ID's check was made before this request. Every approval needs a check made after it. Approve again to check now.",
+    text: "Not counted — World ID's check was made before this request. Every approval needs a check made after it. Approve again to check now.",
   },
   "not-seated": {
     tone: "bad",
-    text: "⛔ Not counted — this account has no vote. Claim your vote with World ID first, then approve.",
+    text: "Not counted — this account has no vote. Claim your vote with World ID first, then approve.",
   },
   "world-id-mismatch": {
     tone: "bad",
@@ -80,19 +80,19 @@ export const TREASURY_RESULT: Record<string, ResultCopy> = {
 export const WORLD_RESULT: Record<string, ResultCopy> = {
   "same-human": {
     tone: "bad",
-    text: "⛔ This World ID already vouches for another account — one human, one vote. Nothing was changed.",
+    text: "This World ID already vouches for another account — one human, one vote. Nothing was changed.",
   },
 };
 
 /** The last approval of something that pays nobody: an adoption of the rules, a recurring buy. */
 export const ADOPTED_RESULT = {
   ratify: {
-    executing: "✅ That was the last approval needed — the agent is adopting the rules now.",
-    executed: "✅ That was the last approval needed — the rules are adopted.",
+    executing: "That was the last approval needed — the agent is adopting the rules now.",
+    executed: "That was the last approval needed — the rules are adopted.",
   },
   "recurring-buy": {
-    executing: "✅ Last approval in — adopting the recurring buy.",
-    executed: "✅ Recurring buy adopted.",
+    executing: "Last approval in — adopting the recurring buy.",
+    executed: "Recurring buy adopted.",
   },
 } as const;
 

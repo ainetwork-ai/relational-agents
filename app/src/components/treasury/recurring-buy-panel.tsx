@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Check, Repeat } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
@@ -272,7 +272,10 @@ function Block({
       className="mt-3 rounded-md border border-neutral-200 px-3 py-2 dark:border-neutral-700"
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="shrink-0 text-sm font-medium text-neutral-900 dark:text-neutral-100">🔁 {t("Recurring buy")}</span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-neutral-900 dark:text-neutral-100">
+          <Repeat size={14} strokeWidth={1.75} aria-hidden className="opacity-70" />
+          {t("Recurring buy")}
+        </span>
         <span className="shrink-0 text-sm tabular-nums text-neutral-700 dark:text-neutral-300">{terms}</span>
         {chip}
         {route && (
@@ -341,7 +344,8 @@ function Slots({
             title={t("{name} approved with a fresh World ID check at {time} (Tokyo)", { name: p.displayName, time: clock(p.at) })}
             className="inline-flex h-5 items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 text-[11px] font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
           >
-            ✓ {p.displayName}
+            <Check size={11} strokeWidth={2.25} aria-hidden />
+            {p.displayName}
             <span className="tabular-nums opacity-75">{clock(p.at)}</span>
           </span>
         ) : (
@@ -428,8 +432,8 @@ function PendingBlock({
       <span className="text-xs text-neutral-600 dark:text-neutral-300">
         {iApproved
           ? left === 1
-            ? t("✓ You approved — waiting for 1 more.")
-            : t("✓ You approved — waiting for {n} more.", { n: left })
+            ? t("You approved — waiting for 1 more.")
+            : t("You approved — waiting for {n} more.", { n: left })
           : !status.mySeated
             ? t("No vote yet — claim it above.")
             : me && !me.voting
@@ -491,7 +495,10 @@ function LiveBlock({
       terms={termsLine(live, t)}
       chip={
         bought ? (
-          <Chip tone="ok">{t("✓ Bought this week")}</Chip>
+          <Chip tone="ok">
+            <Check size={11} strokeWidth={2.25} aria-hidden />
+            {t("Bought this week")}
+          </Chip>
         ) : (
           <Chip tone="ok">{t("Week {k} of {n}", { k: live.weekIndex, n: live.weeks })}</Chip>
         )

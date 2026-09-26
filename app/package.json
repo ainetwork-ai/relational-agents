@@ -14,6 +14,7 @@
     "emoji:gen": "tsx --tsconfig scripts/tsconfig.json scripts/gen-emoji-data.mts",
     "emoji:check": "tsx --tsconfig scripts/tsconfig.json scripts/check-emoji-data.mts",
     "check:dismiss": "tsx --tsconfig scripts/tsconfig.json scripts/check-dismiss.mts",
+    "check:chat-emoji": "tsx --tsconfig scripts/tsconfig.json scripts/check-chat-emoji.mts",
     "check:quiet": "tsx --tsconfig scripts/tsconfig.json scripts/check-quiet-messages.mts",
     "check:prompt": "tsx --tsconfig scripts/tsconfig.json scripts/prompt-export.check.mts",
     "demo:family": "tsx --tsconfig scripts/tsconfig.json scripts/seed-family-demo.mts"

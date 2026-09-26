@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ChevronRight, X } from "lucide-react";
+import { Ban, Check, ChevronRight, Globe, Landmark, X } from "lucide-react";
 import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
+import { ToneIcon } from "@/components/treasury/tone-icon";
 import { UserAvatar } from "@/components/user-avatar";
 import { ADOPTED_RESULT, TREASURY_RESULT, countedLine, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
 import { useT } from "@/i18n/provider";
@@ -54,7 +55,7 @@ function avatarOf(m: Member): string | null {
 const LOCAL_COPY: Record<string, Copy> = {
   "vote-claimed": {
     tone: "ok",
-    text: "🌍 Vote claimed — World ID confirmed you're a unique human. One human, one vote.",
+    text: "Vote claimed — World ID confirmed you're a unique human. One human, one vote.",
   },
   "vote-claimed-dev": { tone: "info", text: "Vote claimed with the dev simulator — not a World ID proof." },
 };
@@ -101,8 +102,8 @@ function memoOf(a: Action): string {
 }
 /** The history line's headline: a payment's amount and memo, or what a ratification adopts. */
 function titleOf(a: Action, amount: (n: number) => string): string {
-  if (a.kind === "recurring-buy") return `🔁 ${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
-  return a.kind === "ratify" ? `📜 Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
+  if (a.kind === "recurring-buy") return `${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
+  return a.kind === "ratify" ? `Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
 }
 const FILLER = new Set(["the", "a", "an", "for", "to", "of", "our", "and", "pay", "send", "book"]);
 function words(s: string): string[] {
@@ -201,7 +202,7 @@ function chipTitle(m: Member): string {
         ? "Vote claimed with the dev simulator — not a World ID proof"
         : `Vote claimed with World ID${m.seatLevel ? ` (${m.seatLevel})` : ""} — a unique human`,
   ];
-  if (m.worldVerified) lines.push("✓ World ID — this account has passed a fresh World ID check");
+  if (m.worldVerified) lines.push("World ID — this account has passed a fresh World ID check");
   if (!m.voting) lines.push("Joined after our rules were adopted — votes once the group adopts them again");
   return lines.join("\n");
 }
@@ -419,7 +420,7 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
               <span aria-hidden className="text-neutral-400">·</span>
             </span>
           ) : (
-            <span aria-hidden>🏦</span>
+            <Landmark size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-neutral-500 dark:text-neutral-400" />
           )}
           <span data-testid="treasury-balance" className="flex items-baseline gap-1.5">
             <span className="text-neutral-500 dark:text-neutral-400">Shared treasury</span>
@@ -468,6 +469,7 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
           data-testid="treasury-result"
           className={`mt-2 flex items-start gap-2 rounded-md border px-3 py-2 ${toneClass[banner.tone]}`}
         >
+          <ToneIcon tone={banner.tone} />
           <span className="flex-1">{banner.text}</span>
           <button
             type="button"
@@ -590,7 +592,7 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                   rpContext={rpContext}
                   disabled={claiming}
                   onVerified={claimSeat}
-                  label="🌍 Claim your vote with World ID"
+                  label="Claim your vote with World ID"
                 />
               ) : (
                 <button
@@ -598,9 +600,10 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                   data-testid="treasury-seat-claim"
                   onClick={() => void claimSeat({})}
                   disabled={claiming}
-                  className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
                 >
-                  {claiming ? "Verifying…" : "🌍 Claim your vote (dev simulator)"}
+                  {!claiming && <Globe size={14} strokeWidth={1.75} aria-hidden />}
+                  {claiming ? "Verifying…" : "Claim your vote"}
                 </button>
               )}
             </div>
@@ -614,7 +617,10 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
             >
               {seatError.sameHuman ? (
                 <>
-                  <div>⛔ {SAME_HUMAN_SEAT}</div>
+                  <div className="flex items-start gap-1.5">
+                    <Ban size={14} strokeWidth={1.75} aria-hidden className="mt-0.5 shrink-0" />
+                    {SAME_HUMAN_SEAT}
+                  </div>
                   {seatError.text !== SAME_HUMAN_SEAT && (
                     <div className="mt-0.5 text-xs font-normal opacity-80">{seatError.text}</div>
                   )}
@@ -708,7 +714,7 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                           title={`${p.displayName} approved with a fresh World ID check at ${clock(p.at)} (Tokyo)`}
                           className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
                         >
-                          ✓ {p.displayName} · <span className="tabular-nums">{clock(p.at)}</span>
+                          <Check size={12} strokeWidth={2.25} aria-hidden /> {p.displayName} · <span className="tabular-nums">{clock(p.at)}</span>
                         </span>
                       ) : (
                         <span
@@ -733,8 +739,9 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                       : "Paying on Sepolia — usually about 40 seconds. This updates when the payment confirms."}
                   </div>
                 ) : iApproved ? (
-                  <div data-testid="treasury-you-approved" className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-                    ✓ You approved — waiting for {humans(need - got)}.
+                  <div data-testid="treasury-you-approved" className="mt-3 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300">
+                    <Check size={14} strokeWidth={2.25} aria-hidden />
+                    You approved — waiting for {humans(need - got)}.
                   </div>
                 ) : !status.mySeated ? (
                   <div data-testid="treasury-no-vote" className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
@@ -761,9 +768,10 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
                           )}`
                         )
                       }
-                      className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
                     >
-                      🌍 Approve with World ID
+                      <Globe size={14} strokeWidth={1.75} aria-hidden />
+                      Approve with World ID
                     </button>
                     <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                       Every approval gets its own check: World ID confirms a human is approving, right now.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { HeartCrack } from "lucide-react";
 import { signTypedDataWithWallet } from "@/lib/wallet/sign";
 import type { RelationDissolveTypedData } from "@/lib/relation-contract";
 import { WalletSignatureError } from "@/lib/wallet/provider";
@@ -72,7 +73,7 @@ export function DissolveBanner({ roomId, refreshKey }: { roomId: string; refresh
       className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40"
     >
       <div className="flex items-center gap-2 font-medium text-red-900 dark:text-red-200">
-        <span aria-hidden>💔</span>
+        <HeartCrack size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />
         {asked.join(", ")} asked to close this relationship.
       </div>
       <div className="mt-1 text-red-800/80 dark:text-red-300/80">
