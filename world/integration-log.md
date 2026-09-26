@@ -245,3 +245,14 @@ Format: `JST time — surface — what happened`.
   before judging if judges try the live page. A hand-built probe of
   `/api/v4/verify` can't tell "window closed" from "bad proof" (schema is
   validated first), so the only check is a real simulator vote.
+- 2026-09-26 14:20 — both — **recording state on xyz**: final reset
+  (`--reset --no-preseat`) → room `cb5d981f…`, $1,000 (funder topped up
+  $184, tx `0x764a…`), no votes, no dev votes; sign-in links regenerated.
+  The rehearsal's WETH would have shown "+ $199.73 invested" from scene 0,
+  so it was swapped back: 0.000372 WETH → 0.99865 USDC on Base, tx
+  `0xb995cb18…379f4` (round trip cost ≈ 0.14% + gas). FRICTION: publicnode
+  refused the quoter's eth_call as an "archive request" that it had served
+  an hour earlier — the app's primary Base RPC is now drpc, with publicnode
+  and mainnet.base.org as fallbacks. The panel's "N/6 votes" counts World ID
+  proofs only; seeded dev votes draw a red ring and count for nothing — the
+  three off-camera votes (simulator Human 3·4·5) are what turn it into 4/6.
