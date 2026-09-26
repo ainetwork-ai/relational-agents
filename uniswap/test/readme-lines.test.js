@@ -17,12 +17,25 @@ const EXPECT = [
   ["invest.ts", "const amountOutMinimum ="],
   ["invest.ts", 'functionName: "exactInputSingle",'],
   ["invest.ts", "const receipt = await client.waitForTransactionReceipt({ hash: txHash })"],
-  ["invest.ts", 'const wethOut = parseEventLogs({ abi: erc20, logs: receipt.logs, eventName: "Transfer" })'],
+  ["uniswap-api.ts", "export function wethReceived("],
   ["invest.ts", "export async function investedPosition("],
   ["recurring-record.ts", "export function decideRun("],
   ["recurring.ts", "async function runLocked("],
   ["recurring.ts", "bought = await investViaUniswap("],
   ["approvals.ts", "if (claimed.kind === RECURRING_BUY_KIND) return adoptRecurringBuy("],
+  // Through the Uniswap Trading API
+  ["uniswap-api.ts", "export async function buyWethWithUsdc("],
+  ["invest.ts", "const fill = await buyWethWithUsdc({"],
+  ["uniswap-api.ts", "export const TRADING_API = {"],
+  ["uniswap-api.ts", 'const check = await call(deps, "/check_approval", {'],
+  ["uniswap-api.ts", 'const answer = await call(deps, "/quote", {'],
+  ["uniswap-api.ts", "function typedData("],
+  ["uniswap-api.ts", 'const swap = await call(deps, "/swap",'],
+  ["uniswap-api.ts", "p.committed = true;"],
+  ["uniswap-api.ts", 'await call(deps, "/order", { signature, quote, routing });'],
+  ["uniswap-api.ts", "async function orderFill("],
+  ["recurring-record.ts", "r.orderHash !== undefined"],
+  ["recurring.ts", "route: bought.route,"],
 ];
 
 test("uniswap/README.md line links land on the code they describe", () => {
