@@ -171,7 +171,7 @@ function clients(): Map<string, Promise<Client>> {
 async function connect(cfg: { server: string; token: string }): Promise<Client> {
   const c = new Client({ name: "relational-agents", version: "0.1.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${cfg.server}/mcp`), {
-    requestInit: { headers: { Authorization: `Bearer ${cfg.token}` } },
+    requestInit: { headers: { Authorization: `Bearer ${cfg.token}`, "X-AINUI": "1" } },
   });
   await c.connect(transport);
   return c;
@@ -182,7 +182,7 @@ async function connect(cfg: { server: string; token: string }): Promise<Client> 
 const CALL_TIMEOUT_MS = 15_000;
 
 /** Calls one aindrive MCP tool; a tool error becomes an AindriveError. */
-async function callTool(name: string, args: Record<string, unknown>, timeout = CALL_TIMEOUT_MS): Promise<unknown> {
+async function callTool(name: string, args: Record<string, unknown>, timeout = CALL_TIMEOUT_MS, withMeta = false): Promise<unknown> {
   const cfg = config();
   if (!cfg)
     throw new AindriveError(
@@ -207,7 +207,7 @@ async function callTool(name: string, args: Record<string, unknown>, timeout = C
     ? res.content.map((p) => (p && p.type === "text" ? p.text : "")).join("\n")
     : "";
   if (res.isError) throw new AindriveError(`aindrive ${name}: ${text || "failed"}`);
-  return res.structuredContent ?? text;
+  return withMeta ? res : res.structuredContent ?? text;
 }
 
 /** The tool names aindrive's MCP offers to the current account — how this app
@@ -389,4 +389,14 @@ export async function listTree(
     }
   }
   return out;
+}
+
+/** Preserve the producer's AIN-UI surface instead of reconstructing a view. */
+export async function callAindriveSurface(action: import("ain-ui").A2uiAction) {
+  const result = await callTool("a2ui_action", { action }, 120_000, true) as {
+    _meta?: Record<string, unknown>;
+  };
+  const messages = result._meta?.["ai.aindrive/a2ui"];
+  if (!Array.isArray(messages)) throw new AindriveError("aindrive did not return an AIN-UI surface. Update aindrive first.");
+  return messages as import("ain-ui").A2uiMessage[];
 }

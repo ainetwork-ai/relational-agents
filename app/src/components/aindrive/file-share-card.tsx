@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { AinuiSurface } from "ain-ui/react";
+import { X402_PAY_ACTION, type A2uiAction, type A2uiMessage } from "ain-ui";
+import "ain-ui/styles.css";
 import { Download, FileAudio, FileIcon, Lock } from "lucide-react";
 import { aindriveRawUrl } from "@/lib/aindrive-url";
 import { payX402WithWallet } from "@/lib/wallet/x402";
@@ -14,6 +17,8 @@ export interface FileShareInfo {
   owner: boolean;
   unlocked: boolean;
   needsAccount: boolean;
+  messages?: A2uiMessage[];
+  error?: string;
 }
 
 const ext = (n: string) => (n.includes(".") ? n.slice(n.lastIndexOf(".") + 1).toLowerCase() : "");
@@ -47,18 +52,19 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
   const e = ext(file.name);
   const src = aindriveRawUrl({ driveId, path });
 
-  async function buy() {
+  const paying = useRef(false);
+
+  async function buy(action: A2uiAction) {
+    if (action.name !== X402_PAY_ACTION || paying.current) return;
+    const paymentRequired = action.context?.paymentRequired;
+    if (typeof paymentRequired !== "string") throw new Error("Missing AIN-UI payment quote");
+    paying.current = true;
     const url = `/api/aindrive/links/${linkId}/sale`;
     const post = (body: object) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     setError(null);
     try {
-      setStep("quote");
-      const q = await post({});
-      const quote = (await q.json().catch(() => ({}))) as { paymentRequired?: string; unlocked?: boolean; error?: string };
-      if (quote.unlocked) return onUnlocked();
-      if (!q.ok || !quote.paymentRequired) throw new Error(quote.error ?? t("Payment failed. Please try again."));
       setStep("wallet");
-      const { header } = await payX402WithWallet(quote.paymentRequired);
+      const { header } = await payX402WithWallet(paymentRequired);
       setStep("settle");
       const r = await post({ paymentSignature: header });
       const d = (await r.json().catch(() => ({}))) as { unlocked?: boolean; txHash?: string | null; error?: string };
@@ -75,6 +81,7 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
             : (err as Error).message || t("Payment failed. Please try again.")
       );
     } finally {
+      paying.current = false;
       setStep(null);
     }
   }
@@ -120,23 +127,11 @@ export function FileShareCard({ linkId, driveId, path, info, onUnlocked }: {
           {info.needsAccount ? (
             <p className="text-xs text-neutral-500">{t("Connect your aindrive to buy this file")}</p>
           ) : (
-            <button
-              data-testid="file-share-buy"
-              onClick={() => void buy()}
-              disabled={step !== null}
-              className="mt-1 flex items-center gap-1.5 rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              <Lock size={14} />
-              {step === "quote"
-                ? t("402 · checking the price…")
-                : step === "wallet"
-                  ? t("Approve it in MetaMask…")
-                  : step === "settle"
-                    ? t("Settling USDC on Base…")
-                    : t("Buy for {price}", { price: `${sale!.price} ${sale!.currency}` })}
-            </button>
+            info.messages ? <fieldset disabled={step !== null} className="w-full min-w-0 text-left">
+              <AinuiSurface messages={info.messages} onAction={buy} />
+            </fieldset> : <p role="alert">{info.error ?? "Payment screen is unavailable. Refresh after updating aindrive."}</p>
           )}
-          <span className="text-[11px] text-neutral-400">{t("x402 · paid from your MetaMask on Base, settled by aindrive")}</span>
+          {step === "settle" && <p role="status">{t("Settling USDC on Base…")}</p>}
           {error && <span className="rounded bg-red-600/90 px-2 py-0.5 text-[11px] text-white">{error}</span>}
         </div>
       )}

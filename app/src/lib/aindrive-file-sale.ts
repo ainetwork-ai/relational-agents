@@ -1,3 +1,4 @@
+import type { A2uiMessage } from "ain-ui";
 import "server-only";
 import { aindriveHttp, listFiles } from "@/lib/aindrive";
 import { getAccount, runAs, runAsOrService } from "@/lib/aindrive-account";
@@ -58,7 +59,7 @@ export async function fileSale(drive: TeamspaceDrive): Promise<FileSale | null> 
 
 export type Quote =
   | { state: "unlocked" }
-  | { state: "quote"; paymentRequired: string }
+  | { state: "quote"; paymentRequired: string; messages: A2uiMessage[] }
   | { state: "needs-account" }
   | { state: "error"; status: number; error: string };
 
@@ -68,15 +69,18 @@ export async function quoteFor(userId: string, sale: FileSale, paymentSignature?
   const r = await runAs(userId, () =>
     aindriveHttp(
       `/api/s/${encodeURIComponent(sale.token)}`,
-      paymentSignature ? { headers: { "PAYMENT-SIGNATURE": paymentSignature } } : {},
+      { headers: { "X-AINUI": "1", ...(paymentSignature ? { "PAYMENT-SIGNATURE": paymentSignature } : {}) } },
       paymentSignature ? 120_000 : 30_000
     )
   ).catch((e: Error) => e);
   if (r instanceof Error) return { state: "error", status: 502, error: r.message };
-  const body = (await r.json().catch(() => ({}))) as { txHash?: string; error?: string };
+  const body = (await r.json().catch(() => ({}))) as { txHash?: string; error?: string; messages?: A2uiMessage[] };
   if (r.ok) return { state: "unlocked", txHash: body.txHash };
   const header = r.headers.get("PAYMENT-REQUIRED");
-  if (r.status === 402 && header && !paymentSignature) return { state: "quote", paymentRequired: header };
+  if (r.status === 402 && header && !paymentSignature) {
+    if (!Array.isArray(body.messages)) return { state: "error", status: 502, error: "Update aindrive to enable AIN-UI payments" };
+    return { state: "quote", paymentRequired: header, messages: body.messages };
+  }
   let error = body.error ?? `aindrive answered ${r.status}`;
   // aindrive words a failed on-chain check (most often: not enough USDC) as "facilitator unavailable"
   if (/facilitator unavailable/i.test(error))

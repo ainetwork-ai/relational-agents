@@ -36,6 +36,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     owner,
     unlocked: !sale || owner || q?.state === "unlocked",
     needsAccount: q?.state === "needs-account",
+    messages: q?.state === "quote" ? q.messages : undefined,
+    error: q?.state === "error" ? q.error : undefined,
   });
 }
 
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     forgetOpen(r.userId, r.drive.id);
     return NextResponse.json({ unlocked: true, txHash: q.txHash ?? null });
   }
-  if (q.state === "quote") return NextResponse.json({ paymentRequired: q.paymentRequired });
+  if (q.state === "quote") return NextResponse.json({ paymentRequired: q.paymentRequired, messages: q.messages });
   if (q.state === "needs-account") return NextResponse.json({ error: "Connect your aindrive to buy this file", needsAccount: true }, { status: 401 });
   return NextResponse.json({ error: q.error }, { status: q.status });
 }
