@@ -9,7 +9,7 @@
 video, read-only, and a copy of it anyone can enter as one of the five friends. No sign-up.
 
 **Demo video (3:35): [watch it on the live page](https://ainmem.ainetwork.xyz/world#demo)**, or
-[the file in this repo](../app/public/demo/world/relation-treasury.mp4).
+[the file](https://ainmem.ainetwork.xyz/world/video).
 
 This folder is the World submission: this page, the [demo script](DEMO.md), the
 [integration debriefs](DEBRIEF.md) and the [timestamped integration log](integration-log.md)
