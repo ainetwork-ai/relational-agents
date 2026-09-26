@@ -46,11 +46,25 @@ export function aindriveRawUrl(ref: AindriveRef, download = false): string {
   return `/api/aindrive/raw?${q}`;
 }
 
+/** A small thumbnail (~256px webp) of an image file, proxied from aindrive's
+ *  thumbnail endpoint. Mobile agents use the system's gallery cache (~20 KB
+ *  vs 10-40 MB originals); much faster for grids. */
+export function aindriveThumbUrl(ref: AindriveRef): string {
+  return `/api/aindrive/thumb?drive=${encodeURIComponent(ref.driveId)}&path=${encodeURIComponent(ref.path)}`;
+}
+
 /** The URL to fetch a file's bytes from: an aindrive link becomes the proxy,
  *  anything else is used as it is. */
 export function fileBytesUrl(url: string, base?: string | null): string {
   const ref = parseAindriveUrl(url, base);
   return ref ? aindriveRawUrl(ref) : url;
+}
+
+/** A thumbnail URL for an image: aindrive links use the thumbnail proxy,
+ *  others are used as-is (no external thumbnail service). */
+export function fileThumbUrl(url: string, base?: string | null): string {
+  const ref = parseAindriveUrl(url, base);
+  return ref ? aindriveThumbUrl(ref) : url;
 }
 
 /** Last path segment — the file's name. */
