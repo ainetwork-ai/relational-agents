@@ -105,6 +105,10 @@ const PRESEATED: Key[] = ["chris", "dana", "eli"];
 const funderKey = (process.env.RELAYER_KEY ?? process.env.DEPLOYER_KEY ?? "").trim();
 if (!funderKey) throw new Error("set RELAYER_KEY or DEPLOYER_KEY in app/.env.local — the payee and the funding both come from it");
 const funder = privateKeyToAccount((funderKey.startsWith("0x") ? funderKey : `0x${funderKey}`) as `0x${string}`).address;
+// Savings is an address of its own, so an investment visibly leaves the pot
+// (a Sepolia transfer beside the Base swap). Derived from the funder's key, so
+// it is the same on every run and the funder can always sweep it back.
+const savings = privateKeyToAccount(keccak256(stringToBytes(`${funderKey}:tokyo-trip savings`))).address;
 
 // ── accounts ────────────────────────────────────────────────────────────────
 // demo-login `as` finds an account by ainAddress "demo:<slug>" and keeps its
@@ -410,7 +414,7 @@ const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks
     okfType: "Fact",
     blocks: [
       ["bulleted_list", `Hotel Gracery Shinjuku: ${funder}`],
-      ["bulleted_list", `Savings (idle funds): ${agentAddress}`],
+      ["bulleted_list", `Savings (idle funds): ${savings}`],
     ],
   },
   {

@@ -1020,16 +1020,33 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
   let gasSponsored = false;
   let error: string | null = null;
   let investNote: string | null = null;
+  // an investment's first leg: the pot's money leaving for the Savings payee
+  let potTx: `0x${string}` | null = null;
+  let potError: string | null = null;
   try {
     const to = claimed.recipientAddress;
     if (!to || !/^0x[0-9a-fA-F]{40}$/.test(to)) error = "This request has no valid recipient address.";
     else if (claimed.kind === "investment" && investConfig()) {
-      // idle funds go to work, not to a payee: a Uniswap swap on Base from
-      // the agent's own wallet (invest.ts); the adopted "Savings" payee is
-      // that wallet, which recheck() confirmed above
+      // idle funds go to work: a Uniswap swap on Base from the agent's own
+      // wallet (invest.ts), and — when the adopted "Savings" payee is another
+      // address — the same amount leaves the pot for it on Sepolia, so the pot
+      // shows what is left and the invested badge what is at work, never both.
+      // The swap goes first: if it fails, nothing has moved.
       const invested = await investViaUniswap(claimed.agentUserId, claimed.amountUsd);
       txHash = invested.txHash;
       investNote = invested.note;
+      const own = (await ensureAgentWallet(claimed.agentUserId)).address;
+      if (to.toLowerCase() !== own.toLowerCase())
+        try {
+          ({ txHash: potTx, gasRefundTx, gasSponsored } = await transferUsd(
+            claimed.agentUserId,
+            to as `0x${string}`,
+            claimed.amountUsd
+          ));
+        } catch (err) {
+          console.error(`treasury: ${actionId} swapped but the pot did not move:`, err);
+          potError = errorText(err);
+        }
     } else
       ({ txHash, gasRefundTx, gasSponsored } = await transferUsd(
         claimed.agentUserId,
@@ -1073,15 +1090,20 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
 
     if (txHash && investNote) {
       const explorer = investConfig() ? INVEST_CHAIN.explorer : SEPOLIA_EXPLORER;
+      const potLine = potTx
+        ? `Out of the pot on Sepolia · tx ${potTx}`
+        : potError
+          ? `The swap went through, but the pot's transfer to Savings failed: ${potError.replace(/\.?$/, ".")} The pot still shows this amount.`
+          : null;
       if (required > 0)
         await postAgentMessage(
           claimed.roomId,
           claimed.agentUserId,
-          `Invested ${phrase} — ${investNote.replace(/\.$/, "")}.\n${approvedLine} · tx ${txHash}`
+          `Invested ${phrase} — ${investNote.replace(/\.$/, "")}.\n${approvedLine} · swap tx ${txHash}${potLine ? `\n${potLine}` : ""}`
         );
       await logActivity(
         claimed.roomId,
-        `Invested ${phrase} — ${investNote.replace(/\.$/, "")} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} · ${txLink(txHash, explorer)}`
+        `Invested ${phrase} — ${investNote.replace(/\.$/, "")} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} · swap ${txLink(txHash, explorer)}${potTx ? ` · out of the pot ${txLink(potTx)}` : potError ? ` · the pot did not move: ${potError}` : ""}`
       );
     } else if (txHash) {
       if (required > 0)
