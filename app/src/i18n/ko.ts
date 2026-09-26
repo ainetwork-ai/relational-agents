@@ -1605,7 +1605,7 @@ export const ko: Record<string, string> = {
   "{n} waiting for your approval": "내 승인 대기 {n}건",
   "{n} waiting on others": "다른 멤버 승인 대기 {n}건",
   "{n} waiting on you": "내 승인 대기 {n}건",
-  "{usdc} USDC → WETH · Uniswap v3 on Base": "{usdc} USDC → WETH · Base의 Uniswap v3",
+  "{usdc} USDC → WETH": "{usdc} USDC → WETH",
   "{weth} WETH for {usdc} USDC": "{usdc} USDC로 {weth} WETH",
   "↑↓ to move · Enter to select · Esc to close": "↑↓ 이동 · Enter 선택 · Esc 닫기",
   "✓ Bought this week": "✓ 이번 주 매수 완료",

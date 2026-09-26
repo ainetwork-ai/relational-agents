@@ -13,6 +13,36 @@ that back end on its own: no app, no database, one JSON file.
 
 Design record and rejected options: `plan.md`. Task-by-task build log: `tasks.md`.
 
+## In the app — the recurring buy in the Relation Treasury
+
+The same buy runs inside the app, where a relation's agent holds the shared pot. A member asks for
+a recurring buy in the room ("@agent buy $20 of ETH every week for 12 weeks") or through the
+treasurer; the relation's adopted rules decide how many verified humans must approve it with World
+ID; once they have, the agent may buy once a week inside those terms, from its own wallet on Base,
+and every run — bought or skipped — is a row in its history on the Treasury page, each buy also a
+line in the relation's Treasury Activity.
+Anyone in the room can stop it without a vote. Here the standing authority is approved by humans
+with World ID instead of a signed mandate; the swap, the once-a-week rule and the passbook carry over.
+
+| piece | where |
+|---|---|
+| addresses: QuoterV2, SwapRouter02, the USDC/WETH 0.05% pool (fee tier 500) | [`invest.ts:22`](../app/src/lib/agent/treasury/invest.ts#L22) |
+| `QuoterV2.quoteExactInputSingle`, simulated (it answers by reverting) | [`invest.ts:70`](../app/src/lib/agent/treasury/invest.ts#L70) |
+| an ERC-20 `approve` for exactly this buy, then the allowance read back on the same client until it shows | [`invest.ts:114`](../app/src/lib/agent/treasury/invest.ts#L114) |
+| `amountOutMinimum` from the quote and the slippage bound | [`invest.ts:127`](../app/src/lib/agent/treasury/invest.ts#L127) |
+| `SwapRouter02.exactInputSingle`, with its own gas limit | [`invest.ts:135`](../app/src/lib/agent/treasury/invest.ts#L135) |
+| a receipt wait that fails after broadcast keeps the tx hash, so the week counts as used | [`invest.ts:142`](../app/src/lib/agent/treasury/invest.ts#L142) |
+| the fill read from this swap's WETH `Transfer` log | [`invest.ts:152`](../app/src/lib/agent/treasury/invest.ts#L152) |
+| what the agent holds, priced back through the same pool | [`invest.ts:177`](../app/src/lib/agent/treasury/invest.ts#L177) |
+| once a week inside the approved terms: the decision and its refusal order | [`recurring-record.ts:327`](../app/src/lib/agent/treasury/recurring-record.ts#L327) |
+| one run: the room's lock, the re-checks, the swap, one history row | [`recurring.ts:661`](../app/src/lib/agent/treasury/recurring.ts#L661), swap at [`:690`](../app/src/lib/agent/treasury/recurring.ts#L690) |
+| adoption by World ID approvals; only payment kinds reach payment code | [`approvals.ts:990`](../app/src/lib/agent/treasury/approvals.ts#L990) |
+
+A real swap through this path on Base mainnet (the treasury's first investment, three humans
+approving): [0x9af1ec96…a53a4b](https://basescan.org/tx/0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b).
+Weekly runs move real USDC only where `TREASURY_INVEST=uniswap-base` and
+`TREASURY_RECURRING_REAL=1` are set; elsewhere a run is a rehearsal that writes nothing.
+
 ## Layout
 
 Each layer runs without the layer in front of it.
@@ -121,7 +151,9 @@ sits behind it. `WEB_PORT` changes the port.
 | Agent wallet: `RelationalAgentRegistry` holds the agent, `provisionRoomAgent()` gives it a key | pre-existing (`contracts/`, `app/`) |
 | EIP-712 consent between people (`RelationConsent`) — the mechanism the mandate reuses | pre-existing |
 | Everything under `uniswap/`: swap layer, `SpendMandate`, ledger, executor, CLIs, web page, tests | **new, built 2026-09-25/26 during ETHGlobal Tokyo** |
-| Passbook page inside the app, Trading API provider, scheduler | not yet (slice 2) |
+| The Relation Treasury in the app (rules from the relation's doc, World ID approvals, the Sepolia pot, the investing swap) | the World track, see [`world/`](../world/) for what existed before vs what was built |
+| The recurring buy in the app, its Treasury page (the agent's wallet, holdings per chain, every swap), the treasurer agent (7 tools, AG-UI stream, A2UI cards) | **new, built 2026-09-26 during ETHGlobal Tokyo** |
+| A scheduler that runs the week without a member asking, the Trading API provider | not yet |
 
 ## Honest limits
 

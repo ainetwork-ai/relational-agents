@@ -166,7 +166,11 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
     chip("state", t(state.label), state.tone),
     text("headline", t("{amount} a week", { amount: usd(s.weeklyUsd) }), "h3"),
     text("terms", t("For {weeks} weeks · at most {total} in total", { weeks: s.weeks, total: usd(s.exposureUsd) }), "body"),
-    text("swap", t("{usdc} USDC → WETH · Uniswap v3 on Base", { usdc: s.usdcPerWeek }), "caption"),
+    // the real swap; venue and chain as the badges every treasury surface draws (the renderer maps these tones)
+    row("swap", ["swap_amount", "venue", "chain"]),
+    text("swap_amount", t("{usdc} USDC → WETH", { usdc: s.usdcPerWeek }), "caption"),
+    chip("venue", "Uniswap v3", "uniswap"),
+    chip("chain", "Base", "base"),
   ];
 
   if (s.state === "pending") {
