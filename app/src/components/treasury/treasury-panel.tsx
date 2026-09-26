@@ -416,14 +416,15 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
           {agent ? (
             <span data-testid="treasury-agent" className="flex items-center gap-1.5" title={`${agent.name} holds this treasury and follows the rules the group adopted`}>
               <UserAvatar user={{ displayName: agent.name, avatarUrl: agent.avatarUrl ?? null }} size={20} />
-              <span className="font-medium">{agent.name}</span>
-              <span aria-hidden className="text-neutral-400">·</span>
+              {/* on a phone the face stands for the agent, so the closed panel stays one line */}
+              <span className="font-medium max-md:sr-only">{agent.name}</span>
+              <span aria-hidden className="text-neutral-400 max-md:hidden">·</span>
             </span>
           ) : (
             <Landmark size={16} strokeWidth={1.75} aria-hidden className="shrink-0 text-neutral-500 dark:text-neutral-400" />
           )}
-          <span data-testid="treasury-balance" className="flex items-baseline gap-1.5">
-            <span className="text-neutral-500 dark:text-neutral-400">Shared treasury</span>
+          <span data-testid="treasury-balance" className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="text-neutral-500 max-md:sr-only dark:text-neutral-400">{t("Shared treasury")}</span>
             <span className="text-base font-semibold tabular-nums">
               {status.balanceUsd === null ? "—" : usd(status.balanceUsd)}
             </span>
@@ -447,11 +448,12 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
           {t("Open treasury")}
           <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
         </Link>
-        {/* what was paid, refused and invested lives on the Treasury page's Activity tab, not under the chat */}
+        {/* what was paid, refused and invested lives on the Treasury page's Activity tab, not under the chat;
+            on a phone "Open treasury" beside it is the one way there, so the closed panel stays one line */}
         <Link
           href={`/treasury/${roomId}/activity`}
           data-testid="treasury-history-link"
-          className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md px-1.5 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+          className="inline-flex h-7 shrink-0 max-md:hidden items-center gap-0.5 whitespace-nowrap rounded-md px-1.5 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
         >
           {t("History")}
           <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />

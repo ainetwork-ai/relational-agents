@@ -1695,5 +1695,6 @@ export const ko: Record<string, string> = {
   "No vote yet — claim it above.": "아직 투표권이 없어요 — 위에서 받으세요.",
   "Backed-up pages are read-only here.": "백업된 페이지는 여기서 읽기만 할 수 있어요.",
   "Unlink": "연결 해제",
+  "Shared treasury": "모임통장",
   "This recurring buy isn't running any more — nothing to buy.": "이 정기 매수는 이미 끝났어요 — 살 게 없어요.",
 };
