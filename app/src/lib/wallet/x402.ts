@@ -40,7 +40,7 @@ export async function payX402WithWallet(paymentRequired: string): Promise<{ head
   const req = required.accepts.find((r) => r.scheme === "exact" && r.network.startsWith("eip155:") && r.extra?.assetTransferMethod !== "permit2");
   if (!req) throw new Error("no wallet-signable payment option in the 402");
   const chainId = Number(req.network.split(":")[1]);
-  const from = await connectWallet();
+  const from = await connectWallet({ selectAccount: true });
   const now = Math.floor(Date.now() / 1000);
   const authorization = {
     from,

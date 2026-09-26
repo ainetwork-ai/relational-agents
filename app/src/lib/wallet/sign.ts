@@ -37,11 +37,19 @@ export interface SignedTypedData extends WalletSignature {
 /**
  * Prompt the wallet for account access and return the selected address.
  * Idempotent from the user's point of view: once authorised, the wallet
- * answers without a popup.
+ * answers without a popup. Set `selectAccount` to ask the wallet to choose
+ * the site's account again before a payment.
  */
-export async function connectWallet(): Promise<Address> {
+export async function connectWallet(opts: { selectAccount?: boolean } = {}): Promise<Address> {
   const client = getWalletClient();
   try {
+    if (opts.selectAccount) {
+      // eth_requestAccounts alone reuses the site's existing permission,
+      // which can differ from the account displayed in the extension.
+      // Fail closed if selection is rejected or unavailable: a payment must
+      // not silently continue with the previously connected account.
+      await client.requestPermissions({ eth_accounts: {} });
+    }
     const [address] = await client.requestAddresses();
     if (!address) {
       throw new WalletSignatureError(
