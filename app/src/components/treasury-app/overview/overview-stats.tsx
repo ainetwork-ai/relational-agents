@@ -9,7 +9,6 @@ import styles from "./treasury-overview.module.css";
 interface StatSpec {
   filter: Exclude<OverviewFilter, "all">;
   label: string;
-  hint: string;
   value: number;
   /** the approval count reads orange while something waits on the viewer */
   waitTone: boolean;
@@ -29,21 +28,18 @@ export function OverviewStatStrip({
     {
       filter: "needs-approval",
       label: t("Needs your approval"),
-      hint: t("Requests waiting on your vote"),
       value: stats.needsYourApproval,
       waitTone: true,
     },
     {
       filter: "recurring-running",
       label: t("Recurring buys running"),
-      hint: t("Adopted and buying weekly"),
       value: stats.recurringRunning,
       waitTone: false,
     },
     {
       filter: "bought-this-week",
       label: t("Buys this week"),
-      hint: t("Already bought this week"),
       value: stats.boughtThisWeek,
       waitTone: false,
     },
@@ -65,7 +61,6 @@ export function OverviewStatStrip({
           >
             <span className={styles.statLabel}>{spec.label}</span>
             <span className={`${styles.statValue} ${styles.num} ${valueClass}`}>{spec.value}</span>
-            <span className={styles.statHint}>{spec.hint}</span>
           </button>
         );
       })}

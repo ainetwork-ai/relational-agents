@@ -2,12 +2,13 @@
 
 /**
  * /treasury/[roomId]/rules — the rules the treasurer enforces (the adopted
- * version), the bar each one sets, who adopted them, and doc edits nobody has
- * adopted yet.
+ * version), the bar each one sets, who adopted them, doc edits nobody has
+ * adopted yet, and the members whose approvals count.
  */
 
 import Link from "next/link";
 import { useIntlLocale, useT } from "@/i18n/provider";
+import { MembersCard } from "./members-card";
 import { useTreasuryRoomData } from "./room-data";
 import { adoptionInForce, dateOnly, ruleBars } from "./room-model";
 import styles from "./treasury-room.module.css";
@@ -17,7 +18,8 @@ const BAR_TONE = { ok: styles.chipOk, wait: styles.chipWait, bad: styles.chipBad
 export function RulesTab() {
   const t = useT();
   const intlLocale = useIntlLocale();
-  const { status } = useTreasuryRoomData().data;
+  const { data } = useTreasuryRoomData();
+  const { status, room, me } = data;
   const bars = ruleBars(t, status.rules);
   const adoption = adoptionInForce(status);
   const proposal = status.proposal;
@@ -37,17 +39,22 @@ export function RulesTab() {
           </div>
           {status.rulesPageId && (
             <Link href={`/p/${status.rulesPageId}`} className={styles.pillLink}>
-              {t("Open in the memory doc")}
+              {t("Open relation doc")}
             </Link>
           )}
         </div>
 
-        {adoption && (
+        {/* a founding adoption needs no votes: it carries only its own words */}
+        {adoption && (adoption.requiredApprovals > 0 || adoption.ruleText) && (
           <p className={styles.adoption}>
-            {t("Approved by {names}", { names: adoption.approvals.map((p) => p.displayName).join(", ") || "—" })}{" "}
-            <span className={`${styles.muted} ${styles.num}`}>
-              {t("({got} of {need} verified humans)", { got: adoption.approvals.length, need: adoption.requiredApprovals })}
-            </span>
+            {adoption.requiredApprovals > 0 && (
+              <>
+                {t("Approved by {names}", { names: adoption.approvals.map((p) => p.displayName).join(", ") || "—" })}{" "}
+                <span className={`${styles.muted} ${styles.num}`}>
+                  {t("({got} of {need} verified humans)", { got: adoption.approvals.length, need: adoption.requiredApprovals })}
+                </span>
+              </>
+            )}
             {adoption.ruleText && <span className={styles.quote}> “{adoption.ruleText}”</span>}
           </p>
         )}
@@ -65,9 +72,7 @@ export function RulesTab() {
             ))}
           </ul>
         )}
-        <p className={styles.footnote}>
-          {t("When several rules apply, a rule that forbids it wins, otherwise the highest bar. A request no rule covers is refused.")}
-        </p>
+        <p className={styles.footnote}>{t("A forbidding rule wins, then the highest bar. A request no rule covers is refused.")}</p>
       </section>
 
       {hasProposal && proposal && (
@@ -75,7 +80,7 @@ export function RulesTab() {
           <div className={styles.cardHead}>
             <div>
               <h2 className={styles.cardTitle}>{t("Edits not adopted yet")}</h2>
-              <p className={styles.cardSub}>{t("The memory doc differs from what was adopted. None of this applies until the relation adopts it.")}</p>
+              <p className={styles.cardSub}>{t("Applies once the relation adopts it.")}</p>
             </div>
           </div>
           <ul className={styles.diff}>
@@ -98,6 +103,8 @@ export function RulesTab() {
           </ul>
         </section>
       )}
+
+      <MembersCard status={status} people={room.members} meId={me.id} />
     </div>
   );
 }

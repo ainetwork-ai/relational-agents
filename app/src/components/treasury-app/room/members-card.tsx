@@ -1,6 +1,6 @@
 "use client";
 
-/** Members · Contributions: who is in the relation, whose vote counts, and who asked for and approved what. */
+/** Members: who is in the relation, whose vote counts, and who asked for and approved what lately. */
 
 import { BadgeCheck } from "lucide-react";
 import { useT } from "@/i18n/provider";
@@ -16,10 +16,7 @@ export function MembersCard({ status, people, meId }: { status: TreasuryStatus; 
   return (
     <section className={styles.card} data-testid="treasury-room-members">
       <div className={styles.cardHead}>
-        <div>
-          <h2 className={styles.cardTitle}>{t("Members · Contributions")}</h2>
-          <p className={styles.cardSub}>{t("Requests asked and approvals given, across recent treasury activity")}</p>
-        </div>
+        <h2 className={styles.cardTitle}>{t("Members")}</h2>
       </div>
       <ul className={styles.list}>
         {rows.map((m) => {

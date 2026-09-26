@@ -130,7 +130,7 @@ export function OverviewList({ rooms, now }: { rooms: TreasurySummaryRoom[]; now
     <>
       <div className={styles.th} aria-hidden>
         <span>{t("Relation")}</span>
-        <span className={styles.thRight}>{t("Treasury balance")}</span>
+        <span className={styles.thRight}>{t("Shared pot")}</span>
         <span className={styles.thIndent}>{t("Recurring buy")}</span>
         <span className={styles.thRight}>{t("Your approvals")}</span>
         <span>{t("Latest activity")}</span>

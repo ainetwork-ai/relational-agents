@@ -16,7 +16,8 @@ import { OverviewStatStrip } from "./overview-stats";
 import type { TreasurySummaryRoom } from "@/lib/agent/treasury/summary";
 import styles from "./treasury-overview.module.css";
 
-const SUMMARY_URL = "/api/treasury/summary";
+// the overview asks for each pot; the sidebar's poll of the same route stays chain-free
+const SUMMARY_URL = "/api/treasury/summary?balances=1";
 // Same cadence as the sidebar's poll of this route (components/sidebar/use-treasury-summary.ts).
 const POLL_MS = 30_000;
 const PRETENDARD_CSS =
@@ -73,6 +74,8 @@ function SwitchOffNote() {
     <div className="mx-auto max-w-xl px-6 py-24 text-sm text-neutral-600 dark:text-neutral-300">
       <p className="font-medium text-neutral-800 dark:text-neutral-100">{t("The new Treasury view is off in this browser.")}</p>
       <p className="mt-2">
+        {/* a full load: the switch reads ?treasury= from the URL it loads with (use-treasury-ui.ts), not from a client-side push */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/treasury?treasury=v2" className="text-blue-600 underline underline-offset-2 dark:text-blue-400">
           {t("Turn it on")}
         </a>
@@ -89,9 +92,6 @@ function EmptyState() {
         ✦
       </div>
       <p className={styles.emptyTitle}>{t("No treasuries yet")}</p>
-      <p className={styles.emptyText}>
-        {t("A treasury lives inside a relation's room. Once one of your relations holds a treasury, it shows up here.")}
-      </p>
     </div>
   );
 }
@@ -101,7 +101,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className={styles.empty} role="alert">
       <p className={styles.emptyTitle}>{t("Couldn't load your treasuries")}</p>
-      <p className={styles.emptyText}>{t("Check your connection and try again.")}</p>
       <button type="button" className={styles.btnDark} onClick={onRetry}>
         {t("Try again")}
       </button>
@@ -143,9 +142,7 @@ function Overview() {
       {/* React hoists and dedupes this stylesheet; the font stack falls back to system fonts until it lands */}
       <link rel="stylesheet" href={PRETENDARD_CSS} precedence="default" />
       <div className={styles.page}>
-        <p className={styles.kicker}>{t("Money across your relations")}</p>
         <h1 className={styles.title}>{t("Your treasuries")}</h1>
-        <p className={styles.subtitle}>{t("Every relation's shared pot, its recurring buy and what is waiting on you.")}</p>
 
         {hasRooms && <OverviewStatStrip stats={stats} filter={filter} onFilter={setFilter} />}
 

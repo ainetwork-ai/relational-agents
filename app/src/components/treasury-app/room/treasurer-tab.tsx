@@ -2,16 +2,15 @@
 
 /**
  * /treasury/[roomId]/treasurer — the room's agent as the relation's
- * Treasurer: what it is running now, what it did lately, its one wallet on
- * both chains, the adopted rules it follows, and what it never does.
+ * Treasurer: what it is running now, what it did lately, the adopted rules
+ * it follows, and what it never does. Its wallet is the Wallet tab.
  */
 
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { ActivityFeed } from "./activity-feed";
 import { useTreasuryRoomData } from "./room-data";
-import { BASE_EXPLORER, SEPOLIA_EXPLORER, dateOnly, dateTime, ruleBars, shortAddress, treasuryPath, usd, weekdayDate } from "./room-model";
+import { dateOnly, ruleBars, treasuryPath, usd, weekdayDate } from "./room-model";
 import styles from "./treasury-room.module.css";
 
 const BAR_TONE = { ok: styles.chipOk, wait: styles.chipWait, bad: styles.chipBad, info: styles.chipMuted } as const;
@@ -28,11 +27,11 @@ export function TreasurerTab() {
   const bars = ruleBars(t, status.rules);
 
   const never = [
-    t("Decides to move money on its own judgement — money sentences are matched by shape and our rules set the bar."),
-    t("Spends beyond what our rules let it do alone, or beyond an authority the members approved."),
-    t("Changes its own rules — only the members adopt them, with World ID."),
-    t("Buys more than once a week under a recurring buy, or after anyone stops it."),
-    t("Uses a second wallet — one address holds the pot on Sepolia and buys on Base."),
+    t("Moves money on its own judgement"),
+    t("Spends beyond our rules or an approved authority"),
+    t("Changes its own rules"),
+    t("Buys twice in one week, or after a stop"),
+    t("Uses a second wallet"),
   ];
 
   return (
@@ -89,41 +88,6 @@ export function TreasurerTab() {
         </ul>
       </section>
 
-      <section className={styles.card} data-testid="treasury-room-wallets">
-        <div className={styles.cardHead}>
-          <div>
-            <h2 className={styles.cardTitle}>{t("Wallets")}</h2>
-            <p className={styles.cardSub}>{t("One agent address on two chains")}</p>
-          </div>
-        </div>
-        {status.address ? (
-          <ul className={styles.list}>
-            <li className={styles.walletRow}>
-              <span className={styles.walletChain}>Sepolia</span>
-              <span className={styles.walletText}>
-                <span>{t("The shared pot")}</span>
-                <span className={styles.mono}>{shortAddress(status.address)}</span>
-              </span>
-              <a href={`${SEPOLIA_EXPLORER}/address/${status.address}`} target="_blank" rel="noreferrer" className={styles.pillLink}>
-                Etherscan <ExternalLink size={12} aria-hidden />
-              </a>
-            </li>
-            <li className={styles.walletRow}>
-              <span className={`${styles.walletChain} ${styles.walletBase}`}>Base</span>
-              <span className={styles.walletText}>
-                <span>{t("Recurring buys and investments")}</span>
-                <span className={styles.mono}>{shortAddress(status.address)}</span>
-              </span>
-              <a href={`${BASE_EXPLORER}/address/${status.address}`} target="_blank" rel="noreferrer" className={styles.pillLink}>
-                Basescan <ExternalLink size={12} aria-hidden />
-              </a>
-            </li>
-          </ul>
-        ) : (
-          <p className={styles.emptyLine}>{t("The wallet can't be read right now.")}</p>
-        )}
-      </section>
-
       <section className={styles.card} data-testid="treasury-room-follows">
         <div className={styles.cardHead}>
           <div>
@@ -159,7 +123,7 @@ export function TreasurerTab() {
         </ul>
       </section>
 
-      <ActivityFeed status={status} roomId={roomId} now={at} limit={5} />
+      <ActivityFeed status={status} wallet={data.wallet} roomId={roomId} now={at} variant="all" limit={5} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   chatRoomBots,
@@ -15,13 +15,17 @@ import { loadRelationTreasury } from "./memory";
 import { parseAuthority, parseRun } from "./recurring-record";
 import { recurringBuyStatus } from "./recurring";
 import { RATIFY_KIND, RECURRING_BUY_KIND, RECURRING_RUN_KIND, REQUEST_TTL_MS } from "./types";
+import { displayBalance, ensureAgentWallet } from "./wallet";
 
 /**
- * Money state per relation, for the sidebar (GET /api/treasury/summary).
+ * Money state per relation, for the sidebar and the treasuries overview
+ * (GET /api/treasury/summary).
  *
  * Polled every 30 s by every open sidebar, so it is READ-ONLY and chain-free:
  * no treasuryStatus (its polls sweep abandoned claims, lapse requests and
- * restart executions), no RPC, no key minting. It reads treasury_actions /
+ * restart executions), no RPC, no key minting. Only the overview page asks for
+ * pots (`balances`): one read per room through wallet.ts's shared 5 s cache,
+ * and only for an agent that already has its key. It reads treasury_actions /
  * treasury_approvals / treasury_seats directly and applies the same
  * definitions approvals.ts uses:
  *   pending   status "pending", not claimed (decidedAt null), not past its TTL
@@ -32,7 +36,7 @@ import { RATIFY_KIND, RECURRING_BUY_KIND, RECURRING_RUN_KIND, REQUEST_TTL_MS } f
 export interface TreasurySummaryRoom {
   roomId: string;
   roomName: string;
-  /** the pot if cheaply known; null here, since the only cache of it is private to wallet.ts */
+  /** the pot in demo-scale dollars when asked for (`balances`) and readable; null otherwise */
   balanceUsd: number | null;
   /** pending requests in the room */
   pendingTotal: number;
@@ -74,6 +78,8 @@ export function describeTreasuryAction(a: TreasuryAction, now: number): string {
     if (a.status === "executed") return `${record?.revokedAt ? "Recurring buy stopped" : "Recurring buy adopted"}${terms}`;
     if (isOpen(a, now)) return `Recurring buy waiting for approval${terms}`;
     if (a.status === "pending" && a.decidedAt === null) return `Recurring buy expired${terms}`;
+    // a request its asker (or any member) withdrew before it was adopted
+    if (a.status === "cancelled" && record?.revokedAt !== undefined) return `Recurring buy withdrawn${terms}`;
     return `Recurring buy not adopted${terms}`;
   }
   if (a.kind === RATIFY_KIND) {
@@ -121,8 +127,24 @@ async function recurringOf(roomId: string): Promise<TreasurySummaryRoom["recurri
   }
 }
 
+/** The pot through wallet.ts's shared display cache; never mints a key (an agent without one holds nothing yet). */
+async function potUsd(agent: { agentUserId: string; hasKey: boolean } | undefined): Promise<number | null> {
+  if (!agent?.hasKey) return null;
+  try {
+    const { address } = await ensureAgentWallet(agent.agentUserId);
+    return (await displayBalance(address)).usd;
+  } catch (err) {
+    console.error("treasury summary: pot unavailable:", err);
+    return null;
+  }
+}
+
 /** Every relation the viewer is a human member of whose agent holds a treasury (Rules in its doc). */
-export async function treasurySummary(viewerId: string, now = Date.now()): Promise<TreasurySummaryRoom[]> {
+export async function treasurySummary(
+  viewerId: string,
+  now = Date.now(),
+  opts: { balances?: boolean } = {}
+): Promise<TreasurySummaryRoom[]> {
   const [viewer] = await db.select({ isAgent: users.isAgent }).from(users).where(eq(users.id, viewerId)).limit(1);
   if (!viewer || viewer.isAgent) return [];
 
@@ -133,17 +155,21 @@ export async function treasurySummary(viewerId: string, now = Date.now()): Promi
     .where(eq(chatRoomMembers.userId, viewerId));
   if (!memberOf.length) return [];
 
-  // a treasury needs the room's agent: rooms without one are skipped before any doc read
-  const botRooms = new Set(
-    (
-      await db
-        .select({ roomId: chatRoomBots.roomId })
-        .from(chatRoomBots)
-        .innerJoin(users, eq(users.id, chatRoomBots.agentUserId))
-        .where(and(inArray(chatRoomBots.roomId, memberOf.map((r) => r.roomId)), eq(users.isAgent, true)))
-    ).map((r) => r.roomId)
-  );
-  const candidates = memberOf.filter((r) => botRooms.has(r.roomId));
+  // a treasury needs the room's agent: rooms without one are skipped before any doc read;
+  // the first agent by import is the one treasuryStatus reads the pot of
+  const agentRows = await db
+    .select({
+      roomId: chatRoomBots.roomId,
+      agentUserId: chatRoomBots.agentUserId,
+      hasKey: sql<boolean>`coalesce(${users.encryptedPrivateKey}, '') <> ''`,
+    })
+    .from(chatRoomBots)
+    .innerJoin(users, eq(users.id, chatRoomBots.agentUserId))
+    .where(and(inArray(chatRoomBots.roomId, memberOf.map((r) => r.roomId)), eq(users.isAgent, true)))
+    .orderBy(asc(chatRoomBots.importedAt));
+  const agentOf = new Map<string, { agentUserId: string; hasKey: boolean }>();
+  for (const a of agentRows) if (!agentOf.has(a.roomId)) agentOf.set(a.roomId, a);
+  const candidates = memberOf.filter((r) => agentOf.has(r.roomId));
   const treasuries = await Promise.all(candidates.map((r) => loadRelationTreasury(r.roomId)));
   const rooms = candidates
     .map((r, i) => ({ ...r, treasury: treasuries[i] }))
@@ -184,7 +210,7 @@ export async function treasurySummary(viewerId: string, now = Date.now()): Promi
 
   return Promise.all(
     rooms.map(async (r): Promise<TreasurySummaryRoom> => {
-      const [latestRow, recurring] = await Promise.all([
+      const [latestRow, recurring, balanceUsd] = await Promise.all([
         db
           .select()
           .from(treasuryActions)
@@ -193,13 +219,14 @@ export async function treasurySummary(viewerId: string, now = Date.now()): Promi
           .limit(1)
           .then((rows) => rows[0] ?? null),
         recurringOf(r.roomId),
+        opts.balances ? potUsd(agentOf.get(r.roomId)) : Promise.resolve(null),
       ]);
       const roomOpen = open.filter((a) => a.roomId === r.roomId);
       const iVote = seatedIn.has(r.roomId) && r.treasury.electorate.includes(viewerId);
       return {
         roomId: r.roomId,
         roomName: r.name,
-        balanceUsd: null,
+        balanceUsd,
         pendingTotal: roomOpen.length,
         pendingForMe: iVote ? roomOpen.filter((a) => !approvedByMe.has(a.id)).length : 0,
         recurring,
