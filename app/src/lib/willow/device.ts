@@ -10,6 +10,7 @@
  */
 import { generateDeviceKey, signEntry, signTransaction, toHex, utf8, type DeviceKey, type WireJson } from "@/lib/willow/entry";
 import type { SignedEnvelope, Transaction } from "@/lib/transactions/types";
+import { getTransactionQueue } from "@/lib/editor/transaction-queue";
 
 export interface Signer {
   key: DeviceKey;
@@ -33,6 +34,14 @@ function openDb(): Promise<IDBDatabase> {
 
 async function keyFor(userId: string): Promise<DeviceKey> {
   const db = await openDb();
+  try {
+    return await keyIn(db, userId);
+  } finally {
+    db.close(); // so logout can delete the database
+  }
+}
+
+async function keyIn(db: IDBDatabase, userId: string): Promise<DeviceKey> {
   const got = await new Promise<{ userId: string; privateKey: CryptoKey; publicKey: Uint8Array } | undefined>((res, rej) => {
     const r = db.transaction(STORE, "readonly").objectStore(STORE).get(userId);
     r.onsuccess = () => res(r.result);
@@ -95,11 +104,41 @@ async function load(userId: string): Promise<Signer | null> {
   };
 }
 
-/** The signer for this user on this browser, or null (unsigned). */
+/** The signer for this user on this browser, or null (unsigned). When the
+ * server drops one of its signatures (a rotated secret, a removed device), the
+ * certificate and binding are fetched again on next use. */
 export function signerFor(userId: string): Promise<Signer | null> {
   let p = memo.get(userId);
-  if (!p) memo.set(userId, (p = load(userId).catch(() => null)));
+  if (!p) {
+    memo.set(userId, (p = load(userId).catch(() => null)));
+    if (!listening.has(userId)) {
+      listening.add(userId);
+      getTransactionQueue().onSignatureRefused(() => forgetCert(userId));
+    }
+  }
   return p;
+}
+
+const listening = new Set<string>();
+
+function forgetCert(userId: string) {
+  memo.delete(userId);
+  try {
+    localStorage.removeItem(lsKey(userId));
+  } catch {}
+}
+
+/** Remove every signing key and certificate this browser holds (logout). */
+export async function forgetDevices(): Promise<void> {
+  memo.clear();
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("ainmem-willow:")) localStorage.removeItem(k);
+  } catch {}
+  if (typeof indexedDB === "undefined") return;
+  await new Promise<void>((res) => {
+    const r = indexedDB.deleteDatabase(DB);
+    r.onsuccess = r.onerror = r.onblocked = () => res();
+  });
 }
 
 /** Signs each transaction of a page in `teamspaceId`, linked to `driveId`, for the queue. */

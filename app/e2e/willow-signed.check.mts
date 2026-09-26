@@ -8,9 +8,14 @@
 //   1. An edit in a linked teamspace reaches the drive as a Willow entry that verifies,
 //      signed by the device aindrive certified, whose payload is the transaction; the
 //      server applies it.
-//   2. aindrive refusing the device (revoked): the edit is not applied.
-//   3. aindrive down: the edit is applied anyway, and reaches the drive once it is back.
-//   4. The block menu names the signer: "Signed".
+//   2. aindrive refusing the device (revoked): the edit is still applied — unsigned, never
+//      lost (review C1) — and nothing is recorded in the drive.
+//   3. aindrive down: the edit is applied, the save answers 200 (no error badge, review
+//      I4), and the entry reaches the drive once it is back.
+//   4. The block menu names the signer: "Signed" — with one authors request per page.
+//   5. A signed transaction whose body differs from its signed payload: the payload applies.
+//   6. A binding made for another user: applied unsigned, not recorded.
+//   7. Transactions signed at different speeds are stored in the order they were made.
 // dev only. Removes the page, the link and the account row it made.
 import fs from "node:fs";
 import http from "node:http";
@@ -18,7 +23,8 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { sealData } from "iron-session";
 import { chromium } from "@playwright/test";
 import pg from "pg";
-import { verifyEntry, type WireJson } from "../src/lib/willow/entry";
+import { createHmac } from "node:crypto";
+import { importDeviceSeed, signEntry, signTransaction, toHex, utf8, verifyEntry, type WireJson } from "../src/lib/willow/entry";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3110";
 const USER_ID = process.env.USER_ID ?? "8ccf17a7-24fb-4ae9-974c-94bf5db0cf85";
@@ -86,7 +92,10 @@ const seal = (plain: string) => {
   const b = Buffer.concat([c.update(plain, "utf8"), c.final()]);
   return [iv, c.getAuthTag(), b].map((x) => x.toString("base64url")).join(".");
 };
-const prevAccount = (await db.query("SELECT * FROM aindrive_accounts WHERE user_id = $1", [USER_ID])).rows[0];
+// a run that crashed before its cleanup left these behind: never treat them as the real ones
+await db.query("DELETE FROM teamspace_drives WHERE drive_id = $1", [DRIVE]);
+const found = (await db.query("SELECT * FROM aindrive_accounts WHERE user_id = $1", [USER_ID])).rows[0];
+const prevAccount = found && found.server !== FAKE ? found : undefined;
 await db.query(
   `INSERT INTO aindrive_accounts (user_id, server, token_enc, email, name) VALUES ($1, $2, $3, 'mom@example.com', 'Mom')
    ON CONFLICT (user_id) DO UPDATE SET server = EXCLUDED.server, token_enc = EXCLUDED.token_enc, expires_at = NULL`,
@@ -138,17 +147,15 @@ try {
   check("1. its payload is the transaction", !!tx && tx.pageId === pageId && tx.id === mine[0].path[3] && Array.isArray(tx.operations));
   check("1. the server applied it", srv === "AB signed", `server=${JSON.stringify(srv)}`);
 
-  // 2. revoked → not applied
+  // 2. revoked → applied unsigned, not recorded
   mode = "revoked";
-  await typeAtEnd(" nope");
-  await sleep(3000);
-  srv = await serverText();
-  check("2. a device aindrive refuses: the edit is not applied", srv === "AB signed", `server=${JSON.stringify(srv)}`);
+  const recordedBefore = received.length;
+  await typeAtEnd(" kept");
+  for (let i = 0; i < 20; i++) { srv = await serverText(); if (srv.endsWith(" kept")) break; await sleep(500); }
+  check("2. a device aindrive refuses: the edit is still applied (unsigned)", srv === "AB signed kept", `server=${JSON.stringify(srv)}`);
+  check("2. …and nothing of it is recorded in the drive", received.length === recordedBefore, `recorded=${received.length - recordedBefore}`);
   mode = "ok";
-  // the editor takes the server's version back after a refusal
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForFunction((id) => (window as unknown as { __editorReady?: string }).__editorReady === id, pageId, { timeout: 120_000 });
-  await page.waitForTimeout(1500);
+  await sleep(1000);
 
   // 3. aindrive down → applied now, forwarded later
   mode = "down";
@@ -156,15 +163,20 @@ try {
   statuses.length = 0;
   await typeAtEnd(" later");
   for (let i = 0; i < 20; i++) { srv = await serverText(); if (srv.endsWith(" later")) break; await sleep(500); }
-  check("3. aindrive down: the edit is applied anyway", srv === "AB signed later", `server=${JSON.stringify(srv)}`);
-  check("3. …and the save says it is not in the drive yet (503)", statuses.includes(503), `statuses=${statuses.join(",")}`);
+  check("3. aindrive down: the edit is applied anyway", srv === "AB signed kept later", `server=${JSON.stringify(srv)}`);
+  check("3. …the saves answer 200, not an error", statuses.length > 0 && statuses.every((x) => x === 200), `statuses=${statuses.join(",")}`);
+  await sleep(1000);
+  const badge = await page.getByTestId("editor-root").getAttribute("data-save-state");
+  check("3. …and the editor says saved", badge === "saved", `state=${badge}`);
   mode = "ok";
-  for (let i = 0; i < 30 && received.length === before; i++) await sleep(500);
+  for (let i = 0; i < 60 && received.length === before; i++) await sleep(500);
   check("3. once aindrive is back, the entry reaches it", received.length > before);
   await sleep(1500);
-  check("3. applied once, not twice", (await serverText()) === "AB signed later");
+  check("3. applied once, not twice", (await serverText()) === "AB signed kept later");
 
   // 4. block menu: signed author
+  let authorsRequests = 0;
+  page.on("request", (r) => { if (/\/authors$/.test(new URL(r.url()).pathname)) authorsRequests++; });
   await editable.hover();
   await page.getByTestId(`block-handle-${B1}`).click().catch(async () => {
     await page.locator(`[data-block-id="${B1}"] [data-testid^="block-grip"]`).first().click();
@@ -172,6 +184,61 @@ try {
   const footer = page.getByTestId("block-menu-edited-by");
   const text = await footer.innerText({ timeout: 8000 }).catch(() => "");
   check("4. the block menu names the signer", /Mom/.test(text) && /Signed/i.test(text), JSON.stringify(text));
+  await page.keyboard.press("Escape");
+  await page.getByTestId(`block-handle-${B1}`).click();
+  await page.getByTestId("block-menu-edited-by").innerText({ timeout: 8000 }).catch(() => "");
+  check("4. one authors request per page, not per menu open", authorsRequests === 1, `requests=${authorsRequests}`);
+  await page.keyboard.press("Escape");
+
+  // 5–6. crafted saves: the payload is what applies; a foreign binding signs nothing
+  const key = await importDeviceSeed(crypto.getRandomValues(new Uint8Array(32)));
+  const dk = toHex(key.publicKey);
+  const bindingFor = (user: string) => createHmac("sha256", `ainmem-device-binding:${secret}`).update(`${user}:${dk}`).digest().toString("base64url");
+  const cert = await signEntry(key, DRIVE, ["_id", "cert"], utf8(JSON.stringify({ deviceKey: dk, userId: "aindrive-user-1" })));
+  const B2 = crypto.randomUUID();
+  await api.put(`${BASE}/api/pages/${pageId}/blocks`, { data: { blocks: [{ id: B2, type: "paragraph", position: 2, parentBlockId: null, content: { text: "second", html: "second" } }], deletedIds: [] } });
+  const mkTx = (ops: unknown[]) => ({ id: crypto.randomUUID(), pageId, timestamp: Date.now(), debug: { userAction: "check", clientCommitTimeMs: Date.now() }, operations: ops });
+  const keep = mkTx([{ command: "update", pointer: { table: "block", id: B2 }, path: [], args: { position: 3 } }]);
+  const signedKeep = await signTransaction(key, { driveId: DRIVE, teamspaceId: ts, t: keep as never });
+  const lying = { ...keep, operations: [{ command: "update", pointer: { table: "block", id: B2 }, path: [], args: { alive: false } }], signed: { drive: DRIVE, entry: signedKeep, cert, binding: bindingFor(USER_ID) } };
+  const r5 = await api.post(`${BASE}/api/saveTransactions`, { data: { requestId: crypto.randomUUID(), transactions: [lying] } });
+  const blocksNow = (await (await api.get(`${BASE}/api/pages/${pageId}/blocks`)).json()).blocks as { id: string; position: number }[];
+  check("5. the signed payload applies, not the body around it", r5.status() === 200 && blocksNow.some((b) => b.id === B2 && b.position === 3), `status=${r5.status()}`);
+
+  const foreign = mkTx([{ command: "update", pointer: { table: "block", id: B2 }, path: [], args: { position: 4 } }]);
+  const signedForeign = await signTransaction(key, { driveId: DRIVE, teamspaceId: ts, t: foreign as never });
+  const r6 = await api.post(`${BASE}/api/saveTransactions`, {
+    data: { requestId: crypto.randomUUID(), transactions: [{ ...foreign, signed: { drive: DRIVE, entry: signedForeign, cert, binding: bindingFor("someone-else") } }] },
+  });
+  await sleep(500);
+  const b2 = ((await (await api.get(`${BASE}/api/pages/${pageId}/blocks`)).json()).blocks as { id: string; position: number }[]).find((b) => b.id === B2);
+  check("6. another user's binding: applied, unsigned", r6.status() === 200 && b2?.position === 4, `status=${r6.status()} pos=${b2?.position}`);
+  check("6. …and not recorded in the drive", !received.some((r) => r.path[3] === foreign.id));
+
+  // 7. signing order = storing order
+  await page.route("**/api/saveTransactions", (r) => r.abort("internetdisconnected"));
+  const order = await page.evaluate(async (pid) => {
+    const q = (globalThis as unknown as Record<symbol, { enqueue(t: unknown): Promise<void> }>)[Symbol.for("app.transaction-queue")];
+    const ids: string[] = [];
+    const all: Promise<void>[] = [];
+    for (let i = 0; i < 30; i++) {
+      const id = crypto.randomUUID();
+      ids.push(id);
+      all.push(q.enqueue({ id, pageId: pid, timestamp: Date.now(), debug: { userAction: "order", clientCommitTimeMs: Date.now() }, operations: [] }));
+    }
+    await Promise.all(all);
+    const stored: { id: string; index: number }[] = await new Promise((res) => {
+      const r = indexedDB.open("TransactionStore");
+      r.onsuccess = () => {
+        const g = r.result.transaction("Transaction").objectStore("Transaction").getAll();
+        g.onsuccess = () => res(g.result);
+      };
+    });
+    const got = stored.filter((x) => ids.includes(x.id)).sort((a, b) => a.index - b.index).map((x) => x.id);
+    return { same: JSON.stringify(got) === JSON.stringify(ids), n: got.length };
+  }, pageId);
+  check("7. transactions are stored in the order they were made", order.same && order.n === 30, JSON.stringify(order));
+  await page.unroute("**/api/saveTransactions");
 } finally {
   await api.delete(`${BASE}/api/pages/${pageId}`).catch(() => {});
   await browser.close();

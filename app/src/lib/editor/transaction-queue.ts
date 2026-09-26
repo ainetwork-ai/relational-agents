@@ -44,6 +44,14 @@ const RETRY_MS = 5000;
 const HEARTBEAT_MS = 2500;
 const ORPHAN_AFTER_MS = 12500;
 const SWEEP_MS = 2500;
+/** one request carries at most this many (the server takes 500) and roughly this
+ * many bytes; a long offline session goes out in pieces (review C2) */
+const MAX_BATCH = 100;
+const MAX_BATCH_BYTES = 2_000_000;
+/** a row whose signing or storing hangs (Safari IndexedDB) goes out anyway after this */
+const READY_TIMEOUT_MS = 2000;
+/** signed edits applied while aindrive was unreachable: handed in again this often */
+const RECORD_RETRY_MS = 5000;
 
 export type FailureKind = "network" | "server" | "rejected" | null;
 
@@ -67,6 +75,12 @@ export interface AckInfo {
 interface StoredTransaction extends Transaction {
   index?: number;
   sessionId: string;
+  /** who made it: another person signed in on this browser neither replays nor
+   * sends it (review I1). null = no one signed in (a share link); absent = a row
+   * from before this field, which anyone may adopt as before */
+  userId?: string | null;
+  /** applied on the server, only its signed entry still owed to the aindrive drive */
+  recordOnly?: true;
 }
 
 interface StoredSession {
@@ -151,7 +165,33 @@ export class TransactionQueue {
   private signers = new Map<string, TransactionSigner>();
   /** transactions this tab made — its editor already shows them */
   private madeHere = new Set<string>();
+  /** the signed-in user (setUser); undefined until known */
+  private userId: string | null | undefined = undefined;
+  private userKnown!: () => void;
+  private userSet = new Promise<void>((r) => (this.userKnown = r));
+  /** applied, but the drive has not recorded them yet (review I4) */
+  private recordLater: Transaction[] = [];
+  private recordTimer: ReturnType<typeof setTimeout> | null = null;
+  /** signing and storing run one at a time, so rows are stored in the order they were made (review I8) */
+  private chain: Promise<void> = Promise.resolve();
+  /** shrinks when the server says a request was too large */
+  private batchCap = MAX_BATCH;
+  private signatureRefusedListeners = new Set<() => void>();
   private started = false;
+
+  /** The session this tab had before a reload or navigation (sessionStorage
+   * outlives the page, not the tab): it is gone, whatever its heartbeat says, so
+   * its unsent edits are laid over the page and adopted at once instead of
+   * waiting 12.5s for its heartbeat to go stale. */
+  private readonly predecessor: string | null = (() => {
+    try {
+      const prev = sessionStorage.getItem("ainmem-queue-session");
+      sessionStorage.setItem("ainmem-queue-session", this.sessionId);
+      return prev;
+    } catch {
+      return null;
+    }
+  })();
 
   private open() {
     if (!this.db) this.db = openDb();
@@ -174,6 +214,21 @@ export class TransactionQueue {
   setShareToken(pageId: string, token: string | undefined) {
     if (token) this.shareTokens.set(pageId, token);
     else this.shareTokens.delete(pageId);
+  }
+
+  /** Who is signed in on this tab. Rows are stored with it, and only their own
+   * user's rows are replayed or adopted (review I1). */
+  setUser(userId: string | null) {
+    const first = this.userId === undefined;
+    this.userId = userId;
+    this.userKnown();
+    if (first && this.started) setTimeout(() => void this.sweep(), 0);
+  }
+
+  /** The server dropped a signature: the device's certificate needs refreshing. */
+  onSignatureRefused(fn: () => void): () => void {
+    this.signatureRefusedListeners.add(fn);
+    return () => this.signatureRefusedListeners.delete(fn);
   }
 
   /** Edits of `pageId` are signed before they are stored (a teamspace linked to
@@ -219,27 +274,36 @@ export class TransactionQueue {
     this.madeHere.add(t.id);
     const signer = this.signers.get(t.pageId);
     const carried: Carried = { t, persisted: Promise.resolve(), ready: false };
+    const userId = this.userId;
     // sign first, so the stored row — which a later tab may adopt and send — is
     // the signed one. A signature that cannot be made leaves the edit unsigned
-    // (the server takes those, as before) rather than losing it.
-    const signed = signer
-      ? signer(t).then(
-          (envelope) => { carried.t = { ...t, signed: envelope }; },
-          () => {}
-        )
-      : Promise.resolve();
-    const persisted = signed
-      .then(() => this.open())
-      .then((db) => {
+    // (the server takes those, as before) rather than losing it. One at a time,
+    // so the stored order is the order the edits were made in.
+    const persisted = (this.chain = this.chain.then(async () => {
+      if (signer) {
+        try {
+          carried.t = { ...t, signed: await signer(t) };
+        } catch {}
+      }
+      try {
+        const db = await this.open();
         const tx = db.transaction("Transaction", "readwrite");
-        tx.objectStore("Transaction").add({ ...carried.t, sessionId: this.sessionId } satisfies StoredTransaction);
-        return done(tx);
-      })
-      .catch(() => {
+        const row: StoredTransaction = { ...carried.t, sessionId: this.sessionId };
+        if (userId !== undefined) row.userId = userId;
+        tx.objectStore("Transaction").add(row);
+        await done(tx);
+      } catch {
         // no IndexedDB (private mode, quota): the edit still goes out from
         // memory; only crash-durability is lost
-      })
-      .then(() => { carried.ready = true; });
+      }
+      carried.ready = true;
+    }));
+    // a hung signature or IndexedDB must not hold back everything after it
+    setTimeout(() => {
+      if (carried.ready) return;
+      carried.ready = true;
+      this.schedule(0);
+    }, READY_TIMEOUT_MS);
     carried.persisted = persisted;
     this.carried.push(carried);
     this.emit(t.pageId);
@@ -278,8 +342,11 @@ export class TransactionQueue {
   private flush() {
     if (this.inflight || this.carried.length === 0) return;
     const batch: Carried[] = [];
+    let bytes = 0;
     for (const c of this.carried) {
-      if (!c.ready) break;
+      if (!c.ready || batch.length >= this.batchCap) break;
+      bytes += JSON.stringify(c.t).length;
+      if (batch.length && bytes > MAX_BATCH_BYTES) break;
       batch.push(c);
     }
     if (batch.length === 0) return;
@@ -310,9 +377,24 @@ export class TransactionQueue {
     const pageIds = new Set(batch.map((c) => c.t.pageId));
     this.inflight = false;
     if (res?.ok) {
-      // 200 is `{}`: everything in the batch is on the server (or was already)
+      // 200: everything in the batch is on the server (or was already). The body
+      // is `{}` — or names signed edits the aindrive drive has not recorded yet,
+      // and signatures the server dropped (the edits applied unsigned).
       this.failure = null;
-      await this.acknowledge(batch, {});
+      this.batchCap = Math.min(MAX_BATCH, this.batchCap * 2);
+      let body: SaveResponse = {};
+      try {
+        body = (await res.json()) as SaveResponse;
+      } catch {}
+      await this.acknowledge(batch, body);
+      if (body.signatureRefused?.length) for (const fn of this.signatureRefusedListeners) fn();
+      this.schedule(0);
+      return;
+    }
+    if (res?.status === 413) {
+      // too large for the server: nothing was applied; send smaller pieces (review C2)
+      this.batchCap = Math.max(1, Math.floor(batch.length / 2));
+      for (const id of pageIds) this.emit(id);
       this.schedule(0);
       return;
     }
@@ -339,6 +421,9 @@ export class TransactionQueue {
   /** Remove rows the server has (response) or refused (null) from memory,
    * tell the editors, then from the durable mirror. */
   private async acknowledge(rows: Carried[], response: SaveResponse | null) {
+    const unrecorded = new Set(response?.unrecorded ?? []);
+    const owed = rows.filter((c) => unrecorded.has(c.t.id) && c.t.signed).map((c) => c.t);
+    if (owed.length) this.owe(owed);
     const ids = new Set(rows.map((c) => c.t.id));
     this.carried = this.carried.filter((c) => !ids.has(c.t.id));
     const pageIds = new Set(rows.map((c) => c.t.pageId));
@@ -355,10 +440,56 @@ export class TransactionQueue {
       const st = tx.objectStore("Transaction");
       for (const id of ids) {
         const key = await req(st.index("byId").getKey(id));
-        if (key !== undefined) st.delete(key);
+        if (key === undefined) continue;
+        if (unrecorded.has(id)) {
+          // applied; keep the row (marked) until the drive has its entry
+          const row = (await req(st.get(key))) as StoredTransaction | undefined;
+          if (row) st.put({ ...row, recordOnly: true });
+        } else st.delete(key);
       }
       await done(tx);
     } catch {}
+  }
+
+  /** Signed edits the drive still needs: handed in through /api/willow/record
+   * until it has them. They are not pending edits — the page is saved. */
+  private owe(txs: Transaction[]) {
+    const have = new Set(this.recordLater.map((t) => t.id));
+    for (const t of txs) if (!have.has(t.id)) this.recordLater.push(t);
+    if (!this.recordTimer) this.recordTimer = setTimeout(() => void this.record(), RECORD_RETRY_MS);
+  }
+
+  private async record() {
+    this.recordTimer = null;
+    const batch = this.recordLater.slice(0, MAX_BATCH);
+    if (!batch.length) return;
+    let left = new Set(batch.map((t) => t.id));
+    try {
+      const res = await fetch("/api/willow/record", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ transactions: batch }),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as SaveResponse;
+        left = new Set(body.unrecorded ?? []);
+      } else if (res.status >= 400 && res.status < 500 && res.status !== 401) left = new Set(); // cannot be recorded: stop owing
+    } catch {}
+    const done_ = batch.filter((t) => !left.has(t.id)).map((t) => t.id);
+    this.recordLater = this.recordLater.filter((t) => !done_.includes(t.id));
+    if (done_.length) {
+      try {
+        const db = await this.open();
+        const tx = db.transaction("Transaction", "readwrite");
+        const st = tx.objectStore("Transaction");
+        for (const id of done_) {
+          const key = await req(st.index("byId").getKey(id));
+          if (key !== undefined) st.delete(key);
+        }
+        await done(tx);
+      } catch {}
+    }
+    if (this.recordLater.length) this.recordTimer = setTimeout(() => void this.record(), RECORD_RETRY_MS);
   }
 
   /** Heartbeat while anything is pending; when nothing is, the Session row is
@@ -384,31 +515,39 @@ export class TransactionQueue {
     } catch {}
   }
 
+  /** a stored row this tab's user may replay and send (review I1) */
+  private mine(r: StoredTransaction): boolean {
+    return !("userId" in r) || r.userId === undefined || r.userId === this.userId;
+  }
+
   /** Adopt the transactions of sessions whose heartbeat stopped (a closed
    * tab, a crashed renderer) and send them. Conditional inside one IndexedDB
    * transaction so two live tabs cannot both adopt the same orphan. Rows with
    * no live session at all (the session row itself never made it) are adopted
-   * the same way. */
+   * the same way. Only this tab's user's rows. */
   private async sweep() {
+    // until the tab knows who is signed in it adopts nothing: sending another
+    // person's edits with this person's cookie is the one thing it must not do
+    if (this.userId === undefined) return;
     const adopted: StoredTransaction[] = [];
     try {
       const db = await this.open();
       const cutoff = Date.now() - ORPHAN_AFTER_MS;
       const sessions = (await req(db.transaction("Session", "readonly").objectStore("Session").getAll())) as StoredSession[];
-      const live = new Set(sessions.filter((s) => s.updatedAt >= cutoff).map((s) => s.sessionId));
+      const live = new Set(sessions.filter((s) => s.updatedAt >= cutoff && s.sessionId !== this.predecessor).map((s) => s.sessionId));
       live.add(this.sessionId);
       const all = (await req(db.transaction("Transaction", "readonly").objectStore("Transaction").getAll())) as StoredTransaction[];
-      const orphanSessions = new Set(all.filter((r) => !live.has(r.sessionId)).map((r) => r.sessionId));
+      const orphanSessions = new Set(all.filter((r) => !live.has(r.sessionId) && this.mine(r)).map((r) => r.sessionId));
       for (const sid of orphanSessions) {
         const tx = db.transaction(["Session", "Transaction"], "readwrite");
         const sess = tx.objectStore("Session");
         const again = (await req(sess.index("bySessionId").get(sid))) as StoredSession | undefined;
-        if (again && again.updatedAt >= cutoff) {
+        if (again && again.updatedAt >= cutoff && sid !== this.predecessor) {
           tx.abort();
           continue; // it came back to life between the two reads
         }
         const trs = tx.objectStore("Transaction");
-        const rows = (await req(trs.index("bySessionId").getAll(sid))) as StoredTransaction[];
+        const rows = ((await req(trs.index("bySessionId").getAll(sid))) as StoredTransaction[]).filter((r) => this.mine(r));
         for (const r of rows) trs.put({ ...r, sessionId: this.sessionId });
         if (again?.index !== undefined) sess.delete(again.index);
         await done(tx);
@@ -416,7 +555,7 @@ export class TransactionQueue {
       }
       // dead sessions that left nothing behind: just tidy the row
       for (const s of sessions) {
-        if (s.sessionId === this.sessionId || s.updatedAt >= cutoff || orphanSessions.has(s.sessionId)) continue;
+        if (s.sessionId === this.sessionId || (s.updatedAt >= cutoff && s.sessionId !== this.predecessor) || orphanSessions.has(s.sessionId)) continue;
         try {
           const tx = db.transaction("Session", "readwrite");
           if (s.index !== undefined) tx.objectStore("Session").delete(s.index);
@@ -427,8 +566,10 @@ export class TransactionQueue {
     if (adopted.length) {
       adopted.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
       const have = new Set(this.carried.map((c) => c.t.id));
+      const owed = adopted.filter((r) => r.recordOnly).map(toWire);
+      if (owed.length) this.owe(owed);
       for (const r of adopted) {
-        if (have.has(r.id)) continue;
+        if (have.has(r.id) || r.recordOnly) continue;
         this.touched.add(r.pageId);
         this.carried.push({ t: toWire(r), persisted: Promise.resolve(), ready: true });
       }
@@ -444,23 +585,40 @@ export class TransactionQueue {
    * offline snapshot) replays these on top so the edits stay on screen.
    */
   async pendingFor(pageId: string): Promise<Transaction[]> {
-    const out = new Map<string, Transaction>();
-    try {
-      const db = await this.open();
-      const rows = (await req(
-        db.transaction("Transaction", "readonly").objectStore("Transaction").index("byPageId").getAll(pageId)
-      )) as StoredTransaction[];
-      rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-      for (const r of rows) out.set(r.id, toWire(r));
-    } catch {}
-    for (const c of this.carried) if (c.t.pageId === pageId && !out.has(c.t.id)) out.set(c.t.id, c.t);
-    return [...out.values()];
+    return (await this.stored(pageId, false)).map(toWire).concat(
+      this.carried.filter((c) => c.t.pageId === pageId).map((c) => c.t)
+    ).filter((t, i, all) => all.findIndex((x) => x.id === t.id) === i);
   }
 
-  /** pendingFor, less what this tab made itself (its editor shows those already):
-   * what an earlier tab left behind, to lay over any older copy of the page. */
+  /** This user's unsent rows of `pageId`, oldest first; `orphansOnly` keeps those no
+   * live tab is carrying (a dead tab's, or ones this tab adopted). */
+  private async stored(pageId: string, orphansOnly: boolean): Promise<StoredTransaction[]> {
+    try {
+      const db = await this.open();
+      let rows = (await req(
+        db.transaction("Transaction", "readonly").objectStore("Transaction").index("byPageId").getAll(pageId)
+      )) as StoredTransaction[];
+      rows = rows.filter((r) => !r.recordOnly && this.mine(r));
+      if (orphansOnly) {
+        const cutoff = Date.now() - ORPHAN_AFTER_MS;
+        const sessions = (await req(db.transaction("Session", "readonly").objectStore("Session").getAll())) as StoredSession[];
+        const live = new Set(sessions.filter((x) => x.updatedAt >= cutoff && x.sessionId !== this.predecessor).map((x) => x.sessionId));
+        rows = rows.filter((r) => r.sessionId === this.sessionId || !live.has(r.sessionId));
+      }
+      return rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    } catch {
+      return [];
+    }
+  }
+
+  /** What an earlier tab of this user left unsent on `pageId` — to lay over an
+   * older copy of the page. Not this tab's own edits (its editor shows them) nor
+   * another live tab's (that tab shows and sends them). */
   async foreignPendingFor(pageId: string): Promise<Transaction[]> {
-    return (await this.pendingFor(pageId)).filter((t) => !this.madeHere.has(t.id));
+    // the layout names the user a moment after the editor mounts
+    await Promise.race([this.userSet, new Promise((r) => setTimeout(r, 1500))]);
+    if (this.userId === undefined) return [];
+    return (await this.stored(pageId, true)).filter((r) => !this.madeHere.has(r.id)).map(toWire);
   }
 
   /** Test/diagnostic hook: what this tab still holds. */

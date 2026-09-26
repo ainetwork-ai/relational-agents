@@ -68,13 +68,23 @@ try {
   for (let i = 0; i < 40; i++) { srv = await serverText(); if (srv === "kept offline") break; await sleep(700); }
   check("2. text typed offline reaches the server", srv === "kept offline", `server=${JSON.stringify(srv)}`);
 
-  const before = await page.evaluate(async () => (await caches.keys()).length);
+  const before = await page.evaluate(async () => {
+    // a signing key and certificate as a linked teamspace leaves them
+    await new Promise((res) => { const r = indexedDB.open("ainmem-willow", 1); r.onupgradeneeded = () => r.result.createObjectStore("keys", { keyPath: "userId" }); r.onsuccess = () => { r.result.close(); res(); }; });
+    localStorage.setItem("ainmem-willow:someone", "{}");
+    return (await caches.keys()).length;
+  });
   await page.evaluate(async () => {
     const { clearOfflineCaches } = window.__ainmemOffline ?? {};
     if (clearOfflineCaches) await clearOfflineCaches();
   });
   const after = await page.evaluate(async () => (await caches.keys()).length);
   check("3. logout's clear empties the caches", before > 0 && after === 0, `before=${before} after=${after}`);
+  const keys = await page.evaluate(async () => ({
+    db: (await indexedDB.databases()).some((d) => d.name === "ainmem-willow"),
+    ls: Object.keys(localStorage).filter((k) => k.startsWith("ainmem-willow:")).length,
+  }));
+  check("3. …and removes this browser's signing keys and certificates (review I2)", !keys.db && keys.ls === 0, JSON.stringify(keys));
 } finally {
   await api.delete(`${BASE}/api/pages/${pageId}`).catch(() => {});
   await browser.close();

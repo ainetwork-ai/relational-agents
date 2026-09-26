@@ -109,7 +109,14 @@ export interface SaveRequest {
 
 /** 200: `{}` — like Notion, the body says nothing; the state the client sent
  * is the state, and everyone else hears about it over SSE. */
-export type SaveResponse = Record<string, never>;
+export type SaveResponse = {
+  /** signed transactions applied but not recorded in their aindrive drive yet
+   * (unreachable): the client hands them in again through /api/willow/record */
+  unrecorded?: string[];
+  /** signatures that were dropped (the edits applied unsigned): the client
+   * fetches a fresh device certificate */
+  signatureRefused?: string[];
+};
 
 /** 4xx: the request could not be honoured in full. `rejectedIds` names the
  * transactions that will never apply (no edit right on their page, malformed);

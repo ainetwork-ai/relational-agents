@@ -378,6 +378,21 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
   { type: "equation", label: "Block equation" },
 ];
 
+type BlockAuthors = Record<string, { name: string | null; signed: "wallet" | "attested" | null }>;
+/** one request per page for a while, shared by every block's menu (review I7) */
+const authorsCache = new Map<string, { at: number; p: Promise<BlockAuthors | null> }>();
+const AUTHORS_TTL_MS = 30_000;
+function pageAuthors(pageId: string): Promise<BlockAuthors | null> {
+  const hit = authorsCache.get(pageId);
+  if (hit && Date.now() - hit.at < AUTHORS_TTL_MS) return hit.p;
+  const p = fetch(`/api/pages/${pageId}/authors`)
+    .then((r) => (r.ok ? (r.json() as Promise<{ blocks?: BlockAuthors }>) : null))
+    .then((d) => d?.blocks ?? null)
+    .catch(() => null);
+  authorsCache.set(pageId, { at: Date.now(), p });
+  return p;
+}
+
 /** "Last edited by …" under the block menu, like the original's; in a teamspace
  *  linked to aindrive, "Signed" when the drive verifies who signed that edit
  *  (docs/willow-ainmem-plan.md Task 7). */
@@ -386,12 +401,9 @@ function BlockAuthorFooter({ pageId, blockId }: { pageId: string; blockId: strin
   const [who, setWho] = useState<{ name: string | null; signed: "wallet" | "attested" | null } | null>(null);
   useEffect(() => {
     let live = true;
-    void fetch(`/api/pages/${pageId}/authors`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { blocks?: Record<string, { name: string | null; signed: "wallet" | "attested" | null }> } | null) => {
-        if (live) setWho(d?.blocks?.[blockId] ?? null);
-      })
-      .catch(() => {});
+    void pageAuthors(pageId).then((blocks) => {
+      if (live) setWho(blocks?.[blockId] ?? null);
+    });
     return () => {
       live = false;
     };

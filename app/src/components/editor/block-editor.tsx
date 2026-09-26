@@ -430,7 +430,7 @@ export const BlockEditor = forwardRef<
   const dirtyRef = useRef(false);
   const seqRef = useRef(0);
   const needResyncRef = useRef(false);
-  const applyRemoteRef = useRef<() => Promise<void>>(async () => {});
+  const applyRemoteRef = useRef<() => Promise<boolean>>(async () => false);
  // Block-level undo/redo. Native contentEditable undo fights our state model
  // and DESTROYS content (parity review R008) — we own the history instead.
  // A frame is a block snapshot plus, when the step also touched something
@@ -783,14 +783,15 @@ export const BlockEditor = forwardRef<
 
  // Remote changes (other clients): refetch and merge, block-level LWW.
  // The locally-focused block always wins; unsaved local blocks are kept.
-  const applyRemote = useCallback(async () => {
+  /** true when it laid the unsent edits over the result (see overlayPending) */
+  const applyRemote = useCallback(async (): Promise<boolean> => {
     if (dirtyRef.current) {
       needResyncRef.current = true; // reconcile after our own save lands
-      return;
+      return false;
     }
     const seqAtStart = seqRef.current;
     const res = await fetch(`/api/pages/${pageId}/blocks`).catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) return false;
     const { blocks: rows } = (await res.json()) as { blocks: Block[] };
  // ids the server held BEFORE this sync: a local block in that set that is
  // now missing from `rows` was deleted remotely — keeping it would turn it
@@ -804,7 +805,7 @@ export const BlockEditor = forwardRef<
  // after the first Enter). Defer to the post-save resync instead.
     if (seqRef.current !== seqAtStart || dirtyRef.current) {
       needResyncRef.current = true;
-      return;
+      return false;
     }
 
     const active = document.activeElement as HTMLElement | null;
@@ -855,9 +856,28 @@ export const BlockEditor = forwardRef<
     });
  // the server's copy lacks what an earlier tab left unsent (a reload while
  // offline): lay those back over it, or a reconnect's refetch would wipe them
-    const pending = await getTransactionQueue().foreignPendingFor(pageId);
-    if (pending.length) applyRemoteTransactionsRef.current(pending);
+    await overlayPendingRef.current();
+    return true;
   }, [pageId]);
+
+ // What an earlier tab of this person left unsent, laid over the page. Only
+ // what cannot go stale: character ops (idempotent — ones already in the copy
+ // change nothing) and blocks the page does not have yet. A whole-block `set`
+ // or field `update` of an existing block could be older than what the server
+ // now holds, and would show content the server will never keep (review I5).
+  const overlayPendingRef = useRef<() => Promise<void>>(async () => {});
+  overlayPendingRef.current = async () => {
+    const pending = await getTransactionQueue().foreignPendingFor(pageId);
+    if (!pending.length) return;
+    const have = new Set(blocksRef.current.map((b) => b.id));
+    const safe = pending
+      .map((t) => ({
+        ...t,
+        operations: t.operations.filter((op) => isTextOperation(op) || (op.command === "set" && !have.has(op.pointer.id))),
+      }))
+      .filter((t) => t.operations.length);
+    if (safe.length) applyRemoteTransactionsRef.current(safe);
+  };
 
   useEffect(() => {
     applyRemoteRef.current = applyRemote;
@@ -872,9 +892,8 @@ export const BlockEditor = forwardRef<
  // the edits on screen. Text ops are idempotent, so ones already in the
  // snapshot change nothing.
   useEffect(() => {
-    void applyRemoteRef.current().then(async () => {
-      const pending = await queue.foreignPendingFor(pageId);
-      if (pending.length) applyRemoteTransactions(pending);
+    void applyRemoteRef.current().then((overlaid) => {
+      if (!overlaid) void overlayPendingRef.current();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

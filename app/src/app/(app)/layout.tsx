@@ -70,7 +70,7 @@ export default async function AppLayout({
       <main aria-label="Page content" className="flex-1 overflow-y-auto overscroll-contain">
         {children}
         <ToastHost />
-        <ServiceWorkerRegister />
+        <ServiceWorkerRegister userId={user.id} />
       </main>
       {/* the round agent button, bottom right — opens the agent on the right */}
       <AssistantDock workspaceId={workspace?.id ?? null} />

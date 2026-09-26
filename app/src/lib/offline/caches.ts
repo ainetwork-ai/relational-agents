@@ -1,7 +1,11 @@
+import { forgetDevices } from "@/lib/willow/device";
+
 /**
- * Empties what the service worker keeps (public/sw.js) — on logout, so the
- * next person on this browser does not open the last one's pages offline.
- * Deletes the caches from the page as well, in case no worker is running.
+ * Empties what this browser keeps for the signed-in person — on logout, and when
+ * someone else signs in (review I1/I2): the service worker's caches (public/sw.js),
+ * and the Willow signing keys and certificates (lib/willow/device), so the next
+ * person can neither open the last one's pages offline nor sign as their device.
+ * Unsent edits stay in IndexedDB; only their own user replays or sends them.
  */
 export async function clearOfflineCaches(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -20,4 +24,5 @@ export async function clearOfflineCaches(): Promise<void> {
     }
     if ("caches" in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
   } catch {}
+  await forgetDevices();
 }
