@@ -1,9 +1,26 @@
-import { checkMandate } from "./mandate/index.js";
+import { checkMandate, inactiveReason, periodKey, verifyApproval } from "./mandate/index.js";
 import { sameAddress } from "./address.js";
 
 // The bound handed to every quote. Not a mandate field yet: the family signs caps and a pair, not
 // how much slippage their agent may accept.
 const SLIPPAGE_BPS = 50;
+
+/**
+ * This agent's standing mandate at `now`: the live one with the highest nonce, or — when none is
+ * live — the newest dead one, so the run records "revoked" or "expired" instead of the
+ * "no-mandate" a family would read as a lost passbook.
+ *
+ * Newest, not first in the file. Re-signing after a revoke or an expiry is the ordinary end of a
+ * mandate's life and the replacement is appended after the one it replaces, so taking the first
+ * match refused every run from the re-signing onwards — and nothing in the CLI undoes that: there
+ * is no delete command and `addMandate` refuses a duplicate id.
+ */
+function chooseStanding(mandates, agentAddress, now) {
+  const mine = mandates.filter((x) => sameAddress(x.agent, agentAddress) && x.kind === "standing");
+  const live = mine.filter((x) => !inactiveReason(x, now));
+  const pool = live.length ? live : mine;
+  return pool.reduce((newest, x) => (x.nonce > newest.nonce ? x : newest), pool[0]);
+}
 
 /**
  * One run of the family's tsumitate. Idempotent: the mandate's period key decides whether this
@@ -19,19 +36,30 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
   // knows an id could spend under another family's mandate and have it filed under this agent.
   const m = mandateId
     ? view.mandates.find((x) => x.id === mandateId && sameAddress(x.agent, account.address))
-    : view.mandates.find((x) => sameAddress(x.agent, account.address) && x.kind === "standing");
+    : chooseStanding(view.mandates, account.address, now);
   if (!m) return { outcome: "no-mandate" };
+
+  // The period this run belongs to, named once. `checkMandate` derives the same key from the same
+  // mandate and clock; having it here lets the approval refusal below be filed under its period
+  // too, before there is a verdict to read it from.
+  const key = periodKey(m.period, now);
+  const skip = (reason, extra) => ledger.record({ at: now.toISOString(), kind: "skip", who: account.address,
+    mandateId: m.id, periodKey: key, reason, ...extra });
+
+  // The signature is recovered again here rather than read as a field. The passbook is a plain
+  // JSON file written by this agent's own process, so "the family allowed this" is only as true as
+  // the last time someone checked — a mandate whose terms were edited after signing stops here.
+  if (!(await verifyApproval(m, chain.chainId))) {
+    await skip("approval-invalid");
+    return { outcome: "skipped", reason: "approval-invalid", periodKey: key };
+  }
 
   const intent = { chainId: chain.chainId, tokenIn: m.tokenIn, tokenOut: m.tokenOut,
     amountIn: m.perRunCap, recipient: account.address, slippageBps: SLIPPAGE_BPS };
   const verdict = checkMandate(m, view, intent, now);
-  // Both verdict shapes carry periodKey, so a refusal is filed under the period it was refused for.
-  const skip = (reason, extra) => ledger.record({ at: now.toISOString(), kind: "skip", who: account.address,
-    mandateId: m.id, periodKey: verdict.periodKey, reason, ...extra });
-
   if (!verdict.ok) {
     await skip(verdict.reason);
-    return { outcome: "skipped", reason: verdict.reason, periodKey: verdict.periodKey };
+    return { outcome: "skipped", reason: verdict.reason, periodKey: key };
   }
 
   // A swap that throws is this run's outcome, not a crash: the passbook says the week was missed
@@ -45,20 +73,20 @@ export async function runOnce({ ledger, swap, account, chain, now = new Date(), 
     // this call failed, so the skip names it rather than implying nothing happened.
     const landed = err?.txHash ? { txHash: err.txHash } : undefined;
     await skip(`swap-failed: ${detail}`, landed);
-    return { outcome: "skipped", reason: "swap-failed", periodKey: verdict.periodKey, error: detail, ...landed };
+    return { outcome: "skipped", reason: "swap-failed", periodKey: key, error: detail, ...landed };
   };
 
   let quote;
   try { quote = await swap.quote(intent); } catch (err) { return failed(err); }
   if (quote.amountOutExpected === 0n) {
     await skip("no-liquidity");
-    return { outcome: "skipped", reason: "no-liquidity", periodKey: verdict.periodKey };
+    return { outcome: "skipped", reason: "no-liquidity", periodKey: key };
   }
   let receipt;
   try { receipt = await swap.execute(quote, account); } catch (err) { return failed(err); }
 
   await ledger.record({ at: now.toISOString(), kind: "buy", who: account.address, mandateId: m.id,
-    periodKey: verdict.periodKey, amountIn: receipt.amountIn, amountOut: receipt.amountOut,
+    periodKey: key, amountIn: receipt.amountIn, amountOut: receipt.amountOut,
     price: receipt.price, txHash: receipt.txHash, decisionOrigin: verdict.decisionOrigin });
-  return { outcome: "bought", receipt, periodKey: verdict.periodKey };
+  return { outcome: "bought", receipt, periodKey: key };
 }

@@ -30,6 +30,9 @@ test("refusals, in the documented order", () => {
   assert.equal(checkMandate(mandate({ expiresAt: 1 }), emptyView(), intent(), now).reason, "expired");
   assert.equal(checkMandate(mandate({ approval: undefined }), emptyView(), intent(), now).reason, "unapproved");
   assert.equal(checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenOut: USDC }), now).reason, "pair-not-allowed");
+  // Both halves of the allowlist, or only one of them is held: with `tokenOut` alone asserted, the
+  // `tokenIn` comparison can be deleted and every test still passes.
+  assert.equal(checkMandate(mandate(), emptyView(), intent(20_000_000n, { tokenIn: WETH }), now).reason, "pair-not-allowed");
   assert.equal(checkMandate(mandate(), emptyView(), intent(50_000_000n), now).reason, "over-per-run-cap");
   const nearCap = { spentByPeriod: { "m-1": { "2026-W39": 90_000_000n } }, boughtPeriods: {} };
   assert.equal(checkMandate(mandate(), nearCap, intent(), now).reason, "over-per-period-cap");
