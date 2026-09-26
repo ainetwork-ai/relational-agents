@@ -52,10 +52,13 @@ const routes = {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
-  if (req.method === "GET" && url.pathname === "/") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(html); }
-  if (req.method === "GET" && url.pathname === "/learn") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(learn); }
+  // No-store on every page and module: this server is edited while it runs, and a cached copy means
+  // reading yesterday's explanation of code that changed this morning.
+  const page = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" };
+  if (req.method === "GET" && url.pathname === "/") { res.writeHead(200, page); return res.end(html); }
+  if (req.method === "GET" && url.pathname === "/learn") { res.writeHead(200, page); return res.end(learn); }
   if (req.method === "GET" && Object.hasOwn(MODULES, url.pathname)) {
-    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     return res.end(moduleSource(url.pathname));
   }
   const route = routes[`${req.method} ${url.pathname}`];
