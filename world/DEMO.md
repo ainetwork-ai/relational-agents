@@ -262,7 +262,7 @@ hops; the swap itself 135k gas on Base, tx
 
 Caption: `Same human twice counts once` · `World ID for Agents — fresh step-up`
 
-Alex: `@agent pay the hotel for $150` → Alex approves with his World ID (1 of 2).
+Alex: `@agent pay the hotel upgrade, $150` → Alex approves with his World ID (1 of 2).
 
 `Eli's laptop` — Alex picks up Eli's laptop. Eli has a vote and has never
 done a World ID for Agents step-up. On Eli's account Alex taps **Approve
@@ -302,17 +302,22 @@ Agent — no approval request at all, one thought per line:
 
 Caption: `What we agreed on was enough`
 
-Alex: `@agent pay the hotel upgrade, $150` → *"Queued: $150 to Hotel Gracery
-Shinjuku (hotel upgrade). This needs 2 verified humans…"* → Bea (her second
-approval on camera, after scene 3½) and Chris approve →
-**Paid $150 to Hotel Gracery Shinjuku (hotel upgrade) — approved by Bea, Chris
-(2 of 2 verified humans). tx …**
+No new request: the upgrade Alex asked for in scene 4 is still on the panel
+at **1 of 2** — the second account's click was voided, so it waits for a real
+second human. `Bea's laptop` — Bea taps **Approve with World ID** on that card
+(her second approval on camera, after scene 3½) → World → back in the room, 2 of
+2 → (`~40 s later on Sepolia`) →
+**Paid $150 to Hotel Gracery Shinjuku (hotel upgrade). Approved by 2 verified
+humans: Alex and Bea · tx 0x…** The header drops to about $460, the invested
+badge unchanged.
 
 > "The deposit was paid. The raid was refused. The idle money is working. What's
 > left still covers the better room — so we took it. Not because the AI made
 > money: because it spent ours exactly the way we agreed."
 
-(Same path as scene 3; not yet rehearsed on xyz — a real Sepolia transfer.)
+(The same card as scene 4 — what one human could not buy twice, a second
+human buys. A voided approval leaves the request pending for others; the e2e
+covers that path. Not yet rehearsed on xyz in this order.)
 
 ## 6 · Why this needs World (2:45–3:00) [live]
 
