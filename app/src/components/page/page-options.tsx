@@ -14,6 +14,7 @@ import {
   Trash2,
   Star,
   Link2,
+  Sparkles,
 } from "lucide-react";
 import { copyText } from "@/lib/compat";
 import type { Page } from "@/lib/db/schema";
@@ -24,6 +25,28 @@ import { PageHistoryModal } from "./page-history-modal";
 import { useT } from "@/i18n/provider";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The page as an AI prompt (claude-xml, child pages and databases included) on the
+ *  clipboard. Safari only lets a click write the clipboard while the click is still
+ *  on the stack, so the text goes in as a promise it resolves later; elsewhere the
+ *  fetched text is written the ordinary way. */
+async function copyPrompt(pageId: string): Promise<boolean> {
+  const text = fetch(`/api/pages/${pageId}/prompt?template=claude-xml`).then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))));
+  text.catch(() => {});
+  try {
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": text.then((t) => new Blob([t], { type: "text/plain" })) })]);
+      return true;
+    }
+  } catch {
+    // fall through to the plain write
+  }
+  try {
+    return await copyText(await text);
+  } catch {
+    return false;
+  }
+}
 
 /** The  page "..." menu: Full width, Lock, Duplicate, Move to, Move to Trash, Export.
  *
@@ -247,6 +270,27 @@ export function PageOptionsMenu({
             className={item}
           >
             <Download size={14} /> {t("Export Markdown")}
+          </a>
+          <button
+            data-testid="page-opt-copy-prompt"
+            onClick={async () => {
+              setOpen(false);
+              const toast = useToastStore.getState();
+              toast.show(t("Making the AI prompt…"), { duration: 1500 });
+              toast.show((await copyPrompt(page.id)) ? t("AI prompt copied") : t("Couldn't copy the AI prompt"));
+            }}
+            className={item}
+          >
+            <Sparkles size={14} /> {t("Copy as AI prompt")}
+          </button>
+          <a
+            data-testid="page-opt-download-prompt"
+            href={`/api/pages/${page.id}/prompt?template=claude-xml&download=1`}
+            download
+            onClick={() => setOpen(false)}
+            className={item}
+          >
+            <Download size={14} /> {t("Download AI prompt")}
           </a>
           <a
             data-testid="page-opt-export-pdf"

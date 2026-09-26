@@ -55,7 +55,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   return NextResponse.json({ messages });
 }
 
-/** POST { text?, attachments?: [{url,name}], quiet? } → { message, autoRun? }.
+/** The page open on the sender's screen, when the client says so — a page id
+ *  (uuid or OKF base64url), nothing else. Not stored: only the agent's answer to
+ *  this message reads it ("this page"), and it reads it with the sender's rights. */
+function parseContextPageId(raw: unknown): string | null {
+  return typeof raw === "string" && /^[A-Za-z0-9_-]{8,300}$/.test(raw) ? raw : null;
+}
+
+/** POST { text?, attachments?: [{url,name}], quiet?, contextPageId? } → { message, autoRun? }.
  * Sending marks read and publishes a dm-message notice (no body) to member inboxes. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: string }> }) {
   const auth = await requireAuth();
@@ -134,7 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
  // the agent's work outlives this request; it may need to call this server
   rememberOrigin(req.nextUrl.origin);
  // A2A delivery to the room's imported bots (spec v2 §5) — fire-and-forget, never blocks the response
-  void dispatchToRoomBots(room, message).catch((err) =>
+  void dispatchToRoomBots(room, message, { contextPageId: parseContextPageId(body?.contextPageId) }).catch((err) =>
     console.error("bot dispatch failed:", err)
   );
   return NextResponse.json({ message, autoRun }, { status: 201 });

@@ -4,7 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatRoomBots, users, type ChatMessage, type ChatRoom } from "@/lib/db/schema";
 import { a2aBaseUrl } from "./provision";
-import { respondToMessage } from "./respond";
+import { respondToMessage, type MessageContext } from "./respond";
 
 const PUSH_TIMEOUT_MS = 30_000;
 
@@ -60,7 +60,7 @@ async function pushExternal(
  * - External bots get an A2A SendMessage POST
  * Meant to be called fire-and-forget; individual failures only log.
  */
-export async function dispatchToRoomBots(room: ChatRoom, message: ChatMessage): Promise<void> {
+export async function dispatchToRoomBots(room: ChatRoom, message: ChatMessage, extra: MessageContext = {}): Promise<void> {
   const bots = await db.select().from(chatRoomBots).where(eq(chatRoomBots.roomId, room.id));
   if (!bots.length) return;
   const agentIds = bots.map((b) => b.agentUserId);
@@ -80,7 +80,7 @@ export async function dispatchToRoomBots(room: ChatRoom, message: ChatMessage): 
       // own keypair doubled as the "we provisioned this one" marker. The keys
       // are gone; the a2aUrl pointing back at us is the marker.
       if (isInApp) {
-        await respondToMessage(agent.id, room.id, message).catch((err) =>
+        await respondToMessage(agent.id, room.id, message, extra).catch((err) =>
           console.error("in-app agent respond failed:", err)
         );
       } else if (url) {
