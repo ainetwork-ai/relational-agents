@@ -21,6 +21,8 @@ import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
 import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
 import { answerViewers, ownDriveSources, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
+import { matchPhotoPage, photoPage } from "./photo-page";
+import { PHOTO_RE, knownCaption, warmCaptions } from "./photo-captions";
 import { langOf, matchFamilySkill, runFamilySkill } from "./family-skills";
 import { handleTreasuryCommand } from "./treasury/skill";
 import { isAssistantRoom } from "./assistant-room";
@@ -280,6 +282,7 @@ async function llmDecision(
           `Answer from these files when they bear on the question, and say which file you took it from. Files:\n`
         : `\nYou also have a linked file folder (aindrive). Its files:\n`) +
       `${drive.files.map((f) => `- ${f}`).join("\n") || "(empty)"}\n` +
+      `A photo's "— photo:" note says what is in the picture (it has been looked at); go by it when asked for photos of something, and never open a photo.\n` +
       (opened.length
         ? `The files you opened are under "## Opened files". Do not ask to open more.\n`
         : `If a listed file may hold the answer (judge by its name), output {"action":"read_files","paths":["<path from the list>"]} (at most ${DRIVE_READ_MAX}) and you will be shown them — ` +
@@ -427,6 +430,8 @@ export async function respondToMessage(
     const matched =
       mentioned && room.workspaceId && !treasuryReply ? matchFamilySkill(message.text, { roomId, askerId: message.authorId }) : null;
     const skill = matched === "prompt" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
+    // "a page of the tree photos" — photos chosen by what they show (photo-page.ts)
+    const photoSkill = !skill && mentioned && room.workspaceId && !treasuryReply && process.env.AGENT_FAKE_LLM !== "1" && matchPhotoPage(message.text);
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
@@ -456,6 +461,16 @@ export async function respondToMessage(
     if (treasuryReply) {
       decision = { action: "reply", text: treasuryReply.text };
     } else if (done) {
+      decision = { action: "reply", text: done.text };
+    } else if (photoSkill && room.workspaceId) {
+      const sources = await roomSources(room, roomId, message).catch(() => []);
+      const lang = langOf(message.text);
+      const done = await photoPage({ workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text, lang, say: post }).catch(
+        (e: Error) => {
+          console.error("[photo-page] failed:", e);
+          return { text: makeT(lang)("I stopped partway: {error}", { error: e.message }) };
+        }
+      );
       decision = { action: "reply", text: done.text };
     } else if (mentioned && canPipeline && asksForPipeline(message.text) && process.env.AGENT_FAKE_LLM !== "1") {
       // a skill, not an answer: gather the linked call histories and build the page
@@ -539,7 +554,17 @@ export async function respondToMessage(
       const listed = await Promise.all(
         sources.map((src) =>
           runAsOrService(src.linkedBy, () => listTree(src.link, 100, 40, notUserFolder))
-            .then((files) => (src.label ? files.filter(readableFile).map((f) => `${src.label}/${f}`) : files))
+            .then((files) => {
+              const kept = src.label ? files.filter(readableFile) : files;
+              // a photo's name says where, not what — add what it shows, once someone has looked
+              const photos = kept.filter((f) => PHOTO_RE.test(f)).map((rel) => ({ src, rel }));
+              warmCaptions(photos);
+              return kept.map((f) => {
+                const seen = PHOTO_RE.test(f) ? knownCaption({ src, rel: f }) : null;
+                const shown = src.label ? `${src.label}/${f}` : f;
+                return seen ? `${shown} — photo: ${seen}` : shown;
+              });
+            })
             .catch((e) => {
               console.error("aindrive list failed:", src.label, e);
               return null;
@@ -557,7 +582,7 @@ export async function respondToMessage(
       decision = await ask("");
       if (drive && decision.readPaths?.length) {
         for (const p of decision.readPaths) {
-          const at = locate(drive, p);
+          const at = locate(drive, p.replace(/ — photo: .*$/, ""));
           drive.opened[p] = !at
             ? "(no such file)"
             : await runAsOrService(at.src.linkedBy, () => readDriveFile(at.src.link, at.rel))
