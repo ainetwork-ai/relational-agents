@@ -4,9 +4,12 @@
  * (components/a2ui/surface.tsx). One surface per recurring-buy action, showing
  * that action as it stands now: waiting for approvals, running, or over.
  *
- * Buttons fire `ainmem.treasury.*` actions: approve (the World ID approval
- * page for that action), stop (POST to the surface route, which answers with
- * the surface redrawn), open (the Treasury page).
+ * Short on purpose: the weekly amount, its weeks and total, what each buy
+ * really swaps (the story's dollars are demo scale), the approvals as slots,
+ * and one action — the thing this viewer can do now: approve (the World ID
+ * approval page for that action) while it waits, else stop or withdraw (POST
+ * to the surface route, which answers with the surface redrawn). The rule,
+ * the wallet and the terms' fingerprint are on the approval page itself.
  *
  * Also the room-chat marker: an agent message carrying a line
  * `[[a2ui:recurring-buy/<actionId>]]` shows that card in place of the line.
@@ -69,20 +72,22 @@ export function recurringBuySurfaceId(actionId: string): string {
 export interface RecurringBuySurfaceInput {
   actionId: string;
   roomId: string;
-  /** "closed": never adopted — expired, withdrawn, refused, or its terms don't verify */
-  state: "pending" | "live" | "stopped" | "ended" | "closed";
+  /** "withdrawn": a member took the request back before adoption; "closed": never adopted otherwise — expired, refused, or its terms don't verify */
+  state: "pending" | "live" | "stopped" | "ended" | "withdrawn" | "closed";
+  /** story dollars a week — the headline */
   weeklyUsd: number;
   weeks: number;
   exposureUsd: number;
-  agentAddress: string;
-  agentAddressUrl: string;
-  digestShort: string;
-  rule: string;
+  /** what one weekly buy really swaps at demo scale, in whole USDC ("0.1") */
+  usdcPerWeek: string;
   approvals: number;
   required: number;
+  /** a waiting request: whose approvals count so far, in order */
   approvedBy: string[];
   /** the viewer may approve it now (pending, seated, voting, not yet approved) */
   canApprove: boolean;
+  /** why a waiting request has no Approve button for this viewer (the Treasury home's approvals card says the same) */
+  approveBlocked?: "approved" | "unseated" | "not-voting";
   /** World ID approval is configured on this server */
   approvalsOpen: boolean;
   /** the viewer is a human member (may stop it) */
@@ -91,7 +96,6 @@ export interface RecurringBuySurfaceInput {
   progress?: {
     weekIndex: number;
     boughtWeeks: number;
-    investedUsd: number;
     wethOut: string;
     thisWeek: "bought" | "open" | "skipped";
     nextRunAt: string | null;
@@ -102,10 +106,6 @@ export interface RecurringBuySurfaceInput {
 
 function usd(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
-}
-
-function shortAddress(a: string): string {
-  return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
 }
 
 /** "0.0074" — enough digits for demo-scale buys without a wall of zeros */
@@ -128,6 +128,7 @@ const row = (id: string, children: string[], justify?: string): A2uiComponent =>
   ...(justify ? { justify } : {}),
 });
 const column = (id: string, children: string[]): A2uiComponent => ({ id, component: "Column", children });
+const chip = (id: string, value: string, tone: string): A2uiComponent => ({ id, component: "Chip", text: value, tone });
 const button = (id: string, child: string, name: string, context: Record<string, unknown>, variant?: string): A2uiComponent => ({
   id,
   component: "Button",
@@ -141,54 +142,48 @@ const STATE_CHIP: Record<RecurringBuySurfaceInput["state"], { label: string; ton
   live: { label: "Running", tone: "success" },
   stopped: { label: "Stopped", tone: "danger" },
   ended: { label: "Finished", tone: "neutral" },
+  withdrawn: { label: "Withdrawn", tone: "neutral" },
   closed: { label: "Not adopted", tone: "neutral" },
 };
 
-const THIS_WEEK: Record<NonNullable<RecurringBuySurfaceInput["progress"]>["thisWeek"], string> = {
-  bought: "bought",
-  open: "not yet",
-  skipped: "skipped",
+const APPROVE_BLOCKED: Record<NonNullable<RecurringBuySurfaceInput["approveBlocked"]>, string> = {
+  approved: "You approved — waiting for other verified members.",
+  unseated: "Claim your vote in the room to approve.",
+  "not-voting": "You joined after our rules were adopted — your approval counts once the relation re-adopts.",
 };
+
+/** an approval slot nobody has filled yet */
+const EMPTY_SLOT = "—";
 
 export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMessage[] {
   const surfaceId = recurringBuySurfaceId(s.actionId);
   const ctx = { action_id: s.actionId, room_id: s.roomId };
-  const chip = STATE_CHIP[s.state];
-  const root: string[] = ["head", "swap", "terms", "route"];
+  const state = STATE_CHIP[s.state];
+  const root: string[] = ["head", "headline", "terms", "swap"];
   const comps: A2uiComponent[] = [
     row("head", ["title", "state"], "spaceBetween"),
     text("title", t("🔁 Recurring buy"), "h4"),
-    { id: "state", component: "Chip", text: t(chip.label), tone: chip.tone },
-    row("swap", ["pay", "receive"]),
-    column("pay", ["pay_label", "pay_value"]),
-    text("pay_label", t("You pay"), "caption"),
-    text("pay_value", t("{amount} USDC every week", { amount: usd(s.weeklyUsd) }), "body"),
-    column("receive", ["receive_label", "receive_value"]),
-    text("receive_label", t("You receive"), "caption"),
-    text("receive_value", t("ETH (WETH) on Base"), "body"),
+    chip("state", t(state.label), state.tone),
+    text("headline", t("{amount} a week", { amount: usd(s.weeklyUsd) }), "h3"),
     text("terms", t("For {weeks} weeks · at most {total} in total", { weeks: s.weeks, total: usd(s.exposureUsd) }), "body"),
-    text(
-      "route",
-      t("Uniswap v3 on Base · from the agent's wallet {address}", { address: shortAddress(s.agentAddress) }),
-      "caption"
-    ),
+    text("swap", t("{usdc} USDC → WETH · Uniswap v3 on Base", { usdc: s.usdcPerWeek }), "caption"),
   ];
 
   if (s.state === "pending") {
-    root.push("approvals", "rule");
+    // one slot per approval the rules require, filled in order with who gave it
+    const slots = Array.from({ length: Math.max(1, s.required, s.approvedBy.length) }, (_, i) => `slot_${i}`);
+    root.push("slots");
     comps.push(
-      {
-        id: "approvals",
-        component: "ProgressBar",
-        value: s.approvals,
-        max: Math.max(1, s.required),
-        label: t("{n} of {m} verified humans approved", { n: s.approvals, m: s.required }),
-      },
-      text("rule", t("Our rule: “{rule}”", { rule: s.rule }), "caption")
+      row("slots", slots),
+      ...slots.map((id, i) => (s.approvedBy[i] ? chip(id, s.approvedBy[i], "success") : chip(id, EMPTY_SLOT, "neutral")))
     );
+    if (!s.canApprove && s.approveBlocked) {
+      root.push("approve_blocked");
+      comps.push(text("approve_blocked", t(APPROVE_BLOCKED[s.approveBlocked]), "caption"));
+    }
   } else if (s.state === "live" && s.progress) {
     const p = s.progress;
-    root.push("weeks", "tally", "next", "approved_by");
+    root.push("weeks", ...(p.boughtWeeks > 0 ? ["tally"] : []), "next");
     comps.push(
       {
         id: "weeks",
@@ -197,50 +192,40 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
         max: Math.max(1, s.weeks),
         label: t("Week {k} of {n}", { k: p.weekIndex, n: s.weeks }),
       },
+      ...(p.boughtWeeks > 0 ? [text("tally", t("{b} bought · {weth} WETH", { b: p.boughtWeeks, weth: weth(p.wethOut) }), "caption")] : []),
       text(
-        "tally",
-        t("Bought {b} · {invested} invested · {weth} WETH · this week: {state}", {
-          b: p.boughtWeeks,
-          invested: usd(p.investedUsd),
-          weth: weth(p.wethOut),
-          state: t(THIS_WEEK[p.thisWeek]),
-        }),
-        "body"
-      ),
-      text("next", p.nextRunAt ? t("Next buy: {day}", { day: relationDay(p.nextRunAt) }) : t("No more buys in this window"), "caption"),
-      text("approved_by", t("Approved by {names}", { names: s.approvedBy.join(", ") || "—" }), "caption")
+        "next",
+        p.thisWeek === "open"
+          ? t("This week's buy hasn't run yet")
+          : p.nextRunAt
+            ? t("Next buy: {day}", { day: relationDay(p.nextRunAt) })
+            : t("No more buys in this window"),
+        "caption"
+      )
     );
-  } else if (s.approvedBy.length) {
-    root.push("approved_by");
-    comps.push(text("approved_by", t("Approved by {names}", { names: s.approvedBy.join(", ") }), "caption"));
   }
-  root.push("digest");
-  comps.push(text("digest", t("Terms {digest}", { digest: s.digestShort }), "caption"));
 
   if (s.notice) {
     root.push("notice");
     comps.push(text("notice", s.notice, "caption"));
   }
 
-  const buttons: string[] = [];
+  // one action: approve while the viewer can, else stop (running) or withdraw (waiting)
   if (s.state === "pending" && s.canApprove && s.approvalsOpen) {
-    buttons.push("approve");
+    root.push("divider", "action");
     comps.push(
-      button("approve", "approve_label", TREASURY_APPROVE_ACTION, ctx, "primary"),
-      text("approve_label", t("🌍 Approve with World ID"))
+      { id: "divider", component: "Divider" },
+      button("action", "action_label", TREASURY_APPROVE_ACTION, ctx, "primary"),
+      text("action_label", t("🌍 Approve with World ID"))
+    );
+  } else if ((s.state === "pending" || s.state === "live") && s.canStop) {
+    root.push("divider", "action");
+    comps.push(
+      { id: "divider", component: "Divider" },
+      button("action", "action_label", TREASURY_STOP_ACTION, ctx, "danger"),
+      text("action_label", s.state === "live" ? t("Stop recurring buy") : t("Withdraw request"))
     );
   }
-  if ((s.state === "pending" || s.state === "live") && s.canStop) {
-    buttons.push("stop");
-    comps.push(
-      button("stop", "stop_label", TREASURY_STOP_ACTION, ctx, "danger"),
-      text("stop_label", s.state === "live" ? t("Stop recurring buy") : t("Withdraw request"))
-    );
-  }
-  buttons.push("open");
-  comps.push(button("open", "open_label", TREASURY_OPEN_ACTION, ctx), text("open_label", t("Open treasury ↗")));
-  root.push("divider", "actions");
-  comps.push({ id: "divider", component: "Divider" }, row("actions", buttons));
 
   comps.unshift(column("root", root));
   return [

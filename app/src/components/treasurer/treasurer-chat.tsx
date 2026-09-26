@@ -25,8 +25,9 @@ type Mode = "private" | "room";
 type Item =
   | { kind: "user"; id: string; text: string; mode: Mode }
   | { kind: "assistant"; id: string; text: string }
-  | { kind: "tool"; id: string; name: string; state: "running" | "done" | "refused" }
-  | { kind: "surface"; id: string; messages?: A2uiMessage[]; src?: string }
+  | { kind: "tool"; id: string; name: string; state: "running" | "done" | "refused"; label: string }
+  /** `run`: the answer that streamed it (history cards have none) — one card per recurring buy per answer; `rev` counts redraws */
+  | { kind: "surface"; id: string; messages?: A2uiMessage[]; src?: string; actionId?: string; run?: number; rev?: number }
   | { kind: "error"; id: string; text: string };
 
 interface HistoryTurn {
@@ -35,16 +36,28 @@ interface HistoryTurn {
   text: string;
 }
 
-/** What each tool did, as the step row says it (English source keys). */
-const TOOL_LABEL: Record<string, string> = {
-  get_treasury_status: "Read the treasury",
-  get_recurring_buy: "Checked the recurring buy",
-  list_activity: "Looked through the activity",
-  explain_rules: "Read our rules",
-  propose_recurring_buy: "Queued a recurring buy for approval",
-  stop_recurring_buy: "Stopped the recurring buy",
-  buy_this_week: "Ran this week's buy",
+/** Each tool's step row while it runs, once it did, and when it did nothing (English source keys). */
+const STEP: Record<string, { running: string; done: string; refused?: string }> = {
+  get_treasury_status: { running: "Reading the treasury…", done: "Read the treasury" },
+  get_recurring_buy: { running: "Checking the recurring buy…", done: "Checked the recurring buy" },
+  list_activity: { running: "Looking through the activity…", done: "Looked through the activity" },
+  explain_rules: { running: "Reading our rules…", done: "Read our rules" },
+  propose_recurring_buy: { running: "Queuing a recurring buy…", done: "Queued a recurring buy for approval", refused: "Nothing was queued" },
+  stop_recurring_buy: { running: "Stopping the recurring buy…", done: "Stopped the recurring buy", refused: "Nothing was stopped" },
+  buy_this_week: { running: "Running this week's buy…", done: "Ran this week's buy", refused: "Nothing was bought" },
 };
+const STEP_FALLBACK = { running: "Working…", done: "Used a tool", refused: "Couldn't finish that step" };
+
+/** The step row's label for a finished call, from what its result says happened. */
+function stepLabel(name: string, result: Record<string, unknown> | null): string {
+  const step = STEP[name] ?? STEP_FALLBACK;
+  if (!result || result.ok === false) return step.refused ?? STEP_FALLBACK.refused;
+  if (name === "buy_this_week" && result.outcome === "rehearsal") return "Rehearsed this week's buy";
+  if (name === "buy_this_week" && result.outcome === "skipped") return "Skipped this week's buy";
+  if (name === "buy_this_week" && result.outcome === "bought") return "Bought this week's ETH";
+  if (name === "stop_recurring_buy" && result.what === "withdrawn") return "Withdrew the request";
+  return step.done;
+}
 
 let seq = 0;
 const localId = (p: string) => `${p}-${++seq}`;
@@ -75,7 +88,12 @@ export function TreasurerChat({ roomId }: { roomId: string }) {
   const [mode, setMode] = useState<Mode>("private");
   const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  /** the view follows the latest message until the member scrolls up to read */
+  const pinned = useRef(true);
   const abort = useRef<AbortController | null>(null);
+  /** which answer is streaming, so a card drawn twice in it is redrawn in place */
+  const run = useRef(0);
 
   useEffect(() => {
     let live = true;
@@ -94,48 +112,81 @@ export function TreasurerChat({ roomId }: { roomId: string }) {
     };
   }, [roomId]);
 
+  // cards arrive after the text around them (a fetched card grows from its placeholder), so the
+  // view follows the content's height, not just the list of items
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [items]);
-
-  const onEvent = useCallback((e: AgUiEvent) => {
-    setItems((prev) => {
-      switch (e.type) {
-        case "TEXT_MESSAGE_START":
-          return [...prev, { kind: "assistant", id: e.messageId, text: "" }];
-        case "TEXT_MESSAGE_CONTENT":
-          return prev.map((it) => (it.kind === "assistant" && it.id === e.messageId ? { ...it, text: it.text + e.delta } : it));
-        case "TOOL_CALL_START":
-          return [...prev, { kind: "tool", id: e.toolCallId, name: e.toolCallName, state: "running" }];
-        case "TOOL_CALL_RESULT": {
-          let refused = false;
-          try {
-            refused = (JSON.parse(e.content) as { ok?: unknown }).ok === false;
-          } catch {
-            // an unreadable result still finished
-          }
-          return prev.map((it) =>
-            it.kind === "tool" && it.id === e.toolCallId ? { ...it, state: refused ? "refused" : "done" } : it
-          );
-        }
-        case "CUSTOM": {
-          if (e.name !== A2UI_SURFACE_EVENT) return prev;
-          const v = e.value as { messages?: A2uiMessage[] } | null;
-          return Array.isArray(v?.messages) ? [...prev, { kind: "surface", id: localId("surface"), messages: v.messages }] : prev;
-        }
-        case "RUN_ERROR":
-          return [...prev, { kind: "error", id: localId("error"), text: e.message }];
-        default:
-          return prev;
-      }
+    const el = scroller.current;
+    const inner = content.current;
+    if (!el || !inner) return;
+    const follow = new ResizeObserver(() => {
+      if (pinned.current) el.scrollTo({ top: el.scrollHeight });
     });
+    follow.observe(inner);
+    return () => follow.disconnect();
   }, []);
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32;
+  };
+
+  const onEvent = useCallback(
+    (e: AgUiEvent) => {
+      const thisRun = run.current;
+      setItems((prev) => {
+        switch (e.type) {
+          case "TEXT_MESSAGE_START":
+            return [...prev, { kind: "assistant", id: e.messageId, text: "" }];
+          case "TEXT_MESSAGE_CONTENT":
+            return prev.map((it) => (it.kind === "assistant" && it.id === e.messageId ? { ...it, text: it.text + e.delta } : it));
+          case "TOOL_CALL_START":
+            return [
+              ...prev,
+              { kind: "tool", id: e.toolCallId, name: e.toolCallName, state: "running", label: (STEP[e.toolCallName] ?? STEP_FALLBACK).running },
+            ];
+          case "TOOL_CALL_RESULT": {
+            let result: Record<string, unknown> | null = null;
+            try {
+              result = JSON.parse(e.content) as Record<string, unknown>;
+            } catch {
+              // an unreadable result still finished; it reads as nothing done
+            }
+            const refused = !result || result.ok === false;
+            return prev.map((it) =>
+              it.kind === "tool" && it.id === e.toolCallId
+                ? { ...it, state: refused ? "refused" : "done", label: stepLabel(it.name, result) }
+                : it
+            );
+          }
+          case "CUSTOM": {
+            if (e.name !== A2UI_SURFACE_EVENT) return prev;
+            const v = e.value as { messages?: A2uiMessage[]; actionId?: unknown } | null;
+            if (!Array.isArray(v?.messages)) return prev;
+            const actionId = typeof v.actionId === "string" ? v.actionId : undefined;
+            // src too, so the card refetches on focus like the room chat's: approvals given elsewhere show up
+            const card = { messages: v.messages, src: actionId ? surfaceSrc(roomId, actionId) : undefined };
+            const at = actionId
+              ? prev.findIndex((it) => it.kind === "surface" && it.run === thisRun && it.actionId === actionId)
+              : -1;
+            if (at >= 0) return prev.map((it, i) => (i === at && it.kind === "surface" ? { ...it, ...card, rev: (it.rev ?? 0) + 1 } : it));
+            return [...prev, { kind: "surface", id: localId("surface"), actionId, run: thisRun, ...card }];
+          }
+          case "RUN_ERROR":
+            return [...prev, { kind: "error", id: localId("error"), text: e.message }];
+          default:
+            return prev;
+        }
+      });
+    },
+    [roomId]
+  );
 
   const send = useCallback(async () => {
     const message = draft.trim();
     if (!message || running) return;
     setDraft("");
     setRunning(true);
+    run.current += 1;
+    pinned.current = true;
     setItems((prev) => [...prev, { kind: "user", id: localId("user"), text: message, mode }]);
     const ctl = new AbortController();
     abort.current = ctl;
@@ -160,8 +211,11 @@ export function TreasurerChat({ roomId }: { roomId: string }) {
         setItems((prev) => [...prev, { kind: "error", id: localId("error"), text: t("The connection dropped — try again.") }]);
     } finally {
       setRunning(false);
-      // a finished step still marked running means the stream ended under it
-      setItems((prev) => prev.map((it) => (it.kind === "tool" && it.state === "running" ? { ...it, state: "refused" } : it)));
+      // a step still marked running means the stream ended under it — the server may still have
+      // done it, so it never reads "Nothing was queued" (the run's error says to check the treasury)
+      setItems((prev) =>
+        prev.map((it) => (it.kind === "tool" && it.state === "running" ? { ...it, state: "refused", label: STEP_FALLBACK.refused } : it))
+      );
     }
   }, [draft, mode, onEvent, roomId, running, t]);
 
@@ -219,69 +273,72 @@ export function TreasurerChat({ roomId }: { roomId: string }) {
         </div>
       </header>
 
-      <div ref={scroller} className="flex-1 space-y-2.5 overflow-y-auto px-5 pb-3">
-        {loaded && items.length === 0 && (
-          <p className="py-8 text-center text-sm text-[#6B7684] dark:text-neutral-400">
-            {t("Ask about the balance, the rules, or set up a recurring ETH buy.")}
-          </p>
-        )}
-        {items.map((it) => {
-          switch (it.kind) {
-            case "user":
-              return (
-                <div key={it.id} className="flex justify-end">
-                  <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[#3182F6] px-3.5 py-2 text-sm text-white [overflow-wrap:anywhere]">
+      <div ref={scroller} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 pb-3">
+        <div ref={content} className="space-y-2.5">
+          {loaded && items.length === 0 && (
+            <p className="py-8 text-center text-sm text-[#6B7684] dark:text-neutral-400">
+              {t("Ask about the balance, the rules, or set up a recurring ETH buy.")}
+            </p>
+          )}
+          {items.map((it) => {
+            switch (it.kind) {
+              case "user":
+                return (
+                  <div key={it.id} className="flex justify-end">
+                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[#3182F6] px-3.5 py-2 text-sm text-white [overflow-wrap:anywhere]">
+                      {it.text}
+                    </p>
+                  </div>
+                );
+              case "assistant":
+                return it.text ? (
+                  <p
+                    key={it.id}
+                    data-testid="treasurer-answer"
+                    className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-[#F4F5F7] px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere] dark:bg-neutral-800"
+                  >
                     {it.text}
                   </p>
-                </div>
-              );
-            case "assistant":
-              return it.text ? (
-                <p
-                  key={it.id}
-                  data-testid="treasurer-answer"
-                  className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-[#F4F5F7] px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere] dark:bg-neutral-800"
-                >
-                  {it.text}
-                </p>
-              ) : null;
-            case "tool":
-              return (
-                <p
-                  key={it.id}
-                  data-testid="treasurer-step"
-                  className="flex items-center gap-1.5 pl-1 text-xs text-[#6B7684] dark:text-neutral-400"
-                >
-                  {it.state === "running" ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : it.state === "done" ? (
-                    <Check size={12} className="text-[#00A86B]" />
-                  ) : (
-                    <Minus size={12} />
-                  )}
-                  {t(TOOL_LABEL[it.name] ?? "Used a tool")}
-                </p>
-              );
-            case "surface":
-              return (
-                <div key={it.id}>
-                  <A2uiSurface messages={it.messages} src={it.src} />
-                </div>
-              );
-            case "error":
-              return (
-                <p key={it.id} className="pl-1 text-xs text-[#F04452]">
-                  {it.text}
-                </p>
-              );
-          }
-        })}
-        {waiting && (
-          <p className="flex items-center gap-1.5 pl-1 text-xs text-[#6B7684] dark:text-neutral-400">
-            <Loader2 size={12} className="animate-spin" />
-            {t("Thinking…")}
-          </p>
-        )}
+                ) : null;
+              case "tool":
+                return (
+                  <p
+                    key={it.id}
+                    data-testid="treasurer-step"
+                    className="flex items-center gap-1.5 pl-1 text-xs text-[#6B7684] dark:text-neutral-400"
+                  >
+                    {it.state === "running" ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : it.state === "done" ? (
+                      <Check size={12} className="text-[#00A86B]" />
+                    ) : (
+                      <Minus size={12} />
+                    )}
+                    {t(it.label)}
+                  </p>
+                );
+              case "surface":
+                return (
+                  <div key={it.id}>
+                    {/* a card redrawn in place remounts, so it can't keep the copy it fetched before */}
+                    <A2uiSurface key={it.rev ?? 0} messages={it.messages} src={it.src} />
+                  </div>
+                );
+              case "error":
+                return (
+                  <p key={it.id} className="pl-1 text-xs text-[#F04452]">
+                    {it.text}
+                  </p>
+                );
+            }
+          })}
+          {waiting && (
+            <p className="flex items-center gap-1.5 pl-1 text-xs text-[#6B7684] dark:text-neutral-400">
+              <Loader2 size={12} className="animate-spin" />
+              {t("Thinking…")}
+            </p>
+          )}
+        </div>
       </div>
 
       <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-black/5 px-4 py-3 dark:border-white/10">
