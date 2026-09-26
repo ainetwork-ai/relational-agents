@@ -79,3 +79,41 @@ Format: `JST time — surface — what happened`.
   verification — as do the `treasury_seats` table, the `/treasury/seat` routes
   and the `not-seated` reason code. Entries above keep the word they were
   written with.
+- 2026-09-26 02:24 — Agents — **sandbox IdP client registered** through the
+  world-id-agent-plugin MCP (`request_oidc_client_registration` → portal
+  approval): client `c2b39b28-289d-4676-8a16-96f06cbf5000` "AINMem Relation
+  Treasury", `client_secret_basic`, redirect
+  `https://ainmem.ainetwork.ai/api/auth/world/callback` only, status active.
+  Request staged 02:22, approved and created 02:24:30 (≈2 min; the 20-min
+  approval window was not a constraint). Secret went straight from the Portal
+  page into `.env.local` by hand — never through the agent (the MCP's rule).
+  Credentials checked without a user: token endpoint answers `invalid_grant`
+  to a bogus code with our secret, `invalid_client` to a wrong one.
+  FRICTION: (1) the plugin installs into the default Claude config dir, so a
+  session running with `CLAUDE_CONFIG_DIR` set never saw it — reinstalled
+  there. (2) Login took two rounds: the first consent granted `world-id:read`
+  only, portal tools then demanded `developer-portal:manage` (Google) and the
+  server dropped the connection until re-auth. (3) On a remote dev box the
+  OAuth redirect lands on the laptop's `localhost:<port>/callback` and fails to
+  load — pasting that URL back into Claude Code finished it, but the page looks
+  like an error and got closed once. (4) Registration with an extra
+  `http://localhost:3110/...` redirect URI was refused with a bare
+  `invalid_request` (no reason given); prod-only succeeded. So the real IdP
+  path can only be exercised end to end on prod; local dev stays on
+  `WORLD_IDP=mock`.
+- 2026-09-26 02:39 — Agents — **correction: the client above points at the
+  wrong domain.** The live demo is `memory.ainetwork.ai` (this host,
+  `memory-live-app`), not `ainmem.ainetwork.ai`. Adding the right redirect to
+  `c2b39b28…` was refused with `invalid_sector_identifier`: the first
+  registration pins the client's sector to the first redirect's host
+  (immutable), and pairwise `sub`s derive from it — a second host needs a
+  sector document served from the first. Registered a new client instead:
+  `e82cf4d2-5a57-4af5-9eb2-d4ee98c55b6c`, redirect
+  `https://memory.ainetwork.ai/api/auth/world/callback`, sector
+  `memory.ainetwork.ai` (staged 02:37, created 02:39:46). Old client set to
+  `disabled` (clients can't be deleted). Credentials checked the same way
+  (`invalid_grant` vs `invalid_client`). FRICTION: the secret pasted from the
+  Portal picked up a trailing Korean IME character (`ㅅ`) — `invalid_client`
+  with no hint; found by checking the value for non-token bytes. Lesson for the
+  debrief: pick the redirect host before registering — it becomes the identity
+  sector and can't be moved.
