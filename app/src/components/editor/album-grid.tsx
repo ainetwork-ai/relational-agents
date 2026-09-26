@@ -13,11 +13,12 @@ export interface AlbumFile {
 /**
  * An album: one file block holding several photos (`content.files`), shown as
  * a grid of square tiles — 2 across on a phone, 3 above (2 for four or fewer,
- * so four photos make a square rather than 3 + 1). A tile opens the
+ * so four photos make a square rather than 3 + 1; `dense` — a folder browser —
+ * 3 to 5 across). A tile opens the
  * photo full size; Escape or a click closes it. aindrive links load through
  * this app's access-checked proxy, like a single file block's preview.
  */
-export function AlbumGrid({ blockId, files }: { blockId: string; files: AlbumFile[] }) {
+export function AlbumGrid({ blockId, files, dense = false }: { blockId: string; files: AlbumFile[]; dense?: boolean }) {
   const info = useAindriveInfo();
   const [open, setOpen] = useState<number | null>(null);
   const src = (f: AlbumFile) => fileBytesUrl(f.url, info?.base);
@@ -34,7 +35,7 @@ export function AlbumGrid({ blockId, files }: { blockId: string; files: AlbumFil
   }, [open, files.length]);
 
   return (
-    <div data-testid={`album-grid-${blockId}`} contentEditable={false} className={`my-1 grid grid-cols-2 gap-1.5 ${files.length > 4 ? "sm:grid-cols-3" : ""}`}>
+    <div data-testid={`album-grid-${blockId}`} contentEditable={false} className={`my-1 grid gap-1.5 ${dense ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5" : `grid-cols-2 ${files.length > 4 ? "sm:grid-cols-3" : ""}`}`}>
       {files.map((f, i) => (
         <button
           key={`${f.url}-${i}`}

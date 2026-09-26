@@ -441,6 +441,7 @@ export function Browser({
               </p>
               <AlbumGrid
                 blockId={`aindrive-${dir || "root"}`}
+                dense
                 files={rows.map((e) => ({ url: rawUrl(e.path), text: e.path.slice(e.path.lastIndexOf("/") + 1) }))}
               />
             </section>
