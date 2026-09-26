@@ -181,16 +181,19 @@ const displayBalances = new Map<string, { at: number; value?: { eth: string; usd
 
 /**
  * The balance as the panel shows it: every viewer polls every few seconds, so
- * one RPC read per address per 5s is shared, and a failed read shows the last
- * one (up to a minute old) instead of a blank. Never for a money decision —
+ * one RPC read per address per 5s is shared, and a poll never waits for the
+ * chain while there is a value to show — one under 5 s old is returned as is,
+ * an older one (up to a minute) is returned while a fresh read runs behind it.
+ * Only a poll with nothing yet waits for the read. Never for a money decision —
  * those read treasuryBalance fresh.
  */
 export async function displayBalance(address: `0x${string}`): Promise<{ eth: string; usd: number }> {
   const key = address.toLowerCase();
   let entry = displayBalances.get(key);
   if (!entry) displayBalances.set(key, (entry = { at: 0 }));
-  if (entry.value && Date.now() - entry.at < DISPLAY_BALANCE_FRESH_MS) return entry.value;
   const e = entry;
+  const age = Date.now() - e.at;
+  if (e.value && age < DISPLAY_BALANCE_FRESH_MS) return e.value;
   e.inflight ??= treasuryBalance(address)
     .then(({ eth, usd }) => {
       e.value = { eth, usd };
@@ -199,12 +202,12 @@ export async function displayBalance(address: `0x${string}`): Promise<{ eth: str
     .finally(() => {
       e.inflight = undefined;
     });
-  try {
-    await e.inflight;
-  } catch (err) {
-    if (e.value && Date.now() - e.at < DISPLAY_BALANCE_STALE_MS) return e.value;
-    throw err;
+  if (e.value && age < DISPLAY_BALANCE_STALE_MS) {
+    // the read behind a stale value fails on its own; the value still stands
+    e.inflight.catch(() => {});
+    return e.value;
   }
+  await e.inflight;
   return e.value!;
 }
 
