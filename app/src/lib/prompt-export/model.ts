@@ -251,7 +251,9 @@ export interface RenderOptions {
   /** each child page its own file (true) or merged inline after its placeholder (false) */
   separateChildPages: boolean;
   /** "ainmem": breadcrumb paths, a real page tree, the workspace path as project path.
-   *  "notion2prompt": `<title>_<id>.md`, the flat `└──` tree and `/direct_template`, byte for byte. */
+   *  "notion2prompt": `<title>_<id>.md`, the flat `└──` tree and `/direct_template` — upstream's
+   *  output byte for byte for a page without sub-pages or linked pages (and the root's own file
+   *  always); the sub-pages it read are added as files, which upstream does not (render.ts). */
   layout: "ainmem" | "notion2prompt";
 }
 

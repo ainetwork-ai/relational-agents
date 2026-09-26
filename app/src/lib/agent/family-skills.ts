@@ -12,7 +12,7 @@ import { readExif, type PhotoExif } from "@/lib/exif";
 import { formatUsdc, giftValid, ledgerBalance, ledgerDriveOf, unlocked, type GiftContent } from "@/lib/gift";
 import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
-import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk } from "@/lib/prompt-export/input";
+import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk, saidAsPick } from "@/lib/prompt-export/input";
 import { promptSkill } from "./prompt-skill";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
@@ -66,7 +66,10 @@ const SERVINGS_ACT = anyOf(W.servingsAct);
  *
  * "prompt" is also returned for a sentence that only might be a prompt request ("turn
  * the Chuseok album into a prompt", no page word): the skill takes it when the name is a
- * page title the readers see, and otherwise hands it back (runFamilySkill → null).
+ * page title the readers see, and otherwise hands it back (runFamilySkill → null). Any
+ * such sentence is the prompt's before another skill's: in "turn the Chuseok album into
+ * a prompt" or "make a prompt from the shopping list" the "make" is the prompt's, and
+ * building an album or a list instead would do something nobody asked for.
  */
 export function matchFamilySkill(text: string, from?: { roomId: string; askerId: string }): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
@@ -79,6 +82,11 @@ export function matchFamilySkill(text: string, from?: { roomId: string; askerId:
     if (from) forgetPendingPrompt(from.roomId, from.askerId);
     return null;
   }
+  // a prompt asked for at all — "turn the Chuseok album into a prompt", "make me a prompt
+  // for the album" — is never the album or the shopping list (the skill may hand it back)
+  if (ask) return "prompt";
+  // the answer to its "which one?", said as a pick ("the album one", "make it from the Chuseok album")
+  if (answers && saidAsPick(t)) return "prompt";
   const other = (() => {
     for (const { skill, topic, act } of SKILL_RE) if (topic.test(t) && act.test(t)) return skill;
     if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping" as const;

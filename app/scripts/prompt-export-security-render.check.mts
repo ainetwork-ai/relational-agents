@@ -1,6 +1,8 @@
 // Prompt export — security and render-parity checks for the fixes in
 // rich-text / collect (inline mentions), render (anchors, properties default,
-// instructions), map (relation ids), deliver (aindrive save) and app-origin.
+// instructions, notion2prompt's linked pages), map (relation ids), deliver (aindrive
+// save, the prompt page's placement and code language), source-db (a trashed database)
+// and app-origin.
 //
 //   npx tsx --tsconfig scripts/tsconfig.json scripts/prompt-export-security-render.check.mts
 //
@@ -11,7 +13,9 @@ import { mapBlock, mapValue, rowPageId } from "@/lib/prompt-export/map";
 import type { PBlock, PPage, PromptContent, RichText } from "@/lib/prompt-export/model";
 import { anchorOf, defaultIncludeProperties, instructionOf, renderBlocks, renderPrompt } from "@/lib/prompt-export/render";
 import { htmlToRichText, text } from "@/lib/prompt-export/rich-text";
-import { driveSaveAllowed, shareCovers, type DriveShare } from "@/lib/prompt-export/deliver";
+import { driveSaveAllowed, promptBlockLanguage, savePromptPage, settlePlacement, shareCovers, type DriveShare } from "@/lib/prompt-export/deliver";
+import { databaseRule } from "@/lib/prompt-export/source-db";
+import { CODE_LANGUAGES } from "@/lib/editor/block-defs";
 import { publicOrigin, rememberOrigin } from "@/lib/app-origin";
 import type { DbProperty, DbRow } from "@/lib/db/schema";
 
@@ -223,6 +227,77 @@ const chip = (id: string, label: string) => `<a href="/p/${id}" class="mention" 
   else process.env.APP_ORIGIN = saved.app;
   if (saved.google === undefined) delete process.env.GOOGLE_REDIRECT_URI;
   else process.env.GOOGLE_REDIRECT_URI = saved.google;
+}
+
+// ── 6. a restricted page is open to the workspace's owners and admins too ────
+// (getPagePermission lets them into every page; okf_acl has no such override, and another
+// workspace's pages are not theirs) — a page is made only when they could open every source
+{
+  const at = { workspaceId: "ws", teamspaceId: null, restricted: true };
+  const key = (p: ReturnType<typeof settlePlacement>) => `${p.restricted}/${p.overseen}/${p.blocked}`;
+  eq("placement: restricted, no owner or admin outside the readers — a page", key(settlePlacement(at, [], true)), "true/false/false");
+  eq("placement: restricted, admins who may open every source — a page, and the reply says they can", key(settlePlacement(at, ["mom"], true)), "true/true/false");
+  eq("placement: restricted, an admin who may not open a source (a participant-only doc) — no page", key(settlePlacement(at, ["mom"], false)), "true/true/true");
+  eq("placement: an open page is the teamspace's anyway — never blocked", key(settlePlacement({ ...at, restricted: false }, ["mom"], false)), "false/false/false");
+  // savePromptPage refuses a blocked placement before it touches the database
+  const refused = await savePromptPage({
+    placement: { ...at, overseen: true, blocked: true },
+    askerId: "dad",
+    viewerIds: ["dad"],
+    title: "t",
+    summary: "s",
+    prompt: "p",
+    template: "claude-xml",
+  }).then(
+    () => false,
+    (e: Error) => /refused/.test(e.message)
+  );
+  ok("placement: savePromptPage refuses a blocked placement", refused);
+}
+
+// ── 7. a database lives where its blocks do — in the Trash with them ─────────
+{
+  const rule = (h: Parameters<typeof databaseRule>[0]) => JSON.stringify(databaseRule(h));
+  eq("database: its original's page decides", rule({ originals: ["p1"], linked: ["p2"], embedded: true }), JSON.stringify({ homes: ["p1"] }));
+  eq("database: only linked views — they decide", rule({ originals: [], linked: ["p2"], embedded: true }), JSON.stringify({ homes: ["p2"] }));
+  eq("database: every block trashed or deleted — trashed (visible to nobody), not the whole workspace", rule({ originals: [], linked: [], embedded: true }), JSON.stringify("trashed"));
+  eq("database: never embedded — the workspace's members", rule({ originals: [], linked: [], embedded: false }), JSON.stringify("workspace"));
+}
+
+// ── 8. the saved prompt's code block names a language its picker offers ─────
+{
+  for (const tpl of ["claude-xml", "default", "markdown"] as const)
+    ok(`code block language for ${tpl} is in CODE_LANGUAGES`, CODE_LANGUAGES.includes(promptBlockLanguage(tpl)), promptBlockLanguage(tpl));
+  eq("claude-xml is tags", promptBlockLanguage("claude-xml"), "html");
+}
+
+// ── 9. layout notion2prompt: the root file is upstream's, linked pages by id ─
+{
+  const HUB = "aaaaaaaa-0000-4000-8000-000000000001";
+  const SUB = "aaaaaaaa-0000-4000-8000-000000000002";
+  const LNK = "aaaaaaaa-0000-4000-8000-000000000003";
+  const pages: Record<string, MemPage> = {
+    [HUB]: {
+      title: "Hub",
+      blocks: [
+        para([text("Intro")]),
+        { id: nid(), type: "child_page", title: "Sub", pageId: SUB },
+        { id: nid(), type: "link_to_page", pageId: LNK },
+      ],
+    },
+    [SUB]: { title: "Sub", blocks: [para([text("Sub body")])] },
+    [LNK]: { title: "Linked", blocks: [para([text("Linked body")])] },
+  };
+  const c = await collect({ kind: "page", id: HUB }, {}, memSource(pages, ALL));
+  const up = renderPrompt(c, { layout: "notion2prompt" });
+  ok("n2p: a sub-page is its title, a linked page its id (upstream's pure_visitor)", up.files[0].code.includes(`📄 [[Sub]]\n[[${LNK.replace(/-/g, "")}]]\n`), up.files[0].code);
+  ok("n2p: the pages it read follow as files of their own", up.files.length === 3, up.files.map((f) => f.path).join(" | "));
+  const am = renderPrompt(c, { layout: "ainmem" });
+  ok("ainmem: a linked page reads like a sub-page", am.files[0].code.includes("📄 [[Sub]]\n📄 [[Linked]]\n"), am.files[0].code);
+  // depth 0: nothing below the root is read — upstream's single file, byte for byte in its shape
+  const flat = renderPrompt(await collect({ kind: "page", id: HUB }, { depth: 0 }, memSource(pages, ALL)), { layout: "notion2prompt" });
+  eq("n2p: depth 0 is upstream's one file", flat.files.map((f) => f.path).join(" | "), `Hub_${HUB.replace(/-/g, "")}.md`);
+  ok("n2p: …with the same root file", flat.files[0].code === up.files[0].code, flat.files[0].code);
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);

@@ -32,7 +32,9 @@ export const dynamic = "force-dynamic";
  *   POST the same options as JSON. With `content` (a stage=fetch result) it only renders
  *   — render_content, no database read, so one fetch can be rendered many ways. With
  *   `output: ["page", "drive"]` it also saves the prompt as an ainmem page and as
- *   prompts/<title>.md in your aindrive.
+ *   prompts/<title>.md in your aindrive — the page only where it reaches nobody the
+ *   sources do not (deliver.ts placementFor; otherwise json says
+ *   `page: { saved: false, reason: "wider-than-sources" }`).
  *
  * Read as the signed-in person: what they may not see is left out (and listed in json).
  * A page they cannot see is 404, the same as one that does not exist.
@@ -131,7 +133,10 @@ async function handle(req: NextRequest, pageId: string, o: Opts) {
     const out = renderPrompt(content, render);
     const title = t("AI prompt — {title}", { title: content.tree.title || target.title });
     const placement = await placementFor(content, [viewer], (await getDefaultWorkspaceId(viewer)) ?? "");
-    if (outputs.includes("page") && placement.workspaceId)
+    // a page the workspace's owners and admins would open, holding something they may not
+    // (a participant-only doc, another workspace's page): not saved — the prompt is still returned
+    if (outputs.includes("page") && placement.workspaceId && placement.blocked) extra.page = { saved: false, reason: "wider-than-sources" };
+    else if (outputs.includes("page") && placement.workspaceId)
       extra.pageId = await savePromptPage({
         placement,
         askerId: viewer,

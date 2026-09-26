@@ -29,9 +29,13 @@ export interface Readers {
   viewerIds: string[];
   /** origin for page links; defaults to publicOrigin() (APP_ORIGIN, else relative links) */
   baseUrl?: string;
+  /** read only in these workspaces — by id, by title, and everything the prompt reaches
+   *  from there (a room agent's token: its room's workspace). Unset: wherever the readers see. */
+  onlyWorkspaces?: string[];
 }
 
-const sourceFor = (r: Readers): DbSource => createDbSource({ viewerIds: r.viewerIds, baseUrl: r.baseUrl ?? publicOrigin() });
+const sourceFor = (r: Readers): DbSource =>
+  createDbSource({ viewerIds: r.viewerIds, baseUrl: r.baseUrl ?? publicOrigin(), workspaceIds: r.onlyWorkspaces });
 
 /** fetch_content: the content tree for `target`, as the readers may see it. */
 export async function fetchPromptContent(target: Located, options: Partial<FetchOptions>, readers: Readers): Promise<PromptContent> {

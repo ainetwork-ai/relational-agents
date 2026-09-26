@@ -127,10 +127,13 @@ async function resolveIdentity(req: Request): Promise<Identity | null> {
 /**
  * Who a relationship-agent token reads for in page-to-prompt: the room the agent belongs
  * to — everyone in it (answerViewers, the same readers the agent answers that room for)
- * and that room's workspace alone — and only while the token's holder is still a member
- * of an open room. Never the holder's own access: the token is for importing the room's
- * agent into an external platform, and its output leaves ainmem. Null when that does not
- * hold (no single such room, no workspace, the holder left, the room was dissolved).
+ * and that room's workspace alone (the caller confines ids, titles and everything the
+ * prompt reaches to it) — and only while the token's holder is still a member of an open
+ * room. Not the holder's own access: the token is for importing the room's agent into an
+ * external platform, and its output leaves ainmem. (In a room of one person — their
+ * assistant — "everyone in it" is that person, still in that workspace only.) Null when
+ * that does not hold (no single such room, no workspace, the holder left, the room was
+ * dissolved).
  */
 async function agentReaders(agentUserId: string, holderId: string): Promise<{ viewerIds: string[]; workspaceIds: string[] } | null> {
   if (!agentUserId || !holderId) return null;
@@ -450,7 +453,7 @@ const handler = createMcpHandler(
     // ── page-to-prompt (notion2prompt) ────────────────────────────────────
     server.tool(
       "page-to-prompt",
-      "Turn a page, database or block into an AI-ready prompt (notion2prompt): its blocks, child pages down to `depth`, child databases as tables, properties and metadata, in the claude-xml, default or markdown template. `page` is an id (Postgres uuid or OKF id), a /p/<id> link or a title. A signed-in person reads with their own access; a room agent's token reads for its room, i.e. only what everyone in that room may see, in that room's workspace (never the token holder's own access). What the readers cannot all see is left out. format='json' adds the files, counts and what was left out; stage='fetch' returns the content tree, and passing that back as `content` renders it again without reading anything.",
+      "Turn a page, database or block into an AI-ready prompt (notion2prompt): its blocks, child pages down to `depth`, child databases as tables, properties and metadata, in the claude-xml, default or markdown template. `page` is an id (Postgres uuid or OKF id), a /p/<id> link or a title. A signed-in person reads with their own access; a room agent's token reads for its room: only what everyone in that room may see, and only in that room's workspace — an id or link from another workspace is not found (OKF docs, which belong to no workspace, still need everyone in the room to be allowed to read them). What the readers cannot all see is left out. format='json' adds the files, counts and what was left out; stage='fetch' returns the content tree, and passing that back as `content` renders it again without reading anything.",
       {
         page: z.string().optional().describe("page / database / block id, a /p/<id> link, or a title"),
         content: z.record(z.string(), z.unknown()).optional().describe("a stage='fetch' result to render again"),
@@ -488,10 +491,13 @@ const handler = createMcpHandler(
           return show(c);
         }
         if (!a.page) return err("Give `page` (an id, a link or a title) or `content`.");
-        let scope: { viewerIds: string[]; workspaceIds: string[] } | null;
+        let scope: { viewerIds: string[]; workspaceIds: string[]; onlyWorkspaces?: string[] } | null;
         if (me.label === "agent") {
-          scope = await agentReaders(me.userId, me.ownerId ?? "");
-          if (!scope) return err("This agent token reads only for its room, and it has no open room with you in it.");
+          const room = await agentReaders(me.userId, me.ownerId ?? "");
+          if (!room) return err("This agent token reads only for its room, and it has no open room with you in it.");
+          // the room's workspace alone — an id or a link elsewhere is not found, and nothing
+          // the prompt reaches from there (a sub-page, a mention) is read outside it either
+          scope = { ...room, onlyWorkspaces: room.workspaceIds };
         } else {
           const viewer = requireUser();
           scope = { viewerIds: [viewer], workspaceIds: await workspacesOf(viewer) };

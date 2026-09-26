@@ -9,16 +9,20 @@ import type { FetchOptions, RenderOptions, TemplateName } from "./model";
  *  - parseRef / findRefInText / idOf: notion2prompt's NotionId::parse (uuid in any
  *    spelling, 32 hex, an id in a notion.so / notion.site URL — the object, never the
  *    ?v= view), plus ainmem's own `/p/<id>` links, whose id may be a uuid or an OKF id
- *    (base64url of a path), and teamspace ids.
+ *    (base64url of a path), and teamspace ids — in running text too, as the prompt
+ *    prints them (`teamspace:<uuid>`, a bare OKF id).
  *  - promptAsk / asksForPrompt: whether a chat sentence asks to TURN a page into a prompt
- *    (chat about prompts is left to the model).
+ *    (chat about prompts is left to the model; a polite opening — "is it possible to …",
+ *    "do you mind …" — is not a question about one).
  *  - parsePromptRequest: the options said in a sentence ("depth 2", "with child pages",
  *    "separately", "xml template", `instruction: "…"`, and their Korean) — the keyword
  *    lists live in @/i18n/content/agent.
- *  - scoreTitle / coversAsked: how well a page title matches what was asked for.
+ *  - scoreTitle / coversAsked: how well a page title matches what was asked for (an
+ *    English word as a word, a Korean one inside others).
  *  - isPromptPageTitle: a prompt page the skill saved, never a title candidate.
  *  - the pending "which one?" of the family agent's prompt skill, per room and asker,
- *    and reading the answer to it (a number, an ordinal, yes, or a title).
+ *    and reading the answer to it (a number or number word, an ordinal, "the last one",
+ *    yes, a title, or a link), and whether it was said as a pick.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -71,8 +75,23 @@ export function idOf(input: string): string | null {
   return isCanonicalOkfId(s) ? s : null;
 }
 
+/** A path an OKF id could stand for, as ids are found in running text: letters of the
+ *  family's scripts, digits and path punctuation, with a folder, an extension, a space or
+ *  Hangul in it — an English word that happens to be base64url decodes to none of these. */
+function plausibleOkfPath(path: string): boolean {
+  return /^[\p{Script=Latin}\p{Script=Hangul}\p{N}\s/._\-—–·,()'&#+!:@]+$/u.test(path) && /[/.\s\p{Script=Hangul}]/u.test(path);
+}
+
+/** A bare OKF id in running text (the prompt prints one as a page's **Page ID**). */
+export function isOkfIdInText(s: string): boolean {
+  return s.length >= 8 && isCanonicalOkfId(s) && plausibleOkfPath(Buffer.from(s, "base64url").toString("utf8"));
+}
+
 /** The first page link or id anywhere in a sentence. */
 export function findRefInText(text: string): string | null {
+  // a teamspace, as the prompt prints one (Page ID `teamspace:<uuid>`) — the prefix is the id
+  const ts = text.match(/(?<![\w-])teamspace:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\w-])/i);
+  if (ts) return `${TEAMSPACE_PREFIX}${ts[1].toLowerCase()}`;
   const link = text.match(/(?:https?:\/\/\S+)?\/p\/([A-Za-z0-9_-]{8,})/);
   if (link) {
     const r = parseRef(`/p/${link[1]}`);
@@ -88,6 +107,8 @@ export function findRefInText(text: string): string | null {
   // upstream's own spelling, and how the prompt itself prints ids (Page ID, [[hex]])
   const hex = text.match(/\b[0-9a-f]{32}\b/i);
   if (hex) return toUuid(hex[0]);
+  // a bare OKF id (base64url of a relative path)
+  for (const w of text.match(/(?<![A-Za-z0-9_/-])[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_/-])/g) ?? []) if (isOkfIdInText(w)) return w;
   return null;
 }
 
@@ -97,10 +118,11 @@ const re = (words: readonly string[]) => new RegExp(`(${words.join("|")})`, "i")
 // ── the instruction said in a sentence ─────────────────────────────────────
 
 /** A quoted instruction: each opening quote closes with its own mark, so an apostrophe
- *  inside double quotes ("Summarize grandma's recipes") stays in the text. */
-const QUOTE = `"([^"]+)"|“([^”]+)”|‘([^’]+)’|「([^」]+)」|『([^』]+)』|'([^']+)'`;
+ *  inside double quotes ("Summarize grandma's recipes") stays in the text — and in single
+ *  quotes an apostrophe inside a word ('don't skip the menu') does not close them. */
+const QUOTE = `"([^"]+)"|“([^”]+)”|‘((?:[^’]|’(?=\\p{L}))+)’|「([^」]+)」|『([^』]+)』|'((?:[^']|'(?=\\p{L}))+)'`;
 const INSTRUCTION_KW = `(?:${W.instruction.join("|")})`;
-const INSTRUCTION_QUOTED = new RegExp(`${INSTRUCTION_KW}\\s*[:：]?\\s*(?:${QUOTE})`, "i");
+const INSTRUCTION_QUOTED = new RegExp(`${INSTRUCTION_KW}\\s*[:：]?\\s*(?:${QUOTE})`, "iu");
 const INSTRUCTION_TO_END = new RegExp(`${INSTRUCTION_KW}\\s*[:：]\\s*(.+?)\\s*$`, "i");
 /** quoted text anywhere: the words of a prompt, never what it is made from */
 const QUOTED = /"[^"]*"|“[^”]*”|「[^」]*」|『[^』]*』/g;
@@ -110,7 +132,11 @@ function instructionIn(s: string): { text: string; match: string } | null {
   return m ? { text: (m.slice(1).find((x) => x) ?? "").trim(), match: m[0] } : null;
 }
 
-const oneLine = (s: string) => ` ${s.replace(/\s+/g, " ").trim()} `;
+/** "is it possible to …", "do you mind …", "when you get a chance, …": the request itself follows */
+const POLITE = new RegExp(`^(\\s*(?:@\\S+\\s+)*)(?:please\\s*,?\\s*)?(?:${PROMPT_WORDS.ask.polite.join("|")})\\s*,?\\s*`, "i");
+
+/** One line, padded, with a polite opening taken off (it only looks like a question). */
+const oneLine = (s: string) => ` ${s.replace(/\s+/g, " ").trim().replace(POLITE, "$1")} `;
 
 // ── is it a request? ────────────────────────────────────────────────────────
 
@@ -120,6 +146,7 @@ const ASK = {
   from: re(W.ask.from),
   into: re(W.ask.into),
   make: re(W.ask.make),
+  madeOf: re(W.ask.madeOf),
   question: re(W.ask.question),
 };
 const PROMPT_WORD = re(W.promptWord);
@@ -130,9 +157,10 @@ const DEICTIC = re(W.deictic);
 /** How a chat sentence asks for a prompt made from a page. */
 export interface PromptAsk {
   /**
-   * The request is unmistakable: it turns or makes a prompt AND says what from — a page,
-   * database or doc word, a link or id, "this page" — or it names the tool itself
-   * ("notion2prompt", or a bare "into a prompt, please" in Korean).
+   * The request is unmistakable: it turns something into a prompt AND says what — a page,
+   * database or doc word, a link or id, "this page" — or it makes a prompt OF a page named
+   * right at the prompt word ("a prompt for the Chuseok page", a link), or it names the
+   * tool itself ("notion2prompt", or a bare "into a prompt, please" in Korean).
    */
   sure: boolean;
   /**
@@ -160,8 +188,13 @@ export function promptAsk(sentence: string): PromptAsk | null {
   const shaped = (r: RegExp) => r.test(s) || r.test(bare);
   const always = shaped(ASK.always);
   const turn = always || shaped(ASK.convert) || shaped(ASK.from) || shaped(ASK.into);
-  if (!turn && !shaped(ASK.make)) return null;
-  const sure = always || findRefInText(s) !== null || SOURCE.test(s) || THIS_PAGE.test(s);
+  const make = shaped(ASK.make);
+  // "a prompt for the Chuseok page" said with a making verb ("write a prompt for …" is one to write)
+  const madeOf = (turn || make) && shaped(ASK.madeOf);
+  if (!turn && !make) return null;
+  // a making verb alone is sure only of a page named at the prompt word, or of a link:
+  // "make a prompt for midjourney from the photos on this page" is a prompt to WRITE
+  const sure = always || findRefInText(s) !== null || madeOf || (turn && (SOURCE.test(s) || THIS_PAGE.test(s)));
   return { sure, turn };
 }
 
@@ -194,16 +227,28 @@ export interface PromptRequest {
 }
 
 const joined = (words: readonly string[]) => `(?:\\s*(?:${words.join("|")}))*`;
-const NUMBER_AFTER = `(?:\\s*(?:${W.numberAfter.join("|")}))?`;
-const DEPTH_AFTER = `(?:${W.depthAfter.join("|")})`;
-/** "depth 2", "depth of 2", "depth up to 3" — or "3 levels", "up to 3 levels" (and their Korean) */
+const alt = (words: readonly string[]) => `(?:${words.join("|")})`;
+const NUMBER_AFTER = `(?:\\s*${alt(W.numberAfter)})?`;
+const DEPTH_UNIT = alt(W.depthUnit);
+const DEPTH_TAIL = `(?:${alt(W.depthTail)})*`;
+/**
+ * "depth 2", "max depth 3", "depth of 2", "depth up to 3" — or a number of levels that says
+ * it is one: "up to 3 levels", "going 3 levels deep", "…, 3 levels" (and their Korean,
+ * @/i18n/content/agent depthLead / depthTail). A bare "Level 1" before a word is a title's
+ * ("Level 1 supplies"), not a depth.
+ */
 const DEPTH = new RegExp(
-  `(?:${W.depth.join("|")})${joined(W.depthJoin)}\\s*(\\d+)(?:\\s*${DEPTH_AFTER})?${NUMBER_AFTER}` +
-    `|(?:(?:${W.depthMax.join("|")})\\s*)?(\\d+)\\s*${DEPTH_AFTER}${NUMBER_AFTER}`,
+  `(?:${alt(W.depthKeyLead)}\\s*)?${alt(W.depth)}${joined(W.depthJoin)}\\s*(\\d+)(?:\\s*${DEPTH_UNIT})?${NUMBER_AFTER}` +
+    `|(?:${alt(W.depthLead)}\\s*)+(\\d+)\\s*${DEPTH_UNIT}${DEPTH_TAIL}` +
+    `|(\\d+)\\s*${DEPTH_UNIT}(?:${alt(W.depthTail)})+` +
+    `|(\\d+)\\s*${DEPTH_UNIT}(?=\\s*(?:$|[,.;!?，。]|${PROMPT_WORDS.promptWord.join("|")}))`,
   "i"
 );
-/** "limit 200", "limit to 200", "at most 200 items" (and their Korean) */
-const LIMIT = new RegExp(`(?:${W.limit.join("|")})${joined(W.limitJoin)}\\s*(\\d+)${NUMBER_AFTER}`, "i");
+/** "limit 200", "limit to 200", "at most 200 items", "maximum 100 items" (and their Korean) */
+const LIMIT = new RegExp(
+  `${alt(W.limit)}${joined(W.limitJoin)}\\s*(\\d+)${NUMBER_AFTER}|${alt(W.limitLead)}\\s*(\\d+)\\s*${alt(W.limitUnit)}`,
+  "i"
+);
 
 /** The options a chat sentence asks for. Only what is said is set; the rest stay defaults. */
 export function parsePromptRequest(sentence: string): PromptRequest {
@@ -237,12 +282,12 @@ function readOptions(sentence: string): { fetch: Partial<FetchOptions>; render: 
   // depth before limit: Korean "depth, at most 3" uses the same word as "limit"
   const depth = s.match(DEPTH);
   if (depth) {
-    fetch.depth = Number(depth[1] ?? depth[2]);
+    fetch.depth = Number(depth.slice(1).find((x) => x !== undefined));
     cut(depth);
   }
   const limit = s.match(LIMIT);
   if (limit) {
-    fetch.limit = Number(limit[1]);
+    fetch.limit = Number(limit[1] ?? limit[2]);
     cut(limit);
   }
   const noChild = s.match(re(W.childPagesOff));
@@ -316,17 +361,44 @@ export function expandAliases(asked: string): string {
   return extra.length ? `${asked} ${extra.join(" ")}` : asked;
 }
 
+/** A word in Latin letters and digits only — matched as a whole word, never inside
+ *  another ("use" is not in "Chuseok", "who" not in "whole"). Korean glues particles on
+ *  and builds compounds, so a Korean word is matched inside others. */
+const LATIN_WORD = /^[a-z0-9]+$/;
+const isLatin = (w: string) => LATIN_WORD.test(w);
+
+/** The same English word, give or take a plural "s" / "es". */
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [s, l] = a.length < b.length ? [a, b] : [b, a];
+  return s.length >= 3 && (l === `${s}s` || l === `${s}es`);
+}
+
+/** Every word, lowercased, punctuation dropped (one-letter words kept). */
+const words = (s: string) =>
+  s
+    .toLowerCase()
+    .split(/[\s\p{P}\p{S}]+/u)
+    .filter(Boolean);
+
+/** Does the title hold this asked word — as a word when it is English, inside the title when Korean? */
+function titleHolds(title: string, word: string): boolean {
+  const w = norm(word);
+  if (!w) return false;
+  if (isLatin(w)) return words(title).some((t) => isLatin(t) ? sameWord(t, w) : t.includes(w));
+  return norm(title).includes(w);
+}
+
 /** Did the title answer every word the request used to name it? A word counts when
  *  the title holds it, the word with its Korean particle dropped, or (for an English
  *  word) the Korean word it stands for. */
 export function coversAsked(title: string, asked: string): boolean {
-  const t = norm(title);
   for (const w of tokens(asked)) {
     const alts = [w];
     for (const p of PROMPT_WORDS.particles) if (w.endsWith(p) && [...w].length > [...p].length + 1) alts.push(w.slice(0, -p.length));
     for (const [word, aliases] of Object.entries(PROMPT_WORDS.titleAliases))
       if (new RegExp(`^(?:${aliases.join("|")})$`, "i").test(w)) alts.push(word);
-    if (!alts.some((a) => norm(a) && t.includes(norm(a)))) return false;
+    if (!alts.some((a) => titleHolds(title, a))) return false;
   }
   return true;
 }
@@ -366,16 +438,30 @@ export function scoreTitle(title: string, asked: string): number {
   const t = norm(title);
   const a = norm(asked);
   if (!t || !a) return 0;
-  if (a.includes(t)) return 1000 + t.length;
   if (t === a) return 1000 + t.length;
-  const words = askedTokens(asked);
+  // said whole: an English title as its run of words ("Art" is not in "party"), a Korean one anywhere
+  const tw = words(title);
+  if (tw.every(isLatin) ? hasRun(words(asked), tw) : a.includes(t)) return 1000 + t.length;
+  const asks = askedTokens(asked);
+  const aw = words(asked);
   let hits = 0;
   for (const w of tokens(title)) {
     const nw = norm(w);
     if (!nw) continue;
-    if (a.includes(nw) || words.some((x) => nw.includes(norm(x)) && [...norm(x)].length >= 2)) hits++;
+    const hit = isLatin(nw)
+      ? aw.some((x) => (isLatin(x) ? sameWord(x, nw) : x.includes(nw)))
+      : a.includes(nw) || asks.some((x) => !isLatin(norm(x)) && nw.includes(norm(x)) && [...norm(x)].length >= 2);
+    if (hit) hits++;
   }
   return hits * 10;
+}
+
+/** `run` appears in `seq` as consecutive words (the last one give or take a plural). */
+function hasRun(seq: string[], run: string[]): boolean {
+  if (!run.length) return false;
+  for (let i = 0; i + run.length <= seq.length; i++)
+    if (run.every((w, j) => (j === run.length - 1 ? sameWord(seq[i + j], w) : seq[i + j] === w))) return true;
+  return false;
 }
 
 // ── the prompt pages the skill saves ────────────────────────────────────────
@@ -454,16 +540,19 @@ export const sameReaders = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && [...a].sort().join("\u0000") === [...b].sort().join("\u0000");
 
 /** What a reply to "which one?" picked: one of the offered choices by index, a
- *  narrower set of them, or (after "which page?") a name to look up. */
-export type PendingAnswer = { index: number } | { narrowed: Choice[] } | { query: string };
+ *  narrower set of them, (after "which page?") a name to look up — or a link or id pasted
+ *  in, as both questions invite. */
+export type PendingAnswer = { index: number } | { narrowed: Choice[] } | { query: string } | { id: string };
 
 const C = PROMPT_WORDS.choice;
-const NUMBER = new RegExp(
-  `^(?:(?:${C.numberBefore.join("|")})\\s*)?(\\d{1,2})\\s*(?:${C.numberAfter.join("|")})?(?:${C.trailing.join("|")})?$`,
-  "i"
-);
-const ORDINALS = C.ordinals.map((ws) => new RegExp(`^(?:${ws.join("|")})(?:${C.trailing.join("|")})?$`, "i"));
+const TRAILING = `(?:${C.trailing.join("|")})?`;
+const NUMBER = new RegExp(`^(?:(?:${C.numberBefore.join("|")})\\s*)?(\\d{1,2})\\s*(?:${C.numberAfter.join("|")})?${TRAILING}$`, "i");
+const ORDINALS = C.ordinals.map((ws) => new RegExp(`^(?:${ws.join("|")})${TRAILING}$`, "i"));
+const LAST = new RegExp(`^(?:${C.last.join("|")})${TRAILING}$`, "i");
 const YES = new RegExp(`^(?:${C.yes.join("|")})(?:\\s+(?:${C.yes.join("|")}))*$`, "i");
+// a word by itself, or with the ending a Korean answer glues on
+const CARDINALS = C.cardinals.map((ws) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${ws.join("|")})(?=${TRAILING}(?![\\p{L}\\p{N}]))`, "giu"));
+const PICK = new RegExp(`(?:${C.pickMarkers.join("|")})`, "i");
 
 /** The part of a reply that answers: options, skill words and fillers taken out. */
 function answerText(reply: string): string {
@@ -472,20 +561,37 @@ function answerText(reply: string): string {
   return r.replace(/\s+/g, " ").trim();
 }
 
+/** "number three", "three" (and the Korean words) → "number 3", "3" */
+const withDigits = (reply: string) => CARDINALS.reduce((s, r, i) => s.replace(r, String(i + 1)), reply);
+
+/** The reply as "yes" is said: lower case, no @mention, punctuation or apostrophes. */
+const plainReply = (reply: string) =>
+  reply
+    .toLowerCase()
+    .replace(/@\S+/g, " ")
+    .replace(/['’]/g, "")
+    .replace(/[,.;:!?~。，！？]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /** Does `reply` answer the pending question — and with what? null: it is about something else. */
 export function answerPending(p: PendingPrompt, reply: string): PendingAnswer | null {
+  // "…or paste the page's link": a link or id answers either question
+  const ref = findRefInText(reply);
+  if (ref) return { id: ref };
   const r = answerText(reply);
   if (!r) return null;
   const { choices } = p;
   if (choices.length) {
-    const n = r.match(NUMBER);
+    const n = r.match(NUMBER) ?? answerText(withDigits(reply)).match(NUMBER);
     if (n) {
       const i = Number(n[1]) - 1;
       return i >= 0 && i < choices.length ? { index: i } : null;
     }
     const o = ORDINALS.findIndex((x) => x.test(r));
     if (o >= 0) return o < choices.length ? { index: o } : null;
-    if (choices.length === 1 && YES.test(r)) return { index: 0 };
+    if (LAST.test(r)) return { index: choices.length - 1 };
+    if (choices.length === 1 && YES.test(plainReply(reply))) return { index: 0 };
     const hit = pickByTitle(choices, r);
     if (!hit.length) return null;
     return hit.length === 1 ? { index: choices.indexOf(hit[0]) } : { narrowed: hit };
@@ -519,4 +625,11 @@ export function answersPendingPrompt(roomId: string, askerId: string, text: stri
   if (answerPending(p, text)) return true;
   forgetPendingPrompt(roomId, askerId);
   return false;
+}
+
+/** Is an answer to "which one?" said as a pick ("the album one", "make it from the Chuseok
+ *  album", and the Korean in PROMPT_WORDS.choice.pickMarkers) — the prompt skill's even
+ *  with another skill's words in it? */
+export function saidAsPick(text: string): boolean {
+  return PICK.test(text.replace(/@\S+/g, " "));
 }

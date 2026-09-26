@@ -93,4 +93,54 @@ export const PROMPT_EXPORT_CHAT_CHECK = {
   promptPage: "AI 프롬프트 — 2026 우리 가족 추석",
   /** a family skill's own request, right after "which one?" */
   albumRequest: "@agent 제주 앨범 만들어줘",
+  /** a prompt from a page named for an album or a shopping list: the prompt, never the album or the list */
+  promptOfSkillTitle: ["@agent 추석 앨범을 프롬프트로 만들어줘", "@agent 서연이 앨범 프롬프트로 만들어줘", "@agent 장보기 목록을 프롬프트로 만들어줘"],
+  /** "which one?" answered as a pick, with the album skill's words in it */
+  pickAnswers: [
+    ["@agent 앨범 걸로 만들어줘", 0],
+    ["@agent 추석 앨범으로 만들어줘", 0],
+  ],
+  /** requests with the verbs, endings and forms people use — and what is left to name the page */
+  verbForms: [
+    ["@agent 이 페이지 프롬프트로 뽑아줘", ""],
+    ["@agent 이 페이지를 프롬프트로 생성해줘", ""],
+    ["@agent 추석 페이지를 프롬프트로 뽑아줘", "추석"],
+    ["@agent 추석 페이지를 프롬프트로 생성해줘", "추석"],
+    ["@agent 이 페이지 프롬프트로, xml로", ""],
+    ["@agent 추석 페이지 프롬프트로, 깊이 3", "추석"],
+    ["@agent 추석 페이지를 프롬프트 형태로 만들어줘", "추석"],
+    ["@agent 추석 페이지를 프롬프트화 해줘", "추석"],
+  ],
+  /** a page made INTO a prompt, named right at the prompt word: sure */
+  madeOf: ["@agent 추석 페이지 프롬프트 만들어줘", "@agent 이 페이지로 프롬프트 만들어줘"],
+  /** a prompt to WRITE, with a page word elsewhere in the sentence: never sure */
+  makeElsewhere: ["@agent 프롬프트 만들 때 참고할 페이지 알려줘", "@agent 프롬프트 만들기 팁 페이지 하나 만들어줘", "@agent 이 페이지 사진으로 그림 그릴 프롬프트 만들어줘"],
+  /** the open page, said the ways people say it */
+  openPageMore: [
+    "@agent 지금 보고 있는 페이지 프롬프트로 만들어줘",
+    "@agent 이 내용 프롬프트로 만들어줘",
+    "@agent 이 글 프롬프트로 만들어줘",
+    "@agent 이 노트 프롬프트로 만들어줘",
+    "@agent 이 표 프롬프트로 만들어줘",
+    "@agent 내가 보고 있는 거 프롬프트로 만들어줘",
+  ],
+  /** depth said as levels — and a title that starts with a number of levels */
+  depthLevelsMore: [
+    ["@agent 추석 페이지를 3단계 깊이로 프롬프트로 만들어줘", 3],
+    ["@agent 추석 페이지를 하위 페이지 2단계까지 프롬프트로 만들어줘", 2],
+  ],
+  levelTitle: ["@agent 1단계 준비물 페이지를 프롬프트로 만들어줘", "1단계 준비물"],
+  /** "yes" to "did you mean …?" */
+  yesMore: ["ㅇㅇ", "응응", "네네", "넹", "웅", "ㅇㅋ", "네 그걸로", "네 그걸로 해줘"],
+  /** the last one, "no, the first one", numbers as words */
+  answersMore: [
+    ["마지막 거", 2],
+    ["아니 첫 번째", 0],
+    ["셋", 2],
+    ["둘이요", 1],
+  ],
+  /** the object particle glued to a word */
+  objectParticle: "을",
+  /** a question about turning into a prompt is still a question */
+  promptizeQuestion: "@agent 프롬프트화가 뭐야?",
 } as const;

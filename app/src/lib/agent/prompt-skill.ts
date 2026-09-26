@@ -1,7 +1,7 @@
 import "server-only";
 import { aiChat } from "@/lib/ai";
 import { publicOrigin } from "@/lib/app-origin";
-import { makeT } from "@/i18n/translate";
+import { makeT, type T } from "@/i18n/translate";
 import {
   fetchPromptContent,
   findRefInText,
@@ -23,7 +23,7 @@ import {
   sameReaders,
   type Choice,
 } from "@/lib/prompt-export/input";
-import { placementFor, savePromptPage, savePromptToDrive } from "@/lib/prompt-export/deliver";
+import { placementFor, savePromptPage, savePromptToDrive, type Placement } from "@/lib/prompt-export/deliver";
 import type { Located } from "@/lib/prompt-export/collect";
 import type { SkillContext, SkillResult } from "./family-skills";
 
@@ -46,13 +46,19 @@ import type { SkillContext, SkillResult } from "./family-skills";
  *  - "this page" / "this" / "it" (or nothing but the request) — the page open behind the
  *    assistant panel;
  *  - a title. Several equally good → "Which one? 1. … 2. …", and the asker's next message
- *    in this room may answer it with a number, "the second one", "yes" or a name (a
- *    pending question per room and asker, input.ts). Nothing by that name → the model
- *    picks from the titles everyone here sees.
+ *    in this room may answer it with a number, "the second one", "yes", a name or a link
+ *    (a pending question per room and asker, input.ts). Nothing by that name → the model
+ *    picks from the titles everyone here sees, and that guess is only offered back ("Did
+ *    you mean …?") — a guess never writes a page or a file.
  *
  * A sentence that only might be a request ("turn the Chuseok album into a prompt", "can
  * you make a prompt?") is taken only when it names a title the readers see, or points at
- * the open page; otherwise the skill returns null and the agent answers as usual.
+ * the open page; a bare "make a prompt …" only when nothing else is said ("make a prompt
+ * for midjourney from the photos on this page" is one to write). Otherwise the skill
+ * returns null and the agent answers as usual.
+ *
+ * In a room of several people the agent reads only what is addressed to it, so its
+ * questions there ask for the answer with "@agent".
  */
 
 type Target = Located & { title: string };
@@ -100,7 +106,8 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
     ? t("I couldn't open that page for everyone who will read this. Check the name or link — or ask me quietly for a copy only you can see.")
     : t("I can't open that page. Check the name or link.");
   const noSuchTitle = shared ? t("I couldn't find a page by that name that everyone here can see.") : t("I couldn't find a page by that name.");
-  const whichPage = t("Which page should I turn into a prompt? Say its name, paste its link, or ask from the agent panel while the page is open.");
+  const q = promptQuestions(t, { shared, pageOpen: !!ctx.contextPageId });
+  const whichPage = q.whichPage;
   const remember = (choices: Choice[], pool: Choice[] = []) => {
     if (ctx.roomId) rememberPendingPrompt(ctx.roomId, ctx.askerId, { choices, pool, fetch: req.fetch, render: req.render, readers });
   };
@@ -108,9 +115,9 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
   const askWhich = (choices: Choice[]): SkillResult => {
     const top = choices.slice(0, 8);
     remember(top);
-    if (top.length === 1) return { text: t("Did you mean 「{title}」? Say yes, or say it again with another name or paste the page's link.", { title: top[0].title }) };
+    if (top.length === 1) return { text: q.didYouMean(top[0].title) };
     const list = top.map((c, i) => `${i + 1}. 「${c.title}」`).join("\n");
-    return { text: `${t("Which one? Say its number or name, or paste the page's link.")}\n${list}` };
+    return { text: `${q.whichOne}\n${list}` };
   };
   /** "Which page?" — a bare name may answer it */
   const askWhichPage = async (): Promise<SkillResult> => {
@@ -124,6 +131,9 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
     if ("index" in answer) {
       target = await locateVisible(pending.choices[answer.index].id, base);
       if (!target) return { text: notFound };
+    } else if ("id" in answer) {
+      target = await locateVisible(answer.id, base);
+      if (!target) return { text: notFound };
     } else if ("narrowed" in answer) {
       return askWhich(answer.narrowed);
     } else {
@@ -134,6 +144,9 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
     }
   } else if (ask) {
     const explicit = findRefInText(ctx.text);
+    // a bare "make a prompt …" with more said than that is a prompt to write, whatever it
+    // mentions ("… from the photos on this page", "… for the album"): the model's
+    if (!explicit && !ask.sure && !ask.turn && req.rest) return null;
     if (explicit) {
       target = await locateVisible(explicit, base);
       if (!target) return { text: notFound };
@@ -156,9 +169,10 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
         return askWhich(r.ambiguous);
       } else {
         if (!ask.sure) return null;
+        // the model's guess is asked back, never taken: it would write a page and a file
         const picked = await pickTitle(ctx.text, await visibleTitles(scope, 60));
-        if (picked) target = await locateVisible(picked.id, base);
-        if (!target) return askWhichPage().then((r) => ({ text: `${noSuchTitle} ${r.text}` }));
+        if (picked) return askWhich([picked]);
+        return askWhichPage().then((r) => ({ text: `${noSuchTitle} ${r.text}` }));
       }
     }
   }
@@ -187,25 +201,30 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
   // ── where it goes ──
   const placement = await placementFor(content, readers, ctx.workspaceId);
   const title = t("AI prompt — {title}", { title: name });
-  const pageId = await savePromptPage({
-    placement,
-    askerId: ctx.askerId,
-    viewerIds: readers,
-    title,
-    summary: t("Made from 「{title}」: {pages} pages · {blocks} blocks · {databases} databases · about {tokens} tokens. Copy the code block below into any AI chat.", {
-      ...numbers,
-      title: name,
-    }),
-    prompt: out.prompt,
-    template,
-  });
+  // no page when one would reach someone a source does not (deliver.ts placementFor)
+  const pageId = placement.blocked
+    ? null
+    : await savePromptPage({
+        placement,
+        askerId: ctx.askerId,
+        viewerIds: readers,
+        title,
+        summary: t("Made from 「{title}」: {pages} pages · {blocks} blocks · {databases} databases · about {tokens} tokens. Copy the code block below into any AI chat.", {
+          ...numbers,
+          title: name,
+        }),
+        prompt: out.prompt,
+        template,
+      });
   // only into a folder nobody outside these readers can open
   const drive = await savePromptToDrive(ctx.askerId, title, out.prompt, readers);
 
   // ── the answer ──
   const hidden = content.skipped.filter((x) => x.reason === "permission").length;
   const lines = [
-    t("Made an AI prompt from 「{title}」 → /p/{pageId}", { title: name, pageId }),
+    pageId
+      ? t("Made an AI prompt from 「{title}」 → /p/{pageId}", { title: name, pageId })
+      : t("Made an AI prompt from 「{title}」.", { title: name }),
     t("{pages} pages · {blocks} blocks · {databases} databases ({rows} rows) · {files} files · {chars} characters (about {tokens} tokens)", numbers),
     t("Template {template} · depth {depth} · child pages {child} · {layout}", {
       template,
@@ -222,9 +241,55 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult | null
     );
   if (s.depthLimited) lines.push(t("⚠️ Stopped at depth {depth} — ask with a bigger depth (up to 50) to go further.", { depth: content.options.depth }));
   if (s.limitReached) lines.push(t("⚠️ Hit the {limit}-item limit, so the end is cut off — ask with a bigger limit.", { limit: content.options.limit }));
-  if (placement.restricted) lines.push(t("🔒 The prompt page is shared only with the people who will read this answer."));
+  const lock = lockLine(t, placement, shared);
+  if (lock) lines.push(lock);
   if (drive.saved) lines.push(t("💾 Also saved to your aindrive: {path}", { path: drive.path }));
   else if (drive.reason === "shared-folder") lines.push(t("Not saved to your aindrive: that folder is shared with more people than this prompt is for."));
   else if (drive.reason === "failed") lines.push(t("Couldn't save to your aindrive: {error}", { error: drive.error ?? "" }));
-  return { pageId, text: lines.join("\n") };
+  // with no page to hold it, the prompt itself goes in the answer — read by exactly its readers
+  if (!pageId && !drive.saved) {
+    if ([...out.prompt].length <= PROMPT_IN_REPLY_MAX) lines.push("", t("Here it is — copy everything below into any AI chat:"), "", out.prompt);
+    else lines.push(t("It is too long to post here ({chars} characters) — ask again with a smaller depth or limit.", { chars: numbers.chars }));
+  }
+  return { ...(pageId ? { pageId } : {}), text: lines.join("\n") };
 }
+
+/**
+ * What the skill asks back. In a room of several people only a message to "@agent" reaches
+ * the skill (respond.ts reads the rest as chat among them), so there the question says to
+ * answer with it; with a page open behind the panel, "this page" names that one.
+ */
+export function promptQuestions(t: T, o: { shared: boolean; pageOpen: boolean }) {
+  return {
+    whichPage: o.shared
+      ? t("Which page should I turn into a prompt? Reply with @agent and its name or link.")
+      : o.pageOpen
+        ? t("Which page should I turn into a prompt? Say its name, paste its link, or say “this page” for the one you have open.")
+        : t("Which page should I turn into a prompt? Say its name, paste its link, or ask from the agent panel while the page is open."),
+    whichOne: o.shared
+      ? t("Which one? Reply with @agent and its number or name (like “@agent 2”), or paste the page's link.")
+      : t("Which one? Say its number or name, or paste the page's link."),
+    didYouMean: (title: string) =>
+      o.shared
+        ? t("Did you mean 「{title}」? Reply “@agent yes”, or ask again with another name or the page's link.", { title })
+        : t("Did you mean 「{title}」? Say yes, or say it again with another name or paste the page's link.", { title }),
+  };
+}
+
+/** Who the prompt page reaches, said as it is: the readers — one person or several — and
+ *  the workspace's owners and admins when they are not readers; or that there is no page. */
+export function lockLine(t: T, p: Pick<Placement, "restricted" | "overseen" | "blocked">, shared: boolean): string | null {
+  if (p.blocked) return t("🔒 Not saved as a page: the workspace's owners and admins can open every page, and part of this is not theirs to see.");
+  if (!p.restricted) return null;
+  if (shared)
+    return p.overseen
+      ? t("🔒 The prompt page is shared only with the people who will read this answer (and the workspace's owners and admins, who can open every page).")
+      : t("🔒 The prompt page is shared only with the people who will read this answer.");
+  return p.overseen
+    ? t("🔒 The prompt page is only for you (and the workspace's owners and admins, who can open every page).")
+    : t("🔒 The prompt page is only for you.");
+}
+
+/** The longest prompt the answer carries itself when no page can (a chat message a
+ *  person may send is 8,000 characters; the prompt keeps some room under that). */
+const PROMPT_IN_REPLY_MAX = 6_000;

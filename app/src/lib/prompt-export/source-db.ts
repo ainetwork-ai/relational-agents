@@ -39,9 +39,16 @@ import type { PBlock, PPage } from "./model";
  *  - a Postgres database: through the page that holds it — a database has no ACL of its
  *    own (GET /api/databases checks the workspace only), so it counts as visible when each
  *    reader can see a page that embeds it (its original block, not a linked view, when it
- *    has one); one embedded nowhere, when each reader is a member of its workspace
+ *    has one). One whose every block is in the Trash or deleted is in the Trash with them:
+ *    visible to nobody, like a trashed page (its home may be a private teamspace's page, and
+ *    trashing that page must not open the database to the workspace). One never embedded
+ *    anywhere: when each reader is a member of its workspace
  *  - a teamspace (as a root): visibleTeamspace for each reader
  * The agent's own user is never a reader: it has no workspace role.
+ *
+ * `workspaceIds`, when given, confines everything Postgres to those workspaces (a room
+ * agent's token reads in its room's workspace alone); the OKF tree belongs to no
+ * workspace and stays behind okf_acl only.
  */
 
 export { TEAMSPACE_PREFIX };
@@ -51,6 +58,25 @@ export interface DbSourceOptions {
   viewerIds: string[];
   /** origin for page links, "" for relative `/p/<id>` */
   baseUrl: string;
+  /** only pages, databases and teamspaces of these workspaces (unset: any the readers see) */
+  workspaceIds?: string[];
+}
+
+/** Where a database's blocks are: `live` on pages out of the Trash (originals, then linked
+ *  views), and whether it has any block at all — alive or deleted, on any page. */
+export interface DatabaseHosts {
+  originals: string[];
+  linked: string[];
+  embedded: boolean;
+}
+
+/** Pure: how a Postgres database's visibility is decided — through its live homes (the
+ *  originals when there are any), "trashed" when every block of it is deleted or on a
+ *  trashed page, "workspace" when it was never embedded anywhere. */
+export function databaseRule(h: DatabaseHosts): { homes: string[] } | "trashed" | "workspace" {
+  const homes = h.originals.length ? h.originals : h.linked;
+  if (homes.length) return { homes };
+  return h.embedded ? "trashed" : "workspace";
 }
 
 export interface DbSource extends PromptSource {
@@ -62,6 +88,8 @@ export interface DbSource extends PromptSource {
 
 export function createDbSource(opts: DbSourceOptions): DbSource {
   const viewers = [...new Set(opts.viewerIds)].filter(Boolean);
+  const scope = opts.workspaceIds ? new Set(opts.workspaceIds) : null;
+  const inScope = (workspaceId: string | null | undefined) => !scope || (!!workspaceId && scope.has(workspaceId));
   const pageUrl = (id: string) => `${opts.baseUrl}/p/${id}`;
   const mapCtx: MapCtx = { pageUrl };
   const seen = new Map<string, Promise<boolean>>();
@@ -83,12 +111,16 @@ export function createDbSource(opts: DbSourceOptions): DbSource {
     if (id.startsWith(TEAMSPACE_PREFIX)) {
       const tsId = id.slice(TEAMSPACE_PREFIX.length);
       if (!isUuid(tsId)) return false;
+      if (scope) {
+        const [ts] = await db.select({ ws: teamspaces.workspaceId }).from(teamspaces).where(eq(teamspaces.id, tsId));
+        if (!ts || !inScope(ts.ws)) return false;
+      }
       for (const v of viewers) if (!(await visibleTeamspace(v, tsId))) return false;
       return true;
     }
     if (isUuid(id)) {
-      const [p] = await db.select({ archived: pages.isArchived }).from(pages).where(eq(pages.id, id));
-      if (!p || p.archived) return false;
+      const [p] = await db.select({ archived: pages.isArchived, ws: pages.workspaceId }).from(pages).where(eq(pages.id, id));
+      if (!p || p.archived || !inScope(p.ws)) return false;
       for (const v of viewers) if (!(await getPagePermission(id, v))) return false;
       return true;
     }
@@ -96,23 +128,19 @@ export function createDbSource(opts: DbSourceOptions): DbSource {
     return false;
   }
 
-  /** pages holding a database's block: its original (not a linked view) first */
-  async function hostsOf(databaseId: string): Promise<{ originals: string[]; linked: string[] }> {
-    const rows = await db
-      .select({ pageId: blocks.pageId, content: blocks.content })
+  /** pages holding a database's block, out of the Trash: its original (not a linked view)
+   *  first — and whether it has a block anywhere at all (deleted, or on a trashed page) */
+  async function hostsOf(databaseId: string): Promise<DatabaseHosts> {
+    const all = await db
+      .select({ pageId: blocks.pageId, content: blocks.content, alive: blocks.alive, archived: pages.isArchived })
       .from(blocks)
       .innerJoin(pages, eq(pages.id, blocks.pageId))
-      .where(
-        and(
-          eq(blocks.type, "database"),
-          eq(blocks.alive, true),
-          eq(pages.isArchived, false),
-          sql`${blocks.content}->>'databaseId' = ${databaseId}`
-        )
-      );
+      .where(and(eq(blocks.type, "database"), sql`${blocks.content}->>'databaseId' = ${databaseId}`));
+    const rows = all.filter((r) => r.alive && !r.archived);
     return {
       originals: [...new Set(rows.filter((r) => !r.content?.linkedViewId).map((r) => r.pageId))],
       linked: [...new Set(rows.filter((r) => r.content?.linkedViewId).map((r) => r.pageId))],
+      embedded: all.length > 0,
     };
   }
 
@@ -125,16 +153,17 @@ export function createDbSource(opts: DbSourceOptions): DbSource {
     if (!viewers.length) return false;
     if (!isUuid(id)) return isOkfId(id) ? okfVisible(id) : false;
     const [d] = await db.select({ workspaceId: databases.workspaceId }).from(databases).where(eq(databases.id, id));
-    if (!d) return false;
-    const h = await hostsOf(id);
-    const homes = h.originals.length ? h.originals : h.linked;
-    if (!homes.length) {
+    if (!d || !inScope(d.workspaceId)) return false;
+    const rule = databaseRule(await hostsOf(id));
+    if (rule === "trashed") return false;
+    if (rule === "workspace") {
       for (const v of viewers) {
         const role = await getWorkspaceRole(d.workspaceId, v);
         if (!role || role === "guest") return false;
       }
       return true;
     }
+    const homes = rule.homes;
     for (const v of viewers) {
       let any = false;
       for (const home of homes)

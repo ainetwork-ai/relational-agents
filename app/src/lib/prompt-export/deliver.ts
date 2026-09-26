@@ -17,6 +17,7 @@ import {
   type BlockContent,
 } from "@/lib/db/schema";
 import { getWorkspaceRole } from "@/lib/auth/workspace-role";
+import { getPagePermission } from "@/lib/auth/share-token";
 import { visibleTeamspace } from "@/lib/aindrive-teamspace";
 import { aindriveConfigured, aindrivePublicBase, drivePath, parseLink, writeFile } from "@/lib/aindrive";
 import { aindriveFileUrl } from "@/lib/aindrive-url";
@@ -37,7 +38,13 @@ import { createDbSource, TEAMSPACE_PREFIX } from "./source-db";
  * sources would not reach. It goes into the root's teamspace as an ordinary page when
  * that loses nothing — every source there, in an open teamspace or in none, none of
  * them restricted or behind okf_acl, and every reader able to see that teamspace.
- * Otherwise it is a RESTRICTED page granted to the readers alone. "Source" is everything
+ * Otherwise it is a RESTRICTED page granted to the readers — and, as every page of a
+ * workspace, open to its owners and admins too (getPagePermission lets them into any
+ * page). So a restricted page is made only when each of those owners and admins could
+ * open every source themselves: a Postgres page of the workspace, yes (they get into
+ * every one), but not a participant-only OKF doc (okf_acl has no admin override) nor a
+ * page or database of another workspace. When one of them could not, no page can hold
+ * the prompt — `blocked` — and it goes back in the reply instead. "Source" is everything
  * the prompt names, not only what it read: a sub-page or database it only printed the
  * title of, a page mentioned inline, and the root's ancestors (the project path).
  */
@@ -46,6 +53,56 @@ export interface Placement {
   workspaceId: string;
   teamspaceId: string | null;
   restricted: boolean;
+  /** a restricted page that owners or admins of the workspace outside the readers can
+   *  open as well (the reply says so) */
+  overseen: boolean;
+  /** no page may hold it: some owner or admin who could open the page could not open a
+   *  source (savePromptPage refuses) */
+  blocked: boolean;
+}
+
+/** Pure: the placement's last word — a restricted page is also open to the workspace's
+ *  owners and admins who are not readers (`overseers`), so it may exist only when they
+ *  could open every source anyway. */
+export function settlePlacement(p: { workspaceId: string; teamspaceId: string | null; restricted: boolean }, overseers: readonly string[], overseersSeeAll: boolean): Placement {
+  const overseen = p.restricted && overseers.length > 0;
+  return { ...p, overseen, blocked: overseen && !overseersSeeAll };
+}
+
+/** The workspace's owners and admins — whoever getPagePermission lets into every page. */
+async function workspaceOverseers(workspaceId: string): Promise<string[]> {
+  if (!isUuid(workspaceId)) return [];
+  const rows = await db
+    .select({ u: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), inArray(workspaceMembers.role, ["owner", "admin"])));
+  return rows.map((r) => r.u);
+}
+
+/** Could each of these people (owners / admins of `workspaceId`) open every source? A
+ *  Postgres page by getPagePermission (archived or not — a restricted page's grants hold
+ *  in the Trash too), a teamspace of that workspace (they open all its pages), an OKF doc
+ *  by okf_acl, a database through its homes. */
+async function everyoneOpens(people: string[], workspaceId: string, pageIds: string[], dbIds: string[]): Promise<boolean> {
+  if (!people.length) return true;
+  const src = createDbSource({ viewerIds: people, baseUrl: "" });
+  for (const id of pageIds) {
+    if (id.startsWith(TEAMSPACE_PREFIX)) {
+      const tsId = id.slice(TEAMSPACE_PREFIX.length);
+      const [ts] = isUuid(tsId) ? await db.select({ ws: teamspaces.workspaceId }).from(teamspaces).where(eq(teamspaces.id, tsId)) : [];
+      if (!ts) return false;
+      if (ts.ws === workspaceId) continue;
+      for (const u of people) if (!(await visibleTeamspace(u, tsId))) return false;
+      continue;
+    }
+    if (isUuid(id)) {
+      for (const u of people) if (!(await getPagePermission(id, u))) return false;
+      continue;
+    }
+    if (!(await src.canSee("page", id))) return false;
+  }
+  for (const id of dbIds) if (!(await src.canSee("database", id))) return false;
+  return true;
 }
 
 /** Where the prompt page may go for these readers. */
@@ -113,8 +170,15 @@ export async function placementFor(content: PromptContent, viewerIds: string[], 
     if (!role || role === "guest") restricted = true;
     if (rootTs && !(await visibleTeamspace(v, rootTs))) restricted = true;
   }
-  return { workspaceId, teamspaceId: rootTs, restricted };
+  const readers = new Set(viewerIds);
+  const overseers = restricted ? (await workspaceOverseers(workspaceId)).filter((u) => !readers.has(u)) : [];
+  const seeAll = overseers.length ? await everyoneOpens(overseers, workspaceId, [...pageIds], dbIds) : true;
+  return settlePlacement({ workspaceId, teamspaceId: rootTs, restricted }, overseers, seeAll);
 }
+
+/** The code block's language for a template — one CODE_LANGUAGES has, so the block's
+ *  picker names it instead of showing an empty "Select…". */
+export const promptBlockLanguage = (template: TemplateName): string => (template === "claude-xml" ? "html" : "plain");
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
@@ -130,6 +194,8 @@ export async function savePromptPage(opts: {
   template: TemplateName;
 }): Promise<string> {
   const { placement: at, askerId } = opts;
+  // the workspace's owners and admins would open it, and they may not open every source
+  if (at.blocked) throw new Error("prompt page refused: it would reach people the sources do not");
   const readers = [...new Set([askerId, ...opts.viewerIds])];
   const same = await db
     .select({ id: pages.id })
@@ -185,7 +251,8 @@ export async function savePromptPage(opts: {
   }
   const body: { type: "callout" | "code"; content: BlockContent }[] = [
     { type: "callout", content: { icon: "🤖", text: opts.summary } },
-    { type: "code", content: { text: opts.prompt, language: opts.template === "markdown" ? "markdown" : "xml" } },
+    // a language the code block's picker offers (CODE_LANGUAGES): claude-xml is tags, the others plain text
+    { type: "code", content: { text: opts.prompt, language: promptBlockLanguage(opts.template) } },
   ];
   await db.insert(blocks).values(body.map((b, i) => ({ pageId: pageId!, type: b.type, content: b.content, position: i + 1 })));
   return pageId;

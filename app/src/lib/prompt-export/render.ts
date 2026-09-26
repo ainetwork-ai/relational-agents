@@ -46,6 +46,9 @@ export interface RenderEnv extends RichTextOptions {
   afterChildPage?: (pageId: string) => string;
   /** the slice render_blocks was given — what a table of contents lists */
   documentBlocks?: PBlock[];
+  /** layout "notion2prompt": a link_to_page prints its id, as upstream, even when the
+   *  fetch stage knows the title */
+  linkIds?: boolean;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -211,10 +214,11 @@ function renderBlock(b: PBlock, ctx: Ctx, env: RenderEnv): { content: string; ct
       content = childDatabase(b, env);
       break;
     case "link_to_page":
-      // notion2prompt knows no title here and prints the id; ainmem draws a linked page
-      // exactly like a sub-page, so once the fetch stage has its title it reads the same
+      // notion2prompt knows no title here and prints the id (and so does its layout here);
+      // the ainmem layout draws a linked page exactly like a sub-page, so once the fetch
+      // stage has its title it reads the same
       content =
-        (b.title !== undefined ? `📄 [[${b.title}]]\n` : `[[${idHex(b.pageId)}]]\n`) +
+        (b.title !== undefined && !env.linkIds ? `📄 [[${b.title}]]\n` : `[[${idHex(b.pageId)}]]\n`) +
         (env.afterChildPage ? env.afterChildPage(b.pageId) : "");
       break;
     case "table":
@@ -448,9 +452,18 @@ export function estimateTokens(s: string): number {
  * `## Properties` section only when it has a property worth printing (a database row,
  * a page with a Status …), and a plain page none. With layout "notion2prompt" the
  * default is upstream's own: false (its CLI's --include-properties is off unless given,
- * and so is the Python library's include_properties), so that layout reproduces
- * upstream's default output byte for byte. An explicit true / false / "auto" wins in
- * either layout.
+ * and so is the Python library's include_properties). An explicit true / false / "auto"
+ * wins in either layout.
+ *
+ * What layout "notion2prompt" reproduces byte for byte: upstream's default output when
+ * nothing in it has a sub-page or a linked page (a page, a database and its rows, a
+ * block) — and, for any root, the root's own file (sub-pages as `📄 [[title]]`, a linked
+ * page as `[[id]]`).
+ * Past that it does more than upstream: the sub-pages and linked pages the fetch stage
+ * read follow as files of their own (`<title>_<id>.md` in the flat tree), or inline after
+ * their placeholder with separateChildPages false — what upstream's --parse-child-pages
+ * and --separate-child-page flags advertise, though its renderer reads neither and emits
+ * the root's file alone. Ask for depth 0 (or no child pages) for upstream's single file.
  */
 export const DEFAULT_RENDER: RenderOptions = {
   template: "claude-xml",
@@ -507,7 +520,7 @@ export function renderPrompt(content: PromptContent, options: Partial<RenderOpti
   const emitted = new Set<string>();
   const pageMarkdown = (page: PPage, node: TreeNode | undefined): string => {
     const kids = new Set((node?.children ?? []).filter((c) => c.kind === "page").map((c) => c.id));
-    const env: RenderEnv = { databases: content.databases, mentionTitle };
+    const env: RenderEnv = { databases: content.databases, mentionTitle, linkIds: n2p };
     if (!opts.separateChildPages)
       env.afterChildPage = (id) => {
         if (!kids.has(id) || emitted.has(id)) return "";
@@ -552,7 +565,7 @@ export function renderPrompt(content: PromptContent, options: Partial<RenderOpti
       }
     }
   } else {
-    const env: RenderEnv = { databases: content.databases, mentionTitle };
+    const env: RenderEnv = { databases: content.databases, mentionTitle, linkIds: n2p };
     const node = content.tree;
     const kids = new Set(node.children.filter((c) => c.kind === "page").map((c) => c.id));
     if (!opts.separateChildPages)
