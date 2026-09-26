@@ -390,8 +390,9 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
   const me = viewerId ? status.members.find((m) => m.userId === viewerId) : undefined;
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
+  // the founding adoption is the seed's first row in every room: not news
   const history = status.actions
-    .filter((a) => a.status !== "pending")
+    .filter((a) => a.status !== "pending" && a.kind !== "ratify")
     .sort(newestFirst)
     .slice(0, 5);
   const banner = bannerOf(result, status);
