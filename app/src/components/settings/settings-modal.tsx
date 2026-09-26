@@ -117,7 +117,7 @@ export function SettingsModal({
         onClick={(e) => e.stopPropagation()}
         className="relative flex h-[calc(100%-100px)] w-[90vw] max-w-[1512px] overflow-hidden rounded-xl bg-white shadow-2xl max-md:h-full max-md:w-full max-md:flex-col max-md:rounded-none dark:bg-neutral-800"
       >
-        <nav className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto bg-neutral-50 px-2 py-2 max-md:w-full max-md:flex-row max-md:gap-1 max-md:overflow-x-auto max-md:border-b max-md:border-neutral-200 dark:bg-neutral-900 max-md:dark:border-neutral-700" role="tablist" aria-orientation="vertical">
+        <nav className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto bg-neutral-50 px-2 py-2 max-md:w-full max-md:flex-row max-md:gap-1 max-md:overflow-x-auto max-md:pr-12 max-md:[mask-image:linear-gradient(to_left,transparent_44px,black_76px)] dark:bg-neutral-900" role="tablist" aria-orientation="vertical">
           <div className="flex flex-col gap-0.5 max-md:flex-row max-md:gap-1">
             <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500 max-md:hidden">{t("Account")}</div>
             <NavTab id="account" active={tab === "account"} onSelect={setTab} icon={<UserAvatar user={shown} size={20} />} label={shown.displayName} />
@@ -129,7 +129,7 @@ export function SettingsModal({
             <NavTab id="family" active={tab === "family"} onSelect={setTab} icon={<FamilyTreeIcon />} label={t("Family names")} />
           </div>
         </nav>
-        <div role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="relative flex-1 overflow-y-auto bg-white dark:bg-neutral-800">
+        <div role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="relative flex-1 overflow-y-auto bg-white max-md:border-t max-md:border-neutral-200 dark:bg-neutral-800 max-md:dark:border-neutral-700">
           <div className="flex justify-center px-[clamp(18px,5vw,60px)] py-9 max-md:py-6">
             <div className="flex w-full max-w-[800px] flex-col gap-9">
               {tab === "account" && <AccountPanel initialName={displayName} />}

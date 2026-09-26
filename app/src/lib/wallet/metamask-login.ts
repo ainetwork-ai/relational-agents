@@ -17,8 +17,24 @@ function toHexMessage(message: string): string {
   );
 }
 
+/** Why linking or signing in failed, for callers that translate it (the English `error` stays as is). */
+export type MetaMaskFailure =
+  | "no-wallet" // no MetaMask in this browser
+  | "no-account" // MetaMask returned no account
+  | "rejected" // the user closed the picker or rejected the signature (4001)
+  | "no-challenge" // the server had no challenge for this session
+  | "invalid-signature"
+  | "taken" // wallet-link: the wallet belongs to another account
+  | "has-other" // wallet-link: this account already has another wallet
+  | "network" // a request never got an answer
+  | "failed"; // anything else
+
 /** A failure whose message is already the text to show. */
-class MetaMaskFlowError extends Error {}
+class MetaMaskFlowError extends Error {
+  constructor(public reason: MetaMaskFailure, message: string) {
+    super(message);
+  }
+}
 
 const REJECTED = "Signature request rejected.";
 
@@ -33,13 +49,20 @@ function messageFor(err: unknown, fallback: string): string {
   return isRejection(err) ? REJECTED : fallback;
 }
 
+/** The same error as a MetaMaskFailure. A TypeError is what fetch throws when the request never got an answer. */
+function reasonFor(err: unknown): MetaMaskFailure {
+  if (err instanceof MetaMaskFlowError) return err.reason;
+  if (isRejection(err)) return "rejected";
+  return err instanceof TypeError ? "network" : "failed";
+}
+
 /**
  * Pick an account in MetaMask, fetch a fresh challenge and sign it.
  * Throws `MetaMaskFlowError` (no wallet / no account) or the provider's error (4001 on reject).
  */
 export async function signChallengeWithMetaMask(): Promise<{ address: string; signature: string }> {
   const ethereum = getInjectedProvider();
-  if (!ethereum) throw new MetaMaskFlowError("MetaMask not detected. Please install the extension.");
+  if (!ethereum) throw new MetaMaskFlowError("no-wallet", "MetaMask not detected. Please install the extension.");
   // Force the account picker every time. eth_requestAccounts reuses whatever this
   // origin already authorized, so switching accounts inside MetaMask changes nothing
   // on its own. Revoking the permission first (MetaMask ≥ 12.2) guarantees the next
@@ -56,7 +79,7 @@ export async function signChallengeWithMetaMask(): Promise<{ address: string; si
   }
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
   const address = accounts?.[0];
-  if (!address) throw new MetaMaskFlowError("No MetaMask account available.");
+  if (!address) throw new MetaMaskFlowError("no-account", "No MetaMask account available.");
 
   const challengeRes = await fetch("/api/auth/challenge");
   const { message } = await challengeRes.json();
@@ -87,10 +110,9 @@ export async function signInWithMetaMask(
   }
 }
 
-/** Attach the MetaMask address to the account signed in now; the session keeps its user. */
-export async function linkMetaMask(): Promise<
-  { ok: true; address: string } | { ok: false; error: string; reason?: "taken" | "has-other" }
-> {
+/** Attach the MetaMask address to the account signed in now; the session keeps its user.
+ *  `error` is English (for logs); `reason` is what a UI translates. */
+export async function linkMetaMask(): Promise<{ ok: true; address: string } | { ok: false; error: string; reason: MetaMaskFailure }> {
   const fallback = "Connecting MetaMask failed";
   try {
     const { address, signature } = await signChallengeWithMetaMask();
@@ -101,11 +123,12 @@ export async function linkMetaMask(): Promise<
     });
     const data = await res.json();
     if (!res.ok) {
-      const reason = data.reason === "taken" || data.reason === "has-other" ? data.reason : undefined;
+      const known: MetaMaskFailure[] = ["taken", "has-other", "no-challenge", "invalid-signature"];
+      const reason = known.includes(data.reason) ? (data.reason as MetaMaskFailure) : "failed";
       return { ok: false, error: data.error || fallback, reason };
     }
     return { ok: true, address: data.address };
   } catch (err) {
-    return { ok: false, error: messageFor(err, fallback) };
+    return { ok: false, error: messageFor(err, fallback), reason: reasonFor(err) };
   }
 }

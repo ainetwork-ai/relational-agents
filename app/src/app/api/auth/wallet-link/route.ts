@@ -21,12 +21,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "signature and address are required" }, { status: 400 });
   }
   const challenge = session.challenge;
-  if (!challenge) return NextResponse.json({ error: "No challenge found. Please try again." }, { status: 401 });
+  if (!challenge) return NextResponse.json({ reason: "no-challenge", error: "No challenge found. Please try again." }, { status: 401 });
   session.challenge = undefined; // one use, pass or fail
   await session.save();
 
   if (!verifyEthSignature(challengeMessage(challenge), signature, address)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    return NextResponse.json({ reason: "invalid-signature", error: "Invalid signature" }, { status: 401 });
   }
 
   const addr = address.toLowerCase();

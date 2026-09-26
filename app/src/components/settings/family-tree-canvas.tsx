@@ -3,16 +3,18 @@
 // The family tree canvas (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Task 7b): absolutely
 // positioned cards from layoutForest, one SVG of orthogonal edges behind them, scrolling inside its own
 // box. Ghost "+ Add" cards appear on the people the viewer can add under (per-node `canAdd` from the API:
-// an admin whose wallet holds the roles). Under 640 px the rows stack as an indented list of the same cards.
-import { Fragment, useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+// an admin whose wallet holds the roles); an admin whose wallet holds none is told why and who can. The
+// canvas opens scrolled to the first person and their "+ Add a child", and fades at an edge that has
+// more to scroll to. Under 640 px the rows stack as an indented list of the same cards.
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { Address } from "viem";
 import { useT } from "@/i18n/provider";
 import { ghostChildKey, ghostSpouseKey, layoutForest, type LaidOutCard } from "@/lib/ens-family/tree-layout";
-import { MUTED, type Candidate, type TreeNode } from "./family-ui";
+import { MUTED, short, type Candidate, type TreeNode } from "./family-ui";
 import { CARD_H, CARD_W, FamilyPersonCard } from "./family-person-card";
 import { AddMemberCard, FORM_W, type AddPhase } from "./add-member-card";
 
-const GAP = 24;
+const GAP = 16;
 const VGAP = 44;
 const PAD = 16;
 /** Room below an open form (it is taller than a card). */
@@ -68,6 +70,8 @@ export function FamilyTreeCanvas({
   const boxRef = useRef<HTMLDivElement>(null);
   const [phases, setPhases] = useState<Record<string, AddPhase>>({});
   const [branches, setBranches] = useState<Record<string, boolean>>({});
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const scrolledOnce = useRef(false);
 
   const ghosts = canEdit && !!wallet;
   const { all, parentRegistry } = useMemo(() => indexTree(tree), [tree]);
@@ -88,14 +92,64 @@ export function FamilyTreeCanvas({
     });
   }, []);
 
+  // open on the first person and their "+ Add a child" (the main action), centred when both fit,
+  // else with the ghost fully in view; once per mount, so an add never jumps the view
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (narrow || !box || scrolledOnce.current) return;
+    const top = layout.cards.find((c) => c.kind === "person" && c.row === 0 && c.node);
+    if (!top?.node) return;
+    scrolledOnce.current = true;
+    const ghost = layout.cards.find((c) => c.key === ghostChildKey(top.node!.name));
+    const lo = Math.min(xOf(top.col), ghost ? xOf(ghost.col) : Infinity);
+    const hi = Math.max(xOf(top.col), ghost ? xOf(ghost.col) : -Infinity) + CARD_W;
+    const view = box.clientWidth;
+    const target = hi - lo + 2 * PAD <= view ? (lo + hi) / 2 - view / 2 : hi + PAD - view;
+    box.scrollLeft = Math.max(0, target);
+  }, [layout, narrow]);
+
+  // the edge fades: shown while there is more to scroll to on that side
+  useEffect(() => {
+    const box = boxRef.current;
+    if (narrow || !box) return;
+    const update = () => {
+      const left = box.scrollLeft > 1;
+      const right = box.scrollLeft + box.clientWidth < box.scrollWidth - 1;
+      setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+    };
+    const ro = new ResizeObserver(update);
+    ro.observe(box);
+    if (box.firstElementChild) ro.observe(box.firstElementChild);
+    box.addEventListener("scroll", update, { passive: true });
+    return () => {
+      ro.disconnect();
+      box.removeEventListener("scroll", update);
+    };
+  }, [narrow, tree]);
+
   const onPhase = (key: string) => (p: AddPhase) => {
     setPhases((prev) => ({ ...prev, [key]: p }));
     if (p === "form") reveal(key);
   };
   const onBranch = (parentName: string) => (active: boolean) => setBranches((prev) => ({ ...prev, [parentName]: active }));
 
+  // an admin with a wallet that holds none of the family's registry roles sees no "+ Add" cards: say why
+  const cannotAdd = ghosts && !all.some((n) => n.canAdd) && wallet ? (
+    <p className={MUTED} data-testid="family-no-add">
+      {t("This wallet ({addr}) holds no roles on the registries of {root}, so it can't add people. The wallet that created {root} can.", {
+        addr: short(wallet),
+        root: tree.name,
+      })}
+    </p>
+  ) : null;
+
   if (tree.children.length === 0) {
-    return <p className={MUTED}>{t("No one is in the family tree yet.")}</p>;
+    return (
+      <>
+        {cannotAdd}
+        <p className={MUTED}>{t("No one is in the family tree yet.")}</p>
+      </>
+    );
   }
 
   const addCard = (kind: "child" | "spouse", parent: TreeNode, key: string, fluid?: boolean): ReactNode => {
@@ -121,9 +175,12 @@ export function FamilyTreeCanvas({
 
   if (narrow) {
     return (
-      <ul className="flex flex-col gap-2" data-testid="family-tree-list">
-        <ListRows nodes={tree.children} depth={0} ghostKeys={ghostKeys} branches={branches} addCard={addCard} />
-      </ul>
+      <>
+        {cannotAdd}
+        <ul className="flex flex-col gap-2" data-testid="family-tree-list">
+          <ListRows nodes={tree.children} depth={0} ghostKeys={ghostKeys} branches={branches} addCard={addCard} />
+        </ul>
+      </>
     );
   }
 
@@ -133,30 +190,38 @@ export function FamilyTreeCanvas({
   const height = Math.max(yOf(layout.rows) - VGAP + PAD, openForm ? yOf(openForm.row) + FORM_ROOM : 0);
   const cardAt = new Map(layout.cards.map((c) => [c.key, c]));
 
+  const fade = "pointer-events-none absolute inset-y-px z-30 w-10 from-neutral-400/25 to-transparent dark:from-black/50";
   return (
-    <div
-      ref={boxRef}
-      data-testid="family-tree-canvas"
-      className="relative max-h-[520px] w-full overflow-auto rounded-lg border border-[rgba(28,19,1,0.08)] bg-neutral-50/60 dark:border-neutral-700 dark:bg-neutral-900/40"
-    >
-      <div className="relative" style={{ width, height }}>
-        <Edges layout={layout.edges} cardAt={cardAt} phases={phases} width={width} height={height} />
-        {layout.cards.map((c) => (
-          <div
-            key={c.key}
-            data-card-key={c.key}
-            className={`absolute ${phases[c.key] && phases[c.key] !== "ghost" ? "z-20" : "z-10"}`}
-            style={{ left: xOf(c.col), top: yOf(c.row) }}
-          >
-            {c.kind === "person" && c.node ? (
-              <FamilyPersonCard node={c.node} branch={!!branches[c.node.name]} />
-            ) : c.parentName && byName.get(c.parentName) ? (
-              addCard(c.kind === "ghost-child" ? "child" : "spouse", byName.get(c.parentName)!, c.key)
-            ) : null}
+    <>
+      {cannotAdd}
+      <div className="relative">
+        <div
+          ref={boxRef}
+          data-testid="family-tree-canvas"
+          className="relative max-h-[520px] w-full overflow-auto rounded-lg border border-[rgba(28,19,1,0.08)] bg-neutral-50/60 dark:border-neutral-700 dark:bg-neutral-900/40"
+        >
+          <div className="relative" style={{ width, height }}>
+            <Edges layout={layout.edges} cardAt={cardAt} phases={phases} width={width} height={height} />
+            {layout.cards.map((c) => (
+              <div
+                key={c.key}
+                data-card-key={c.key}
+                className={`absolute ${phases[c.key] && phases[c.key] !== "ghost" ? "z-20" : "z-10"}`}
+                style={{ left: xOf(c.col), top: yOf(c.row) }}
+              >
+                {c.kind === "person" && c.node ? (
+                  <FamilyPersonCard node={c.node} branch={!!branches[c.node.name]} />
+                ) : c.parentName && byName.get(c.parentName) ? (
+                  addCard(c.kind === "ghost-child" ? "child" : "spouse", byName.get(c.parentName)!, c.key)
+                ) : null}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        {edges.left && <div aria-hidden data-testid="family-tree-fade-left" className={`${fade} left-px rounded-l-lg bg-gradient-to-r`} />}
+        {edges.right && <div aria-hidden data-testid="family-tree-fade-right" className={`${fade} right-px rounded-r-lg bg-gradient-to-l`} />}
       </div>
-    </div>
+    </>
   );
 }
 

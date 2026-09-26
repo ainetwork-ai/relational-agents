@@ -34,7 +34,22 @@ import {
   type SavedRun,
 } from "@/lib/wallet/ens-issue";
 import { SettingsHeader, SettingsRow, SettingsSection } from "./settings-layout";
-import { BTN, ENS_APP, INPUT, MUTED, PRIMARY, explain, short, txUrl, useDebounced, type Candidate, type TreeNode } from "./family-ui";
+import {
+  BTN,
+  ENS_APP,
+  INPUT,
+  MUTED,
+  PRIMARY,
+  explain,
+  linkFailureText,
+  short,
+  txUrl,
+  usdcText,
+  useDebounced,
+  yearsText,
+  type Candidate,
+  type TreeNode,
+} from "./family-ui";
 import { FamilyTreeCanvas } from "./family-tree-canvas";
 
 // ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
@@ -68,7 +83,7 @@ const CREATE_APPROVALS = 8;
 const DAY_MS = 86_400_000;
 const BANNER_DAYS = 30;
 
-const usdc = (micro: bigint) => formatUnits(micro, USDC_DECIMALS);
+const usdc = (micro: bigint, premium = BigInt(0)) => usdcText(formatUnits(micro, USDC_DECIMALS), formatUnits(premium, USDC_DECIMALS));
 const ethLabelOf = (root: string) => /^([a-z0-9-]+)\.eth$/.exec(root)?.[1] ?? null;
 const dateOf = (iso: string) => iso.slice(0, 10);
 
@@ -86,19 +101,28 @@ function stepLabel(key: string, t: T, years?: number): string {
   if (/^eth:.+:wait$/.test(key)) return t("Wait a minute so nobody can snipe the name");
   if ((m = /^eth:(.+):register$/.exec(key))) return t("Register {name}", { name: `${m[1]}.eth` });
   if ((m = /^register:(.+)$/.exec(key))) return t("Register {name}", { name: m[1] });
-  if ((m = /^renew:([^:]+)$/.exec(key))) return t("Renew {name} for {n} year(s)", { name: `${m[1]}.eth`, n: years ?? 1 });
+  if ((m = /^renew:([^:]+)$/.exec(key))) return t("Renew {name} for {period}", { name: `${m[1]}.eth`, period: yearsText(years ?? 1, t) });
   return key;
 }
 
 /** fresh: re-read the tree from the chain (after an add), not the server's cached copy. */
-async function fetchFamilyState(workspaceId: string, fresh = false): Promise<{ state: FamilyState } | { error: string | null }> {
+async function fetchFamilyState(workspaceId: string, fresh = false): Promise<{ state: FamilyState } | { reason?: string; raw?: string }> {
   try {
     const res = await fetch(`/api/workspaces/${workspaceId}/ens${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
     const d = await res.json().catch(() => ({}));
-    return res.ok ? { state: d as FamilyState } : { error: typeof d.error === "string" ? d.error : null };
-  } catch {
-    return { error: null };
+    return res.ok ? { state: d as FamilyState } : { reason: d.reason, raw: typeof d.error === "string" ? d.error : `http-${res.status}` };
+  } catch (err) {
+    return { reason: "network", raw: String(err) };
   }
+}
+
+/** The load error as text: Sepolia or the server being unreachable is worth saying; anything else
+ *  is a generic line (the server's English text goes to the console). */
+function loadErrorText(r: { reason?: string; raw?: string }, t: T): string {
+  if (r.reason === "chain-unavailable") return t("Could not reach Sepolia right now. Try again in a moment.");
+  if (r.reason === "network") return t("Could not reach the server. Check your connection and try again.");
+  console.warn("[family names] load failed:", r.reason, r.raw);
+  return t("Couldn't load family names");
 }
 
 // ── the panel ────────────────────────────────────────────────────────────────────────────────────
@@ -113,7 +137,7 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
       if ("state" in r) {
         setLoadError(null);
         setState(r.state);
-      } else setLoadError(r.error ?? t("Couldn't load family names"));
+      } else setLoadError(loadErrorText(r, t));
     },
     [t]
   );
@@ -200,15 +224,13 @@ function ConnectSection({ onLinked }: { onLinked: () => Promise<void> }) {
     const r = await linkMetaMask();
     setBusy(false);
     if (r.ok) return onLinked();
-    if (r.reason === "taken") setError(t("This wallet is already used by another account — pick another account in MetaMask."));
-    else if (r.reason === "has-other") setError(t("This account already uses another wallet."));
-    else setError(r.error);
+    setError(linkFailureText(r.reason, t, r.error));
   }
 
   return (
     <SettingsSection title={t("Wallet")}>
       <SettingsRow
-        label={t("Connect MetaMask")}
+        label={t("No wallet connected")}
         description={t("Family names live on Ethereum (Sepolia ENS). Connect MetaMask to this account to create or manage them.")}
       >
         <button data-testid="family-connect" className={BTN} onClick={() => void connect()} disabled={busy}>
@@ -343,7 +365,7 @@ function CreateForm({
   const [myAlias, setMyAlias] = useState(me?.displayName ?? "");
   const [answer, setAnswer] = useState<LabelAnswer | null>(null);
   const [checking, setChecking] = useState(false);
-  const [price, setPrice] = useState<{ label: string; years: number; micro: bigint } | null>(null);
+  const [price, setPrice] = useState<{ label: string; years: number; micro: bigint; premium: bigint } | null>(null);
   const [funds, setFunds] = useState<{ have: bigint; need: bigint } | null>(null);
 
   const local = useMemo(() => checkLabel(raw, { min: 3 }), [raw]);
@@ -382,7 +404,7 @@ function CreateForm({
     if (!free || !local.ok) return;
     let alive = true;
     registerPrice(local.label, years)
-      .then((micro) => alive && setPrice({ label: local.label, years, micro }))
+      .then(({ total, premium }) => alive && setPrice({ label: local.label, years, micro: total, premium }))
       .catch(() => undefined);
     return () => {
       alive = false;
@@ -401,7 +423,7 @@ function CreateForm({
   }, [account]);
 
   const myLabel = checkLabel(myLabelRaw);
-  const shownPrice = price && local.ok && price.label === local.label && price.years === years ? `${usdc(price.micro)}` : null;
+  const shownPrice = price && local.ok && price.label === local.label && price.years === years ? usdc(price.micro, price.premium) : null;
   const short_ = funds ? funds.have < funds.need : false;
   const ready = free && myLabel.ok && familyAlias.trim() !== "" && myAlias.trim() !== "" && !short_;
 
@@ -439,7 +461,7 @@ function CreateForm({
               onClick={() => setYears(y)}
               className={`${BTN} ${years === y ? "bg-neutral-200/60 dark:bg-neutral-700" : ""}`}
             >
-              {t("{n} year(s)", { n: y })}
+              {yearsText(y, t)}
             </button>
           ))}
         </div>
@@ -450,14 +472,14 @@ function CreateForm({
       <SettingsRow label={t("Your name in the family")} description={t("You become the first person in the tree, e.g. grandma.lee.eth.")}>
         <div className="flex items-center gap-1">
           <input data-testid="family-my-label-input" value={myLabelRaw} onChange={(e) => setMyLabelRaw(e.target.value)} placeholder="grandma" className={`${INPUT} w-32`} aria-label={t("Your name in the family")} />
-          <span className="text-sm text-neutral-500">.{local.ok ? local.label : "…"}.eth</span>
+          {local.ok && <span className="text-sm text-neutral-500" data-testid="family-my-label-suffix">.{local.label}.eth</span>}
         </div>
         <input data-testid="family-my-alias-input" value={myAlias} onChange={(e) => setMyAlias(e.target.value)} placeholder={t("Display name")} className={`${INPUT} mt-2 w-56`} aria-label={t("Display name")} />
       </SettingsRow>
       <div className="flex flex-col gap-1 rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900" data-testid="family-summary">
         <span className="text-sm text-neutral-800 dark:text-neutral-200">
           {shownPrice
-            ? t("{price} USDC (test) for {n} year(s), minted for you on Sepolia", { price: shownPrice, n: years })
+            ? t("{price} USDC (test) for {period}, minted for you on Sepolia", { price: shownPrice, period: yearsText(years, t) })
             : t("The fee shows once the name is available")}
         </span>
         <span className={MUTED}>
@@ -536,7 +558,10 @@ function LabelStatus({
   } else if (answer.status === "free") {
     line = (
       <span className="text-xs text-green-700 dark:text-green-400">
-        {t("✓ {name} is available · {price} USDC (test) / year", { name: `${answer.label}.eth`, price: answer.price?.usdc ?? "?" })}
+        {t("✓ {name} is available · {price} USDC (test) / year", {
+          name: `${answer.label}.eth`,
+          price: answer.price ? usdcText(answer.price.usdc, answer.price.premiumUsdc) : "?",
+        })}
       </span>
     );
   } else if (answer.status === "reserved") {
@@ -763,7 +788,7 @@ function RenewForm({ label, wallet, onClose, onDone }: { label: string; wallet: 
       <div className="flex flex-wrap items-center gap-2">
         {PERIODS.map((y) => (
           <button key={y} aria-pressed={years === y} disabled={running} onClick={() => setYears(y)} className={`${BTN} ${years === y ? "bg-neutral-200/60 dark:bg-neutral-700" : ""}`}>
-            {t("{n} year(s)", { n: y })}
+            {yearsText(y, t)}
           </button>
         ))}
         <span className={MUTED}>

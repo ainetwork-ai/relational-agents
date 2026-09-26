@@ -5,6 +5,8 @@
 // place; after Add it stays where it is as a dotted pending card (ring n/N, the current step, the step
 // list), turns solid when the last receipt is in and re-resolves its own name. A rejected approval
 // leaves it dotted with "Cancelled · Continue"; a taken name goes back to the form with suggestions.
+// A started add is kept in localStorage (ens-issue.ts loadAdd): after a reload it comes back dotted
+// with "Interrupted · Continue", until it succeeds or is discarded.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isAddress, type Address } from "viem";
 import { Check, ExternalLink, Loader2, Plus } from "lucide-react";
@@ -12,7 +14,7 @@ import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { checkLabel } from "@/lib/ens-family/labels";
 import { AddressInTreeError, NameTakenError, type TxStep } from "@/lib/ens-family/issue";
-import { memberStepKeys, resolveName, runAddMember, type AddMemberInput } from "@/lib/wallet/ens-issue";
+import { clearAdd, loadAdd, memberStepKeys, resolveName, runAddMember, type AddMemberInput, type SavedAdd } from "@/lib/wallet/ens-issue";
 import { BTN, INPUT, MUTED, PRIMARY, displayOf, explain, short, txUrl, useDebounced, type Candidate, type TreeNode } from "./family-ui";
 import { CARD_H, CARD_W, RelationBadge, WrappedName } from "./family-person-card";
 
@@ -85,10 +87,17 @@ export function AddMemberCard({
   onDone: () => Promise<void>;
 }) {
   const t = useT();
-  const [phase, setPhaseState] = useState<AddPhase>("ghost");
-  const [input, setInput] = useState<AddMemberInput | null>(null);
-  const [steps, setSteps] = useState<Record<string, TxStep>>({});
-  const [stop, setStop] = useState<{ message: string; rejected: boolean } | null>(null);
+  // an add this wallet started before a reload (a saved add from another account stays hidden)
+  const [restored] = useState<SavedAdd | null>(() => {
+    const saved = loadAdd(workspaceId, kind, parent.name);
+    return saved && saved.account.toLowerCase() === account.toLowerCase() ? saved : null;
+  });
+  const [phase, setPhaseState] = useState<AddPhase>(restored ? "stopped" : "ghost");
+  const [input, setInput] = useState<AddMemberInput | null>(restored?.input ?? null);
+  const [steps, setSteps] = useState<Record<string, TxStep>>(() => Object.fromEntries((restored?.steps ?? []).map((x) => [x.key, x])));
+  const [stop, setStop] = useState<{ message: string; rejected: boolean; interrupted?: boolean } | null>(
+    restored ? { message: t("Interrupted"), rejected: false, interrupted: true } : null
+  );
   const [takenLabel, setTakenLabel] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [resolved, setResolved] = useState<string | null>(null);
@@ -96,6 +105,18 @@ export function AddMemberCard({
   const ref = useRef<HTMLDivElement>(null);
   // one run at a time: two quick clicks on Add/Continue must not open two MetaMask requests
   const busy = useRef(false);
+  // tell the canvas about a restored pending card once (its edge turns blue and dashed); the canvas
+  // makes a new onPhase every render, so the effect reads the latest one from a ref
+  const onPhaseRef = useRef(onPhase);
+  useEffect(() => {
+    onPhaseRef.current = onPhase;
+  });
+  const announced = useRef(!restored);
+  useEffect(() => {
+    if (announced.current) return;
+    announced.current = true;
+    onPhaseRef.current("stopped");
+  }, []);
 
   const setPhase = (p: AddPhase) => {
     setPhaseState(p);
@@ -104,6 +125,7 @@ export function AddMemberCard({
   const parentDisplay = displayOf(parent);
 
   function reset() {
+    clearAdd(workspaceId, kind, parent.name);
     setInput(null);
     setSteps({});
     setStop(null);
@@ -128,6 +150,7 @@ export function AddMemberCard({
       await runAddMember({
         account,
         input: next,
+        saveAs: { workspaceId, kind, steps: next === input ? Object.values(steps) : [] },
         onStep: (s) => {
           setSteps((p) => ({ ...p, [s.key]: s }));
           if (s.key.startsWith("set-subregistry:") && DONE.has(s.status)) onBranch(false);
@@ -142,6 +165,7 @@ export function AddMemberCard({
       setTimeout(() => void onDone().catch(() => undefined).then(reset), SETTLED_MS);
     } catch (err) {
       onBranch(false);
+      if (err instanceof NameTakenError || err instanceof AddressInTreeError) clearAdd(workspaceId, kind, parent.name);
       if (err instanceof NameTakenError) {
         // back to the form: the label is marked taken and the suggestions come with the re-check
         setTakenLabel(next.label);
@@ -161,6 +185,8 @@ export function AddMemberCard({
   }
 
   const width = fluid ? undefined : phase === "form" ? FORM_W : CARD_W;
+  // in the list layout several ghosts stack, so each says whose child or spouse it adds
+  const ghostLong = kind === "child" ? t("Add a child of {name}", { name: parentDisplay }) : t("Add a spouse for {name}", { name: parentDisplay });
 
   if (phase === "ghost") {
     return (
@@ -171,10 +197,11 @@ export function AddMemberCard({
           data-kind={kind}
           data-parent={parent.name}
           onClick={() => setPhase("form")}
+          aria-label={ghostLong}
           className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-300 text-sm text-neutral-400 transition-colors hover:border-neutral-400 hover:text-neutral-600 dark:border-neutral-600 dark:hover:text-neutral-300"
           style={{ height: fluid ? 44 : CARD_H }}
         >
-          <Plus size={14} /> {kind === "child" ? t("Add a child") : t("Add spouse")}
+          <Plus size={14} /> {fluid ? ghostLong : kind === "child" ? t("Add a child") : t("Add spouse")}
         </button>
       </div>
     );
@@ -211,7 +238,7 @@ export function AddMemberCard({
   else if (phase === "stopped" && stop)
     line = (
       <span className="flex flex-wrap items-center gap-1 text-xs" data-testid="family-add-message">
-        <span className={stop.rejected ? "text-neutral-600 dark:text-neutral-300" : "text-red-500"}>{stop.rejected ? t("Cancelled") : stop.message}</span>
+        <span className={stop.rejected || stop.interrupted ? "text-neutral-600 dark:text-neutral-300" : "text-red-500"}>{stop.rejected ? t("Cancelled") : stop.message}</span>
         <span className="text-neutral-400">·</span>
         <button type="button" data-testid="family-add-continue" className="text-blue-600 hover:underline" onClick={() => void run(input)}>
           {t("Continue")}
@@ -421,7 +448,7 @@ function AddForm({
           <span className="text-xs text-red-500">
             {takenLabel === current.label && current.status === "free"
               ? t("{name} was just registered by someone else.", { name: `${current.label}.${parent.name}` })
-              : t("taken")}
+              : t("{name} is taken", { name: `${current.label}.${parent.name}` })}
           </span>
           {current.suggestions.length > 0 && (
             <span className="flex flex-wrap gap-1" data-testid="family-add-suggestions">
@@ -506,7 +533,7 @@ function AddForm({
             data-testid="family-add-label-input"
             value={labelRaw}
             onChange={(e) => setLabelRaw(e.target.value)}
-            placeholder="aunt"
+            placeholder="minjun"
             className={`${INPUT} w-24 font-mono text-xs`}
             aria-label={t("Name")}
           />
@@ -521,7 +548,7 @@ function AddForm({
 
       <div className="flex flex-col gap-1">
         <span className={MUTED}>{t("Display name")}</span>
-        <input data-testid="family-add-alias-input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Aunt" className={`${INPUT} w-full`} aria-label={t("Display name")} />
+        <input data-testid="family-add-alias-input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Minjun" className={`${INPUT} w-full`} aria-label={t("Display name")} />
         {sameAlias && (
           <span className="text-xs text-amber-600" data-testid="family-add-alias-note">
             {t("Two people will be called {alias} — the agent will ask which one when sending", { alias: alias.trim() })}

@@ -9,7 +9,7 @@ import { useT } from "@/i18n/provider";
 import { resolveName } from "@/lib/wallet/ens-issue";
 import { ENS_APP, MUTED, addressUrl, displayOf, short, type TreeNode } from "./family-ui";
 
-export const CARD_W = 184;
+export const CARD_W = 176;
 export const CARD_H = 104;
 
 /** The name with a break opportunity after every dot: dad.grandma.lee.eth wraps as dad. / grandma. / … */

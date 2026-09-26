@@ -7,6 +7,7 @@ import type { T } from "@/i18n/translate";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { WalletSignatureError, toWalletError } from "@/lib/wallet/provider";
 import { FamilyApiError } from "@/lib/wallet/ens-issue";
+import type { MetaMaskFailure } from "@/lib/wallet/metamask-login";
 
 // ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
 
@@ -41,18 +42,78 @@ export const txUrl = (hash: string) => `${SEPOLIA_EXPLORER}/tx/${hash}`;
 export const addressUrl = (address: string) => `${SEPOLIA_EXPLORER}/address/${address}`;
 export const displayOf = (n: Pick<TreeNode, "alias" | "label">) => n.alias ?? n.label;
 
+/** A server refusal (FamilyApiError.reason, or the `reason` of a failed GET) as text for the admin.
+ *  Unknown reasons get a generic line; the server's English text only goes to the console. */
+export function apiReasonText(reason: string | undefined, t: T, raw?: string): string {
+  switch (reason) {
+    case "no-wallet":
+      return t("Connect MetaMask to this account first.");
+    case "chain-unavailable":
+      return t("Could not reach Sepolia right now. Try again in a moment.");
+    case "exists":
+      return t("This workspace already has a family name.");
+    case "reserved":
+      return t("Someone in this app is registering this name right now");
+    case "taken":
+      return t("This name was just registered by someone else.");
+    case "not-yours":
+      return t("This wallet does not own the name with its family registry.");
+    case "no-from-block":
+      return t("This browser lost track of the family registry. Cancel and start again.");
+  }
+  if (raw) console.warn("[family names]", reason, raw);
+  return t("The server refused this step. Try again in a moment.");
+}
+
+/** Why linking MetaMask failed (metamask-login's `reason`), translated; the English text only to the console. */
+export function linkFailureText(reason: MetaMaskFailure, t: T, raw: string): string {
+  switch (reason) {
+    case "no-wallet":
+      return t("MetaMask was not found in this browser.");
+    case "no-account":
+      return t("MetaMask has no account to connect.");
+    case "rejected":
+      return t("You cancelled the request in MetaMask.");
+    case "no-challenge":
+    case "invalid-signature":
+      return t("The signature could not be checked. Try again.");
+    case "taken":
+      return t("This wallet is already used by another account — pick another account in MetaMask.");
+    case "has-other":
+      return t("This account already uses another wallet.");
+    case "network":
+      return t("Could not reach the server. Check your connection and try again.");
+  }
+  console.warn("[family names] wallet link:", raw);
+  return t("Connecting MetaMask failed. Try again.");
+}
+
 /** What to tell the admin when a run stops. `rejected`: the wallet's approval was declined (the tree
- *  card shows a short "Cancelled · Continue"); every stop can be continued. */
+ *  card shows a short "Cancelled · Continue"); every stop can be continued. Server refusals are
+ *  translated by reason (apiReasonText); a wallet's own English message only goes to the console. */
 export function explain(err: unknown, t: T, account: string): { message: string; rejected: boolean } {
-  if (err instanceof FamilyApiError) return { message: err.message, rejected: false };
+  if (err instanceof FamilyApiError) return { message: apiReasonText(err.reason, t, err.message), rejected: false };
   const w = err instanceof WalletSignatureError ? err : toWalletError(err);
   if (w.reason === "rejected") return { message: t("Cancelled — press Continue to pick up where you left off."), rejected: true };
   if (w.reason === "no-provider") return { message: t("MetaMask was not found in this browser."), rejected: false };
+  if (w.reason === "no-account") return { message: t("MetaMask has no account to connect."), rejected: false };
   if (w.message === "wrong-account") return { message: t("Switch MetaMask to {addr}, then press Continue.", { addr: short(account) }), rejected: false };
   const cause = w.cause as { name?: string } | undefined;
   if (cause?.name === "ChainMismatchError") return { message: t("Switch MetaMask to Sepolia, then press Continue."), rejected: false };
-  return { message: t("It stopped: {msg}", { msg: w.message.split("\n")[0] }), rejected: false };
+  console.warn("[family names] run stopped:", w.message, w.cause);
+  return { message: t("It stopped before finishing. Press Continue to try again."), rejected: false };
 }
+
+/** A USDC amount as the admin reads it: 2 decimals (the base rate is priced per second, so
+ *  8.000021 is really 8.00), unless there is a premium or the amount is under 0.01. */
+export function usdcText(amount: string, premium = "0"): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || Number(premium) > 0 || n < 0.01) return amount;
+  return n.toFixed(2);
+}
+
+/** "1 year", "2 years": a key per form, since t() has no plurals. */
+export const yearsText = (n: number, t: T) => (n === 1 ? t("1 year") : t("{n} years", { n }));
 
 export function useDebounced<V>(value: V, ms: number): V {
   const [v, setV] = useState(value);

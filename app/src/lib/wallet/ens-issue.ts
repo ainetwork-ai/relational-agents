@@ -4,7 +4,8 @@
 // Browser side of Settings → Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md,
 // Tasks 7 and 7b): the admin's MetaMask as a viem WalletClient behind an account/chain guard, a Sepolia
 // reader, and the create / renew / add-member runs that call ens-family/issue.ts one approval at a time.
-// Progress is kept in localStorage `ens-family:<workspaceId>` so a reload resumes (F9).
+// Progress is kept in localStorage (`ens-family:<workspaceId>` for the create run,
+// `ens-family-add:<workspaceId>:<kind>:<parent>` for an add) so a reload resumes (F9).
 import { createPublicClient, createWalletClient, custom, http, type Address, type EIP1193Provider, type PublicClient } from "viem";
 import { sepolia } from "viem/chains";
 import { ethRegistrarAbi } from "@/lib/ens-family/abi";
@@ -57,15 +58,15 @@ export async function familyContext(expected: Address, onStep?: (s: TxStep) => v
   }
 }
 
-/** Register fee for `years` in MockUSDC units (base + premium). */
-export async function registerPrice(label: string, years: number): Promise<bigint> {
+/** Register fee for `years` in MockUSDC units: the total (base + premium) and the premium alone. */
+export async function registerPrice(label: string, years: number): Promise<{ total: bigint; premium: bigint }> {
   const [base, premium] = await sepoliaReader().readContract({
     address: ETH_REGISTRAR,
     abi: ethRegistrarAbi,
     functionName: "getRegisterPrice",
     args: [label, YEAR_SECONDS * BigInt(years), MOCK_USDC],
   });
-  return base + premium;
+  return { total: base + premium, premium };
 }
 
 /** Renew fee for `years` in MockUSDC units. */
@@ -264,11 +265,60 @@ export function memberStepKeys(input: Pick<AddMemberInput, "parentName" | "label
   return [...branch, `deploy-resolver:${name}`, `register:${name}`];
 }
 
+/** A started add, kept so a reload shows it again with Continue (F9, like the create run). The run
+ *  itself resumes onchain; this only remembers what was being added and which steps were done. */
+export interface SavedAdd {
+  account: Address;
+  input: AddMemberInput;
+  steps: TxStep[];
+}
+
+/** One saved add per workspace, person and kind (a child and a spouse can be pending at once). */
+const addKey = (workspaceId: string, kind: "child" | "spouse", parentName: string) => `ens-family-add:${workspaceId}:${kind}:${parentName}`;
+
+export function loadAdd(workspaceId: string, kind: "child" | "spouse", parentName: string): SavedAdd | null {
+  try {
+    const raw = localStorage.getItem(addKey(workspaceId, kind, parentName));
+    return raw ? (JSON.parse(raw) as SavedAdd) : null;
+  } catch {
+    return null;
+  }
+}
+function saveAdd(workspaceId: string, kind: "child" | "spouse", parentName: string, add: SavedAdd): void {
+  try {
+    localStorage.setItem(addKey(workspaceId, kind, parentName), JSON.stringify(add));
+  } catch {
+    // private mode: the add still works, it just cannot come back after a reload
+  }
+}
+export function clearAdd(workspaceId: string, kind: "child" | "spouse", parentName: string): void {
+  try {
+    localStorage.removeItem(addKey(workspaceId, kind, parentName));
+  } catch {
+    // nothing saved
+  }
+}
+
 /** Add a child or spouse from the linked wallet: addMember (issue.ts) one approval at a time.
- *  Resumable onchain: a second run skips what the first one finished (CREATE2 + our resolver). */
-export async function runAddMember(args: { account: Address; input: AddMemberInput; onStep: (s: TxStep) => void }): Promise<{ name: string }> {
-  const { input } = args;
-  const ctx = await familyContext(args.account, args.onStep);
+ *  Resumable onchain: a second run skips what the first one finished (CREATE2 + our resolver).
+ *  With `saveAs`, the add and its steps are kept in localStorage until it succeeds (the caller
+ *  clears it on Discard). */
+export async function runAddMember(args: {
+  account: Address;
+  input: AddMemberInput;
+  onStep: (s: TxStep) => void;
+  saveAs?: { workspaceId: string; kind: "child" | "spouse"; steps?: TxStep[] };
+}): Promise<{ name: string }> {
+  const { input, saveAs } = args;
+  let steps = saveAs?.steps ?? [];
+  const persist = () => saveAs && saveAdd(saveAs.workspaceId, saveAs.kind, input.parentName, { account: args.account, input, steps });
+  persist();
+  const onStep = (s: TxStep) => {
+    steps = [...steps.filter((x) => x.key !== s.key), s];
+    persist();
+    args.onStep(s);
+  };
+  const ctx = await familyContext(args.account, onStep);
   await addMember(ctx, {
     parentName: input.parentName,
     parentRegistry: input.parentRegistry,
@@ -279,6 +329,7 @@ export async function runAddMember(args: { account: Address; input: AddMemberInp
     address: input.address,
     treeAddresses: input.treeAddresses,
   });
+  if (saveAs) clearAdd(saveAs.workspaceId, saveAs.kind, input.parentName);
   return { name: `${input.label}.${input.parentName}` };
 }
 
