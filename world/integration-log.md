@@ -232,3 +232,16 @@ Format: `JST time — surface — what happened`.
   sending the swap with its own gas limit. Earlier the same afternoon, the
   deposit ($180, Chris + Dana) executed the same way; the 💡 idle-funds hint
   did not post that time because the Base RPC call failed — now tolerated.
+- 2026-09-26 13:22 — IDKit — **staging verification window opened for the demo
+  host** with the team API key (`scripts/world-staging-window.mjs --env
+  .env.xyz`): open until 2026-09-27T13:22Z; token saved, xyz app recreated
+  (`091985f`) so it sends `x-staging-verification-token`. 13:28 — **first real
+  vote on ainmem.ainetwork.xyz**: Alex → Claim your vote with World ID → IDKit →
+  simulator ("Use the simulator", Human 1) → "🌍 Vote claimed — World ID
+  confirmed you're a unique human. One human, one vote." Seat stored as level
+  `orb`, nullifier `0x11a2…`, `seatMode: world-id-v4`. FRICTION: the window is
+  the one prerequisite nothing in the app can supply — it needs a team API key
+  and a human at a hidden prompt, closes after 24 h, and must be reopened
+  before judging if judges try the live page. A hand-built probe of
+  `/api/v4/verify` can't tell "window closed" from "bad proof" (schema is
+  validated first), so the only check is a real simulator vote.
