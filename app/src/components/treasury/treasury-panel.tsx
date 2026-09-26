@@ -260,7 +260,14 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
     const seq = ++seqRef.current;
     inFlightRef.current = true;
     return fetch(`/api/dm/rooms/${roomId}/treasury`, { cache: "no-store" })
-      .then((res) => (res.ok ? (res.json() as Promise<StatusView>) : null))
+      .then((res) => {
+        if (res.ok) return res.json() as Promise<StatusView>;
+        // a 5xx is the server mid-restart (a deploy swaps the container): keep
+        // the last status and keep polling, rather than blank the panel until
+        // the next successful read. A 4xx is an answer — no treasury, no access.
+        if (res.status >= 500) throw new Error(`treasury status ${res.status}`);
+        return null;
+      })
       .then((next) => {
         if (roomRef.current !== roomId || seq < appliedRef.current) return;
         appliedRef.current = seq;
@@ -532,6 +539,14 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="treasury-members">
+            <span
+              data-testid="treasury-votes-count"
+              title="Members whose World ID vote counts, of everyone in the relation"
+              className="mr-0.5 text-xs font-medium tabular-nums text-neutral-500 dark:text-neutral-400"
+            >
+              {status.members.filter((m) => m.seated && m.seatLevel !== "dev-simulator" && m.voting).length}/
+              {status.members.length} votes
+            </span>
             {status.members.map((m) => {
               // The ring around the face says where this member stands, by the
               // seat's own proof whatever mode the server runs: green, a World
@@ -571,20 +586,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 </span>
               );
             })}
-          </div>
-          <div data-testid="treasury-seat-dev-note" className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-neutral-400 dark:text-neutral-500">
-            <span>
-              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />
-              World ID vote
-            </span>
-            <span>
-              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />
-              not counted
-            </span>
-            <span>
-              <span aria-hidden className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-              no vote
-            </span>
           </div>
 
           {showClaim && (
