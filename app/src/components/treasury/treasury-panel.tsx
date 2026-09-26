@@ -390,11 +390,6 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
   const me = viewerId ? status.members.find((m) => m.userId === viewerId) : undefined;
 
   const pending = status.actions.filter((a) => a.status === "pending").sort(newestFirst);
-  // the founding adoption is the seed's first row in every room: not news
-  const history = status.actions
-    .filter((a) => a.status !== "pending" && a.kind !== "ratify")
-    .sort(newestFirst)
-    .slice(0, 5);
   const banner = bannerOf(result, status);
   // someone without a vote sees how to get one without looking for it
   const open = openOverride ?? (pending.length > 0 || banner !== null || !status.mySeated);
@@ -449,6 +444,15 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
           className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-neutral-200 bg-white pl-2 pr-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900 active:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 dark:active:bg-neutral-700"
         >
           {t("Open treasury")}
+          <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
+        </Link>
+        {/* what was paid, refused and invested lives on the Treasury page's Activity tab, not under the chat */}
+        <Link
+          href={`/treasury/${roomId}/activity`}
+          data-testid="treasury-history-link"
+          className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md px-1.5 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+        >
+          {t("History")}
           <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
         </Link>
         {!open && pending.length > 0 && (
@@ -781,72 +785,6 @@ export function TreasuryPanel({ roomId, agent = null }: { roomId: string; agent?
 
           <RecurringBuyPanel key={roomId} roomId={roomId} status={status} onChanged={refresh} />
 
-          {history.length > 0 && (
-            <ul className="mt-3 space-y-1 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800" data-testid="treasury-history">
-              {history.map((a) => (
-                <li key={a.id} data-testid="treasury-history-item" className="leading-relaxed">
-                  {a.status === "executed" && a.kind === "ratify" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">📜 Adopted {a.memo}</span>
-                  )}
-                  {a.status === "executed" && a.kind === "recurring-buy" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">📌 Adopted {a.memo}</span>
-                  )}
-                  {a.status === "unconfirmed" && (
-                    <span className="text-amber-700 dark:text-amber-300">
-                      ⏳ {usdShort(a.amountUsd)} · {memoOf(a)} — sent, not confirmed yet
-                      {a.txHash && (
-                        <>
-                          {" · tx "}
-                          <a
-                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono underline decoration-dotted underline-offset-2"
-                          >
-                            {short(a.txHash)}
-                          </a>
-                        </>
-                      )}{" "}
-                      · don&apos;t ask again until it settles
-                    </span>
-                  )}
-                  {a.status === "executed" && a.kind !== "ratify" && a.kind !== "recurring-buy" && (
-                    <span className="text-neutral-700 dark:text-neutral-300">
-                      ✅ {usdShort(a.amountUsd)} · {memoOf(a)}
-                      {a.txHash && (
-                        <>
-                          {" · tx "}
-                          <a
-                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-600 dark:text-emerald-300"
-                          >
-                            {short(a.txHash)}
-                          </a>
-                        </>
-                      )}
-                    </span>
-                  )}
-                  {a.status === "blocked" && (
-                    <span className="text-red-700 dark:text-red-300">
-                      ⛔ {titleOf(a, usdShort)} — <span className="italic">“{a.ruleText}”</span>
-                    </span>
-                  )}
-                  {a.status === "failed" && (
-                    <span className="text-red-700 dark:text-red-300">
-                      ⚠️ {titleOf(a, usdShort)} — {a.error || "the transfer failed"}
-                    </span>
-                  )}
-                  {a.status === "cancelled" && (
-                    <span className="text-neutral-500 dark:text-neutral-400">
-                      ✖ {titleOf(a, usdShort)} · {a.error || "cancelled"}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
     </section>
