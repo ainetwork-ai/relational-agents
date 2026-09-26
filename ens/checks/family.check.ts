@@ -4,6 +4,7 @@
 //   cd ens && npm run check
 import { checkAmount, formatUsdc, isSendRequest, parseSendRequest } from "../src/send-request";
 import { descendants, displayName, findNodeByAddress, matchesKinship, pickRecipients, type FamilyNode } from "../src/family-tree";
+import { markSent, signSendIntent, verifySendIntent, wasSent } from "../src/send-token";
 
 let fails = 0;
 let passes = 0;
@@ -105,6 +106,30 @@ ok("pick: nickname", names(pickRecipients(grandma, { kinship: null, text: "send 
 ok("pick: shared nickname → ask", names(pickRecipients(grandma, { kinship: null, text: "send baby 5 USDC", nicknames: nick })) === "min,seoyeon");
 ok("displayName: alias", displayName(minjun) === "Minjun");
 ok("displayName: label fallback", displayName({ ...minjun, alias: null }) === "minjun");
+
+// ── send-token ──────────────────────────────────────────────────────────────
+const SECRET = "check-secret-check-secret-check-secret";
+const intent = {
+  userId: "u1",
+  roomId: "r1",
+  from: "0x00000000000000000000000000000000000000c1" as const,
+  name: `minjun.dad.grandma.${ROOT}`,
+  to: "0x00000000000000000000000000000000000000a1" as const,
+  amountMicro: "20000000",
+};
+const T0 = 1_800_000_000_000;
+const tok = signSendIntent(intent, SECRET, T0);
+ok("token: round trip", same(verifySendIntent(tok, SECRET, T0 + 1000), { ...intent, exp: T0 + 600_000 }));
+ok("token: expired", verifySendIntent(tok, SECRET, T0 + 600_001) === null);
+ok("token: other secret", verifySendIntent(tok, "another-secret", T0) === null);
+const [, mac] = tok.split(".");
+const forged = Buffer.from(JSON.stringify({ ...intent, to: "0x00000000000000000000000000000000000000ee", exp: T0 + 600_000 })).toString("base64url");
+ok("token: tampered body", verifySendIntent(`${forged}.${mac}`, SECRET, T0) === null);
+ok("token: garbage", verifySendIntent("nope", SECRET, T0) === null);
+ok("sent: unknown", wasSent(tok) === null);
+markSent(tok, "0xabc");
+ok("sent: remembered", wasSent(tok) === "0xabc");
+ok("sent: other token unaffected", wasSent(signSendIntent(intent, SECRET, T0 + 1)) === null);
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
