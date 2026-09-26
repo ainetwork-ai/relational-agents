@@ -6,7 +6,6 @@ import { Landmark, MessageCircle } from "lucide-react";
 import type { Page } from "@/lib/db/schema";
 import { usePagesStore } from "@/stores/pages";
 import { sharedWithOf, type RelationShare } from "@/components/sidebar/shared-doc-item";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useT } from "@/i18n/provider";
 
 /** The path an OKF page id stands for (base64url of it), or null for a Postgres page. */
@@ -40,7 +39,6 @@ const PILL =
 export function RelationLinks({ pageId }: { pageId: string }) {
   const t = useT();
   const roots = usePagesStore((s) => s.roots);
-  const treasuryV2 = useTreasuryV2();
   const share = useMemo(() => relationFor(pageId, roots), [pageId, roots]);
   if (!share) return null;
   const room = share.roomName ?? t("Chat");
@@ -50,12 +48,10 @@ export function RelationLinks({ pageId }: { pageId: string }) {
         <MessageCircle size={12} aria-hidden />
         <span className="max-md:hidden">{room}</span>
       </Link>
-      {treasuryV2 && (
-        <Link href={`/treasury/${share.roomId}`} data-testid="relation-doc-treasury" title={t("Treasury")} className={PILL}>
-          <Landmark size={12} aria-hidden />
-          <span className="max-md:hidden">{t("Treasury")}</span>
-        </Link>
-      )}
+      <Link href={`/treasury/${share.roomId}`} data-testid="relation-doc-treasury" title={t("Treasury")} className={PILL}>
+        <Landmark size={12} aria-hidden />
+        <span className="max-md:hidden">{t("Treasury")}</span>
+      </Link>
     </>
   );
 }

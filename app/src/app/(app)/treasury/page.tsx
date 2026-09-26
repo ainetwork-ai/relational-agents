@@ -3,7 +3,7 @@ import { TreasuryOverview } from "@/components/treasury-app/overview/treasury-ov
 
 export const metadata: Metadata = { title: "Your treasuries" };
 
-/** /treasury — every relation's treasury in one list (behind the ?treasury=v2 switch). */
+/** /treasury — every relation's treasury in one list. */
 export default function TreasuryIndexPage() {
   return <TreasuryOverview />;
 }

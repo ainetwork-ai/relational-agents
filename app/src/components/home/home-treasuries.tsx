@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight, Landmark } from "lucide-react";
 import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 
@@ -26,12 +25,10 @@ const TONE = {
 export function HomeTreasuries() {
   const t = useT();
   const locale = useIntlLocale();
-  const on = useTreasuryV2();
-  const rooms = [...useTreasurySummary(on).values()];
+  const rooms = [...useTreasurySummary().values()];
   // the sidebar's poll reads no chain; Home asks once for the pots, as the overview does
   const [pots, setPots] = useState<ReadonlyMap<string, number | null>>(new Map());
   useEffect(() => {
-    if (!on) return;
     let alive = true;
     fetch("/api/treasury/summary?balances=1", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -42,7 +39,7 @@ export function HomeTreasuries() {
     return () => {
       alive = false;
     };
-  }, [on]);
+  }, []);
   if (!rooms.length) return null;
   const usd = (n: number) => `$${n.toLocaleString(locale, { maximumFractionDigits: 2 })}`;
   return (

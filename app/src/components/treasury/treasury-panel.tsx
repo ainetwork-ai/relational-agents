@@ -8,7 +8,6 @@ import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { UserAvatar } from "@/components/user-avatar";
 import { ChainBadge } from "@/components/chain/chain-badge";
 import { useT } from "@/i18n/provider";
@@ -284,8 +283,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   // room's wallet, without resetting state inside an effect.
   const [snap, setSnap] = useState<{ roomId: string; status: StatusView | null } | null>(null);
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
-  // the link to the Treasury page is one of the new surfaces ?treasury=v1 turns off
-  const treasuryV2 = useTreasuryV2();
   const t = useT();
   // Read during the first client render; nothing renders until the status
   // fetch lands, so this cannot diverge from the server HTML.
@@ -476,16 +473,14 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           )}
         </button>
         {/* the one way from the room to its Treasury page, beside the balance it opens */}
-        {treasuryV2 && (
-          <Link
-            href={`/treasury/${roomId}`}
-            data-testid="treasury-open-page"
-            className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-neutral-200 bg-white pl-2 pr-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900 active:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 dark:active:bg-neutral-700"
-          >
-            {t("Open treasury")}
-            <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
-          </Link>
-        )}
+        <Link
+          href={`/treasury/${roomId}`}
+          data-testid="treasury-open-page"
+          className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-neutral-200 bg-white pl-2 pr-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900 active:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 dark:active:bg-neutral-700"
+        >
+          {t("Open treasury")}
+          <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
+        </Link>
         {!open && pending.length > 0 && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
             {pending.length} waiting for approval

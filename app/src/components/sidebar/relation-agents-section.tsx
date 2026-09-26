@@ -7,7 +7,6 @@ import { Bot, Pencil, Check } from "lucide-react";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useT } from "@/i18n/provider";
 import { chipColors } from "@/components/database/option-chip";
-import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
 
 interface RelAgent {
@@ -58,7 +57,7 @@ export function RelationAgentsSection() {
   const [agents, setAgents] = useState<RelAgent[]>([]);
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const money = useTreasurySummary(useTreasuryV2());
+  const money = useTreasurySummary();
 
   const load = useCallback(async () => {
     const res = await fetch("/api/agent/mine");
