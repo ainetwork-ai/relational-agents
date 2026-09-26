@@ -42,13 +42,30 @@ export async function aiChat(messages: AiMessage[], opts: ChatOptions = {}): Pro
   return aiProvider().chat(messages, opts);
 }
 
+/**
+ * Tool calls can go to their own endpoint: a chat server may not parse tool calls at all (vLLM
+ * refuses `tools` without --enable-auto-tool-choice and a parser). AI_TOOLS_URL — with
+ * AI_TOOLS_MODEL, AI_TOOLS_API_KEY and AI_TOOLS_REASONING, read like their AI_* twins — sends
+ * only aiChatWithTools there; unset, tool calls use AI_URL like everything else.
+ */
+function selectToolProvider(): ToolChatProvider {
+  if (!process.env.AI_TOOLS_URL) return (provider ??= selectProvider());
+  return openAiCompatProvider({
+    baseUrl: process.env.AI_TOOLS_URL,
+    model: process.env.AI_TOOLS_MODEL ?? process.env.AI_MODEL ?? "gemma-4-31B-it",
+    apiKey: process.env.AI_TOOLS_API_KEY,
+    reasoning: process.env.AI_TOOLS_REASONING === "1",
+  });
+}
+let toolProvider: ToolChatProvider | null = null;
+
 /** One tool-calling turn: the model either answers (`content`) or asks for `toolCalls`. The caller runs them and loops. */
 export async function aiChatWithTools(
   messages: AiToolMessage[],
   tools: AiTool[],
   opts: ToolChatOptions = {}
 ): Promise<ToolChatResult> {
-  return (provider ??= selectProvider()).chatWithTools(messages, tools, opts);
+  return (toolProvider ??= selectToolProvider()).chatWithTools(messages, tools, opts);
 }
 
 /** Strip a ```md fence if the model wrapped its whole answer in one. */
