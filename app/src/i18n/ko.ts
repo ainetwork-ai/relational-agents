@@ -950,6 +950,8 @@ export const ko: Record<string, string> = {
   "Open page": "페이지 열기",
   "Payment failed. Please try again.": "결제하지 못했어요. 다시 시도해 주세요.",
   "a video by {name}": "{name}이(가) 만든 영상",
+  "from {name}": "{name}에게서",
+  "Yours. Family members see a gift that opens with {krw}.": "내 거예요. 가족에게는 {krw}으로 열리는 선물로 보여요.",
   "🎁 {by} opened it with {krw} of pocket money · receipt {receipt}": "🎁 {by}께서 용돈 {krw}으로 여셨어요 · 영수증 {receipt}",
   "Your video. Family members see a gift that opens with {krw} of pocket money.": "내 영상이에요. 가족에게는 용돈 {krw}으로 열리는 선물로 보여요.",
   "Sending pocket money…": "용돈 보내는 중…",
