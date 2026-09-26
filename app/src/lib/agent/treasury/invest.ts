@@ -105,21 +105,36 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
       `the agent's Base wallet holds ${formatUnits(held, 6)} USDC, less than the ${formatUnits(amountIn, 6)} this investment needs`
     );
 
+  // A plain ERC-20 approval for exactly this buy, only when the router lacks
+  // it. Then wait until THIS client can read the allowance: a load-balanced
+  // RPC has shown the approval's receipt from one node and estimated the swap
+  // on another that had not seen the block yet — an "STF" revert that public
+  // nodes hand back with the reason stripped.
+  const allowanceNow = () => client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "allowance", args: [account.address, INVEST_CHAIN.swapRouter02] });
+  if ((await allowanceNow()) < amountIn) {
+    const approveHash = await wallet.writeContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "approve", args: [INVEST_CHAIN.swapRouter02, amountIn] });
+    await client.waitForTransactionReceipt({ hash: approveHash });
+    let seen = false;
+    for (let i = 0; i < 20 && !seen; i++) {
+      seen = (await allowanceNow()) >= amountIn;
+      if (!seen) await new Promise((r) => setTimeout(r, 1500));
+    }
+    if (!seen) throw new Error("the router's allowance is not visible yet — try the investment again in a minute");
+  }
+
+  // quote after the allowance is settled, so the minimum is from a fresh block
   const expected = await quote(cfg, INVEST_CHAIN.usdc, INVEST_CHAIN.weth, amountIn);
   const amountOutMinimum = (expected * BigInt(10_000 - cfg.slippageBps)) / BigInt(10_000);
 
-  // a plain ERC-20 approval for exactly this buy, only when the router lacks it
-  const allowance = await client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "allowance", args: [account.address, INVEST_CHAIN.swapRouter02] });
-  if (allowance < amountIn) {
-    const approveHash = await wallet.writeContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "approve", args: [INVEST_CHAIN.swapRouter02, amountIn] });
-    await client.waitForTransactionReceipt({ hash: approveHash });
-  }
-
+  // an explicit gas limit: the swap is ordered after the approval by nonce, so
+  // it cannot run before it on-chain; estimating it against a lagging node is
+  // the one step that could still fail spuriously. ~130k used; 300k is room.
   const txHash = await wallet.writeContract({
     address: INVEST_CHAIN.swapRouter02,
     abi: router,
     functionName: "exactInputSingle",
     args: [{ tokenIn: INVEST_CHAIN.usdc, tokenOut: INVEST_CHAIN.weth, fee: INVEST_CHAIN.feeTier, recipient: account.address, amountIn, amountOutMinimum, sqrtPriceLimitX96: BigInt(0) }],
+    gas: BigInt(300_000),
   });
   const receipt = await client.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
