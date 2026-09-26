@@ -795,12 +795,8 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     const error = `Not adopted: ${why}`;
     const ruleText = record && rule ? JSON.stringify({ ...record, rule }) : claimed.ruleText;
     await settle(claimed.id, status === "blocked" ? { status, ruleText, error } : { status, error });
-    await postAgentMessage(
-      claimed.roomId,
-      claimed.agentUserId,
-      `⚠️ Not adopted: the recurring buy (${what}).\n${why} Nothing will be bought under it.`
-    );
-    await logActivity(claimed.roomId, `⚠️ Not adopted: a recurring buy (${what}) — ${why}`);
+    await postAgentMessage(claimed.roomId, claimed.agentUserId, `⚠️ Recurring buy not adopted (${what}): ${why}`);
+    await logActivity(claimed.roomId, `⚠️ Recurring buy not adopted (${what}): ${why}`);
     return { executed: false, approvals, required, error: why };
   };
 
@@ -834,7 +830,7 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⏳ Things changed since this was asked: the recurring buy (${what}) now needs ${plural(verdict.required, "verified human")}.\nOur rules: “${verdict.rule}” — ${approvals} so far.`
+      `⏳ The recurring buy now needs ${plural(verdict.required, "verified human")} (${approvals} so far) — our rules: “${verdict.rule}”`
     );
     return { executed: false, approvals, required: verdict.required };
   }
@@ -851,11 +847,11 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `📌 Adopted: a recurring buy — ${what}.${superseded ? " It replaces the one we had before." : ""}\nI buy at most once a week inside it, and anyone can stop it.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
+      `📌 Recurring buy adopted: ${what}${superseded ? ", replacing the one before" : ""} — approved by ${nameList(names)}.`
     );
     await logActivity(
       claimed.roomId,
-      `📌 Adopted a recurring buy: ${what}, at most ${usd(authorityExposure(record))} in all — approved by ${nameList(names)}${superseded ? " — it replaces the one before" : ""}`
+      `📌 Recurring buy adopted: ${what}, up to ${usd(authorityExposure(record))} — approved by ${nameList(names)}${superseded ? " — replaces the one before" : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);

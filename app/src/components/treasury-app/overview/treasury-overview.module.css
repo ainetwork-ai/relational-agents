@@ -49,26 +49,12 @@
 
 /* ---- header ---- */
 
-.kicker {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--tr-coral-ink);
-  margin: 0 0 6px;
-}
-
 .title {
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0;
   line-height: 1.25;
-}
-
-.subtitle {
-  font-size: 15px;
-  color: var(--tr-sec);
-  margin: 8px 0 0;
-  line-height: 1.5;
 }
 
 /* ---- stat strip ---- */
@@ -134,14 +120,6 @@
 
 .statValueMuted {
   color: var(--tr-ter);
-}
-
-.statHint {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--tr-sec);
-  margin-top: 4px;
 }
 
 /* ---- list card ---- */
@@ -528,10 +506,6 @@
   .statValue {
     font-size: 24px;
     margin-top: 6px;
-  }
-
-  .statHint {
-    display: none;
   }
 
   .card {

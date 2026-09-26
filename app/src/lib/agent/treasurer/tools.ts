@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { formatUnits } from "viem";
 import { db } from "@/lib/db";
 import { chatRoomBots, treasuryActions, treasuryApprovals, treasurySeats, users } from "@/lib/db/schema";
 import { idpMode } from "@/lib/auth/world";
@@ -7,14 +8,13 @@ import type { AiTool } from "@/lib/ai";
 import type { T } from "@/i18n";
 import type { A2uiMessage } from "@/lib/x402/a2ui";
 import { treasuryStatus } from "@/lib/agent/treasury/approvals";
-import { INVEST_CHAIN } from "@/lib/agent/treasury/invest";
+import { investConfig, usdcForUsd } from "@/lib/agent/treasury/invest";
 import { humanMemberIds, latestAdoption, loadRelationTreasury } from "@/lib/agent/treasury/memory";
 import { evaluateCommand } from "@/lib/agent/treasury/policy";
 import {
   RecurringBuyRefusal,
   authorityExposure,
   boughtLine,
-  digestShort,
   proposeRecurringBuy,
   queuedLines,
   recurringBuyStatus,
@@ -22,11 +22,12 @@ import {
   runRecurringBuy,
   stopRecurringBuy,
   termsPhrase,
+  wethShort,
   type RecurringRunResult,
 } from "@/lib/agent/treasury/recurring";
 import { SKIP_REASON_TEXT, lastDayOf, relationDay, termsDigest } from "@/lib/agent/treasury/recurring-record";
 import { describeTreasuryAction } from "@/lib/agent/treasury/summary";
-import type { TreasuryKind } from "@/lib/agent/treasury/types";
+import { RECURRING_BUY_KIND, type TreasuryKind } from "@/lib/agent/treasury/types";
 import { treasuryBalance, ensureAgentWallet } from "@/lib/agent/treasury/wallet";
 import { postRoomMessage } from "./history";
 import { recurringBuyMarker, recurringBuySurface, type RecurringBuySurfaceInput } from "./surfaces";
@@ -40,8 +41,11 @@ import { recurringBuyMarker, recurringBuySurface, type RecurringBuySurfaceInput 
  * World ID approvals must adopt; stop only narrows.
  *
  * Results are JSON for the model plus, optionally, an A2UI surface for the
- * asker's screen. What the room sees (a proposal card, a buy, a stop) is
- * posted here as the agent's own message, in fixed English.
+ * asker's screen; `cardShown` in a result is the model's only evidence that a
+ * card (and its buttons) is on screen. Dates reach the model as days on the
+ * relation's calendar ("Sun, Sep 27"), never as ISO strings it would repeat.
+ * What the room sees (a proposal card, a buy, a stop) is posted here as the
+ * agent's own message, in fixed English.
  */
 
 export interface TreasurerContext {
@@ -101,6 +105,21 @@ function usd(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
 }
 
+/**
+ * What one weekly buy really swaps, in whole USDC ("0.1"): the story's dollars
+ * at the demo scale invest.ts buys at — the same scale when investing is off.
+ */
+function realUsdcPerWeek(weeklyUsd: number): string {
+  const envScale = Number(process.env.TREASURY_INVEST_USDC_PER_USD ?? "0.005");
+  const cfg = investConfig() ?? { rpcs: [], slippageBps: 0, usdcPerUsd: envScale > 0 ? envScale : 0.005 };
+  return formatUnits(usdcForUsd(cfg, weeklyUsd), 6);
+}
+
+/** "Sun, Sep 27" — how a date reaches the model, so an answer never repeats an ISO timestamp */
+function day(at: string | Date, withYear = false): string {
+  return relationDay(at, withYear);
+}
+
 async function postAsAgent(ctx: TreasurerContext, text: string): Promise<void> {
   await postRoomMessage({ roomId: ctx.roomId, authorId: ctx.agentUserId, text, privateToUserId: null, byAgent: true }).catch(
     (err: unknown) => console.error("treasurer: posting to the room failed:", err)
@@ -151,7 +170,9 @@ export async function recurringBuySurfaceFor(
           ? record.revokedAt !== undefined
             ? "stopped"
             : "ended"
-          : "closed";
+          : record.revokedAt !== undefined
+            ? "withdrawn"
+            : "closed";
   return recurringBuySurface(
     {
       actionId,
@@ -160,21 +181,27 @@ export async function recurringBuySurfaceFor(
       weeklyUsd: record.terms.weeklyUsd,
       weeks: record.terms.weeks,
       exposureUsd: authorityExposure(record),
-      agentAddress: record.terms.agentAddress,
-      agentAddressUrl: `${INVEST_CHAIN.explorer}/address/${record.terms.agentAddress}`,
-      digestShort: digestShort(record.digest),
-      rule: record.rule,
+      usdcPerWeek: realUsdcPerWeek(record.terms.weeklyUsd),
       approvals: authority.approvals,
       required: authority.required,
       approvedBy: authority.approvedBy,
       canApprove: state === "pending" && seat.length > 0 && voters.includes(viewerId) && mine.length === 0,
+      approveBlocked:
+        state !== "pending"
+          ? undefined
+          : mine.length > 0
+            ? "approved"
+            : seat.length === 0
+              ? "unseated"
+              : !voters.includes(viewerId)
+                ? "not-voting"
+                : undefined,
       approvalsOpen: idpMode() !== null,
       canStop: members.includes(viewerId),
       progress: live
         ? {
             weekIndex: live.weekIndex,
             boughtWeeks: live.boughtWeeks,
-            investedUsd: live.investedUsd,
             wethOut: live.wethOut,
             thisWeek: live.thisWeek,
             nextRunAt: live.nextRunAt,
@@ -189,8 +216,12 @@ export async function recurringBuySurfaceFor(
 /**
  * Stops the room's recurring buy for `byUserId` and tells the room. Shared
  * by the stop tool and the card's Stop button, so both leave the same trace.
+ * `wasLive`: a running one was stopped (else a waiting request was withdrawn);
+ * `terms`: "$20 of ETH weekly for 12 weeks", when it could be read.
  */
-export async function stopAndAnnounce(ctx: TreasurerContext): Promise<{ ok: true; actionId: string; line: string } | { ok: false; reason: string }> {
+export async function stopAndAnnounce(
+  ctx: TreasurerContext
+): Promise<{ ok: true; actionId: string; line: string; wasLive: boolean; terms: string | null } | { ok: false; reason: string }> {
   const before = await recurringBuyStatus(ctx.roomId);
   const stopped = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (!stopped.ok) return stopped;
@@ -201,7 +232,7 @@ export async function stopAndAnnounce(ctx: TreasurerContext): Promise<{ ok: true
     ? `⏹ Stopped the recurring buy${phrase} at ${ctx.askerName}'s request.\nI won't buy again under it.`
     : `✖ Withdrew the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
   await postAsAgent(ctx, line);
-  return { ok: true, actionId: stopped.actionId, line };
+  return { ok: true, actionId: stopped.actionId, line, wasLive, terms: terms ? termsPhrase(terms) : null };
 }
 
 /**
@@ -227,7 +258,7 @@ const getTreasuryStatus: TreasurerTool = {
     function: {
       name: "get_treasury_status",
       description:
-        "Read the relation's treasury now: the pot balance, whether rules were adopted, members and who can vote, requests waiting for approval, invested funds, and the recurring buy in one line. Call this before answering anything about balances or pending requests.",
+        "Reads the treasury as it is now: the pot's balance, whether the rules are adopted, the members and who votes, each request waiting for approval (whether this member can approve it, and where), invested funds, and the recurring buy in one line. Use it for “how much do we have?”, “what's waiting for approval?”, “who can vote?”. When a recurring buy waits for this member's approval, its card with the Approve button is shown too (cardShown). Not for the rules' wording (explain_rules) or the recurring buy's weeks and history (get_recurring_buy).",
       parameters: NO_ARGS,
     },
   },
@@ -235,40 +266,63 @@ const getTreasuryStatus: TreasurerTool = {
     if (!(await isHumanMember(ctx.roomId, ctx.askerId))) return { result: NOT_MEMBER };
     const s = await treasuryStatus(ctx.roomId, ctx.askerId);
     if (!s.enabled) return { result: { ok: true, enabled: false, note: "This room has no Treasury Rules section, so it has no treasury." } };
+    const waiting = s.actions.filter((a) => a.status === "pending");
+    const votes = s.members.find((m) => m.userId === ctx.askerId)?.voting ?? false;
+    // the decision this member can make from the chat: the waiting recurring buy's card carries its Approve button
+    const approvable = waiting.find((a) => a.kind === RECURRING_BUY_KIND && a.canApprove) ?? null;
+    const surface = approvable ? await recurringBuySurfaceFor(ctx.roomId, approvable.id, ctx.askerId, ctx.t) : null;
     return {
       result: {
         ok: true,
         enabled: true,
-        balanceUsd: s.balanceUsd,
-        balanceNote: "demo scale: story dollars backed by Sepolia ETH",
+        balance: s.balanceUsd === null ? "can't be read right now" : usd(s.balanceUsd),
         agentAddress: s.address,
-        rulesAdopted: s.adoptedAt !== null,
-        adoptedAt: s.adoptedAt,
-        rules: s.rules,
-        unadoptedChanges: s.proposal,
+        rulesAdoptedOn: s.adoptedAt ? day(s.adoptedAt, true) : null,
+        unadoptedChanges: s.proposal ? { added: s.proposal.added, removed: s.proposal.removed, joined: s.proposal.joined.length } : null,
         members: s.members.map((m) => ({ name: m.displayName, votes: m.voting, seated: m.seated })),
-        waitingForApproval: s.actions
-          .filter((a) => a.status === "pending")
-          .map((a) => ({
-            kind: a.kind,
-            amountUsd: a.amountUsd,
-            memo: a.memo,
-            approvals: a.approvals.length,
-            required: a.requiredApprovals,
-            rule: a.ruleText,
-            requestedBy: a.requestedBy.displayName,
-            youCanApprove: a.canApprove,
-            expiresAt: a.expiresAt,
-          })),
-        invested: s.invested ?? null,
+        waitingForApproval: waiting.map((a) => ({
+          what:
+            a.kind === RECURRING_BUY_KIND && s.recurring?.pending?.actionId === a.id
+              ? `a recurring buy of ${termsPhrase(s.recurring.pending)}`
+              : a.memo,
+          amountUsd: a.amountUsd,
+          ...(a.recipient?.label ? { to: a.recipient.label } : {}),
+          approvals: `${a.approvals.length} of ${a.requiredApprovals}`,
+          approvedBy: a.approvals.map((p) => p.displayName),
+          rule: a.ruleText,
+          requestedBy: a.requestedBy.displayName,
+          youCanApprove: a.canApprove,
+          ...(a.canApprove
+            ? {
+                approveOn:
+                  a.id === approvable?.id && surface
+                    ? "the card shown with this answer"
+                    : a.kind === RECURRING_BUY_KIND
+                      ? "its card (get_recurring_buy shows it)"
+                      : "the Treasury page's Home tab",
+              }
+            : {
+                // as the Treasury home's approvals card says it
+                cantApprove: a.approvals.some((p) => p.userId === ctx.askerId)
+                  ? "you already approved it"
+                  : !s.mySeated
+                    ? "claim your vote in the room first"
+                    : !votes
+                      ? "you joined after our rules were adopted"
+                      : "it can't take approvals right now",
+              }),
+          ...(a.expiresAt ? { expires: day(a.expiresAt) } : {}),
+        })),
+        invested: s.invested ? { weth: wethShort(s.invested.weth), worthUsd: s.invested.storyUsd } : null,
         recurringBuy: s.recurring
           ? {
               running: s.recurring.live ? termsPhrase(s.recurring.live) : null,
               waitingForApproval: s.recurring.pending ? termsPhrase(s.recurring.pending) : null,
-              realBuys: s.recurring.realRuns,
             }
           : null,
+        cardShown: Boolean(surface),
       },
+      ...(surface && approvable ? { surface, cardActionId: approvable.id } : {}),
     };
   },
 };
@@ -279,7 +333,7 @@ const getRecurringBuy: TreasurerTool = {
     function: {
       name: "get_recurring_buy",
       description:
-        "Read the room's recurring ETH buy: the one running (week k of N, weeks bought, dollars invested, WETH accumulated, average price, this week's state, next buy), a request waiting for approvals, and the history of weekly buys and skips. Shows its card to the member.",
+        "Reads the room's recurring ETH buy and shows its card, with its Approve or Stop button, on the member's screen: the one running (week k of N, weeks bought, dollars in, WETH bought, when the next week opens), a request waiting for approvals, and the recent weekly buys and skips. A week's buy runs only when a member asks for it (buy_this_week), at most once a week — nothing runs on a timer. Use it for “how's the recurring buy doing?”, “show me the recurring buy”. Not for the pot's balance (get_treasury_status).",
       parameters: NO_ARGS,
     },
   },
@@ -288,17 +342,44 @@ const getRecurringBuy: TreasurerTool = {
     const s = await recurringBuyStatus(ctx.roomId);
     const cardId = s.live?.actionId ?? s.pending?.actionId;
     const surface = cardId ? await recurringBuySurfaceFor(ctx.roomId, cardId, ctx.askerId, ctx.t) : null;
+    const { live, pending } = s;
     return {
       result: {
         ok: true,
-        running: s.live,
-        waitingForApproval: s.pending,
-        history: s.history.slice(0, 8).map((h) => ({
-          ...h,
-          ...(h.reason ? { reasonText: SKIP_REASON_TEXT[h.reason] } : {}),
+        running: live
+          ? {
+              terms: termsPhrase(live),
+              realSwapPerWeek: `${realUsdcPerWeek(live.weeklyUsd)} USDC → WETH`,
+              week: `${live.weekIndex} of ${live.weeks}`,
+              weeksBought: live.boughtWeeks,
+              investedUsd: live.investedUsd,
+              wethBought: wethShort(live.wethOut),
+              avgPriceUsdPerEth: live.avgPriceUsdcPerEth,
+              thisWeek: live.thisWeek,
+              nextWeekOpens: live.nextRunAt ? day(live.nextRunAt) : null,
+              lastDay: day(lastDayOf(Date.parse(live.expiresAt) / 1000), true),
+              approvedBy: live.approvedBy,
+              rule: live.rule,
+            }
+          : null,
+        waitingForApproval: pending
+          ? {
+              terms: termsPhrase(pending),
+              realSwapPerWeek: `${realUsdcPerWeek(pending.weeklyUsd)} USDC → WETH`,
+              atMostUsd: pending.exposureUsd,
+              approvals: `${pending.approvals} of ${pending.required}`,
+              rule: pending.rule,
+              expires: day(pending.expiresAt),
+            }
+          : null,
+        recentWeeks: s.history.slice(0, 8).map((h) => ({
+          on: day(h.at),
+          outcome: h.outcome,
+          ...(h.reason ? { why: SKIP_REASON_TEXT[h.reason] } : {}),
+          ...(h.wethOut ? { wethBought: wethShort(h.wethOut) } : {}),
+          ...(h.txUrl ? { txUrl: h.txUrl } : {}),
         })),
         realBuys: s.realRuns,
-        realBuysNote: s.realRuns ? "buys move real USDC on Base" : "real buys are off on this server; a run is a rehearsal",
         cardShown: Boolean(surface),
       },
       ...(surface && cardId ? { surface, cardActionId: cardId } : {}),
@@ -311,7 +392,8 @@ const listActivity: TreasurerTool = {
     type: "function",
     function: {
       name: "list_activity",
-      description: "List the treasury's recent activity, newest first: payments, investments, rule adoptions, recurring-buy requests, weekly buys and skips.",
+      description:
+        "Lists the treasury's recent activity, newest first, one line each with its day: payments, investments, rule adoptions, recurring-buy requests, weekly buys and skips. Use it for “what happened recently?”, “did we pay the hotel?”. Not for what is waiting right now (get_treasury_status).",
       parameters: {
         type: "object",
         properties: { limit: { type: "integer", minimum: 1, maximum: 20, description: "how many entries (default 10)" } },
@@ -333,7 +415,7 @@ const listActivity: TreasurerTool = {
       result: {
         ok: true,
         activity: rows.map((a) => ({
-          at: (a.decidedAt ?? a.createdAt).toISOString(),
+          on: day(a.decidedAt ?? a.createdAt),
           line: describeTreasuryAction(a, now),
           ...(a.txHash ? { txHash: a.txHash } : {}),
         })),
@@ -350,7 +432,7 @@ const explainRules: TreasurerTool = {
     function: {
       name: "explain_rules",
       description:
-        "Read the relation's ADOPTED Treasury Rules (the ones enforced), when they were adopted, who votes, and edits nobody adopted yet. With amount_usd (and kind), also says what those rules require for that amount: automatic, N verified approvals, forbidden, or more than the pot holds. A recurring buy is judged as an investment of its total (weekly × weeks).",
+        "Reads the relation's ADOPTED Treasury Rules (the ones enforced), when they were adopted, who votes, and doc edits nobody adopted yet. With amount_usd (and kind), also judges that amount against them: automatic, N verified approvals, forbidden, or more than the pot holds — a recurring buy counts as an investment of its total (weekly × weeks). Use it for “what are our rules?”, “what would $300 for the hotel need?”. It moves and queues nothing.",
       parameters: {
         type: "object",
         properties: {
@@ -372,7 +454,7 @@ const explainRules: TreasurerTool = {
     const result: Record<string, unknown> = {
       ok: true,
       adopted: treasury.adoptedAt !== null,
-      adoptedAt: treasury.adoptedAt,
+      adoptedOn: treasury.adoptedAt ? day(treasury.adoptedAt, true) : null,
       rules: treasury.policy.rules.map((r) => r.text),
       unreadableRules: treasury.policy.unparsed,
       payees: treasury.payees.map((p) => p.name),
@@ -420,7 +502,7 @@ const proposeRecurring: TreasurerTool = {
     function: {
       name: "propose_recurring_buy",
       description:
-        "Queue a recurring ETH buy for the members' approval: weekly_usd of USDC swapped to WETH on Base via Uniswap v3, once per ISO week, for `weeks` weeks, from the agent's own wallet. This moves NO money: it creates a request that verified members must approve with World ID, as many as the adopted rules require. Call it only when the member asks to set one up in this message, with both numbers stated or confirmed.",
+        "Queues a recurring ETH buy for the members' approval: weekly_usd of USDC swapped to WETH with Uniswap v3 on Base, at most once a week, for `weeks` weeks, from the agent's own wallet. It moves NO money: it creates a request that as many verified members as the adopted rules require must approve with World ID; its card with the Approve button goes on this member's screen and into the room. Call it only when the member's latest message asks to set one up with both numbers stated — if one is missing, ask instead. Refused while another recurring buy runs or waits.",
       parameters: {
         type: "object",
         properties: {
@@ -452,14 +534,14 @@ const proposeRecurring: TreasurerTool = {
     return {
       result: {
         ok: true,
-        queued: true,
+        queued: termsPhrase(terms),
         movedMoney: false,
-        terms: termsPhrase(terms),
         atMostUsd: authorityExposure(proposed.record),
-        through: relationDay(lastDayOf(terms.expiresAt), true),
+        through: day(lastDayOf(terms.expiresAt), true),
         requiredApprovals: proposed.required,
         rule: proposed.rule,
-        postedToRoom: "the proposal card, so every member can approve it",
+        alsoPostedToRoom: true,
+        cardShown: Boolean(surface),
       },
       ...(surface ? { surface, cardActionId: proposed.actionId } : {}),
     };
@@ -472,7 +554,7 @@ const stopRecurring: TreasurerTool = {
     function: {
       name: "stop_recurring_buy",
       description:
-        "Stop the room's running recurring buy (no vote needed — stopping only narrows what the agent may do), or withdraw one still waiting for approval. Call it only when the member asks to stop, cancel or pause it in this message.",
+        "Stops the room's running recurring buy, or withdraws one still waiting for approval — no vote needed, since stopping only narrows what the agent may do; the room is told. Call it only when the member's latest message asks to stop, cancel, pause or withdraw it. Starting again takes a new request and new approvals.",
       parameters: NO_ARGS,
     },
   },
@@ -482,7 +564,15 @@ const stopRecurring: TreasurerTool = {
     if (!stopped.ok) return { result: { ok: false, refused: stopped.reason } };
     const surface = await recurringBuySurfaceFor(ctx.roomId, stopped.actionId, ctx.askerId, ctx.t);
     return {
-      result: { ok: true, done: stopped.line, toldTheRoom: true },
+      result: {
+        ok: true,
+        // the room's line names the asker in the third person; the asker is told in their own terms
+        what: stopped.wasLive ? "stopped" : "withdrawn",
+        terms: stopped.terms,
+        ...(stopped.wasLive ? { noMoreBuys: true } : { willNeverRun: true }),
+        toldTheRoom: true,
+        cardShown: Boolean(surface),
+      },
       ...(surface ? { surface, cardActionId: stopped.actionId } : {}),
     };
   },
@@ -494,7 +584,7 @@ const buyThisWeek: TreasurerTool = {
     function: {
       name: "buy_this_week",
       description:
-        "Run this week's buy under the recurring buy the members ADOPTED: at most once per ISO week, exactly its weekly amount, only while it runs and our rules still allow it. It decides by itself whether to buy or skip; with real buys off it is a rehearsal that moves nothing. Call it only when the member asks to buy this week's ETH or run the recurring buy now.",
+        "Runs this week's buy under the recurring buy the members ADOPTED: exactly its weekly amount, at most once a week, only while it runs and our rules still allow it; the server decides whether to buy or skip. Where real buys are off it is a rehearsal that moves nothing. Call it only when the member's latest message asks to buy this week's ETH or run the recurring buy now.",
       parameters: NO_ARGS,
     },
   },
@@ -518,7 +608,7 @@ const buyThisWeek: TreasurerTool = {
             ok: true,
             outcome: "rehearsal",
             movedMoney: false,
-            line: `Rehearsal: I would buy ${usd(run.wouldBuyUsd)} of ETH this week — real buys are off on this server, so nothing moved.`,
+            line: `Rehearsal: this week's buy would be ${usd(run.wouldBuyUsd)} of ETH. Nothing moved.`,
           },
         };
       case "skipped":
@@ -527,14 +617,13 @@ const buyThisWeek: TreasurerTool = {
             ok: true,
             outcome: "skipped",
             movedMoney: false,
-            isoWeek: run.isoWeek,
             reason: run.reason,
             line: `Skipped this week: ${SKIP_REASON_TEXT[run.reason]}.`,
           },
         };
       case "bought":
         return {
-          result: { ok: true, outcome: "bought", movedMoney: true, isoWeek: run.isoWeek, usdcIn: run.usdcIn, wethOut: run.wethOut, txUrl: run.txUrl, line },
+          result: { ok: true, outcome: "bought", movedMoney: true, usdcIn: run.usdcIn, wethOut: run.wethOut, txUrl: run.txUrl, line },
         };
     }
   },
@@ -571,4 +660,3 @@ export async function runTreasurerTool(name: string, rawArgs: string, ctx: Treas
   if (!args || typeof args !== "object" || Array.isArray(args)) return { result: { ok: false, error: "the arguments must be an object" } };
   return tool.run(args as Record<string, unknown>, ctx);
 }
-

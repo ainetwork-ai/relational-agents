@@ -223,13 +223,27 @@ function humansApprove(n: number): string {
   return n === 1 ? "a verified human approves it" : `${n} different humans approve it`;
 }
 
-/** A recurring buy is an authority, not a payment: its terms, where it trades and from which wallet — never its stored JSON. */
+/** "$20" for whole dollars, "$20.50" otherwise — a recurring buy's weekly amount reads as it was asked. */
+function usdShort(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+/**
+ * A recurring buy is an authority, not a payment: what it buys each week, for
+ * how long and up to what total, where it swaps and from which wallet — never
+ * its stored JSON. The terms' fingerprint sits in the list below.
+ */
 function recurringWhat(r: NonNullable<ApprovalCard["recurring"]>): string {
-  return `<h1>Recurring buy</h1>
-       <p class="to"><strong>${esc(usd(r.weeklyUsd))} of ETH every week for ${r.weeks} week${r.weeks === 1 ? "" : "s"}</strong> · at most ${esc(usd(r.exposureUsd))} in total</p>
-       <p class="muted">USDC → WETH on Uniswap v3 on Base, at most once a week, through ${esc(relationDay(Date.parse(r.expiresAt) - 1000, true))}. Anyone in the room can stop it without a vote.</p>
-       <p class="addr">From the agent's wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer">${esc(r.agentAddress)}</a> (basescan)</p>
-       <p class="addr">Terms ${esc(r.digestShort)}</p>`;
+  const short = `${r.agentAddress.slice(0, 6)}…${r.agentAddress.slice(-4)}`;
+  return `<h1>${esc(usdShort(r.weeklyUsd))}<span class="per"> of ETH weekly</span></h1>
+       <p class="to"><strong>${r.weeks} week${r.weeks === 1 ? "" : "s"}</strong> · up to ${esc(usdShort(r.exposureUsd))} · through ${esc(relationDay(Date.parse(r.expiresAt) - 1000, true))}</p>
+       <p class="muted">Recurring buy · USDC → WETH · Uniswap v3 on Base · once a week at most · anyone can stop it</p>
+       <p class="addr">From the agent wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer" title="${esc(r.agentAddress)}">${esc(short)}</a> on Base</p>`;
 }
 
 function confirmPage(
@@ -245,7 +259,7 @@ function confirmPage(
   const bar = ratify
     ? `The agent follows this version only after ${humansApprove(c.required)} with World ID.`
     : c.recurring
-      ? `The agent starts buying only after ${humansApprove(c.required)} with World ID.`
+      ? `It starts once ${humansApprove(c.required)} with World ID.`
       : `The agent can't send this until ${humansApprove(c.required)} with World ID.`;
   const what = ratify
     ? `<h1>Adopt ${esc(c.memo)}</h1>
@@ -286,13 +300,15 @@ function confirmPage(
   dt { color:var(--muted); }
   dd { margin:0; }
   .rule { font-style:italic; }
+  .digest { font-family:ui-monospace, monospace; font-size:13px; color:var(--muted); }
+  h1 .per { font-size:24px; font-weight:600; letter-spacing:0; }
   .changes { margin:.75rem 0 0; padding-left:1rem; font-size:15px; }
   .changes li { margin:.15rem 0; }
   .muted { color:var(--muted); font-size:14px; }
   .bar { font-size:15px; font-weight:600; margin:1.5rem 0 0; }
   .note { font-size:13px; color:var(--muted); margin:.25rem 0 0; }
   .actions { display:flex; gap:1rem; align-items:center; margin-top:1.25rem; }
-  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:10px; padding:.75rem 1.25rem; font:inherit; font-weight:600; cursor:pointer; }
+  button { background:var(--btn); color:var(--btnfg); border:0; border-radius:10px; padding:.75rem 1.25rem; font:inherit; font-weight:600; cursor:pointer; white-space:nowrap; }
   a.cancel { color:var(--muted); }
 </style></head>
 <body><main>
@@ -305,6 +321,7 @@ function confirmPage(
       <dt>Rule</dt><dd class="rule">“${esc(c.ruleText)}”</dd>
       <dt>Approved so far</dt><dd>${so}</dd>
       <dt>Expires</dt><dd>${esc(expiresIn(c.expiresAt))}</dd>
+      ${c.recurring ? `<dt>Terms</dt><dd class="digest">${esc(c.recurring.digestShort)}</dd>` : ""}
     </dl>
     <p class="bar">${esc(bar)}</p>
     <p class="note">World ID checks, right now, that you're a unique human. Your approval counts once and can't be withdrawn.</p>

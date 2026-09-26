@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { dmRoomLabel, useDmRoomsStore, type DmRoomSummary } from "@/stores/dm-rooms";
 import { DmAvatar } from "./dm-avatar";
@@ -34,52 +35,57 @@ function weekdayMonthDay(d: Date, locale: string): string {
 }
 
 /**
- * A relation row's money line, as in the placement mockup's sidebar: ONE state,
- * by priority — my vote is owed (orange) › a recurring buy is running (green,
- * then when it next buys) › nothing (no line at all).
+ * A relation row's money state, as the placement mockup puts it on the row's
+ * third line: ONE state, by priority — my vote is owed (orange) › a recurring
+ * buy is running (green, then when it next buys) › nothing (no line at all).
  */
-function MoneyLine({ money }: { money: TreasurySummaryRoom | undefined }) {
-  const t = useT();
-  const locale = useIntlLocale();
+function moneyState(money: TreasurySummaryRoom | undefined, t: T, locale: string): { chip: { color: "orange" | "green"; label: string; dot: boolean }; detail: string | null } | null {
   if (!money) return null;
   const usd = (n: number) => `$${n.toLocaleString(locale, { maximumFractionDigits: 2 })}`;
   const live = money.recurring?.state === "live" ? money.recurring : null;
-  let chip: { color: "orange" | "green"; label: string; dot: boolean } | null = null;
-  let detail: string | null = null;
-  if (money.pendingForMe > 0) {
-    chip = { color: "orange", dot: true, label: t("{n} waiting for your approval", { n: money.pendingForMe }) };
-  } else if (live) {
-    chip = { color: "green", dot: false, label: t("Buying {amount} weekly", { amount: usd(live.weeklyUsd) }) };
-    detail = live.boughtThisWeek
-      ? t("Bought this week")
-      : live.nextRunAt
-        ? t("Next {date}", { date: weekdayMonthDay(new Date(live.nextRunAt), locale) })
-        : null;
-  }
-  if (!chip) return null;
-  const c = chipColors(chip.color);
+  if (money.pendingForMe > 0)
+    return { chip: { color: "orange", dot: true, label: t("{n} waiting for your approval", { n: money.pendingForMe }) }, detail: null };
+  if (live)
+    return {
+      chip: { color: "green", dot: false, label: t("Buying {amount} weekly", { amount: usd(live.weeklyUsd) }) },
+      detail: live.boughtThisWeek
+        ? t("Bought this week")
+        : live.nextRunAt
+          ? t("Next {date}", { date: weekdayMonthDay(new Date(live.nextRunAt), locale) })
+          : null,
+    };
+  return null;
+}
+
+/** The money state as a way into that relation's Treasury page. */
+function MoneyLine({ money, state }: { money: TreasurySummaryRoom; state: NonNullable<ReturnType<typeof moneyState>> }) {
+  const t = useT();
+  const locale = useIntlLocale();
+  const c = chipColors(state.chip.color);
   return (
-    <span
+    <Link
+      href={`/treasury/${money.roomId}`}
       data-testid={`dm-money-${money.roomId}`}
-      className="mt-[5px] flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-neutral-400 dark:text-neutral-500"
+      title={t("Open treasury")}
+      className="mb-1 ml-[46px] mr-2 flex min-w-0 -translate-x-1 flex-col items-start gap-0.5 rounded px-1 py-0.5 text-[12px] text-neutral-400 transition-colors hover:bg-neutral-300/40 hover:text-neutral-600 active:bg-neutral-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:text-neutral-500 dark:hover:bg-neutral-700/60 dark:hover:text-neutral-300"
     >
-      {money.balanceUsd !== null && (
-        <>
-          <span className="tabular-nums">{usd(money.balanceUsd)}</span>
-          <span>·</span>
-        </>
-      )}
-      <span
-        className={`inline-flex h-5 items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 leading-none ${
-          chip.color === "orange" ? "font-medium" : ""
-        }`}
-        style={{ background: c.bg, color: c.text }}
-      >
-        {chip.dot && <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.dot }} />}
-        {chip.label}
+      <span className="flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap">
+        {money.balanceUsd !== null && (
+          <>
+            <span className="shrink-0 tabular-nums">{`$${money.balanceUsd.toLocaleString(locale, { maximumFractionDigits: 2 })}`}</span>
+            <span aria-hidden>·</span>
+          </>
+        )}
+        <span
+          className={`inline-flex h-5 min-w-0 items-center gap-[5px] rounded-[4px] px-1.5 leading-none ${state.chip.color === "orange" ? "font-medium" : ""}`}
+          style={{ background: c.bg, color: c.text }}
+        >
+          {state.chip.dot && <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.dot }} />}
+          <span className="min-w-0 truncate">{state.chip.label}</span>
+        </span>
       </span>
-      {detail && <span className="tabular-nums">{detail}</span>}
-    </span>
+      {state.detail && <span className="tabular-nums">{state.detail}</span>}
+    </Link>
   );
 }
 
@@ -93,6 +99,8 @@ export function DmSection() {
   const [meId, setMeId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const t = useT();
+  const locale = useIntlLocale();
+  const pathname = usePathname();
   const money = useTreasurySummary(useTreasuryV2());
 
   useEffect(() => {
@@ -151,16 +159,24 @@ export function DmSection() {
           const others = room.members.filter((m) => m.id !== meId);
           // a human fronts the row; the agent still counts as a member below
           const face = others.find((m) => !m.isAgent) ?? others[0] ?? room.members[0];
+          const current = pathname === `/dm/${room.id}`;
+          const treasury = money.get(room.id);
+          const state = moneyState(treasury, t, locale);
           return (
             <div
               key={room.id}
               data-testid={`dm-item-${room.id}`}
-              className="group/dm relative mx-1 flex items-center rounded-md transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
+              className={`group/dm relative mx-1 rounded-md transition-colors ${
+                current ? "bg-neutral-200/70 dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/70"
+              }`}
             >
               <button
                 data-testid={`dm-open-${room.id}`}
                 onClick={() => openRoom(room.id)}
-                className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+                aria-current={current ? "page" : undefined}
+                className={`flex w-full min-w-0 items-center gap-2.5 rounded-md px-2 pt-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+                  state ? "pb-0.5" : "pb-1.5"
+                }`}
               >
                 <span className="relative shrink-0">
                   {face && <DmAvatar user={face} size={28} />}
@@ -189,7 +205,6 @@ export function DmSection() {
                   >
                     {preview(room, t)}
                   </span>
-                  <MoneyLine money={money.get(room.id)} />
                 </span>
                 {room.unreadCount > 0 && (
                   <span
@@ -201,6 +216,7 @@ export function DmSection() {
                   </span>
                 )}
               </button>
+              {treasury && state && <MoneyLine money={treasury} state={state} />}
             </div>
           );
         })

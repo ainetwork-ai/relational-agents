@@ -1,25 +1,29 @@
 "use client";
 
 /**
- * The frame every /treasury/[roomId] tab renders in: back link, room name,
- * tabs, the World ID outcome banner, the "Your treasurer" column and the
- * latest-message dock. Its look is the Treasury product's own (coral,
- * Pretendard), scoped under one CSS-module root so nothing reaches the Notion
- * app around it. Like the overview, it renders only when the per-browser
- * Treasury switch is on.
+ * The frame every /treasury/[roomId] tab renders in: the way back to the
+ * room's chat and to the relation's doc, the "Treasury" crumb to every
+ * relation's treasury, the room's name, the tabs (Wallet first), the World ID
+ * outcome banner, and the column beside the content — the treasurer chat on
+ * the Treasurer tab (its one home), elsewhere a compact entry to it and the
+ * room's latest message.
+ * Its look is the Treasury product's own (coral, Pretendard), scoped under one
+ * CSS-module root so nothing reaches the Notion app around it. Like the
+ * overview, it renders only when the per-browser Treasury switch is on.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { useTreasuryUi } from "@/components/treasury-app/use-treasury-ui";
 import { TreasurerChat } from "@/components/treasurer/treasurer-chat";
 import { TreasuryRoomProvider, useTreasuryRoom } from "./room-data";
+import { LatestMessage } from "./latest-message";
 import { treasuryPath } from "./room-model";
-import { RoomDock } from "./room-dock";
+import { TreasurerEntry } from "./treasurer-entry";
 import styles from "./treasury-room.module.css";
 
 const PRETENDARD_CSS =
@@ -31,26 +35,26 @@ type Tab = { href: string; label: string; exact: boolean };
 function resultCopy(t: T, code: string): { tone: "ok" | "bad" | "info"; text: string } {
   switch (code) {
     case "approved":
-      return { tone: "ok", text: t("Your approval was recorded with a fresh World ID verification.") };
+      return { tone: "ok", text: t("Approved with World ID.") };
     case "executing":
     case "executed":
-      return { tone: "ok", text: t("Quorum reached — your treasurer is carrying it out now. This page updates in a moment.") };
+      return { tone: "ok", text: t("Approved — the treasurer is carrying it out.") };
     case "already-approved":
       return { tone: "info", text: t("You already approved this request.") };
     case "not-pending":
       return { tone: "info", text: t("This request is no longer waiting for approvals.") };
     case "cancelled":
-      return { tone: "bad", text: t("You cancelled the World ID verification — nothing was approved.") };
+      return { tone: "bad", text: t("World ID cancelled — nothing was approved.") };
     case "expired":
-      return { tone: "bad", text: t("This request expired before enough verified members approved it — nothing was approved.") };
+      return { tone: "bad", text: t("This request expired — nothing was approved.") };
     case "same-human":
-      return { tone: "bad", text: t("This World ID already vouches for another account — one human, one vote. Nothing was added.") };
+      return { tone: "bad", text: t("This World ID already voted from another account.") };
     case "not-seated":
-      return { tone: "bad", text: t("Claim your vote with World ID in the room before approving treasury requests.") };
+      return { tone: "bad", text: t("Claim your vote in the room first.") };
     case "not-electorate":
-      return { tone: "bad", text: t("You joined after our rules were adopted — the relation has to re-adopt before your approval counts.") };
+      return { tone: "bad", text: t("Your vote counts after re-adoption") };
     default:
-      return { tone: "bad", text: t("World ID didn't confirm this approval — nothing was approved. Try again.") };
+      return { tone: "bad", text: t("World ID didn't confirm — nothing was approved.") };
   }
 }
 
@@ -90,7 +94,7 @@ function Tabs({ roomId }: { roomId: string }) {
   const t = useT();
   const pathname = usePathname();
   const tabs: Tab[] = [
-    { href: treasuryPath(roomId), label: t("Home"), exact: true },
+    { href: treasuryPath(roomId), label: t("Wallet"), exact: true },
     { href: treasuryPath(roomId, "activity"), label: t("Activity"), exact: false },
     { href: treasuryPath(roomId, "treasurer"), label: t("Treasurer"), exact: false },
     { href: treasuryPath(roomId, "rules"), label: t("Rules"), exact: false },
@@ -110,12 +114,18 @@ function Tabs({ roomId }: { roomId: string }) {
   );
 }
 
+/** The loaded page's columns, empty: nothing moves sideways when the treasury arrives. */
 function LoadingState() {
   return (
-    <div className={styles.stack} aria-busy>
-      <div className={`${styles.skeleton} ${styles.skeletonHero}`} />
-      <div className={styles.skeleton} />
-      <div className={styles.skeleton} />
+    <div className={styles.grid} aria-busy>
+      <div className={`${styles.main} ${styles.stack}`}>
+        <div className={`${styles.skeleton} ${styles.skeletonHero}`} />
+        <div className={styles.skeleton} />
+        <div className={styles.skeleton} />
+      </div>
+      <div className={styles.aside}>
+        <div className={`${styles.skeleton} ${styles.treasurerCard}`} />
+      </div>
     </div>
   );
 }
@@ -144,19 +154,50 @@ function ErrorState({ code, onRetry }: { code: "forbidden" | "not-found" | "fail
   );
 }
 
+/** Back to the room's chat and across to the relation's doc — the two places the Treasury belongs to. */
+function TopRow({ roomId, roomName, docPageId }: { roomId: string; roomName: string | null; docPageId: string | null }) {
+  const t = useT();
+  return (
+    <div className={styles.topRow}>
+      <Link
+        href={`/dm/${encodeURIComponent(roomId)}`}
+        className={styles.back}
+        aria-label={roomName ? t("Back to {room}", { room: roomName }) : t("Back to the room")}
+        data-testid="treasury-room-back"
+      >
+        <ChevronLeft size={18} aria-hidden />
+        <span className={styles.roomTile} aria-hidden>
+          {(roomName ?? "·").slice(0, 1).toUpperCase()}
+        </span>
+        <span className={styles.backName}>{roomName ?? t("Back to the room")}</span>
+      </Link>
+      {docPageId && (
+        <Link href={`/p/${docPageId}`} className={styles.docLink} aria-label={t("Open relation doc")} data-testid="treasury-room-doc">
+          <FileText size={15} aria-hidden />
+          <span>{t("History")}</span>
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function Frame({ children }: { children: ReactNode }) {
   const t = useT();
+  const pathname = usePathname() ?? "";
   const { roomId, load, reload } = useTreasuryRoom();
-  const roomName = load.kind === "ready" ? load.data.room.name : null;
+  const ready = load.kind === "ready" ? load.data : null;
+  const roomName = ready?.room.name ?? null;
+  const onTreasurerTab = pathname.startsWith(treasuryPath(roomId, "treasurer"));
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href={`/dm/${encodeURIComponent(roomId)}`} className={styles.back} data-testid="treasury-room-back">
-          <ArrowLeft size={16} aria-hidden />
-          {roomName ? t("Back to {room}", { room: roomName }) : t("Back to the room")}
+        <TopRow roomId={roomId} roomName={roomName} docPageId={ready?.room.docPageId ?? null} />
+        <Link href="/treasury" className={styles.kicker}>
+          {t("Treasury")}
+          <ChevronRight size={14} aria-hidden />
         </Link>
-        <p className={styles.kicker}>{t("Treasury")}</p>
+        {/* a no-break space holds the title's line until the name arrives */}
         <h1 className={styles.title}>{roomName ?? " "}</h1>
         <Tabs roomId={roomId} />
       </header>
@@ -165,19 +206,24 @@ function Frame({ children }: { children: ReactNode }) {
 
       {load.kind === "loading" && <LoadingState />}
       {load.kind === "error" && <ErrorState code={load.code} onRetry={() => void reload()} />}
-      {load.kind === "ready" && (
-        <div className={styles.grid}>
+      {ready && (
+        <div className={`${styles.grid} ${onTreasurerTab ? styles.gridChatFirst : ""}`}>
           <div className={styles.main}>{children}</div>
           <aside className={styles.aside} aria-label={t("Your treasurer")}>
-            {/* the chat draws its own "Your treasurer" header and frame */}
-            <div className={styles.treasurerCard} data-testid="treasury-room-treasurer">
-              <TreasurerChat roomId={roomId} />
-            </div>
+            {onTreasurerTab ? (
+              // the chat draws its own "Your treasurer" header and frame
+              <div className={styles.treasurerCard} data-testid="treasury-room-treasurer">
+                <TreasurerChat roomId={roomId} />
+              </div>
+            ) : (
+              <div className={styles.asideStack}>
+                <TreasurerEntry roomId={roomId} status={ready.status} agent={ready.room.members.find((p) => p.isAgent) ?? null} />
+                <LatestMessage roomId={roomId} members={ready.room.members} meId={ready.me.id} />
+              </div>
+            )}
           </aside>
         </div>
       )}
-
-      {load.kind === "ready" && <RoomDock roomId={roomId} members={load.data.room.members} meId={load.data.me.id} />}
     </div>
   );
 }

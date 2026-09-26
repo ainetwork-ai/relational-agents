@@ -83,10 +83,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
         emit,
         signal,
       });
-      // a quiet answer keeps its cards, so reopening the conversation redraws them; in the room
-      // the proposal card is already posted (tools.ts), and a second copy would only repeat it
+      // a quiet answer keeps its cards, above its text as they streamed, so reopening the conversation
+      // redraws it in the same order; in the room the proposal card is already posted (tools.ts), and a
+      // second copy would only repeat it
       const saved =
-        mode === "private" ? [answer.text, ...answer.cardActionIds.map(recurringBuyMarker)].join("\n") : answer.text;
+        mode === "private" ? [...answer.cardActionIds.map(recurringBuyMarker), answer.text].join("\n") : answer.text;
       const posted = await postRoomMessage({
         roomId: room.id,
         authorId: agent.agentUserId,

@@ -1,23 +1,28 @@
 "use client";
 
 /**
- * The room's recurring buy in the swap idiom: You pay / You receive, rate and
- * route, where in its window we are, what it has bought, who approved it —
+ * The room's recurring buy in the swap idiom — You pay USDC / You receive WETH
+ * through Uniswap v3 on Base — where in its weeks we are, what it has bought,
  * and the stop button any member may press (stopping only narrows what the
  * agent may do, so it needs no vote). A request still waiting shows the same
- * swap with its approval count, and can be withdrawn the same way.
+ * swap and can be withdrawn the same way; its votes are in Needs approval.
  */
 
-import { useState } from "react";
-import { ArrowDown, Repeat } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowDown } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
+import { ChainBadge, UniswapBadge } from "@/components/chain/chain-badge";
+import { TokenPill } from "./chain-marks";
 import { useTreasuryRoomData } from "./room-data";
-import { dateOnly, dateTime, tokenAmount, usd, weekdayDate } from "./room-model";
-import type { RecurringLive, RecurringPending } from "./room-types";
+import { dateOnly, tokenAmount, usd, weekdayDate } from "./room-model";
+import type { RecurringLive, RecurringPending, TreasuryWallet } from "./room-types";
 import styles from "./treasury-room.module.css";
 
-function useStop(): { stop: () => Promise<void>; busy: boolean; error: string | null } {
+// up to this many weeks read as one segment each; a longer window reads as a bar
+const MAX_SEGMENTS = 26;
+
+function useStop(): { stop: () => Promise<boolean>; busy: boolean; error: string | null } {
   const { roomId, reload } = useTreasuryRoomData();
   const t = useT();
   const [busy, setBusy] = useState(false);
@@ -35,8 +40,10 @@ function useStop(): { stop: () => Promise<void>; busy: boolean; error: string | 
       // the server's refusal is a fixed English sentence (recurring.ts), safe to show
       if (!res.ok) setError(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? t("Couldn't stop it — try again."));
       await reload();
+      return res.ok;
     } catch {
       setError(t("Couldn't stop it — try again."));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -44,17 +51,24 @@ function useStop(): { stop: () => Promise<void>; busy: boolean; error: string | 
   return { stop, busy, error };
 }
 
-function StopButton({ label, confirmText }: { label: string; confirmText: string }) {
+function StopButton({ label, confirmText, lead }: { label: string; confirmText: string; lead: ReactNode }) {
   const t = useT();
   const { stop, busy, error } = useStop();
   const [asking, setAsking] = useState(false);
   return (
-    <div className={styles.stopWrap}>
+    <div className={styles.recFoot}>
       {asking ? (
         <div className={styles.confirm} role="group" aria-label={label}>
           <span>{confirmText}</span>
           <div className={styles.confirmButtons}>
-            <button type="button" className={styles.btnDanger} disabled={busy} onClick={() => void stop().then(() => setAsking(false))} data-testid="treasury-room-stop-confirm">
+            <button
+              type="button"
+              className={styles.btnDanger}
+              disabled={busy}
+              aria-busy={busy}
+              onClick={() => void stop().then((ok) => ok && setAsking(false))}
+              data-testid="treasury-room-stop-confirm"
+            >
               {busy ? t("Stopping…") : t("Yes, stop")}
             </button>
             <button type="button" className={styles.btnGhost} disabled={busy} onClick={() => setAsking(false)}>
@@ -63,9 +77,12 @@ function StopButton({ label, confirmText }: { label: string; confirmText: string
           </div>
         </div>
       ) : (
-        <button type="button" className={styles.btnDangerOutline} onClick={() => setAsking(true)} data-testid="treasury-room-stop">
-          {label}
-        </button>
+        <div className={styles.recFootRow}>
+          <span className={styles.recFootLead}>{lead}</span>
+          <button type="button" className={styles.btnDangerLine} onClick={() => setAsking(true)} data-testid="treasury-room-stop">
+            {label}
+          </button>
+        </div>
       )}
       {error && (
         <p className={styles.errorLine} role="alert">
@@ -76,20 +93,18 @@ function StopButton({ label, confirmText }: { label: string; confirmText: string
   );
 }
 
-function SwapBox({ weeklyUsd, receive, rate }: { weeklyUsd: number; receive: string; rate: string | null }) {
+/** What goes in and what comes out: the real USDC leads, its story dollars under it in the chat card's words ("$20 a week"). */
+function SwapBox({ weeklyUsd, usdcPerUsd, receive, rate }: { weeklyUsd: number; usdcPerUsd: number; receive: string; rate: string | null }) {
   const t = useT();
   return (
     <div className={styles.swap}>
       <div className={styles.swapPanel}>
         <span className={styles.swapLabel}>{t("You pay")}</span>
         <div className={styles.swapRow}>
-          <span className={`${styles.swapAmount} ${styles.num}`}>{usd(weeklyUsd)}</span>
-          <span className={styles.token}>
-            <span className={`${styles.tokenDot} ${styles.tokenUsdc}`} aria-hidden />
-            USDC
-          </span>
+          <span className={`${styles.swapAmount} ${styles.num}`}>{tokenAmount(weeklyUsd * usdcPerUsd)}</span>
+          <TokenPill token="USDC" />
         </div>
-        <span className={styles.swapSub}>{t("every week")}</span>
+        <span className={`${styles.swapSub} ${styles.num}`}>{t("{amount} a week", { amount: usd(weeklyUsd) })}</span>
       </div>
       <span className={styles.swapArrow} aria-hidden>
         <ArrowDown size={16} />
@@ -98,29 +113,38 @@ function SwapBox({ weeklyUsd, receive, rate }: { weeklyUsd: number; receive: str
         <span className={styles.swapLabel}>{t("You receive")}</span>
         <div className={styles.swapRow}>
           <span className={`${styles.swapAmount} ${styles.num}`}>{receive}</span>
-          <span className={styles.token}>
-            <span className={`${styles.tokenDot} ${styles.tokenEth}`} aria-hidden />
-            ETH
-          </span>
+          <TokenPill token="WETH" />
         </div>
-        <span className={styles.swapSub}>{rate ?? t("at the pool's price when it buys")}</span>
-      </div>
-      <div className={styles.route}>
-        <span>{t("Route")}</span>
-        <span>Uniswap v3 · 0.05% pool · Base</span>
+        <span className={`${styles.swapSub} ${styles.num}`}>{rate ?? t("at the pool's price when it buys")}</span>
       </div>
     </div>
   );
 }
 
-function LiveCard({ live, realRuns }: { live: RecurringLive; realRuns: boolean }) {
+function WeekTrack({ done, weeks }: { done: number; weeks: number }) {
+  if (weeks > MAX_SEGMENTS)
+    return (
+      <div className={styles.progress} role="progressbar" aria-valuemin={0} aria-valuemax={weeks} aria-valuenow={done}>
+        <div className={`${styles.progressFill} ${styles.progressCoral}`} style={{ width: `${Math.min(100, (done / weeks) * 100)}%` }} />
+      </div>
+    );
+  return (
+    <div className={styles.weekSegments} style={{ gridTemplateColumns: `repeat(${weeks}, minmax(0, 1fr))` }} role="progressbar" aria-valuemin={0} aria-valuemax={weeks} aria-valuenow={done}>
+      {Array.from({ length: weeks }, (_, i) => (
+        <i key={i} className={i < done ? styles.segmentCoral : undefined} />
+      ))}
+    </div>
+  );
+}
+
+function LiveCard({ live, realRuns, usdcPerUsd }: { live: RecurringLive; realRuns: boolean; usdcPerUsd: number }) {
   const t = useT();
   const intlLocale = useIntlLocale();
   const perBuy = live.boughtWeeks > 0 ? Number(live.wethOut) / live.boughtWeeks : null;
   const rate = live.avgPriceUsdcPerEth ? t("1 ETH ≈ {price} USDC", { price: tokenAmount(Math.round(live.avgPriceUsdcPerEth)) }) : null;
   const thisWeek =
     live.thisWeek === "bought" ? t("Bought this week") : live.thisWeek === "skipped" ? t("Skipped this week") : t("Not bought yet this week");
-  const pct = Math.min(100, (live.weekIndex / live.weeks) * 100);
+  const lastDay = dateOnly(new Date(Date.parse(live.expiresAt) - 1000).toISOString(), intlLocale);
 
   return (
     <>
@@ -132,19 +156,19 @@ function LiveCard({ live, realRuns }: { live: RecurringLive; realRuns: boolean }
         {!realRuns && <span className={`${styles.chip} ${styles.chipInfo}`}>{t("Rehearsal — real buys are off on this server")}</span>}
       </div>
 
-      <SwapBox weeklyUsd={live.weeklyUsd} receive={perBuy === null ? "—" : `≈ ${tokenAmount(perBuy)}`} rate={rate} />
+      <SwapBox weeklyUsd={live.weeklyUsd} usdcPerUsd={usdcPerUsd} receive={perBuy === null ? "—" : `≈ ${tokenAmount(perBuy)}`} rate={rate} />
 
       <div className={styles.week}>
         <div className={styles.weekHead}>
           <strong className={styles.num}>{t("Week {k} of {n}", { k: live.weekIndex, n: live.weeks })}</strong>
-          <span className={styles.muted}>{thisWeek}</span>
+          <span className={styles.muted}>
+            {live.nextRunAt ? t("Next buy {when}", { when: weekdayDate(live.nextRunAt, intlLocale) }) : t("No buys left in its window")}
+          </span>
         </div>
-        <div className={styles.progress} role="progressbar" aria-valuemin={0} aria-valuemax={live.weeks} aria-valuenow={live.weekIndex}>
-          <div className={`${styles.progressFill} ${styles.progressCoral}`} style={{ width: `${pct}%` }} />
-        </div>
+        <WeekTrack done={live.weekIndex} weeks={live.weeks} />
         <p className={styles.weekNext}>
-          {live.nextRunAt ? t("Next buy: {when}", { when: weekdayDate(live.nextRunAt, intlLocale) }) : t("No buys left in its window")}
-          <span className={styles.muted}> · {t("until {date}", { date: dateOnly(new Date(Date.parse(live.expiresAt) - 1000).toISOString(), intlLocale) })}</span>
+          {thisWeek}
+          <span className={styles.muted}> · {t("until {date}", { date: lastDay })}</span>
         </p>
       </div>
 
@@ -155,7 +179,7 @@ function LiveCard({ live, realRuns }: { live: RecurringLive; realRuns: boolean }
           <span className={styles.statHint}>{t("{n} buys", { n: live.boughtWeeks })}</span>
         </div>
         <div>
-          <dt>{t("ETH accumulated")}</dt>
+          <dt>{t("WETH bought")}</dt>
           <dd className={styles.num}>{tokenAmount(live.wethOut)}</dd>
           <span className={styles.statHint}>WETH</span>
         </div>
@@ -166,63 +190,62 @@ function LiveCard({ live, realRuns }: { live: RecurringLive; realRuns: boolean }
         </div>
       </dl>
 
-      <div className={styles.approvedBy}>
-        <p>
-          {t("Approved by {names}", { names: live.approvedBy.join(", ") || "—" })}{" "}
-          <span className={styles.muted}>{t("({got} of {need} verified humans)", { got: live.approvals, need: live.required })}</span>
-        </p>
-        {live.rule && <p className={styles.quote}>“{live.rule}”</p>}
-        <p className={styles.muted}>
-          {t("Terms")} <span className={styles.mono}>{live.digestShort}</span>
-        </p>
-      </div>
-
-      <StopButton label={t("Stop recurring buy")} confirmText={t("Stop it for everyone? The treasurer won't buy again under it.")} />
+      <StopButton
+        label={t("Stop recurring buy")}
+        confirmText={t("Stop it for everyone?")}
+        lead={
+          <span title={[live.rule, `${t("Terms")} ${live.digestShort}`].filter(Boolean).join(" · ")}>
+            {t("Approved by {names}", { names: live.approvedBy.join(", ") || "—" })}
+          </span>
+        }
+      />
     </>
   );
 }
 
-function PendingCard({ pending }: { pending: RecurringPending }) {
+function PendingCard({ pending, usdcPerUsd }: { pending: RecurringPending; usdcPerUsd: number }) {
   const t = useT();
   return (
     <>
       <div className={styles.recurringStatus}>
         <span className={`${styles.chip} ${styles.chipWait}`}>
           <span className={styles.chipDot} aria-hidden />
-          {t("Waiting for approval · {got} of {need}", { got: pending.approvals, need: pending.required })}
+          {t("Waiting for approval")}
         </span>
       </div>
-      <SwapBox weeklyUsd={pending.weeklyUsd} receive="—" rate={null} />
-      <p className={styles.weekNext}>
-        {t("{weeks} weeks · at most {total} in all", { weeks: pending.weeks, total: usd(pending.exposureUsd) })}
-      </p>
-      {pending.rule && <p className={styles.quote}>“{pending.rule}”</p>}
-      <StopButton label={t("Withdraw request")} confirmText={t("Withdraw this request? Nobody can approve it afterwards.")} />
+      <SwapBox weeklyUsd={pending.weeklyUsd} usdcPerUsd={usdcPerUsd} receive="—" rate={null} />
+      <StopButton
+        label={t("Withdraw request")}
+        confirmText={t("Withdraw this request?")}
+        lead={<span className={styles.num}>{t("For {weeks} weeks · at most {total} in total", { weeks: pending.weeks, total: usd(pending.exposureUsd) })}</span>}
+      />
     </>
   );
 }
 
-export function RecurringCard({ status }: { status: TreasuryStatus }) {
+export function RecurringCard({ status, wallet }: { status: TreasuryStatus; wallet: TreasuryWallet }) {
   const t = useT();
   const rec = status.recurring;
   return (
     <section className={styles.card} data-testid="treasury-room-recurring">
       <div className={styles.cardHead}>
-        <h2 className={styles.cardTitle}>
-          <Repeat size={18} aria-hidden className={styles.titleIcon} />
-          {t("Recurring buy")}
-        </h2>
+        <h2 className={styles.cardTitle}>{t("Recurring buy")}</h2>
+        <span className={styles.badges}>
+          <UniswapBadge />
+          <ChainBadge chain="base" />
+        </span>
       </div>
       {rec === null || rec === undefined ? (
         <p className={styles.emptyLine}>{t("The recurring buy can't be read right now.")}</p>
       ) : rec.live ? (
-        <LiveCard live={rec.live} realRuns={rec.realRuns} />
+        <LiveCard live={rec.live} realRuns={rec.realRuns} usdcPerUsd={wallet.usdcPerUsd} />
       ) : rec.pending ? (
-        <PendingCard pending={rec.pending} />
+        <PendingCard pending={rec.pending} usdcPerUsd={wallet.usdcPerUsd} />
+      ) : status.actions.some((a) => a.kind === "recurring-buy" && a.status === "executed") ? (
+        // one was adopted and has since been stopped or run out: "yet" would be wrong
+        <p className={styles.emptyLine}>{t("No recurring buy running")}</p>
       ) : (
-        <p className={styles.emptyLine}>
-          {t("No recurring buy yet. Ask your treasurer: “buy $20 of ETH every week for 26 weeks”.")}
-        </p>
+        <p className={styles.emptyLine}>{t("No recurring buy yet. Ask your treasurer: “buy $20 of ETH every week for 26 weeks”.")}</p>
       )}
     </section>
   );

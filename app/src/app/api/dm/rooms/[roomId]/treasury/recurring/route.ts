@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ roomId: st
     if (err instanceof RecurringBuyRefusal) return NextResponse.json({ error: err.message }, { status: 403 });
     console.error(`recurring route: run failed for room ${roomId}:`, logLine(err));
     return NextResponse.json(
-      { error: "Couldn't read the treasury wallet right now — nothing was bought. Try again in a moment." },
+      { error: "Couldn't reach the wallet — nothing was bought. Try again." },
       { status: 502 }
     );
   }
