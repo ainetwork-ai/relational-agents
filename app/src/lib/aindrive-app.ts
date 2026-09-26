@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { teamspaceDrives, users } from "@/lib/db/schema";
-import { aindriveHttp } from "@/lib/aindrive";
+import { aindriveHttp, listDrives, listFiles } from "@/lib/aindrive";
 import { runAs } from "@/lib/aindrive-account";
 import { ShareError, shareFolder, shareableTeamspaces } from "@/lib/aindrive-share";
 import { stamp, stampOk } from "@/lib/secret-box";
@@ -84,9 +84,21 @@ export async function setShared(userId: string, teamspaceId: string, driveId: st
   }
   const [me] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, userId));
   const folder = root.split("/").pop() || "";
+  let label = folder;
+  if (!root) {
+    // the whole drive — on a phone, the folder picked for it — goes by the drive's name
+    const drives = await runAs(userId, () => listDrives()).catch(() => []);
+    label = drives.find((d) => d.id === driveId)?.name ?? "";
+  } else {
+    // a teamspace shows a folder; a file has nothing to open as one
+    const parent = root.includes("/") ? root.slice(0, root.lastIndexOf("/")) : "";
+    const entries = await runAs(userId, () => listFiles({ driveId, root: "" }, parent)).catch(() => null);
+    if (entries?.some((e) => e.name === folder && !e.isDir))
+      throw new ShareError("Only folders can be shared into a workspace — share the folder this file is in", 400);
+  }
   try {
     // same naming as the family share page: "<name> · <folder>"
-    await shareFolder(userId, teamspaceId, { driveId, root, name: folder ? `${me?.name ?? ""} · ${folder}`.trim() : undefined });
+    await shareFolder(userId, teamspaceId, { driveId, root, name: label ? `${me?.name ?? ""} · ${label}`.trim() : undefined });
   } catch (e) {
     if (!(e instanceof ShareError && e.status === 409)) throw e;
   }
