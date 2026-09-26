@@ -32,7 +32,9 @@
  *     here; --try keeps it in the room from the start, so /world visitors can
  *     pick it;
  *   - the relation doc's treasury sections (Purpose, Treasury Rules, Payees,
- *     Treasury Activity) — what lib/agent/treasury/memory.ts reads;
+ *     Treasury Activity) — what lib/agent/treasury/memory.ts reads — and its
+ *     own sections (Overview, Meeting log, Agreements, Action items, Contacts,
+ *     Open questions) filed from the chat, as lib/tokyo-trip-record.ts words them;
  *   - the founding adoption of those Rules and Payees (the chat above is where
  *     they were agreed) — what the agent enforces until the relation adopts
  *     an edit with the strictest quorum;
@@ -67,6 +69,7 @@ const { ensureOkfDocTree, okfDocMeta, okfDocPageId, appendOkfLines, docRootTitle
   "../src/lib/agent/okf-docs"
 );
 const { deleteNode, nodeExists, readNode, writePage } = await import("../src/lib/okf-store");
+const { tokyoTripRecord, TREASURY_OPENING } = await import("../src/lib/tokyo-trip-record");
 const { setOkfAcl } = await import("../src/lib/okf-acl");
 const { ensureGeneralTeamspace } = await import("../src/lib/workspace");
 
@@ -424,7 +427,7 @@ const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks
     // dated the way appendTreasuryActivity writes, so today's entries join this heading
     blocks: [
       ["heading1", activityDayHeading(new Date())],
-      ["bulleted_list", "Treasury opened with $1,000 — $200 from each of us."],
+      ["bulleted_list", TREASURY_OPENING],
     ],
   },
 ];
@@ -443,6 +446,30 @@ for (const s of SECTIONS) {
     s.blocks.map(([type, text], i) => ({ id: randomUUID(), type, content: { text }, position: i + 1 }))
   );
   written.push(s.title);
+}
+
+// The doc's own sections, as the agent would have filed the talk above had it
+// not been marked recorded (lib/tokyo-trip-record.ts). Only into empty ones:
+// a rerun must not write over what the pipeline has added since.
+{
+  const talkIds = (
+    await db
+      .select({ id: S.chatMessages.id })
+      .from(S.chatMessages)
+      .where(eq(S.chatMessages.roomId, roomId))
+      .orderBy(S.chatMessages.createdAt)
+      .limit(talk.length)
+  ).map((m) => m.id);
+  for (const s of tokyoTripRecord(roomId, talkIds, new Date(firstAt))) {
+    const rel = sectionPaths[s.key];
+    if (!rel) continue;
+    const node = nodeExists(rel) ? readNode(rel) : null;
+    const hasText =
+      node?.kind === "page" && node.blocks.some((b) => (((b.content ?? {}) as { text?: string }).text ?? "").trim());
+    if (hasText) continue;
+    writePage(rel, s.title, okfDocMeta(roomId, profile, s.key), s.blocks);
+    written.push(s.title);
+  }
 }
 
 // the doc's index is its table of contents — a page nothing links to is one nobody finds
