@@ -2,7 +2,11 @@
  * The Relation Treasury demo: five friends pooling money for ETHGlobal Tokyo,
  * and a room agent that holds the pot under rules they wrote themselves.
  *
- *   npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts [--reset] [--no-fund] [--no-preseat] [--app URL]
+ *   npx tsx --tsconfig scripts/tsconfig.json scripts/seed-tokyo-trip.mts [--try] [--reset] [--no-fund] [--no-preseat] [--app URL]
+ *     --try      the try-it copy that /world opens to visitors: the same room,
+ *                rules and faces under its own accounts (try-alex …), its own
+ *                workspace, agent and wallet, and nobody seated — so what
+ *                visitors do never touches the recording room
  *     --reset    delete the "Tokyo Trip" room(s) Alex made (treasury rows, chat,
  *                agent, relation doc) and the six accounts' notifications, and
  *                build it again; accounts are kept
@@ -63,22 +67,25 @@ const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
+const TRY = process.argv.includes("--try");
 const RESET = process.argv.includes("--reset");
 const FUND = !process.argv.includes("--no-fund");
-const PRESEAT = !process.argv.includes("--no-preseat");
+const PRESEAT = !TRY && !process.argv.includes("--no-preseat");
 const APP = (arg("app", "http://localhost:36625") as string).replace(/\/+$/, "");
-const WORKSPACE = "ETHGlobal Tokyo Team";
+const WORKSPACE = TRY ? "ETHGlobal Tokyo Team (try it)" : "ETHGlobal Tokyo Team";
 const ROOM = "Tokyo Trip";
 const TREASURY_USD = 1000;
+// src/lib/world-demo.ts finds each copy by its Alex: `demo:${PREFIX}-alex`
+const PREFIX = TRY ? "try" : "tokyo";
 
 type Key = "alex" | "bea" | "chris" | "dana" | "eli" | "alex2";
 const PEOPLE: { key: Key; slug: string; name: string }[] = [
-  { key: "alex", slug: "tokyo-alex", name: "Alex" },
-  { key: "bea", slug: "tokyo-bea", name: "Bea" },
-  { key: "chris", slug: "tokyo-chris", name: "Chris" },
-  { key: "dana", slug: "tokyo-dana", name: "Dana" },
-  { key: "eli", slug: "tokyo-eli", name: "Eli" },
-  { key: "alex2", slug: "tokyo-alex2", name: "Alex (2nd account)" },
+  { key: "alex", slug: `${PREFIX}-alex`, name: "Alex" },
+  { key: "bea", slug: `${PREFIX}-bea`, name: "Bea" },
+  { key: "chris", slug: `${PREFIX}-chris`, name: "Chris" },
+  { key: "dana", slug: `${PREFIX}-dana`, name: "Dana" },
+  { key: "eli", slug: `${PREFIX}-eli`, name: "Eli" },
+  { key: "alex2", slug: `${PREFIX}-alex2`, name: "Alex (2nd account)" },
 ];
 /** seated by the seed; Alex and Bea claim theirs on stage, Alex's 2nd account never gets one */
 const PRESEATED: Key[] = ["chris", "dana", "eli"];

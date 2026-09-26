@@ -3,6 +3,9 @@
 *ETHGlobal Tokyo 2026 · World · Continuity — **[Cont] Best Use of World ID for Agents** and
 **[Cont] Best IDKit Use Case**.*
 
+**Live: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world)** — the room from the
+video, read-only, and a copy of it anyone can enter as one of the five friends. No sign-up.
+
 This folder is the World submission: this page, the [demo script](DEMO.md), the
 [integration debriefs](DEBRIEF.md) and the [timestamped integration log](integration-log.md)
 they are built from. The code lives in the workspace app ([`../app/`](../app/)), because the
@@ -122,10 +125,16 @@ stay right while the code keeps moving.
 | [`app/src/components/treasury/`](../app/src/components/treasury/) | `treasury-panel.tsx` (the panel above the chat), `seat-button.tsx` (the IDKit widget), `recurring-buy-panel.tsx` |
 | [`app/src/lib/agent/treasurer/`](../app/src/lib/agent/treasurer/) | the treasurer: a language model with tools; each tool in `tools.ts` checks the asker itself |
 | [`app/src/app/(app)/treasury/`](../app/src/app/%28app%29/treasury/), [`app/src/components/treasury-app/`](../app/src/components/treasury-app/) | the treasury pages: every relation's shared money in one place, and per room the account, approvals, rules, activity and the treasurer |
+| [`app/src/app/world/`](../app/src/app/world/), [`app/src/lib/world-demo.ts`](../app/src/lib/world-demo.ts) | the public `/world` page: the recorded room read-only, the try-it copy's members to enter, and its start-over |
 | [`app/src/lib/db/schema.ts`](../app/src/lib/db/schema.ts) | `treasury_actions`, `treasury_approvals`, `treasury_seats`, `users.world_sub` |
 | [`app/scripts/seed-tokyo-trip.mts`](../app/scripts/seed-tokyo-trip.mts), [`treasury-selftest.mts`](../app/scripts/treasury-selftest.mts), [`recurring-selftest.mts`](../app/scripts/recurring-selftest.mts), [`recurring-chat-selftest.mts`](../app/scripts/recurring-chat-selftest.mts), [`app/e2e/treasury.check.mjs`](../app/e2e/treasury.check.mjs) | the demo room; checks of the parser, the matcher and the recurring buy's rules, no chain; the end-to-end journey |
 
 ## Try it
+
+In a browser: [ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world). Pick a member and
+you are in the try-it copy of the room, signed in as them; use a second browser or a private
+window for a second human. The copy is `seed-tokyo-trip.mts --try`: its own accounts, agent and
+wallet, so nothing done there reaches the recorded room.
 
 Locally, against the mock IdP. Set up the app first ([Running it](../README.md#running-it)).
 The treasury also needs a key with a little Sepolia ETH (`RELAYER_KEY` or `DEPLOYER_KEY`): it

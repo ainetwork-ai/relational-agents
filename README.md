@@ -61,8 +61,9 @@ same ACL.
 
 *ETHGlobal Tokyo 2026 · World — Best Use of World ID for Agents, Best IDKit Use Case (Continuity).*
 **The submission is [`world/`](world/)**: what it does, every World piece with its file and
-line, what gets refused, what has been exercised, and what existed before the weekend vs what
-was built during it.
+function, what gets refused, what has been exercised, and what existed before the weekend vs
+what was built during it. Live, with a copy of the room anyone can enter:
+[ainmem.ainetwork.xyz/world](https://ainmem.ainetwork.xyz/world).
 
 Shared money comes with an agreement — who may spend it, on what, how many must say yes — and
 the wallet doesn't know any of it. Here the agent that already keeps a relation's memory holds

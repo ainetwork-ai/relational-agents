@@ -1,0 +1,499 @@
+/* /world — the public World demo page. The palette is the treasury pages'
+   (components/treasury-app/room/treasury-room.module.css) so a visitor moving
+   from here into /treasury sees one product. Light only, like those pages: the
+   root paints its own background over the app's dark body. */
+
+.root {
+  --w-coral: #ff6b4a;
+  --w-coral-ink: #e8492b;
+  --w-tint: #fff0ec;
+  --w-bg: #f4f5f7;
+  --w-card: #ffffff;
+  --w-text: #191f28;
+  --w-sub: #333d4b;
+  --w-sec: #6b7684;
+  --w-ter: #b0b8c1;
+  --w-line: #e5e8eb;
+  --w-hair: #f2f4f6;
+  --w-ok: #00a86b;
+  --w-ok-bg: #e5f6ef;
+  --w-ok-ink: #007a4d;
+  --w-wait: #f59e0b;
+  --w-bad: #f04452;
+  --w-info: #3182f6;
+  --w-info-bg: #e8f3ff;
+  --w-info-ink: #1b64da;
+  --w-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  flex: 1;
+  min-height: 100vh;
+  background: var(--w-bg);
+  color: var(--w-text);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color-scheme: light;
+}
+
+.root *,
+.root *::before,
+.root *::after {
+  box-sizing: border-box;
+}
+
+.root a {
+  color: inherit;
+}
+
+.root :focus-visible {
+  outline: 2px solid var(--w-info);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.root code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--w-hair);
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 20px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ── header ── */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.brandSub {
+  font-weight: 500;
+  color: var(--w-sec);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.links a {
+  color: var(--w-sub);
+  text-decoration: none;
+}
+
+.links a:hover {
+  color: var(--w-coral-ink);
+}
+
+/* ── hero ── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding-top: 24px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--w-coral-ink);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0;
+  max-width: 64ch;
+  font-size: 17px;
+  color: var(--w-sub);
+}
+
+.surfaces {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.surface {
+  background: var(--w-card);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--w-shadow);
+}
+
+.surfaceName {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.surfaceText {
+  margin: 0;
+  color: var(--w-sec);
+  font-size: 14px;
+}
+
+.primary,
+.enter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--w-coral);
+  color: #fff !important;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.primary {
+  padding: 12px 20px;
+}
+
+.primary:hover,
+.enter:hover {
+  background: var(--w-coral-ink);
+}
+
+/* ── sections ── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-margin-top: 16px;
+}
+
+.h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.sub {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--w-sec);
+}
+
+.card {
+  background: var(--w-card);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: var(--w-shadow);
+  min-width: 0;
+}
+
+.label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--w-sec);
+}
+
+.muted {
+  margin: 0;
+  color: var(--w-sec);
+}
+
+.liveGrid,
+.tryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 12px;
+}
+
+.balance {
+  margin: 0 0 18px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.chips {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--w-hair);
+  color: var(--w-sub);
+}
+
+.chipWorld {
+  background: var(--w-ok-bg);
+  color: var(--w-ok-ink);
+}
+
+.modes {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--w-line);
+}
+
+.modes dt {
+  color: var(--w-sec);
+}
+
+.modes dd {
+  margin: 0;
+  color: var(--w-sub);
+}
+
+/* ── activity ── */
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.feedRow {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  column-gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--w-hair);
+}
+
+.feedRow:last-child {
+  border-bottom: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 8px;
+  background: var(--w-ter);
+}
+
+.ok {
+  background: var(--w-ok);
+}
+
+.wait {
+  background: var(--w-wait);
+}
+
+.bad {
+  background: var(--w-bad);
+}
+
+.info {
+  background: var(--w-info);
+}
+
+.idle {
+  background: var(--w-ter);
+}
+
+.feedLine {
+  color: var(--w-text);
+  overflow-wrap: anywhere;
+}
+
+.feedMeta {
+  grid-column: 2;
+  font-size: 13px;
+  color: var(--w-sec);
+  font-variant-numeric: tabular-nums;
+}
+
+.feedMeta a {
+  color: var(--w-info-ink);
+}
+
+/* ── try it ── */
+.flash {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--w-info-bg);
+  color: var(--w-info-ink);
+  font-size: 14px;
+}
+
+.members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+}
+
+.member {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  background: var(--w-card);
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: var(--w-shadow);
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--w-hair);
+  display: block;
+}
+
+.memberText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.memberName {
+  font-weight: 700;
+}
+
+.memberNote {
+  font-size: 13px;
+  color: var(--w-sec);
+}
+
+.memberActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.enter {
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+.alt {
+  font-size: 12px;
+  text-align: center;
+  color: var(--w-sec) !important;
+}
+
+/* Tailwind's preflight strips list markers; the steps are an order to follow */
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--w-sub);
+  list-style: decimal;
+}
+
+.steps li::marker {
+  color: var(--w-coral-ink);
+  font-weight: 700;
+}
+
+.notes {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--w-sub);
+  font-size: 14px;
+  list-style: disc;
+}
+
+.trialState {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--w-sec);
+}
+
+.secondary {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--w-sub);
+  background: var(--w-hair);
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.secondary:hover {
+  background: var(--w-line);
+}
+
+/* ── footer ── */
+.footer {
+  font-size: 13px;
+  color: var(--w-sec);
+  border-top: 1px solid var(--w-line);
+  padding-top: 20px;
+  overflow-wrap: anywhere;
+}
+
+.footer a {
+  color: var(--w-sub);
+}
+
+@media (max-width: 760px) {
+  .liveGrid,
+  .tryGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary,
+  .enter {
+    transition: none;
+  }
+}
