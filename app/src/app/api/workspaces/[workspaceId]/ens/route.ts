@@ -110,7 +110,6 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   const canEdit = hasRole(m.role, "admin");
-  const mapped = await getWorkspaceFamily(workspaceId);
   let chain = await familyChainFor(workspaceId);
   // after an add: drop the cached tree (and its chain) so the new name shows
   // (admins only: they are the ones who add, and it costs a full re-read from Sepolia)
@@ -120,7 +119,6 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
   let family: null | {
     root: string;
-    source: "workspace" | "default";
     registry: string | null;
     expiresAt: string | null;
     inGrace: boolean;
@@ -130,13 +128,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   if (chain) {
     try {
       tree = await chain.loadTree();
-      // only a <label>.eth root has a registration that expires; the env fallback
-      // (kim.ainmem.eth) is a subname and lives as long as ainmem.eth — so null here is correct
+      // only a <label>.eth root has a registration that expires; a subname root such as
+      // kim.ainmem.eth lives as long as its parent — so null here is correct
       const ethLabel = ethLabelOf(chain.root);
       const exp = ethLabel ? await ethExpiry(ensReader(), ethLabel) : null;
       family = {
         root: chain.root,
-        source: mapped ? "workspace" : "default",
         registry: tree.registry ?? null,
         expiresAt: exp ? new Date(exp.expiresAt * 1000).toISOString() : null,
         inGrace: exp?.inGrace ?? false,

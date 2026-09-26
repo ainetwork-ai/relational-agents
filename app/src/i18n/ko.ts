@@ -1442,7 +1442,6 @@ export const ko: Record<string, string> = {
   "Waiting for the network…": "네트워크를 기다리는 중…",
   "Approve in MetaMask…": "MetaMask에서 승인해 주세요…",
   "Expires {date}": "{date} 만료",
-  "The demo family of this deployment. {name} sits under another name and has no expiry of its own, so there is nothing to renew here.": "이 배포의 데모 가족이에요. {name}은(는) 다른 이름 아래에 있고 자체 만료일이 없어서 여기서 연장할 것이 없어요.",
   "Renew": "연장",
   "Open in ENS app": "ENS 앱에서 열기",
   "Family tree": "가계도",
@@ -1456,7 +1455,6 @@ export const ko: Record<string, string> = {
   "{price} USDC (test)": "{price} USDC(테스트)",
   "1–3 approvals in MetaMask": "MetaMask 승인 1~3번",
   "Renew {name}": "{name} 연장",
-  "Demo family": "데모 가족",
   // Settings › Family names › family tree canvas (ENS family settings plan, Task 7b)
   "No one is in the family tree yet.": "아직 가족 트리에 아무도 없어요.",
   "Create the registry for names under {name}": "{name} 아래 이름을 위한 레지스트리 만들기",

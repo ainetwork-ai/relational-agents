@@ -15,7 +15,7 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const live = verifySendIntent(token, sendSecret());
   // past its 10 minutes a link can no longer pay, but a transfer already made with it can still be checked
   const intent = live ?? verifySendIntentForConfirm(token, sendSecret());
-  // the family the agent found the recipient in (its own, else the deployment's ENS_FAMILY_ROOT)
+  // the family the agent found the recipient in: the workspace's own (workspace_ens)
   const chain = intent && intent.userId === session.userId ? await familyChainFor(intent.workspaceId) : null;
   const fail = (msg: string) => (
     <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">

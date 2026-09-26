@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { workspaceEns } from "@/lib/db/schema";
 import type { FamilyChain } from "@/lib/ens-family/chain";
-import { chainForRoot, ensReader, familyChain, forgetFamilyChain } from "@/lib/ens-chain";
+import { chainForRoot, ensReader, forgetFamilyChain } from "@/lib/ens-chain";
 import { formatUnits } from "viem";
 import { availableSuggestions, ethNameStatus } from "@/lib/ens-family/availability";
 import { checkLabel } from "@/lib/ens-family/labels";
@@ -57,10 +57,11 @@ export async function setWorkspaceFamily(input: {
   return "ok";
 }
 
-/** The workspace's own family, else the deployment's ENS_FAMILY_ROOT (F10), else null. */
+/** The workspace's own family (its workspace_ens row), else null: a workspace without its own
+ *  ENS entry has no family tree (F10). */
 export async function familyChainFor(workspaceId: string): Promise<FamilyChain | null> {
   const fam = await getWorkspaceFamily(workspaceId);
-  return fam ? chainForRoot(fam.rootName, fam.fromBlock) : familyChain();
+  return fam ? chainForRoot(fam.rootName, fam.fromBlock) : null;
 }
 
 // ── reservations (F14) ───────────────────────────────────────────────────────

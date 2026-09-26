@@ -41,7 +41,6 @@ import { FamilyTreeCanvas } from "./family-tree-canvas";
 
 interface Family {
   root: string;
-  source: "workspace" | "default";
   registry: string | null;
   expiresAt: string | null;
   inGrace: boolean;
@@ -159,13 +158,10 @@ function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state:
   const t = useT();
   const { me, family } = state;
   const wallet = me.address as Address | null;
-  // the deployment's demo family (ENS_FAMILY_ROOT) is shown, but it is not this workspace's own:
-  // an admin can still create one
-  const hasOwn = family?.source === "workspace";
   return (
     <>
       {!wallet && <ConnectSection onLinked={() => reload()} />}
-      {!hasOwn && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={() => reload()} />}
+      {!family && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={() => reload()} />}
       {family && (
         <FamilySection
           workspaceId={workspaceId}
@@ -636,25 +632,18 @@ function FamilySection({
 }) {
   const t = useT();
   const label = ethLabelOf(family.root);
-  const renewable = family.source === "workspace" && label !== null;
+  const renewable = label !== null;
   const [renewing, setRenewing] = useState(false);
   return (
     <>
       <ExpiryBanner family={family} label={label} />
-      <SettingsSection title={family.source === "default" ? t("Demo family") : t("Family")}>
+      <SettingsSection title={t("Family")}>
         <div className="flex flex-wrap items-start justify-between gap-3" data-testid="family-header">
           <div className="flex flex-col gap-1">
             <span className="font-mono text-lg text-neutral-900 dark:text-neutral-100" data-testid="family-root">
               {family.root}
             </span>
             {family.expiresAt && <span className={MUTED}>{t("Expires {date}", { date: dateOf(family.expiresAt) })}</span>}
-            {family.source === "default" && (
-              <span className={MUTED} data-testid="family-default-note">
-                {t("The demo family of this deployment. {name} sits under another name and has no expiry of its own, so there is nothing to renew here.", {
-                  name: family.root,
-                })}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {renewable && wallet && !renewing && (
@@ -709,7 +698,7 @@ function ExpiryBanner({ family, label }: { family: Family; label: string | null 
   }, [family.inGrace, label]);
   const [now] = useState(() => Date.now());
   // a mapped .eth root with no expiry is past its grace period: free again (Review Focus 6)
-  if (!family.expiresAt && family.source === "workspace" && label) {
+  if (!family.expiresAt && label) {
     return (
       <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" data-testid="family-banner-free-again">
         {t("{name} is past its grace period and free again. Register it again to keep the family.", { name: family.root })}

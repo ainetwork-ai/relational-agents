@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (wasConfirmed(body.t)) return NextResponse.json({ ok: true });
 
   const chain = await familyChainFor(intent.workspaceId);
-  if (!chain) return NextResponse.json({ error: "ENS family not configured" }, { status: 422 });
+  if (!chain) return NextResponse.json({ error: "This workspace has no family names yet" }, { status: 422 });
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);
   try {

@@ -5,8 +5,8 @@ import { createPublicClient, http, type PublicClient } from "viem";
 import { sepolia } from "viem/chains";
 import { createFamilyChain, type FamilyChain } from "@/lib/ens-family/chain";
 
-// One FamilyChain per root (each holds its own tree cache), shared by the env fallback and
-// by every workspace family (lib/ens-workspace.ts).
+// One FamilyChain per root (each holds its own tree cache), one per workspace family
+// (lib/ens-workspace.ts).
 const g = globalThis as unknown as { __ensChains?: Map<string, FamilyChain & { fromBlock: bigint }> };
 const chains = (g.__ensChains ??= new Map());
 
@@ -22,14 +22,6 @@ export function chainForRoot(root: string, fromBlock: bigint): FamilyChain {
 /** Drop the cached chain (and so its tree) for `root`, after a write changed the tree. */
 export function forgetFamilyChain(root: string): void {
   chains.delete(root);
-}
-
-/** The deployment's family from ENS_FAMILY_ROOT — the fallback for workspaces without their own.
- *  null when ENS_FAMILY_ROOT is not set on this server. */
-export function familyChain(): FamilyChain | null {
-  const root = process.env.ENS_FAMILY_ROOT?.trim();
-  if (!root) return null;
-  return chainForRoot(root, BigInt(process.env.ENS_FAMILY_FROM_BLOCK ?? "0"));
 }
 
 /** A Sepolia reader for availability and ownership checks (lib/ens-family/availability.ts). Read-only. */
