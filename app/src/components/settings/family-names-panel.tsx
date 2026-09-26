@@ -1,0 +1,821 @@
+"use client";
+
+// Settings › Workspace › Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Task 7).
+// 1 no linked wallet → Connect MetaMask · 2 admin, no family → create form · 3 the create run's
+// step list (resumable) · 4 the family: expiry banners, Renew, the tree · 5 non-admins read only.
+// The tree below the header is a plain list for now; Task 7b puts the canvas in its place.
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { formatEther, formatUnits, type Address } from "viem";
+import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { useT } from "@/i18n/provider";
+import type { T } from "@/i18n/translate";
+import { useMe } from "@/stores/me";
+import { SEPOLIA_EXPLORER, USDC_DECIMALS } from "@/lib/ens-family/config";
+import { checkLabel } from "@/lib/ens-family/labels";
+import { NameTakenError, NotRenewableError, type TxStep } from "@/lib/ens-family/issue";
+import { linkMetaMask } from "@/lib/wallet/metamask-login";
+import { WalletSignatureError, toWalletError } from "@/lib/wallet/provider";
+import {
+  FamilyApiError,
+  HOLD_KEY,
+  LINK_KEY,
+  clearRun,
+  createStepKeys,
+  graceSecondsLeft,
+  loadRun,
+  registerPrice,
+  releaseHold,
+  renewPrice,
+  renewStepKeys,
+  runCreateFamily,
+  runRenew,
+  sepoliaBalance,
+  sepoliaReader,
+  type CreateInput,
+  type SavedRun,
+} from "@/lib/wallet/ens-issue";
+import { SettingsHeader, SettingsRow, SettingsSection } from "./settings-layout";
+
+// ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
+
+interface TreeNode {
+  name: string;
+  label: string;
+  alias: string | null;
+  relation: string | null;
+  address: string | null;
+  registry: string | null;
+  children: TreeNode[];
+}
+interface Family {
+  root: string;
+  source: "workspace" | "default";
+  registry: string | null;
+  expiresAt: string | null;
+  inGrace: boolean;
+  tree: TreeNode;
+}
+interface FamilyState {
+  me: { address: string | null; canEdit: boolean };
+  family: Family | null;
+}
+interface LabelAnswer {
+  label: string;
+  status: "free" | "taken" | "reserved" | "invalid";
+  reason?: "empty" | "too-short" | "too-long" | "invalid";
+  price?: { usdc: string; premiumUsdc: string };
+  suggestions: string[];
+}
+
+// same controls as workspace-general-panel.tsx
+const INPUT =
+  "h-7 rounded-md border border-[rgba(28,19,1,0.11)] bg-transparent px-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-600 dark:text-neutral-100";
+const BTN =
+  "flex h-7 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700";
+const PRIMARY = "h-7 rounded-md bg-blue-500 px-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50";
+const MUTED = "text-[13px] leading-[18px] text-neutral-500 dark:text-neutral-400";
+
+const PERIODS = [1, 2, 5] as const;
+const FAUCET = "https://cloud.google.com/application/web3/faucet/ethereum/sepolia";
+const ENS_APP = "https://app.ens.dev";
+/** Rough gas for the whole create run (3 proxy deploys, mint, approve, commit, register, a subname), with room to spare. */
+const CREATE_GAS = BigInt(2_500_000);
+const CREATE_APPROVALS = 8;
+const DAY_MS = 86_400_000;
+const BANNER_DAYS = 30;
+
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const usdc = (micro: bigint) => formatUnits(micro, USDC_DECIMALS);
+const txUrl = (hash: string) => `${SEPOLIA_EXPLORER}/tx/${hash}`;
+const ethLabelOf = (root: string) => /^([a-z0-9-]+)\.eth$/.exec(root)?.[1] ?? null;
+const dateOf = (iso: string) => iso.slice(0, 10);
+
+/** One row's text, from its stable key (issue.ts step keys + the two app steps). */
+function stepLabel(key: string, t: T, years?: number): string {
+  let m: RegExpExecArray | null;
+  if (key === HOLD_KEY) return t("Hold the name in this app for 30 minutes");
+  if (key === LINK_KEY) return t("Link the name to this workspace");
+  if ((m = /^deploy-registry:(.+)$/.exec(key))) return t("Deploy the registry for names under {name}", { name: m[1] });
+  if ((m = /^deploy-resolver:([^.]+)\.([^.]+)\.eth$/.exec(key))) return t("Deploy the records of {name}", { name: `${m[1]}.${m[2]}.eth` });
+  if ((m = /^deploy-resolver:(.+)$/.exec(key))) return t("Deploy the family resolver for {name}", { name: m[1] });
+  if (/:fee:mint$/.test(key)) return t("Get test USDC for the fee");
+  if (/:fee:approve$/.test(key)) return t("Allow the fee");
+  if ((m = /^eth:(.+):commit$/.exec(key))) return t("Reserve {name} (commit)", { name: `${m[1]}.eth` });
+  if (/^eth:.+:wait$/.test(key)) return t("Wait a minute so nobody can snipe the name");
+  if ((m = /^eth:(.+):register$/.exec(key))) return t("Register {name}", { name: `${m[1]}.eth` });
+  if ((m = /^register:(.+)$/.exec(key))) return t("Register {name}", { name: m[1] });
+  if ((m = /^renew:([^:]+)$/.exec(key))) return t("Renew {name} for {n} year(s)", { name: `${m[1]}.eth`, n: years ?? 1 });
+  return key;
+}
+
+/** What to tell the admin when a run stops, and whether Continue makes sense. */
+function explain(err: unknown, t: T, account: string): { message: string; resumable: boolean } {
+  if (err instanceof FamilyApiError) return { message: err.message, resumable: true };
+  const w = err instanceof WalletSignatureError ? err : toWalletError(err);
+  if (w.reason === "rejected") return { message: t("Cancelled — press Continue to pick up where you left off."), resumable: true };
+  if (w.reason === "no-provider") return { message: t("MetaMask was not found in this browser."), resumable: true };
+  if (w.message === "wrong-account") return { message: t("Switch MetaMask to {addr}, then press Continue.", { addr: short(account) }), resumable: true };
+  const cause = w.cause as { name?: string } | undefined;
+  if (cause?.name === "ChainMismatchError") return { message: t("Switch MetaMask to Sepolia, then press Continue."), resumable: true };
+  return { message: t("It stopped: {msg}", { msg: w.message.split("\n")[0] }), resumable: true };
+}
+
+async function fetchFamilyState(workspaceId: string): Promise<{ state: FamilyState } | { error: string | null }> {
+  try {
+    const res = await fetch(`/api/workspaces/${workspaceId}/ens`, { cache: "no-store" });
+    const d = await res.json().catch(() => ({}));
+    return res.ok ? { state: d as FamilyState } : { error: typeof d.error === "string" ? d.error : null };
+  } catch {
+    return { error: null };
+  }
+}
+
+// ── the panel ────────────────────────────────────────────────────────────────────────────────────
+
+export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
+  const t = useT();
+  const [state, setState] = useState<FamilyState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const apply = useCallback(
+    (r: Awaited<ReturnType<typeof fetchFamilyState>>) => {
+      if ("state" in r) {
+        setLoadError(null);
+        setState(r.state);
+      } else setLoadError(r.error ?? t("Couldn't load family names"));
+    },
+    [t]
+  );
+  const load = useCallback(async () => apply(await fetchFamilyState(workspaceId)), [apply, workspaceId]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchFamilyState(workspaceId).then((r) => alive && apply(r));
+    return () => {
+      alive = false;
+    };
+  }, [apply, workspaceId]);
+
+  return (
+    <>
+      <SettingsHeader title={t("Family names")} subtitle={t("Names for your family on Ethereum (Sepolia ENS), like grandma.lee.eth")} />
+      {!state && !loadError && (
+        <div className={`flex items-center gap-2 ${MUTED}`}>
+          <Loader2 size={14} className="animate-spin" /> {t("Loading…")}
+        </div>
+      )}
+      {loadError && (
+        <div className="flex items-center gap-2" data-testid="family-load-error">
+          <span className="text-xs text-red-500">{loadError}</span>
+          <button
+            className={BTN}
+            onClick={() => {
+              setLoadError(null);
+              void load();
+            }}
+          >
+            {t("Try again")}
+          </button>
+        </div>
+      )}
+      {state && <PanelBody workspaceId={workspaceId} state={state} reload={load} />}
+    </>
+  );
+}
+
+function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state: FamilyState; reload: () => Promise<void> }) {
+  const t = useT();
+  const { me, family } = state;
+  const wallet = me.address as Address | null;
+  // the deployment's demo family (ENS_FAMILY_ROOT) is shown, but it is not this workspace's own:
+  // an admin can still create one
+  const hasOwn = family?.source === "workspace";
+  return (
+    <>
+      {!wallet && <ConnectSection onLinked={reload} />}
+      {!hasOwn && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={reload} />}
+      {family && <FamilySection family={family} wallet={wallet} onRenewed={reload} />}
+      {!family && !me.canEdit && (
+        <p className={MUTED} data-testid="family-none">
+          {t("This workspace has no family name yet.")}
+        </p>
+      )}
+      {!me.canEdit && (
+        <p className={MUTED} data-testid="family-admin-only">
+          {t("Only workspace admins can change family names.")}
+        </p>
+      )}
+    </>
+  );
+}
+
+// ── 1. connect ───────────────────────────────────────────────────────────────────────────────────
+
+function ConnectSection({ onLinked }: { onLinked: () => Promise<void> }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    const r = await linkMetaMask();
+    setBusy(false);
+    if (r.ok) return onLinked();
+    if (r.reason === "taken") setError(t("This wallet is already used by another account — pick another account in MetaMask."));
+    else if (r.reason === "has-other") setError(t("This account already uses another wallet."));
+    else setError(r.error);
+  }
+
+  return (
+    <SettingsSection title={t("Wallet")}>
+      <SettingsRow
+        label={t("Connect MetaMask")}
+        description={t("Family names live on Ethereum (Sepolia ENS). Connect MetaMask to this account to create or manage them.")}
+      >
+        <button data-testid="family-connect" className={BTN} onClick={() => void connect()} disabled={busy}>
+          {busy ? t("Waiting for MetaMask…") : t("Connect MetaMask")}
+        </button>
+        {error && <span className="mt-1 text-xs text-red-500">{error}</span>}
+      </SettingsRow>
+    </SettingsSection>
+  );
+}
+
+// ── 2 + 3. create ────────────────────────────────────────────────────────────────────────────────
+
+type Phase = "form" | "running" | "paused" | "taken";
+
+function CreateSection({ workspaceId, account, onCreated }: { workspaceId: string; account: Address; onCreated: () => Promise<void> }) {
+  const t = useT();
+  const [saved] = useState<SavedRun | null>(() => loadRun(workspaceId));
+  const [phase, setPhase] = useState<Phase>(saved ? "paused" : "form");
+  const [input, setInput] = useState<CreateInput | null>(saved);
+  const [steps, setSteps] = useState<Record<string, TxStep>>(() => Object.fromEntries((saved?.steps ?? []).map((s) => [s.key, s])));
+  const [stopped, setStopped] = useState<string | null>(null);
+  const [takenName, setTakenName] = useState<string | null>(null);
+  const [heldElsewhere, setHeldElsewhere] = useState(false);
+  const [waitUntil, setWaitUntil] = useState<number | null>(null);
+  const [prefill, setPrefill] = useState<string>("");
+
+  async function start(next: CreateInput) {
+    setInput(next);
+    setPhase("running");
+    setStopped(null);
+    try {
+      await runCreateFamily({
+        workspaceId,
+        account,
+        input: next,
+        saved: loadRun(workspaceId),
+        onStep: (s) => setSteps((prev) => ({ ...prev, [s.key]: s })),
+        onWait: setWaitUntil,
+      });
+      await onCreated();
+    } catch (err) {
+      setWaitUntil(null);
+      if (err instanceof FamilyApiError && err.reason === "exists") {
+        // another session linked a family meanwhile: show it
+        clearRun(workspaceId);
+        await onCreated();
+        return;
+      }
+      const reserveConflict = err instanceof FamilyApiError && (err.reason === "taken" || err.reason === "reserved");
+      if (err instanceof NameTakenError || reserveConflict) {
+        // nothing more is charged: the next paid step never ran
+        clearRun(workspaceId);
+        void releaseHold(workspaceId, next.label);
+        setTakenName(`${next.label}.eth`);
+        setHeldElsewhere(err instanceof FamilyApiError && err.reason === "reserved");
+        setPrefill(next.label);
+        setPhase("taken");
+        return;
+      }
+      setStopped(explain(err, t, account).message);
+      setPhase("paused");
+    }
+  }
+
+  function cancel() {
+    if (input) void releaseHold(workspaceId, input.label);
+    clearRun(workspaceId);
+    setSteps({});
+    setStopped(null);
+    setPrefill(input?.label ?? "");
+    setPhase("form");
+  }
+
+  if (phase === "form" || phase === "taken") {
+    return (
+      <CreateForm
+        key={prefill}
+        workspaceId={workspaceId}
+        account={account}
+        initialLabel={prefill}
+        takenName={phase === "taken" ? takenName : null}
+        heldElsewhere={heldElsewhere}
+        onCreate={(i) => void start(i)}
+      />
+    );
+  }
+  if (!input) return null;
+  return (
+    <SettingsSection title={t("Creating {name}", { name: `${input.label}.eth` })}>
+      <StepList keys={createStepKeys(input)} steps={steps} running={phase === "running"} waitUntil={waitUntil} />
+      {phase === "paused" && (
+        <div className="flex flex-col gap-2" data-testid="family-run-paused">
+          <span className={stopped ? "text-xs text-red-500" : MUTED} data-testid="family-run-message">
+            {stopped ?? t("This run was interrupted. Press Continue to pick up where you left off.")}
+          </span>
+          <div className="flex items-center gap-2">
+            <button data-testid="family-run-continue" className={PRIMARY} onClick={() => void start(input)}>
+              {t("Continue")}
+            </button>
+            <button data-testid="family-run-cancel" className={BTN} onClick={cancel}>
+              {t("Cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+    </SettingsSection>
+  );
+}
+
+function useDebounced<V>(value: V, ms: number): V {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
+}
+
+function CreateForm({
+  workspaceId,
+  account,
+  initialLabel,
+  takenName,
+  heldElsewhere,
+  onCreate,
+}: {
+  workspaceId: string;
+  account: Address;
+  initialLabel: string;
+  takenName: string | null;
+  heldElsewhere: boolean;
+  onCreate: (input: CreateInput) => void;
+}) {
+  const t = useT();
+  const me = useMe();
+  const [raw, setRaw] = useState(initialLabel);
+  const [years, setYears] = useState<number>(1);
+  const [familyAlias, setFamilyAlias] = useState("");
+  const [myLabelRaw, setMyLabelRaw] = useState("");
+  const [myAlias, setMyAlias] = useState(me?.displayName ?? "");
+  const [answer, setAnswer] = useState<LabelAnswer | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [price, setPrice] = useState<{ label: string; years: number; micro: bigint } | null>(null);
+  const [funds, setFunds] = useState<{ have: bigint; need: bigint } | null>(null);
+
+  const local = useMemo(() => checkLabel(raw, { min: 3 }), [raw]);
+  const debounced = useDebounced(raw, 400);
+
+  // live availability (debounced 400 ms). Invalid labels are refused here without a request,
+  // except too-short ones, whose suggestions come from the registry.
+  useEffect(() => {
+    const c = checkLabel(debounced, { min: 3 });
+    if (!c.ok && c.reason !== "too-short") return;
+    if (!debounced.trim()) return;
+    let alive = true;
+    const run = async () => {
+      setChecking(true);
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}/ens?label=${encodeURIComponent(debounced)}`, { cache: "no-store" });
+        const d = await res.json();
+        if (alive && res.ok) setAnswer(d as LabelAnswer);
+      } catch {
+        if (alive) setAnswer(null);
+      } finally {
+        if (alive) setChecking(false);
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [debounced, workspaceId]);
+
+  const current = answer?.label === (local.ok ? local.label : raw.trim().toLowerCase()) ? answer : null;
+  const free = current?.status === "free";
+
+  // the fee for the chosen period, read from the registrar
+  useEffect(() => {
+    if (!free || !local.ok) return;
+    let alive = true;
+    registerPrice(local.label, years)
+      .then((micro) => alive && setPrice({ label: local.label, years, micro }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [free, local, years]);
+
+  // Sepolia ETH on the wallet vs a rough ceiling for the whole run
+  useEffect(() => {
+    let alive = true;
+    Promise.all([sepoliaBalance(account), sepoliaReader().getGasPrice()])
+      .then(([have, gasPrice]) => alive && setFunds({ have, need: (gasPrice * CREATE_GAS * BigInt(5)) / BigInt(4) }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [account]);
+
+  const myLabel = checkLabel(myLabelRaw);
+  const shownPrice = price && local.ok && price.label === local.label && price.years === years ? `${usdc(price.micro)}` : null;
+  const short_ = funds ? funds.have < funds.need : false;
+  const ready = free && myLabel.ok && familyAlias.trim() !== "" && myAlias.trim() !== "" && !short_;
+
+  return (
+    <SettingsSection title={t("Create your family name")}>
+      {takenName && (
+        <p className="text-xs text-red-500" data-testid="family-taken-during-run">
+          {heldElsewhere
+            ? t("Someone in this app is registering this name right now")
+            : t("{name} was just registered by someone else. Nothing more will be charged.", { name: takenName })}
+        </p>
+      )}
+      <SettingsRow label={t("Family name")} description={t("A .eth name in the global ENS registry, 3 to 32 characters.")}>
+        <div className="flex items-center gap-1">
+          <input
+            data-testid="family-label-input"
+            value={raw}
+            onChange={(e) => setRaw(e.target.value)}
+            placeholder="lee"
+            className={`${INPUT} w-40`}
+            aria-label={t("Family name")}
+          />
+          <span className="text-sm text-neutral-500">.eth</span>
+        </div>
+        <LabelStatus raw={raw} local={local} answer={current} checking={checking || (local.ok && debounced !== raw)} onPick={setRaw} />
+      </SettingsRow>
+      <SettingsRow label={t("Registration period")} description={t("A .eth name expires. Renew it from this tab before then, or every name below it stops working.")}>
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t("Registration period")}>
+          {PERIODS.map((y) => (
+            <button
+              key={y}
+              role="radio"
+              aria-checked={years === y}
+              data-testid={`family-years-${y}`}
+              onClick={() => setYears(y)}
+              className={`${BTN} ${years === y ? "bg-neutral-200/60 dark:bg-neutral-700" : ""}`}
+            >
+              {t("{n} year(s)", { n: y })}
+            </button>
+          ))}
+        </div>
+      </SettingsRow>
+      <SettingsRow label={t("Family display name")} description={t("How the family is shown, e.g. The Lees.")}>
+        <input data-testid="family-alias-input" value={familyAlias} onChange={(e) => setFamilyAlias(e.target.value)} placeholder="The Lees" className={`${INPUT} w-56`} />
+      </SettingsRow>
+      <SettingsRow label={t("Your name in the family")} description={t("You become the first person in the tree, e.g. grandma.lee.eth.")}>
+        <div className="flex items-center gap-1">
+          <input data-testid="family-my-label-input" value={myLabelRaw} onChange={(e) => setMyLabelRaw(e.target.value)} placeholder="grandma" className={`${INPUT} w-32`} aria-label={t("Your name in the family")} />
+          <span className="text-sm text-neutral-500">.{local.ok ? local.label : "…"}.eth</span>
+        </div>
+        <input data-testid="family-my-alias-input" value={myAlias} onChange={(e) => setMyAlias(e.target.value)} placeholder={t("Display name")} className={`${INPUT} mt-2 w-56`} aria-label={t("Display name")} />
+      </SettingsRow>
+      <div className="flex flex-col gap-1 rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-900" data-testid="family-summary">
+        <span className="text-sm text-neutral-800 dark:text-neutral-200">
+          {shownPrice
+            ? t("{price} USDC (test) for {n} year(s), minted for you on Sepolia", { price: shownPrice, n: years })
+            : t("The fee shows once the name is available")}
+        </span>
+        <span className={MUTED}>
+          {funds
+            ? t("About {n} approvals in MetaMask and a 1-minute wait · you need ≈ {need} Sepolia ETH (you have {have})", {
+                n: CREATE_APPROVALS,
+                need: Number(formatEther(funds.need)).toFixed(4),
+                have: Number(formatEther(funds.have)).toFixed(4),
+              })
+            : t("About {n} approvals in MetaMask and a 1-minute wait", { n: CREATE_APPROVALS })}
+        </span>
+        {short_ && (
+          <a href={FAUCET} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline" data-testid="family-faucet">
+            {t("Not enough Sepolia ETH — get some from a faucet")} <ExternalLink size={12} />
+          </a>
+        )}
+        <span className={MUTED}>{t("Renew before it expires: it is one approval in MetaMask plus the yearly fee.")}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          data-testid="family-create"
+          className={PRIMARY}
+          disabled={!ready}
+          onClick={() =>
+            local.ok &&
+            myLabel.ok &&
+            onCreate({ label: local.label, years, familyAlias: familyAlias.trim(), myLabel: myLabel.label, myAlias: myAlias.trim() })
+          }
+        >
+          {t("Create {name}", { name: local.ok ? `${local.label}.eth` : ".eth" })}
+        </button>
+        <span className={MUTED}>{t("Wallet {addr}", { addr: short(account) })}</span>
+      </div>
+    </SettingsSection>
+  );
+}
+
+function LabelStatus({
+  raw,
+  local,
+  answer,
+  checking,
+  onPick,
+}: {
+  raw: string;
+  local: ReturnType<typeof checkLabel>;
+  answer: LabelAnswer | null;
+  checking: boolean;
+  onPick: (label: string) => void;
+}) {
+  const t = useT();
+  if (!raw.trim()) return null;
+  const chips = (list: string[]) =>
+    list.length > 0 && (
+      <div className="mt-1 flex w-full flex-wrap justify-end gap-1" data-testid="family-suggestions">
+        {list.map((s) => (
+          <button key={s} className={`${BTN} h-6 text-xs`} onClick={() => onPick(s)}>
+            {s}.eth
+          </button>
+        ))}
+      </div>
+    );
+  let line: ReactNode;
+  let suggestions: string[] = [];
+  if (!local.ok) {
+    const why = {
+      empty: t("Type a name"),
+      "too-short": t("A .eth name needs at least 3 characters"),
+      "too-long": t("At most 32 characters"),
+      invalid: t("Only a–z, 0–9 and inner hyphens"),
+    }[local.reason];
+    line = <span className="text-xs text-red-500">{why}</span>;
+    if (local.reason === "too-short" && answer?.status === "invalid") suggestions = answer.suggestions;
+  } else if (checking || !answer) {
+    line = <span className={MUTED}>{t("Checking…")}</span>;
+  } else if (answer.status === "free") {
+    line = (
+      <span className="text-xs text-green-700 dark:text-green-400">
+        {t("✓ {name} is available · {price} USDC (test) / year", { name: `${answer.label}.eth`, price: answer.price?.usdc ?? "?" })}
+      </span>
+    );
+  } else if (answer.status === "reserved") {
+    line = <span className="text-xs text-amber-600">{t("Someone in this app is registering this name right now")}</span>;
+    suggestions = answer.suggestions;
+  } else {
+    line = <span className="text-xs text-red-500">{t("{name} is taken", { name: `${answer.label}.eth` })}</span>;
+    suggestions = answer.suggestions;
+  }
+  return (
+    <div className="mt-1 flex w-full flex-col items-end text-right" data-testid="family-label-status" data-status={local.ok ? answer?.status ?? "checking" : "invalid"}>
+      {line}
+      {chips(suggestions)}
+    </div>
+  );
+}
+
+// ── step list (create and renew) ─────────────────────────────────────────────────────────────────
+
+const DONE = new Set<TxStep["status"]>(["confirmed", "skipped", "simulated"]);
+
+function StepList({ keys, steps, running, waitUntil, years }: { keys: string[]; steps: Record<string, TxStep>; running: boolean; waitUntil: number | null; years?: number }) {
+  const t = useT();
+  const active = running ? keys.find((k) => !steps[k] || !DONE.has(steps[k].status)) : undefined;
+  const now = useNow(active !== undefined && steps[active]?.status === "waiting");
+  return (
+    <ol className="flex flex-col gap-2" data-testid="family-steps">
+      {keys.map((k) => {
+        const s = steps[k];
+        const isApp = k === HOLD_KEY || k === LINK_KEY;
+        let icon: ReactNode = <span className="h-2 w-2 rounded-full bg-neutral-300 dark:bg-neutral-600" />;
+        let note: ReactNode = null;
+        if (s && DONE.has(s.status)) {
+          icon = <Check size={14} className={s.status === "skipped" ? "text-neutral-400" : "text-green-600"} />;
+          if (s.status === "skipped") note = <span className={MUTED}>{t("Already done")}</span>;
+        } else if (s?.status === "waiting") {
+          icon = <Loader2 size={14} className="animate-spin text-blue-500" />;
+          const left = waitUntil ? Math.max(0, waitUntil - Math.floor(now / 1000)) : null;
+          note = <span className={MUTED}>{left !== null ? t("{s} s left", { s: left }) : t("Waiting…")}</span>;
+        } else if (s?.status === "sent") {
+          icon = <Loader2 size={14} className="animate-spin text-blue-500" />;
+          note = <span className={MUTED}>{isApp ? t("Working…") : t("Waiting for the network…")}</span>;
+        } else if (k === active) {
+          icon = <Loader2 size={14} className="animate-spin text-blue-500" />;
+          note = <span className="text-xs text-blue-600">{isApp ? t("Working…") : t("Approve in MetaMask…")}</span>;
+        }
+        return (
+          <li key={k} data-testid="family-step" data-key={k} data-status={s?.status ?? (k === active ? "active" : "pending")} className="flex items-center gap-2 text-sm">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+            <span className={s?.status === "skipped" ? "text-neutral-400" : "text-neutral-800 dark:text-neutral-200"}>{stepLabel(k, t, years)}</span>
+            {note}
+            {s?.hash && (
+              <a href={txUrl(s.hash)} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
+                Etherscan <ExternalLink size={11} />
+              </a>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Date.now(), re-read every second while `ticking`. */
+function useNow(ticking: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!ticking) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [ticking]);
+  return now;
+}
+
+// ── 4 + 5. the family ────────────────────────────────────────────────────────────────────────────
+
+function FamilySection({ family, wallet, onRenewed }: { family: Family; wallet: Address | null; onRenewed: () => Promise<void> }) {
+  const t = useT();
+  const label = ethLabelOf(family.root);
+  const renewable = family.source === "workspace" && label !== null;
+  const [renewing, setRenewing] = useState(false);
+  return (
+    <>
+      <ExpiryBanner family={family} label={label} />
+      <SettingsSection title={family.source === "default" ? t("Demo family") : t("Family")}>
+        <div className="flex flex-wrap items-start justify-between gap-3" data-testid="family-header">
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-lg text-neutral-900 dark:text-neutral-100" data-testid="family-root">
+              {family.root}
+            </span>
+            {family.expiresAt && <span className={MUTED}>{t("Expires {date}", { date: dateOf(family.expiresAt) })}</span>}
+            {family.source === "default" && (
+              <span className={MUTED} data-testid="family-default-note">
+                {t("The demo family of this deployment. {name} sits under another name and has no expiry of its own, so there is nothing to renew here.", {
+                  name: family.root,
+                })}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {renewable && wallet && !renewing && (
+              <button data-testid="family-renew" className={BTN} onClick={() => setRenewing(true)}>
+                {t("Renew")}
+              </button>
+            )}
+            <a href={`${ENS_APP}/${family.root}`} target="_blank" rel="noreferrer" className={BTN} data-testid="family-ens-app">
+              {t("Open in ENS app")} <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+        {renewing && label && wallet && (
+          <RenewForm
+            label={label}
+            wallet={wallet}
+            onClose={() => setRenewing(false)}
+            onDone={async () => {
+              setRenewing(false);
+              await onRenewed();
+            }}
+          />
+        )}
+      </SettingsSection>
+      {/* Task 7b replaces this list with the family tree canvas */}
+      <SettingsSection title={t("Family tree")}>
+        <ul className="flex flex-col gap-1" data-testid="family-tree-slot">
+          <TreeRows node={family.tree} depth={0} />
+        </ul>
+      </SettingsSection>
+    </>
+  );
+}
+
+function TreeRows({ node, depth }: { node: TreeNode; depth: number }) {
+  const t = useT();
+  const relation = node.relation === "son" ? t("son") : node.relation === "daughter" ? t("daughter") : node.relation === "spouse" ? t("spouse") : null;
+  return (
+    <>
+      <li className="flex flex-wrap items-baseline gap-2 text-sm" style={{ paddingLeft: depth * 20 }} data-testid="family-tree-row">
+        <span className="font-medium text-neutral-900 dark:text-neutral-100">{node.alias ?? node.label}</span>
+        <span className="font-mono text-xs text-neutral-500">{node.name}</span>
+        {relation && <span className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{relation}</span>}
+        {node.address && <span className="font-mono text-xs text-neutral-400">{short(node.address)}</span>}
+      </li>
+      {node.children.map((c) => (
+        <TreeRows key={c.name} node={c} depth={depth + 1} />
+      ))}
+    </>
+  );
+}
+
+/** Review Focus 6: amber from 30 days before expiry, red in the grace period with the days left. */
+function ExpiryBanner({ family, label }: { family: Family; label: string | null }) {
+  const t = useT();
+  const [graceDays, setGraceDays] = useState<number | null>(null);
+  useEffect(() => {
+    if (!family.inGrace || !label) return;
+    let alive = true;
+    graceSecondsLeft(label)
+      .then((s) => alive && setGraceDays(Math.ceil(s / 86_400)))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [family.inGrace, label]);
+  const [now] = useState(() => Date.now());
+  // a mapped .eth root with no expiry is past its grace period: free again (Review Focus 6)
+  if (!family.expiresAt && family.source === "workspace" && label) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" data-testid="family-banner-free-again">
+        {t("{name} is past its grace period and free again. Register it again to keep the family.", { name: family.root })}
+      </div>
+    );
+  }
+  if (!family.expiresAt) return null;
+  if (family.inGrace) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" data-testid="family-banner-grace">
+        {graceDays !== null
+          ? t("{name} has expired and names below it no longer resolve. Renew it within {n} days, or anyone can register it.", { name: family.root, n: graceDays })
+          : t("{name} has expired and names below it no longer resolve. Renew it before the grace period ends.", { name: family.root })}
+      </div>
+    );
+  }
+  const days = (new Date(family.expiresAt).getTime() - now) / DAY_MS;
+  if (days > BANNER_DAYS) return null;
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300" data-testid="family-banner-expiring">
+      {t("{name} expires on {date} — renew it or every name below stops working.", { name: family.root, date: dateOf(family.expiresAt) })}
+    </div>
+  );
+}
+
+function RenewForm({ label, wallet, onClose, onDone }: { label: string; wallet: Address; onClose: () => void; onDone: () => Promise<void> }) {
+  const t = useT();
+  const [years, setYears] = useState<number>(1);
+  const [price, setPrice] = useState<{ years: number; micro: bigint } | null>(null);
+  const [running, setRunning] = useState(false);
+  const [steps, setSteps] = useState<Record<string, TxStep>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    renewPrice(label, years)
+      .then((micro) => alive && setPrice({ years, micro }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [label, years]);
+
+  async function renew() {
+    setStarted(true);
+    setRunning(true);
+    setMessage(null);
+    try {
+      await runRenew({ account: wallet, label, years, onStep: (s) => setSteps((p) => ({ ...p, [s.key]: s })) });
+      await onDone();
+    } catch (err) {
+      if (err instanceof NotRenewableError) setMessage(t("{name} is past its grace period and free again. Register it again to keep the family.", { name: `${label}.eth` }));
+      else setMessage(explain(err, t, wallet).message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-[rgba(28,19,1,0.11)] p-3 dark:border-neutral-600" data-testid="family-renew-form">
+      <div className="flex flex-wrap items-center gap-2">
+        {PERIODS.map((y) => (
+          <button key={y} aria-pressed={years === y} disabled={running} onClick={() => setYears(y)} className={`${BTN} ${years === y ? "bg-neutral-200/60 dark:bg-neutral-700" : ""}`}>
+            {t("{n} year(s)", { n: y })}
+          </button>
+        ))}
+        <span className={MUTED}>
+          {price && price.years === years ? t("{price} USDC (test)", { price: usdc(price.micro) }) : t("Checking…")} · {t("1–3 approvals in MetaMask")}
+        </span>
+      </div>
+      {started && <StepList keys={renewStepKeys(label)} steps={steps} running={running} waitUntil={null} years={years} />}
+      {message && <span className="text-xs text-red-500">{message}</span>}
+      <div className="flex items-center gap-2">
+        <button data-testid="family-renew-run" className={PRIMARY} disabled={running} onClick={() => void renew()}>
+          {message ? t("Continue") : t("Renew {name}", { name: `${label}.eth` })}
+        </button>
+        <button className={BTN} disabled={running} onClick={onClose}>
+          {t("Cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}

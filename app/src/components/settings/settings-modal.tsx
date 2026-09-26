@@ -9,8 +9,9 @@ import { useT } from "@/i18n/provider";
 import { AccountPanel } from "./account-panel";
 import { PreferencesPanel } from "./preferences-panel";
 import { WorkspaceGeneralPanel, type WorkspacePatch } from "./workspace-general-panel";
+import { FamilyNamesPanel } from "./family-names-panel";
 
-export type SettingsTab = "account" | "preferences" | "general";
+export type SettingsTab = "account" | "preferences" | "general" | "family";
 
 function NavTab({
   id,
@@ -57,6 +58,18 @@ function GearIcon() {
     <svg aria-hidden viewBox="0 0 20 20" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.4}>
       <circle cx="10" cy="10" r="2.6" />
       <path d="M10 2.8v1.9M10 15.3v1.9M2.8 10h1.9M15.3 10h1.9M4.9 4.9l1.35 1.35M13.75 13.75l1.35 1.35M4.9 15.1l1.35-1.35M13.75 6.25l1.35-1.35" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Family names: a small family tree (three linked nodes). */
+function FamilyTreeIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 20 20" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.4}>
+      <rect x="7.5" y="3" width="5" height="4" rx="1" />
+      <rect x="2.5" y="13" width="5" height="4" rx="1" />
+      <rect x="12.5" y="13" width="5" height="4" rx="1" />
+      <path d="M10 7v3M5 13v-3h10v3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -113,6 +126,7 @@ export function SettingsModal({
           <div className="flex flex-col gap-0.5 max-md:flex-row max-md:gap-1">
             <div className="px-2 py-1.5 text-xs font-medium leading-4 text-neutral-500 max-md:hidden">{t("Workspace")}</div>
             <NavTab id="general" active={tab === "general"} onSelect={setTab} icon={<GearIcon />} label={t("General")} />
+            <NavTab id="family" active={tab === "family"} onSelect={setTab} icon={<FamilyTreeIcon />} label={t("Family names")} />
           </div>
         </nav>
         <div role="tabpanel" aria-labelledby={`settings-tab-${tab}`} className="relative flex-1 overflow-y-auto bg-white dark:bg-neutral-800">
@@ -121,6 +135,7 @@ export function SettingsModal({
               {tab === "account" && <AccountPanel initialName={displayName} />}
               {tab === "preferences" && <PreferencesPanel />}
               {tab === "general" && <WorkspaceGeneralPanel workspace={workspace} onSaved={onWorkspaceSaved} />}
+              {tab === "family" && <FamilyNamesPanel workspaceId={workspace.id} />}
             </div>
           </div>
         </div>
