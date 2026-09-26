@@ -2,14 +2,16 @@
 
 // app/src/lib/wallet/ens-issue.ts
 // Browser side of Settings → Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md,
-// Task 7): the admin's MetaMask as a viem WalletClient behind an account/chain guard, a Sepolia
-// reader, and the create / renew runs that call ens-family/issue.ts one approval at a time.
+// Tasks 7 and 7b): the admin's MetaMask as a viem WalletClient behind an account/chain guard, a Sepolia
+// reader, and the create / renew / add-member runs that call ens-family/issue.ts one approval at a time.
 // Progress is kept in localStorage `ens-family:<workspaceId>` so a reload resumes (F9).
 import { createPublicClient, createWalletClient, custom, http, type Address, type EIP1193Provider, type PublicClient } from "viem";
 import { sepolia } from "viem/chains";
 import { ethRegistrarAbi } from "@/lib/ens-family/abi";
 import { ETH_REGISTRAR, MOCK_USDC, SEPOLIA_CHAIN_ID, YEAR_SECONDS } from "@/lib/ens-family/config";
+import type { Relation } from "@/lib/ens-family/config";
 import {
+  addMember,
   deployFamilyContracts,
   registerEthName,
   registerPerson,
@@ -234,4 +236,53 @@ export async function runCreateFamily(args: {
 export async function runRenew(args: { account: Address; label: string; years: number; onStep: (s: TxStep) => void }): Promise<{ newExpiry: bigint }> {
   const ctx = await familyContext(args.account, args.onStep);
   return renewEthName(ctx, { label: args.label, years: args.years });
+}
+
+// ── adding a member on the tree canvas (Task 7b) ─────────────────────────────────────────────────
+
+export interface AddMemberInput {
+  /** full name of the person the new member goes under, e.g. grandma.kim.ainmem.eth */
+  parentName: string;
+  /** first label of that person */
+  parentLabel: string;
+  /** the registry that person is registered in (their parent's subregistry) */
+  parentRegistry: Address;
+  /** true when the person already has a subregistry (2 approvals instead of 4) */
+  parentHasRegistry: boolean;
+  label: string;
+  alias: string;
+  relation: Relation;
+  address: Address;
+  /** every address already in the tree (F15: one name per address) */
+  treeAddresses: Address[];
+}
+
+/** Every row of an add, in order. A person without a subregistry first gets one (deploy + link). */
+export function memberStepKeys(input: Pick<AddMemberInput, "parentName" | "label" | "parentHasRegistry">): string[] {
+  const name = `${input.label}.${input.parentName}`;
+  const branch = input.parentHasRegistry ? [] : [`deploy-registry:${input.parentName}`, `set-subregistry:${input.parentName}`];
+  return [...branch, `deploy-resolver:${name}`, `register:${name}`];
+}
+
+/** Add a child or spouse from the linked wallet: addMember (issue.ts) one approval at a time.
+ *  Resumable onchain: a second run skips what the first one finished (CREATE2 + our resolver). */
+export async function runAddMember(args: { account: Address; input: AddMemberInput; onStep: (s: TxStep) => void }): Promise<{ name: string }> {
+  const { input } = args;
+  const ctx = await familyContext(args.account, args.onStep);
+  await addMember(ctx, {
+    parentName: input.parentName,
+    parentRegistry: input.parentRegistry,
+    parentLabel: input.parentLabel,
+    label: input.label,
+    alias: input.alias,
+    relation: input.relation,
+    address: input.address,
+    treeAddresses: input.treeAddresses,
+  });
+  return { name: `${input.label}.${input.parentName}` };
+}
+
+/** The ETH address `name` resolves to right now, through the Universal Resolver (null when none). */
+export async function resolveName(name: string): Promise<Address | null> {
+  return (await sepoliaReader().getEnsAddress({ name }).catch(() => null)) ?? null;
 }

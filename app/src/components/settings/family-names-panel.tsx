@@ -1,20 +1,19 @@
 "use client";
 
-// Settings › Workspace › Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Task 7).
+// Settings › Workspace › Family names (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Tasks 7, 7b).
 // 1 no linked wallet → Connect MetaMask · 2 admin, no family → create form · 3 the create run's
-// step list (resumable) · 4 the family: expiry banners, Renew, the tree · 5 non-admins read only.
-// The tree below the header is a plain list for now; Task 7b puts the canvas in its place.
+// step list (resumable) · 4 the family: expiry banners, Renew, the tree canvas (members are added
+// there) · 5 non-admins read only (the canvas without ghost cards).
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { formatEther, formatUnits, type Address } from "viem";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
 import { useMe } from "@/stores/me";
-import { SEPOLIA_EXPLORER, USDC_DECIMALS } from "@/lib/ens-family/config";
+import { USDC_DECIMALS } from "@/lib/ens-family/config";
 import { checkLabel } from "@/lib/ens-family/labels";
 import { NameTakenError, NotRenewableError, type TxStep } from "@/lib/ens-family/issue";
 import { linkMetaMask } from "@/lib/wallet/metamask-login";
-import { WalletSignatureError, toWalletError } from "@/lib/wallet/provider";
 import {
   FamilyApiError,
   HOLD_KEY,
@@ -35,18 +34,11 @@ import {
   type SavedRun,
 } from "@/lib/wallet/ens-issue";
 import { SettingsHeader, SettingsRow, SettingsSection } from "./settings-layout";
+import { BTN, ENS_APP, INPUT, MUTED, PRIMARY, explain, short, txUrl, useDebounced, type Candidate, type TreeNode } from "./family-ui";
+import { FamilyTreeCanvas } from "./family-tree-canvas";
 
 // ── shapes of GET /api/workspaces/[id]/ens ───────────────────────────────────────────────────────
 
-interface TreeNode {
-  name: string;
-  label: string;
-  alias: string | null;
-  relation: string | null;
-  address: string | null;
-  registry: string | null;
-  children: TreeNode[];
-}
 interface Family {
   root: string;
   source: "workspace" | "default";
@@ -58,6 +50,8 @@ interface Family {
 interface FamilyState {
   me: { address: string | null; canEdit: boolean };
   family: Family | null;
+  /** admins only: workspace members with a linked wallet who are not in the tree */
+  candidates: Candidate[];
 }
 interface LabelAnswer {
   label: string;
@@ -67,26 +61,15 @@ interface LabelAnswer {
   suggestions: string[];
 }
 
-// same controls as workspace-general-panel.tsx
-const INPUT =
-  "h-7 rounded-md border border-[rgba(28,19,1,0.11)] bg-transparent px-2 text-sm outline-none focus:border-neutral-400 dark:border-neutral-600 dark:text-neutral-100";
-const BTN =
-  "flex h-7 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(28,19,1,0.11)] px-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700";
-const PRIMARY = "h-7 rounded-md bg-blue-500 px-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50";
-const MUTED = "text-[13px] leading-[18px] text-neutral-500 dark:text-neutral-400";
-
 const PERIODS = [1, 2, 5] as const;
 const FAUCET = "https://cloud.google.com/application/web3/faucet/ethereum/sepolia";
-const ENS_APP = "https://app.ens.dev";
 /** Rough gas for the whole create run (3 proxy deploys, mint, approve, commit, register, a subname), with room to spare. */
 const CREATE_GAS = BigInt(2_500_000);
 const CREATE_APPROVALS = 8;
 const DAY_MS = 86_400_000;
 const BANNER_DAYS = 30;
 
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const usdc = (micro: bigint) => formatUnits(micro, USDC_DECIMALS);
-const txUrl = (hash: string) => `${SEPOLIA_EXPLORER}/tx/${hash}`;
 const ethLabelOf = (root: string) => /^([a-z0-9-]+)\.eth$/.exec(root)?.[1] ?? null;
 const dateOf = (iso: string) => iso.slice(0, 10);
 
@@ -108,21 +91,10 @@ function stepLabel(key: string, t: T, years?: number): string {
   return key;
 }
 
-/** What to tell the admin when a run stops, and whether Continue makes sense. */
-function explain(err: unknown, t: T, account: string): { message: string; resumable: boolean } {
-  if (err instanceof FamilyApiError) return { message: err.message, resumable: true };
-  const w = err instanceof WalletSignatureError ? err : toWalletError(err);
-  if (w.reason === "rejected") return { message: t("Cancelled — press Continue to pick up where you left off."), resumable: true };
-  if (w.reason === "no-provider") return { message: t("MetaMask was not found in this browser."), resumable: true };
-  if (w.message === "wrong-account") return { message: t("Switch MetaMask to {addr}, then press Continue.", { addr: short(account) }), resumable: true };
-  const cause = w.cause as { name?: string } | undefined;
-  if (cause?.name === "ChainMismatchError") return { message: t("Switch MetaMask to Sepolia, then press Continue."), resumable: true };
-  return { message: t("It stopped: {msg}", { msg: w.message.split("\n")[0] }), resumable: true };
-}
-
-async function fetchFamilyState(workspaceId: string): Promise<{ state: FamilyState } | { error: string | null }> {
+/** fresh: re-read the tree from the chain (after an add), not the server's cached copy. */
+async function fetchFamilyState(workspaceId: string, fresh = false): Promise<{ state: FamilyState } | { error: string | null }> {
   try {
-    const res = await fetch(`/api/workspaces/${workspaceId}/ens`, { cache: "no-store" });
+    const res = await fetch(`/api/workspaces/${workspaceId}/ens${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
     const d = await res.json().catch(() => ({}));
     return res.ok ? { state: d as FamilyState } : { error: typeof d.error === "string" ? d.error : null };
   } catch {
@@ -146,7 +118,7 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
     },
     [t]
   );
-  const load = useCallback(async () => apply(await fetchFamilyState(workspaceId)), [apply, workspaceId]);
+  const load = useCallback(async (fresh = false) => apply(await fetchFamilyState(workspaceId, fresh)), [apply, workspaceId]);
 
   useEffect(() => {
     let alive = true;
@@ -183,7 +155,7 @@ export function FamilyNamesPanel({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state: FamilyState; reload: () => Promise<void> }) {
+function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state: FamilyState; reload: (fresh?: boolean) => Promise<void> }) {
   const t = useT();
   const { me, family } = state;
   const wallet = me.address as Address | null;
@@ -192,9 +164,19 @@ function PanelBody({ workspaceId, state, reload }: { workspaceId: string; state:
   const hasOwn = family?.source === "workspace";
   return (
     <>
-      {!wallet && <ConnectSection onLinked={reload} />}
-      {!hasOwn && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={reload} />}
-      {family && <FamilySection family={family} wallet={wallet} onRenewed={reload} />}
+      {!wallet && <ConnectSection onLinked={() => reload()} />}
+      {!hasOwn && wallet && me.canEdit && <CreateSection workspaceId={workspaceId} account={wallet} onCreated={() => reload()} />}
+      {family && (
+        <FamilySection
+          workspaceId={workspaceId}
+          family={family}
+          wallet={wallet}
+          canEdit={me.canEdit}
+          candidates={state.candidates ?? []}
+          onRenewed={() => reload()}
+          onTreeChanged={() => reload(true)}
+        />
+      )}
       {!family && !me.canEdit && (
         <p className={MUTED} data-testid="family-none">
           {t("This workspace has no family name yet.")}
@@ -339,15 +321,6 @@ function CreateSection({ workspaceId, account, onCreated }: { workspaceId: strin
       )}
     </SettingsSection>
   );
-}
-
-function useDebounced<V>(value: V, ms: number): V {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return v;
 }
 
 function CreateForm({
@@ -644,7 +617,23 @@ function useNow(ticking: boolean): number {
 
 // ── 4 + 5. the family ────────────────────────────────────────────────────────────────────────────
 
-function FamilySection({ family, wallet, onRenewed }: { family: Family; wallet: Address | null; onRenewed: () => Promise<void> }) {
+function FamilySection({
+  workspaceId,
+  family,
+  wallet,
+  canEdit,
+  candidates,
+  onRenewed,
+  onTreeChanged,
+}: {
+  workspaceId: string;
+  family: Family;
+  wallet: Address | null;
+  canEdit: boolean;
+  candidates: Candidate[];
+  onRenewed: () => Promise<void>;
+  onTreeChanged: () => Promise<void>;
+}) {
   const t = useT();
   const label = ethLabelOf(family.root);
   const renewable = family.source === "workspace" && label !== null;
@@ -690,30 +679,16 @@ function FamilySection({ family, wallet, onRenewed }: { family: Family; wallet: 
           />
         )}
       </SettingsSection>
-      {/* Task 7b replaces this list with the family tree canvas */}
       <SettingsSection title={t("Family tree")}>
-        <ul className="flex flex-col gap-1" data-testid="family-tree-slot">
-          <TreeRows node={family.tree} depth={0} />
-        </ul>
+        <FamilyTreeCanvas
+          workspaceId={workspaceId}
+          tree={family.tree}
+          wallet={wallet}
+          canEdit={canEdit}
+          candidates={candidates}
+          onChanged={onTreeChanged}
+        />
       </SettingsSection>
-    </>
-  );
-}
-
-function TreeRows({ node, depth }: { node: TreeNode; depth: number }) {
-  const t = useT();
-  const relation = node.relation === "son" ? t("son") : node.relation === "daughter" ? t("daughter") : node.relation === "spouse" ? t("spouse") : null;
-  return (
-    <>
-      <li className="flex flex-wrap items-baseline gap-2 text-sm" style={{ paddingLeft: depth * 20 }} data-testid="family-tree-row">
-        <span className="font-medium text-neutral-900 dark:text-neutral-100">{node.alias ?? node.label}</span>
-        <span className="font-mono text-xs text-neutral-500">{node.name}</span>
-        {relation && <span className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{relation}</span>}
-        {node.address && <span className="font-mono text-xs text-neutral-400">{short(node.address)}</span>}
-      </li>
-      {node.children.map((c) => (
-        <TreeRows key={c.name} node={c} depth={depth + 1} />
-      ))}
     </>
   );
 }

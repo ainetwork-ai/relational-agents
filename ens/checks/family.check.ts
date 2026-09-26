@@ -11,6 +11,7 @@ import { prepareSend } from "../src/prepare";
 import { SEPOLIA_USDC } from "../src/config";
 import { checkLabel, suggestLabels } from "../src/labels";
 import { ethExpiry, ethNameStatus, subnameStatus } from "../src/availability";
+import { layoutFamily, layoutForest } from "../src/tree-layout";
 import { AddressInTreeError, addMember, NameTakenError, NotRenewableError, predictResolver, registerEthName, renewEthName, type Sender, type TxStep } from "../src/issue";
 
 let fails = 0;
@@ -397,6 +398,59 @@ ok("suggest: family-style candidates", same(suggestLabels("lee", 4), ["lee-famil
   r = run();
   const renewed = await renewEthName(r.ctx(fake({ available: [false], balance: BigInt(7), allowance: BigInt(7) })), { label: "lee", years: 2 });
   ok("issue: renew with enough USDC sends only renew; expiry + 2 years", same(r.sent.map((x) => x.fn), ["renew"]) && renewed.newExpiry === BigInt(1000) + BigInt(2 * 365 * 24 * 3600));
+}
+
+// ── tree layout ─────────────────────────────────────────────────────────────
+{
+  type N = { name: string; label: string; relation: string | null; children: N[] };
+  // name = the label joined to its ancestors' labels (dad.grandma)
+  const node = (label: string, relation: string | null, children: N[]): N => {
+    const n: N = { name: label, label, relation, children };
+    const rename = (x: N, suffix: string) => {
+      x.name = `${x.label}.${suffix}`;
+      x.children.forEach((c) => rename(c, x.name));
+    };
+    children.forEach((c) => rename(c, label));
+    return n;
+  };
+  const kimTree = node("grandma", null, [node("dad", "son", [node("mom", "spouse", []), node("minjun", "son", []), node("seoyeon", "daughter", [])])]);
+  const plain = layoutFamily(kimTree, { ghosts: false });
+  const at = (k: string) => plain.cards.find((c) => c.node?.label === k)!;
+  ok("layout: generations are rows", at("grandma").row === 0 && at("dad").row === 1 && at("minjun").row === 2);
+  ok("layout: spouse beside partner, same row", at("mom").row === at("dad").row && Math.abs(at("mom").col - at("dad").col) === 1);
+  ok("layout: spouse edge", plain.edges.some((e) => e.kind === "spouse" && e.to === at("mom").key));
+  ok("layout: children under the couple", (at("minjun").col + at("seoyeon").col) / 2 === (at("dad").col + at("mom").col) / 2);
+  ok("layout: no two cards share a cell", new Set(plain.cards.map((c) => `${c.row}:${c.col}`)).size === plain.cards.length);
+  const g = layoutFamily(kimTree, { ghosts: true });
+  ok("layout: ghost child under grandma", g.cards.some((c) => c.kind === "ghost-child" && c.parentName === "grandma"));
+  ok("layout: no ghost spouse for a married person", !g.cards.some((c) => c.kind === "ghost-spouse" && c.parentName === "dad.grandma"));
+  ok("layout: no ghost child under a spouse card", !g.cards.some((c) => c.kind === "ghost-child" && c.parentName === "mom.dad.grandma"));
+  ok("layout: ghosts do not overlap", new Set(g.cards.map((c) => `${c.row}:${c.col}`)).size === g.cards.length);
+  // stronger than distinct cells: no two cards in a row closer than one card width (half columns exist)
+  const noOverlap = (cards: { row: number; col: number }[]) =>
+    cards.every((a, i) => cards.every((b, j) => i === j || a.row !== b.row || Math.abs(a.col - b.col) >= 1));
+  ok("layout: no two cards in a row overlap (with ghosts)", noOverlap(g.cards));
+  ok("layout: ghost child is the last child of its parent", (() => {
+    const kids = g.cards.filter((c) => c.parentName === "dad.grandma" && c.kind !== "ghost-spouse" && c.node?.relation !== "spouse");
+    const ghost = kids.find((c) => c.kind === "ghost-child");
+    return !!ghost && kids.every((c) => c.col <= ghost.col);
+  })());
+  ok("layout: ghost spouse beside an unmarried person", g.cards.some((c) => c.kind === "ghost-spouse" && c.parentName === "grandma" && c.row === 0));
+  ok("layout: siblings keep label order", at("minjun").col < at("seoyeon").col);
+  ok("layout: columns start at 0 and fit in cols", Math.min(...g.cards.map((c) => c.col)) === 0 && g.cards.every((c) => c.col + 1 <= g.cols) && g.rows === 4 && plain.rows === 3);
+  ok("layout: ghosts only where allowed", (() => {
+    const only = layoutFamily(kimTree, { ghosts: true, ghostsFor: (n) => n.label === "grandma" });
+    return only.cards.filter((c) => c.kind !== "person").every((c) => c.parentName === "grandma") && only.cards.some((c) => c.kind === "ghost-child");
+  })());
+  // a wide subtree next to a narrow one: the parent row must not collide when centred over children
+  const wide = node("a", null, [
+    node("b", "son", [node("b1", "son", []), node("b2", "son", []), node("b3", "son", [])]),
+    node("c", "daughter", [node("c1", "son", [node("c11", "son", []), node("c12", "son", []), node("c13", "son", [])])]),
+  ]);
+  const w = layoutFamily(wide, { ghosts: true });
+  ok("layout: a wide tree with ghosts never overlaps", noOverlap(w.cards) && w.edges.every((e) => w.cards.some((c) => c.key === e.from) && w.cards.some((c) => c.key === e.to)));
+  const forest = layoutForest([node("x", null, []), node("y", null, [node("y1", "son", [])])], { ghosts: false });
+  ok("layout: a forest puts every top person in row 0 without overlap", forest.cards.filter((c) => c.row === 0).length === 2 && noOverlap(forest.cards));
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);

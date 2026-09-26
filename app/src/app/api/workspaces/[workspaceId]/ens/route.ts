@@ -1,6 +1,7 @@
 // /api/workspaces/[workspaceId]/ens — the workspace's ENS family
 // (docs/superpowers/plans/2026-09-26-ens-family-settings.md, Task 6).
-//   GET                         state: the tree, its expiry, who can edit, who could be added
+//   GET                         state: the tree, its expiry, who can edit, who could be added, and per
+//                               node `canAdd` (Task 7b); `?fresh=1` re-reads the tree after a write
 //   GET ?label=lee              is lee.eth free for this workspace (F11, F14)
 //   GET ?parent=<name>&label=x  is x.<name> free inside the family (F15)
 //   POST { familyLabel, fromBlock }  link <familyLabel>.eth to this workspace — only when the
@@ -16,6 +17,7 @@ import { linkedWallet } from "@/lib/wallet/linked";
 import { ensReader } from "@/lib/ens-chain";
 import {
   familyChainFor,
+  forgetFamilyChain,
   familyLabelStatus,
   getWorkspaceFamily,
   releaseLabel,
@@ -41,10 +43,13 @@ export interface TreeNode {
   avatar: string | null;
   address: string | null;
   registry: string | null;
+  /** The viewer (an admin) can add a child or spouse under this person: their wallet holds every
+   *  role on the registry the new name is written into (Task 7b). Always false for the family root. */
+  canAdd: boolean;
   children: TreeNode[];
 }
 
-const toTreeNode = (n: FamilyNode): TreeNode => ({
+const toTreeNode = (n: FamilyNode, canAdd: ReadonlySet<string>): TreeNode => ({
   name: n.name,
   label: n.label,
   alias: n.alias,
@@ -52,8 +57,37 @@ const toTreeNode = (n: FamilyNode): TreeNode => ({
   avatar: n.avatar,
   address: n.address,
   registry: n.registry ?? null,
-  children: n.children.map(toTreeNode),
+  canAdd: canAdd.has(n.name),
+  children: n.children.map((c) => toTreeNode(c, canAdd)),
 });
+
+/**
+ * The people under whom `wallet` can add someone. addMember writes into the person's own subregistry
+ * when it exists (register needs its roles), else into the registry the person is registered in
+ * (setSubregistry there, then a registry the wallet deploys itself). One hasRootRoles read per
+ * distinct registry, cached for this request.
+ */
+async function addableNames(tree: FamilyNode, wallet: Address): Promise<Set<string>> {
+  const pub = ensReader();
+  const memo = new Map<string, Promise<boolean>>();
+  const holds = (registry: string) => {
+    const k = registry.toLowerCase();
+    if (!memo.has(k)) memo.set(k, holdsAllRoles(pub, registry as Address, wallet).catch(() => false));
+    return memo.get(k)!;
+  };
+  const out = new Set<string>();
+  const walk = async (parent: FamilyNode): Promise<void> => {
+    await Promise.all(
+      parent.children.map(async (n) => {
+        const target = n.registry ?? parent.registry ?? null;
+        if (target && (await holds(target))) out.add(n.name);
+        await walk(n);
+      })
+    );
+  };
+  await walk(tree);
+  return out;
+}
 
 /** "lee" for "lee.eth"; null for anything else (the kim.ainmem.eth fallback is not a .eth 2LD). */
 const ethLabelOf = (root: string) => /^([a-z0-9-]+)\.eth$/.exec(root)?.[1] ?? null;
@@ -77,7 +111,13 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
   const canEdit = hasRole(m.role, "admin");
   const mapped = await getWorkspaceFamily(workspaceId);
-  const chain = await familyChainFor(workspaceId);
+  let chain = await familyChainFor(workspaceId);
+  // after an add: drop the cached tree (and its chain) so the new name shows
+  // (admins only: they are the ones who add, and it costs a full re-read from Sepolia)
+  if (chain && canEdit && sp.get("fresh") === "1") {
+    forgetFamilyChain(chain.root);
+    chain = await familyChainFor(workspaceId);
+  }
   let family: null | {
     root: string;
     source: "workspace" | "default";
@@ -100,7 +140,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         registry: tree.registry ?? null,
         expiresAt: exp ? new Date(exp.expiresAt * 1000).toISOString() : null,
         inGrace: exp?.inGrace ?? false,
-        tree: toTreeNode(tree),
+        tree: toTreeNode(tree, canEdit && m.wallet ? await addableNames(tree, m.wallet) : new Set()),
       };
     } catch (e) {
       return chainUnavailable(e);
