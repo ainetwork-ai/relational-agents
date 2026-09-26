@@ -6,6 +6,7 @@ import {
   agentRoomStates,
   chatMessages,
   chatRoomBots,
+  chatRoomMembers,
   chatRooms,
   notifications,
   treasuryActions,
@@ -20,7 +21,7 @@ import { describeTreasuryAction } from "@/lib/agent/treasury/summary";
 import { INVEST_CHAIN, investConfig } from "@/lib/agent/treasury/invest";
 import { RATIFY_KIND, RECURRING_RUN_KIND } from "@/lib/agent/treasury/types";
 import { displayBalance, ensureAgentWallet, fundTreasury, treasuryBalance } from "@/lib/agent/treasury/wallet";
-import { activityDayHeading } from "@/lib/agent/treasury/memory";
+import { activityDayHeading, loadRelationTreasury } from "@/lib/agent/treasury/memory";
 import { okfDocMeta } from "@/lib/agent/okf-docs";
 import { profileForRoom } from "@/lib/agent/profiles";
 import { nodeExists, writePage } from "@/lib/okf-store";
@@ -91,13 +92,38 @@ export async function demoRoom(copy: DemoCopy): Promise<DemoRoom | null> {
   return { roomId: room.id, agentUserId: bot?.agentUserId ?? null, members };
 }
 
+export interface DemoFace {
+  name: string;
+  avatarUrl: string | null;
+}
+/** One treasury action as the room's statement shows it: who asked, who approved, where the money went. */
+export interface DemoEntry {
+  at: string;
+  kind: string;
+  status: string;
+  amountUsd: number;
+  memo: string;
+  /** who the money went to, as the relation names it (its adopted payees, or a member's wallet) */
+  payee: string | null;
+  requester: DemoFace | null;
+  approvers: DemoFace[];
+  required: number;
+  ruleText: string;
+  txUrl: string | null;
+  /** the explorer txUrl opens, by name */
+  explorer: "Etherscan" | "Basescan" | null;
+  /** the one-line summary the room's own feed uses */
+  line: string;
+}
 export interface DemoSnapshot {
   /** null when it could not be read in time */
   balanceUsd: number | null;
   /** members holding a vote; `world` is false for a vote the seed placed (shown as "dev vote" in the app) */
   votes: { name: string; world: boolean }[];
+  /** the humans in the room, each with how they hold a vote */
+  people: (DemoFace & { vote: "world" | "dev" | null })[];
   /** newest first */
-  activity: { at: string; line: string; status: string; txUrl: string | null }[];
+  activity: DemoEntry[];
 }
 
 function txUrl(a: TreasuryAction): string | null {
@@ -123,7 +149,7 @@ async function agentAddress(agentUserId: string | null): Promise<`0x${string}` |
 }
 
 export async function demoSnapshot(room: DemoRoom, now = Date.now()): Promise<DemoSnapshot> {
-  const [seats, actions, balanceUsd] = await Promise.all([
+  const [seats, actions, inRoom, payees, balanceUsd] = await Promise.all([
     db
       .select({ userId: treasurySeats.userId, level: treasurySeats.verificationLevel })
       .from(treasurySeats)
@@ -134,22 +160,65 @@ export async function demoSnapshot(room: DemoRoom, now = Date.now()): Promise<De
       .where(eq(treasuryActions.roomId, room.roomId))
       .orderBy(desc(treasuryActions.createdAt))
       .limit(8),
+    db.select({ userId: chatRoomMembers.userId }).from(chatRoomMembers).where(eq(chatRoomMembers.roomId, room.roomId)),
+    loadRelationTreasury(room.roomId)
+      .then((t) => t?.payees ?? [])
+      .catch(() => []),
     agentAddress(room.agentUserId)
       .then((address) => (address ? within(displayBalance(address), 4000).then((b) => b.usd) : null))
       .catch(() => null),
   ]);
-  const nameOf = new Map(room.members.map((m) => [m.userId, m.name]));
+  const approvals = actions.length
+    ? await db
+        .select({ actionId: treasuryApprovals.actionId, userId: treasuryApprovals.userId, at: treasuryApprovals.createdAt })
+        .from(treasuryApprovals)
+        .where(inArray(treasuryApprovals.actionId, actions.map((a) => a.id)))
+        .orderBy(asc(treasuryApprovals.createdAt))
+    : [];
+  const byId = new Map(room.members.map((m) => [m.userId, m]));
+  const face = (userId: string | null): DemoFace | null => {
+    const m = userId ? byId.get(userId) : undefined;
+    return m ? { name: m.name, avatarUrl: m.avatarUrl } : null;
+  };
+  const voteOf = (userId: string) => {
+    const seat = seats.find((s) => s.userId === userId);
+    return seat ? (seat.level === "dev-simulator" ? ("dev" as const) : ("world" as const)) : null;
+  };
+  // the same naming the room uses for a payment (approvals.ts recipientLabel): an adopted payee, else a member's wallet
+  const payeeOf = (a: TreasuryAction): string | null => {
+    const addr = a.recipientAddress?.toLowerCase();
+    const named = addr ? payees.find((p) => p.address.toLowerCase() === addr) : undefined;
+    if (named) return named.name;
+    if (a.recipientUserId) return `${face(a.recipientUserId)?.name ?? "a member"}'s wallet`;
+    return null;
+  };
+  const members = new Set(inRoom.map((m) => m.userId));
   return {
     balanceUsd,
     votes: room.members
-      .filter((m) => seats.some((s) => s.userId === m.userId))
-      .map((m) => ({ name: nameOf.get(m.userId) ?? m.name, world: seats.find((s) => s.userId === m.userId)?.level !== "dev-simulator" })),
-    activity: actions.map((a) => ({
-      at: (a.decidedAt ?? a.createdAt).toISOString(),
-      line: describeTreasuryAction(a, now),
-      status: a.status,
-      txUrl: txUrl(a),
-    })),
+      .filter((m) => voteOf(m.userId))
+      .map((m) => ({ name: m.name, world: voteOf(m.userId) === "world" })),
+    people: room.members
+      .filter((m) => members.has(m.userId))
+      .map((m) => ({ name: m.name, avatarUrl: m.avatarUrl, vote: voteOf(m.userId) })),
+    activity: actions.map((a) => {
+      const url = txUrl(a);
+      return {
+        at: (a.decidedAt ?? a.createdAt).toISOString(),
+        kind: a.kind,
+        status: a.status,
+        amountUsd: a.amountUsd,
+        memo: a.memo,
+        payee: payeeOf(a),
+        requester: face(a.requestedBy),
+        approvers: approvals.filter((p) => p.actionId === a.id).flatMap((p) => face(p.userId) ?? []),
+        required: a.requiredApprovals,
+        ruleText: a.ruleText,
+        txUrl: url,
+        explorer: url ? (url.startsWith(INVEST_CHAIN.explorer) ? "Basescan" : "Etherscan") : null,
+        line: describeTreasuryAction(a, now),
+      };
+    }),
   };
 }
 

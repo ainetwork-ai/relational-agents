@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
-import { TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
-import { canTopUp, demoLoginEnabled, demoRoom, demoSnapshot, worldModes, type DemoSnapshot } from "@/lib/world-demo";
+import { RATIFY_KIND, TREASURY_TIME_ZONE } from "@/lib/agent/treasury/types";
+import {
+  canTopUp,
+  demoLoginEnabled,
+  demoRoom,
+  demoSnapshot,
+  worldModes,
+  type DemoEntry,
+  type DemoFace,
+  type DemoSnapshot,
+} from "@/lib/world-demo";
 import styles from "./world.module.css";
 
 export const metadata: Metadata = {
@@ -24,14 +33,8 @@ const when = new Intl.DateTimeFormat("en-US", {
   hour12: false,
 });
 const money = (usd: number) => usd.toLocaleString("en-US", { style: "currency", currency: "USD" });
-
-const STATUS_TONE: Record<string, string> = {
-  executed: styles.ok,
-  unconfirmed: styles.info,
-  pending: styles.wait,
-  blocked: styles.bad,
-  failed: styles.bad,
-};
+const clock = new Intl.DateTimeFormat("en-US", { timeZone: TREASURY_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
+const dayOf = new Intl.DateTimeFormat("en-US", { timeZone: TREASURY_TIME_ZONE, month: "short", day: "numeric" });
 
 const MEMBER_NOTE: Record<string, string> = {
   alex: "Requests the payments",
@@ -48,28 +51,151 @@ const RESET_NOTE: Record<string, string> = {
   missing: "The try-it room isn't set up on this server yet.",
 };
 
-function Activity({ snap }: { snap: DemoSnapshot }) {
-  if (!snap.activity.length) return <p className={styles.muted}>Nothing has happened in this room yet.</p>;
+const RING: Record<string, string> = { world: styles.ringWorld, dev: styles.ringDev };
+const VOTE_TITLE: Record<string, string> = { world: "vote claimed with World ID", dev: "test vote placed by the seed" };
+
+function Face({ face, size = 32, ring }: { face: DemoFace; size?: number; ring?: string | null }) {
+  const cls = `${styles.face} ${ring === undefined ? "" : (RING[ring ?? ""] ?? styles.ringNone)}`;
+  return face.avatarUrl ? (
+    <img className={cls} src={face.avatarUrl} alt="" width={size} height={size} />
+  ) : (
+    <span className={`${cls} ${styles.faceBlank}`} style={{ width: size, height: size }} aria-hidden>
+      {face.name.slice(0, 1)}
+    </span>
+  );
+}
+
+const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** "Hotel deposit" → Hotel Gracery Shinjuku; a request with no memo is named by where it would go */
+function entryTitle(e: DemoEntry): { title: string; payee: string | null } {
+  if (e.kind === RATIFY_KIND) return { title: "Treasury rules adopted", payee: null };
+  if (e.kind === "recurring-buy") return { title: "Recurring buy adopted", payee: null };
+  if (e.kind === "investment") return { title: "Invested idle funds", payee: e.payee };
+  if (e.memo) return { title: capitalize(e.memo), payee: e.payee };
+  return { title: e.payee ? `To ${e.payee}` : "Payment", payee: null };
+}
+
+function EntryMeta({ e }: { e: DemoEntry }) {
+  const asked = e.requester ? `${e.requester.name} asked` : null;
+  if (e.kind === RATIFY_KIND) return <>The rules the friends agreed in this room&apos;s chat</>;
+  if (e.status === "blocked")
+    return (
+      <>
+        {asked && `${asked} · `}refused by the rules: <q>{e.ruleText}</q> Nothing moved.
+      </>
+    );
+  const names = e.approvers.map((a) => a.name).join(", ");
   return (
-    <ul className={styles.feed}>
-      {snap.activity.map((a, i) => (
-        <li key={i} className={styles.feedRow}>
-          <span className={`${styles.dot} ${STATUS_TONE[a.status] ?? styles.idle}`} aria-hidden />
-          <span className={styles.feedLine}>{a.line}</span>
-          <span className={styles.feedMeta}>
-            {when.format(new Date(a.at))}
-            {a.txUrl && (
-              <>
-                {" · "}
-                <a href={a.txUrl} target="_blank" rel="noreferrer">
-                  tx
-                </a>
-              </>
-            )}
+    <>
+      {asked}
+      {e.approvers.length > 0 && (
+        <>
+          {asked && " · approved by "}
+          <span className={styles.approverFaces}>
+            {e.approvers.map((a) => (
+              <Face key={a.name} face={a} size={20} />
+            ))}
           </span>
-        </li>
-      ))}
-    </ul>
+          {names} · {e.approvers.length} of {e.required} with World ID
+        </>
+      )}
+      {e.status === "executed" && e.required === 0 && e.approvers.length === 0 && " · under the bar the agent pays alone"}
+      {e.status === "pending" && ` · waiting: ${e.approvers.length} of ${e.required} approved`}
+      {!["executed", "pending"].includes(e.status) && ` · ${e.line}`}
+    </>
+  );
+}
+
+/**
+ * The recorded room as a statement: the friends and their votes, the pot, and
+ * each thing the treasury did in the order the video shows it — who asked, who
+ * approved, where the money went, and the transaction to check it against.
+ */
+function Statement({ snap, modes }: { snap: DemoSnapshot; modes: ReturnType<typeof worldModes> }) {
+  const withVote = snap.people.filter((p) => p.vote);
+  const without = snap.people.filter((p) => !p.vote);
+  const entries = [...snap.activity].reverse();
+  return (
+    <div className={styles.statement}>
+      <div className={styles.stHead}>
+        <div className={styles.stPeople}>
+          <ul className={styles.faces} aria-label="Members and their votes">
+            {snap.people.map((p) => (
+              <li key={p.name} title={`${p.name}: ${p.vote ? VOTE_TITLE[p.vote] : "no vote"}`}>
+                <Face face={p} size={40} ring={p.vote} />
+              </li>
+            ))}
+          </ul>
+          <p className={styles.stVotes}>
+            <b>
+              {withVote.length} of {snap.people.length}
+            </b>{" "}
+            hold a vote, each a World ID proof of human.
+            {without.length > 0 && ` Without one: ${without.map((p) => p.name).join(", ")}.`}
+          </p>
+        </div>
+        <div className={styles.stPot}>
+          <p className={styles.stPotLabel}>In the pot now</p>
+          <p className={styles.stPotValue}>{snap.balanceUsd === null ? "—" : money(snap.balanceUsd)}</p>
+          <p className={styles.stPotNote}>of the $1,000 the five pooled</p>
+        </div>
+      </div>
+      {entries.length ? (
+        <>
+          <p className={styles.ledgerDay}>{dayOf.format(new Date(entries[0].at))} · Tokyo time</p>
+          <ol className={styles.ledger}>
+            {entries.map((e, i) => {
+              const { title, payee } = entryTitle(e);
+              const refused = e.status === "blocked";
+              return (
+                <li key={i} className={styles.entry}>
+                  <time className={styles.entryTime} dateTime={e.at}>
+                    {clock.format(new Date(e.at))}
+                  </time>
+                  <span className={styles.entryFace}>{e.requester && <Face face={e.requester} />}</span>
+                  <div className={styles.entryBody}>
+                    <p className={styles.entryTitle}>
+                      {title}
+                      {payee && <span className={styles.entryPayee}> → {payee}</span>}
+                    </p>
+                    <p className={styles.entryMeta}>
+                      <EntryMeta e={e} />
+                    </p>
+                  </div>
+                  <div className={styles.entryRight}>
+                    {e.kind !== RATIFY_KIND && e.kind !== "recurring-buy" && (
+                      <p className={`${styles.entryAmount} ${refused ? styles.amountRefused : ""}`}>
+                        {refused || e.status !== "executed" ? money(e.amountUsd) : `−${money(e.amountUsd)}`}
+                      </p>
+                    )}
+                    {e.txUrl ? (
+                      <a className={styles.txLink} href={e.txUrl} target="_blank" rel="noreferrer">
+                        {e.explorer ?? "Transaction"} ↗
+                      </a>
+                    ) : refused ? (
+                      <span className={styles.refusedTag}>Refused</span>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </>
+      ) : (
+        <p className={styles.muted}>Nothing has happened in this room yet.</p>
+      )}
+      <p className={styles.stFoot}>
+        Votes:{" "}
+        {modes.votes ? `IDKit, World ID 4.0 on World's ${modes.votes} network` : "a local simulator, not World"} ·
+        Approvals:{" "}
+        {modes.approvals === "sandbox"
+          ? "World ID for Agents, the event's sandbox IdP"
+          : modes.approvals === "mock"
+            ? "a local mock IdP, not World"
+            : "not configured"}
+      </p>
+    </div>
   );
 }
 
@@ -142,44 +268,11 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
             The room from the video, live
           </h2>
           <p className={styles.sub}>
-            Read-only. This is the Tokyo Trip room we recorded in. Payments move real Sepolia ETH at a demo scale of
-            $200,000 per ETH.
+            Read-only: the Tokyo Trip room we recorded in, as it is right now. Every payment links to its transaction, so
+            you can check it on the chain yourself. Sepolia ETH counts at a demo scale of $200,000 per ETH.
           </p>
           {recording && live ? (
-            <div className={styles.liveGrid}>
-              <div className={styles.card}>
-                <p className={styles.label}>In the pot</p>
-                <p className={styles.balance}>{live.balanceUsd === null ? "—" : money(live.balanceUsd)}</p>
-                <p className={styles.label}>Votes</p>
-                <ul className={styles.chips}>
-                  {live.votes.length ? (
-                    live.votes.map((v) => (
-                      <li key={v.name} className={`${styles.chip} ${v.world ? styles.chipWorld : ""}`}>
-                        {v.name} · {v.world ? "World ID" : "dev vote"}
-                      </li>
-                    ))
-                  ) : (
-                    <li className={styles.muted}>No one has claimed a vote yet.</li>
-                  )}
-                </ul>
-                <dl className={styles.modes}>
-                  <dt>Approvals</dt>
-                  <dd>
-                    {modes.approvals === "sandbox"
-                      ? "World ID for Agents · sandbox IdP"
-                      : modes.approvals === "mock"
-                        ? "Local mock IdP — not World"
-                        : "Not configured"}
-                  </dd>
-                  <dt>Votes</dt>
-                  <dd>{modes.votes ? `IDKit · World ID 4.0 (${modes.votes})` : "Dev simulator — not World"}</dd>
-                </dl>
-              </div>
-              <div className={styles.card}>
-                <p className={styles.label}>Treasury activity</p>
-                <Activity snap={live} />
-              </div>
-            </div>
+            <Statement snap={live} modes={modes} />
           ) : (
             <p className={styles.muted}>The recorded room isn&apos;t on this server.</p>
           )}
