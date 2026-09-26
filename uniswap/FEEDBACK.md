@@ -19,8 +19,9 @@ lists every Uniswap call of both with `file:line`.
 - **Trading API**, for the app's buy (`app/src/lib/agent/treasury/uniswap-api.ts`, from 2026-09-27):
   `/check_approval` → `/quote` → `/swap` for CLASSIC, `/order` + `/orders` for UniswapX, with
   `x-universal-router-version: 2.1.2` pinned and `X-Agent-Info` sent (`human_mediated`); the v3 path
-  above stays as the fallback while nothing has been sent. So far only read-only calls have run
-  against it; the routing we measured is in `uniswap/README.md` ("Through the Uniswap Trading API").
+  above stays as the fallback while nothing has been sent. One CLASSIC buy has gone through it on
+  mainnet (0.1 USDC); that and the routing we measured are in `uniswap/README.md` ("Through the
+  Uniswap Trading API").
   In `uniswap/` our `decisionOrigin` field (`autonomous` for a standing mandate, `human_mediated`
   for a one-off) is shaped for the same header.
 
@@ -75,6 +76,12 @@ lists every Uniswap call of both with `file:line`.
    bound our direct path uses (measured 2026-09-27). We send `slippageTolerance` and check the
    returned minimum against it before signing anything. **Suggestion:** reject the request as the
    reference says, or state the default.
+8. **Trading API: `/check_approval` approves an unlimited amount.** For 0.1 USDC on Base it
+   answered `approve(Permit2, MaxUint256)` (measured 2026-09-27), while `/quote` takes
+   `permitAmount: "EXACT"` for the Permit2 side. An agent holding a group's pot should approve no
+   more than one buy, so we send our own `approve(Permit2, amountIn)` whenever `/check_approval`
+   says one is needed; after our live buy both allowances read 0. **Suggestion:** an `exact` option
+   on `/check_approval`, matching `permitAmount`.
 
 ## Links
 

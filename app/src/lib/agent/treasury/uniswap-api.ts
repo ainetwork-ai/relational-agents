@@ -1,5 +1,5 @@
 import "server-only";
-import { decodeFunctionData, parseAbi, parseEventLogs, type Hex, type Log, type TypedDataDomain, type TypedDataParameter } from "viem";
+import { decodeFunctionData, encodeFunctionData, parseAbi, parseEventLogs, type Hex, type Log, type TypedDataDomain, type TypedDataParameter } from "viem";
 import { isSwapRoute, type SwapRoute } from "./swap-route";
 
 /**
@@ -57,6 +57,11 @@ export interface BuyRequest {
   weth: `0x${string}`;
   amountIn: bigint;
   slippageBps: number;
+  /**
+   * The least WETH any route must guarantee: the v3 pool's quote (QuoterV2) less our slippage. The
+   * API's answers are checked against the chain, not only against themselves.
+   */
+  minOut: bigint;
   /** false: CLASSIC routes only — for a caller whose record has no place for an order that hasn't filled */
   allowOrders: boolean;
 }
@@ -204,8 +209,12 @@ function checkedTx(v: unknown, req: BuyRequest, agent: string, to: string, what:
   return { to: to as `0x${string}`, data: v.data as Hex, value: BigInt(0), ...(gas ? { gas } : {}) };
 }
 
-/** /check_approval's approval: only an ERC-20 approve of at least this buy, to Permit2. */
-function checkedApproval(v: unknown, req: BuyRequest, agent: string): SwapTx {
+/**
+ * /check_approval says whether the agent's USDC needs a Permit2 approval; the approval sent is always
+ * our own, for exactly this buy. The API's own transaction approves an unlimited amount, and the pot's
+ * USDC is never approved beyond one buy.
+ */
+function exactApproval(v: unknown, req: BuyRequest, agent: string): SwapTx {
   const tx = checkedTx(v, req, agent, req.usdc, "the approval");
   let approve;
   try {
@@ -213,9 +222,8 @@ function checkedApproval(v: unknown, req: BuyRequest, agent: string): SwapTx {
   } catch {
     throw new Refused("the approval is not an ERC-20 approve");
   }
-  const [spender, amount] = approve.args;
-  if (!same(spender, TRADING_API.permit2) || amount < req.amountIn) throw new Refused("the approval is not this buy's, to Permit2");
-  return tx;
+  if (approve.functionName !== "approve" || !same(approve.args[0], TRADING_API.permit2)) throw new Refused("the approval is not to Permit2");
+  return { to: req.usdc, data: encodeFunctionData({ abi: erc20, functionName: "approve", args: [TRADING_API.permit2, req.amountIn] }), value: BigInt(0) };
 }
 
 /** permitData as viem signs it: the domain must be Permit2's on this chain; the primary type is the one no other type names. */
@@ -242,12 +250,14 @@ function checkedClassic(answer: Obj, quote: Obj, req: BuyRequest, agent: string)
   const min = big(output.minimumAmount);
   // the API applies our slippage; a minimum under it is not the quote we asked for
   if (out === null || min === null || min < (out * BigInt(10_000 - req.slippageBps)) / BigInt(10_000) - BigInt(1)) throw new Refused("the quote's minimum is below our slippage");
+  if (min < req.minOut) throw new Refused("the quote's minimum is below the v3 pool's price less our slippage");
   if (answer.permitData == null) return null;
   const permit = typedData(answer.permitData, req);
   const v = permit.message;
   const details = v.details;
   if (permit.primaryType !== "PermitSingle" || !same(v.spender, TRADING_API.universalRouter)) throw new Refused("the permit is not for the Universal Router");
-  if (!isObj(details) || !same(details.token, req.usdc) || (big(details.amount) ?? BigInt(0)) < req.amountIn) throw new Refused("the permit does not cover this buy");
+  // we ask for permitAmount EXACT: the Universal Router may pull this buy and nothing more
+  if (!isObj(details) || !same(details.token, req.usdc) || big(details.amount) !== req.amountIn) throw new Refused("the permit is not for exactly this buy");
   return permit;
 }
 
@@ -264,6 +274,9 @@ function checkedOrder(answer: Obj, req: BuyRequest, agent: string, routing: "DUT
   const outputs = routing === "DUTCH_V3" ? witness.baseOutputs : witness.outputs;
   if (!Array.isArray(outputs) || outputs.length === 0 || !outputs.every((o) => isObj(o) && same(o.token, req.weth) && same(o.recipient, agent)))
     throw new Refused("the order's WETH does not all go to the agent");
+  // what the order guarantees whatever the auction does: a Dutch output's floor, a priority output's base amount
+  const floor = (outputs as Obj[]).reduce((sum, o) => sum + (big(routing === "DUTCH_V3" ? o.minAmount : o.amount) ?? BigInt(0)), BigInt(0));
+  if (floor < req.minOut) throw new Refused("the order's floor is below the v3 pool's price less our slippage");
   return permit;
 }
 
@@ -288,7 +301,7 @@ async function viaTradingApi(deps: TradingApiDeps, req: BuyRequest, p: Progress)
     tokenOutChainId: req.chainId,
   });
   if (check.cancel != null) throw new Refused("the API asks to reset the allowance first");
-  const approval = check.approval == null ? null : checkedApproval(check.approval, req, agent);
+  const approval = check.approval == null ? null : exactApproval(check.approval, req, agent);
 
   const answer = await call(deps, "/quote", {
     type: "EXACT_INPUT",

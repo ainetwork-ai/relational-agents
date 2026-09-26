@@ -121,6 +121,11 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number, o
       `the agent's Base wallet holds ${formatUnits(held, 6)} USDC, less than the ${formatUnits(amountIn, 6)} this investment needs`
     );
 
+  // the floor any Trading API route must guarantee: this pool's price now, less our slippage
+  const apiKey = tradingApiKey();
+  const minOut = apiKey
+    ? ((await quote(cfg, INVEST_CHAIN.usdc, INVEST_CHAIN.weth, amountIn)) * BigInt(10_000 - cfg.slippageBps)) / BigInt(10_000)
+    : BigInt(0);
   const fill = await buyWethWithUsdc({
     request: {
       chainId: INVEST_CHAIN.chainId,
@@ -128,9 +133,10 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number, o
       weth: INVEST_CHAIN.weth,
       amountIn,
       slippageBps: cfg.slippageBps,
+      minOut,
       allowOrders: opts.allowOrders ?? false,
     },
-    apiKey: tradingApiKey(),
+    apiKey,
     api: { fetch, wallet: swapWallet(account, client, wallet), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: Date.now },
     direct: () => swapDirect(cfg, account, client, wallet, amountIn),
   });

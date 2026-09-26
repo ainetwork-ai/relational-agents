@@ -28,12 +28,12 @@ with World ID instead of a signed mandate; the swap, the once-a-week rule and th
 |---|---|
 | addresses: QuoterV2, SwapRouter02, the USDC/WETH 0.05% pool (fee tier 500) | [`invest.ts:26`](../app/src/lib/agent/treasury/invest.ts#L26) |
 | `QuoterV2.quoteExactInputSingle`, simulated (it answers by reverting) | [`invest.ts:76`](../app/src/lib/agent/treasury/invest.ts#L76) |
-| an ERC-20 `approve` for exactly this buy, then the allowance read back on the same client until it shows | [`invest.ts:171`](../app/src/lib/agent/treasury/invest.ts#L171) |
-| `amountOutMinimum` from the quote and the slippage bound | [`invest.ts:184`](../app/src/lib/agent/treasury/invest.ts#L184) |
-| `SwapRouter02.exactInputSingle`, with its own gas limit | [`invest.ts:192`](../app/src/lib/agent/treasury/invest.ts#L192) |
-| a receipt wait that fails after broadcast keeps the tx hash, so the week counts as used | [`invest.ts:199`](../app/src/lib/agent/treasury/invest.ts#L199) |
-| the fill read from the swap's WETH `Transfer` log to the agent — on every route | [`uniswap-api.ts:162`](../app/src/lib/agent/treasury/uniswap-api.ts#L162) |
-| what the agent holds, priced back through the same pool | [`invest.ts:224`](../app/src/lib/agent/treasury/invest.ts#L224) |
+| an ERC-20 `approve` for exactly this buy, then the allowance read back on the same client until it shows | [`invest.ts:177`](../app/src/lib/agent/treasury/invest.ts#L177) |
+| `amountOutMinimum` from the quote and the slippage bound | [`invest.ts:190`](../app/src/lib/agent/treasury/invest.ts#L190) |
+| `SwapRouter02.exactInputSingle`, with its own gas limit | [`invest.ts:198`](../app/src/lib/agent/treasury/invest.ts#L198) |
+| a receipt wait that fails after broadcast keeps the tx hash, so the week counts as used | [`invest.ts:205`](../app/src/lib/agent/treasury/invest.ts#L205) |
+| the fill read from the swap's WETH `Transfer` log to the agent — on every route | [`uniswap-api.ts:167`](../app/src/lib/agent/treasury/uniswap-api.ts#L167) |
+| what the agent holds, priced back through the same pool | [`invest.ts:230`](../app/src/lib/agent/treasury/invest.ts#L230) |
 | once a week inside the approved terms: the decision and its refusal order | [`recurring-record.ts:341`](../app/src/lib/agent/treasury/recurring-record.ts#L341) |
 | one run: the room's lock, the re-checks, the swap, one history row | [`recurring.ts:663`](../app/src/lib/agent/treasury/recurring.ts#L663), swap at [`:694`](../app/src/lib/agent/treasury/recurring.ts#L694) |
 | adoption by World ID approvals; only payment kinds reach payment code | [`approvals.ts:1008`](../app/src/lib/agent/treasury/approvals.ts#L1008) |
@@ -53,14 +53,15 @@ that may have gone through must not be made twice — and its week stays used.
 
 | piece | where |
 |---|---|
-| the choice of route, and the fallback rule | [`uniswap-api.ts:399`](../app/src/lib/agent/treasury/uniswap-api.ts#L399) |
-| a buy asks for it; an investment takes CLASSIC routes only, a weekly run may take a UniswapX order | [`invest.ts:124`](../app/src/lib/agent/treasury/invest.ts#L124) |
+| the choice of route, and the fallback rule | [`uniswap-api.ts:412`](../app/src/lib/agent/treasury/uniswap-api.ts#L412) |
+| a buy asks for it; an investment takes CLASSIC routes only, a weekly run may take a UniswapX order | [`invest.ts:129`](../app/src/lib/agent/treasury/invest.ts#L129) |
 | pinned: Universal Router 2.1.2 (the swap transaction must call it), Permit2, the UniswapX reactors on Base | [`uniswap-api.ts:22`](../app/src/lib/agent/treasury/uniswap-api.ts#L22) |
-| `/check_approval` — its Permit2 approval is sent only once the quote checks out | [`uniswap-api.ts:282`](../app/src/lib/agent/treasury/uniswap-api.ts#L282) |
-| `/quote`: exact input, our slippage bound, a permit for exactly this amount | [`uniswap-api.ts:293`](../app/src/lib/agent/treasury/uniswap-api.ts#L293) |
-| `permitData` signed as EIP-712 with the agent's key; the primary type is the one no other type names | [`uniswap-api.ts:222`](../app/src/lib/agent/treasury/uniswap-api.ts#L222) |
-| CLASSIC: `/swap`, then the Universal Router transaction — from here on nothing falls back | [`uniswap-api.ts:316`](../app/src/lib/agent/treasury/uniswap-api.ts#L316), [`:319`](../app/src/lib/agent/treasury/uniswap-api.ts#L319) |
-| UniswapX (`DUTCH_V3`, `PRIORITY`): `/order`, then `/orders` polled for up to two minutes | [`uniswap-api.ts:334`](../app/src/lib/agent/treasury/uniswap-api.ts#L334), [`:361`](../app/src/lib/agent/treasury/uniswap-api.ts#L361) |
+| `/check_approval` answers `approve(Permit2, MaxUint256)`; the approval sent — only once the quote checks out — is ours, for exactly this buy | [`uniswap-api.ts:217`](../app/src/lib/agent/treasury/uniswap-api.ts#L217) |
+| `/quote`: exact input, our slippage bound, a permit for exactly this amount | [`uniswap-api.ts:306`](../app/src/lib/agent/treasury/uniswap-api.ts#L306) |
+| every route is checked against the chain: the quote's minimum, or the order's floor, must reach the v3 pool's price (QuoterV2) less our slippage | [`invest.ts:126`](../app/src/lib/agent/treasury/invest.ts#L126), [`uniswap-api.ts:253`](../app/src/lib/agent/treasury/uniswap-api.ts#L253), [`:279`](../app/src/lib/agent/treasury/uniswap-api.ts#L279) |
+| `permitData` signed as EIP-712 with the agent's key; the primary type is the one no other type names | [`uniswap-api.ts:230`](../app/src/lib/agent/treasury/uniswap-api.ts#L230) |
+| CLASSIC: `/swap`, then the Universal Router transaction — from here on nothing falls back | [`uniswap-api.ts:329`](../app/src/lib/agent/treasury/uniswap-api.ts#L329), [`:332`](../app/src/lib/agent/treasury/uniswap-api.ts#L332) |
+| UniswapX (`DUTCH_V3`, `PRIORITY`): `/order`, then `/orders` polled for up to two minutes | [`uniswap-api.ts:347`](../app/src/lib/agent/treasury/uniswap-api.ts#L347), [`:374`](../app/src/lib/agent/treasury/uniswap-api.ts#L374) |
 | an order still open when the run stops watching holds its week, as a sent swap does | [`recurring-record.ts:357`](../app/src/lib/agent/treasury/recurring-record.ts#L357) |
 | the route and the `/quote` requestId on the run's history row | [`recurring.ts:721`](../app/src/lib/agent/treasury/recurring.ts#L721) |
 
@@ -75,8 +76,15 @@ apart. UniswapX-only quotes (`protocols: ["UNISWAPX_V3"]`) answered `QuoteAmount
 0.1 to 250 USDC, `NoRouteFoundError` at 500 and `DUTCH_V3` from 1,000; `["UNISWAPX_V2"]` answered
 `PRIORITY` at 5,000. The docs: "For orders at or below 300 USDC equivalent, UniswapX is included
 only when it meets that 0.2% improvement." So our buys route CLASSIC, and the UniswapX path has run
-only in the tests. No swap or order has gone through the API yet — only read-only `/quote` and
-`/check_approval` calls.
+only in the tests.
+
+One buy has gone through the API on Base mainnet, sent by `buyWethWithUsdc` — the function the app's
+buy calls — from this package's agent key: 0.1 USDC → 0.0000372796 WETH, CLASSIC through the v3
+0.01% pool,
+[`0x751998a1…`](https://basescan.org/tx/0x751998a1a0ae757a65878fa867a5154e7d9928034a8ef2469f2cf35b2bca6c8c)
+(`/quote` requestId `2ec53c8b798ab04f6aaa47da7187558e`). The direct path's 0.05% pool quoted
+0.0000372524 WETH at the same time. Afterwards the wallet's USDC allowance to Permit2 and Permit2's
+allowance to the Universal Router both read 0.
 
 ## Layout
 

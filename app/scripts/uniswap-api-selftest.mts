@@ -3,7 +3,7 @@
 // The answers are the shapes /check_approval and /quote returned on Base on 2026-09-27.
 //   cd app && npx tsx --tsconfig scripts/tsconfig.json scripts/uniswap-api-selftest.mts
 import assert from "node:assert/strict";
-import { encodeAbiParameters, encodeEventTopics, encodeFunctionData, maxUint256, parseAbi, recoverTypedDataAddress, type Hex, type Log } from "viem";
+import { decodeFunctionData, encodeAbiParameters, encodeEventTopics, encodeFunctionData, maxUint256, parseAbi, recoverTypedDataAddress, type Hex, type Log } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   buyWethWithUsdc,
@@ -34,8 +34,9 @@ const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478c
 const AGENT = account.address;
 const OTHER = "0x00000000000000000000000000000000000000b0" as const;
 
-const SMALL: BuyRequest = { chainId: 8453, usdc: USDC, weth: WETH, amountIn: BigInt(100_000), slippageBps: 50, allowOrders: false };
-const LARGE: BuyRequest = { ...SMALL, amountIn: BigInt(1_000_000_000), allowOrders: true };
+// minOut: the v3 pool's quote less 0.5%, a little under what each fixture guarantees
+const SMALL: BuyRequest = { chainId: 8453, usdc: USDC, weth: WETH, amountIn: BigInt(100_000), slippageBps: 50, minOut: BigInt("37000000000000"), allowOrders: false };
+const LARGE: BuyRequest = { ...SMALL, amountIn: BigInt(1_000_000_000), minOut: BigInt("369000000000000000"), allowOrders: true };
 
 const hashOf = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as Hex;
 const DIRECT_TX = hashOf(0xd1);
@@ -304,6 +305,8 @@ await check("CLASSIC: approval, permit, /swap, the Universal Router transaction;
   // the approval first, then the swap to the pinned router, with an explicit gas limit
   assert.equal(c.sent.length, 2);
   assert.equal(c.sent[0].to, USDC);
+  // the API's approval is unlimited; the one sent is ours, for exactly this buy
+  assert.deepEqual(decodeFunctionData({ abi: erc20, data: c.sent[0].data }).args, [TRADING_API.permit2, BigInt(100_000)]);
   assert.equal(c.sent[1].to, TRADING_API.universalRouter);
   assert.equal(c.sent[1].gas, BigInt(400_000));
   // /swap got the signature with its permitData, and the signature is the agent's over that permit
@@ -387,6 +390,13 @@ await check("an answer the buy won't act on also falls back, having sent nothing
     return { ...q, permitData: { ...q.permitData, values: { ...q.permitData.values, spender } } };
   };
   cases.push([LARGE, { ...noApproval, "/quote": { json: withSpender(OTHER) } }, /not for the UniswapX reactor/]);
+  // checked against the chain: a minimum or a floor under the v3 pool's price less our slippage
+  cases.push([{ ...SMALL, minOut: BigInt("37100000000000") }, { ...noApproval, "/quote": { json: classicQuote() } }, /below the v3 pool's price/]);
+  cases.push([{ ...LARGE, minOut: BigInt("370000000000000000") }, { ...noApproval, "/quote": { json: dutchQuote() } }, /order's floor is below the v3 pool's price/]);
+  // we ask for an EXACT permit; one for more than this buy is refused
+  const wide = classicQuote();
+  wide.permitData.values.details = { ...wide.permitData.values.details, amount: "1461501637330902918203684832716283019655932542975" };
+  cases.push([SMALL, { ...noApproval, "/quote": { json: wide } }, /not for exactly this buy/]);
   const toOther = dutchQuote();
   toOther.permitData.values.witness.baseOutputs = [{ ...toOther.permitData.values.witness.baseOutputs[0], recipient: OTHER }];
   cases.push([LARGE, { ...noApproval, "/quote": { json: toOther } }, /does not all go to the agent/]);
