@@ -10,6 +10,7 @@ import { receiptOutcome } from "../src/chain";
 import { prepareSend } from "../src/prepare";
 import { SEPOLIA_USDC } from "../src/config";
 import { checkLabel, suggestLabels } from "../src/labels";
+import { ethExpiry, ethNameStatus, subnameStatus } from "../src/availability";
 
 let fails = 0;
 let passes = 0;
@@ -228,6 +229,45 @@ ok("suggest: a long base only yields valid labels", same(suggestLabels("a".repea
 ok("suggest: base is normalized first", same(suggestLabels("Lee", 2), ["lee-family", "the-lees"]));
 ok("suggest: an invalid base yields none", same(suggestLabels("", 3), []) && same(suggestLabels("lee🙂", 3), []));
 ok("suggest: family-style candidates", same(suggestLabels("lee", 4), ["lee-family", "the-lees", "lee2", "lee3"]));
+
+// ── availability (fake chain: readContract answers by function name) ─────────
+{
+  const ME = "0x00000000000000000000000000000000000000aa" as const;
+  const OTHER = "0x00000000000000000000000000000000000000bb" as const;
+  const REG = "0x00000000000000000000000000000000000000cc" as const;
+  const Z = "0x0000000000000000000000000000000000000000" as const;
+  type Fake = { isAvailable?: boolean; owner?: string; sub?: string; state?: { status: number; expiry: bigint; latestOwner: string }; grace?: bigint; resolver?: string };
+  const reader = (f: Fake) =>
+    ({
+      readContract: async ({ functionName }: { functionName: string }) =>
+        ({
+          isAvailable: f.isAvailable ?? false,
+          getRegisterPrice: [BigInt(5), BigInt(0)],
+          findExactOwner: f.owner ?? Z,
+          getSubregistry: f.sub ?? Z,
+          getResolver: f.resolver ?? Z,
+          getState: { tokenId: BigInt(1), resource: BigInt(1), ...(f.state ?? { status: 0, expiry: BigInt(0), latestOwner: Z }) },
+          getRemainingGracePeriod: f.grace ?? BigInt(0),
+        })[functionName],
+    }) as never;
+  const st = async (f: Fake, me?: `0x${string}`, reg?: `0x${string}`) => (await ethNameStatus(reader(f), "lee", me, reg)).status;
+  ok("avail: free has a price", same(await ethNameStatus(reader({ isAvailable: true }), "lee"), { status: "free", price: { base: BigInt(5), premium: BigInt(0) } }));
+  ok("avail: owned by someone else is taken", (await st({ owner: OTHER }, ME)) === "taken");
+  ok("avail: owner check ignores address case", (await st({ owner: ME.toUpperCase().replace("0X", "0x") }, ME)) === "ours");
+  ok("avail: ours needs the expected subregistry", (await st({ owner: ME, sub: OTHER }, ME, REG)) === "taken" && (await st({ owner: ME, sub: REG }, ME, REG)) === "ours");
+  ok("avail: no wallet given → taken, never ours", (await st({ owner: ME })) === "taken");
+  ok("avail: our name in grace is ours (inGrace)", same(await ethNameStatus(reader({ state: { status: 0, expiry: BigInt(1), latestOwner: ME }, grace: BigInt(99) }), "lee", ME), { status: "ours", inGrace: true }));
+  ok("avail: someone else's name in grace is taken", (await st({ state: { status: 0, expiry: BigInt(1), latestOwner: OTHER }, grace: BigInt(99) }, ME)) === "taken");
+  ok("avail: reserved is taken", (await st({ state: { status: 1, expiry: BigInt(9), latestOwner: Z } }, ME)) === "taken");
+  ok("expiry: registered", same(await ethExpiry(reader({ state: { status: 2, expiry: BigInt(100), latestOwner: ME } }), "lee"), { expiresAt: 100, inGrace: false, graceLeft: 0 }));
+  ok("expiry: in grace", same(await ethExpiry(reader({ state: { status: 0, expiry: BigInt(100), latestOwner: ME }, grace: BigInt(7) }), "lee"), { expiresAt: 100, inGrace: true, graceLeft: 7 }));
+  ok("expiry: past grace or never → null", (await ethExpiry(reader({ state: { status: 0, expiry: BigInt(100), latestOwner: ME } }), "lee")) === null && (await ethExpiry(reader({}), "lee")) === null);
+  const sub = (f: Fake, e: { expectResolver?: `0x${string}`; expectOwner?: `0x${string}` } = {}) => subnameStatus(reader(f), { parentName: "lee.eth", parentRegistry: REG, label: "jo", ...e });
+  ok("sub: no owner, no resolver → free", (await sub({})) === "free");
+  ok("sub: a resolver alone makes it taken", (await sub({ resolver: OTHER })) === "taken");
+  ok("sub: ours by resolver or by owner", (await sub({ resolver: REG }, { expectResolver: REG })) === "ours" && (await sub({ owner: ME }, { expectOwner: ME })) === "ours");
+  ok("sub: someone else's is taken", (await sub({ owner: OTHER, resolver: OTHER }, { expectResolver: REG, expectOwner: ME })) === "taken");
+}
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

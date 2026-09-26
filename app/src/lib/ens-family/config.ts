@@ -31,3 +31,8 @@ export const CLASS_KEY = "class"; // ENSIP-27
 
 export type Relation = "son" | "daughter" | "spouse";
 export const RELATIONS: readonly Relation[] = ["son", "daughter", "spouse"];
+
+/** A .eth registration year, in seconds (the registrar's duration unit). */
+export const YEAR_SECONDS = BigInt(365 * 24 * 3600);
+/** Every role and its admin in EnhancedAccessControl (one bit per nybble, EACBaseRolesLib.ALL_ROLES). */
+export const ALL_ROLES = BigInt("0x" + "1".repeat(64));
