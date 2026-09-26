@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, Lock, RefreshCw, Trash2, Unlink } from "lucide-react";
+import { ChevronDown, ChevronRight, File, FilePlus, Folder, HardDrive, LayoutGrid, List, Lock, RefreshCw, Trash2, Unlink } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import { FilePreview, previewKindFor } from "@/components/previews";
 import { aindriveRawUrl } from "@/lib/aindrive-url";
+import { AlbumGrid } from "@/components/editor/album-grid";
 import { AindriveAccountBadge, AindriveConnect } from "@/components/aindrive/aindrive-connect";
 
 /**
@@ -279,6 +280,9 @@ export function Browser({
   const [newPath, setNewPath] = useState<string | null>(null);
   // a non-text file shown through FilePreview (rawUrl), instead of the editor
   const [previewing, setPreviewing] = useState<string | null>(null);
+  // list (tree + preview) or grid — a folder of mostly photos opens as the
+  // album grid pages use (AlbumGrid); null until the reader picks one
+  const [picked, setPicked] = useState<"list" | "grid" | null>(null);
 
   // bumping `version` re-reads the tree (refresh, a newly saved file)
   const [version, setVersion] = useState(0);
@@ -374,6 +378,17 @@ export function Browser({
     [entries, collapsed]
   );
   const files = entries?.filter((e) => !e.isDir).length ?? 0;
+  const images = useMemo(() => (entries ?? []).filter((e) => !e.isDir && previewKindFor(e.path) === "image"), [entries]);
+  const view = !rawUrl ? "list" : (picked ?? (images.length >= 2 && images.length * 2 >= files ? "grid" : "list"));
+  // grid: the photos, folder by folder; everything else stays one click away in the list
+  const albums = useMemo(() => {
+    const by = new Map<string, Entry[]>();
+    for (const e of images) {
+      const dir = e.path.includes("/") ? e.path.slice(0, e.path.lastIndexOf("/")) : "";
+      by.set(dir, [...(by.get(dir) ?? []), e]);
+    }
+    return [...by.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [images]);
 
   return (
     <div data-testid="aindrive-browser" className="rounded-xl border border-neutral-200 dark:border-neutral-700">
@@ -395,6 +410,16 @@ export function Browser({
           >
             <FilePlus size={13} /> {t("New file")}
           </button>
+          {rawUrl && images.length > 0 && (
+            <button
+              data-testid="aindrive-view-toggle"
+              data-view={view}
+              onClick={() => setPicked(view === "grid" ? "list" : "grid")}
+              className={btnCls}
+            >
+              {view === "grid" ? <List size={13} /> : <LayoutGrid size={13} />} {view === "grid" ? t("List") : t("Grid")}
+            </button>
+          )}
           <button data-testid="aindrive-refresh" onClick={loadTree} className={btnCls}>
             <RefreshCw size={13} /> {t("Refresh")}
           </button>
@@ -406,6 +431,27 @@ export function Browser({
         </div>
       </div>
 
+      {view === "grid" && rawUrl ? (
+        <div data-testid="aindrive-grid" className="space-y-4 p-3">
+          {albums.map(([dir, rows]) => (
+            <section key={dir || "/"}>
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+                <Folder size={13} className="text-neutral-400" /> {dir || title}
+                <span className="text-neutral-400">· {rows.length}</span>
+              </p>
+              <AlbumGrid
+                blockId={`aindrive-${dir || "root"}`}
+                files={rows.map((e) => ({ url: rawUrl(e.path), text: e.path.slice(e.path.lastIndexOf("/") + 1) }))}
+              />
+            </section>
+          ))}
+          {files > images.length && (
+            <button onClick={() => setPicked("list")} className="text-xs text-neutral-500 hover:underline">
+              {t("{n} other files — show the list", { n: files - images.length })}
+            </button>
+          )}
+        </div>
+      ) : (
       <div className="grid min-h-[20rem] grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <ul
           data-testid="aindrive-tree"
@@ -615,6 +661,7 @@ export function Browser({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
