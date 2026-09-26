@@ -679,15 +679,15 @@ async function recurringRunReply(ctx: TreasuryCommandContext): Promise<string> {
     case "bought":
       return boughtLine(r);
     case "skipped":
-      if (r.reason === "already-bought-this-week") return "Already bought this week — the next buy opens next week.";
+      if (r.reason === "already-bought-this-week") return "Already bought this week.";
       // a failed swap may have sent a transaction: recurring.ts logged it, and it holds the week
       if (r.reason === "swap-failed")
-        return `⚠️ Skipped this week: ${SKIP_REASON_TEXT[r.reason]}.\nIf a transaction was sent, Treasury Activity has it and this week counts as used — check it before asking again.`;
-      return `Skipped this week: ${SKIP_REASON_TEXT[r.reason]} — nothing was bought.`;
+        return "⚠️ This week's swap didn't go through. If a transaction went out, Treasury Activity has it — check before asking again.";
+      return `Skipped this week: ${SKIP_REASON_TEXT[r.reason]}.`;
     case "rehearsal":
-      return `Rehearsal: I would buy ${usd(r.wouldBuyUsd)} of ETH this week.\nReal buys are off on this server — nothing moved.`;
+      return `Rehearsal: would buy ${usd(r.wouldBuyUsd)} of ETH this week — nothing moved.`;
     case "none":
-      return `We have no adopted recurring buy — nothing was bought.\n${RECURRING_EXAMPLE} sets one up for the members to approve.`;
+      return `No recurring buy is running.\nTry ${RECURRING_EXAMPLE}.`;
   }
 }
 
@@ -696,9 +696,8 @@ async function recurringStopReply(ctx: TreasuryCommandContext): Promise<string> 
   const before = await recurringBuyStatus(ctx.roomId).catch(() => null);
   const r = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (!r.ok) return r.reason;
-  if (r.actionId === before?.pending?.actionId)
-    return "✖ Withdrew the recurring buy request before it was adopted — it will never run.";
-  return "⏹ Stopped the recurring buy.\nI won't buy again under it.";
+  if (r.actionId === before?.pending?.actionId) return "✖ Withdrew the recurring buy request.";
+  return "⏹ Stopped the recurring buy.";
 }
 
 async function recurringStatusReply(roomId: string): Promise<string> {
@@ -706,21 +705,20 @@ async function recurringStatusReply(roomId: string): Promise<string> {
   const out: string[] = [];
   if (s.live) {
     const l = s.live;
+    const week = l.thisWeek === "bought" ? "bought this week" : l.thisWeek === "skipped" ? "skipped this week" : "not bought this week yet";
     out.push(
-      `🔁 Recurring buy: ${usd(l.weeklyUsd)} of ETH a week — week ${l.weekIndex} of ${l.weeks}, this week ${l.thisWeek}.`,
-      `Bought ${weeksWord(l.boughtWeeks)} so far: ${usd(l.investedUsd)} → ${wethShort(l.wethOut)} WETH.`,
-      l.nextRunAt ? `Next buy: from ${relationDay(l.nextRunAt)}.` : "This is its last week."
+      `🔁 Recurring buy: ${usd(l.weeklyUsd)} of ETH weekly · week ${l.weekIndex} of ${l.weeks} · ${week}.`,
+      `Bought ${l.boughtWeeks} of ${weeksWord(l.weeks)} (${usd(l.investedUsd)} → ${wethShort(l.wethOut)} WETH)${l.nextRunAt ? ` · next buy ${relationDay(l.nextRunAt)}` : ""}.`
     );
   }
   if (s.pending) {
     const p = s.pending;
     out.push(
-      `⏳ Waiting for approval: a recurring buy — ${usd(p.weeklyUsd)} of ETH every week for ${weeksWord(p.weeks)}, at most ${usd(p.exposureUsd)} in all.`,
+      `⏳ Waiting for approval: ${usd(p.weeklyUsd)} of ETH weekly for ${weeksWord(p.weeks)}, up to ${usd(p.exposureUsd)}.`,
       `${p.approvals} of ${p.required} verified humans so far — our rules: “${p.rule}”`
     );
   }
-  if (!out.length) return `We have no recurring buy running.\n${RECURRING_EXAMPLE} sets one up for the members to approve.`;
-  if (!s.realRuns) out.push("Real buys are off on this server — its runs are rehearsals.");
+  if (!out.length) return `No recurring buy is running.\nTry ${RECURRING_EXAMPLE}.`;
   return out.join("\n");
 }
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useT } from "@/i18n/provider";
+import { AgentCapabilities } from "./agent-capabilities";
 
 /**
  * What this relationship's agent should be.
@@ -139,8 +140,9 @@ export function AgentSettings({
   }, [roomId, name, config, active, profiles, personaName, tone, proactive, whisper, onClose, onSaved, t]);
 
   return (
+    // a drawer from the right, as the room's other side panels are: the room stays in view behind it
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-50 bg-black/30"
       // A click that *began* inside the panel is a drag that ended out here —
       // selecting text in the instructions box and releasing past its edge
       // would otherwise close the dialog and throw the draft away.
@@ -159,24 +161,27 @@ export function AgentSettings({
         aria-label={t("Agent settings")}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl bg-white p-5 shadow-xl outline-none dark:bg-neutral-900"
+        className="peek-anim-right fixed inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto bg-white p-5 shadow-xl outline-none dark:bg-neutral-900"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold">{t("Agent settings")}</h2>
-            <p className="text-xs text-neutral-500">
-              {t("Defines what this agent records and how it speaks. Any member can change it.")}
-            </p>
+            <p className="text-xs text-neutral-500">{t("What this agent may do")}</p>
           </div>
           <button
             onClick={onClose}
             aria-label={t("Close")}
-            className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:hover:bg-neutral-800"
           >
             <X size={16} />
           </button>
         </div>
 
+        <AgentCapabilities roomId={roomId} agentName={name || agentName} />
+
+        <h3 className="mb-2 mt-6 border-t border-neutral-200 pt-4 text-xs font-medium text-neutral-500 dark:border-neutral-800">
+          {t("How it records and speaks")}
+        </h3>
         <label className="mb-1 block text-xs font-medium text-neutral-500">{t("Relation")}</label>
         <div className="mb-4 flex flex-col gap-2">
           {(profiles ?? []).map((p) => {

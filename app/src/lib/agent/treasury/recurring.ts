@@ -11,7 +11,6 @@ import {
   decideRun,
   exposureUsd,
   isoWeekKey,
-  lastDayOf,
   nextWeekStart,
   parseAuthority,
   parseRun,
@@ -93,24 +92,18 @@ export function wethShort(whole: string): string {
 }
 
 /**
- * What the room reads when a recurring buy is queued. The chat command and the
- * treasurer post these same lines, in the treasury's passbook shape — what,
- * why, what to do, one line each. `askedBy` names the member the agent posts for.
+ * What the room reads above a queued recurring buy: one line — the card
+ * posted under it carries the terms, the route and the Approve button. The
+ * chat command and the treasurer post it. `askedBy` names the member the
+ * agent posts for.
  */
 export function queuedLines(input: { record: RecurringBuyRecord; required: number; rule: string; askedBy?: string }): string[] {
-  const { terms } = input.record;
-  return [
-    `⏳ Queued${input.askedBy ? ` at ${input.askedBy}'s request` : ""}: a recurring buy — ${termsPhrase(terms)}, through ${relationDay(lastDayOf(terms.expiresAt), true)}.`,
-    `USDC → WETH on Base through Uniswap v3, from my own wallet ${terms.agentAddress.slice(0, 6)}…${terms.agentAddress.slice(-4)} — at most ${usd(authorityExposure(input.record))} in all.`,
-    `Needs ${plural(input.required, "verified human")} — our rules: “${input.rule}”`,
-    "Approve with World ID on the card below.",
-    ...(realRunsEnabled() ? [] : ["Real buys are off on this server — its weekly runs are rehearsals that move nothing."]),
-  ];
+  return [`⏳ Queued${input.askedBy ? ` at ${input.askedBy}'s request` : ""}: a recurring buy — needs ${plural(input.required, "verified human")}.`];
 }
 
-/** What the room reads after a real weekly buy. */
+/** The room's one-line receipt after a real weekly buy; the explorer link is drawn short in chat. */
 export function boughtLine(run: { weeklyUsd: number; wethOut: string; txHash: string }, askedBy?: string): string {
-  return `📈 Bought this week's ETH${askedBy ? ` at ${askedBy}'s request` : ""}: ${usd(run.weeklyUsd)} → ${wethShort(run.wethOut)} WETH via Uniswap v3 on Base.\nInside the recurring buy we approved · tx ${run.txHash}`;
+  return `📈 Bought this week's ETH${askedBy ? ` at ${askedBy}'s request` : ""}: ${usd(run.weeklyUsd)} → ${wethShort(run.wethOut)} WETH · Uniswap v3 on Base · tx ${INVEST_CHAIN.explorer}/tx/${run.txHash}`;
 }
 
 /** "0x1a2b3c4d…9f0e" — the terms' fingerprint as approvers and members see it */
@@ -578,7 +571,7 @@ export async function proposeRecurringBuy(input: {
     });
     await logActivity(
       input.roomId,
-      `📝 ${asker} asked: a recurring buy — ${termsPhrase(terms)}, at most ${usd(exposure)} — needs ${plural(required, "human")} to approve`
+      `📝 ${asker} asked: recurring buy · ${termsPhrase(terms)}, up to ${usd(exposure)} — needs ${plural(required, "human")} to approve`
     );
     return { ok: true, actionId: action.id, required, rule: record.rule, record };
   });
@@ -703,7 +696,7 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
     if (sent)
       await logActivity(
         roomId,
-        `⚠️ Recurring buy, week of ${relationDay(weekStart(now))}: the swap was sent but didn't complete · ${txLink(sent, INVEST_CHAIN.explorer)} — this week counts as used; check the explorer.`
+        `⚠️ Recurring buy, week of ${relationDay(weekStart(now))}: swap sent, not completed · ${txLink(sent, INVEST_CHAIN.explorer)} — this week counts as used`
       );
     const message = (err as { message?: unknown } | null)?.message;
     const short = !sent && typeof message === "string" && INSUFFICIENT_USDC.test(message);
@@ -724,7 +717,7 @@ async function runLocked(roomId: string, by: string, now: Date): Promise<Recurri
   );
   await logActivity(
     roomId,
-    `📈 Recurring buy, week of ${relationDay(weekStart(now))}: ${usd(terms.weeklyUsd)} of ETH — ${bought.note.replace(/\.$/, "")}${by === SCHEDULE ? "" : ` — asked by ${await displayName(by)}`} · ${txLink(bought.txHash, INVEST_CHAIN.explorer)}`
+    `📈 Recurring buy, week of ${relationDay(weekStart(now))}: ${usd(terms.weeklyUsd)} → ${wethShort(formatUnits(bought.wethOut, 18))} WETH · Uniswap v3 on Base${by === SCHEDULE ? "" : ` — asked by ${await displayName(by)}`} · ${txLink(bought.txHash, INVEST_CHAIN.explorer)}`
   );
   return {
     outcome: "bought",
@@ -787,7 +780,7 @@ export async function stopRecurringBuy(input: {
   if (live) {
     if (!(await revoke(live.actionId, mark)))
       return { ok: false, reason: "The recurring buy was already stopped — I won't buy again under it." };
-    await logActivity(input.roomId, `⏹ ${who} stopped the recurring buy (${termsPhrase(live.record.terms)}) — no more buys under it.`);
+    await logActivity(input.roomId, `⏹ ${who} stopped the recurring buy (${termsPhrase(live.record.terms)}).`);
     return { ok: true, actionId: live.actionId };
   }
 
@@ -799,7 +792,7 @@ export async function stopRecurringBuy(input: {
     .set({
       status: "cancelled",
       decidedAt: now,
-      error: `Withdrawn by ${who} before it was adopted.`,
+      error: `Withdrawn by ${who}.`,
       ruleText: JSON.stringify({ ...waiting.record, ...mark }),
     })
     .where(
@@ -814,7 +807,7 @@ export async function stopRecurringBuy(input: {
     return { ok: false, reason: "It's being adopted right this moment — ask me to stop it again in a few seconds." };
   await logActivity(
     input.roomId,
-    `✖ ${who} withdrew the recurring buy request (${termsPhrase(waiting.record.terms)}) before it was adopted.`
+    `✖ ${who} withdrew the recurring buy request (${termsPhrase(waiting.record.terms)}).`
   );
   return { ok: true, actionId: waiting.actionId };
 }

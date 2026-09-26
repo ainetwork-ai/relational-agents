@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Plus,
   Trash2,
@@ -33,6 +33,9 @@ import { NotificationsInbox, InboxPanel } from "@/components/notifications/inbox
 import { PageIcon } from "@/components/page-icon";
 import { pageLabel, pageFallbackIcon, type PageRow } from "@/lib/page-label";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
+import { chipColors } from "@/components/database/option-chip";
+import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
+import { useTreasurySummary } from "./use-treasury-summary";
 import { initial } from "@/lib/glyph";
 import { useT } from "@/i18n/provider";
 
@@ -95,6 +98,18 @@ export function Sidebar({
   const [peek, setPeek] = useState(false);
   const mobileNavOpen = useUiStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
+
+ // where you are decides what the sidebar shows: a room is found on the Chats
+ // tab (Home already puts it back on Pages), and on a phone the drawer gets out
+ // of the way of the page a row just opened
+  const pathname = usePathname();
+ // money across relations lives on Home: its icon carries a dot while a vote of mine is owed anywhere
+  const treasuries = useTreasurySummary(useTreasuryV2());
+  const voteOwed = useMemo(() => [...treasuries.values()].some((r) => r.pendingForMe > 0), [treasuries]);
+  useEffect(() => {
+    setMobileNavOpen(false);
+    if (pathname.startsWith("/dm/")) setTab("chats");
+  }, [pathname, setMobileNavOpen, setTab]);
 
  // ask for THIS sidebar's workspace (the viewed page's — the layout chose it),
  // not the session's: otherwise a page opened from another workspace showed
@@ -295,11 +310,21 @@ export function Sidebar({
               setShowInbox(false);
               setTab("pages");
             }}
-            aria-label={t("Home")}
-            data-tip={t("Home")}
+            aria-label={voteOwed ? t("Home · your approval is waiting") : t("Home")}
+            data-tip={voteOwed ? t("Home · your approval is waiting") : t("Home")}
             className="flex h-8 w-8 min-w-7 shrink items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
-            <HomeIcon size={16} />
+            <span className="relative flex">
+              <HomeIcon size={16} />
+              {voteOwed && (
+                <i
+                  data-testid="sidebar-home-owed"
+                  aria-hidden
+                  className="absolute -right-1 -top-1 h-2 w-2 rounded-full ring-2 ring-neutral-50 dark:ring-[#202020]"
+                  style={{ background: chipColors("orange").dot }}
+                />
+              )}
+            </span>
           </a>
           <button
             role="tab"

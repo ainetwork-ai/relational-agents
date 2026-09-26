@@ -18,18 +18,19 @@ interface RelAgent {
   roomName: string;
 }
 
-/** What the agent is holding for its room: a proposal waiting (orange) › a recurring buy running (green) › nothing. */
-function AgentMoneyStatus({ money }: { money: TreasurySummaryRoom | undefined }) {
+/**
+ * What the agent is holding for its room — its standing authority, not a
+ * balance: a proposal waiting for approvals (orange) › a recurring buy it runs
+ * (green) › nothing.
+ */
+function Authority({ money }: { money: TreasurySummaryRoom | undefined }) {
   const t = useT();
   if (!money) return null;
   const status =
     money.pendingTotal > 0
       ? {
           color: "orange" as const,
-          label:
-            money.pendingTotal > 1
-              ? t("{n} proposals waiting", { n: money.pendingTotal })
-              : t("1 proposal waiting"),
+          label: money.pendingTotal > 1 ? t("{n} proposals waiting", { n: money.pendingTotal }) : t("1 proposal waiting"),
         }
       : money.recurring?.state === "live"
         ? { color: "green" as const, label: t("1 recurring buy running") }
@@ -38,16 +39,19 @@ function AgentMoneyStatus({ money }: { money: TreasurySummaryRoom | undefined })
   return (
     <span
       data-testid={`agent-money-${money.roomId}`}
-      className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] text-neutral-400 dark:text-neutral-500"
+      className="flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap text-[11.5px] text-neutral-400 dark:text-neutral-500"
     >
       <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: chipColors(status.color).dot }} />
-      {status.label}
+      <span className="truncate">{status.label}</span>
     </span>
   );
 }
 
-/** Sidebar "Agents" section — the relationship agents born from your DM
- * contracts. One per relationship; click to open its room, pencil to rename. */
+/**
+ * Sidebar "Agents" section — the relationship agents born from your DM
+ * contracts, one per relationship. A row opens that agent's drawer in its room
+ * (what it may do, what it runs); the pencil renames.
+ */
 export function RelationAgentsSection() {
   const router = useRouter();
   const t = useT();
@@ -62,7 +66,9 @@ export function RelationAgentsSection() {
   }, []);
 
   useEffect(() => {
-    load();
+ // fetch-on-mount: the list is set when the answer lands, not in this body
+ // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
   }, [load]);
  // a new agent is born (consent) or renamed → a dm-room event fires
   useDmEvents(
@@ -95,14 +101,16 @@ export function RelationAgentsSection() {
         agents.map((a) => (
           <div
             key={a.agentUserId}
-            className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 max-md:py-2 hover:bg-neutral-200/50 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            className="group flex items-start gap-1.5 rounded-md px-2 py-1 text-sm text-neutral-600 transition-colors hover:bg-neutral-200/50 max-md:py-2 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
-            {a.avatarUrl ? (
+            <span className="mt-[3px] shrink-0">
+              {a.avatarUrl ? (
  // eslint-disable-next-line @next/next/no-img-element
-              <img src={a.avatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-cover" />
-            ) : (
-              <Bot size={14} className="shrink-0 text-purple-500" />
-            )}
+                <img src={a.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+              ) : (
+                <Bot size={14} className="text-purple-500" />
+              )}
+            </span>
             {renameFor === a.agentUserId ? (
               <input
                 autoFocus
@@ -117,14 +125,16 @@ export function RelationAgentsSection() {
               />
             ) : (
               <button
-                onClick={() => router.push(`/dm/${a.roomId}`)}
-                className="min-w-0 flex-1 truncate text-left"
+                data-testid={`agent-open-${a.roomId}`}
+                // the agent's own place is its drawer in the room: what it may do, and what it runs
+                onClick={() => router.push(`/dm/${a.roomId}?agent=1`)}
+                className="flex min-w-0 flex-1 flex-col items-start rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
                 title={a.roomName}
               >
-                {a.displayName}
+                <span className="max-w-full truncate">{a.displayName}</span>
+                <Authority money={money.get(a.roomId)} />
               </button>
             )}
-            {renameFor !== a.agentUserId && <AgentMoneyStatus money={money.get(a.roomId)} />}
             <button
               onClick={() => {
                 if (renameFor === a.agentUserId) void rename(a);
@@ -133,7 +143,7 @@ export function RelationAgentsSection() {
                   setRenameFor(a.agentUserId);
                 }
               }}
-              className="shrink-0 rounded p-0.5 text-neutral-400 touch-reveal opacity-0 hover:text-neutral-600 group-hover:opacity-100"
+              className="mt-[3px] shrink-0 rounded p-0.5 text-neutral-400 touch-reveal opacity-0 transition-opacity hover:text-neutral-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 group-hover:opacity-100"
               aria-label={t("Rename agent")}
             >
               {renameFor === a.agentUserId ? <Check size={12} /> : <Pencil size={12} />}

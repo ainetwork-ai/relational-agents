@@ -10,6 +10,8 @@ import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
 import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
 import { UserAvatar } from "@/components/user-avatar";
+import { ChainBadge } from "@/components/chain/chain-badge";
+import { useT } from "@/i18n/provider";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
 // Until the status reports seatEnvironment, fall back to the same variable the
@@ -118,8 +120,8 @@ const RATIFY_COPY = {
 };
 // a recurring buy is adopted, not paid: nothing moves when its last approval lands
 const RECURRING_COPY = {
-  executing: "✅ That was the last approval needed — the agent is adopting the recurring buy now.",
-  executed: "✅ That was the last approval needed — the recurring buy is adopted.",
+  executing: "✅ Last approval in — adopting the recurring buy.",
+  executed: "✅ Recurring buy adopted.",
 };
 
 /**
@@ -284,6 +286,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
   // the link to the Treasury page is one of the new surfaces ?treasury=v1 turns off
   const treasuryV2 = useTreasuryV2();
+  const t = useT();
   // Read during the first client render; nothing renders until the status
   // fetch lands, so this cannot diverge from the server HTML.
   const [result, setResult] = useState<Result | null>(readResultFromUrl);
@@ -472,6 +475,17 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             </span>
           )}
         </button>
+        {/* the one way from the room to its Treasury page, beside the balance it opens */}
+        {treasuryV2 && (
+          <Link
+            href={`/treasury/${roomId}`}
+            data-testid="treasury-open-page"
+            className="inline-flex h-7 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-neutral-200 bg-white pl-2 pr-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900 active:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 dark:active:bg-neutral-700"
+          >
+            {t("Open treasury")}
+            <ChevronRight aria-hidden className="h-3.5 w-3.5 text-neutral-400" />
+          </Link>
+        )}
         {!open && pending.length > 0 && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
             {pending.length} waiting for approval
@@ -480,15 +494,6 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
         <span data-testid="treasury-slogan" className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
           AI manages the money · humans approve it
         </span>
-        {treasuryV2 && (
-          <Link
-            href={`/treasury/${roomId}`}
-            data-testid="treasury-open-page"
-            className="text-xs text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
-          >
-            Open treasury ↗
-          </Link>
-        )}
       </div>
 
       {banner && (
@@ -510,7 +515,8 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
       )}
 
       {open && (
-        <>
+        // on a phone the open panel keeps to half the screen and scrolls inside, so the conversation stays in view
+        <div data-testid="treasury-body" className="max-md:max-h-[50vh] max-md:overflow-y-auto max-md:overscroll-contain">
           <div
             data-testid="treasury-wallet"
             className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400"
@@ -522,7 +528,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                   href={`${EXPLORER}/address/${status.address}`}
                   target="_blank"
                   rel="noreferrer"
-                  title={`Agent wallet ${status.address}${status.balanceEth ? ` · holds ${status.balanceEth} SepETH` : ""} — open on Etherscan`}
+                  title={`Agent wallet ${status.address}${status.balanceEth ? ` · holds ${status.balanceEth} SepETH` : ""} — open on Ethereum Sepolia Etherscan`}
                   className="font-mono underline decoration-dotted underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
                 >
                   {short(status.address)}
@@ -531,8 +537,8 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                 "—"
               )}
               {" · "}
-              <span title={scaleNote} className="cursor-help">
-                Sepolia testnet
+              <span title={scaleNote} className="cursor-help align-middle">
+                <ChainBadge chain="sepolia" />
               </span>
             </span>
             {status.rulesPageId && (
@@ -904,7 +910,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
               ))}
             </ul>
           )}
-        </>
+        </div>
       )}
     </section>
   );

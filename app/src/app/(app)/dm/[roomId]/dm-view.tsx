@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, Sparkles, UserPlus, X, Bot } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
@@ -18,6 +18,15 @@ import { DmAvatar } from "@/components/dm/dm-avatar";
 import { AgentSettings } from "@/components/dm/agent-settings";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import { SELLER } from "@/i18n/content/lib";
+
+/** A transaction or address link on a known explorer, drawn short and named by its chain in chat. */
+const EXPLORER_LINK = /^https:\/\/(sepolia\.etherscan\.io|etherscan\.io|basescan\.org|sepolia\.basescan\.org)\/(tx|address)\/(0x[0-9a-fA-F]{40,64})$/;
+const EXPLORER_CHAIN: Record<string, string> = {
+  "basescan.org": "Base",
+  "sepolia.etherscan.io": "Ethereum Sepolia",
+  "etherscan.io": "Ethereum",
+  "sepolia.basescan.org": "Base Sepolia",
+};
 
 /** Block explorer for the chain the relation registry is deployed on. */
 const EXPLORER_BY_CHAIN: Record<string, string> = {
@@ -147,6 +156,14 @@ export function DmView({
 
   const [typing, setTyping] = useState<Record<string, { name: string; until: number }>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // "?agent" (the sidebar's agent row) opens the agent's drawer once, then leaves the URL
+  const searchParams = useSearchParams();
+  const agentAsked = variant === "page" && searchParams.get("agent") !== null;
+  const [agentAskSeen, setAgentAskSeen] = useState(false);
+  if (agentAsked !== agentAskSeen) {
+    setAgentAskSeen(agentAsked);
+    if (agentAsked) setSettingsOpen(true);
+  }
   const [inviteOpen, setInviteOpen] = useState(false);
   const [candidates, setCandidates] = useState<DmUser[] | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -309,6 +326,10 @@ export function DmView({
     if (renaming) renameRef.current?.focus();
   }, [renaming]);
 
+  useEffect(() => {
+    if (agentAsked) router.replace(`/dm/${roomId}`, { scroll: false });
+  }, [agentAsked, roomId, router]);
+
  // drop expired typing indicators
   useEffect(() => {
     const t = setInterval(() => {
@@ -352,6 +373,17 @@ export function DmView({
     for (const u of [...members, ...authors]) map.set(u.id, u);
     return map;
   }, [members, authors]);
+  // a recurring buy's card is drawn once, at its first message: a quiet answer
+  // carries the card the room's proposal post already shows
+  const firstCardAt = useMemo(() => {
+    const at = new Map<string, number>();
+    messages.forEach((m, i) => {
+      if (!m.text?.includes("[[a2ui:")) return;
+      for (const part of splitA2uiMarkers(m.text))
+        if (part.kind === "recurring-buy" && !at.has(part.actionId)) at.set(part.actionId, i);
+    });
+    return at;
+  }, [messages]);
 
   const others = members.filter((m) => m.id !== meId);
   const title =
@@ -420,19 +452,33 @@ export function DmView({
 
   const agentMember = useMemo(() => members.find((m) => m.isAgent) ?? null, [members]);
 
+  // the minute "saved N minutes ago" is counted from; it moves on by itself
+  const [minuteNow, setMinuteNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setMinuteNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+
   /** "saved 3m ago" — proof the agent is doing its job without it saying so. */
   const lastRecordedLabel = useMemo(() => {
     const stamps = messages
       .filter((m) => m.recordedAt)
       .map((m) => new Date(m.recordedAt as string).getTime())
       .filter((n) => Number.isFinite(n));
-    if (!stamps.length) return null;
-    const mins = Math.floor((Date.now() - Math.max(...stamps)) / 60_000);
+    if (!stamps.length || minuteNow === null) return null;
+    const mins = Math.floor((Math.max(minuteNow, ...stamps) - Math.max(...stamps)) / 60_000);
     if (mins < 1) return t("Saved just now");
-    if (mins < 60) return t("Saved {n} minutes ago", { n: mins });
+    if (mins < 60) return mins === 1 ? t("Saved 1 minute ago") : t("Saved {n} minutes ago", { n: mins });
     const hrs = Math.floor(mins / 60);
-    return hrs < 24 ? t("Saved {n} hours ago", { n: hrs }) : t("Saved {n} days ago", { n: Math.floor(hrs / 24) });
-  }, [messages, t]);
+    if (hrs < 24) return hrs === 1 ? t("Saved 1 hour ago") : t("Saved {n} hours ago", { n: hrs });
+    const days = Math.floor(hrs / 24);
+    return days === 1 ? t("Saved 1 day ago") : t("Saved {n} days ago", { n: days });
+  }, [messages, minuteNow, t]);
 
   /** Mentioning the agent is an ordinary mention: it answers in the room, in
    *  front of both of them — asking it together is what this agent is for.
@@ -640,9 +686,9 @@ export function DmView({
     return parts.map((part, i) => {
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
       if (/^\/p\//.test(part)) {
-        // the relationship doc (an OKF page — its id is a base64url path) is cited by
-        // name; a Postgres page the agent made (a list, an album, an AI prompt) is just
-        // a page to open
+        // the relationship doc (an OKF page — its id is a base64url path) is cited as
+        // "History", the name the header gives it; a Postgres page the agent made (a
+        // list, an album, an AI prompt) is just a page to open
         const isDoc =
           (!!room?.rootPageId && part === `/p/${room.rootPageId}`) ||
           !/^\/p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(part);
@@ -650,11 +696,27 @@ export function DmView({
         const section = isDoc ? okfSectionTitle(part.slice(3)) : null;
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 {section ?? (isDoc ? t("Relation doc") : t("Open page"))}
+            📄 {section ?? (isDoc ? t("History") : t("Open page"))}
           </a>
         );
       }
       if (!isTx && !/^https?:\/\//.test(part)) return part;
+      const onExplorer = part.match(EXPLORER_LINK);
+      if (onExplorer) {
+        const [, host, , hash] = onExplorer;
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            className={`${linkClass} font-mono text-[0.92em]`}
+            title={`${EXPLORER_CHAIN[host]} · ${hash}`}
+          >
+            {`${hash.slice(0, 6)}…${hash.slice(-4)}`} ↗
+          </a>
+        );
+      }
       return (
         <a
           key={i}
@@ -752,7 +814,7 @@ export function DmView({
               data-testid="dm-doc-link"
               href={`/p/${room.rootPageId}`}
               aria-label={t("Open relation doc")}
-              data-tip={t("Everything the two of you have written")}
+              data-tip={t("Everything this room has recorded")}
               className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:w-9 max-md:justify-center max-md:px-0 sm:px-2.5 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
               <FileText size={14} />
@@ -960,6 +1022,31 @@ export function DmView({
            // private stretch spells out what the lock means — the sentence
            // repeated under ten bubbles in a row read as boilerplate.
             const lastQuiet = Boolean(m.privateToUserId) && !after?.privateToUserId;
+            const parts = m.text ? splitA2uiMarkers(m.text) : [];
+            const texts = parts.flatMap((part) => (part.kind === "text" ? [part.text] : []));
+            const cards = parts.flatMap((part) =>
+              part.kind === "recurring-buy" && firstCardAt.get(part.actionId) === i ? [part.actionId] : []
+            );
+            const footer =
+              m.recordedAt && !m.privateToUserId ? (
+                <Link
+                  href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
+                  data-testid="dm-msg-recorded"
+                  className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+                >
+                  <Sparkles size={10} />
+                  {t("Added to history")}
+                </Link>
+              ) : m.privateToUserId ? (
+                <p
+                  data-testid="dm-msg-private"
+                  className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
+                  title={t("Quietly — just me and the agent")}
+                >
+                  <Lock size={10} />
+                  {lastQuiet && t("Quietly · just me and the agent — not kept in the shared history")}
+                </p>
+              ) : null;
             return (
               <div key={m.id}>
                 {newDay && (
@@ -983,76 +1070,54 @@ export function DmView({
                   {/* min-w-0: a long unbreakable token (the agent loves /p/… paths)
                       sets a huge min-content and the flex item refuses to shrink —
                       the bubble then runs past the panel instead of wrapping */}
-                  <div className={`flex min-w-0 max-w-[76%] flex-col ${mine ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`flex min-w-0 flex-col ${mine ? "items-end" : "items-start"} ${
+                      cards.length ? "w-full max-w-[min(24rem,calc(100%-2.25rem))]" : "max-w-[76%]"
+                    }`}
+                  >
                     {!mine && !grouped && (
                       <p className="mb-1 px-1 text-[11px] font-medium text-neutral-500">
                         {author?.displayName ?? t("Unknown")}
                       </p>
                     )}
-                    <div
-                      className={`rounded-lg px-3 py-2 text-[14px] leading-relaxed ${
-                        mine
-                          ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-                          : "bg-neutral-50 text-neutral-800 ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:text-neutral-100 dark:ring-neutral-700/60"
-                      }`}
-                    >
-                      {m.attachments?.length > 0 && (
-                        <div className={`flex flex-wrap gap-1.5 ${m.text ? "mb-1.5" : ""} pt-1`}>
-                          {m.attachments.map((a) => (
-                            <a key={a.url} href={a.url} target="_blank" rel="noreferrer">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                data-testid="dm-msg-image"
-                                src={a.url}
-                                alt={a.name}
-                                className="max-h-56 max-w-full rounded-lg object-cover"
-                              />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                      {m.text && !m.text.includes("[[a2ui:") && (
-                        <p
-                          className="whitespace-pre-wrap [overflow-wrap:anywhere]"
-                          data-testid="dm-msg-text"
-                        >
-                          {linkify(m.text, mine)}
-                        </p>
-                      )}
-                      {/* the treasurer's card: a [[a2ui:recurring-buy/<id>]] line is drawn as that recurring buy, live */}
-                      {m.text?.includes("[[a2ui:") &&
-                        splitA2uiMarkers(m.text).map((part, pi) =>
-                          part.kind === "text" ? (
-                            <p key={pi} className="whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="dm-msg-text">
-                              {linkify(part.text, mine)}
-                            </p>
-                          ) : (
-                            <div key={pi} className="my-1.5">
-                              <A2uiSurface src={`/api/treasury/${roomId}/surfaces/recurring-buy/${part.actionId}`} />
-                            </div>
-                          )
+                    {(m.attachments?.length > 0 || texts.length > 0 || !cards.length) && (
+                      <div
+                        className={`rounded-lg px-3 py-2 text-[14px] leading-relaxed ${
+                          mine
+                            ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+                            : "bg-neutral-50 text-neutral-800 ring-1 ring-neutral-200/70 dark:bg-neutral-800/50 dark:text-neutral-100 dark:ring-neutral-700/60"
+                        }`}
+                      >
+                        {m.attachments?.length > 0 && (
+                          <div className={`flex flex-wrap gap-1.5 ${texts.length ? "mb-1.5" : ""} pt-1`}>
+                            {m.attachments.map((a) => (
+                              <a key={a.url} href={a.url} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  data-testid="dm-msg-image"
+                                  src={a.url}
+                                  alt={a.name}
+                                  className="max-h-56 max-w-full rounded-lg object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
                         )}
-                      {m.recordedAt && !m.privateToUserId && (
-                        <Link
-                          href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
-                          data-testid="dm-msg-recorded"
-                          className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
-                        >
-                          <Sparkles size={10} />
-                          {t("Added to history")}
-                        </Link>
-                      )}
-                      {m.privateToUserId && (
-                        <p
-                          data-testid="dm-msg-private"
-                          className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"
-                          title="Quiet · only you and the agent — not in your shared record"
-                        >
-                          <Lock size={10} />
-                          {t("Quietly · just me and the agent — not kept in the shared history")}
-                        </p>
-                      )}
-                    </div>
+                        {texts.map((text, ti) => (
+                          <p key={ti} className="whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="dm-msg-text">
+                            {linkify(text, mine)}
+                          </p>
+                        ))}
+                        {!cards.length && footer}
+                      </div>
+                    )}
+                    {/* the treasurer's card: a [[a2ui:recurring-buy/<id>]] line is drawn as that recurring buy, live */}
+                    {cards.map((actionId) => (
+                      <div key={actionId} className="mt-1.5 w-full">
+                        <A2uiSurface src={`/api/treasury/${roomId}/surfaces/recurring-buy/${actionId}`} />
+                      </div>
+                    ))}
+                    {cards.length > 0 && footer && <div className="px-1">{footer}</div>}
                   </div>
                   {/* On hover, not always. A stamp beside every bubble sits at
                       whatever x that bubble happens to end at, and with the two
