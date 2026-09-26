@@ -24,7 +24,9 @@
  *                holds DEMO_POT_KEY (app/.env.demo) and its rows take fixed ids, so
  *                every server this runs on shows the same pot and names the same
  *                contributions (scripts/demo-contributions.mts starts those on Base).
- *                --name sets Alex's name on a new account; an existing account keeps its own.
+ *                --name sets Alex's name on a new account; an existing account keeps its own,
+ *                and its World ID and notifications: the copy adds rows and changes only
+ *                what it made (--reset removes only the fixed room).
  *
  * Makes, idempotently:
  *   - six accounts reachable by demo login (POST /api/auth/demo-login
@@ -69,7 +71,7 @@ try {
 
 const path = await import("node:path");
 const { randomUUID } = await import("node:crypto");
-const { and, eq, inArray, isNull, or } = await import("drizzle-orm");
+const { and, eq, inArray, isNull } = await import("drizzle-orm");
 const { keccak256, stringToBytes } = await import("viem");
 const { privateKeyToAccount } = await import("viem/accounts");
 const { db } = await import("../src/lib/db");
@@ -169,10 +171,12 @@ for (const p of PEOPLE) {
 }
 const humanIds = PEOPLE.map((p) => ids[p.key]);
 const roomHumanIds = IN_ROOM.map((p) => ids[p.key]);
+/** the accounts this copy owns: in the presenter's copy Alex is their own wallet account, which the seed never changes */
+const ownIds = MINE ? humanIds.filter((id) => id !== ids.alex) : humanIds;
 await db
   .update(S.users)
   .set({ worldSub: null, worldVerifiedAt: null })
-  .where(inArray(S.users.id, humanIds));
+  .where(inArray(S.users.id, ownIds));
 
 // ── reset ───────────────────────────────────────────────────────────────────
 
@@ -183,19 +187,15 @@ if (RESET) {
   // first one on camera should be the new request's
   const cleared = await db
     .delete(S.notifications)
-    .where(inArray(S.notifications.userId, humanIds))
+    .where(inArray(S.notifications.userId, ownIds))
     .returning({ id: S.notifications.id });
   if (cleared.length) console.log(`cleared ${cleared.length} notification(s) of the demo accounts`);
 
-  // the presenter's copy has one fixed room id, whoever presented last
+  // the presenter's copy removes only its own fixed room — never another room the presenter's account made
   const rooms = await db
     .select({ id: S.chatRooms.id })
     .from(S.chatRooms)
-    .where(
-      MINE_ROOM_ID
-        ? or(eq(S.chatRooms.id, MINE_ROOM_ID), and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex)))
-        : and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex))
-    );
+    .where(MINE_ROOM_ID ? eq(S.chatRooms.id, MINE_ROOM_ID) : and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex)));
   const roomIds = rooms.map((r) => r.id);
   if (roomIds.length) {
     const actions = await db
