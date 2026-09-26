@@ -1,8 +1,9 @@
 "use client";
+import { AinuiButton, AinuiForm } from "@/components/ainui/surface";
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, HardDrive, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { connectAindrive, loadAindriveInfo, signInWithAindrive } from "@/lib/aindrive-client";
 import { useT } from "@/i18n/provider";
 import { LanguageSwitch } from "@/components/language-switch";
@@ -40,7 +41,6 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
   const [phase, setPhase] = useState<Phase>("loading");
   const [cats, setCats] = useState<Category[]>([]);
   const [phoneOff, setPhoneOff] = useState(false);
-  const [on, setOn] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [sharedCount, setSharedCount] = useState(0);
 
@@ -70,7 +70,6 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
     };
     setCats(c.categories);
     setPhoneOff(c.drives.length > 0 && c.drives.every((d) => !d.online));
-    setOn(new Set(c.categories.filter((x) => x.defaultOn).map((x) => x.key)));
     setPhase("choose");
   }
 
@@ -95,8 +94,9 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
     await join();
   }
 
-  async function share() {
-    const folders = cats.filter((c) => on.has(c.key)).flatMap((c) => c.folders);
+  async function share(values: Record<string, unknown>) {
+    const selected = Array.isArray(values.categories) ? values.categories : [];
+    const folders = cats.filter((c) => selected.includes(c.key)).flatMap((c) => c.folders);
     if (!folders.length) return finish(0);
     setPhase("sharing");
     const r = await fetch(`/api/family-invite/${token}/share`, {
@@ -117,14 +117,6 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
     setPhase("done");
   }
 
-  const toggle = (k: string) =>
-    setOn((s) => {
-      const n = new Set(s);
-      if (n.has(k)) n.delete(k);
-      else n.add(k);
-      return n;
-    });
-
   return (
     <main className="flex min-h-screen items-start justify-center bg-neutral-50 px-5 py-12 dark:bg-neutral-950">
       <div className="w-full max-w-sm">
@@ -143,24 +135,10 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
             <p className="mt-2 text-sm text-neutral-500">
               {t("Share {name}'s phone photos and notes with the family. Files stay on the phone; only the folders you pick are visible.", { name: invite.name })}
             </p>
-            <button
-              data-testid="family-invite-approve"
-              onClick={() => void approve()}
-              disabled={phase === "approving"}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-base font-semibold text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              {phase === "approving" ? <Loader2 size={18} className="animate-spin" /> : <HardDrive size={18} />}
-              {me ? t("Join as {name}", { name: me.displayName }) : t("Approve with aindrive")}
-            </button>
+            <AinuiButton testId="family-invite-approve" onClick={approve} disabled={phase === "approving"} label={me ? t("Join as {name}", { name: me.displayName }) : t("Approve with aindrive")} />
             {!me && <p className="mt-2 text-[11px] text-neutral-400">{t("When aindrive opens, just tap [Approve].")}</p>}
             {me && (
-              <button
-                data-testid="family-invite-other-account"
-                onClick={() => void fetch("/api/auth/logout", { method: "POST" }).then(() => setMe(null))}
-                className="mt-2 text-[11px] text-neutral-400 underline underline-offset-2"
-              >
-                {t("Not {name}? Approve with another aindrive account", { name: me.displayName })}
-              </button>
+              <AinuiButton testId="family-invite-other-account" label={t("Not {name}? Approve with another aindrive account", { name: me.displayName })} onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => setMe(null))} />
             )}
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
           </div>
@@ -171,40 +149,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
             <p className="mb-4 mt-1 text-sm text-neutral-500">{t("Only what's on is visible to the family. You can change it anytime.")}</p>
             {phoneOff && <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t("aindrive on the phone is off. Turn it on and open this again.")}</p>}
             {cats.length === 0 && !phoneOff && <p className="text-sm text-neutral-500">{t("There are no folders on the phone to share yet.")}</p>}
-            <ul className="space-y-2">
-              {cats.map((c) => (
-                <li key={c.key}>
-                  <button
-                    data-testid={`family-cat-${c.key}`}
-                    data-on={on.has(c.key) ? "true" : "false"}
-                    onClick={() => toggle(c.key)}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
-                      on.has(c.key) ? "border-neutral-900 bg-neutral-50 dark:border-neutral-100 dark:bg-neutral-800" : "border-neutral-200 dark:border-neutral-700"
-                    }`}
-                  >
-                    <span className="text-2xl">{c.icon}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100">{t(c.label)}</span>
-                      <span className="block truncate text-[11px] text-neutral-500">{c.folders.map((f) => f.root).join(", ")}</span>
-                    </span>
-                    <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full ${on.has(c.key) ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "border border-neutral-300"}`}
-                    >
-                      {on.has(c.key) && <Check size={14} />}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              data-testid="family-invite-share"
-              onClick={() => void share()}
-              disabled={phase === "sharing"}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-base font-semibold text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              {phase === "sharing" && <Loader2 size={18} className="animate-spin" />}
-              {t("Share and start")}
-            </button>
+            <AinuiForm testId="family-invite-share" fields={[{ key: "categories", label: t("What should the family see?"), multiple: true, value: cats.filter((c) => c.defaultOn).map((c) => c.key), options: cats.map((c) => ({ value: c.key, label: `${c.icon} ${t(c.label)} · ${c.folders.map((f) => f.root).join(", ")}` })) }]} disabled={phase === "sharing"} submitLabel={t("Share and start")} onSubmit={share} />
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
           </div>
         )}
@@ -217,12 +162,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
                 ? t("{n} folders are shared to 「{space}」. New photos you take show up for the family too.", { n: sharedCount, space: invite.teamspace.name })
                 : t("You've joined 「{space}」. You can share folders later.", { space: invite.teamspace.name })}
             </p>
-            <button
-              onClick={() => router.push("/")}
-              className="mt-6 w-full rounded-xl border border-neutral-200 py-3 text-sm font-medium text-neutral-700 dark:border-neutral-700 dark:text-neutral-200"
-            >
-              {t("Go to the family space")}
-            </button>
+            <AinuiButton label={t("Go to the family space")} onClick={() => router.push("/")} />
           </div>
         )}
       </div>

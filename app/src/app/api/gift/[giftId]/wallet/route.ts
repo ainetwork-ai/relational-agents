@@ -37,7 +37,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ giftId: st
   if (unlocked(g.found.gift)) return NextResponse.json({ unlock: g.found.gift.unlock });
   const q = await quoteSale(g.sale);
   if (!q.ok) return NextResponse.json({ error: q.error }, { status: q.status });
-  return NextResponse.json({ paymentRequired: q.paymentRequired, accepts: q.accepts });
+  return NextResponse.json({ paymentRequired: q.paymentRequired, accepts: q.accepts, messages: q.messages });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ giftId: string }> }) {

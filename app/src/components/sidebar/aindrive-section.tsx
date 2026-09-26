@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { HardDrive, Share2 } from "lucide-react";
+import { AinuiButton, AinuiText } from "@/components/ainui/surface";
+import { useRouter, usePathname } from "next/navigation";
 import { useAindriveInfo } from "@/lib/aindrive-client";
 import { useSectionCollapse } from "@/hooks/use-section-collapse";
 import { useT } from "@/i18n/provider";
@@ -17,63 +16,12 @@ export function AindriveSection() {
   const t = useT();
   const info = useAindriveInfo();
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, toggle] = useSectionCollapse("aindrive");
   if (!info?.connected) return null;
-  return (
-    <section className="mb-4" data-testid="aindrive-section">
-      <div className="flex items-center justify-between px-2 py-1">
-        <button
-          onClick={toggle}
-          className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-        >
-          aindrive
-        </button>
-        <span className="flex min-w-0 items-center gap-1">
-          <span className="truncate pl-2 text-[11px] text-neutral-400">{info.account?.email ?? ""}</span>
-          {info.drives.length > 0 && (
-            <Link
-              href={`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`}
-              data-testid="aindrive-section-share"
-              title={t("Share folders with a teamspace")}
-              className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
-            >
-              <Share2 size={11} /> {t("Share with team")}
-            </Link>
-          )}
-        </span>
-      </div>
-      {!collapsed &&
-        (info.drives.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-neutral-400">{t("No drives")}</p>
-        ) : (
-          info.drives.map((d) => {
-            const href = `/aindrive/d/${d.id}`;
-            const active = pathname === href;
-            const offline = d.online === false;
-            return (
-              <Link
-                key={d.id}
-                href={href}
-                data-testid={`aindrive-section-drive-${d.id}`}
-                data-online={offline ? "false" : "true"}
-                title={offline ? t("Offline") : t("Connected")}
-                className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-neutral-200/50 dark:hover:bg-neutral-800 ${
-                  active
-                    ? "bg-neutral-200/60 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-                    : offline
-                      ? "text-neutral-400"
-                      : "text-neutral-600 dark:text-neutral-300"
-                }`}
-              >
-                <HardDrive size={13} className="shrink-0 text-neutral-400" />
-                <span className="truncate">{d.name}</span>
-                <span
-                  className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${offline ? "bg-neutral-300 dark:bg-neutral-600" : "bg-emerald-500"}`}
-                />
-              </Link>
-            );
-          })
-        ))}
-    </section>
-  );
+  return <section className="mb-4" data-testid="aindrive-section">
+    <AinuiButton label={`aindrive · ${info.account?.email ?? ""}`} onClick={toggle} />
+    {info.drives.length > 0 && <AinuiButton testId="aindrive-section-share" label={t("Share with team")} onClick={() => router.push(`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`)} />}
+    {!collapsed && (info.drives.length ? info.drives.map((d) => <AinuiButton key={d.id} testId={`aindrive-section-drive-${d.id}`} label={`${pathname === `/aindrive/d/${d.id}` ? "✓ " : ""}${d.name} · ${d.online === false ? t("Offline") : t("Connected")}`} onClick={() => router.push(`/aindrive/d/${d.id}`)} />) : <AinuiText text={t("No drives")} />)}
+  </section>;
 }

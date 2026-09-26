@@ -1053,7 +1053,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
      // Video is separate — the original opens the `Upload / Link` popover here (docs/notion-video.md).
      // bookmark and embed are URL-only, so they keep the old path.
       return (
-        <VideoBody
+        <DriveAwareVideo
           blockId={block.id}
           url={typeof block.content.url === "string" ? block.content.url : ""}
           onUrl={(u) => editor.setImageUrl(block.id, u)}
@@ -1363,7 +1363,14 @@ function EmbedBody({ block, kind }: { block: EBlock; kind: "bookmark" | "video" 
   );
 }
 
+function DriveAwareVideo(props: React.ComponentProps<typeof VideoBody>) {
+  const info = useAindriveInfo();
+  if (props.url && parseAindriveUrl(props.url, info?.base)) return <FileAttachment blockId={props.blockId} url={props.url} name="" />;
+  return <VideoBody {...props} />;
+}
+
 function ImageBody({ block }: { block: EBlock }) {
+  const info = useAindriveInfo();
   const editor = useEditor();
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1381,6 +1388,9 @@ function ImageBody({ block }: { block: EBlock }) {
       setUploading(false);
     }
   }
+
+  if (block.content.url && parseAindriveUrl(block.content.url, info?.base))
+    return <FileAttachment blockId={block.id} url={block.content.url} name={block.content.text ?? ""} />;
 
   if (!block.content.url) {
     return (

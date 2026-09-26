@@ -1,4 +1,5 @@
 "use client";
+import { AinuiButton } from "@/components/ainui/surface";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -200,24 +201,8 @@ export function LoginForm() {
           {t("Continue with Google")}
         </a>
 
-        <button
-          data-testid="aindrive-login-button"
-          onClick={() => void loginWithAindrive()}
-          disabled={busy !== null}
-          className="mt-2.5 flex w-full items-center justify-center gap-2.5 rounded-md border border-neutral-200 px-4 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="12" x2="2" y2="12" />
-            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-            <line x1="6" y1="16" x2="6.01" y2="16" />
-            <line x1="10" y1="16" x2="10.01" y2="16" />
-          </svg>
-          {busy === "aindrive"
-            ? aindriveWaiting
-              ? t("Approve in the aindrive window…")
-              : t("Opening…")
-            : t("Sign in with aindrive")}
-        </button>
+        <AinuiButton className="mt-2.5 [&_button]:w-full" testId="aindrive-login-button" onClick={loginWithAindrive} disabled={busy !== null}
+          label={busy === "aindrive" ? aindriveWaiting ? t("Approve in the aindrive window…") : t("Opening…") : t("Sign in with aindrive")} />
         <p className="mt-1.5 text-center text-[11px] text-neutral-400">
           {t("Signing in makes all your aindrive drives available right away.")}
         </p>

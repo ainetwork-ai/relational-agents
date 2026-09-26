@@ -1,9 +1,10 @@
 "use client";
+import { AinuiButton, AinuiText } from "@/components/ainui/surface";
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { HardDrive, Send, Sparkles, X } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { Send, Sparkles, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useMe } from "@/stores/me";
 import { useT } from "@/i18n/provider";
 import { useAindriveInfo } from "@/lib/aindrive-client";
@@ -103,6 +104,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
   const t = useT();
   const me = useMe();
   const pathname = usePathname();
+  const router = useRouter();
   const aindrive = useAindriveInfo();
   const [open, setOpen] = useState(false);
   const [a, setA] = useState<Assistant | null>(null);
@@ -209,13 +211,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
           <div className="mb-1 flex items-center">
             <p className="text-[11px] font-medium text-neutral-400">{t("{n} linked aindrive folders", { n: a.drives.length })}</p>
             {a.teamspaceId && (
-              <button
-                data-testid="assistant-family"
-                onClick={() => openFamilySheet(a.teamspaceId!)}
-                className="ml-auto rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800"
-              >
-                {t("Family folders · Invite")}
-              </button>
+              <AinuiButton testId="assistant-family" label={t("Family folders · Invite")} onClick={() => openFamilySheet(a.teamspaceId!)} />
             )}
           </div>
           {a.drives.length === 0 && (
@@ -228,27 +224,13 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
               {aindrive?.configured && !aindrive.connected ? (
                 <AindriveConnect compact onConnected={() => setA(null)} />
               ) : (
-                <Link
-                  href={`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`}
-                  className="inline-block rounded-md border border-neutral-200 px-2 py-1 font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                >
-                  {t("Share aindrive folders")}
-                </Link>
+                <AinuiButton label={t("Share aindrive folders")} onClick={() => router.push(`/aindrive/share?next=${encodeURIComponent(pathname || "/")}`)} />
               )}
             </div>
           )}
           <div className="flex flex-wrap gap-1">
             {[...a.drives].sort((x, y) => Number(y.online) - Number(x.online)).slice(0, CHIPS).map((d) => (
-              <span
-                key={d.label}
-                className="flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] text-neutral-600 dark:border-neutral-700 dark:text-neutral-300"
-                title={d.online ? t("Connected") : t("Offline")}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${d.online ? "bg-emerald-500" : "bg-neutral-300"}`} />
-                <HardDrive size={10} className="text-neutral-400" />
-                {d.owner ? `${d.owner} · ` : ""}
-                {d.label}
-              </span>
+              <AinuiText key={d.label} text={`${d.owner ? `${d.owner} · ` : ""}${d.label} · ${d.online ? t("Connected") : t("Offline")}`} />
             ))}
             {a.drives.length > CHIPS && (
               <span className="px-1 py-0.5 text-[11px] text-neutral-400">{t("+{n} more", { n: a.drives.length - CHIPS })}</span>
