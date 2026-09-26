@@ -16,6 +16,13 @@ export const anyOf = (words: readonly string[], flags = "i") => new RegExp(`(${w
 // ── family skills (src/lib/agent/family-skills.ts) ─────────────────────────
 
 /** A skill fires when the sentence has one `topic` word AND one `act` word. */
+/** "make a page with the tree photos" — photos picked by what they show
+ *  (photo-page.ts); asked after the family skills, so an album stays an album. */
+export const PHOTO_PAGE_WORDS = {
+  topic: ["사진", "photo", "picture", "pics?\\b"],
+  act: ["페이지", "만들", "모아", "골라", "정리", "page", "make", "create", "gather", "collect", "put together", "build", "pick"],
+} as const;
+
 export const FAMILY_SKILL_WORDS = {
   allowance: {
     topic: ["용돈", "pocket money", "allowance"],
