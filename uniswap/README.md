@@ -113,6 +113,16 @@ run for real (a confirm dialog, then `confirm: true` in the body — the only ro
 revoke, and the passbook with explorer links. It binds to `127.0.0.1` only, because the agent's key
 sits behind it. `WEB_PORT` changes the port.
 
+## Continuity — what existed before, what this adds
+
+| piece | status |
+|---|---|
+| Workspace app, relationship agents, rooms, the relationship document the agent answers from | pre-existing (`app/`) |
+| Agent wallet: `RelationalAgentRegistry` holds the agent, `provisionRoomAgent()` gives it a key | pre-existing (`contracts/`, `app/`) |
+| EIP-712 consent between people (`RelationConsent`) — the mechanism the mandate reuses | pre-existing |
+| Everything under `uniswap/`: swap layer, `SpendMandate`, ledger, executor, CLIs, web page, tests | **new, built 2026-09-25/26 during ETHGlobal Tokyo** |
+| Passbook page inside the app, Trading API provider, scheduler | not yet (slice 2) |
+
 ## Honest limits
 
 - **One chain template.** `src/chains/base.js` serves the anvil fork and Base mainnet through
