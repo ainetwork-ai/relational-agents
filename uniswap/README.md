@@ -36,7 +36,7 @@ with World ID instead of a signed mandate; the swap, the once-a-week rule and th
 | what the agent holds, priced back through the same pool | [`invest.ts:177`](../app/src/lib/agent/treasury/invest.ts#L177) |
 | once a week inside the approved terms: the decision and its refusal order | [`recurring-record.ts:327`](../app/src/lib/agent/treasury/recurring-record.ts#L327) |
 | one run: the room's lock, the re-checks, the swap, one history row | [`recurring.ts:661`](../app/src/lib/agent/treasury/recurring.ts#L661), swap at [`:690`](../app/src/lib/agent/treasury/recurring.ts#L690) |
-| adoption by World ID approvals; only payment kinds reach payment code | [`approvals.ts:990`](../app/src/lib/agent/treasury/approvals.ts#L990) |
+| adoption by World ID approvals; only payment kinds reach payment code | [`approvals.ts:1008`](../app/src/lib/agent/treasury/approvals.ts#L1008) |
 
 A real swap through this path on Base mainnet (the treasury's first investment, three humans
 approving): [0x9af1ec96…a53a4b](https://basescan.org/tx/0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b).
