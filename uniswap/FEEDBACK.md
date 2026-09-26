@@ -72,16 +72,18 @@ lists every Uniswap call of both with `file:line`.
    `values`.
 7. **Trading API: a quote without a slippage setting.** The reference says one of
    `slippageTolerance` or `autoSlippage` must be set; a `/quote` for 0.1 USDC → WETH on Base with
-   neither answered 200 with `slippage: 2.5` — a minimum 2.5% under the quote, five times the 0.5%
-   bound our direct path uses (measured 2026-09-27). We send `slippageTolerance` and check the
-   returned minimum against it before signing anything. **Suggestion:** reject the request as the
-   reference says, or state the default.
+   neither answered 200 with `slippage: 2.5` — the same 2.5% `autoSlippage: "DEFAULT"` gave for that
+   quote, five times the 0.5% bound our direct path uses (measured 2026-09-27). Uniswap's changelog
+   already covers it: "Enforcement of Slippage Validation" (posted 2026-09-04) rejects such requests
+   from 2026-10-04. We send `slippageTolerance` and check the returned minimum against it before
+   signing anything.
 8. **Trading API: `/check_approval` approves an unlimited amount.** For 0.1 USDC on Base it
-   answered `approve(Permit2, MaxUint256)` (measured 2026-09-27), while `/quote` takes
-   `permitAmount: "EXACT"` for the Permit2 side. An agent holding a group's pot should approve no
-   more than one buy, so we send our own `approve(Permit2, amountIn)` whenever `/check_approval`
-   says one is needed; after our live buy both allowances read 0. **Suggestion:** an `exact` option
-   on `/check_approval`, matching `permitAmount`.
+   answered `approve(Permit2, MaxUint256)` (measured 2026-09-27). That is Permit2's design — the
+   Permit2 permit carries the amount and time limits (`permitAmount: "EXACT"`), and the docs say the
+   token approval "typically remains valid indefinitely". An agent that holds a group's pot follows
+   a stricter rule, no approval beyond one buy, so we send our own `approve(Permit2, amountIn)`
+   whenever `/check_approval` says one is needed; after our live buy both allowances read 0.
+   **Suggestion:** an `exact` option on `/check_approval` for integrators with that policy.
 
 ## Links
 
