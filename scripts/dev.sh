@@ -31,14 +31,25 @@ LOG="$STATE/dev-$PORT.log"
 PIDFILE="$STATE/dev-$PORT.pid"
 DIST=".next-dev3110"
 
+# Linux answers these from /proc and ss; macOS has neither, and lsof answers all three there.
+# Every one of them ends on a success, because `set -e` would take an empty answer for a failure
+# and abort before status() could say "not running".
 listener_pid() {
-  # the process actually holding this port (empty string if none)
-  ss -ltnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p" *$" {print}' |
-    grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2
+  { if command -v ss >/dev/null 2>&1; then
+      ss -ltnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p" *$" {print}' | grep -o 'pid=[0-9]*' | cut -d= -f2 || true
+    else
+      lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
+    fi; } | head -1
 }
 
-proc_cwd()  { readlink "/proc/$1/cwd" 2>/dev/null || true; }
-proc_log()  { readlink "/proc/$1/fd/1" 2>/dev/null || true; }
+proc_cwd() {
+  if [ -d "/proc/$1" ]; then readlink "/proc/$1/cwd" 2>/dev/null || true
+  else lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1 || true; fi
+}
+proc_log() {
+  if [ -d "/proc/$1" ]; then readlink "/proc/$1/fd/1" 2>/dev/null || true
+  else lsof -a -p "$1" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -1 || true; fi
+}
 is_ours()   { [ "$(proc_cwd "$1")" = "$APP" ]; }
 
 status() {
@@ -58,13 +69,19 @@ status() {
 # You hit this almost every restart: VS Code remote forwarding keeps pointing at the dead process,
 # and the browser spins for minutes with no error. The server looks fine (requests never
 # arrive), so it is easy to mistake for an app bug; say so right after starting.
+# hostname -I is Linux-only; ipconfig answers on macOS. Neither is worth failing the start over.
+host_ip() {
+  hostname -I 2>/dev/null | awk '{print $1}' && return 0
+  ipconfig getifaddr en0 2>/dev/null || echo "<this host>"
+}
+
 forwarding_note() {
   cat <<TXT
 
   If you use port forwarding, refresh it now — the server was restarted, so the old forward points
   at a dead process (the browser will load forever without an error).
     · VS Code PORTS tab at the bottom → remove $PORT and Forward it again (or Reload Window)
-    · check without the tunnel:  http://$(hostname -I | awk '{print $1}'):$PORT
+    · check without the tunnel:  http://$(host_ip):$PORT
     · how to tell (on the server):  ss -tn | grep :$PORT   → 0 lines means the browser never reached the server
 TXT
 }
@@ -77,7 +94,10 @@ start() {
   fi
   mkdir -p "$STATE"
   echo "dev($PORT) starting — log: $LOG"
-  ( cd "$APP" && setsid nohup env NEXT_DIST_DIR="$DIST" pnpm dev >>"$LOG" 2>&1 </dev/null & echo $! >"$PIDFILE" )
+  # setsid detaches the server from this shell's session so it survives the caller. macOS has no
+  # setsid; nohup alone leaves it in the session but it still outlives a normal exit.
+  local detach=""; command -v setsid >/dev/null 2>&1 && detach="setsid"
+  ( cd "$APP" && $detach nohup env NEXT_DIST_DIR="$DIST" pnpm dev >>"$LOG" 2>&1 </dev/null & echo $! >"$PIDFILE" )
   for _ in $(seq 1 60); do
     if curl -fsS -o /dev/null "http://localhost:$PORT/login" 2>/dev/null; then
       status
