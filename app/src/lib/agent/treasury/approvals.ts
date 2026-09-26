@@ -34,6 +34,8 @@ import {
   transferUsd,
   treasuryBalance,
 } from "./wallet";
+import { INVEST_CHAIN, investConfig, investViaUniswap, investedPosition } from "./invest";
+import { formatUnits as formatTokenUnits } from "viem";
 import {
   RATIFY_KIND,
   REQUEST_TTL_MS,
@@ -841,10 +843,18 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
   let gasRefundTx: `0x${string}` | null = null;
   let gasSponsored = false;
   let error: string | null = null;
+  let investNote: string | null = null;
   try {
     const to = claimed.recipientAddress;
     if (!to || !/^0x[0-9a-fA-F]{40}$/.test(to)) error = "This request has no valid recipient address.";
-    else
+    else if (claimed.kind === "investment" && investConfig()) {
+      // idle funds go to work, not to a payee: a Uniswap swap on Base from
+      // the agent's own wallet (invest.ts); the adopted "Savings" payee is
+      // that wallet, which recheck() confirmed above
+      const invested = await investViaUniswap(claimed.agentUserId, claimed.amountUsd);
+      txHash = invested.txHash;
+      investNote = invested.note;
+    } else
       ({ txHash, gasRefundTx, gasSponsored } = await transferUsd(
         claimed.agentUserId,
         to as `0x${string}`,
@@ -881,7 +891,11 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
     const approvedBy =
       required > 0 ? `approved by ${names.join(", ")} (${approvals} of ${plural(required, "verified human")})` : "";
 
-    if (txHash) {
+    if (txHash && investNote) {
+      const done = `📈 Invested ${phrase} — ${investNote}`;
+      if (required > 0) await postAgentMessage(claimed.roomId, claimed.agentUserId, `${done} — ${approvedBy}. tx ${txHash}`);
+      await logActivity(claimed.roomId, `Invested ${phrase} — ${investNote} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} — tx ${txHash}`);
+    } else if (txHash) {
       const gas = gasSponsored ? " · gas sponsored by the relayer" : "";
       if (required > 0)
         await postAgentMessage(claimed.roomId, claimed.agentUserId, `✅ Paid ${phrase} — ${approvedBy}. tx ${txHash}${gas}`);
@@ -889,6 +903,10 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
         claimed.roomId,
         `Paid ${phrase} — ${required > 0 ? approvedBy : "within what the agent may pay on its own"} — tx ${txHash}${gas}${gasRefundTx ? ` (refund tx ${gasRefundTx})` : ""}`
       );
+      // Idle funds: after an approved payment, if investing is on and nothing is
+      // at work yet, the agent says what could be — citing the rule, starting
+      // nothing. An investment stays a member's request to make.
+      if (required > 0) await proposeIdleFunds(claimed, treasury);
     } else if (sentTx) {
       if (required > 0)
         await postAgentMessage(
@@ -911,6 +929,38 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
   return txHash
     ? { executed: true, txHash, approvals, required, gasSponsored, gasRefundTx }
     : { executed: false, approvals, required, error: failure, unconfirmedTx: sentTx };
+}
+
+/** How much of what is left the agent may call idle: a quarter, in $50 steps, never under $100. */
+const IDLE_SHARE = 0.25;
+/** The same label skill.ts accepts for where idle funds may go ("Savings (idle funds): 0x…"). */
+const IDLE_PAYEE = /^(?:savings|investments?|idle funds)\b|\((?:savings|investments?|idle funds)\)/i;
+
+async function proposeIdleFunds(action: TreasuryAction, treasury: RelationTreasury | null): Promise<void> {
+  try {
+    if (!treasury || !investConfig()) return;
+    const rule = treasury.policy.rules.find((r) => r.kind === "investment" && !r.forbidden);
+    if (!rule || !treasury.payees.some((p) => IDLE_PAYEE.test(p.name))) return;
+    const position = await investedPosition(action.agentUserId);
+    if (position && position.weth > BigInt(0)) return;
+    const [open] = await db
+      .select({ id: treasuryActions.id })
+      .from(treasuryActions)
+      .where(and(eq(treasuryActions.roomId, action.roomId), eq(treasuryActions.kind, "investment"), eq(treasuryActions.status, "pending")))
+      .limit(1);
+    if (open) return;
+    const { address } = await ensureAgentWallet(action.agentUserId);
+    const balance = await treasuryBalance(address);
+    const idle = Math.floor((balance.usd * IDLE_SHARE) / 50) * 50;
+    if (idle < 100 || idle < rule.minUsd || idle > rule.maxUsd) return;
+    await postAgentMessage(
+      action.roomId,
+      action.agentUserId,
+      `💡 After that we hold ${usd(balance.usd)}, and nothing else is due yet. ${usd(idle)} could work for us instead of sitting idle — our rules say: “${rule.text}” If you want that, say: @agent invest $${idle} of the idle funds`
+    );
+  } catch (err) {
+    console.error("treasury: could not propose idle funds:", err);
+  }
 }
 
 /** Marks claims whose process died (see CLAIM_ABANDONED_MS) failed; returns the ids it marked. */
@@ -1096,6 +1146,7 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
       requestedBy: { userId: a.requestedBy, displayName: nameBy.get(a.requestedBy) ?? "Unknown" },
       approvals: shown.map((x) => ({ userId: x.userId, displayName: x.displayName, at: x.at.toISOString() })),
       txHash: a.txHash,
+      txUrl: a.txHash && a.kind === "investment" && investConfig() ? `${INVEST_CHAIN.explorer}/tx/${a.txHash}` : null,
       error: a.error,
       createdAt: a.createdAt.toISOString(),
       expiresAt: pending ? new Date(a.createdAt.getTime() + REQUEST_TTL_MS).toISOString() : null,
@@ -1108,10 +1159,16 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
     };
   });
 
+  // the WETH the agent bought with idle funds, priced through the pool it bought from;
+  // null when investing is off or Base can't be read (the pot's own numbers still show)
+  const invested = bot && treasury ? await investedPosition(bot.agentUserId).catch(() => null) : null;
   return {
     enabled: treasury !== null,
     address,
     balanceUsd: balance?.usd ?? null,
+    invested: invested
+      ? { chain: invested.chain, address: invested.address, weth: formatTokenUnits(invested.weth, 18), usdcIdle: formatTokenUnits(invested.usdcIdle, 6), storyUsd: invested.wethAsStoryUsd }
+      : null,
     balanceEth: balance?.eth ?? null,
     usdPerEth: USD_PER_ETH,
     purpose: treasury?.purpose ?? "",

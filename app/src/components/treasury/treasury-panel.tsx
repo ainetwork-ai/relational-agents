@@ -293,6 +293,15 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           <span data-testid="treasury-balance">
             Shared treasury · {status.balanceUsd === null ? "—" : usd(status.balanceUsd)}
           </span>
+          {status.invested && Number(status.invested.weth) > 0 && (
+            <span
+              data-testid="treasury-invested"
+              className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+              title={`${status.invested.weth} WETH on Base, bought with idle funds on Uniswap v3 — priced through the same pool now`}
+            >
+              + {usd(status.invested.storyUsd)} invested
+            </span>
+          )}
         </button>
         {!open && pending.length > 0 && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
@@ -603,7 +612,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                         <>
                           {" · tx "}
                           <a
-                            href={`${EXPLORER}/tx/${a.txHash}`}
+                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
                             target="_blank"
                             rel="noreferrer"
                             className="font-mono underline decoration-dotted underline-offset-2"
@@ -622,7 +631,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                         <>
                           {" · tx "}
                           <a
-                            href={`${EXPLORER}/tx/${a.txHash}`}
+                            href={a.txUrl ?? `${EXPLORER}/tx/${a.txHash}`}
                             target="_blank"
                             rel="noreferrer"
                             className="font-mono text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-600 dark:text-emerald-300"

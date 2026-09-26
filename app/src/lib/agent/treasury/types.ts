@@ -202,6 +202,8 @@ export interface TreasuryStatus {
   enabled: boolean;
   address: string | null;
   balanceUsd: number | null;
+  /** idle funds at work: the agent's WETH on Base (bought on Uniswap), priced now; null = investing off */
+  invested?: { chain: "base"; address: string; weth: string; usdcIdle: string; storyUsd: number } | null;
   /** ETH on Sepolia behind balanceUsd, and the demo scale used */
   balanceEth: string | null;
   usdPerEth: number;
@@ -242,6 +244,8 @@ export interface TreasuryStatus {
     /** approvals that count: from voting members still here and seated */
     approvals: { userId: string; displayName: string; at: string }[];
     txHash: string | null;
+    /** explorer link when the tx is not on the pot's chain (an investment on Base); null = Sepolia */
+    txUrl?: string | null;
     error: string | null;
     createdAt: string;
     /** a pending request lapses at this time */

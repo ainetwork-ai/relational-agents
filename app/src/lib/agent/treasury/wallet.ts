@@ -135,7 +135,7 @@ async function storedKeyOf(agentUserId: string): Promise<string | null> {
  * place (same key, same address), conditional on the column still holding
  * exactly that hex; if that write fails the key still works as it is.
  */
-async function agentKey(agentUserId: string): Promise<Hex> {
+export async function agentKey(agentUserId: string): Promise<Hex> {
   let stored = await storedKeyOf(agentUserId);
   if (!stored) {
     await db
