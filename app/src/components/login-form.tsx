@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useT } from "@/i18n/provider";
 import { LanguageSwitch } from "@/components/language-switch";
 
-import { getInjectedProvider } from "@/lib/wallet/provider";
+import { signInWithMetaMask } from "@/lib/wallet/metamask-login";
 import { signInWithAindrive } from "@/lib/aindrive-client";
 
 // Two login families share this screen. Google is the everyday door (a link,
@@ -14,19 +14,10 @@ import { signInWithAindrive } from "@/lib/aindrive-client";
 // The wallet doors (MetaMask / AIN key / demo) are the relational-chain line:
 // consent contracts are signed with these identities.
 //
-// Provider selection lives in @/lib/wallet/provider — it prefers the real
-// MetaMask via EIP-6963, since Coinbase Wallet and friends fight over
-// `window.ethereum`.
-
-/** utf8 → 0x-hex, the message encoding MetaMask's personal_sign expects. */
-function toHexMessage(message: string): string {
-  return (
-    "0x" +
-    Array.from(new TextEncoder().encode(message))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-  );
-}
+// The MetaMask flow (account picker, challenge, personal_sign) lives in
+// @/lib/wallet/metamask-login, shared with the settings "Connect MetaMask";
+// provider selection in @/lib/wallet/provider prefers the real MetaMask via
+// EIP-6963, since Coinbase Wallet and friends fight over `window.ethereum`.
 
 const GOOGLE_MESSAGES: Record<string, string> = {
   not_configured: "Google sign-in is not configured on this server.",
@@ -69,69 +60,13 @@ export function LoginForm() {
     setBusy("metamask");
     setError(null);
     try {
-      const ethereum = getInjectedProvider();
-      if (!ethereum) {
-        setError("MetaMask not detected. Please install the extension.");
-        return;
-      }
- // Force the account picker every sign-in. eth_requestAccounts reuses
- // whatever this origin already authorized, so switching accounts inside
- // MetaMask changes nothing on its own. Revoking the permission first
- // (MetaMask ≥ 12.2) guarantees the next request runs the full connect
- // flow; older wallets fall back to wallet_requestPermissions. 4001 (user
- // closed the picker) propagates to the rejection handler below.
-      try {
-        await ethereum.request({
-          method: "wallet_revokePermissions",
-          params: [{ eth_accounts: {} }],
-        });
-      } catch {
-        try {
-          await ethereum.request({
-            method: "wallet_requestPermissions",
-            params: [{ eth_accounts: {} }],
-          });
-        } catch (err) {
-          if ((err as { code?: number })?.code === 4001) throw err;
-        }
-      }
-      const accounts = (await ethereum.request({
-        method: "eth_requestAccounts",
-      })) as string[];
-      const address = accounts?.[0];
-      if (!address) {
-        setError("No MetaMask account available.");
-        return;
-      }
-
-      const challengeRes = await fetch("/api/auth/challenge");
-      const { message } = await challengeRes.json();
-
-      const signature = (await ethereum.request({
-        method: "personal_sign",
-        params: [toHexMessage(message), address],
-      })) as string;
-
-      const res = await fetch("/api/auth/metamask-verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          signature,
-          address,
-          displayName: displayName || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "MetaMask login failed");
+      const result = await signInWithMetaMask(displayName);
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
       router.push("/");
       router.refresh();
-    } catch (err) {
- // 4001 = user rejected the MetaMask prompt
-      const code = (err as { code?: number })?.code;
-      setError(code === 4001 ? "Signature request rejected." : "MetaMask login failed");
     } finally {
       setBusy(null);
     }

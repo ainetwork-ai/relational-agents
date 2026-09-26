@@ -256,9 +256,9 @@ export function linkMetaMask(): Promise<{ ok: true; address: string } | { ok: fa
 → 200 { address } | 400 (missing fields) | 401 (not signed in / bad signature / no challenge) | 409 { reason: "taken" | "has-other" }
 ```
 
-- [ ] **Step 1: Shared helper.** Move `login-form.tsx:68-138` into `metamask-login.ts`: `signChallengeWithMetaMask` does the permission reset, `eth_requestAccounts`, `GET /api/auth/challenge` and `personal_sign` (with `toHexMessage`); `signInWithMetaMask` posts to `metamask-verify`; `linkMetaMask` posts to `wallet-link`. Same requests and error texts as today, no routing inside.
-- [ ] **Step 2:** `login-form.tsx` calls `signInWithMetaMask` and keeps its own `setBusy`, `setError`, `router.push("/")`, `router.refresh()`. Browser check: the login page's MetaMask button behaves as before (headless: "MetaMask not detected" appears exactly as before).
-- [ ] **Step 3: Route.**
+- [x] **Step 1: Shared helper.** Move `login-form.tsx:68-138` into `metamask-login.ts`: `signChallengeWithMetaMask` does the permission reset, `eth_requestAccounts`, `GET /api/auth/challenge` and `personal_sign` (with `toHexMessage`); `signInWithMetaMask` posts to `metamask-verify`; `linkMetaMask` posts to `wallet-link`. Same requests and error texts as today, no routing inside.
+- [x] **Step 2:** `login-form.tsx` calls `signInWithMetaMask` and keeps its own `setBusy`, `setError`, `router.push("/")`, `router.refresh()`. Browser check: the login page's MetaMask button behaves as before (headless: "MetaMask not detected" appears exactly as before).
+- [x] **Step 3: Route.**
 
 ```ts
 // app/src/app/api/auth/wallet-link/route.ts
@@ -312,8 +312,10 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-- [ ] **Step 4:** Verify with a scratch script (random `viem/accounts` keys, a cookie jar, the dev server via `scripts/dev.sh`): demo user → challenge → sign → 200, `users.ain_address` set, `/api/me` returns the **same user id**; same wallet again → 200; another wallet → 409 `has-other`; a second demo user linking the first wallet → 409 `taken`; reused challenge → 401; wrong address for the signature → 401; signed out → 401. Delete the test rows afterwards.
-- [ ] **Step 5:** app `tsc` 0, eslint clean. **Commit** the three files — `feat: connect MetaMask to the signed-in account (wallet-link); login uses the shared helper`.
+- [x] **Step 4:** Verify with a scratch script (random `viem/accounts` keys, a cookie jar, the dev server via `scripts/dev.sh`): demo user → challenge → sign → 200, `users.ain_address` set, `/api/me` returns the **same user id**; same wallet again → 200; another wallet → 409 `has-other`; a second demo user linking the first wallet → 409 `taken`; reused challenge → 401; wrong address for the signature → 401; signed out → 401. Delete the test rows afterwards.
+- [x] **Step 5:** app `tsc` 0, eslint clean. **Commit** the three files — `feat: connect MetaMask to the signed-in account (wallet-link); login uses the shared helper`.
+
+**Done 2026-09-26 — deviations from the code above:** `verifyEthSignature` is synchronous (returns a boolean, never throws), so the route calls it directly rather than `.catch`, and imports it statically. The update is `where id = me.id and ain_address is null` (zero rows → 409 `has-other`), so two concurrent links on one account cannot overwrite each other. `demo-login { as }` accounts carry the placeholder `demo:<slug>`, so the Step 4 script clears that on its own rows first; it also checks missing fields → 400 (9/9 pass).
 
 ---
 
