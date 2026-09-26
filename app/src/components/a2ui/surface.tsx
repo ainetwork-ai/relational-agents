@@ -126,7 +126,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
   // a card redrawn by its own action wins over what the caller first handed in
   const messages = fetched ?? given ?? null;
   const { surfaceId, byId, model } = useMemo(() => componentsOf(messages ?? []), [messages]);
-  // a stop on a running buy ends it; on a request still waiting it withdraws it
+  // a stop on a running buy ends it; on a request still waiting it cancels it
   const live = model.state === "live";
 
   const stop = useCallback(
@@ -214,7 +214,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         return (
           <div
             key={id}
-            className={`flex min-w-0 flex-wrap items-center ${gap} ${c.justify === "spaceBetween" ? "justify-between" : ""}`}
+            className={`flex min-w-0 flex-wrap items-center ${gap} ${c.justify === "spaceBetween" ? "justify-between" : c.justify === "end" ? "justify-end" : ""}`}
           >
             {children.map((k) => render(k, depth + 1))}
           </div>
@@ -273,7 +273,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
           return (
             <span key={id} data-testid="a2ui-stop-confirm" className="inline-flex h-8 items-center gap-2 text-sm">
               <span className={stopFailed === id ? "text-red-700 dark:text-red-300" : "text-neutral-600 dark:text-neutral-300"}>
-                {stopFailed === id ? t("Couldn't stop it.") : live ? t("Stop it for good?") : t("Withdraw it?")}
+                {stopFailed === id ? t("Couldn't stop it.") : live ? t("Stop it for good?") : t("Cancel it?")}
               </span>
               <button
                 type="button"
@@ -282,7 +282,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
                 onClick={() => void stop(c, ev)}
                 className={`rounded-lg px-2.5 py-1 font-medium transition-colors disabled:opacity-50 ${BUTTON_CLASS.danger} ${FOCUS}`}
               >
-                {stopFailed === id ? t("Try again") : live ? t("Yes, stop") : t("Yes, withdraw")}
+                {stopFailed === id ? t("Try again") : live ? t("Yes, stop") : t("Yes, cancel")}
               </button>
               <button
                 type="button"

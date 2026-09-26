@@ -7,7 +7,7 @@
  * Short on purpose: the weekly amount, its weeks and total, what each buy
  * really swaps (the story's dollars are demo scale), the approvals as slots,
  * and one action — the thing this viewer can do now: approve (the World ID
- * approval page for that action) while it waits, else stop or withdraw (POST
+ * approval page for that action) while it waits, else stop or cancel (POST
  * to the surface route, which answers with the surface redrawn). The rule,
  * the wallet and the terms' fingerprint are on the approval page itself.
  *
@@ -72,8 +72,8 @@ export function recurringBuySurfaceId(actionId: string): string {
 export interface RecurringBuySurfaceInput {
   actionId: string;
   roomId: string;
-  /** "withdrawn": a member took the request back before adoption; "closed": never adopted otherwise — expired, refused, or its terms don't verify */
-  state: "pending" | "live" | "stopped" | "ended" | "withdrawn" | "closed";
+  /** "cancelled": a member took the request back before adoption; "closed": never adopted otherwise — expired, refused, or its terms don't verify */
+  state: "pending" | "live" | "stopped" | "ended" | "cancelled" | "closed";
   /** story dollars a week — the headline */
   weeklyUsd: number;
   weeks: number;
@@ -84,6 +84,8 @@ export interface RecurringBuySurfaceInput {
   required: number;
   /** a waiting request: whose approvals count so far, in order */
   approvedBy: string[];
+  /** who may approve it right now (seated, in the electorate), in the room's order — the card names them */
+  voterNames: string[];
   /** the viewer may approve it now (pending, seated, voting, not yet approved) */
   canApprove: boolean;
   /** why a waiting request has no Approve button for this viewer (the Treasury home's approvals card says the same) */
@@ -142,13 +144,13 @@ const STATE_CHIP: Record<RecurringBuySurfaceInput["state"], { label: string; ton
   live: { label: "Running", tone: "success" },
   stopped: { label: "Stopped", tone: "danger" },
   ended: { label: "Finished", tone: "neutral" },
-  withdrawn: { label: "Withdrawn", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
   closed: { label: "Not adopted", tone: "neutral" },
 };
 
 const APPROVE_BLOCKED: Record<NonNullable<RecurringBuySurfaceInput["approveBlocked"]>, string> = {
   approved: "You approved — waiting for other verified members.",
-  unseated: "Claim your vote in the room to approve.",
+  unseated: "No vote yet — claim yours in the treasury panel to approve.",
   "not-voting": "You joined after our rules were adopted — your approval counts once the relation re-adopts.",
 };
 
@@ -174,12 +176,18 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
   ];
 
   if (s.state === "pending") {
-    // one slot per approval the rules require, filled in order with who gave it
-    const slots = Array.from({ length: Math.max(1, s.required, s.approvedBy.length) }, (_, i) => `slot_${i}`);
-    root.push("slots");
+    // who approves next, by name: those who did (✓), then the voters who can, then any slot no voter can fill yet
+    const waiting = s.voterNames.filter((n) => !s.approvedBy.includes(n));
+    const names = [...s.approvedBy.map((n) => ({ n, done: true })), ...waiting.map((n) => ({ n, done: false }))];
+    const slots = Array.from({ length: Math.max(1, s.required, names.length) }, (_, i) => `slot_${i}`);
+    root.push("slots", "tally");
     comps.push(
       row("slots", slots),
-      ...slots.map((id, i) => (s.approvedBy[i] ? chip(id, s.approvedBy[i], "success") : chip(id, EMPTY_SLOT, "neutral")))
+      ...slots.map((id, i) => {
+        const who = names[i];
+        return who ? chip(id, who.done ? `✓ ${who.n}` : who.n, who.done ? "success" : "neutral") : chip(id, EMPTY_SLOT, "neutral");
+      }),
+      text("tally", t("{got} of {need} approved", { got: Math.min(s.approvals, s.required), need: s.required }), "caption")
     );
     if (!s.canApprove && s.approveBlocked) {
       root.push("approve_blocked");
@@ -214,20 +222,24 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
     comps.push(text("notice", s.notice, "caption"));
   }
 
-  // one action: approve while the viewer can, else stop (running) or withdraw (waiting)
-  if (s.state === "pending" && s.canApprove && s.approvalsOpen) {
-    root.push("divider", "action");
+  // the primary action is approving, for whoever can; stopping or cancelling is a quiet one on the right
+  const approve = s.state === "pending" && s.canApprove && s.approvalsOpen;
+  const stop = (s.state === "pending" || s.state === "live") && s.canStop;
+  if (approve || stop) root.push("divider");
+  if (approve || stop) comps.push({ id: "divider", component: "Divider" });
+  if (approve) {
+    root.push("approve");
     comps.push(
-      { id: "divider", component: "Divider" },
-      button("action", "action_label", TREASURY_APPROVE_ACTION, ctx, "primary"),
-      text("action_label", t("🌍 Approve with World ID"))
+      button("approve", "approve_label", TREASURY_APPROVE_ACTION, ctx, "primary"),
+      text("approve_label", t("🌍 Approve with World ID"))
     );
-  } else if ((s.state === "pending" || s.state === "live") && s.canStop) {
-    root.push("divider", "action");
+  }
+  if (stop) {
+    root.push("stop_row");
     comps.push(
-      { id: "divider", component: "Divider" },
-      button("action", "action_label", TREASURY_STOP_ACTION, ctx, "danger"),
-      text("action_label", s.state === "live" ? t("Stop recurring buy") : t("Withdraw request"))
+      row("stop_row", ["stop"], "end"),
+      button("stop", "stop_label", TREASURY_STOP_ACTION, ctx, s.state === "live" ? "danger" : "default"),
+      text("stop_label", s.state === "live" ? t("Stop recurring buy") : t("Cancel request"))
     );
   }
 

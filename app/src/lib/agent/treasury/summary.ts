@@ -78,8 +78,8 @@ export function describeTreasuryAction(a: TreasuryAction, now: number): string {
     if (a.status === "executed") return `${record?.revokedAt ? "Recurring buy stopped" : "Recurring buy adopted"}${terms}`;
     if (isOpen(a, now)) return `Recurring buy waiting for approval${terms}`;
     if (a.status === "pending" && a.decidedAt === null) return `Recurring buy expired${terms}`;
-    // a request its asker (or any member) withdrew before it was adopted
-    if (a.status === "cancelled" && record?.revokedAt !== undefined) return `Recurring buy withdrawn${terms}`;
+    // a request its asker (or any member) cancelled before it was adopted
+    if (a.status === "cancelled" && record?.revokedAt !== undefined) return `Recurring buy cancelled${terms}`;
     return `Recurring buy not adopted${terms}`;
   }
   if (a.kind === RATIFY_KIND) {
