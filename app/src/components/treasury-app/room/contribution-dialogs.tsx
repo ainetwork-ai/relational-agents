@@ -19,6 +19,7 @@ import {
   contributionPlanId,
   contributionSalt,
   permit2Abi,
+  SALTS_PER_MEMBER,
   usdcAbi,
   type ContributionPlanView,
 } from "@/lib/agent/treasury/contribution-plan";
@@ -187,6 +188,8 @@ export function StartContributionDialog({
   const [rows, setRows] = useState<RowState[]>([{ kind: "idle" }, { kind: "idle" }, { kind: "idle" }]);
   const [running, setRunning] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
+  /** the salt this plan starts with — chosen once connected, so the simulation, start and first collection agree */
+  const saltRef = useRef<Hex | null>(null);
 
   const period = PERIODS.find((p) => p.key === periodKey)!.seconds;
   const customUsd = Number(custom);
@@ -217,7 +220,19 @@ export function StartContributionDialog({
     return w.wallet.writeContract({ address: C.contract, abi: contributionAbi, functionName: "start", args: startArgs(x) });
   };
 
-  const startArgs = (x: Terms) => [pot, C.usdc, x.amount, x.period, x.until, contributionSalt(roomId, meId)] as const;
+  const saltOf = () => saltRef.current ?? contributionSalt(roomId, meId);
+  const startArgs = (x: Terms) => [pot, C.usdc, x.amount, x.period, x.until, saltOf()] as const;
+
+  /** The first of this member's salts that no plan into this pot uses: a stopped plan keeps its id, so starting again takes the next. */
+  const freeSalt = async (w: BaseWallet): Promise<Hex> => {
+    const [ids] = await w.client.readContract({ address: C.contract, abi: contributionAbi, functionName: "plansOf", args: [pot] });
+    const taken = new Set(ids.map((id) => id.toLowerCase()));
+    for (let n = 0; n < SALTS_PER_MEMBER; n++) {
+      const salt = contributionSalt(roomId, meId, n);
+      if (!taken.has(contributionPlanId(w.address, pot, C.usdc, salt).toLowerCase())) return salt;
+    }
+    throw new ContributionWalletError("other", t("This wallet has started {n} plans here already — start from another wallet.", { n: SALTS_PER_MEMBER }));
+  };
 
   /** start() simulated from the member's wallet: it touches no tokens, so it can run before either approval. */
   const refusalOf = async (w: BaseWallet, x: Terms) => {
@@ -255,7 +270,7 @@ export function StartContributionDialog({
 
   /** The agent collects the first period now; the page then shows it. */
   const collectFirst = async (w: BaseWallet, x: Terms) => {
-    const id = contributionPlanId(w.address, pot, C.usdc, contributionSalt(roomId, meId)).toLowerCase();
+    const id = contributionPlanId(w.address, pot, C.usdc, saltOf()).toLowerCase();
     try {
       // the plan's id: the server waits until its RPC sees the plan that was just started
       const res = await fetch(`/api/treasury/${encodeURIComponent(roomId)}/contributions/collect`, {
@@ -297,6 +312,7 @@ export function StartContributionDialog({
     }
     // a plan the contract would refuse is named before either approval goes out
     try {
+      saltRef.current ??= await freeSalt(w);
       await refusalOf(w, terms);
     } catch (err) {
       setRow(2, { kind: "failed", why: (err as Error).message });

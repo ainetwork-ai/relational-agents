@@ -48,13 +48,16 @@ export const usdcAbi = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
 ]);
 
+/** A member's salts, tried in order: a plan id stays taken after a stop, so starting again takes the next one. */
+export const SALTS_PER_MEMBER = 8;
+
 /**
- * The salt the app starts a room member's plan with. planId(member, pot, token, salt) then names
- * the member who started it in the app, without a table: the server tries each room member's salt.
- * A plan started elsewhere matches nobody and shows as its wallet.
+ * The salt the app starts a room member's `n`th plan with. planId(member, pot, token, salt) then names
+ * the member who started it in the app, without a table: the server tries each room member's salts.
+ * A plan started elsewhere matches nobody and shows as its wallet. n = 0 is the first plan's.
  */
-export function contributionSalt(roomId: string, userId: string): `0x${string}` {
-  return keccak256(toBytes(`ainmem-contribution:${roomId}:${userId}`));
+export function contributionSalt(roomId: string, userId: string, n = 0): `0x${string}` {
+  return keccak256(toBytes(n === 0 ? `ainmem-contribution:${roomId}:${userId}` : `ainmem-contribution:${roomId}:${userId}:${n}`));
 }
 
 /** RecurringContribution.planId — keccak256(abi.encode(member, pot, token, salt)). */

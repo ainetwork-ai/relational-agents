@@ -15,6 +15,7 @@ import {
   periodCount,
   periodStates,
   permit2Abi,
+  SALTS_PER_MEMBER,
   usdcAbi,
   type ContributionPlanView,
   type PlanOnChain,
@@ -104,7 +105,11 @@ function blockedOf(r: PlanRead, nowS: number): ContributionPlanView["blocked"] {
 
 /** The room member whose app salt produced this plan id, if any. */
 function starterOf(roomId: string, memberIds: string[], r: PlanRead): string | null {
-  return memberIds.find((userId) => contributionPlanId(r.plan.member, r.plan.pot, r.plan.token, contributionSalt(roomId, userId)) === r.id) ?? null;
+  const matches = (userId: string) =>
+    Array.from({ length: SALTS_PER_MEMBER }, (_, n) => contributionSalt(roomId, userId, n)).some(
+      (salt) => contributionPlanId(r.plan.member, r.plan.pot, r.plan.token, salt) === r.id
+    );
+  return memberIds.find(matches) ?? null;
 }
 
 function viewOf(roomId: string, memberIds: string[], r: PlanRead, usdcPerUsd: number, nowS: number): ContributionPlanView {
@@ -255,7 +260,9 @@ async function collectNow(input: { roomId: string; agentUserId: string; expect?:
     await new Promise((r) => setTimeout(r, EXPECT_POLL_MS));
     reads = await readPlans(cfg.rpcs, account.address);
   }
-  const nowS = Math.floor(Date.now() / 1000);
+  // the contract decides by block time; a plan just started can carry a timestamp a moment ahead of this clock
+  const block = await client.getBlock().catch(() => null);
+  const nowS = Math.max(Math.floor(Date.now() / 1000), block ? Number(block.timestamp) : 0);
   const due = reads.filter((r) => isDue(r.plan, nowS));
   const collected: Collected[] = [];
   const notCollected: NotCollected[] = [];
