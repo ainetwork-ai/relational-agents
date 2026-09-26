@@ -12,6 +12,8 @@ import { readExif, type PhotoExif } from "@/lib/exif";
 import { formatUsdc, giftValid, ledgerBalance, ledgerDriveOf, unlocked, type GiftContent } from "@/lib/gift";
 import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
+import { asksForPrompt } from "@/lib/prompt-export/input";
+import { promptSkill } from "./prompt-skill";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
 import { demoLang, familyDemo } from "@/i18n/content/demo-lang";
@@ -37,6 +39,8 @@ import {
  *   recording   "pull the to-dos out of the recording"       → a to-do board from a recording
  *   album       "make a Jeju album"                          → photos from every phone, by day
  *   allowance   "give Seoyeon her pocket money, open the video" → an x402 payment opens a gift
+ *   prompt      "make a prompt from the Chuseok page"          → notion2prompt: the page (and its
+ *               child pages and databases) as an AI-ready prompt, in a page and the asker's aindrive
  *
  * (Asked in Korean or English — the keyword lists live in @/i18n/content/agent.)
  *
@@ -44,7 +48,7 @@ import {
  * pages and move money, and "maybe" is not a state either may be in.
  */
 
-export type FamilySkill = "shopping" | "todos" | "album" | "allowance";
+export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt";
 
 const SKILL_RE = (["allowance", "todos", "album", "shopping"] as const).map((k) => ({
   skill: k,
@@ -57,6 +61,8 @@ const SERVINGS_ACT = anyOf(W.servingsAct);
 
 export function matchFamilySkill(text: string): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
+  // first: "make a prompt from the album page" is about the prompt, not the album
+  if (asksForPrompt(t)) return "prompt";
   for (const { skill, topic, act } of SKILL_RE) if (topic.test(t) && act.test(t)) return skill;
   if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping";
   return null;
@@ -87,6 +93,12 @@ export interface SkillContext {
   lang: "ko" | "en";
   /** whose phones did not answer while listing (filled by listAll) */
   offline?: string[];
+  /** the room asked in */
+  roomId?: string;
+  /** everyone who will read the answer (answerViewers) — what they cannot all see stays out */
+  viewerIds?: string[];
+  /** the page open where it was asked ("this page") — the assistant panel sends it */
+  contextPageId?: string | null;
 }
 
 /** Translator for the language the request was written in. */
@@ -526,5 +538,7 @@ export async function runFamilySkill(skill: FamilySkill, ctx: SkillContext): Pro
       return album(ctx);
     case "allowance":
       return allowance(ctx);
+    case "prompt":
+      return promptSkill(ctx);
   }
 }

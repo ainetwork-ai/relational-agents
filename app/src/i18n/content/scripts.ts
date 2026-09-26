@@ -31,3 +31,18 @@ export const TREASURY_SELFTEST = {
 
 /** check-emoji-data.mts: a name that starts with a flag emoji */
 export const CHECK_EMOJI_DATA = { flagName: "🇰🇷 팀" } as const;
+
+/** prompt-export.check.mts: Korean requests the prompt skill must read, and a long Hangul title */
+export const PROMPT_EXPORT_CHECK = {
+  thisPage: "@agent 이 페이지 프롬프트로 만들어줘",
+  chuseok: "@agent 추석 페이지를 AI 프롬프트로",
+  chuseokWord: "추석",
+  options: '@agent 추석 페이지 프롬프트로 만들어줘 깊이 2 하위 페이지 포함 따로 xml 템플릿 지시: "요약해줘"',
+  optionsInstruction: "요약해줘",
+  merged: "@agent 할 일 페이지를 한 파일로 합쳐서 마크다운 프롬프트로 바꿔줘",
+  noChild: "@agent 이 페이지만 프롬프트로 만들어줘",
+  hubTitle: "우리 가족 추석 2026",
+  albumTitle: "추석 앨범",
+  scheduleTitle: "추석 일정 · 내려가는 길",
+  longTitle: "가".repeat(40),
+} as const;

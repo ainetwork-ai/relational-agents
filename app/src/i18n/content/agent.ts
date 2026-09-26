@@ -37,6 +37,96 @@ export const FAMILY_SKILL_WORDS = {
   servingsAct: ["만들", "목록", "장보기", "알려", "make", "list", "shop", "cook"],
 } as const;
 
+/** The prompt skill (src/lib/agent/family-skills.ts → src/lib/prompt-export): turn a
+ *  page into an AI-ready prompt, with notion2prompt's options said in the sentence.
+ *  Regex fragments, matched case-insensitively. */
+export const PROMPT_WORDS = {
+  /** the request itself — asked for as a prompt, not a word in passing ("what prompt did
+   *  you use?" must not fire it): into / as a prompt, or a making verb before "prompt" */
+  ask: [
+    "프롬프트\\s*(?:으)?로",
+    "프롬프트(?:를|을)?\\s*(?:만들|생성|뽑|추출|써|작성)",
+    "(?:만들|바꿔|바꾸|변환|생성|뽑).{0,20}프롬프트",
+    "\\b(?:make|turn|convert|create|generate|export|build|write|give me)\\b.{0,60}\\bprompts?\\b",
+    "\\b(?:into|as) (?:an? )?(?:ai[- ])?prompt\\b",
+    "\\bprompt from\\b",
+    "page[- ]to[- ]prompt",
+    "notion2prompt",
+  ],
+  /** "depth 2", "깊이 2", "단계 2" */
+  depth: ["depth", "깊이", "단계"],
+  /** "2단계", "2 levels" */
+  depthAfter: ["단계(?:까지)?", "levels?(?: deep)?"],
+  /** "limit 200", "최대 200" */
+  limit: ["limit", "최대", "한도"],
+  childPagesOn: [
+    "하위\\s*페이지\\s*(?:까지|포함|도)",
+    "with (?:its |the )?(?:child|sub)[- ]?pages",
+    "including (?:its |the )?(?:child|sub)[- ]?pages",
+    "include (?:its |the )?(?:child|sub)[- ]?pages",
+  ],
+  childPagesOff: [
+    "하위\\s*페이지\\s*(?:없이|빼고|제외)",
+    "이\\s*페이지만",
+    "without (?:its |the )?(?:child|sub)[- ]?pages",
+    "no (?:child|sub)[- ]?pages",
+    "(?:this|the) page only",
+    "only (?:this|the) page",
+  ],
+  /** each child page its own file */
+  separate: ["따로", "각각", "페이지별로?", "separate(?:ly)?", "(?:one )?file per page"],
+  /** child pages merged into one file */
+  merged: ["합쳐", "하나로", "한\\s*파일", "\\bmerged?\\b", "single file", "one file", "\\binline\\b"],
+  alwaysDatabases: ["데이터베이스\\s*(?:항상|모두|전부)", "DB\\s*(?:항상|모두|전부)", "always (?:fetch|include) (?:the )?databases", "all (?:the )?databases"],
+  propertiesOn: ["속성\\s*(?:포함|까지|도)", "with (?:the )?properties", "include (?:the )?properties"],
+  propertiesOff: ["속성\\s*(?:없이|빼고|제외)", "without (?:the )?properties", "no properties"],
+  templateXml: ["\\bxml\\b", "\\bclaude\\b"],
+  templateMarkdown: ["마크다운", "markdown"],
+  templateDefault: ["기본\\s*템플릿", "default template", "\\bdefault\\b"],
+  /** notion2prompt's own file names and flat tree, byte for byte */
+  layoutUpstream: ["notion2prompt", "노션\\s*형식", "notion (?:layout|format)"],
+  /** `지시: "…"`, `instruction: "…"` */
+  instruction: ["지시\\s*사항", "지시", "요청\\s*사항", "instructions?"],
+  thisPage: ["이\\s*페이지", "현재\\s*페이지", "지금\\s*페이지", "\\bthis page\\b", "\\bcurrent page\\b"],
+  /** words taken out before the rest of the sentence is matched against page titles */
+  noise: [
+    "프롬프트\\s*(?:으로|로|를|을)?", "만들어\\s*(?:줘|주세요|줄래)", "바꿔\\s*(?:줘|주세요)", "변환해\\s*(?:줘|주세요)",
+    "뽑아\\s*(?:줘|주세요)", "해\\s*(?:줘|주세요)", "만들어", "만들", "바꿔", "변환", "주세요", "줘",
+    "페이지(?:를|을|로|의|에서|에)?", "데이터베이스(?:를|을|로|의)?", "템플릿(?:으로|로)?", "팀\\s*스페이스(?:를|을|로|의)?", "좀",
+    "\\bai\\b", "\\bprompts?\\b", "\\bpages?\\b", "\\bdatabase\\b", "\\btemplate\\b", "\\bteamspace\\b",
+    "\\bmake\\b", "\\bturn\\b", "\\bconvert\\b", "\\bcreate\\b", "\\bgenerate\\b", "\\bexport\\b", "\\bbuild\\b",
+    "\\binto\\b", "\\bfrom\\b", "\\bfor\\b", "\\bof\\b", "\\bthe\\b", "\\ban?\\b", "\\bplease\\b", "\\bme\\b", "\\bcalled\\b",
+  ],
+  /** Korean title words as someone asking in English says them — "the Chuseok page"
+   *  finds 「2026 우리 가족 추석」 (regex fragments, whole words) */
+  titleAliases: {
+    추석: ["chuseok"],
+    생신: ["birthday"],
+    앨범: ["album"],
+    여행: ["trip", "travel"],
+    제주: ["jeju"],
+    가족: ["family"],
+    할머니: ["grandma", "grandmother"],
+    외할아버지: ["grandpa", "grandfather"],
+    서연: ["seoyeon", "seo-yeon"],
+    녹두전: ["nokdujeon", "mung bean pancakes?"],
+    일정: ["schedule"],
+    역할: ["roles?"],
+    음식: ["food"],
+    건강: ["health"],
+    선물: ["gifts?", "presents?"],
+    용돈: ["pocket money", "allowance"],
+    장보기: ["shopping"],
+    사진: ["photos?", "pictures?"],
+    회의: ["meeting"],
+    성묘: ["graves?", "grave visit"],
+    귀성길: ["drive down", "trip home"],
+    차례상: ["ancestral table", "memorial table"],
+  } as Record<string, readonly string[]>,
+  /** Korean particles glued to a word ("추석을", "추석의") — dropped before matching a title */
+  particles: ["으로", "에서", "까지", "로", "을", "를", "은", "는", "이", "가", "의", "에", "와", "과", "도", "만"],
+} as const;
+
 /** "4인분" / "4 servings" — the unit after the number */
 export const SERVINGS_UNITS = ["인분", "servings?", "people"] as const;
 

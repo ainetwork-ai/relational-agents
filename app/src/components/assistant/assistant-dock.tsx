@@ -35,6 +35,11 @@ const SUGGESTIONS = [
   "Make a shopping list for nokdujeon for 4.",
   "What time does grandma take her morning medicine on Chuseok?",
 ];
+/** offered on a page: the page open behind the panel goes along as "this page" */
+const PAGE_SUGGESTION = "Turn this page into an AI prompt.";
+
+/** The page open behind the panel (a uuid or an OKF id), if any. */
+const pageIdOf = (pathname: string | null) => pathname?.match(/^\/p\/([A-Za-z0-9_-]{8,})/)?.[1] ?? null;
 
 /** "/p/<id>" in an answer is a page the agent made — a link, not text. */
 function Linked({ text, label }: { text: string; label: string }) {
@@ -121,7 +126,8 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
     const r = await fetch(`/api/dm/rooms/${a.roomId}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text: text.trim() }),
+      // "this page" means the one behind the panel — the agent reads it with the asker's rights
+      body: JSON.stringify({ text: text.trim(), contextPageId: pageIdOf(pathname) ?? undefined }),
     }).catch(() => null);
     const d = (await r?.json().catch(() => null)) as { message?: { id: string } } | null;
     if (!r?.ok || !d?.message) {
@@ -215,10 +221,10 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
         </div>
       )}
       <div ref={listRef} data-testid="assistant-messages" className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {msgs.length === 0 && a && a.drives.length > 0 && (
+        {msgs.length === 0 && a && (a.drives.length > 0 || pageIdOf(pathname)) && (
           <div className="space-y-2">
-            <p className="text-sm text-neutral-500">{t("I can see your family's aindrive folders. What can I do?")}</p>
-            {SUGGESTIONS.map((key) => t(key)).map((s) => (
+            {a.drives.length > 0 && <p className="text-sm text-neutral-500">{t("I can see your family's aindrive folders. What can I do?")}</p>}
+            {[...(pageIdOf(pathname) ? [PAGE_SUGGESTION] : []), ...(a.drives.length > 0 ? SUGGESTIONS : [])].map((key) => t(key)).map((s) => (
               <button
                 key={s}
                 onClick={() => void send(s)}

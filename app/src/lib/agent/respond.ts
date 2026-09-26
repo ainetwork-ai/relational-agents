@@ -347,6 +347,12 @@ async function llmDecision(
   }
 }
 
+/** Context sent with a message but not stored with it. */
+export interface MessageContext {
+  /** the page open on the sender's screen (the assistant panel) — "this page" */
+  contextPageId?: string | null;
+}
+
 /**
  * In-app agent read path (spec v2 §5): for one new message, run
  * ① the write pipeline (async, idempotent) ② the reply decision → post to the room.
@@ -354,7 +360,9 @@ async function llmDecision(
 export async function respondToMessage(
   agentUserId: string,
   roomId: string,
-  message: ChatMessage
+  message: ChatMessage,
+  /** what the sender's screen adds and the stored message does not carry */
+  extra: MessageContext = {}
 ): Promise<RespondResult> {
   const [agent] = await db.select().from(users).where(eq(users.id, agentUserId));
   const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId));
@@ -414,16 +422,28 @@ export async function respondToMessage(
         : null;
     // what a family agent can do beyond answering: build a page from the
     // family's shared folders, or pay a gift over x402 (family-skills.ts)
-    const skill = mentioned && room.workspaceId && process.env.AGENT_FAKE_LLM !== "1" ? matchFamilySkill(message.text) : null;
+    // (the prompt skill is code end to end, so it runs even with the model faked)
+    const matched = mentioned && room.workspaceId ? matchFamilySkill(message.text) : null;
+    const skill = matched === "prompt" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
     if (treasuryReply) {
       decision = { action: "reply", text: treasuryReply.text };
     } else if (skill && room.workspaceId) {
-      const sources = await roomSources(room, roomId, message).catch(() => []);
+      const sources = skill === "prompt" ? [] : await roomSources(room, roomId, message).catch(() => []);
       const lang = langOf(message.text);
-      const done = await runFamilySkill(skill, { workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text, lang }).catch(
+      const viewerIds = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
+      const done = await runFamilySkill(skill, {
+        workspaceId: room.workspaceId,
+        askerId: message.authorId,
+        sources,
+        text: message.text,
+        lang,
+        roomId,
+        viewerIds,
+        contextPageId: extra.contextPageId ?? null,
+      }).catch(
         (e: Error) => {
           console.error(`[family-skill:${skill}] failed:`, e);
           return { text: makeT(lang)("I stopped partway: {error}", { error: e.message }) };

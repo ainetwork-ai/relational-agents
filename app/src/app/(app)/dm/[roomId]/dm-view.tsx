@@ -619,9 +619,15 @@ export function DmView({
     return parts.map((part, i) => {
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
       if (/^\/p\//.test(part)) {
+        // the relationship doc (an OKF page — its id is a base64url path) is cited by
+        // name; a Postgres page the agent made (a list, an album, an AI prompt) is just
+        // a page to open
+        const isDoc =
+          (!!room?.rootPageId && part === `/p/${room.rootPageId}`) ||
+          !/^\/p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(part);
         return (
           <a key={i} href={part} className={linkClass} title={part}>
-            📄 {t("Relation doc")}
+            📄 {isDoc ? t("Relation doc") : t("Open page")}
           </a>
         );
       }

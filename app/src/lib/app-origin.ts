@@ -18,3 +18,10 @@ export function selfOrigin(fallback?: string): string {
   if (process.env.PORT) return `http://127.0.0.1:${process.env.PORT}`;
   return process.env.APP_ORIGIN || fallback || (globalThis as unknown as G)[KEY] || "http://127.0.0.1:3000";
 }
+
+/** The origin people open this app on, for links written into text they will read
+ *  (a prompt's page URLs): APP_ORIGIN, else the origin the last request came in on,
+ *  else "" (links stay relative). Never the container's loopback. */
+export function publicOrigin(): string {
+  return (process.env.APP_ORIGIN || (globalThis as unknown as G)[KEY] || "").replace(/\/+$/, "");
+}
