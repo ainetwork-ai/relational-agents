@@ -9,26 +9,76 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { ensureNicknamesTable, loadNicknames } from "@/lib/ens-nicknames";
 import { prepareSend } from "@/lib/ens-family/prepare";
-import { displayName } from "@/lib/ens-family/family-tree";
-import { formatUsdc } from "@/lib/ens-family/send-request";
+import { displayName, findNodeByAddress, pickAnswer, pickRecipients, type FamilyNode } from "@/lib/ens-family/family-tree";
+import { formatUsdc, isSendRequest, kinshipOf, parseSendRequest } from "@/lib/ens-family/send-request";
 import { signSendIntent } from "@/lib/ens-family/send-token";
 import type { SkillContext, SkillResult } from "./family-skills";
 
-export async function sendByName(ctx: SkillContext): Promise<SkillResult> {
+// "Who should get it: Minjun or Seoyeon?" waits on that person in that room for 5 minutes:
+// their next message naming one of them continues with the amount they said.
+interface PendingSend {
+  amountMicro: bigint;
+  candidates: FamilyNode[];
+  nicknames: Map<string, string[]>;
+  expires: number;
+}
+const PENDING_SEND_MS = 5 * 60 * 1000;
+const g = globalThis as unknown as { __ensPendingSend?: Map<string, PendingSend> };
+const pendingSends = (g.__ensPendingSend ??= new Map<string, PendingSend>());
+const pendingKey = (roomId: string, askerId: string) => `${roomId}\u0000${askerId}`;
+
+function pendingSend(roomId: string, askerId: string, now = Date.now()): PendingSend | null {
+  const k = pendingKey(roomId, askerId);
+  const p = pendingSends.get(k);
+  if (p && p.expires <= now) pendingSends.delete(k);
+  return p && p.expires > now ? p : null;
+}
+
+/** Does `text` answer this person's pending "who should get it?" here? Anything else takes the
+ *  question off the table (one turn, like the prompt skill's "which one?"). */
+export function answersPendingSend(roomId: string, askerId: string, text: string): boolean {
+  const p = pendingSend(roomId, askerId);
+  if (!p) return false;
+  if (!isSendRequest(text) && pickAnswer(text, p.candidates, p.nicknames)) return true;
+  pendingSends.delete(pendingKey(roomId, askerId));
+  return false;
+}
+
+/** The reply, or null when a sentence without an amount names nobody below the asker
+ *  ("how much money did we give at Chuseok?"): the model answers that one. */
+export async function sendByName(ctx: SkillContext): Promise<SkillResult | null> {
   const t = makeT(ctx.lang);
+  // "Minjun" after "Minjun or Seoyeon?": the same request, now for that one person (by label,
+  // so prepareSend still does every check — family, amount, on-chain path — itself)
+  const pend = ctx.roomId ? pendingSend(ctx.roomId, ctx.askerId) : null;
+  if (ctx.roomId) pendingSends.delete(pendingKey(ctx.roomId, ctx.askerId));
+  const picked = pend && !isSendRequest(ctx.text) ? pickAnswer(ctx.text, pend.candidates, pend.nicknames) : null;
+  const text = pend && picked ? `send ${picked.label} ${formatUsdc(pend.amountMicro)} USDC` : ctx.text;
+  // no amount ("send Minjun some money"): ours only if it names someone to ask the amount for
+  const vague = !isSendRequest(text);
+
   const chain = familyChain();
-  if (!chain) return { text: t("Family names aren't set up here yet.") };
+  if (!chain) return vague ? null : { text: t("Family names aren't set up here yet.") };
   const [me] = await db.select({ address: users.ainAddress }).from(users).where(eq(users.id, ctx.askerId));
-  if (!me?.address) return { text: t("Sign in with your wallet first, so I know which family name is yours.") };
+  if (!me?.address) return vague ? null : { text: t("Sign in with your wallet first, so I know which family name is yours.") };
 
   const tree = await chain.loadTree();
+  const nicknames = await loadNicknames(ctx.workspaceId);
+  if (vague) {
+    const asker = findNodeByAddress(tree, me.address);
+    if (!asker || pickRecipients(asker, { kinship: kinshipOf(text), text, nicknames }).length === 0) return null;
+  }
   const table = await ensureNicknamesTable({ workspaceId: ctx.workspaceId, byUserId: ctx.askerId, tree, t });
   const note = table.pageId
     ? "\n" + t("I made a “Family nicknames” page where you can add the names you call each other → /p/{pageId}", { pageId: table.pageId })
     : "";
-  const nicknames = await loadNicknames(ctx.workspaceId);
 
-  const r = await prepareSend({ text: ctx.text, askerAddress: me.address, tree, nicknames }, chain);
+  const r = await prepareSend({ text, askerAddress: me.address, tree, nicknames }, chain);
+  if (r.kind === "ask" && ctx.roomId) {
+    const amountMicro = parseSendRequest(text)?.amountMicro;
+    if (amountMicro !== undefined)
+      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: Date.now() + PENDING_SEND_MS });
+  }
   if (r.kind === "ask") return { text: t("Who should get it: {names}?", { names: r.candidates.map(displayName).join(t(" or ")) }) + note };
   if (r.kind === "refuse") {
     const why = {

@@ -92,3 +92,20 @@ export function pickRecipients(
   if (named.length) return named.map((d) => d.node);
   return req.kinship ? byKin.map((d) => d.node) : [];
 }
+
+// what may stand around the name in a bare answer ("Minjun please", "to Seoyeon")
+const ANSWER_FILLER = /(^|[^\p{L}\p{N}-])(to|please|pls|the|one|it|him|her|them|ok|okay|yes)(?=$|[^\p{L}\p{N}-])/giu;
+
+/** The reply to "Who should get it: Minjun or Seoyeon?": the candidate it names, when the reply
+ *  is little more than that name. "No, not Minjun", "show me Minjun's album" or "Minjun, 10 USDC"
+ *  say something else, so they are not an answer. */
+export function pickAnswer(text: string, candidates: FamilyNode[], nicknames?: Map<string, string[]>): FamilyNode | null {
+  const named = candidates.filter((c) => namedIn(text, c, nicknames));
+  if (named.length !== 1) return null;
+  const [c] = named;
+  let rest = text.replace(/@\S+/g, " ");
+  for (const w of [c.label, c.alias, ...(nicknames?.get(c.name.toLowerCase()) ?? [])])
+    if (w) rest = rest.replace(new RegExp(`(^|[^\\p{L}\\p{N}-])${escape(w)}(?=$|[^\\p{L}\\p{N}-])`, "giu"), "$1 ");
+  rest = rest.replace(ANSWER_FILLER, "$1 ").replace(/[\p{P}\p{S}\s]+/gu, "");
+  return rest ? null : c;
+}

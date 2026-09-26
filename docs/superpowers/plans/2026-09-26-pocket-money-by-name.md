@@ -286,12 +286,23 @@ export function isSendRequest(text: string): boolean {
   return SEND_VERB.test(text) && /\d\s*usdc\b/i.test(text);
 }
 
+/** "send Minjun some money": a send verb and money or USDC, but no USDC amount. The send
+ *  skill asks for one amount when the sentence names someone below the asker, and otherwise
+ *  hands it back to the model ("how much money did we give at Chuseok?"). */
+export function isSendWithoutAmount(text: string): boolean {
+  return SEND_VERB.test(text) && /\b(money|usdc)\b/i.test(text) && !isSendRequest(text);
+}
+
+/** "my grandson" → grandson; null when no kinship word is said. */
+export function kinshipOf(text: string): Kinship | null {
+  return (KINSHIP_RE.exec(text)?.[1]?.toLowerCase() as Kinship | undefined) ?? null;
+}
+
 export function parseSendRequest(text: string): { amountMicro: bigint; kinship: Kinship | null } | null {
   if (!isSendRequest(text)) return null;
   const amounts = [...text.matchAll(AMOUNT_ANY)].map((m) => m[1].replace(/\.$/, ""));
   if (amounts.length !== 1 || !AMOUNT_OK.test(amounts[0])) return null;
-  const kin = KINSHIP_RE.exec(text)?.[1]?.toLowerCase() as Kinship | undefined;
-  return { amountMicro: parseUnits(amounts[0], USDC_DECIMALS), kinship: kin ?? null };
+  return { amountMicro: parseUnits(amounts[0], USDC_DECIMALS), kinship: kinshipOf(text) };
 }
 
 export function checkAmount(amountMicro: bigint): "ok" | "too-small" | "too-large" {
@@ -494,6 +505,23 @@ export function pickRecipients(
   if (named.length) return named.map((d) => d.node);
   return req.kinship ? byKin.map((d) => d.node) : [];
 }
+
+// what may stand around the name in a bare answer ("Minjun please", "to Seoyeon")
+const ANSWER_FILLER = /(^|[^\p{L}\p{N}-])(to|please|pls|the|one|it|him|her|them|ok|okay|yes)(?=$|[^\p{L}\p{N}-])/giu;
+
+/** The reply to "Who should get it: Minjun or Seoyeon?": the candidate it names, when the reply
+ *  is little more than that name. "No, not Minjun", "show me Minjun's album" or "Minjun, 10 USDC"
+ *  say something else, so they are not an answer. */
+export function pickAnswer(text: string, candidates: FamilyNode[], nicknames?: Map<string, string[]>): FamilyNode | null {
+  const named = candidates.filter((c) => namedIn(text, c, nicknames));
+  if (named.length !== 1) return null;
+  const [c] = named;
+  let rest = text.replace(/@\S+/g, " ");
+  for (const w of [c.label, c.alias, ...(nicknames?.get(c.name.toLowerCase()) ?? [])])
+    if (w) rest = rest.replace(new RegExp(`(^|[^\\p{L}\\p{N}-])${escape(w)}(?=$|[^\\p{L}\\p{N}-])`, "giu"), "$1 ");
+  rest = rest.replace(ANSWER_FILLER, "$1 ").replace(/[\p{P}\p{S}\s]+/gu, "");
+  return rest ? null : c;
+}
 ```
 
 - [ ] **Step 4: Run to verify pass**
@@ -631,6 +659,10 @@ export function markSent(token: string, txHash: string): void {
 export function wasSent(token: string): string | null {
   return sent.get(token) ?? null;
 }
+/** The recorded hash was mined and moved no USDC: the link may pay again. Only that hash frees it. */
+export function releaseSent(token: string, txHash: string): void {
+  if (sent.get(token)?.toLowerCase() === txHash.toLowerCase()) sent.delete(token);
+}
 export function markConfirmed(token: string): void {
   confirmed.add(token);
 }
@@ -660,7 +692,7 @@ git commit -m "ens: signed send intents and one-link-pays-once"
 
 **Interfaces:**
 - Consumes: `config.ts`, `FamilyNode`.
-- Produces: ABIs `registryAbi`, `userRegistryInitAbi`, `resolverAbi`, `factoryAbi`, `universalHelperAbi`, `ethRegistrarAbi`, `mockUsdcAbi`; `dnsEncode(name): Hex`; `interface FamilyChain { root: string; loadTree(): Promise<FamilyNode>; verifyPath(name: string): Promise<boolean>; resolveAddress(name: string): Promise<Address | null>; balances(address: Address): Promise<{ usdcMicro: bigint; ethWei: bigint }>; findTransfer(txHash: Hex, expect: { from: Address; to: Address; amountMicro: bigint }): Promise<boolean> }`; `createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlock?: bigint; cacheMs?: number }): FamilyChain`.
+- Produces: ABIs `registryAbi`, `userRegistryInitAbi`, `resolverAbi`, `factoryAbi`, `universalHelperAbi`, `ethRegistrarAbi`, `mockUsdcAbi`; `dnsEncode(name): Hex`; `interface FamilyChain { root: string; loadTree(): Promise<FamilyNode>; verifyPath(name: string): Promise<boolean>; resolveAddress(name: string): Promise<Address | null>; balances(address: Address): Promise<{ usdcMicro: bigint; ethWei: bigint }>; checkTransfer(txHash: Hex, expect: TransferExpect, timeoutMs?: number): Promise<"match" | "mismatch" | "different" | "pending"> }` (Task 13; it was `findTransfer(…): Promise<boolean>`); `receiptOutcome(receipt, expect): "match" | "mismatch" | "different"`; `createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlock?: bigint; cacheMs?: number }): FamilyChain`.
 
 - [ ] **Step 1: Write the ABIs**
 
@@ -715,7 +747,7 @@ export const mockUsdcAbi = parseAbi([
 // ens/src/chain.ts
 // Everything this feature reads from Sepolia. The tree comes from the chain alone
 // (spec D1): LabelRegistered logs per registry, records through the Universal Resolver.
-import { createPublicClient, erc20Abi, http, parseEventLogs, toHex, zeroAddress, type Address, type Hex } from "viem";
+import { createPublicClient, erc20Abi, http, parseEventLogs, toHex, zeroAddress, type Address, type Hex, type Log } from "viem";
 import { packetToBytes } from "viem/ens";
 import { sepolia } from "viem/chains";
 import { ALIAS_KEY, AVATAR_KEY, RELATION_KEY, RELATIONS, SEPOLIA_USDC, UNIVERSAL_HELPER, type Relation } from "./config";
@@ -728,7 +760,31 @@ export interface FamilyChain {
   verifyPath(name: string): Promise<boolean>;
   resolveAddress(name: string): Promise<Address | null>;
   balances(address: Address): Promise<{ usdcMicro: bigint; ethWei: bigint }>;
-  findTransfer(txHash: Hex, expect: { from: Address; to: Address; amountMicro: bigint }): Promise<boolean>;
+  /** match: mined with that USDC Transfer · mismatch: mined, but reverted or with no USDC leaving the
+   *  sender (nothing was paid) · different: USDC left the sender, but not as prepared · pending: no receipt yet */
+  checkTransfer(txHash: Hex, expect: TransferExpect, timeoutMs?: number): Promise<TransferCheck>;
+}
+
+export interface TransferExpect {
+  from: Address;
+  to: Address;
+  amountMicro: bigint;
+}
+export type TransferCheck = "match" | "mismatch" | "different" | "pending";
+
+/** A mined receipt against the transfer the link prepared: exactly one outcome, no chain calls.
+ *  Only "mismatch" may free the link, so it means no USDC left the sender at all. */
+export function receiptOutcome(
+  receipt: { status: "success" | "reverted"; logs: Log[] },
+  expect: TransferExpect
+): "match" | "mismatch" | "different" {
+  if (receipt.status !== "success") return "mismatch";
+  const outgoing = parseEventLogs({ abi: erc20Abi, eventName: "Transfer", logs: receipt.logs }).filter(
+    (l) => l.address.toLowerCase() === SEPOLIA_USDC.toLowerCase() && l.args.from.toLowerCase() === expect.from.toLowerCase()
+  );
+  if (outgoing.some((l) => l.args.to.toLowerCase() === expect.to.toLowerCase() && l.args.value === expect.amountMicro)) return "match";
+  // USDC moved, just not as prepared: the link stays spent, a second Send could pay twice
+  return outgoing.length ? "different" : "mismatch";
 }
 
 export const dnsEncode = (name: string): Hex => toHex(packetToBytes(name));
@@ -777,6 +833,12 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
     };
   }
 
+  async function checkTransfer(txHash: Hex, expect: TransferExpect, timeoutMs = 30_000): Promise<TransferCheck> {
+    // no receipt in time (or the RPC failed) says nothing about the money: pending, not mismatch
+    const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: timeoutMs }).catch(() => null);
+    return receipt ? receiptOutcome(receipt, expect) : "pending";
+  }
+
   return {
     root: opts.root,
 
@@ -817,18 +879,7 @@ export function createFamilyChain(opts: { root: string; rpcUrl?: string; fromBlo
       return { usdcMicro, ethWei };
     },
 
-    async findTransfer(txHash, expect) {
-      const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
-      if (receipt.status !== "success") return false;
-      const logs = parseEventLogs({ abi: erc20Abi, eventName: "Transfer", logs: receipt.logs });
-      return logs.some(
-        (l) =>
-          l.address.toLowerCase() === SEPOLIA_USDC.toLowerCase() &&
-          l.args.from.toLowerCase() === expect.from.toLowerCase() &&
-          l.args.to.toLowerCase() === expect.to.toLowerCase() &&
-          l.args.value === expect.amountMicro
-      );
-    },
+    checkTransfer,
   };
 }
 ```
@@ -1383,12 +1434,12 @@ server.tool(
 
 server.tool(
   "ens_verify_transfer",
-  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`.",
+  "Check that a Sepolia transaction moved exactly amount_usdc USDC from `from` to `to`. status: match (it did), mismatch (mined, but reverted or no USDC left `from`: nothing was paid), different (USDC left `from`, but not as asked), pending (no receipt within 30s: ask again later).",
   { tx_hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), from: ADDRESS, to: ADDRESS, amount_usdc: z.string().regex(/^\d+(\.\d{1,6})?$/) },
   async (a) => {
     try {
-      const ok = await chain.findTransfer(a.tx_hash as Hex, { from: a.from as Address, to: a.to as Address, amountMicro: parseUnits(a.amount_usdc, USDC_DECIMALS) });
-      return text({ ok });
+      const status = await chain.checkTransfer(a.tx_hash as Hex, { from: a.from as Address, to: a.to as Address, amountMicro: parseUnits(a.amount_usdc, USDC_DECIMALS) });
+      return text({ ok: status === "match", status });
     } catch (e) {
       return fail(e);
     }
@@ -1649,24 +1700,76 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { ensureNicknamesTable, loadNicknames } from "@/lib/ens-nicknames";
 import { prepareSend } from "@/lib/ens-family/prepare";
-import { displayName } from "@/lib/ens-family/family-tree";
-import { formatUsdc } from "@/lib/ens-family/send-request";
+import { displayName, findNodeByAddress, pickAnswer, pickRecipients, type FamilyNode } from "@/lib/ens-family/family-tree";
+import { formatUsdc, isSendRequest, kinshipOf, parseSendRequest } from "@/lib/ens-family/send-request";
 import { signSendIntent } from "@/lib/ens-family/send-token";
 import type { SkillContext, SkillResult } from "./family-skills";
 
-export async function sendByName(ctx: SkillContext): Promise<SkillResult> {
+// "Who should get it: Minjun or Seoyeon?" waits on that person in that room for 5 minutes:
+// their next message naming one of them continues with the amount they said.
+interface PendingSend {
+  amountMicro: bigint;
+  candidates: FamilyNode[];
+  nicknames: Map<string, string[]>;
+  expires: number;
+}
+const PENDING_SEND_MS = 5 * 60 * 1000;
+const g = globalThis as unknown as { __ensPendingSend?: Map<string, PendingSend> };
+const pendingSends = (g.__ensPendingSend ??= new Map<string, PendingSend>());
+const pendingKey = (roomId: string, askerId: string) => `${roomId}\u0000${askerId}`;
+
+function pendingSend(roomId: string, askerId: string, now = Date.now()): PendingSend | null {
+  const k = pendingKey(roomId, askerId);
+  const p = pendingSends.get(k);
+  if (p && p.expires <= now) pendingSends.delete(k);
+  return p && p.expires > now ? p : null;
+}
+
+/** Does `text` answer this person's pending "who should get it?" here? Anything else takes the
+ *  question off the table (one turn, like the prompt skill's "which one?"). */
+export function answersPendingSend(roomId: string, askerId: string, text: string): boolean {
+  const p = pendingSend(roomId, askerId);
+  if (!p) return false;
+  if (!isSendRequest(text) && pickAnswer(text, p.candidates, p.nicknames)) return true;
+  pendingSends.delete(pendingKey(roomId, askerId));
+  return false;
+}
+
+/** The reply, or null when a sentence without an amount names nobody below the asker
+ *  ("how much money did we give at Chuseok?"): the model answers that one. */
+export async function sendByName(ctx: SkillContext): Promise<SkillResult | null> {
   const t = makeT(ctx.lang);
+  // "Minjun" after "Minjun or Seoyeon?": the same request, now for that one person (by label,
+  // so prepareSend still does every check — family, amount, on-chain path — itself)
+  const pend = ctx.roomId ? pendingSend(ctx.roomId, ctx.askerId) : null;
+  if (ctx.roomId) pendingSends.delete(pendingKey(ctx.roomId, ctx.askerId));
+  const picked = pend && !isSendRequest(ctx.text) ? pickAnswer(ctx.text, pend.candidates, pend.nicknames) : null;
+  const text = pend && picked ? `send ${picked.label} ${formatUsdc(pend.amountMicro)} USDC` : ctx.text;
+  // no amount ("send Minjun some money"): ours only if it names someone to ask the amount for
+  const vague = !isSendRequest(text);
+
   const chain = familyChain();
-  if (!chain) return { text: t("Family names aren't set up here yet.") };
+  if (!chain) return vague ? null : { text: t("Family names aren't set up here yet.") };
   const [me] = await db.select({ address: users.ainAddress }).from(users).where(eq(users.id, ctx.askerId));
-  if (!me?.address) return { text: t("Sign in with your wallet first, so I know which family name is yours.") };
+  if (!me?.address) return vague ? null : { text: t("Sign in with your wallet first, so I know which family name is yours.") };
 
   const tree = await chain.loadTree();
-  const table = await ensureNicknamesTable({ workspaceId: ctx.workspaceId, byUserId: ctx.askerId, tree, t });
-  const note = table.pageId ? "\n" + t("I made a “Family nicknames” page where you can add the names you call each other → /p/{pageId}", { pageId: table.pageId }) : "";
   const nicknames = await loadNicknames(ctx.workspaceId);
+  if (vague) {
+    const asker = findNodeByAddress(tree, me.address);
+    if (!asker || pickRecipients(asker, { kinship: kinshipOf(text), text, nicknames }).length === 0) return null;
+  }
+  const table = await ensureNicknamesTable({ workspaceId: ctx.workspaceId, byUserId: ctx.askerId, tree, t });
+  const note = table.pageId
+    ? "\n" + t("I made a “Family nicknames” page where you can add the names you call each other → /p/{pageId}", { pageId: table.pageId })
+    : "";
 
-  const r = await prepareSend({ text: ctx.text, askerAddress: me.address, tree, nicknames }, chain);
+  const r = await prepareSend({ text, askerAddress: me.address, tree, nicknames }, chain);
+  if (r.kind === "ask" && ctx.roomId) {
+    const amountMicro = parseSendRequest(text)?.amountMicro;
+    if (amountMicro !== undefined)
+      pendingSends.set(pendingKey(ctx.roomId, ctx.askerId), { amountMicro, candidates: r.candidates, nicknames, expires: Date.now() + PENDING_SEND_MS });
+  }
   if (r.kind === "ask") return { text: t("Who should get it: {names}?", { names: r.candidates.map(displayName).join(t(" or ")) }) + note };
   if (r.kind === "refuse") {
     const why = {
@@ -1699,12 +1802,22 @@ export async function sendByName(ctx: SkillContext): Promise<SkillResult> {
 
 `app/src/lib/agent/family-skills.ts`:
 - line 51: `export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt" | "send";`
-- imports: `import { isSendRequest } from "@/lib/ens-family/send-request";` and `import { sendByName } from "./send-by-name";`
+- imports: `import { isSendRequest, isSendWithoutAmount } from "@/lib/ens-family/send-request";` and `import { answersPendingSend, sendByName } from "./send-by-name";`
 - first statement after `const t = …` in `matchFamilySkill` (line 75):
 
 ```ts
   // an amount in USDC with a send verb moves money: it is the send skill's, first
   if (isSendRequest(t)) return "send";
+  // "Minjun", right after the send skill asked "Minjun or Seoyeon?"
+  if (from && answersPendingSend(from.roomId, from.askerId, t)) return "send";
+```
+
+- right above `if (other) {` in `matchFamilySkill`:
+
+```ts
+  // "send Minjun some money" (no amount) is the send skill's, which asks for one — after the
+  // skills above, so "give Seoyeon her pocket money, open the video" stays the allowance
+  if (!other && !answers && !ask && isSendWithoutAmount(t)) return "send";
 ```
 
 - in `runFamilySkill`'s `switch` (line 566):
@@ -1849,6 +1962,14 @@ function storeTx(token: string, hash: string) {
     // private mode or blocked storage: the server copy is recorded on confirm
   }
 }
+// only the hash the server freed: another tab may have stored a real one since
+function dropTx(token: string, hash: string) {
+  try {
+    if (localStorage.getItem(txKey(token)) === hash) localStorage.removeItem(txKey(token));
+  } catch {
+    // nothing stored to drop
+  }
+}
 
 export function SendCard(p: Props) {
   const t = useT();
@@ -1856,6 +1977,8 @@ export function SendCard(p: Props) {
   const [state, setState] = useState<"idle" | "sending" | "confirming" | "done" | "error">(p.confirmed ? "done" : "idle");
   const [tx, setTx] = useState<string | null>(p.sentTx);
   const [error, setError] = useState<string | null>(null);
+  // "not yet" is not an error: the card says so in its normal colour
+  const [waiting, setWaiting] = useState(false);
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
@@ -1869,12 +1992,28 @@ export function SendCard(p: Props) {
   // retried as a confirm, never as a second transfer
   async function confirm(hash: string) {
     setError(null);
+    setWaiting(false);
     setState("confirming");
-    const ok = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
-      .then((r) => r.ok)
-      .catch(() => false);
-    setState(ok ? "done" : "error");
-    if (!ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+    // 200 found and announced · 202 no receipt yet · 422 mismatch: no USDC left the wallet ·
+    // 422 different: USDC left it, but not as prepared
+    const outcome = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
+      .then(async (r) => (r.status === 200 ? "match" : (((await r.json().catch(() => ({}))) as { reason?: string }).reason ?? "error")))
+      .catch(() => "error");
+    if (outcome === "match") return setState("done");
+    if (outcome === "mismatch") {
+      // the server released the link: this hash paid nothing, so Send comes back
+      dropTx(p.token, hash);
+      setTx(null);
+      setState("idle");
+      return setError(t("That transaction didn't move any USDC, so nothing was paid. You can send again."));
+    }
+    setState("error");
+    if (outcome === "pending") return setWaiting(true);
+    setError(
+      outcome === "different"
+        ? t("That transaction moved USDC, but not as prepared here. Check the explorer link.")
+        : t("It was sent, but I couldn't confirm it yet. Check the explorer link.")
+    );
   }
 
   async function send() {
@@ -1940,6 +2079,7 @@ export function SendCard(p: Props) {
                 {t("View on the explorer")}
               </a>
             </p>
+            {waiting && state !== "confirming" && <p className="mt-3" data-testid="send-waiting">{t("Waiting for the network to confirm it…")}</p>}
             <button
               data-testid="send-confirm-retry"
               onClick={() => void confirm(knownTx)}
@@ -2034,7 +2174,7 @@ import { makeT } from "@/i18n/translate";
 import { familyChain, sendSecret } from "@/lib/ens-chain";
 import { SEPOLIA_EXPLORER } from "@/lib/ens-family/config";
 import { formatUsdc } from "@/lib/ens-family/send-request";
-import { markConfirmed, markSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
+import { markConfirmed, markSent, releaseSent, verifySendIntentForConfirm, wasConfirmed, wasSent, type SendIntent } from "@/lib/ens-family/send-token";
 
 export const dynamic = "force-dynamic";
 
@@ -2067,8 +2207,16 @@ export async function POST(req: NextRequest) {
   if (confirming.has(body.t)) return NextResponse.json({ error: "Already confirming" }, { status: 409 });
   confirming.add(body.t);
   try {
-    const ok = await chain.findTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) }).catch(() => false);
-    if (!ok) return NextResponse.json({ error: "No matching USDC transfer in that transaction" }, { status: 422 });
+    const status = await chain.checkTransfer(body.txHash as `0x${string}`, { from: intent.from, to: intent.to, amountMicro: BigInt(intent.amountMicro) });
+    // mined, but reverted or with no USDC leaving her wallet: nothing was paid, so the link may pay again
+    if (status === "mismatch") {
+      releaseSent(body.t, body.txHash);
+      return NextResponse.json({ error: "No USDC left the wallet in that transaction", reason: "mismatch" }, { status: 422 });
+    }
+    // USDC left her wallet, but not as this link prepared: the link stays spent on this hash
+    if (status === "different") return NextResponse.json({ error: "That transaction moved USDC differently", reason: "different" }, { status: 422 });
+    // no receipt yet: the money may still move, so the link stays spent on this hash
+    if (status === "pending") return NextResponse.json({ error: "Not confirmed on Sepolia yet", reason: "pending" }, { status: 202 });
     await announce(intent, body.txHash);
     markConfirmed(body.t);
   } finally {
@@ -2174,7 +2322,116 @@ Add a "Demo run" section to the spec (`ens/plan-family-namespace.md`): the date,
 
 ---
 
+### Task 13: Dogfood fixes (D1–D5)
+
+The final dogfood run found five defects; the full-file blocks above (chain.ts, send-token.ts, send-request.ts, family-tree.ts, mcp/server.ts, send-by-name.ts, send-card.tsx, the confirm route) already carry the fixes. What changed, and the pieces that live outside those blocks:
+
+- **D1** `app/src/components/assistant/assistant-dock.tsx`: the panel is the real entry point, so its `Linked()` renders `/send?t=…` like dm-view does and makes https urls (the explorer link on a receipt) clickable, without trailing sentence punctuation; the bubble wraps long tokens.
+
+```tsx
+/**
+ * "/p/<id>" in an answer is a page the agent made, "/send?t=…" a transfer to review
+ * (the send-by-name skill), and an https url the explorer link on a receipt — links, not text.
+ */
+function Linked({ text, label }: { text: string; label: string }) {
+  const t = useT();
+  const parts = text.split(/(\/p\/[0-9a-f-]{36}|\/send\?t=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|https:\/\/[^\s<>"')\]]*[^\s<>"')\].,;:!?])/g);
+  const linkClass = "font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400";
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^\/p\/[0-9a-f-]{36}$/.test(part) ? (
+          <Link key={i} href={part} className={linkClass}>
+            {label}
+          </Link>
+        ) : /^\/send\?t=/.test(part) ? (
+          <Link key={i} href={part} className={linkClass} data-testid="send-link">
+            💸 {t("Review and send")}
+          </Link>
+        ) : /^https:\/\//.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={linkClass}>
+            {part}
+          </a>
+        ) : (
+          <Fragment key={i}>{part}</Fragment>
+        )
+      )}
+    </>
+  );
+}
+```
+
+  and the bubble's class gains `[overflow-wrap:anywhere]` after `whitespace-pre-wrap`.
+- **D2** `checkTransfer` (chain.ts) returns `match | mismatch | different | pending`; the pure `receiptOutcome` decides a mined receipt: `mismatch` only when it reverted or no USDC left the sender (the one outcome that frees the link), `different` when USDC left the sender but not as prepared (stays spent, the card says so and shows no Send). `findTransfer` is gone (no caller left). The confirm route answers mismatch with `releaseSent(token, hash)` (frees only that hash) + 422 `{reason:"mismatch"}` and pending with 202 `{reason:"pending"}` (the link stays spent on the hash). SendCard drops its localStorage copy on mismatch and offers Send again; on pending it keeps "Check again" with a neutral "Waiting for the network to confirm it…"; on different it keeps the hash. `ens_verify_transfer` returns `{ ok, status }`.
+- **D3** `app/src/i18n/ko.ts`: Korean for every key of this feature (send-by-name replies, the nicknames page, /send and the card, the receipt, the inbox `payment` summary, "Review and send", the D2 strings). `node app/scripts/i18n-keys.mjs` lists none of them as missing.
+- **D4** send-by-name.ts keeps a per-(room, asker) pending ask (amount + candidates + nicknames, 5 minutes, in memory). `answersPendingSend` is true when the reply is little more than one candidate's name (`pickAnswer`: whole word, and nothing but filler, punctuation or an @mention around it — "No, not Minjun", "show me Minjun's album", "Minjun, 10 USDC" are not answers); `sendByName` then prepares `send <label> <amount> USDC`, so prepareSend still runs every check. Any other message from that person clears it.
+- **D5** `isSendWithoutAmount` (send verb + money/usdc, no USDC amount) routes to the send skill, which asks for one amount when the sentence names someone below the asker (`pickRecipients` with `kinshipOf`); otherwise `sendByName` returns null and the model answers ("how much money did we give at Chuseok?"). It is checked after the allowance/todos/album/shopping skills, so "give Seoyeon her pocket money, open the video" stays the allowance.
+
+Checks added to `ens/checks/family.check.ts` (111 in total): in the send-request section after the precedence lines,
+
+```ts
+ok("no amount: send … some money", isSendWithoutAmount("send Minjun some money"));
+ok("no amount: transfer usdc", isSendWithoutAmount("transfer USDC to Seoyeon"));
+ok("no amount: with an amount it is a send request", !isSendWithoutAmount("send Minjun 20 USDC"));
+ok("no amount: no money word", !isSendWithoutAmount("send me the photos"));
+ok("no amount: no send verb", !isSendWithoutAmount("how much money does Minjun have"));
+ok("kinship: said", kinshipOf("send my grandson some money") === "grandson");
+ok("kinship: not said", kinshipOf("send Minjun some money") === null);
+```
+
+in the family-tree section above the displayName lines,
+
+```ts
+ok("answer: one candidate named", pickAnswer("Minjun", [minjun, seoyeon])?.label === "minjun");
+ok("answer: by alias, any case, in a sentence", pickAnswer("seoyeon please", [minjun, seoyeon])?.label === "seoyeon");
+ok("answer: nickname", pickAnswer("Junie", [minjun, seoyeon], nick)?.label === "minjun");
+ok("answer: both named → not an answer", pickAnswer("Minjun and Seoyeon", [minjun, seoyeon]) === null);
+ok("answer: 'Min' is not 'Minjun'", pickAnswer("Min", [minjun, seoyeon]) === null);
+ok("answer: not a candidate", pickAnswer("Mom", [minjun, seoyeon]) === null);
+ok("answer: 'to Minjun'", pickAnswer("to Minjun.", [minjun, seoyeon])?.label === "minjun");
+ok("answer: with the agent mentioned", pickAnswer("@agent Minjun", [minjun, seoyeon])?.label === "minjun");
+ok("answer: a no is not an answer", pickAnswer("No, not Minjun", [minjun, seoyeon]) === null);
+ok("answer: another request is not an answer", pickAnswer("show me Minjun's album", [minjun, seoyeon]) === null);
+ok("answer: a new amount is not an answer", pickAnswer("Minjun, 10 USDC", [minjun, seoyeon]) === null);
+```
+
+and above the summary lines (imports: `encodeAbiParameters, encodeEventTopics, type Log` from viem, `receiptOutcome` from `../src/chain`, `releaseSent` from `../src/send-token`),
+
+```ts
+// ── receiptOutcome (D2: match / mismatch) ───────────────────────────────────
+const transferLog = (o: { address?: `0x${string}`; to?: `0x${string}`; value?: bigint } = {}): Log =>
+  ({
+    address: o.address ?? SEPOLIA_USDC,
+    topics: encodeEventTopics({ abi: erc20Abi, eventName: "Transfer", args: { from: grandma.address!, to: o.to ?? minjun.address! } }),
+    data: encodeAbiParameters([{ type: "uint256" }], [o.value ?? 20_000_000n]),
+    blockHash: "0x" + "11".repeat(32),
+    blockNumber: 1n,
+    logIndex: 0,
+    transactionHash: "0x" + "22".repeat(32),
+    transactionIndex: 0,
+    removed: false,
+  }) as Log;
+const expect = { from: grandma.address!, to: minjun.address!, amountMicro: 20_000_000n };
+ok("receipt: matching transfer", receiptOutcome({ status: "success", logs: [transferLog()] }, expect) === "match");
+ok("receipt: reverted", receiptOutcome({ status: "reverted", logs: [transferLog()] }, expect) === "mismatch");
+ok("receipt: no logs", receiptOutcome({ status: "success", logs: [] }, expect) === "mismatch");
+ok("receipt: wrong amount → different, not free", receiptOutcome({ status: "success", logs: [transferLog({ value: 2_000_000n })] }, expect) === "different");
+ok("receipt: wrong recipient → different, not free", receiptOutcome({ status: "success", logs: [transferLog({ to: seoyeon.address! })] }, expect) === "different");
+ok("receipt: someone else's transfer", receiptOutcome({ status: "success", logs: [transferLog()] }, { ...expect, from: dad.address! }) === "mismatch");
+ok("receipt: the right one among others", receiptOutcome({ status: "success", logs: [transferLog({ value: 1n }), transferLog()] }, expect) === "match");
+ok("receipt: not the USDC contract", receiptOutcome({ status: "success", logs: [transferLog({ address: "0x00000000000000000000000000000000000000dd" })] }, expect) === "mismatch");
+markSent("release-me", "0xAbc");
+releaseSent("release-me", "0xdef");
+ok("sent: another hash does not free the link", wasSent("release-me") === "0xAbc");
+releaseSent("release-me", "0xabc");
+ok("sent: released link can pay again", wasSent("release-me") === null);
+```
+
+Gate: `cd ens && npm run check` → 111 passed; `node ens/scripts/sync-to-app.mjs --check` in sync; app `npx tsc --noEmit -p .` 0; eslint clean on the touched files. Live: in the panel `send Minjun some money` → "Tell me one amount…"; `send my grandchild 1 USDC` → "Who should get it: Minjun or Seoyeon?" → `Minjun` → "Ready: 1 USDC to Minjun …" with a 💸 link; confirm with an unknown hash → 202 pending (after 30 s), then another hash → 409; confirm with a mined non-USDC hash → mismatch, the card offers Send again.
+
+---
+
 ## Self-review notes
 
 - **Spec coverage:** flow steps 1–7 → Tasks 4, 5, 10, 11; safety rules → Task 4 (`verifyPath`), Task 5 (limits, refusals), Task 10 (re-resolve, balances, account check), Task 6 (only the person and the admin hold `ROLE_SET_ADDRESS`; the agent holds nothing); acceptance criteria 1–5 → Task 12 (criterion 5 is structural: the tree comes from the chain, so no DB row can redirect money, and `verifyPath` checks every hop); D1–D14 each map to a task (D13 → Tasks 2, 10 Step 1, 12 step 7; D14 → Tasks 1, 9).
-- **Automated coverage:** everything in `ens/src` except `chain.ts` is checked by `npm run check` (83 checks; `prepareSend` with a fake chain). `chain.ts`, the MCP server and the app UI are exercised live in Tasks 7, 8 and 12; the repo has no wallet test harness.
+- **Automated coverage:** everything in `ens/src` except `chain.ts` is checked by `npm run check` (111 checks; `prepareSend` with a fake chain). `chain.ts`, the MCP server and the app UI are exercised live in Tasks 7, 8 and 12; the repo has no wallet test harness.

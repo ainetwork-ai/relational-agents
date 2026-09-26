@@ -26,12 +26,23 @@ export function isSendRequest(text: string): boolean {
   return SEND_VERB.test(text) && /\d\s*usdc\b/i.test(text);
 }
 
+/** "send Minjun some money": a send verb and money or USDC, but no USDC amount. The send
+ *  skill asks for one amount when the sentence names someone below the asker, and otherwise
+ *  hands it back to the model ("how much money did we give at Chuseok?"). */
+export function isSendWithoutAmount(text: string): boolean {
+  return SEND_VERB.test(text) && /\b(money|usdc)\b/i.test(text) && !isSendRequest(text);
+}
+
+/** "my grandson" → grandson; null when no kinship word is said. */
+export function kinshipOf(text: string): Kinship | null {
+  return (KINSHIP_RE.exec(text)?.[1]?.toLowerCase() as Kinship | undefined) ?? null;
+}
+
 export function parseSendRequest(text: string): { amountMicro: bigint; kinship: Kinship | null } | null {
   if (!isSendRequest(text)) return null;
   const amounts = [...text.matchAll(AMOUNT_ANY)].map((m) => m[1].replace(/\.$/, ""));
   if (amounts.length !== 1 || !AMOUNT_OK.test(amounts[0])) return null;
-  const kin = KINSHIP_RE.exec(text)?.[1]?.toLowerCase() as Kinship | undefined;
-  return { amountMicro: parseUnits(amounts[0], USDC_DECIMALS), kinship: kin ?? null };
+  return { amountMicro: parseUnits(amounts[0], USDC_DECIMALS), kinship: kinshipOf(text) };
 }
 
 export function checkAmount(amountMicro: bigint): "ok" | "too-small" | "too-large" {

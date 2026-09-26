@@ -2,10 +2,11 @@
 // Checks for the pure modules in ens/src and for prepareSend (with a fake chain).
 //
 //   cd ens && npm run check
-import { checkAmount, formatUsdc, isSendRequest, parseSendRequest } from "../src/send-request";
-import { descendants, displayName, findNodeByAddress, matchesKinship, pickRecipients, type FamilyNode } from "../src/family-tree";
-import { CONFIRM_GRACE_MS, markConfirmed, markSent, signSendIntent, verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "../src/send-token";
-import { decodeFunctionData, erc20Abi, getAddress } from "viem";
+import { checkAmount, formatUsdc, isSendRequest, isSendWithoutAmount, kinshipOf, parseSendRequest } from "../src/send-request";
+import { descendants, displayName, findNodeByAddress, matchesKinship, pickAnswer, pickRecipients, type FamilyNode } from "../src/family-tree";
+import { CONFIRM_GRACE_MS, markConfirmed, markSent, releaseSent, signSendIntent, verifySendIntent, verifySendIntentForConfirm, wasConfirmed, wasSent } from "../src/send-token";
+import { decodeFunctionData, encodeAbiParameters, encodeEventTopics, erc20Abi, getAddress, type Log } from "viem";
+import { receiptOutcome } from "../src/chain";
 import { prepareSend } from "../src/prepare";
 import { SEPOLIA_USDC } from "../src/config";
 
@@ -49,6 +50,13 @@ ok("parse: child", parseSendRequest("send my child 5 USDC")?.kinship === "child"
 ok("parse: 'grandson' is not 'son'", parseSendRequest("send my grandson 5 USDC")?.kinship !== "son");
 ok("precedence: amount → send", isSendRequest("give Seoyeon her pocket money, 5 USDC"));
 ok("precedence: no amount → not send", !isSendRequest("give Seoyeon her pocket money, open the video"));
+ok("no amount: send … some money", isSendWithoutAmount("send Minjun some money"));
+ok("no amount: transfer usdc", isSendWithoutAmount("transfer USDC to Seoyeon"));
+ok("no amount: with an amount it is a send request", !isSendWithoutAmount("send Minjun 20 USDC"));
+ok("no amount: no money word", !isSendWithoutAmount("send me the photos"));
+ok("no amount: no send verb", !isSendWithoutAmount("how much money does Minjun have"));
+ok("kinship: said", kinshipOf("send my grandson some money") === "grandson");
+ok("kinship: not said", kinshipOf("send Minjun some money") === null);
 
 ok("amount: zero too small", checkAmount(0n) === "too-small");
 ok("amount: 0.009999 too small", checkAmount(9_999n) === "too-small");
@@ -107,6 +115,17 @@ ok("pick: never the asker", pickRecipients(grandma, { kinship: null, text: "send
 const nick = new Map([[minjun.name, ["Junie"]], [seoyeon.name, ["baby"]], [min.name, ["baby"]]]);
 ok("pick: nickname", names(pickRecipients(grandma, { kinship: null, text: "send Junie 5 USDC", nicknames: nick })) === "minjun");
 ok("pick: shared nickname → ask", names(pickRecipients(grandma, { kinship: null, text: "send baby 5 USDC", nicknames: nick })) === "min,seoyeon");
+ok("answer: one candidate named", pickAnswer("Minjun", [minjun, seoyeon])?.label === "minjun");
+ok("answer: by alias, any case, in a sentence", pickAnswer("seoyeon please", [minjun, seoyeon])?.label === "seoyeon");
+ok("answer: nickname", pickAnswer("Junie", [minjun, seoyeon], nick)?.label === "minjun");
+ok("answer: both named → not an answer", pickAnswer("Minjun and Seoyeon", [minjun, seoyeon]) === null);
+ok("answer: 'Min' is not 'Minjun'", pickAnswer("Min", [minjun, seoyeon]) === null);
+ok("answer: not a candidate", pickAnswer("Mom", [minjun, seoyeon]) === null);
+ok("answer: 'to Minjun'", pickAnswer("to Minjun.", [minjun, seoyeon])?.label === "minjun");
+ok("answer: with the agent mentioned", pickAnswer("@agent Minjun", [minjun, seoyeon])?.label === "minjun");
+ok("answer: a no is not an answer", pickAnswer("No, not Minjun", [minjun, seoyeon]) === null);
+ok("answer: another request is not an answer", pickAnswer("show me Minjun's album", [minjun, seoyeon]) === null);
+ok("answer: a new amount is not an answer", pickAnswer("Minjun, 10 USDC", [minjun, seoyeon]) === null);
 ok("displayName: alias", displayName(minjun) === "Minjun");
 ok("displayName: label fallback", displayName({ ...minjun, alias: null }) === "minjun");
 
@@ -163,6 +182,34 @@ ok("prepare: no request", same(await prepareSend({ text: "send Minjun some money
 ok("prepare: path fails", (await prepareSend({ text: "send Minjun 5 USDC", askerAddress: G, tree }, fake({ verify: false }))).kind === "refuse");
 ok("prepare: no address", (await prepareSend({ text: "send Minjun 5 USDC", askerAddress: G, tree }, fake({ to: null }))).kind === "refuse");
 ok("prepare: nickname", (await prepareSend({ text: "send Junie 5 USDC", askerAddress: G, tree, nicknames: nick }, fake())).kind === "ready");
+
+// ── receiptOutcome (D2: match / mismatch) ───────────────────────────────────
+const transferLog = (o: { address?: `0x${string}`; to?: `0x${string}`; value?: bigint } = {}): Log =>
+  ({
+    address: o.address ?? SEPOLIA_USDC,
+    topics: encodeEventTopics({ abi: erc20Abi, eventName: "Transfer", args: { from: grandma.address!, to: o.to ?? minjun.address! } }),
+    data: encodeAbiParameters([{ type: "uint256" }], [o.value ?? 20_000_000n]),
+    blockHash: "0x" + "11".repeat(32),
+    blockNumber: 1n,
+    logIndex: 0,
+    transactionHash: "0x" + "22".repeat(32),
+    transactionIndex: 0,
+    removed: false,
+  }) as Log;
+const expect = { from: grandma.address!, to: minjun.address!, amountMicro: 20_000_000n };
+ok("receipt: matching transfer", receiptOutcome({ status: "success", logs: [transferLog()] }, expect) === "match");
+ok("receipt: reverted", receiptOutcome({ status: "reverted", logs: [transferLog()] }, expect) === "mismatch");
+ok("receipt: no logs", receiptOutcome({ status: "success", logs: [] }, expect) === "mismatch");
+ok("receipt: wrong amount → different, not free", receiptOutcome({ status: "success", logs: [transferLog({ value: 2_000_000n })] }, expect) === "different");
+ok("receipt: wrong recipient → different, not free", receiptOutcome({ status: "success", logs: [transferLog({ to: seoyeon.address! })] }, expect) === "different");
+ok("receipt: someone else's transfer", receiptOutcome({ status: "success", logs: [transferLog()] }, { ...expect, from: dad.address! }) === "mismatch");
+ok("receipt: the right one among others", receiptOutcome({ status: "success", logs: [transferLog({ value: 1n }), transferLog()] }, expect) === "match");
+ok("receipt: not the USDC contract", receiptOutcome({ status: "success", logs: [transferLog({ address: "0x00000000000000000000000000000000000000dd" })] }, expect) === "mismatch");
+markSent("release-me", "0xAbc");
+releaseSent("release-me", "0xdef");
+ok("sent: another hash does not free the link", wasSent("release-me") === "0xAbc");
+releaseSent("release-me", "0xabc");
+ok("sent: released link can pay again", wasSent("release-me") === null);
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

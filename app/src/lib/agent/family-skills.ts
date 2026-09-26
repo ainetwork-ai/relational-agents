@@ -14,8 +14,8 @@ import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
 import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk, saidAsPick } from "@/lib/prompt-export/input";
 import { promptSkill } from "./prompt-skill";
-import { isSendRequest } from "@/lib/ens-family/send-request";
-import { sendByName } from "./send-by-name";
+import { isSendRequest, isSendWithoutAmount } from "@/lib/ens-family/send-request";
+import { answersPendingSend, sendByName } from "./send-by-name";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
 import { demoLang, familyDemo } from "@/i18n/content/demo-lang";
@@ -77,6 +77,8 @@ export function matchFamilySkill(text: string, from?: { roomId: string; askerId:
   const t = text.replace(/\s+/g, " ");
   // an amount in USDC with a send verb moves money: it is the send skill's, first
   if (isSendRequest(t)) return "send";
+  // "Minjun", right after the send skill asked "Minjun or Seoyeon?"
+  if (from && answersPendingSend(from.roomId, from.askerId, t)) return "send";
   const ask = promptAsk(t);
   const answers = from ? answersPendingPrompt(from.roomId, from.askerId, t) : false;
   // first: "make a prompt from the album page" is about the prompt, not the album
@@ -96,6 +98,9 @@ export function matchFamilySkill(text: string, from?: { roomId: string; askerId:
     if (SERVINGS_RE.test(t) && SERVINGS_ACT.test(t)) return "shopping" as const;
     return null;
   })();
+  // "send Minjun some money" (no amount) is the send skill's, which asks for one — after the
+  // skills above, so "give Seoyeon her pocket money, open the video" stays the allowance
+  if (!other && !answers && !ask && isSendWithoutAmount(t)) return "send";
   if (other) {
     // "make a Jeju album" is the album skill, even right after "which one? 「Jeju album」…"
     if (from) forgetPendingPrompt(from.roomId, from.askerId);
