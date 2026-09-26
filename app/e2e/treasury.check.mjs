@@ -409,7 +409,7 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   ctx.action180 = a.id;
   ctx.payee180 = a.recipient.address;
   // the ledger line is written before the agent answers
-  const queued = `📝 Alex asked: $180 · ${a.memo} — needs 2 humans to approve`;
+  const queued = `Alex asked: $180 · ${a.memo} — needs 2 humans to approve`;
   const texts = await activityTexts();
   assert(texts.some((t) => t.includes(JSON.stringify(queued).slice(1, -1))), `no queued line in Treasury Activity: ${queued}`);
   return `action ${a.id}`;
@@ -574,7 +574,7 @@ await scene("e. $700 to my wallet — refused on the rule, no approval asked, no
   assert(said[0] === "I won't do that." && said[1].includes(`“${RULE_PERSONAL}”`), `refusal lines: ${JSON.stringify(said)}`);
   assert(said.some((l) => /^\$700 is also \d+(\.\d)?% of our \$[\d,.]+ — /.test(l)), `no "$700 is also …%" line: ${JSON.stringify(said)}`);
   assert(said.some((l) => /^Rules: \/p\/[A-Za-z0-9_-]+$/.test(l)), `no rules link line: ${JSON.stringify(said)}`);
-  const refused = `⛔ Refused: $700 to Alex's own wallet — “${RULE_PERSONAL}”`;
+  const refused = `Refused: $700 to Alex's own wallet — “${RULE_PERSONAL}”`;
   assert(
     (await activityTexts()).some((t) => t.includes(JSON.stringify(refused).slice(1, -1))),
     `no refusal line in Treasury Activity: ${refused}`
