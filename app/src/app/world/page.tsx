@@ -178,11 +178,46 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
             Try it yourself
           </h2>
           <p className={styles.sub}>
-            A copy of the same room with its own accounts and wallet. Pick a member to enter as them. There is no sign-up.
+            A copy of the same room with its own accounts and wallet. Pick a member and you are signed in as them, in the
+            treasury or the room chat. There is no sign-up.
           </p>
           {flash && <p className={styles.flash}>{flash}</p>}
           {canEnter && tryRoom ? (
             <>
+              <div className={styles.previews}>
+                <a className={styles.preview} href="/world/enter/alex?to=treasury">
+                  <img
+                    src="/demo/world/treasury-account.jpg"
+                    alt="The Tokyo Trip treasury: a $1,000 shared pot, the six members, the agent's wallet, and a $180 hotel deposit waiting for approval"
+                    width={574}
+                    height={710}
+                    loading="lazy"
+                  />
+                  <span className={styles.previewText}>
+                    <span className={styles.previewTitle}>The account</span>
+                    <span className={styles.previewNote}>
+                      The shared pot, what is waiting for approval, and who holds a vote. Open it as Alex →
+                    </span>
+                  </span>
+                </a>
+                <a className={styles.preview} href="/world/enter/alex?to=treasurer">
+                  <img
+                    src="/demo/world/treasury-treasurer.jpg"
+                    alt="The treasurer tab: the room's agent as Treasurer of Tokyo Trip, one request waiting for approval, and one wallet on Sepolia and Base"
+                    width={574}
+                    height={710}
+                    loading="lazy"
+                  />
+                  <span className={styles.previewText}>
+                    <span className={styles.previewTitle}>The treasurer</span>
+                    <span className={styles.previewNote}>
+                      The room&apos;s agent as treasurer: what it is running, its wallet on two chains, and the rules it
+                      follows. It proposes; members approve with World ID. Open it as Alex →
+                    </span>
+                  </span>
+                </a>
+              </div>
+              <p className={styles.label}>Pick a member</p>
               <ul className={styles.members}>
                 {tryRoom.members.map((m) => (
                   <li key={m.key} className={styles.member}>
@@ -196,11 +231,11 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                       <span className={styles.memberNote}>{MEMBER_NOTE[m.key]}</span>
                     </span>
                     <span className={styles.memberActions}>
-                      <a className={styles.enter} href={`/world/enter/${m.key}`}>
-                        Enter
+                      <a className={styles.enter} href={`/world/enter/${m.key}?to=treasury`}>
+                        Open treasury
                       </a>
-                      <a className={styles.alt} href={`/world/enter/${m.key}?to=treasury`}>
-                        Account view
+                      <a className={styles.alt} href={`/world/enter/${m.key}`}>
+                        Room chat
                       </a>
                     </span>
                   </li>
@@ -211,23 +246,26 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
                   <p className={styles.label}>What to try</p>
                   <ol className={styles.steps}>
                     <li>
-                      Enter as Alex and press <b>Claim your vote with World ID</b>. The World ID simulator opens; choose an
-                      identity and continue.
+                      Open the treasury as Alex: the pot, what waits for approval, who holds a vote, and the treasurer.
                     </li>
                     <li>
-                      In a second browser or a private window, enter as Chris and claim a vote with a different simulator
+                      Go back to the room (<b>Back to Tokyo Trip</b>) and press <b>Claim your vote with World ID</b>. The
+                      World ID simulator opens; choose an identity and continue.
+                    </li>
+                    <li>
+                      In a second browser or a private window, pick Chris and claim a vote with a different simulator
                       identity.
                     </li>
                     <li>
-                      As Alex, send <code>@agent pay the hotel deposit, $180</code>. The agent quotes the rule and asks for 2
-                      verified humans.
+                      As Alex, send <code>@agent pay the hotel deposit, $180</code> in the room. The agent quotes the rule,
+                      and the request shows up under <b>Needs approval</b> in the treasury.
                     </li>
                     <li>
-                      Approve from both browsers. First you see what you are approving, then World ID for Agents checks you
-                      in.
+                      Approve from both browsers, in the room or in the treasury. First you see what you are approving, then
+                      World ID for Agents checks you in.
                     </li>
                     <li>
-                      Try what gets refused: <code>@agent send $700 to my wallet</code>, or enter as Alex (2nd account) in
+                      Try what gets refused: <code>@agent send $700 to my wallet</code>, or pick Alex (2nd account) in
                       Alex&apos;s browser and approve a request Alex already approved.
                     </li>
                   </ol>

@@ -237,6 +237,11 @@
   gap: 12px;
 }
 
+/* the steps are the longer read */
+.tryGrid {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
 .balance {
   margin: 0 0 18px;
   font-size: 34px;
@@ -365,7 +370,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
   gap: 10px;
 }
 
@@ -417,9 +422,69 @@
 }
 
 .alt {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   text-align: center;
-  color: var(--w-sec) !important;
+  text-decoration: none;
+  color: var(--w-sub) !important;
+  background: var(--w-hair);
+  border-radius: 10px;
+  padding: 5px 12px;
+}
+
+.alt:hover {
+  background: var(--w-line);
+}
+
+/* the treasury pages, pictured: each opens the real page as Alex */
+.previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  background: var(--w-card);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--w-shadow);
+  text-decoration: none;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.preview:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: top;
+  background: var(--w-bg);
+  border-bottom: 1px solid var(--w-hair);
+}
+
+.previewText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px 18px;
+}
+
+.previewTitle {
+  font-weight: 700;
+  color: var(--w-text);
+}
+
+.previewNote {
+  font-size: 14px;
+  color: var(--w-sec);
 }
 
 /* Tailwind's preflight strips list markers; the steps are an order to follow */
@@ -493,7 +558,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .primary,
-  .enter {
+  .enter,
+  .preview {
     transition: none;
+  }
+
+  .preview:hover {
+    transform: none;
   }
 }
