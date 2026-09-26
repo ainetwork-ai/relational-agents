@@ -8,6 +8,7 @@ import type { T } from "@/i18n/translate";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import { SKIP_REASON_TEXT, relationDay } from "@/lib/agent/treasury/recurring-record";
 import type { RecurringRunResult } from "@/lib/agent/treasury/recurring";
+import { runNote } from "@/lib/agent/treasury/run-note";
 import { recurringBuySurfaceId } from "@/lib/agent/treasurer/surfaces";
 import { ChainBadge, UniswapBadge } from "@/components/chain/chain-badge";
 
@@ -70,19 +71,6 @@ function termsLine(r: { weeklyUsd: number; weeks: number }, t: T): string {
   return r.weeks === 1
     ? t("{amount} a week · 1 week", { amount: usd(r.weeklyUsd) })
     : t("{amount} a week · {n} weeks", { amount: usd(r.weeklyUsd), n: r.weeks });
-}
-
-function runNote(r: RecurringRunResult, t: T): Note {
-  switch (r.outcome) {
-    case "bought":
-      return { tone: "ok", text: t("Bought {weth} WETH for {usdc} USDC", { weth: tokens(r.wethOut), usdc: tokens(r.usdcIn) }), href: r.txUrl };
-    case "skipped":
-      return { tone: "info", text: t("Skipped: {reason}", { reason: t(SKIP_REASON_TEXT[r.reason]) }) };
-    case "rehearsal":
-      return { tone: "info", text: t("Rehearsal — would buy {amount} of ETH. Nothing moved.", { amount: usd(r.wouldBuyUsd) }) };
-    case "none":
-      return { tone: "info", text: t("No recurring buy is running.") };
-  }
 }
 
 /**

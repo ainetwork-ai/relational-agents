@@ -172,8 +172,8 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
     void load(a.roomId);
   }
 
-  // a chat screen has its own composer (and its own agent) at the bottom — on a
-  // phone the round button would sit on top of the send button there
+  // a chat screen has its own composer and its own agent: the round button would
+  // be a second agent there (and on a phone it sits on top of the send button)
   const onChatScreen = /^\/(dm|chat)\//.test(pathname || "");
   const offer = suggestionsFor({ pageId: pageIdOf(pathname), hasDrives: (a?.drives.length ?? 0) > 0, hasHistory: msgs.length > 0 });
   if (!open)
@@ -183,7 +183,7 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
         onClick={() => setOpen(true)}
         title={t("Agent")}
         aria-label={t("Open agent")}
-        className={`fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg transition-transform hover:scale-105 max-md:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-md:right-4 dark:bg-neutral-100 dark:text-neutral-900 ${onChatScreen ? "max-md:hidden" : ""}`}
+        className={`fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg transition-transform hover:scale-105 max-md:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-md:right-4 dark:bg-neutral-100 dark:text-neutral-900 ${onChatScreen ? "hidden" : ""}`}
       >
         <Sparkles size={20} />
       </button>

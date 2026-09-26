@@ -4,7 +4,7 @@ import Link from "next/link";
 import { isImeComposing } from "@/hooks/use-ime-guard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, NotebookPen, TriangleAlert } from "lucide-react";
+import { FileText, ImagePlus, Lock, LogOut, Pencil, Send, ShoppingBag, SlidersHorizontal, UserPlus, X, Bot, FileCheck, Loader2, NotebookPen, TriangleAlert } from "lucide-react";
 import { newId } from "@/lib/compat";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useDmRoomsStore, type DmUser } from "@/stores/dm-rooms";
@@ -216,6 +216,8 @@ export function DmView({
   }, [roomId, markReadLocal]);
 
   const loadedRef = useRef(false);
+  // set while leaving: the room's refetch answers 403 then, and that is the leave, not an error
+  const leavingRef = useRef(false);
   /** Check whether this room has the relationship agent (drives the header button). */
   const loadAgent = useCallback(async () => {
     // a dropped connection (tunnel blip, dev-server restart) says nothing about
@@ -228,6 +230,7 @@ export function DmView({
     try {
       const res = await fetch(`/api/dm/rooms/${roomId}`);
       if (!res.ok) {
+        if (leavingRef.current) return;
         setError(res.status === 404 ? t("Chat not found.") : t("You don't have access to this conversation."));
         setLoading(false);
         return;
@@ -618,16 +621,18 @@ export function DmView({
     setConfirmLeave(false);
  // Leaving used to be a "dissolution" that every member's wallet had to sign
  // (RelationDissolve). Wallets are gone, so it is a plain leave.
+    leavingRef.current = true;
     const res = await fetch(`/api/dm/rooms/${roomId}/members`, {
       method: "DELETE",
       headers: { "x-client-id": clientId },
     });
     if (!res.ok) {
+      leavingRef.current = false;
       show(t("Couldn't leave the chat"));
       return;
     }
     void loadRooms();
-    router.push("/");
+    router.replace("/");
   }
 
   /** Inviting the relationship agent = provisioning it (own key, A2A URL,
@@ -1072,14 +1077,10 @@ export function DmView({
             );
             const footer =
               m.recordedAt && !m.privateToUserId ? (
-                <Link
-                  href={room?.rootPageId ? `/p/${room.rootPageId}` : "#"}
-                  data-testid="dm-msg-recorded"
-                  className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
-                >
-                  <FileCheck size={10} />
+                <span data-testid="dm-msg-recorded" className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400">
+                  <FileCheck size={10} aria-hidden />
                   {t("Added to history")}
-                </Link>
+                </span>
               ) : m.privateToUserId ? (
                 <p
                   data-testid="dm-msg-private"
@@ -1358,7 +1359,7 @@ export function DmView({
           data-testid="dm-attach"
           aria-label={t("Attach image")}
           data-tip={t("Attach photo")}
-          disabled={uploading}
+          disabled={uploading || sending}
           onClick={() => fileRef.current?.click()}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 disabled:opacity-50 dark:hover:bg-neutral-800"
         >
@@ -1391,6 +1392,9 @@ export function DmView({
           data-testid="dm-composer-input"
           value={input}
           rows={1}
+          // while a message is on its way the draft holds still: what it clears is what was sent
+          readOnly={sending}
+          aria-busy={sending}
           placeholder={draftIsPrivate ? t("Ask the agent…") : t("Type a message…")}
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => (isComposingRef.current = true)}
@@ -1444,9 +1448,9 @@ export function DmView({
           data-testid="dm-send"
           aria-label={t("Send message")}
           disabled={sending || uploading || (!input.trim() && !mentionChips.length && pendingAtt.length === 0)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 disabled:opacity-40"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2383e2] text-white transition-colors hover:bg-[#1b6fc0] active:scale-95 ${sending ? "" : "disabled:opacity-40"}`}
         >
-          <Send size={16} />
+          {sending ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Send size={16} />}
         </button>
       </form>
     </div>

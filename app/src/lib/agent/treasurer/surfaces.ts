@@ -6,9 +6,10 @@
  *
  * Short on purpose: the weekly amount, its weeks and total, what each buy
  * really swaps (the story's dollars are demo scale), the approvals as slots,
- * and one action — the thing this viewer can do now: approve (the World ID
- * approval page for that action) while it waits, else stop or cancel (POST
- * to the surface route, which answers with the surface redrawn). The rule,
+ * and the actions this viewer can take now: approve (the World ID approval
+ * page for that action) while it waits; buy this week's share while it runs
+ * and the week is open; stop or cancel. Buy, stop and cancel POST to the
+ * surface route, which answers with the surface redrawn. The rule,
  * the wallet and the terms' fingerprint are on the approval page itself.
  *
  * Also the room-chat marker: an agent message carrying a line
@@ -24,6 +25,7 @@ import { relationDay } from "@/lib/agent/treasury/recurring-record";
 
 export const TREASURY_APPROVE_ACTION = "ainmem.treasury.approve";
 export const TREASURY_STOP_ACTION = "ainmem.treasury.stop";
+export const TREASURY_BUY_ACTION = "ainmem.treasury.buy";
 export const TREASURY_OPEN_ACTION = "ainmem.treasury.open";
 
 // ── the room-chat marker ────────────────────────────────────────────────────
@@ -232,11 +234,17 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
     comps.push(text("notice", s.notice, "caption"));
   }
 
-  // the primary action is approving, for whoever can; stopping or cancelling is a quiet one on the right
+  // the primary action is approving a waiting request, or buying the open week of a running one;
+  // stopping or cancelling is a quiet one on the right
   const approve = s.state === "pending" && s.canApprove && s.approvalsOpen;
+  const buy = s.state === "live" && s.canStop && s.progress?.thisWeek === "open";
   const stop = (s.state === "pending" || s.state === "live") && s.canStop;
-  if (approve || stop) root.push("divider");
-  if (approve || stop) comps.push({ id: "divider", component: "Divider" });
+  if (approve || buy || stop) root.push("divider");
+  if (approve || buy || stop) comps.push({ id: "divider", component: "Divider" });
+  if (buy) {
+    root.push("buy");
+    comps.push(button("buy", "buy_label", TREASURY_BUY_ACTION, ctx, "primary"), text("buy_label", t("Buy this week's ETH")));
+  }
   if (approve) {
     root.push("approve");
     comps.push(
