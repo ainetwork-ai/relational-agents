@@ -257,7 +257,7 @@ function slots(approvedBy: string[], required: number): string {
   const n = Math.max(required, approvedBy.length);
   return Array.from({ length: n }, (_, i) =>
     i < approvedBy.length
-      ? `<li class="slot done">✓ ${esc(approvedBy[i])}</li>`
+      ? `<li class="slot done"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> ${esc(approvedBy[i])}</li>`
       : `<li class="slot">verified human</li>`
   ).join("");
 }
@@ -393,7 +393,7 @@ function confirmPage(
       <input type="hidden" name="returnTo" value="${esc(f.returnTo)}">
       <input type="hidden" name="exp" value="${f.exp}">
       <input type="hidden" name="token" value="${esc(f.token)}">
-      <button type="submit">🌍 Approve with World ID</button>
+      <button type="submit"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>Approve with World ID</button>
       <a class="cancel" href="${esc(f.returnTo)}">Cancel</a>
     </form>
   </div>

@@ -551,7 +551,7 @@ export async function recordIdpApproval(input: {
   const approverKey = `sub:${input.sub}`;
   // the room hears it, and the Treasury Activity keeps it
   const voided = async (why: string) => {
-    const line = `⛔ An approval was voided: ${why}`;
+    const line = `An approval was voided: ${why}`;
     await postAgentMessage(action.roomId, action.agentUserId, line);
     await logActivity(action.roomId, line);
   };
@@ -607,7 +607,7 @@ export async function recordIdpApproval(input: {
   const counted = await countedApprovals(action.id, eligible);
   // the step-up's own sign-in time: the freshness check above is what makes
   // this approval count, so the room sees it — at the relation's clock
-  const line = `✅ ${await displayName(input.userId)} approved with World ID — ${Math.min(counted, action.requiredApprovals)} of ${action.requiredApprovals} · fresh check at ${clockFormat.format(new Date(input.authTime * 1000))}, after this request`;
+  const line = `${await displayName(input.userId)} approved with World ID — ${Math.min(counted, action.requiredApprovals)} of ${action.requiredApprovals} · fresh check at ${clockFormat.format(new Date(input.authTime * 1000))}, after this request`;
   await postAgentMessage(action.roomId, action.agentUserId, line);
   await logActivity(action.roomId, line);
 
@@ -723,9 +723,9 @@ async function expire(action: TreasuryAction): Promise<boolean> {
   await postAgentMessage(
     action.roomId,
     action.agentUserId,
-    `⌛ The request for ${what} expired after ${TTL_HOURS} hours without enough verified approvals — ${nothing}.`
+    `The request for ${what} expired after ${TTL_HOURS} hours without enough verified approvals — ${nothing}.`
   );
-  await logActivity(action.roomId, `⌛ Expired unapproved: ${what}`);
+  await logActivity(action.roomId, `Expired unapproved: ${what}`);
   return true;
 }
 
@@ -764,7 +764,7 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⚠️ I didn't adopt the edited rules: ${error}. Nothing changed — I still follow the version we adopted before.`
+      `I didn't adopt the edited rules: ${error}. Nothing changed — I still follow the version we adopted before.`
     );
     return { executed: false, approvals, required, error: error ?? "unreadable" };
   }
@@ -779,7 +779,7 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `📜 Adopted: from now on I follow our edited Treasury Rules and Payees${joined}.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
+      `Adopted: from now on I follow our edited Treasury Rules and Payees${joined}.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
     );
     const changes = [
       ...(asked.added ?? []).map((l) => `+ “${l}”`),
@@ -788,7 +788,7 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
     ];
     await logActivity(
       claimed.roomId,
-      `📜 Adopted edited rules and payees — approved by ${nameList(names)}${changes.length ? `: ${changes.join("; ")}` : ""}`
+      `Adopted edited rules and payees — approved by ${nameList(names)}${changes.length ? `: ${changes.join("; ")}` : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);
@@ -813,8 +813,8 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     const error = `Not adopted: ${why}`;
     const ruleText = record && rule ? JSON.stringify({ ...record, rule }) : claimed.ruleText;
     await settle(claimed.id, status === "blocked" ? { status, ruleText, error } : { status, error });
-    await postAgentMessage(claimed.roomId, claimed.agentUserId, `⚠️ Recurring buy not adopted (${what}): ${why}`);
-    await logActivity(claimed.roomId, `⚠️ Recurring buy not adopted (${what}): ${why}`);
+    await postAgentMessage(claimed.roomId, claimed.agentUserId, `Recurring buy not adopted (${what}): ${why}`);
+    await logActivity(claimed.roomId, `Recurring buy not adopted (${what}): ${why}`);
     return { executed: false, approvals, required, error: why };
   };
 
@@ -848,7 +848,7 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⏳ The recurring buy now needs ${plural(verdict.required, "verified human")} (${approvals} so far) — our rules: “${verdict.rule}”`
+      `The recurring buy now needs ${plural(verdict.required, "verified human")} (${approvals} so far) — our rules: “${verdict.rule}”`
     );
     return { executed: false, approvals, required: verdict.required };
   }
@@ -865,11 +865,11 @@ async function adoptRecurringBuy(claimed: TreasuryAction, approvals: number, eli
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `📌 Recurring buy adopted: ${what}${superseded ? ", replacing the one before" : ""} — approved by ${nameList(names)}.`
+      `Recurring buy adopted: ${what}${superseded ? ", replacing the one before" : ""} — approved by ${nameList(names)}.`
     );
     await logActivity(
       claimed.roomId,
-      `📌 Recurring buy adopted: ${what}, up to ${usd(authorityExposure(record))} — approved by ${nameList(names)}${superseded ? " — replaces the one before" : ""}`
+      `Recurring buy adopted: ${what}, up to ${usd(authorityExposure(record))} — approved by ${nameList(names)}${superseded ? " — replaces the one before" : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);
@@ -897,13 +897,13 @@ async function recheck(
   const block = async (ruleText: string, why: string): Promise<ExecuteResult> => {
     await settle(claimed.id, { status: "blocked", ruleText, error: why });
     const { phrase } = await paymentPhrase(claimed);
-    await tell(`⛔ Not paid: ${phrase} — ${why}`, `⛔ Blocked at payment time: ${phrase} — ${why}`);
+    await tell(`Not paid: ${phrase} — ${why}`, `Blocked at payment time: ${phrase} — ${why}`);
     return { executed: false, approvals, required, error: why };
   };
   const fail = async (why: string): Promise<ExecuteResult> => {
     await settle(claimed.id, { status: "failed", error: why });
     const { phrase } = await paymentPhrase(claimed);
-    await tell(`⚠️ Could not pay ${phrase}: ${why}`, `⚠️ Not paid: ${phrase} — ${why}`);
+    await tell(`Could not pay ${phrase}: ${why}`, `Not paid: ${phrase} — ${why}`);
     return { executed: false, approvals, required, error: why };
   };
 
@@ -955,7 +955,7 @@ async function recheck(
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `⏳ Things changed since this was asked: ${usd(claimed.amountUsd)} · ${claimed.memo} now needs ${plural(decision.required, "verified human")} — our rules say “${decision.rule.text}”. ${approvals} so far.`
+      `Things changed since this was asked: ${usd(claimed.amountUsd)} · ${claimed.memo} now needs ${plural(decision.required, "verified human")} — our rules say “${decision.rule.text}”. ${approvals} so far.`
     );
     return { executed: false, approvals, required: decision.required };
   }
@@ -1077,18 +1077,18 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
         await postAgentMessage(
           claimed.roomId,
           claimed.agentUserId,
-          `📈 Invested ${phrase} — ${investNote.replace(/\.$/, "")}.\n${approvedLine} · tx ${txHash}`
+          `Invested ${phrase} — ${investNote.replace(/\.$/, "")}.\n${approvedLine} · tx ${txHash}`
         );
       await logActivity(
         claimed.roomId,
-        `📈 Invested ${phrase} — ${investNote.replace(/\.$/, "")} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} · ${txLink(txHash, explorer)}`
+        `Invested ${phrase} — ${investNote.replace(/\.$/, "")} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} · ${txLink(txHash, explorer)}`
       );
     } else if (txHash) {
       if (required > 0)
-        await postAgentMessage(claimed.roomId, claimed.agentUserId, `✅ Paid ${phrase}.\n${approvedLine} · tx ${txHash}`);
+        await postAgentMessage(claimed.roomId, claimed.agentUserId, `Paid ${phrase}.\n${approvedLine} · tx ${txHash}`);
       await logActivity(
         claimed.roomId,
-        `✅ Paid ${phrase} — ${required > 0 ? approvedBy : "within what the agent may pay on its own"} · ${txLink(txHash)}`
+        `Paid ${phrase} — ${required > 0 ? approvedBy : "within what the agent may pay on its own"} · ${txLink(txHash)}`
       );
       // Idle funds: after an approved payment, if investing is on and nothing is
       // at work yet, the agent says what could be — citing the rule, starting
@@ -1099,14 +1099,14 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
         await postAgentMessage(
           claimed.roomId,
           claimed.agentUserId,
-          `⏳ I sent ${phrase}, but couldn't confirm it yet (tx ${sentTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`
+          `I sent ${phrase}, but couldn't confirm it yet (tx ${sentTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`
         );
-      await logActivity(claimed.roomId, `⏳ Sent, not confirmed yet: ${phrase} · ${txLink(sentTx)}`);
+      await logActivity(claimed.roomId, `Sent, not confirmed yet: ${phrase} · ${txLink(sentTx)}`);
     } else if (required > 0) {
       await postAgentMessage(
         claimed.roomId,
         claimed.agentUserId,
-        `⚠️ Could not pay ${phrase}: ${failure.replace(/\.?$/, ".")} It's marked failed in the treasury panel.`
+        `Could not pay ${phrase}: ${failure.replace(/\.?$/, ".")} It's marked failed in the treasury panel.`
       );
     }
   } catch (err) {
@@ -1144,7 +1144,7 @@ async function proposeIdleFunds(action: TreasuryAction, treasury: RelationTreasu
     await postAgentMessage(
       action.roomId,
       action.agentUserId,
-      `💡 After that we hold ${usd(balance.usd)}, and nothing else is due yet.\n${usd(idle)} could work for us instead of sitting idle — our rules: “${rule.text}”\nIf you want that, say: @agent invest $${idle} of the idle funds`
+      `After that we hold ${usd(balance.usd)}, and nothing else is due yet.\n${usd(idle)} could work for us instead of sitting idle — our rules: “${rule.text}”\nIf you want that, say: @agent invest $${idle} of the idle funds`
     );
   } catch (err) {
     console.error("treasury: could not propose idle funds:", err);
@@ -1183,11 +1183,11 @@ async function settleUnconfirmed(a: TreasuryAction): Promise<Partial<TreasuryAct
   if (!done) return null;
   const { phrase } = await paymentPhrase(a);
   if (seen === "success") {
-    await postAgentMessage(a.roomId, a.agentUserId, `✅ The payment of ${phrase} confirmed after all — tx ${a.txHash}`);
-    await logActivity(a.roomId, `✅ Paid ${phrase} — confirmed late · ${txLink(a.txHash)}`);
+    await postAgentMessage(a.roomId, a.agentUserId, `The payment of ${phrase} confirmed after all — tx ${a.txHash}`);
+    await logActivity(a.roomId, `Paid ${phrase} — confirmed late · ${txLink(a.txHash)}`);
   } else {
-    await postAgentMessage(a.roomId, a.agentUserId, `⚠️ The payment of ${phrase} reverted on Sepolia — nothing was sent (tx ${a.txHash}).`);
-    await logActivity(a.roomId, `⚠️ Reverted: ${phrase} · ${txLink(a.txHash)}`);
+    await postAgentMessage(a.roomId, a.agentUserId, `The payment of ${phrase} reverted on Sepolia — nothing was sent (tx ${a.txHash}).`);
+    await logActivity(a.roomId, `Reverted: ${phrase} · ${txLink(a.txHash)}`);
   }
   return next;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/i18n/provider";
@@ -273,8 +275,9 @@ export function AgentLab() {
                 data-testid="agent-lab-guard-card"
                 className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
               >
-                <div className="font-medium text-amber-800 dark:text-amber-300">
-                  {t("⚠️ Conflicts with history")}
+                <div className="flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300">
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                  {t("Conflicts with history")}
                 </div>
                 <p className="text-neutral-700 dark:text-neutral-300">{guard?.reason}</p>
                 {guard?.evidence?.map((e, i) => (

@@ -7,7 +7,7 @@
  *  the flag, uploads and sending, and this component only draws and routes
  *  keys. */
 import { useEffect, useRef, useSyncExternalStore, type RefObject } from "react";
-import { ArrowUp, AtSign, Lock, Paperclip, X } from "lucide-react";
+import { ArrowUp, AtSign, Lock, Paperclip, TriangleAlert, X } from "lucide-react";
 import { useImeGuard } from "@/hooks/use-ime-guard";
 import { useT } from "@/i18n/provider";
 import { MENTION_MENU_ID, MentionMenu, mentionOptionId } from "./mention-menu";
@@ -153,8 +153,9 @@ export function RoomChatComposer({
           data-testid="dm-guard-card"
           className="mb-2 space-y-1.5 rounded-md border border-[rgba(209,156,0,0.3)] bg-[rgba(209,156,0,0.08)] p-3 text-xs dark:border-amber-500/30 dark:bg-amber-500/10"
         >
-          <div className="font-medium text-[rgb(106,66,34)] dark:text-amber-200">
-            {t("⚠️ Conflicts with history")}
+          <div className="flex items-center gap-1 font-medium text-[rgb(106,66,34)] dark:text-amber-200">
+            <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+            {t("Conflicts with history")}
           </div>
           {guardNotice.reason && <p className={TEXT}>{guardNotice.reason}</p>}
           {guardNotice.evidence?.map((e, i) => (

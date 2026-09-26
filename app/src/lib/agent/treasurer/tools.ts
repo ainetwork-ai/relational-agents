@@ -240,8 +240,8 @@ export async function stopAndAnnounce(
   const terms = wasLive ? before.live : before.pending;
   const phrase = terms ? ` (${termsPhrase(terms)})` : "";
   const line = wasLive
-    ? `⏹ Stopped the recurring buy${phrase} at ${ctx.askerName}'s request.\nI won't buy again under it.`
-    : `✖ Cancelled the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
+    ? `Stopped the recurring buy${phrase} at ${ctx.askerName}'s request.\nI won't buy again under it.`
+    : `Cancelled the recurring buy request${phrase} at ${ctx.askerName}'s request — it won't be adopted.`;
   await postAsAgent(ctx, line);
   return { ok: true, actionId: stopped.actionId, line, wasLive, terms: terms ? termsPhrase(terms) : null };
 }

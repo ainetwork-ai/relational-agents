@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { Globe, Handshake } from "lucide-react";
 import { signTypedDataWithWallet } from "@/lib/wallet/sign";
 import type { RelationConsentTypedData } from "@/lib/relation-contract";
 import { WalletSignatureError } from "@/lib/wallet/provider";
@@ -132,7 +133,11 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
       className="mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40"
     >
       <div className="flex items-center gap-2 font-medium text-amber-900 dark:text-amber-200">
-        <span aria-hidden>{born ? "🌍" : "🤝"}</span>
+        {born ? (
+          <Globe size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />
+        ) : (
+          <Handshake size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />
+        )}
         {born
           ? "Your agent is born. It can spend once both of you are verified."
           : "The relational agent is born when both of you sign."}
@@ -155,8 +160,9 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
             <span key={p.userId} className="flex items-center gap-1" data-testid="personhood-badge">
               {p.displayName}
               {p.personhoodVerified ? (
-                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
-                  🌍 verified
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                  <Globe size={11} strokeWidth={2} aria-hidden />
+                  verified
                 </span>
               ) : (
                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
@@ -189,9 +195,10 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
               data-testid="worldid-verify"
               onClick={() => submitProof({})}
               disabled={verifying}
-              className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
             >
-              {verifying ? "Verifying…" : "🌍 Verify you're a unique human"}
+              {!verifying && <Globe size={14} strokeWidth={1.75} aria-hidden />}
+              {verifying ? "Verifying…" : "Verify you're a unique human"}
             </button>
           )}
         </>

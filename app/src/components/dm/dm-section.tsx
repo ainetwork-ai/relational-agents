@@ -22,7 +22,7 @@ function preview(room: DmRoomSummary, t: T): string {
   // as sentences, not glued together where the line break was
   // a proposal's [[a2ui:…]] card line is drawn in the room, never shown as text
   if (m.text) return stripA2uiMarkers(m.text).replace(/\s*\n\s*/g, " ");
-  if (m.hasAttachments) return t("📷 Photo");
+  if (m.hasAttachments) return t("Photo");
   return "";
 }
 

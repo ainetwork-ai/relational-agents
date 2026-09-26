@@ -380,7 +380,7 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   assert(reply.includes(HOTEL), `reply does not name the payee: ${reply}`);
   // what / why / what to do, one line each — and the one-human twist is not given away
   const [what, why, todo] = reply.split("\n");
-  assert(what.startsWith(`⏳ Queued: $180 to ${HOTEL}`), `first line is not the queued payment: ${what}`);
+  assert(what.startsWith(`Queued: $180 to ${HOTEL}`), `first line is not the queued payment: ${what}`);
   assert(why === `Needs 2 verified humans — our rules: “${RULE_MID}”`, `second line is not the rule: ${why}`);
   assert(todo === "Approve with World ID in the treasury panel above.", `third line is not the call to approve: ${todo}`);
   assert(!/counts once/.test(reply), `reply announces the one-human rule up front: ${reply}`);
@@ -441,7 +441,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   // announcements follow the settle by a moment
   const payout = await until(
     async () =>
-      (await agentLinesSince(alex, count0)).find((l) => l.startsWith(`✅ Paid $180 to ${HOTEL}`) && l.includes(a.txHash)),
+      (await agentLinesSince(alex, count0)).find((l) => l.startsWith(`Paid $180 to ${HOTEL}`) && l.includes(a.txHash)),
     15_000,
     "no payout notice in chat"
   );
@@ -457,7 +457,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   assert(lines.some((l) => approvedLine.test(l)), `no fresh 1-of-2 notice: ${lines.join(" | ")}`);
 
   const paidLine = await until(
-    async () => (await activityTexts()).find((t) => t.includes("✅ Paid $180") && t.includes(a.txHash)),
+    async () => (await activityTexts()).find((t) => t.includes("Paid $180") && t.includes(a.txHash)),
     15_000,
     "no activity line with the tx in Treasury Activity"
   );
@@ -536,8 +536,8 @@ await scene("d. $150 — Alex 1/2; his 2nd account as the same human is voided; 
     a = (await status()).actions.find((x) => x.id === ctx.action150);
     assert(a.status === "pending" && a.approvals.length === 1, `after the 2nd account: ${a.status}, ${a.approvals.length} approvals`);
     const lines = await agentLinesSince(alex, count0);
-    assert(lines.some((l) => l.startsWith("⛔ An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
-    assert((await activityTexts()).some((t) => t.includes("⛔ An approval was voided")), "the voided approval is not in Treasury Activity");
+    assert(lines.some((l) => l.startsWith("An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
+    assert((await activityTexts()).some((t) => t.includes("An approval was voided")), "the voided approval is not in Treasury Activity");
     if (sql) assert((await worldSubOf(alex2.id)) === null, "the 2nd account got bound to a World ID");
   } finally {
     if (seatedAlex2)

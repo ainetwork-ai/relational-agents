@@ -130,7 +130,15 @@ const row = (id: string, children: string[], justify?: string): A2uiComponent =>
   ...(justify ? { justify } : {}),
 });
 const column = (id: string, children: string[]): A2uiComponent => ({ id, component: "Column", children });
-const chip = (id: string, value: string, tone: string): A2uiComponent => ({ id, component: "Chip", text: value, tone });
+const chip = (id: string, value: string, tone: string, icon?: string): A2uiComponent => ({
+  id,
+  component: "Chip",
+  text: value,
+  tone,
+  ...(icon ? { icon } : {}),
+});
+/** a lucide icon by the renderer's name for it (surface.tsx ICONS) */
+const icon = (id: string, name: string): A2uiComponent => ({ id, component: "Icon", name });
 const button = (id: string, child: string, name: string, context: Record<string, unknown>, variant?: string): A2uiComponent => ({
   id,
   component: "Button",
@@ -164,7 +172,9 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
   const root: string[] = ["head", "headline", "terms", "swap"];
   const comps: A2uiComponent[] = [
     row("head", ["title", "state"], "spaceBetween"),
-    text("title", t("🔁 Recurring buy"), "h4"),
+    row("title", ["title_icon", "title_text"]),
+    icon("title_icon", "repeat"),
+    text("title_text", t("Recurring buy"), "h4"),
     chip("state", t(state.label), state.tone),
     text("headline", t("{amount} a week", { amount: usd(s.weeklyUsd) }), "h3"),
     text("terms", t("For {weeks} weeks · at most {total} in total", { weeks: s.weeks, total: usd(s.exposureUsd) }), "body"),
@@ -185,7 +195,7 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
       row("slots", slots),
       ...slots.map((id, i) => {
         const who = names[i];
-        return who ? chip(id, who.done ? `✓ ${who.n}` : who.n, who.done ? "success" : "neutral") : chip(id, EMPTY_SLOT, "neutral");
+        return who ? chip(id, who.n, who.done ? "success" : "neutral", who.done ? "check" : undefined) : chip(id, EMPTY_SLOT, "neutral");
       }),
       text("tally", t("{got} of {need} approved", { got: Math.min(s.approvals, s.required), need: s.required }), "caption")
     );
@@ -231,7 +241,9 @@ export function recurringBuySurface(s: RecurringBuySurfaceInput, t: T): A2uiMess
     root.push("approve");
     comps.push(
       button("approve", "approve_label", TREASURY_APPROVE_ACTION, ctx, "primary"),
-      text("approve_label", t("🌍 Approve with World ID"))
+      row("approve_label", ["approve_icon", "approve_text"]),
+      icon("approve_icon", "globe"),
+      text("approve_text", t("Approve with World ID"))
     );
   }
   if (stop) {

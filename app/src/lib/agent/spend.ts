@@ -94,7 +94,7 @@ export async function buySongpyeon(
     });
     const paymentTx = txHashFromActionResult(actionResult);
     if (!paymentTx) {
-      await post(t("🥮 Tried to order Chuseok songpyeon but the payment failed — {result}", { result: String(actionResult) }));
+      await post(t("Tried to order Chuseok songpyeon but the payment failed — {result}", { result: String(actionResult) }));
       return { status: 502, body: { error: "payment failed", detail: actionResult } };
     }
 
@@ -110,11 +110,11 @@ export async function buySongpyeon(
     await post(
       sellerRes.ok
         ? t(
-            "🥮 Ordered a box of Chuseok songpyeon from {shop} — it only sells to agents with two real people behind them, and the chain vouched for our family. I paid {price} ETH from my wallet. payment tx: {tx}",
+            "Ordered a box of Chuseok songpyeon from {shop} — it only sells to agents with two real people behind them, and the chain vouched for our family. I paid {price} ETH from my wallet. payment tx: {tx}",
             { shop: SONGPYEON_SHOP, price: SONGPYEON_PRICE_ETH, tx: paymentTx }
           )
         : t(
-            "🚫 {shop} turned the order down ({status} — {error}). I paid {price} ETH but couldn't prove there are two real people behind me. payment tx: {tx}",
+            "{shop} turned the order down ({status} — {error}). I paid {price} ETH but couldn't prove there are two real people behind me. payment tx: {tx}",
             { shop: SONGPYEON_SHOP, status: sellerRes.status, error: String(sellerBody.error ?? "rejected"), price: SONGPYEON_PRICE_ETH, tx: paymentTx }
           )
     );

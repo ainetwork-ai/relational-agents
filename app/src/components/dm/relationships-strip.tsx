@@ -31,7 +31,7 @@ const nameKey = (t: string) =>
   t.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase();
 
 // " · " is how rooms are named now; the hearts are how they were named before
-const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥|\s·\s)+/u;
+const HEART_SPLIT = /(?:❤️|❤|♥|💛|🧡|🩷|💘|💝|❤‍🔥|❤️‍🔥|\s·\s)+/u; // emoji:data — the hearts people put in doc titles
 
 /** Doc titles read "Family doc — <me> · <partner>" (rooms are named
  * "<me> · <partner>" — see lib/auth/display-name) and the face belongs to

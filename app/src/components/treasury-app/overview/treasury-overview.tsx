@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bot } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import { filterRooms, overviewStats, parseSummary, sortRooms, type OverviewFilter } from "./overview-model";
 import { OverviewList, OverviewListSkeleton } from "./overview-list";
@@ -72,7 +73,7 @@ function EmptyState() {
   return (
     <div className={styles.empty} data-testid="treasury-overview-empty">
       <div className={styles.agentMark} aria-hidden>
-        ✦
+        <Bot size={22} strokeWidth={1.75} />
       </div>
       <p className={styles.emptyTitle}>{t("No treasuries yet")}</p>
     </div>

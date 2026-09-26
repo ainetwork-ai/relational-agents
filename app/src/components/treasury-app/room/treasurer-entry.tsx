@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Bot, ChevronRight } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import { treasuryPath } from "./room-model";
@@ -26,7 +26,7 @@ export function TreasurerEntry({ roomId, status, agent }: { roomId: string; stat
           <img src={agent.avatarUrl} alt="" className={styles.entryAvatar} />
         ) : (
           <span className={`${styles.entryAvatar} ${styles.agentMark}`} aria-hidden>
-            ✦
+            <Bot size={18} strokeWidth={1.75} />
           </span>
         )}
         <span className={styles.entryWho}>

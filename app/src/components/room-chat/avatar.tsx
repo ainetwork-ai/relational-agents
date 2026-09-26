@@ -1,8 +1,9 @@
 "use client";
 
-/** Faces in the room chat. The agent is a rounded square with ✦, never a
+/** Faces in the room chat. The agent is a rounded square with a bot mark, never a
  *  person's circle; a person is their photo, else their initial on a stable
  *  Notion tag tint (UserAvatar's own fallback is one neutral grey for all). */
+import { Bot } from "lucide-react";
 import type { DmUser } from "@/stores/dm-rooms";
 import { UserAvatar } from "@/components/user-avatar";
 import { initial } from "@/lib/glyph";
@@ -16,7 +17,7 @@ export function AgentMark({ size }: { size: 24 | 32 }) {
       data-testid="room-chat-agent-avatar"
       className={`flex shrink-0 items-center justify-center leading-none ${shape} ${AGENT_AVATAR}`}
     >
-      ✦
+      <Bot size={size === 32 ? 17 : 13} strokeWidth={1.75} />
     </span>
   );
 }

@@ -2,8 +2,9 @@
 
 /**
  * Draws an A2UI v0.9 surface — the basic-catalog subset the treasury's cards
- * use (Column, Row, Text, Chip, Button, ProgressBar, Divider; a Chip whose tone
- * is "uniswap", "base" or "sepolia" is drawn as the app's venue / chain badge)
+ * use (Column, Row, Text, Chip, Button, ProgressBar, Divider, Icon; a Chip whose tone
+ * is "uniswap", "base" or "sepolia" is drawn as the app's venue / chain badge; an
+ * Icon, or a Chip's `icon`, names one of ICONS)
  * — and runs its `ainmem.treasury.*` actions:
  *   approve → the World ID approval page for that action (comes back here)
  *   stop    → asks once, inline, then POSTs to the card's surface route, which
@@ -17,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useT } from "@/i18n/provider";
+import { Check, Globe, Repeat, type LucideIcon } from "lucide-react";
 import { ChainBadge, UniswapBadge } from "@/components/chain/chain-badge";
 import type { A2uiComponent, A2uiMessage } from "@/lib/x402/a2ui";
 import { TREASURY_APPROVE_ACTION, TREASURY_OPEN_ACTION, TREASURY_STOP_ACTION } from "@/lib/agent/treasurer/surfaces";
@@ -55,6 +57,10 @@ function actionOf(c: A2uiComponent): ActionEvent | null {
   if (!ev || typeof ev.name !== "string") return null;
   return { name: ev.name, context: ev.context && typeof ev.context === "object" ? (ev.context as Record<string, unknown>) : {} };
 }
+
+/** the icons a surface may name — anything else draws nothing */
+const ICONS: Record<string, LucideIcon> = { check: Check, globe: Globe, repeat: Repeat };
+const iconOf = (name: unknown): LucideIcon | null => (typeof name === "string" ? (ICONS[name] ?? null) : null);
 
 const TEXT_CLASS: Record<string, string> = {
   h3: "text-base font-semibold text-neutral-900 dark:text-neutral-100",
@@ -210,7 +216,7 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         );
       case "Row": {
         const kinds = children.map((k) => byId.get(k)?.component);
-        const gap = kinds.some((k) => k === "Chip") ? "gap-x-1.5 gap-y-1" : kinds.some((k) => k === "Button") ? "gap-x-3 gap-y-2" : "gap-x-6 gap-y-2";
+        const gap = kinds.some((k) => k === "Chip" || k === "Icon") ? "gap-x-1.5 gap-y-1" : kinds.some((k) => k === "Button") ? "gap-x-3 gap-y-2" : "gap-x-6 gap-y-2";
         return (
           <div
             key={id}
@@ -232,14 +238,20 @@ export function A2uiSurface({ messages: given, src }: { messages?: A2uiMessage[]
         const tone = typeof c.tone === "string" ? c.tone : "neutral";
         if (tone === "uniswap") return <UniswapBadge key={id} />;
         if (tone === "base" || tone === "sepolia") return <ChainBadge key={id} chain={tone} />;
+        const ChipIcon = iconOf(c.icon);
         return (
           <span
             key={id}
-            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${CHIP_CLASS[tone] ?? CHIP_CLASS.neutral}`}
+            className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${CHIP_CLASS[tone] ?? CHIP_CLASS.neutral}`}
           >
+            {ChipIcon && <ChipIcon size={11} strokeWidth={2.25} aria-hidden className="shrink-0" />}
             {textOf(c.text)}
           </span>
         );
+      }
+      case "Icon": {
+        const Icon = iconOf(c.name);
+        return Icon ? <Icon key={id} size={15} strokeWidth={1.75} aria-hidden className="shrink-0 opacity-70" /> : null;
       }
       case "ProgressBar": {
         const max = typeof c.max === "number" && c.max > 0 ? c.max : 1;
