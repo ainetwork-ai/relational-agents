@@ -556,7 +556,8 @@ const n2p = { layout: "notion2prompt" as const, includeProperties: false };
       fileBlock +
       "<instructions>\nSummarize this page.\n</instructions>\n\n<final_instruction>\nConsider the project path in <project_path>, the source tree in <source_tree>, and the files in <files>. Then, follow the instructions given in <instructions>. Take a deep breath and think step by step about how to best complete this task.\n</final_instruction>\n"
   );
-  eq("template__blank_instruction_is_none", renderPrompt(c, { ...n2p, instruction: "   " }).prompt, head + fileBlock);
+  // upstream hands the instruction to handlebars as it is, and "   " is truthy there: the block stays (the ainmem layout drops it)
+  eq("template__blank_instruction_kept", renderPrompt(c, { ...n2p, instruction: "   " }).prompt, head + fileBlock + "<instructions>\n   \n</instructions>\n\n<final_instruction>\nConsider the project path in <project_path>, the source tree in <source_tree>, and the files in <files>. Then, follow the instructions given in <instructions>. Take a deep breath and think step by step about how to best complete this task.\n</final_instruction>\n");
 
   const t1 = row("00000000-0000-0000-0000-000000000011", "Task 1");
   const t2 = row("00000000-0000-0000-0000-000000000012", "Task 2");

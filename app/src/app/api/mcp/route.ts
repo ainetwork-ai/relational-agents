@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   listPages,
@@ -47,6 +47,7 @@ import { payGift } from "@/lib/x402/pay";
 import { giftSurfaceFor, giftSurfaceInput } from "@/lib/x402/surface";
 import { getT } from "@/i18n/server";
 import { publicOrigin } from "@/lib/app-origin";
+import { answerViewers } from "@/lib/agent/shared-drives";
 import {
   fetchPromptContent,
   PromptNotFound,
@@ -58,6 +59,9 @@ import {
 import { db } from "@/lib/db";
 import {
   agentAccessTokens,
+  chatRoomBots,
+  chatRoomMembers,
+  chatRooms,
   comments,
   users,
   workspaceMembers,
@@ -90,7 +94,7 @@ export const dynamic = "force-dynamic";
 type Identity = {
   userId: string;
   label: "agent" | "service" | "session";
-  /** an agent token's owner — the person the agent reads for (page-to-prompt) */
+  /** an agent token's holder: the room member it was minted for (see agentReaders) */
   ownerId?: string;
 };
 const identity = new AsyncLocalStorage<Identity>();
@@ -118,6 +122,34 @@ async function resolveIdentity(req: Request): Promise<Identity | null> {
   const session = await getSession().catch(() => null);
   if (session?.userId) return { userId: session.userId, label: "session" };
   return null;
+}
+
+/**
+ * Who a relationship-agent token reads for in page-to-prompt: the room the agent belongs
+ * to — everyone in it (answerViewers, the same readers the agent answers that room for)
+ * and that room's workspace alone — and only while the token's holder is still a member
+ * of an open room. Never the holder's own access: the token is for importing the room's
+ * agent into an external platform, and its output leaves ainmem. Null when that does not
+ * hold (no single such room, no workspace, the holder left, the room was dissolved).
+ */
+async function agentReaders(agentUserId: string, holderId: string): Promise<{ viewerIds: string[]; workspaceIds: string[] } | null> {
+  if (!agentUserId || !holderId) return null;
+  const bots = await db.select({ roomId: chatRoomBots.roomId }).from(chatRoomBots).where(eq(chatRoomBots.agentUserId, agentUserId));
+  const rooms: { id: string; workspaceId: string }[] = [];
+  for (const b of bots) {
+    const [room] = await db
+      .select({ id: chatRooms.id, workspaceId: chatRooms.workspaceId, dissolvedAt: chatRooms.dissolvedAt })
+      .from(chatRooms)
+      .where(eq(chatRooms.id, b.roomId));
+    if (!room?.workspaceId || room.dissolvedAt) continue;
+    const [inRoom] = await db
+      .select({ u: chatRoomMembers.userId })
+      .from(chatRoomMembers)
+      .where(and(eq(chatRoomMembers.roomId, room.id), eq(chatRoomMembers.userId, holderId)));
+    if (inRoom) rooms.push({ id: room.id, workspaceId: room.workspaceId });
+  }
+  if (rooms.length !== 1) return null;
+  return { viewerIds: await answerViewers(rooms[0].id, holderId, null), workspaceIds: [rooms[0].workspaceId] };
 }
 
 /** The aindrive folder this caller may use, and the account its calls run as.
@@ -418,7 +450,7 @@ const handler = createMcpHandler(
     // ── page-to-prompt (notion2prompt) ────────────────────────────────────
     server.tool(
       "page-to-prompt",
-      "Turn a page, database or block into an AI-ready prompt (notion2prompt): its blocks, child pages down to `depth`, child databases as tables, properties and metadata, in the claude-xml, default or markdown template. `page` is an id (Postgres uuid or OKF id), a /p/<id> link or a title. Read with your access (an agent token reads as its owner): what you cannot see is left out. format='json' adds the files, counts and what was left out; stage='fetch' returns the content tree, and passing that back as `content` renders it again without reading anything.",
+      "Turn a page, database or block into an AI-ready prompt (notion2prompt): its blocks, child pages down to `depth`, child databases as tables, properties and metadata, in the claude-xml, default or markdown template. `page` is an id (Postgres uuid or OKF id), a /p/<id> link or a title. A signed-in person reads with their own access; a room agent's token reads for its room, i.e. only what everyone in that room may see, in that room's workspace (never the token holder's own access). What the readers cannot all see is left out. format='json' adds the files, counts and what was left out; stage='fetch' returns the content tree, and passing that back as `content` renders it again without reading anything.",
       {
         page: z.string().optional().describe("page / database / block id, a /p/<id> link, or a title"),
         content: z.record(z.string(), z.unknown()).optional().describe("a stage='fetch' result to render again"),
@@ -428,7 +460,7 @@ const handler = createMcpHandler(
         child_pages: z.boolean().optional().describe("follow child pages (default true)"),
         separate_child_pages: z.boolean().optional().describe("one file per page (default true) or merged inline"),
         always_fetch_databases: z.boolean().optional().describe("resolve child databases beyond depth"),
-        include_properties: z.union([z.boolean(), z.literal("auto")]).optional().describe("page Properties section (default auto)"),
+        include_properties: z.union([z.boolean(), z.literal("auto")]).optional().describe("page Properties section (default: auto; false with layout notion2prompt, as upstream)"),
         instruction: z.string().optional().describe("text for <instructions>"),
         layout: z.enum(["ainmem", "notion2prompt"]).optional().describe("file paths/tree: ainmem breadcrumbs, or notion2prompt's own"),
         format: z.enum(["text", "json"]).optional(),
@@ -436,8 +468,7 @@ const handler = createMcpHandler(
       },
       async (a) => {
         const me = who();
-        const viewer = me.label === "agent" ? (me.ownerId ?? "") : requireUser();
-        if (!viewer) return err("page-to-prompt needs a signed-in person or an agent token with an owner.");
+        if (me.label === "service") return err("page-to-prompt needs a signed-in person or a room agent's token.");
         const render = {
           ...(a.template ? { template: a.template } : {}),
           ...(a.separate_child_pages !== undefined ? { separateChildPages: a.separate_child_pages } : {}),
@@ -457,7 +488,15 @@ const handler = createMcpHandler(
           return show(c);
         }
         if (!a.page) return err("Give `page` (an id, a link or a title) or `content`.");
-        const readers = { viewerIds: [viewer], baseUrl: publicOrigin(), workspaceIds: await workspacesOf(viewer) };
+        let scope: { viewerIds: string[]; workspaceIds: string[] } | null;
+        if (me.label === "agent") {
+          scope = await agentReaders(me.userId, me.ownerId ?? "");
+          if (!scope) return err("This agent token reads only for its room, and it has no open room with you in it.");
+        } else {
+          const viewer = requireUser();
+          scope = { viewerIds: [viewer], workspaceIds: await workspacesOf(viewer) };
+        }
+        const readers = { ...scope, baseUrl: publicOrigin() };
         const r = await resolveTarget(a.page, readers);
         if ("ambiguous" in r) return err(`Several match — use one of these ids: ${r.ambiguous.map((c) => `${c.id} (${c.title})`).join(", ")}`);
         if ("none" in r) return err(`Entity not found: ${a.page}`);

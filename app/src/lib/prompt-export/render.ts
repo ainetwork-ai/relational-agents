@@ -1,6 +1,6 @@
 import type { PBlock, PDatabase, PPage, PromptContent, RenderedFile, RenderedPrompt, RenderOptions, RichText, TreeNode } from "./model";
 import { alignmentOf, escapeForTable, renderPropertyValue } from "./properties";
-import { idHex, richTextPlain, richTextToMarkdown } from "./rich-text";
+import { idHex, richTextPlain, richTextToMarkdown, type RichTextOptions } from "./rich-text";
 import { renderTemplate, TEMPLATES } from "./template";
 
 /**
@@ -39,7 +39,7 @@ const increment = (c: Ctx): Ctx => {
 const enterTable = (c: Ctx): Ctx => ({ ...c, table: 0 });
 const processRow = (c: Ctx): Ctx => (c.table === null ? c : { ...c, table: c.table + 1 });
 
-export interface RenderEnv {
+export interface RenderEnv extends RichTextOptions {
   /** databases a child_database block may point at (the gathered-databases map) */
   databases?: Record<string, PDatabase>;
   /** merged child pages: what goes right after a child page's placeholder */
@@ -64,8 +64,8 @@ function indentBlockContent(text: string, indent: string): string {
 }
 
 /** format_text_content */
-function textLine(rt: RichText[], prefix: string): string {
-  const md = richTextToMarkdown(rt);
+function textLine(rt: RichText[], prefix: string, env: RenderEnv): string {
+  const md = richTextToMarkdown(rt, env);
   return md.trim() === "" ? `${prefix}\n` : `${prefix}${md}\n`;
 }
 
@@ -103,22 +103,24 @@ interface TocEntry {
   text: string;
 }
 
-function collectHeadings(blocks: PBlock[], out: TocEntry[]) {
+function collectHeadings(blocks: PBlock[], out: TocEntry[], env: RenderEnv) {
   for (const b of blocks) {
     if (b.type === "heading_1" || b.type === "heading_2" || b.type === "heading_3") {
-      const text = richTextToMarkdown(b.richText);
+      const text = richTextToMarkdown(b.richText, env);
       if (text.trim()) out.push({ level: Number(b.type.slice(-1)), text: text.trim() });
     }
-    if (b.children?.length) collectHeadings(b.children, out);
+    if (b.children?.length) collectHeadings(b.children, out, env);
   }
 }
 
-/** create_anchor_link: lowercase, keep letters/digits, whitespace → "-", drop the rest. */
-function anchorOf(text: string): string {
+/** create_anchor_link: lowercase, keep what Rust's char::is_alphanumeric keeps (the
+ *  Unicode Alphabetic property — combining vowel signs of Devanagari, Thai, Bengali …
+ *  included — or Numeric), char::is_whitespace (White_Space) → "-", drop the rest. */
+export function anchorOf(text: string): string {
   let s = "";
   for (const ch of text.toLowerCase()) {
-    if (/[\p{L}\p{N}]/u.test(ch)) s += ch;
-    else if (/\s/u.test(ch)) s += "-";
+    if (/[\p{Alphabetic}\p{N}]/u.test(ch)) s += ch;
+    else if (/\p{White_Space}/u.test(ch)) s += "-";
   }
   return s.replace(/^-+|-+$/g, "");
 }
@@ -126,7 +128,7 @@ function anchorOf(text: string): string {
 function tableOfContents(env: RenderEnv): string {
   if (!env.documentBlocks) return "[Table of Contents]\n";
   const entries: TocEntry[] = [];
-  collectHeadings(env.documentBlocks, entries);
+  collectHeadings(env.documentBlocks, entries, env);
   if (!entries.length) return "[Table of Contents - No headings found]\n";
   let out = "## Table of Contents\n\n";
   for (const e of entries) out += `${"  ".repeat(Math.max(0, e.level - 1))}* [${e.text}](#${anchorOf(e.text)})\n`;
@@ -146,35 +148,35 @@ function renderBlock(b: PBlock, ctx: Ctx, env: RenderEnv): { content: string; ct
   let content: string;
   switch (b.type) {
     case "paragraph":
-      content = textLine(b.richText, "") + renderChildren(b.children, ctx, env);
+      content = textLine(b.richText, "", env) + renderChildren(b.children, ctx, env);
       break;
     case "heading_1":
     case "heading_2":
     case "heading_3":
-      content = textLine(b.richText, `${"#".repeat(Number(b.type.slice(-1)))} `) + renderChildren(b.children, ctx, env);
+      content = textLine(b.richText, `${"#".repeat(Number(b.type.slice(-1)))} `, env) + renderChildren(b.children, ctx, env);
       break;
     case "bulleted_list_item":
-      content = textLine(b.richText, "- ") + renderIndented(b.children, enterBulleted(ctx), env, "   ");
+      content = textLine(b.richText, "- ", env) + renderIndented(b.children, enterBulleted(ctx), env, "   ");
       break;
     case "numbered_list_item":
-      content = textLine(b.richText, `${currentNumber(ctx)}. `) + renderIndented(b.children, enterNumbered(ctx), env, "   ");
+      content = textLine(b.richText, `${currentNumber(ctx)}. `, env) + renderIndented(b.children, enterNumbered(ctx), env, "   ");
       break;
     case "to_do":
-      content = textLine(b.richText, `- ${b.checked ? "[x]" : "[ ]"} `) + renderIndented(b.children, ctx, env, "  ");
+      content = textLine(b.richText, `- ${b.checked ? "[x]" : "[ ]"} `, env) + renderIndented(b.children, ctx, env, "  ");
       break;
     case "toggle":
-      content = textLine(b.richText, "▸ ") + renderIndented(b.children, ctx, env, "  ");
+      content = textLine(b.richText, "▸ ", env) + renderIndented(b.children, ctx, env, "  ");
       break;
     case "quote":
-      content = textLine(b.richText, "> ") + renderChildren(b.children, ctx, env);
+      content = textLine(b.richText, "> ", env) + renderChildren(b.children, ctx, env);
       break;
     case "callout": {
       const emoji = b.icon && "emoji" in b.icon ? `${b.icon.emoji} ` : "";
-      content = textLine(b.richText, `> ${emoji} `) + renderChildren(b.children, ctx, env);
+      content = textLine(b.richText, `> ${emoji} `, env) + renderChildren(b.children, ctx, env);
       break;
     }
     case "code": {
-      const caption = b.caption?.length ? richTextToMarkdown(b.caption) : "";
+      const caption = b.caption?.length ? richTextToMarkdown(b.caption, env) : "";
       content = `\`\`\`${b.language}\n${richTextPlain(b.richText)}\n\`\`\`\n` + (caption ? `*${caption}*\n` : "");
       break;
     }
@@ -185,19 +187,19 @@ function renderBlock(b: PBlock, ctx: Ctx, env: RenderEnv): { content: string; ct
       content = `$$\n${b.expression}\n$$\n`;
       break;
     case "image":
-      content = `![${b.caption?.length ? richTextToMarkdown(b.caption) : "Image"}](${b.url})\n`;
+      content = `![${b.caption?.length ? richTextToMarkdown(b.caption, env) : "Image"}](${b.url})\n`;
       break;
     case "video":
       content = `[Video: ${b.url}]\n`;
       break;
     case "file":
-      content = `[${b.caption?.length ? richTextToMarkdown(b.caption) : "File"}: ${b.url}]\n`;
+      content = `[${b.caption?.length ? richTextToMarkdown(b.caption, env) : "File"}: ${b.url}]\n`;
       break;
     case "pdf":
       content = `[PDF: ${b.url}]\n`;
       break;
     case "bookmark":
-      content = `[🔖 ${b.url}${b.caption?.length ? ` - ${richTextToMarkdown(b.caption)}` : ""}]\n`;
+      content = `[🔖 ${b.url}${b.caption?.length ? ` - ${richTextToMarkdown(b.caption, env)}` : ""}]\n`;
       break;
     case "embed":
       content = `[Embed: ${b.url}]\n`;
@@ -219,7 +221,7 @@ function renderBlock(b: PBlock, ctx: Ctx, env: RenderEnv): { content: string; ct
       content = renderChildren(b.children, enterTable(ctx), env);
       break;
     case "table_row": {
-      let row = "|" + b.cells.map((c) => ` ${richTextToMarkdown(c)} |`).join("") + "\n";
+      let row = "|" + b.cells.map((c) => ` ${richTextToMarkdown(c, env)} |`).join("") + "\n";
       if (ctx.table === 0) row += "|" + " --- |".repeat(b.cells.length) + "\n";
       content = row;
       break;
@@ -232,7 +234,7 @@ function renderBlock(b: PBlock, ctx: Ctx, env: RenderEnv): { content: string; ct
       content = (b.syncedFrom ? `[Synced from: ${idHex(b.syncedFrom)}]\n` : "") + renderChildren(b.children, ctx, env);
       break;
     case "template":
-      content = textLine(b.richText, "[Template] ") + renderChildren(b.children, ctx, env);
+      content = textLine(b.richText, "[Template] ", env) + renderChildren(b.children, ctx, env);
       break;
     case "link_preview":
       content = `[Link Preview: ${b.url}]\n`;
@@ -441,6 +443,15 @@ export function estimateTokens(s: string): number {
   return Math.ceil(ascii / 4 + other * 0.7);
 }
 
+/**
+ * Defaults for the ainmem layout. includeProperties there is "auto" — a page gets a
+ * `## Properties` section only when it has a property worth printing (a database row,
+ * a page with a Status …), and a plain page none. With layout "notion2prompt" the
+ * default is upstream's own: false (its CLI's --include-properties is off unless given,
+ * and so is the Python library's include_properties), so that layout reproduces
+ * upstream's default output byte for byte. An explicit true / false / "auto" wins in
+ * either layout.
+ */
 export const DEFAULT_RENDER: RenderOptions = {
   template: "claude-xml",
   instruction: null,
@@ -449,6 +460,27 @@ export const DEFAULT_RENDER: RenderOptions = {
   layout: "ainmem",
 };
 
+/** includeProperties when the caller gave none: "auto" for ainmem, upstream's false for notion2prompt. */
+export const defaultIncludeProperties = (layout: RenderOptions["layout"]): RenderOptions["includeProperties"] =>
+  layout === "notion2prompt" ? false : DEFAULT_RENDER.includeProperties;
+
+/**
+ * The instruction as it goes into the template, or null for none.
+ *  - layout "notion2prompt": upstream's rule. It hands config.instruction to handlebars
+ *    as it is, and `{{#if instructions}}` is true for any non-empty string — so only ""
+ *    (or none) drops the <instructions> block; "   " prints it, spaces and all, with the
+ *    <final_instruction> after it.
+ *  - layout "ainmem" (adapted): a whitespace-only instruction counts as none too. There
+ *    it comes from a chat sentence (`instruction: "…"`), a form field or an API/MCP
+ *    argument, where blank means "none", and a block of spaces plus a final instruction
+ *    telling the model to follow it would only confuse it.
+ */
+export function instructionOf(instruction: string | null | undefined, layout: RenderOptions["layout"]): string | null {
+  if (!instruction) return null;
+  if (layout === "notion2prompt") return instruction;
+  return instruction.trim() ? instruction : null;
+}
+
 /**
  * render_content: the prompt for a fetched content tree. Re-run it with another
  * template, instruction, properties switch or file layout without fetching again.
@@ -456,7 +488,13 @@ export const DEFAULT_RENDER: RenderOptions = {
 export function renderPrompt(content: PromptContent, options: Partial<RenderOptions> = {}): RenderedPrompt {
   const opts: RenderOptions = { ...DEFAULT_RENDER, ...options };
   const n2p = opts.layout === "notion2prompt";
+  opts.includeProperties = options.includeProperties ?? defaultIncludeProperties(opts.layout);
   const pageOpts: PageRenderOptions = { includeProperties: opts.includeProperties };
+  // an inline page / database mention prints a title the fetch stage checked for the
+  // readers (content.mentions, or a page / database it read) — else a neutral "Page" /
+  // "Database", never the label stored in the chip, whatever built the content tree
+  const mentionTitle = (kind: "page" | "database", id: string): string =>
+    content.mentions?.[`${kind}:${id}`] ?? (kind === "page" ? content.pages[id]?.title : content.databases[id]?.title) ?? "";
   const files: RenderedFile[] = [];
   const nodeOf = new Map<string, TreeNode>();
   const index = (n: TreeNode) => {
@@ -469,7 +507,7 @@ export function renderPrompt(content: PromptContent, options: Partial<RenderOpti
   const emitted = new Set<string>();
   const pageMarkdown = (page: PPage, node: TreeNode | undefined): string => {
     const kids = new Set((node?.children ?? []).filter((c) => c.kind === "page").map((c) => c.id));
-    const env: RenderEnv = { databases: content.databases };
+    const env: RenderEnv = { databases: content.databases, mentionTitle };
     if (!opts.separateChildPages)
       env.afterChildPage = (id) => {
         if (!kids.has(id) || emitted.has(id)) return "";
@@ -514,7 +552,7 @@ export function renderPrompt(content: PromptContent, options: Partial<RenderOpti
       }
     }
   } else {
-    const env: RenderEnv = { databases: content.databases };
+    const env: RenderEnv = { databases: content.databases, mentionTitle };
     const node = content.tree;
     const kids = new Set(node.children.filter((c) => c.kind === "page").map((c) => c.id));
     if (!opts.separateChildPages)
@@ -541,7 +579,7 @@ export function renderPrompt(content: PromptContent, options: Partial<RenderOpti
     source_tree: sourceTree,
     files,
     main_content: files[0]?.code ?? "",
-    instructions: opts.instruction?.trim() ? opts.instruction : null,
+    instructions: instructionOf(opts.instruction, opts.layout),
   });
   return { prompt, files, sourceTree, projectPath, chars: [...prompt].length, estimatedTokens: estimateTokens(prompt) };
 }

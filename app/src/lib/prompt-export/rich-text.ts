@@ -85,14 +85,25 @@ function linkMention(url: string, plain: string): MentionOut {
   return urlType(url) ? { k: "link", text: plain, url } : { k: "link", text: `${plain} (invalid URL: ${url})`, url: "about:blank" };
 }
 
-function mentionOut(m: Mention, plain: string): MentionOut {
+export interface RichTextOptions {
+  /**
+   * The title to print for an inline page / database mention, in place of the text the
+   * mention carries. renderPrompt passes one that answers only with titles the fetch
+   * stage checked for the readers (see collect.ts), so a stored chip label — which may
+   * name a page they cannot see — is never printed. Without it the mention's own text
+   * is used, as notion2prompt uses the API's plain_text.
+   */
+  mentionTitle?: (kind: "page" | "database", id: string) => string;
+}
+
+function mentionOut(m: Mention, plain: string, o?: RichTextOptions): MentionOut {
   switch (m.type) {
     case "user":
       return { k: "user", name: m.name || m.id };
     case "page":
-      return { k: "page", title: plain || "Page", url: m.url ?? notionUrl(m.id) };
+      return { k: "page", title: (o?.mentionTitle ? o.mentionTitle("page", m.id) : plain) || "Page", url: m.url ?? notionUrl(m.id) };
     case "database":
-      return { k: "database", title: plain || "Database", url: m.url ?? notionUrl(m.id) };
+      return { k: "database", title: (o?.mentionTitle ? o.mentionTitle("database", m.id) : plain) || "Database", url: m.url ?? notionUrl(m.id) };
     case "date":
       return { k: "date", start: dateOnly(m.start), end: m.end ? dateOnly(m.end) : null };
     case "link_preview":
@@ -103,12 +114,12 @@ function mentionOut(m: Mention, plain: string): MentionOut {
   }
 }
 
-function toSegment(item: RichText): Seg | null {
+function toSegment(item: RichText, o?: RichTextOptions): Seg | null {
   const a = item.annotations;
   const hrefLink = item.href && urlType(item.href) ? item.href : null;
   if (item.type === "equation") return { kind: "equation", expression: item.expression };
   if (item.type === "mention") {
-    const out = mentionOut(item.mention, item.plainText);
+    const out = mentionOut(item.mention, item.plainText, o);
     if (out.k === "link") {
       const id = databaseReference(out.text, out.url);
       if (id) return { kind: "mention", base: { k: "database", title: out.text, url: notionUrl(id) }, a };
@@ -153,10 +164,10 @@ function renderMention(m: MentionOut, a: Annotations | undefined): string {
 }
 
 /** notion2prompt's rich_text_to_markdown. */
-export function richTextToMarkdown(items: RichText[] | undefined): string {
+export function richTextToMarkdown(items: RichText[] | undefined, o?: RichTextOptions): string {
   let out = "";
   for (const item of items ?? []) {
-    const seg = toSegment(item);
+    const seg = toSegment(item, o);
     if (!seg || segmentEmpty(seg)) continue;
     if (seg.kind === "plain") out += applyStyles(seg.text, seg.a, seg.link);
     else if (seg.kind === "equation") out += `$${seg.expression}$`;
@@ -174,6 +185,45 @@ export function richTextPlain(items: RichText[] | undefined): string {
 
 export const text = (content: string, annotations?: Annotations, href?: string | null): RichText =>
   annotations || href ? { type: "text", content, annotations, href: href ?? null } : { type: "text", content };
+
+/** A table cell's page link as ainmem stores it: `[Label](/p/<uuid>)` (the editor shows it
+ *  as a mention chip and keeps this source form). */
+const CELL_PAGE_LINK = /\[([^\]]+)\]\(\/p\/([0-9a-fA-F-]{36})\)/g;
+
+/** Table cells: each `[Label](/p/<uuid>)` in plain text becomes the page mention it is
+ *  drawn as, so the fetch stage checks it like any other mention (and a hidden page's
+ *  label never reaches the prompt as text). Styles of the text around it are kept. */
+export function cellPageLinks(items: RichText[], pageUrl?: (id: string) => string): RichText[] {
+  const out: RichText[] = [];
+  for (const item of items) {
+    if (item.type !== "text" || item.link || !item.content.includes("](/p/")) {
+      out.push(item);
+      continue;
+    }
+    let last = 0;
+    const s = item.content;
+    const piece = (content: string): RichText => {
+      const { plainText, ...rest } = item;
+      void plainText;
+      return { ...rest, content };
+    };
+    for (const m of s.matchAll(CELL_PAGE_LINK)) {
+      const at = m.index ?? 0;
+      if (at > last) out.push(piece(s.slice(last, at)));
+      const id = m[2].toLowerCase();
+      out.push({
+        type: "mention",
+        mention: pageUrl ? { type: "page", id, url: pageUrl(id) } : { type: "page", id },
+        plainText: m[1],
+        ...(item.annotations ? { annotations: item.annotations } : {}),
+      });
+      last = at + m[0].length;
+    }
+    if (last === 0) out.push(item);
+    else if (last < s.length) out.push(piece(s.slice(last)));
+  }
+  return out;
+}
 
 // ── ainmem inline HTML → segments ─────────────────────────────────────────────
 

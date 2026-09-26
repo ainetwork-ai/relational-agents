@@ -19,9 +19,24 @@ export function selfOrigin(fallback?: string): string {
   return process.env.APP_ORIGIN || fallback || (globalThis as unknown as G)[KEY] || "http://127.0.0.1:3000";
 }
 
-/** The origin people open this app on, for links written into text they will read
- *  (a prompt's page URLs): APP_ORIGIN, else the origin the last request came in on,
- *  else "" (links stay relative). Never the container's loopback. */
+/**
+ * The origin people open this app on, for links written into text OTHER people read
+ * (a prompt's page URLs, saved into a shared prompt page): only what the deployment
+ * configures — APP_ORIGIN, else the origin of GOOGLE_REDIRECT_URI (by definition this
+ * app's public origin: Google checks it byte for byte, see api/auth/google/callback) —
+ * else "" and links stay relative (`/p/<id>`). Never a request's origin: that is one
+ * person's view of the app (127.0.0.1, a LAN address, a Host header a proxy passed on),
+ * and remembering it process-wide would let any request decide the links in everyone's
+ * prompts. Never the container's loopback.
+ */
 export function publicOrigin(): string {
-  return (process.env.APP_ORIGIN || (globalThis as unknown as G)[KEY] || "").replace(/\/+$/, "");
+  const configured = process.env.APP_ORIGIN?.trim();
+  if (configured && /^https?:\/\//.test(configured)) return configured.replace(/\/+$/, "");
+  try {
+    const redirect = process.env.GOOGLE_REDIRECT_URI?.trim();
+    if (redirect) return new URL(redirect).origin;
+  } catch {
+    // not a URL: fall through to relative links
+  }
+  return "";
 }

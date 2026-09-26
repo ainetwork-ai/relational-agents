@@ -685,6 +685,16 @@ is this app's public origin, and there's no need to trust proxy headers
 (`X-Forwarded-Host`). We also confirmed this is the only place in the app that builds an
 absolute URL from the request.
 
+Links written into text that other people read follow the same rule. A prompt made from
+a page (the family agent, the page menu, `/api/pages/<id>/prompt`, the MCP
+`page-to-prompt` tool) carries each page's URL, and the prompt is saved into a shared
+page. Those URLs come from `publicOrigin()` (`lib/app-origin.ts`): **`APP_ORIGIN`** when
+it is set (e.g. `APP_ORIGIN=https://ainmem.ainetwork.ai`), otherwise the origin of
+`GOOGLE_REDIRECT_URI`, and otherwise relative `/p/<id>` links. They are never taken from
+a request. An earlier version remembered the last request's origin process-wide, so one
+person opening the app on `127.0.0.1` or a LAN address, or a forged `Host`, decided the
+links in everyone's prompts.
+
 ### 4.12 The process lives but only the listen socket dies — nobody fixes unhealthy
 
 At 2026-08-13 10:17:53Z, `ainmem_prod_app`'s next-server (PID 1) **stayed alive while

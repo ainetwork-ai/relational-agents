@@ -213,6 +213,13 @@ export interface PromptContent {
   pages: Record<string, PPage>;
   /** every database it resolved, by id */
   databases: Record<string, PDatabase>;
+  /**
+   * Titles for inline page / database mentions, keyed "page:<id>" / "database:<id>", as the
+   * fetch stage checked them for the readers ("Restricted page" for one they may not all
+   * see). The render stage prints a mention's title from here (or from a page it read)
+   * and otherwise a neutral "Page" — never the label stored in the mention chip.
+   */
+  mentions?: Record<string, string>;
   tree: TreeNode;
   location: Location;
   stats: FetchStats;
@@ -235,9 +242,11 @@ export type TemplateName = "claude-xml" | "default" | "markdown";
 
 export interface RenderOptions {
   template: TemplateName;
-  /** free text for <instructions>; empty drops the block */
+  /** free text for <instructions>. An empty one drops the block; so does a blank one in the
+   *  "ainmem" layout, while "notion2prompt" keeps it as upstream does. */
   instruction?: string | null;
-  /** true / false as in notion2prompt; "auto" prints the section only when a page has a property to show */
+  /** true / false as in notion2prompt; "auto" prints the section only when a page has a property to show.
+   *  Default: false for layout "notion2prompt" (upstream's default), "auto" for layout "ainmem". */
   includeProperties: boolean | "auto";
   /** each child page its own file (true) or merged inline after its placeholder (false) */
   separateChildPages: boolean;

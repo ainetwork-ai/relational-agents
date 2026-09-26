@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
-import { publicOrigin, rememberOrigin } from "@/lib/app-origin";
+import { publicOrigin } from "@/lib/app-origin";
 import { getDefaultWorkspaceId } from "@/lib/workspace";
 import { getT } from "@/i18n/server";
 import {
@@ -36,6 +36,10 @@ export const dynamic = "force-dynamic";
  *
  * Read as the signed-in person: what they may not see is left out (and listed in json).
  * A page they cannot see is 404, the same as one that does not exist.
+ *
+ * Page links: the configured public origin (APP_ORIGIN). Without one, a prompt only
+ * returned to the caller links to the origin this request came in on; a prompt that is
+ * also saved (output page / drive) — text other people may read — keeps relative links.
  */
 
 type Opts = Record<string, unknown>;
@@ -107,8 +111,9 @@ async function handle(req: NextRequest, pageId: string, o: Opts) {
   const { fetch, render } = readOptions(o);
   if (isContent(o.content)) return respond(o.content, render, o);
 
-  rememberOrigin(req.nextUrl.origin);
-  const readers = { viewerIds: [viewer], baseUrl: publicOrigin() || req.nextUrl.origin };
+  const outputs = Array.isArray(o.output) ? o.output : typeof o.output === "string" ? [o.output] : [];
+  const saving = req.method === "POST" && outputs.length > 0;
+  const readers = { viewerIds: [viewer], baseUrl: publicOrigin() || (saving ? "" : req.nextUrl.origin) };
   const target = await locateVisible(pageId, readers);
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
   let content: PromptContent;
@@ -120,9 +125,8 @@ async function handle(req: NextRequest, pageId: string, o: Opts) {
   }
   if (o.stage === "fetch") return NextResponse.json(content);
 
-  const outputs = Array.isArray(o.output) ? o.output : typeof o.output === "string" ? [o.output] : [];
   const extra: Record<string, unknown> = {};
-  if (req.method === "POST" && outputs.length) {
+  if (saving) {
     const t = await getT(language);
     const out = renderPrompt(content, render);
     const title = t("AI prompt — {title}", { title: content.tree.title || target.title });
@@ -143,7 +147,7 @@ async function handle(req: NextRequest, pageId: string, o: Opts) {
         prompt: out.prompt,
         template: render.template ?? "claude-xml",
       });
-    if (outputs.includes("drive")) extra.drive = await savePromptToDrive(viewer, title, out.prompt, placement.restricted);
+    if (outputs.includes("drive")) extra.drive = await savePromptToDrive(viewer, title, out.prompt, [viewer]);
   }
   return respond(content, render, o, extra);
 }

@@ -2,8 +2,9 @@ import type { BlockContent, DbProperty, DbRow, TableData } from "@/lib/db/schema
 import { dateEnd, dateStart, findOption, personIds, resolveFilterValue, type RelatedSnapshots } from "@/lib/db-values";
 import { treeOrder } from "@/lib/memory-parse";
 import type { PBlock, PersonRef, PValue, RichText } from "./model";
+import { isUuid } from "./input";
 import { NOTION_TYPE } from "./properties";
-import { htmlToRichText, text } from "./rich-text";
+import { cellPageLinks, htmlToRichText, text } from "./rich-text";
 
 /**
  * ainmem → the Notion shape notion2prompt formats. Pure (no server imports).
@@ -40,7 +41,10 @@ export function richOf(content: BlockContent, ctx: MapCtx): RichText[] {
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
-function tableBlock(id: string, t: TableData | undefined): PBlock {
+/** A simple table. A cell's page link is stored as `[Label](/p/<uuid>)` and drawn as a
+ *  mention chip; it becomes a page mention here, so the fetch stage checks it for the
+ *  readers like any other (the stored label may name a page they cannot see). */
+function tableBlock(id: string, t: TableData | undefined, ctx: MapCtx): PBlock {
   const cells = t?.cells ?? [];
   const width = cells.reduce((m, r) => Math.max(m, r.length), 0);
   return {
@@ -54,7 +58,7 @@ function tableBlock(id: string, t: TableData | undefined): PBlock {
       type: "table_row" as const,
       cells: row.map((cell, c) => {
         const html = t?.html?.[r]?.[c];
-        return html ? htmlToRichText(html) : cell ? [text(cell)] : [];
+        return cellPageLinks(html ? htmlToRichText(html, { pageUrl: ctx.pageUrl }) : cell ? [text(cell)] : [], ctx.pageUrl);
       }),
     })),
   };
@@ -121,7 +125,7 @@ export function mapBlock(raw: RawBlock, children: PBlock[], ctx: MapCtx): PBlock
     case "equation":
       return { id, type: "equation", expression: str(c.text) };
     case "table":
-      return tableBlock(id, c.table);
+      return tableBlock(id, c.table, ctx);
     case "column_list":
       return { id, type: "column_list", ...kids };
     case "column":
@@ -223,6 +227,13 @@ const fileName = (url: string) => {
   }
 };
 
+/** The id a Postgres database row is printed under — its own page's id when it has one
+ *  (a row opened as a page: values.__page), else the row's — as source-db.ts gives each row. */
+export function rowPageId(row: Pick<DbRow, "id" | "values">): string {
+  const pid = row.values?.__page;
+  return typeof pid === "string" && isUuid(pid) ? pid : row.id;
+}
+
 /** One stored cell → its Notion-shaped value. */
 export function mapValue(prop: DbProperty, row: DbRow, ctx: ValueCtx): PValue {
   const v = row.values?.[prop.id];
@@ -264,7 +275,14 @@ export function mapValue(prop: DbProperty, row: DbRow, ctx: ValueCtx): PValue {
     case "relation": {
       const r = resolveFilterValue(row, prop, ctx.props, ctx.related);
       const ids = Array.isArray(r) ? r.filter((x): x is string => typeof x === "string") : typeof r === "string" && r ? [r] : [];
-      return { type: "relation", ids };
+      // a relation stores target ROW ids; each is printed as that row prints its own
+      // Page ID (its page's id when it has one), so the model can join them — as upstream,
+      // where a relation lists the related pages' ids
+      const target = prop.config?.mirrorOf?.databaseId ?? prop.config?.relationDatabaseId;
+      const rows = target ? ctx.related?.[target]?.rows : undefined;
+      if (!rows) return { type: "relation", ids };
+      const pageOf = new Map(rows.map((x) => [x.id, rowPageId(x)]));
+      return { type: "relation", ids: ids.map((id) => pageOf.get(id) ?? id) };
     }
     case "formula": {
       const r = resolveFilterValue(row, prop, ctx.props, ctx.related);

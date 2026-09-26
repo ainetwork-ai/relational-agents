@@ -1,4 +1,4 @@
-import type { FetchOptions, FetchStats, PBlock, PDatabase, PPage, PromptContent, Skipped, TreeNode } from "./model";
+import type { FetchOptions, FetchStats, PBlock, PDatabase, PPage, PromptContent, RichText, Skipped, TreeNode } from "./model";
 import { dateOf } from "./properties";
 
 /**
@@ -24,7 +24,10 @@ import { dateOf } from "./properties";
  *
  * Permissions are the source's: canSee() answers for EVERY person who will read the
  * result. Something they may not all see is never read, keeps no title, and is listed
- * in `skipped` by id and reason only.
+ * in `skipped` by id and reason only. That holds for inline mentions too: a page or
+ * database mentioned in a block's text (paragraphs, table cells, captions) is checked
+ * like a sub-page, and the label stored in the mention chip is replaced by the title the
+ * readers may see — or "Restricted page" — before anything is rendered.
  */
 
 export interface SourcePage extends PPage {
@@ -117,6 +120,47 @@ export function sortRowsByDate<T extends PPage>(rows: T[]): T[] {
   });
 }
 
+/** Every rich text a block carries: its text, its caption, a table row's cells. */
+export function richTextsOf(b: PBlock): RichText[][] {
+  const out: RichText[][] = [];
+  if ("richText" in b && b.richText) out.push(b.richText);
+  if ("caption" in b && b.caption) out.push(b.caption);
+  if (b.type === "table_row") out.push(...b.cells);
+  return out;
+}
+
+/**
+ * Every page and database a content tree names that its readers may see: the pages and
+ * databases it read, and those it only printed a title of — a child page or link past the
+ * depth, a database not fetched, an inline mention. Where the prompt is saved has to be
+ * no wider than all of them (deliver.ts placementFor). Ids only; hidden ones (reported in
+ * `skipped`) print no title and are left out.
+ */
+export function visibleRefs(content: PromptContent): { pages: string[]; databases: string[] } {
+  const hidden = new Set(content.skipped.filter((x) => x.reason === "permission").map((x) => `${x.kind}:${x.id}`));
+  const pageIds = new Set(Object.keys(content.pages));
+  const dbIds = new Set(Object.keys(content.databases));
+  const add = (kind: "page" | "database", id: string | undefined) => {
+    if (!id || hidden.has(`${kind}:${id}`)) return;
+    (kind === "page" ? pageIds : dbIds).add(id);
+  };
+  const walk = (list: PBlock[] | undefined) => {
+    for (const b of list ?? []) {
+      if (b.type === "child_page" || b.type === "link_to_page") add("page", b.pageId);
+      else if (b.type === "child_database" && (b.content.state === "fetched" || b.content.state === "not_fetched")) add("database", b.content.databaseId);
+      walk(b.children);
+    }
+  };
+  for (const p of Object.values(content.pages)) walk(p.blocks);
+  if (content.root.kind === "block") walk([content.root.block]);
+  for (const key of Object.keys(content.mentions ?? {})) {
+    const at = key.indexOf(":");
+    const kind = key.slice(0, at);
+    if (kind === "page" || kind === "database") add(kind, key.slice(at + 1));
+  }
+  return { pages: [...pageIds], databases: [...dbIds] };
+}
+
 function refsOf(blocks: PBlock[], out = new Set<string>()): Set<string> {
   for (const b of blocks) {
     if ((b.type === "child_page" && b.pageId) || b.type === "link_to_page") out.add(b.pageId!);
@@ -133,6 +177,8 @@ export async function collect(root: Located, options: Partial<FetchOptions>, src
   const stats: FetchStats = { pages: 0, databases: 0, rows: 0, blocks: 0, items: 0, maxDepthReached: 0, depthLimited: false, limitReached: false };
   const visitedPages = new Set<string>();
   const visitedDbs = new Set<string>();
+  /** "page:<id>" / "database:<id>" → the title inline mentions of it print */
+  const mentions: Record<string, string> = {};
 
   /** take up to n items from the budget */
   const take = (n: number) => {
@@ -201,8 +247,33 @@ export async function collect(root: Located, options: Partial<FetchOptions>, src
     b.content = ok ? { state: "fetched", databaseId: id } : { state: "not_fetched", databaseId: id };
   }
 
+  /** Inline page / database mentions: the stored chip label (whatever the page was called
+   *  when it was mentioned, possibly a page these readers may not see) is replaced by the
+   *  title they may see, or RESTRICTED_*, and a hidden target is reported like any other. */
+  async function checkMentions(b: PBlock) {
+    for (const items of richTextsOf(b))
+      for (const item of items) {
+        if (item.type !== "mention" || (item.mention.type !== "page" && item.mention.type !== "database")) continue;
+        const { type: kind, id } = item.mention;
+        if (!id) {
+          item.plainText = "";
+          continue;
+        }
+        const key = `${kind}:${id}`;
+        if (!(key in mentions)) {
+          if (await src.canSee(kind, id)) mentions[key] = (await src.title(kind, id)) ?? (kind === "page" ? "Untitled" : "Untitled Database");
+          else {
+            mentions[key] = kind === "page" ? RESTRICTED_PAGE : RESTRICTED_DATABASE;
+            skip({ reason: "permission", kind, id });
+          }
+        }
+        item.plainText = mentions[key];
+      }
+  }
+
   async function walk(blocks: PBlock[], level: number, node: TreeNode, path: Set<string>) {
     for (const b of blocks) {
+      await checkMentions(b);
       if (b.type === "child_page" || b.type === "link_to_page") await pageRef(b, level, node, path);
       else if (b.type === "child_database") await dbRef(b, level, node);
       if (b.children?.length) await walk(b.children, level, node, path);
@@ -343,6 +414,7 @@ export async function collect(root: Located, options: Partial<FetchOptions>, src
     root: content,
     pages,
     databases,
+    mentions,
     tree,
     location: { segments: await src.location(root, pageOfBlock) },
     stats,

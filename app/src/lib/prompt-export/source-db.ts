@@ -23,7 +23,7 @@ import { cleanTitle } from "@/lib/memory-parse";
 import type { RelatedSnapshots } from "@/lib/db-values";
 import type { Located, PromptSource, SourceDatabase, SourcePage } from "./collect";
 import { isUuid } from "./input";
-import { mapBlock, nestBlocks, nestByDepth, rowProperties, rowTitle, schemaOf, type MapCtx, type ValueCtx } from "./map";
+import { mapBlock, nestBlocks, nestByDepth, rowPageId, rowProperties, rowTitle, schemaOf, type MapCtx, type ValueCtx } from "./map";
 import type { PBlock, PPage } from "./model";
 
 /**
@@ -308,9 +308,11 @@ export function createDbSource(opts: DbSourceOptions): DbSource {
       url: dbUrl,
       schema: schemaOf(props),
       rows: rows.map((r) => {
-        const pid = typeof r.values?.__page === "string" && isUuid(r.values.__page) ? r.values.__page : null;
+        // the id a relation to this row prints too (map.ts mapValue)
+        const id = rowPageId(r);
+        const pid = id === r.id ? null : id;
         return {
-          id: pid ?? r.id,
+          id,
           title: rowTitle(props, r),
           url: pid ? pageUrl(pid) : dbUrl,
           properties: rowProperties(props, r, ctx),

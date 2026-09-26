@@ -120,7 +120,8 @@ export async function promptSkill(ctx: SkillContext): Promise<SkillResult> {
     prompt: out.prompt,
     template,
   });
-  const drive = await savePromptToDrive(ctx.askerId, title, out.prompt, placement.restricted);
+  // only into a folder nobody outside these readers can open
+  const drive = await savePromptToDrive(ctx.askerId, title, out.prompt, readers);
 
   // ── the answer ──
   const hidden = content.skipped.filter((x) => x.reason === "permission").length;
