@@ -186,3 +186,42 @@ export async function investedPosition(agentUserId: string): Promise<InvestedPos
   const wethAsUsdc = weth > BigInt(0) ? await quote(cfg, INVEST_CHAIN.weth, INVEST_CHAIN.usdc, weth) : BigInt(0);
   return { address, weth, usdcIdle, wethAsUsdc, wethAsStoryUsd: Number(formatUnits(wethAsUsdc, 6)) / cfg.usdcPerUsd, chain: "base" };
 }
+
+const POSITION_FRESH_MS = 15_000;
+const POSITION_STALE_MS = 5 * 60_000;
+/** how long a status read waits for the chain before showing the last value, or nothing */
+const POSITION_WAIT_MS = 2_500;
+const positions = new Map<string, { at: number; value?: InvestedPosition | null; inflight?: Promise<void> }>();
+
+/**
+ * The position as the room panel and the Treasury page show it. Its three Base
+ * reads take 3–5 s from this host and every open room polls every few seconds,
+ * so one read per agent is shared, its value is reused for 15 s, and a poll
+ * waits at most POSITION_WAIT_MS — then shows the last value (up to five
+ * minutes old), or nothing when there is none yet, while the read finishes in
+ * the background. Never for a money decision: those read investedPosition.
+ */
+export async function displayInvestedPosition(agentUserId: string): Promise<InvestedPosition | null> {
+  if (!investConfig()) return null;
+  let entry = positions.get(agentUserId);
+  if (!entry) positions.set(agentUserId, (entry = { at: 0 }));
+  const e = entry;
+  if (e.value !== undefined && Date.now() - e.at < POSITION_FRESH_MS) return e.value;
+  e.inflight ??= investedPosition(agentUserId)
+    .then((value) => {
+      e.value = value;
+      e.at = Date.now();
+    })
+    .finally(() => {
+      e.inflight = undefined;
+    });
+  const done = await Promise.race([
+    e.inflight.then(
+      () => true,
+      () => false
+    ),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), POSITION_WAIT_MS)),
+  ]);
+  if (done) return e.value ?? null;
+  return e.value !== undefined && Date.now() - e.at < POSITION_STALE_MS ? e.value : null;
+}

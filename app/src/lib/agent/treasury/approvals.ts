@@ -36,7 +36,7 @@ import {
   transferUsd,
   treasuryBalance,
 } from "./wallet";
-import { INVEST_CHAIN, investConfig, investViaUniswap, investedPosition } from "./invest";
+import { INVEST_CHAIN, investConfig, investViaUniswap, displayInvestedPosition, investedPosition } from "./invest";
 import { formatUnits as formatTokenUnits } from "viem";
 import {
   authorityExposure,
@@ -1358,7 +1358,8 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
 
   // the WETH the agent bought with idle funds, priced through the pool it bought from;
   // null when investing is off or Base can't be read (the pot's own numbers still show)
-  const invested = bot && treasury ? await investedPosition(bot.agentUserId).catch(() => null) : null;
+  // the display read: shared, cached and bounded — a slow Base RPC must not hold every poll of every open room
+  const invested = bot && treasury ? await displayInvestedPosition(bot.agentUserId).catch(() => null) : null;
   const recurring = treasury
     ? await recurringBuyStatus(roomId).catch((err: unknown) => {
         console.error("treasury: recurring buy status unavailable:", err);
