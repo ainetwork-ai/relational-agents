@@ -42,16 +42,19 @@ in the room between the final reset and the first take.
      --reset --no-preseat --app https://ainmem.ainetwork.xyz
    ```
 
-   → the six accounts, $1,000 in a new agent wallet, the relation's memory doc
+   → the six accounts (the five friends in the room; "Alex (2nd account)" is a
+   workspace member Alex invites in scene 2 — `--join-alex2` does that invite
+   for a take that starts after scene 2), $1,000 in a new agent wallet, the relation's memory doc
    with Purpose / Treasury Rules / Payees (adopted as the founding agreement),
    **nobody seated**, every demo account's World ID unbound (a rehearsal's
    bindings can't void a take) and the six accounts' notifications cleared.
    Check that the sidebar's **Shared** section shows the rebuilt memory doc
-   ("Tokyo Trip · 6 people").
+   ("Tokyo Trip · 5 people").
 3. **Vote claims, off camera.** Chris, Dana and Eli each claim their vote
    through simulator.worldcoin.org with their own simulator identity, so every
    vote on screen is a real IDKit proof. Alex and Bea stay unseated: Alex
-   claims on camera in scene 1. Alex (2nd account) uses Alex's identity (the
+   claims on camera in scene 1. Alex (2nd account) is not in the room yet:
+   Alex invites it on camera in scene 2 and it uses Alex's identity (the
    scene 2 denial).
 4. **Identities.** Alex, Chris, Dana and Eli each have their own
    simulator.worldcoin.org identity. On the sandbox IdP, Chris and Alex must be
@@ -144,9 +147,13 @@ Alex taps **Claim your vote with World ID** (IDKit, Proof of Human) →
 
 Caption: `Ten accounts. Still one human.` · `World ID · IDKit — Proof of Human`
 
-"Alex (2nd account)" tries to claim a sixth vote with Alex's own World ID →
+Alex makes a second account and, from the room's **Invite people**, adds
+"Alex (2nd account)" to the five. A sixth face joins the row (`4/6 votes`; the
+panel notes that a member who joins after the rules were adopted votes only
+once the relation adopts its membership). On the second account, with the
+same phone, Alex taps **Claim your vote with World ID** →
 **"This human already has a vote in this relation — one human, one vote."**
-Alex (2nd account)'s ring stays grey — no vote.
+The sixth face's ring stays grey — no vote.
 
 > "Alex can make ten accounts and ten wallets — World ID still sees one human."
 

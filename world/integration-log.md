@@ -291,3 +291,22 @@ Format: `JST time — surface — what happened`.
   tool but not where the key comes from (Team settings → API keys) nor that
   the token must travel on every verify call; a window that lapses mid-event
   silently breaks every staging integration; the Portal has no button for it.
+- 2026-09-26 16:50 — IDKit — **the second account now joins on camera**: the
+  five friends form the room (`seed-tokyo-trip.mts` seats no sixth member any
+  more; "Alex (2nd account)" stays a workspace member), and scene 2 starts
+  with Alex adding it from the room's **Invite people**. Verified on xyz end
+  to end: the invite menu lists the account, the panel goes to six faces with
+  "New members don't vote until the relation adopts its membership · + Alex
+  (2nd account) (would vote)", and the account's own claim on the same
+  simulator identity (#4) is refused with "This human already has a vote in
+  this relation — one human, one vote." — no seat, nothing bound.
+  `--join-alex2` reproduces that state for a take that starts after scene 2
+  (block 2); the e2e mirrors it (Alex invites the account in setup; the
+  same-human approval is Dana's laptop now, scene 4, and the second account is
+  refused as outside the electorate before any World ID check). FRICTION: the
+  deploy worktree's `app/.env.local` is a symlink to the shared dev env, so
+  one seed run reset the dev "Tokyo Trip" room instead of xyz — the xyz DB,
+  secret and content root must be passed inline. Two claims got a transient
+  `generic_error` from the staging verifier; the retry went through.
+  Recording state: room `1ebca8bc…`, $1,000, Chris/Dana/Eli seated (`orb`),
+  Alex and Bea unseated, nothing invested.
