@@ -39,6 +39,22 @@ const EXPECT = [
   ["uniswap-api.ts", "async function orderFill("],
   ["recurring-record.ts", "r.orderHash !== undefined"],
   ["recurring.ts", "route: bought.route,"],
+  // Recurring contributions — Permit2, in the app
+  ["contribution-plan.ts", "export const CONTRIBUTION_CHAIN = {"],
+  ["contribution-plan.ts", "export function contributionSalt("],
+  ["contribution-plan.ts", "export function periodStates("],
+  ["contributions.ts", "async function readPlans("],
+  ["contributions.ts", "export function collectDueContributions("],
+  ["contributions.ts", 'await client.simulateContract({ account, address: C.contract, abi: contributionAbi, functionName: "pull"'],
+  ["contributions.ts", 'txHash = await wallet.writeContract({ address: C.contract, abi: contributionAbi, functionName: "pull"'],
+  ["tools.ts", "await collectAndAnnounce(ctx).catch("],
+  ["tools.ts", "export async function collectAndAnnounce("],
+  ["contribution-dialogs.tsx", 'functionName: "approve", args: [C.permit2, needed]'],
+  ["contribution-dialogs.tsx", 'functionName: "approve", args: [C.usdc, C.contract, amountAllowed'],
+  ["contribution-dialogs.tsx", 'functionName: "start", args: startArgs(x)'],
+  ["contribution-dialogs.tsx", "body: JSON.stringify({ planId: id })"],
+  ["contribution-dialogs.tsx", 'functionName: "stop"'],
+  ["activity-model.ts", "function contributionItems("],
 ];
 
 test("uniswap/README.md line links land on the code they describe", () => {
