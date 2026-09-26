@@ -1,0 +1,10 @@
+{
+  "chainId": 8453,
+  "RecurringContribution": {
+    "address": "0x6Db42fBBB5A751F18B1585547867b3685F81DD9a",
+    "deployTx": "0x56939c41448b7ce0444e1877ef8f58215fae33bdcd349d748b31fe582013d165",
+    "block": 51830053,
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "sourcify": "https://repo.sourcify.dev/8453/0x6Db42fBBB5A751F18B1585547867b3685F81DD9a"
+  }
+}
