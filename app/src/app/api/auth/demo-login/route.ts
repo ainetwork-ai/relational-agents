@@ -56,7 +56,11 @@ export async function GET(req: NextRequest) {
     const slug = as.toLowerCase().replace(/[^a-z0-9-_]/g, "");
     if (!slug) return NextResponse.json({ error: "Bad name" }, { status: 400 });
     await loginUser(`demo:${slug}`, as);
-    return NextResponse.redirect(new URL("/", req.nextUrl.origin), 303);
+    // A relative Location, on purpose: inside the container req.nextUrl.origin
+    // is the bind address (https://0.0.0.0:3000 — deployment.md §4.11), and this
+    // host has no GOOGLE_REDIRECT_URI to borrow a public origin from. The
+    // browser resolves "/" against the URL it actually requested.
+    return new NextResponse(null, { status: 303, headers: { Location: "/" } });
   }
   const fam = await demoFamily();
   return NextResponse.json({
