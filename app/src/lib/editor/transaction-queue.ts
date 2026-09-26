@@ -29,7 +29,7 @@
  */
 import { newId } from "@/lib/compat";
 import type { BlockContent, BlockType } from "@/lib/db/schema";
-import type { SaveError, SaveResponse, Transaction } from "@/lib/transactions/types";
+import type { SaveError, SaveResponse, SignedEnvelope, Transaction } from "@/lib/transactions/types";
 
 const DB_NAME = "TransactionStore";
 const DB_VERSION = 1;
@@ -81,7 +81,13 @@ interface Carried {
   t: Transaction;
   /** resolves once the IndexedDB write committed (or failed — never rejects) */
   persisted: Promise<void>;
+  /** signed (when its page signs) and stored: it may go out. Rows go out in order,
+   * so one still signing holds back the ones after it. */
+  ready: boolean;
 }
+
+/** Signs a transaction of a page in a teamspace linked to aindrive (lib/willow/device). */
+export type TransactionSigner = (t: Transaction) => Promise<SignedEnvelope>;
 
 const req = <T>(r: IDBRequest<T>) =>
   new Promise<T>((res, rej) => {
@@ -121,7 +127,9 @@ function openDb(): Promise<IDBDatabase> {
 
 /** the stored row minus its storage bookkeeping — what goes on the wire */
 function toWire(r: StoredTransaction): Transaction {
-  return { id: r.id, pageId: r.pageId, timestamp: r.timestamp, debug: r.debug, operations: r.operations };
+  const t: Transaction = { id: r.id, pageId: r.pageId, timestamp: r.timestamp, debug: r.debug, operations: r.operations };
+  if (r.signed) t.signed = r.signed;
+  return t;
 }
 
 type Listener = (s: PageQueueState) => void;
@@ -140,6 +148,9 @@ export class TransactionQueue {
   private listeners = new Map<string, Set<Listener>>();
   private ackListeners = new Map<string, Set<AckListener>>();
   private shareTokens = new Map<string, string>();
+  private signers = new Map<string, TransactionSigner>();
+  /** transactions this tab made — its editor already shows them */
+  private madeHere = new Set<string>();
   private started = false;
 
   private open() {
@@ -163,6 +174,13 @@ export class TransactionQueue {
   setShareToken(pageId: string, token: string | undefined) {
     if (token) this.shareTokens.set(pageId, token);
     else this.shareTokens.delete(pageId);
+  }
+
+  /** Edits of `pageId` are signed before they are stored (a teamspace linked to
+   * aindrive — docs/willow-ainmem-plan.md Task 6); null stops signing. */
+  setSigner(pageId: string, signer: TransactionSigner | null) {
+    if (signer) this.signers.set(pageId, signer);
+    else this.signers.delete(pageId);
   }
 
   subscribe(pageId: string, fn: Listener): () => void {
@@ -198,17 +216,32 @@ export class TransactionQueue {
    * committed let the line send it (now if idle). Resolves at the same point. */
   enqueue(t: Transaction): Promise<void> {
     this.touched.add(t.pageId);
-    const persisted = this.open()
+    this.madeHere.add(t.id);
+    const signer = this.signers.get(t.pageId);
+    const carried: Carried = { t, persisted: Promise.resolve(), ready: false };
+    // sign first, so the stored row — which a later tab may adopt and send — is
+    // the signed one. A signature that cannot be made leaves the edit unsigned
+    // (the server takes those, as before) rather than losing it.
+    const signed = signer
+      ? signer(t).then(
+          (envelope) => { carried.t = { ...t, signed: envelope }; },
+          () => {}
+        )
+      : Promise.resolve();
+    const persisted = signed
+      .then(() => this.open())
       .then((db) => {
         const tx = db.transaction("Transaction", "readwrite");
-        tx.objectStore("Transaction").add({ ...t, sessionId: this.sessionId } satisfies StoredTransaction);
+        tx.objectStore("Transaction").add({ ...carried.t, sessionId: this.sessionId } satisfies StoredTransaction);
         return done(tx);
       })
       .catch(() => {
         // no IndexedDB (private mode, quota): the edit still goes out from
         // memory; only crash-durability is lost
-      });
-    this.carried.push({ t, persisted });
+      })
+      .then(() => { carried.ready = true; });
+    carried.persisted = persisted;
+    this.carried.push(carried);
     this.emit(t.pageId);
     // the first pending transaction starts the heartbeat at once, so a tab
     // that dies right after typing is still recognisable as a dead OWNER
@@ -244,7 +277,12 @@ export class TransactionQueue {
    * Notion's saveTransactionsFanout is one endpoint too. */
   private flush() {
     if (this.inflight || this.carried.length === 0) return;
-    const batch = [...this.carried];
+    const batch: Carried[] = [];
+    for (const c of this.carried) {
+      if (!c.ready) break;
+      batch.push(c);
+    }
+    if (batch.length === 0) return;
     this.inflight = true;
     const pageIds = new Set(batch.map((c) => c.t.pageId));
     for (const id of pageIds) this.emit(id);
@@ -392,7 +430,7 @@ export class TransactionQueue {
       for (const r of adopted) {
         if (have.has(r.id)) continue;
         this.touched.add(r.pageId);
-        this.carried.push({ t: toWire(r), persisted: Promise.resolve() });
+        this.carried.push({ t: toWire(r), persisted: Promise.resolve(), ready: true });
       }
       for (const pageId of new Set(adopted.map((r) => r.pageId))) this.emit(pageId);
       this.schedule(0);
@@ -417,6 +455,12 @@ export class TransactionQueue {
     } catch {}
     for (const c of this.carried) if (c.t.pageId === pageId && !out.has(c.t.id)) out.set(c.t.id, c.t);
     return [...out.values()];
+  }
+
+  /** pendingFor, less what this tab made itself (its editor shows those already):
+   * what an earlier tab left behind, to lay over any older copy of the page. */
+  async foreignPendingFor(pageId: string): Promise<Transaction[]> {
+    return (await this.pendingFor(pageId)).filter((t) => !this.madeHere.has(t.id));
   }
 
   /** Test/diagnostic hook: what this tab still holds. */

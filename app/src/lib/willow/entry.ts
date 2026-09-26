@@ -51,7 +51,7 @@ const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const equal = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export const namespaceOf = (driveId: string): Uint8Array => sha256(utf8(`aindrive/namespace/v1/${driveId}`));
-export const nowMicros = (): bigint => BigInt(Date.now()) * 1000n;
+export const nowMicros = (): bigint => BigInt(Date.now()) * BigInt(1000);
 
 // aindrive's path scheme: ≤32 components (count in 1 byte), ≤512 bytes each (length in 2 bytes)
 const MAX_COMPONENTS = 32;
@@ -160,7 +160,7 @@ export function transactionPayload(t: Transaction): Uint8Array {
 export const transactionPath = (teamspaceId: string, t: Pick<Transaction, "pageId" | "id">) => ["ainmem", teamspaceId, t.pageId, t.id];
 
 export function signTransaction(key: DeviceKey, at: { driveId: string; teamspaceId: string; t: Transaction }): Promise<WireJson> {
-  return signEntry(key, at.driveId, transactionPath(at.teamspaceId, at.t), transactionPayload(at.t), BigInt(at.t.timestamp) * 1000n);
+  return signEntry(key, at.driveId, transactionPath(at.teamspaceId, at.t), transactionPayload(at.t), BigInt(at.t.timestamp) * BigInt(1000));
 }
 
 /** A signed transaction, checked against where it claims to belong. The payload is
