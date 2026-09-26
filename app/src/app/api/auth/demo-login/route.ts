@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeReturnTo } from "@/lib/auth/return-to";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -48,7 +49,7 @@ async function demoFamily() {
 export async function GET(req: NextRequest) {
   if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO_LOGIN !== "1")
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  // ?as=<slug>: the link form of POST { as } — a clickable sign-in as a named
+  // ?as=<slug>[&returnTo=/path]: the link form of POST { as } — a clickable sign-in as a named
   // demo account (the Tokyo Trip members), then straight to the app. Same
   // guard and same accounts as POST; nothing a link can reach that POST can't.
   const as = req.nextUrl.searchParams.get("as")?.trim().slice(0, 32) ?? "";
@@ -56,11 +57,12 @@ export async function GET(req: NextRequest) {
     const slug = as.toLowerCase().replace(/[^a-z0-9-_]/g, "");
     if (!slug) return NextResponse.json({ error: "Bad name" }, { status: 400 });
     await loginUser(`demo:${slug}`, as);
+    const returnTo = safeReturnTo(req.nextUrl.searchParams.get("returnTo")) ?? "/";
     // A relative Location, on purpose: inside the container req.nextUrl.origin
     // is the bind address (https://0.0.0.0:3000 — deployment.md §4.11), and this
     // host has no GOOGLE_REDIRECT_URI to borrow a public origin from. The
     // browser resolves "/" against the URL it actually requested.
-    return new NextResponse(null, { status: 303, headers: { Location: "/" } });
+    return new NextResponse(null, { status: 303, headers: { Location: returnTo } });
   }
   const fam = await demoFamily();
   return NextResponse.json({
