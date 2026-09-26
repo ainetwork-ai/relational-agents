@@ -132,6 +132,45 @@ function rel(abs: string): string {
   return path.relative(okfRoot(), abs).split(path.sep).join("/");
 }
 
+/** The title a folder page's index.md gives itself — the same precedence as
+ * parseMarkdown (a leading `# ` line, else frontmatter `title:`) without
+ * parsing the whole body: the sidebar lists every folder on every load. */
+function indexTitle(indexAbs: string): string | null {
+  let head: string;
+  try {
+    const fd = fs.openSync(indexAbs, "r");
+    try {
+      const buf = Buffer.alloc(8192);
+      head = buf.subarray(0, fs.readSync(fd, buf, 0, buf.length, 0)).toString("utf8").replace(/\r/g, "");
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+  let fmTitle: string | null = null;
+  let body = head;
+  if (head.startsWith("---\n")) {
+    const end = head.indexOf("\n---", 4);
+    if (end > 0) {
+      const m = head.slice(4, end).match(/^title:[ \t]*(.+)$/m);
+      if (m) fmTitle = m[1].trim().replace(/^(["'])(.*)\1$/, "$2").trim() || null;
+      body = head.slice(end + 4).replace(/^[^\n]*\n/, "");
+    }
+  }
+  const first = body.split("\n", 1)[0];
+  if (first.startsWith("# ") && first.slice(2).trim()) return first.slice(2).trim();
+  return fmTitle;
+}
+
+/** A folder's own name as a fallback label: relation docs are stored as
+ * "<title>-<room id prefix>" so two rooms' folders never collide on disk; the
+ * suffix is plumbing, not part of the name. It must hold a digit, so a word
+ * that happens to be hex letters ("-facade") is left alone. */
+function folderLabel(dirName: string): string {
+  return cleanTitle(dirName).replace(/-(?=[a-f]*\d)[0-9a-f]{6}$/, "") || cleanTitle(dirName);
+}
+
 function buildDir(absDir: string): TreeNode[] {
   // Dot-entries are tooling state (.omc, .git, .obsidian…), not user content —
   // without this they show up in the sidebar as pages/folders.
@@ -143,10 +182,13 @@ function buildDir(absDir: string): TreeNode[] {
   for (const d of dirs) {
     const abs = path.join(absDir, d.name);
     const children = buildDir(abs);
-    const hasIndex = fs.existsSync(path.join(abs, "index.md"));
+    const indexAbs = path.join(abs, "index.md");
+    const hasIndex = fs.existsSync(indexAbs);
     nodes.push({
       id: rel(abs),
-      name: cleanTitle(d.name),
+      // a folder page is named by its index.md, as its own page view names it —
+      // the sidebar and breadcrumbs used to show the raw folder name instead
+      name: (hasIndex && indexTitle(indexAbs)) || folderLabel(d.name),
       kind: hasIndex ? "page" : "folder",
       children,
     });
@@ -350,7 +392,7 @@ export function readNode(relPath: string): ContentNode | null {
     return {
       kind: "page",
       id: relPath,
-      title: title !== "Untitled" ? title : cleanTitle(path.basename(abs)),
+      title: title !== "Untitled" ? title : folderLabel(path.basename(abs)),
       meta,
  // index.md's assets are relative to the folder itself
       blocks: rewriteAssetBlocks(blocks, relPath),
