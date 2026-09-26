@@ -62,6 +62,7 @@ export function SeatButton({
   onSeated,
   onClaimed,
   onError,
+  className,
 }: {
   roomId: string;
   appId: `app_${string}`;
@@ -73,6 +74,8 @@ export function SeatButton({
   /** the widget closed after a successful claim */
   onClaimed: () => void | Promise<void>;
   onError: (err: SeatClaimError | null) => void;
+  /** the button's look where it sits (the treasury page draws its own); the room panel's by default */
+  className?: string;
 }) {
   const [rpContext, setRpContext] = useState<RpContext | null>(null);
   const [open, setOpen] = useState(false);
@@ -137,7 +140,10 @@ export function SeatButton({
         data-testid="treasury-seat-claim"
         onClick={() => void start()}
         disabled={starting || open}
-        className="mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+        className={
+          className ??
+          "mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
+        }
       >
         {starting ? "Starting World ID…" : "🌍 Claim your vote with World ID"}
       </button>

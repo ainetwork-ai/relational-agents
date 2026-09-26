@@ -15,6 +15,7 @@ import { ApprovalsCard } from "./approvals-card";
 import { Holdings } from "./holdings";
 import { RecurringCard } from "./recurring-card";
 import { useTreasuryRoomData } from "./room-data";
+import { VoteClaimCard } from "./vote-claim-card";
 import { WalletCard } from "./wallet-card";
 import styles from "./treasury-room.module.css";
 
@@ -35,7 +36,7 @@ function NoTreasury({ docPageId }: { docPageId: string | null }) {
 
 export function TreasuryHome() {
   const t = useT();
-  const { roomId, data, at } = useTreasuryRoomData();
+  const { roomId, data, at, reload } = useTreasuryRoomData();
   const { status, room, me, wallet } = data;
 
   if (!status.enabled) return <NoTreasury docPageId={room.docPageId} />;
@@ -45,6 +46,7 @@ export function TreasuryHome() {
       <WalletCard status={status} wallet={wallet} people={room.members} />
       {!status.adoptedAt && <p className={`${styles.banner} ${styles.bannerInfo}`}>{t("Rules not adopted yet — no money moves")}</p>}
       <Holdings status={status} wallet={wallet} />
+      <VoteClaimCard status={status} roomId={roomId} onSeated={reload} />
       <ApprovalsCard status={status} roomId={roomId} meId={me.id} now={at} />
       <ActivityFeed status={status} wallet={wallet} roomId={roomId} now={at} variant="transactions" limit={6} />
       <RecurringCard status={status} wallet={wallet} />

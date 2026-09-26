@@ -23,7 +23,8 @@ const MAX_SEGMENTS = 8;
 /** Why the viewer has no Approve button on a waiting request. */
 function waitingLine(t: T, a: TreasuryAction, status: TreasuryStatus, meId: string): string {
   if (a.approvals.some((p) => p.userId === meId)) return t("You approved · waiting for others");
-  if (!status.mySeated) return t("Claim your vote in the room to approve.");
+  // the Wallet tab draws the claim just above (vote-claim-card.tsx); a 3.0 seat is claimed in the room
+  if (!status.mySeated) return status.seatMode === "world-id" ? t("Claim your vote in the room to approve.") : t("Claim your vote above to approve.");
   if (!status.members.find((m) => m.userId === meId)?.voting) return t("Your vote counts after re-adoption");
   return t("Waiting for others");
 }
