@@ -45,8 +45,8 @@ export function ConsentBanner({ roomId }: { roomId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/dm/rooms/${roomId}/consent`);
-    if (res.ok) setStatus(await res.json());
+    const res = await fetch(`/api/dm/rooms/${roomId}/consent`).catch(() => null); // dropped connection → keep the last status
+    if (res?.ok) setStatus(await res.json());
   }, [roomId]);
 
   useEffect(() => {

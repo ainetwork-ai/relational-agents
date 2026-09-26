@@ -58,8 +58,10 @@ export const useDmRoomsStore = create<DmRoomsState>()((set) => ({
   loaded: false,
 
   load: async () => {
-    const r = await fetch("/api/dm/rooms");
-    if (!r.ok) return;
+    // called fire-and-forget on every DM event / SSE hello: a dropped connection
+    // keeps the current list rather than surfacing as an unhandled rejection
+    const r = await fetch("/api/dm/rooms").catch(() => null);
+    if (!r?.ok) return;
     const { rooms } = (await r.json()) as { rooms: DmRoomSummary[] };
     set({ rooms, loaded: true });
   },
