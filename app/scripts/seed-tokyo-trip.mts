@@ -293,6 +293,12 @@ if (!anyMessage) {
 }
 
 // ── the relation doc's treasury sections ────────────────────────────────────
+// The savings payee is the agent's own wallet: investing idle funds is a
+// Uniswap swap on Base signed by the agent (lib/agent/treasury/invest.ts), and
+// the WETH stays with the agent. The wallet must exist before the doc names it.
+const { ensureAgentWallet, fundTreasury, treasuryBalance } = await import("../src/lib/agent/treasury/wallet");
+const { address: agentAddress } = await ensureAgentWallet(agentUserId);
+
 // Registered in sectionOkfPaths under their own keys, never as profile
 // sections (the recording LLM appends to those; parseEdits accepts only
 // profile keys). Bullets only: readOkfSectionTexts drops blocks without text,
@@ -345,7 +351,10 @@ const SECTIONS: { key: string; title: string; okfType: "Fact" | "Memory"; blocks
     key: "payees",
     title: "Payees",
     okfType: "Fact",
-    blocks: [["bulleted_list", `Hotel Gracery Shinjuku: ${funder}`]],
+    blocks: [
+      ["bulleted_list", `Hotel Gracery Shinjuku: ${funder}`],
+      ["bulleted_list", `Savings (idle funds): ${agentAddress}`],
+    ],
   },
   {
     key: "treasury-activity",
@@ -421,8 +430,7 @@ if (PRESEAT)
 
 // ── the treasury wallet ─────────────────────────────────────────────────────
 
-const { ensureAgentWallet, fundTreasury, treasuryBalance } = await import("../src/lib/agent/treasury/wallet");
-const { address } = await ensureAgentWallet(agentUserId);
+const address = agentAddress;
 let funding = "skipped (--no-fund)";
 let failed = false;
 if (FUND) {
