@@ -15,19 +15,15 @@ services:
     image: ainmem_xyz-app:${APP_TAG:-latest}
     build:
       context: ./app
-      # Every NEXT_PUBLIC_* the Dockerfile declares, as in docker-compose.prod.yml:
-      # they are inlined into the browser bundle at BUILD time, so a value only in
-      # .env.xyz reaches the server but never the browser (World ID's IDKit vote
-      # silently had no app id here). Changing one needs a rebuild + new APP_TAG.
+      # The World ID values the browser needs, inlined at BUILD time: a value only
+      # in .env.xyz reaches the server but never the browser bundle (the IDKit
+      # vote silently had no app id here). Pass only what .env.xyz sets — an arg
+      # passed empty is inlined as "", which beats the code's `??` defaults
+      # (NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID "" became chainId 0). Changing
+      # one needs a rebuild + new APP_TAG.
       args:
-        NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS: ${NEXT_PUBLIC_RELATION_REGISTRY_ADDRESS:-}
-        NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID: ${NEXT_PUBLIC_RELATION_REGISTRY_CHAIN_ID:-}
-        NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS: ${NEXT_PUBLIC_HUMANBACKED_REGISTRY_ADDRESS:-}
         NEXT_PUBLIC_WORLD_ID_APP_ID: ${NEXT_PUBLIC_WORLD_ID_APP_ID:-}
-        NEXT_PUBLIC_WORLD_ID_ACTION: ${NEXT_PUBLIC_WORLD_ID_ACTION:-}
         NEXT_PUBLIC_WORLD_ID_ENV: ${NEXT_PUBLIC_WORLD_ID_ENV:-}
-        NEXT_PUBLIC_SUI_PACKAGE_ID: ${NEXT_PUBLIC_SUI_PACKAGE_ID:-}
-        NEXT_PUBLIC_CALL_WEB_SPEECH: ${NEXT_PUBLIC_CALL_WEB_SPEECH:-}
     restart: unless-stopped
     depends_on:
       postgres:
