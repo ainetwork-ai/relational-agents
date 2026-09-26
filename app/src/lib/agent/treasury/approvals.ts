@@ -941,7 +941,8 @@ async function proposeIdleFunds(action: TreasuryAction, treasury: RelationTreasu
     if (!treasury || !investConfig()) return;
     const rule = treasury.policy.rules.find((r) => r.kind === "investment" && !r.forbidden);
     if (!rule || !treasury.payees.some((p) => IDLE_PAYEE.test(p.name))) return;
-    const position = await investedPosition(action.agentUserId);
+    // a position we can't read right now is treated as none — this is a hint, not a decision
+    const position = await investedPosition(action.agentUserId).catch(() => null);
     if (position && position.weth > BigInt(0)) return;
     const [open] = await db
       .select({ id: treasuryActions.id })

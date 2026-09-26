@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, createWalletClient, formatUnits, http, parseAbi, parseEventLogs, type Hex } from "viem";
+import { createPublicClient, createWalletClient, fallback, formatUnits, http, parseAbi, parseEventLogs, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { agentKey } from "./wallet";
@@ -30,7 +30,8 @@ export const INVEST_CHAIN = {
 };
 
 export interface InvestConfig {
-  rpc: string;
+  /** BASE_RPC_URL first, then public fallbacks — one rate-limited endpoint must not fail an approved swap */
+  rpcs: string[];
   /** real USDC per story dollar */
   usdcPerUsd: number;
   slippageBps: number;
@@ -41,7 +42,8 @@ export function investConfig(): InvestConfig | null {
   const usdcPerUsd = Number(process.env.TREASURY_INVEST_USDC_PER_USD ?? "0.005");
   const slippageBps = Number(process.env.TREASURY_INVEST_SLIPPAGE_BPS ?? "50");
   if (!(usdcPerUsd > 0) || !(slippageBps >= 0 && slippageBps < 10_000)) return null;
-  return { rpc: process.env.BASE_RPC_URL ?? "https://mainnet.base.org", usdcPerUsd, slippageBps };
+  const rpcs = [...new Set([process.env.BASE_RPC_URL, "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://mainnet.base.org"].filter((u): u is string => !!u))];
+  return { rpcs, usdcPerUsd, slippageBps };
 }
 
 const erc20 = parseAbi([
@@ -57,7 +59,8 @@ const router = parseAbi([
   "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)",
 ]);
 
-const publicClient = (cfg: InvestConfig) => createPublicClient({ chain: base, transport: http(cfg.rpc) });
+const transportFor = (cfg: InvestConfig) => fallback(cfg.rpcs.map((u) => http(u, { timeout: 10_000 })), { rank: false });
+const publicClient = (cfg: InvestConfig) => createPublicClient({ chain: base, transport: transportFor(cfg) });
 
 /** USDC (6 decimals) for a story amount at demo scale. */
 export function usdcForUsd(cfg: InvestConfig, usd: number): bigint {
@@ -94,7 +97,7 @@ export async function investViaUniswap(agentUserId: string, amountUsd: number): 
 
   const account = privateKeyToAccount(await agentKey(agentUserId));
   const client = publicClient(cfg);
-  const wallet = createWalletClient({ account, chain: base, transport: http(cfg.rpc) });
+  const wallet = createWalletClient({ account, chain: base, transport: transportFor(cfg) });
 
   const held = await client.readContract({ address: INVEST_CHAIN.usdc, abi: erc20, functionName: "balanceOf", args: [account.address] });
   if (held < amountIn)
