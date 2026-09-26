@@ -35,19 +35,29 @@ if (cmd === "sign") {
     if (amount <= 0n) usage(SIGN, `${what} must be positive`);
     return amount;
   };
+  // `days` is judged for the same reason and it is not judged by `cap`: it is whole days, not a
+  // token amount. Unchecked, "abc" reaches `BigInt(NaN)` inside the signer as a RangeError with a
+  // stack, and "0" or "-1" signs a mandate that has already expired.
+  const days = (value) => {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n <= 0) usage(SIGN, `days "${value}" must be a positive whole number`);
+    return n;
+  };
   const m = {
     id: `m-${Date.now()}`, roomId: process.env.ROOM_ID ?? "room-demo", agent: agent.address, kind: "standing",
     tokenIn: chain.tokens.USDC.address, tokenOut: chain.tokens.WETH.address,
     perRunCap: cap(a ?? "20", "perRun"),
     perPeriodCap: cap(b ?? "100", "perPeriod"),
     period: process.env.TSUMITATE_PERIOD ?? "week",
-    expiresAt: Math.floor(Date.now() / 1000) + Number(c ?? "90") * 86_400, nonce: Date.now(),
+    expiresAt: Math.floor(Date.now() / 1000) + days(c ?? "90") * 86_400, nonce: Date.now(),
   };
   const signature = await member.signTypedData(mandateTypedData(m, chain.chainId));
   const signer = await recoverMandateSigner(m, chain.chainId, signature);
   m.approval = { method: "wallet-signature", subject: signer, verifiedAt: Math.floor(Date.now() / 1000), ref: signature };
   await ledger.addMandate(m);
-  console.log(JSON.stringify({ ...m, perRunCap: m.perRunCap.toString(), perPeriodCap: m.perPeriodCap.toString() }, null, 2));
+  // A replacer, not two `.toString()` calls: naming the bigint fields one by one means the next
+  // bigint field added to a mandate throws here, after `addMandate` has already written it.
+  console.log(JSON.stringify(m, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
 } else if (cmd === "revoke") {
   try {
     await ledger.revoke(a, Math.floor(Date.now() / 1000));

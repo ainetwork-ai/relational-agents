@@ -46,7 +46,6 @@ test("router.execute: WETH → USDC on the fork moves the balances it says it mo
   assert.notEqual(r.amountOut, q.amountOutExpected, "the perturbing swap must have moved the price");
   assert.equal(after - before, r.amountOut, "receipt amountOut must equal the balance change");
   assert.ok(r.amountOut >= q.amountOutExpected * 9950n / 10000n, "within 0.5% of the quote");
-  assert.ok(r.price > 0);
   // `price` is tokenIn per whole tokenOut, so for this direction it is WETH per whole USDC.
   // Asserting only `> 0` would let an inverted ratio or a wrong decimals lookup through.
   assert.ok(Math.abs(r.price - 0.5 / (Number(r.amountOut) / 1e6)) < 1e-9, `price must be WETH per whole USDC, got ${r.price}`);

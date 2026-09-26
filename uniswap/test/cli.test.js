@@ -13,13 +13,16 @@ const ANVIL_KEY_9 = "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff
 const ANVIL_KEY_4 = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"; // anvil #4 = the member
 
 /**
- * Run a CLI the way an operator does. The child inherits this process's environment, so the keys
- * are deleted first: a stray AGENT_PK in the shell would make the "AGENT_PK is required" case pass
- * for the wrong reason. PASSBOOK_PATH keeps every run off the demo's `.state/passbook.json`.
+ * Run a CLI the way an operator does. The child inherits this process's environment, so every
+ * variable these CLIs read is deleted first: a stray AGENT_PK in the shell would make the
+ * "AGENT_PK is required" case pass for the wrong reason, and a stray CHAIN or LEDGER would send a
+ * test somewhere it was never meant to look. PASSBOOK_PATH is set, not inherited, so every run
+ * stays off the demo's `.state/passbook.json`.
  */
 function cli(args, env = {}) {
   const base = { ...process.env, PASSBOOK_PATH: join(mkdtempSync(join(tmpdir(), "passbook-cli-")), "passbook.json") };
-  for (const k of ["AGENT_PK", "MEMBER_PK", "NOW"]) delete base[k];
+  for (const k of ["AGENT_PK", "MEMBER_PK", "NOW", "LEDGER", "CHAIN", "RPC_URL", "SWAP_PROVIDER",
+    "ROOM_ID", "TSUMITATE_PERIOD"]) delete base[k];
   return spawnSync(process.execPath, args, { cwd: pkg, env: { ...base, ...env }, encoding: "utf8" });
 }
 
@@ -45,7 +48,9 @@ test("buy refuses an amount that is not a decimal number", () => {
 });
 
 // A negative cap parses (viem reads the sign) and would otherwise be signed into a mandate no one
-// can amend, where `intent.amountIn > m.perRunCap` is false for every amount — an unlimited mandate.
+// can amend, where `intent.amountIn > m.perRunCap` is true for every amount: not an unlimited
+// mandate but a dead one, refusing every run as over-per-run-cap. Caught at the keyboard, it never
+// reaches a signature or the swap layer.
 test("mandate sign refuses a non-positive cap before anything is signed", () => {
   const r = cli(["src/cli/mandate.js", "sign", "-5"], { AGENT_PK: ANVIL_KEY_9, MEMBER_PK: ANVIL_KEY_4 });
   rejects(r, /usage: mandate sign .*perRun must be positive/);
@@ -64,4 +69,12 @@ test("mandate revoke of an unknown id is a usage error, not a stack trace", () =
 test("mandate sign refuses a cap that is not a decimal number", () => {
   const r = cli(["src/cli/mandate.js", "sign", "20", "abc"], { AGENT_PK: ANVIL_KEY_9, MEMBER_PK: ANVIL_KEY_4 });
   rejects(r, /usage: mandate sign .*perPeriod "abc" is not a decimal amount/);
+});
+
+test("mandate sign refuses a days argument that is not a positive whole number", () => {
+  const keys = { AGENT_PK: ANVIL_KEY_9, MEMBER_PK: ANVIL_KEY_4 };
+  rejects(cli(["src/cli/mandate.js", "sign", "20", "100", "abc"], keys),
+    /usage: mandate sign .*days "abc" must be a positive whole number/);
+  rejects(cli(["src/cli/mandate.js", "sign", "20", "100", "0"], keys), /days "0" must be a positive/);
+  rejects(cli(["src/cli/mandate.js", "sign", "20", "100", "1.5"], keys), /days "1\.5" must be a positive/);
 });
