@@ -2,7 +2,7 @@
 
 ETHGlobal Tokyo 2026 · **Uniswap Foundation — Best Uniswap Stack Contribution, Continuity Track**.
 Design record, written 2026-09-25 before implementation. Decisions and rejected options stay here;
-current behaviour lives in `README.md` once it exists.
+current behaviour lives in `README.md`.
 
 ## The claim
 
@@ -63,6 +63,7 @@ Mandate = { id, roomId, agent, kind: "standing" | "oneoff",
             approval?: { method: "wallet-signature" | string, subject, verifiedAt, ref } }
 typedData(m)                       → EIP-712 payload (own domain `ainmem Family Passbook`; same mechanism as RelationConsent, not the same domain)
 verify(m, signature)               → signer address | throws
+verifyApproval(m, chainId)         → boolean — does the stored approval still hold?
 check(m, ledgerView, intent, now)  → { ok: true, decisionOrigin } | { ok: false, reason }
 ```
 
@@ -75,10 +76,13 @@ value the `api` provider puts in `X-Agent-Info`.
 Period key is derived from the cadence (ISO week for `week`), never from the UTC day — the
 `dca-bot` skill documents the double-buy bug a wrong key causes.
 
-`approval` is the one field another authentication can replace: `check` only asks whether a valid
-approval exists, never how it was produced. `wallet-signature` (EIP-712, `verify` above) is the
-default and the only method this plan implements; a World ID step-up or anything else plugs in by
-writing the same field.
+`approval` is the one field another authentication can replace, and deciding whether it holds is
+`verifyApproval`'s job rather than `check`'s: `check` asks only whether an approval is present, and
+the executor recovers the signature before calling it. `wallet-signature` (EIP-712, `verify` above)
+is the default and the only method this slice can check; a World ID step-up or anything else plugs
+in by writing the same field and adding a branch, and until it does an unknown method is refused
+rather than trusted. Re-verification at run time is what makes the claim hold against the passbook
+file as well as against the family's key — the file is written by the agent's own process.
 
 Why a signature and not a checkbox: the agent holds its own key but never a member's, so it cannot
 forge a mandate; the passbook can show *who allowed what, when* as a verifiable fact; and it is the
@@ -103,6 +107,10 @@ Entry = { at, kind: "deposit" | "buy" | "skip", who, amountIn?, amountOut?, pric
 | `file` | `.state/passbook.json` | nothing — the executor runs end to end with no app |
 | `workspace` | a **Family Passbook** database row (dashboard) **and** a line in the relationship document's `passbook` section (what the agent reads when asked "why did we buy") | the app over REST (a thin client: demo-login cookie, databases API), a demo account of its own (`demo-login { as }`) |
 
+A skip that carries a `txHash` occupies its period: the swap was broadcast and may have landed, so
+the period counts as bought instead of letting the next run buy on top of it. It adds nothing to the
+period's spend — the fill is unknown.
+
 The relationship document is the memory the agent answers from (`readOkfSectionTexts` reads every
 section in the tree); databases are not. Hence the dual write. Mandates are stored as JSON in the
 passbook page's frontmatter — no new Postgres table, so no schema push in a shared DB.
@@ -112,13 +120,25 @@ passbook page's frontmatter — no new Postgres table, so no schema push in a sh
 One invocation = one run, idempotent:
 
 ```
-ledger.view → choose mandate → intent → mandate.check ─fail→ ledger.record(skip, reason)
-                                          │ok
-                                          ▼
-                              swap.quote → re-check with quoted amounts (slippage)
-                                          ▼
-                              swap.execute (agent key) → ledger.record(buy)
+ledger.view → choose mandate → verifyApproval ─fail→ ledger.record(skip, "approval-invalid")
+                    │ok
+                    ▼
+                 intent → mandate.check ─fail→ ledger.record(skip, reason)
+                              │ok
+                              ▼
+                 swap.quote → swap.execute (agent key) → ledger.record(buy)
 ```
+
+**Choose mandate**: without an explicit id, the agent's live standing mandate with the highest
+`nonce`. When none is live the newest dead one is chosen anyway, so the run records "revoked" or
+"expired" rather than "no-mandate" — re-signing after a revoke or an expiry must not leave the
+family reading a lost passbook.
+
+**The mandate bounds the input only.** `perRunCap` and `perPeriodCap` are both limits on `tokenIn`,
+and `amountIn` is fixed before the quote is asked for, so there is nothing for a second check
+against the quoted amounts to compare. Slippage is executor policy rather than a signed term:
+`SLIPPAGE_BPS` in `tsumitate.js` becomes the router's `amountOutMinimum`. A bound the family signs
+on what they receive needs a minimum-output field in the mandate — slice 2.
 
 The executor never schedules itself. A cadence comes from outside: `pnpm run tsumitate` on a cron,
 or a timer in the app (`instrumentation.ts`) later. `TSUMITATE_PERIOD` lets the demo video compress

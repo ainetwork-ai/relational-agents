@@ -1257,4 +1257,4 @@ git commit -m "uniswap: sign a mandate, run tsumitate, refuse — end to end on 
 - `swap/api` — Trading API provider with `X-Agent-Info` (needs `UNISWAP_API_KEY`).
 - `ledger/workspace` — passbook database rows + relationship-document line over the app's REST.
 - Deposit flow, `family` profile section, signing UI, dashboard seed, scheduler in the app.
-- `README.md` (code pointers, Continuity split), `DEMO.md`, `FEEDBACK.md`.
+- `DEMO.md`, `FEEDBACK.md`.
