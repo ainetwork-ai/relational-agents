@@ -1,0 +1,26 @@
+{
+  "name": "@ainmem/ens-family",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pocket money by name: ENSv2 family trees on Sepolia (see plan-family-namespace.md)",
+  "scripts": {
+    "check": "tsx checks/family.check.ts",
+    "typecheck": "tsc --noEmit",
+    "setup-family": "tsx scripts/setup-family.ts",
+    "live": "tsx scripts/live-check.ts",
+    "simulate": "tsx scripts/simulate-check.ts",
+    "mcp": "tsx mcp/server.ts",
+    "sync-to-app": "node scripts/sync-to-app.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "viem": "^2.55.8",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "parent": "ainmem",
+  "family": "kim",
+  "familyAlias": "Kim family",
+  "members": [
+    { "path": ["grandma"], "alias": "Grandma", "relation": null, "address": "0x00000000000000000000000000000000000000c1" },
+    { "path": ["grandma", "dad"], "alias": "Dad", "relation": "son", "address": "0x00000000000000000000000000000000000000b1" },
+    { "path": ["grandma", "dad", "mom"], "alias": "Mom", "relation": "spouse", "address": "0x00000000000000000000000000000000000000a3" },
+    { "path": ["grandma", "dad", "minjun"], "alias": "Minjun", "relation": "son", "address": "0x00000000000000000000000000000000000000a1" },
+    { "path": ["grandma", "dad", "seoyeon"], "alias": "Seoyeon", "relation": "daughter", "address": "0x00000000000000000000000000000000000000a2" }
+  ]
+}
