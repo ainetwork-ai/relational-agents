@@ -1,0 +1,19 @@
+{
+  "name": "@relational-agents/family-passbook",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Family Passbook: a relationship-owned wallet that tsumitate-buys through Uniswap inside a signed mandate and writes every buy to the family's passbook (ETHGlobal Tokyo 2026, Continuity).",
+  "scripts": {
+    "fork": "anvil --fork-url ${BASE_RPC:-https://mainnet.base.org} --chain-id 8453 --port 8547 --silent",
+    "fund": "node src/cli/fund.js",
+    "buy": "node src/cli/buy.js",
+    "mandate": "node src/cli/mandate.js",
+    "tsumitate": "node src/cli/tsumitate.js",
+    "test": "node --test",
+    "web": "node src/web/server.js"
+  },
+  "dependencies": {
+    "viem": "^2.55.8"
+  }
+}
