@@ -249,6 +249,13 @@
     box-shadow var(--tr-fast);
 }
 
+/* the date, amount and state come from the app's shared data-tip tooltip (globals.css), below the
+   cell; the hovered cell is lifted so the next row's cells don't paint over it */
+a.cell:hover,
+a.cell:focus-visible {
+  z-index: 2;
+}
+
 a.cell:hover {
   transform: scale(1.15);
 }
@@ -298,25 +305,6 @@ a.cell:focus-visible {
   .cellDue {
     animation: none;
   }
-}
-
-/* the cell's date, amount and state, above it, on hover and on keyboard focus */
-a.cell[data-tip]:hover::after,
-a.cell[data-tip]:focus-visible::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: var(--tr-text);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
 }
 
 .none {
