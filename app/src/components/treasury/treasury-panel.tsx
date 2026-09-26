@@ -9,6 +9,7 @@ import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
 import { UserAvatar } from "@/components/user-avatar";
+import { ADOPTED_RESULT, TREASURY_RESULT, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
 import { ChainBadge } from "@/components/chain/chain-badge";
 import { useT } from "@/i18n/provider";
 
@@ -35,8 +36,7 @@ const SeatButton = dynamic(() => import("@/components/treasury/seat-button").the
 
 type Action = TreasuryStatus["actions"][number];
 type Member = TreasuryStatus["members"][number];
-type Tone = "ok" | "bad" | "info";
-type Copy = { tone: Tone; text: string };
+type Copy = ResultCopy;
 
 /**
  * Who is looking and the members' faces. The status gains these for the demo;
@@ -48,62 +48,9 @@ function avatarOf(m: Member): string | null {
 }
 
 /**
- * What the OIDC callback / seat routes report back via ?treasury= / ?world=.
- * The codes mirror ApprovalResult reasons plus the IdP round-trip outcomes.
+ * What the OIDC callback / seat routes report back via ?treasury= / ?world=
+ * lives in world-result-copy.ts — the /treasury page reads the same table.
  */
-const RESULT_COPY: Record<string, Copy> = {
-  executing: { tone: "ok", text: "✅ That was the last approval needed — the agent is paying now." },
-  executed: { tone: "ok", text: "✅ That was the last approval needed — the agent paid." },
-  approved: { tone: "ok", text: "✅ Approved — World ID confirmed a unique human, just now." },
-  verified: { tone: "ok", text: "World ID is now linked to your account." },
-  mismatch: { tone: "bad", text: "This account is already linked to a different World ID — nothing was changed." },
-  cancelled: { tone: "bad", text: "You cancelled the World ID verification — nothing was approved." },
-  "same-human": {
-    tone: "bad",
-    text: "⛔ Not counted — this human already approved from another account. One human, one vote.",
-  },
-  "world-id-mismatch": {
-    tone: "bad",
-    text: "This account is already bound to a different World ID — verify with that one. Nothing was approved.",
-  },
-  "stale-proof": {
-    tone: "bad",
-    text: "⛔ Not counted — every approval needs a fresh World ID check made after the request, and this one wasn't fresh. Approve again to check now.",
-  },
-  expired: { tone: "bad", text: "This request expired before enough verified members approved it — nothing was approved." },
-  "not-electorate": {
-    tone: "bad",
-    text: "You joined after our rules were adopted — the relation has to adopt its new membership before your approval counts.",
-  },
-  "not-seated": {
-    tone: "bad",
-    text: "⛔ Not counted — this account has no vote. Claim your vote with World ID first, then approve.",
-  },
-  "account-switched": {
-    tone: "bad",
-    text: "The verification came back for a different account than the one that started it — nothing was approved.",
-  },
-  "not-allowed": {
-    tone: "bad",
-    text: "You can't approve this request — it isn't waiting for approvals, or you're not in this room. Nothing was approved.",
-  },
-  "not-member": { tone: "bad", text: "Only members of this relation can approve its treasury actions." },
-  "not-found": { tone: "bad", text: "That treasury action no longer exists." },
-  "not-pending": { tone: "info", text: "This action is no longer waiting for approvals." },
-  "already-approved": { tone: "info", text: "You already approved this action." },
-  "verify-failed": { tone: "bad", text: "The World ID answer didn't check out — nothing was approved." },
-  "bad-state": { tone: "bad", text: "That World ID sign-in expired or was already used — start again from the panel." },
-  "idp-error": { tone: "bad", text: "World ID returned an error — nothing was approved. Try again." },
-  unavailable: { tone: "bad", text: "World ID isn't reachable right now — nothing was approved." },
-  error: { tone: "bad", text: "Something went wrong recording the approval — nothing was approved." },
-};
-/** ?world= codes that mean something else than the ?treasury= code of the same name. */
-const WORLD_COPY: Record<string, Copy> = {
-  "same-human": {
-    tone: "bad",
-    text: "⛔ This World ID already vouches for another account — one human, one vote. Nothing was changed.",
-  },
-};
 /** Said only by this panel after the server answered — never read from the URL. */
 const LOCAL_COPY: Record<string, Copy> = {
   "vote-claimed": {
@@ -112,17 +59,6 @@ const LOCAL_COPY: Record<string, Copy> = {
   },
   "vote-claimed-dev": { tone: "info", text: "Vote claimed with the dev simulator — not a World ID proof." },
 };
-/** An adoption reaching its quorum pays nobody. */
-const RATIFY_COPY = {
-  executing: "✅ That was the last approval needed — the agent is adopting the rules now.",
-  executed: "✅ That was the last approval needed — the rules are adopted.",
-};
-// a recurring buy is adopted, not paid: nothing moves when its last approval lands
-const RECURRING_COPY = {
-  executing: "✅ Last approval in — adopting the recurring buy.",
-  executed: "✅ Recurring buy adopted.",
-};
-
 /**
  * A banner is kept as its code, not its text: "executing" becomes "executed"
  * once the action it is about (actionId, found from the status) is paid, and
@@ -213,7 +149,7 @@ function readResultFromUrl(): Result | null {
   const params = new URLSearchParams(window.location.search);
   const key = params.has("treasury") ? "treasury" : params.has("world") ? "world" : null;
   const code = key && params.get(key);
-  return key && code && Object.prototype.hasOwnProperty.call(RESULT_COPY, code) ? { key, code } : null;
+  return key && code && isResultCode(key, code) ? { key, code } : null;
 }
 
 /**
@@ -235,17 +171,16 @@ function payingActionId(s: StatusView): string | undefined {
 function bannerOf(r: Result | null, s: StatusView): Copy | null {
   if (!r) return null;
   if (r.key === "local") return LOCAL_COPY[r.code] ?? null;
-  if (r.key === "world" && WORLD_COPY[r.code]) return WORLD_COPY[r.code];
   const target = r.code === "executing" && r.actionId ? s.actions.find((a) => a.id === r.actionId) : undefined;
   if (target) {
     // the history line says how it ended; a green "paying now" above it would contradict it
     if (target.status === "failed" || target.status === "blocked" || target.status === "cancelled") return null;
     const done = target.status === "executed";
-    if (target.kind === "ratify") return { tone: "ok", text: done ? RATIFY_COPY.executed : RATIFY_COPY.executing };
-    if (target.kind === "recurring-buy") return { tone: "ok", text: done ? RECURRING_COPY.executed : RECURRING_COPY.executing };
-    if (done) return RESULT_COPY.executed;
+    if (target.kind === "ratify" || target.kind === "recurring-buy")
+      return { tone: "ok", text: ADOPTED_RESULT[target.kind][done ? "executed" : "executing"] };
+    if (done) return TREASURY_RESULT.executed;
   }
-  return RESULT_COPY[r.code] ?? null;
+  return resultCopy(r.key, r.code);
 }
 
 /** "Bea (you)", and "Alex (2nd account, you)" rather than two brackets in a row. */
@@ -266,7 +201,7 @@ function chipTitle(m: Member): string {
   return lines.join("\n");
 }
 
-const toneClass: Record<Tone, string> = {
+const toneClass: Record<ResultTone, string> = {
   ok: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
   bad: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200",
   info: "border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-200",

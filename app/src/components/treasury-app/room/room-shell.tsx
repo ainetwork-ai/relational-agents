@@ -18,6 +18,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
+import { isResultCode, resultCopy, type ResultCopy } from "@/components/treasury/world-result-copy";
 import { TreasurerChat } from "@/components/treasurer/treasurer-chat";
 import { TreasuryRoomProvider, useTreasuryRoom } from "./room-data";
 import { LatestMessage } from "./latest-message";
@@ -30,45 +31,22 @@ const PRETENDARD_CSS =
 
 type Tab = { href: string; label: string; exact: boolean };
 
-/** What the World ID callback reports on ?treasury= (callback/route.ts); unknown codes get the generic line. */
-function resultCopy(t: T, code: string): { tone: "ok" | "bad" | "info"; text: string } {
-  switch (code) {
-    case "approved":
-      return { tone: "ok", text: t("Approved with World ID.") };
-    case "executing":
-    case "executed":
-      return { tone: "ok", text: t("Approved — the treasurer is carrying it out.") };
-    case "already-approved":
-      return { tone: "info", text: t("You already approved this request.") };
-    case "not-pending":
-      return { tone: "info", text: t("This request is no longer waiting for approvals.") };
-    case "cancelled":
-      return { tone: "bad", text: t("World ID cancelled — nothing was approved.") };
-    case "expired":
-      return { tone: "bad", text: t("This request expired — nothing was approved.") };
-    case "same-human":
-      return { tone: "bad", text: t("This World ID already voted from another account.") };
-    case "not-seated":
-      return { tone: "bad", text: t("Claim your vote in the room first.") };
-    case "not-electorate":
-      return { tone: "bad", text: t("Your vote counts after re-adoption") };
-    default:
-      return { tone: "bad", text: t("World ID didn't confirm — nothing was approved.") };
-  }
+/**
+ * What the World ID callback reports on ?treasury= (callback/route.ts) — the
+ * room panel's table, so a code reads the same on both. A code the table
+ * doesn't know shows nothing: the query string is anyone's to write.
+ */
+function resultLine(t: T, code: string): ResultCopy | null {
+  const copy = resultCopy("treasury", code);
+  return copy && { tone: copy.tone, text: t(copy.text) };
 }
-
-/** What the World flow puts on ?treasury= (api/auth/world/callback); anything else there is not an outcome. */
-const CALLBACK_CODES: ReadonlySet<string> = new Set([
-  "approved", "executing", "executed", "already-approved", "not-pending", "expired", "cancelled", "same-human",
-  "not-seated", "not-electorate", "not-member", "not-found", "stale-proof", "world-id-mismatch",
-  "idp-error", "bad-state", "account-switched", "verify-failed",
-]);
 
 function useCallbackResult(): [string | null, () => void] {
   const params = useSearchParams();
   const [code, setCode] = useState<string | null>(() => {
     const v = params.get("treasury");
-    return v && CALLBACK_CODES.has(v) ? v : null;
+    // anything else there is not an outcome (the table is every code the World flow sends)
+    return v && isResultCode("treasury", v) ? v : null;
   });
   useEffect(() => {
     if (!code) return;
@@ -83,7 +61,8 @@ function ResultBanner() {
   const t = useT();
   const [code, dismiss] = useCallbackResult();
   if (!code) return null;
-  const copy = resultCopy(t, code);
+  const copy = resultLine(t, code);
+  if (!copy) return null;
   const tone = copy.tone === "ok" ? styles.bannerOk : copy.tone === "bad" ? styles.bannerBad : styles.bannerInfo;
   return (
     <div className={`${styles.banner} ${tone}`} role="status" data-testid="treasury-room-result">
