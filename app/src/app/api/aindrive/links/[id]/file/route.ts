@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/middleware";
 import { teamspaceDrive } from "@/lib/aindrive-teamspace";
 import { runAsOrService } from "@/lib/aindrive-account";
+import { mayOpen } from "@/lib/aindrive-file-sale";
 import { deleteResponse, readResponse, writeResponse } from "@/lib/aindrive-http";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ async function linkOf(ctx: Ctx) {
   if (!found) return { res: NextResponse.json({ error: "Not found" }, { status: 404 }) };
   if (!found.link)
     return { res: NextResponse.json({ error: "This folder is no longer offered on this server" }, { status: 409 }) };
+  if (!(await mayOpen(auth.user.id, found.drive)))
+    return { res: NextResponse.json({ error: "This file is on sale — buy it to open it", locked: true }, { status: 402 }) };
   return { link: found.link, by: found.drive.createdBy };
 }
 

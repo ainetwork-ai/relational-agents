@@ -49,11 +49,15 @@ export async function teamspaceDrive(
 /** A folder linked into a teamspace this person can see that holds `path` of
  *  `driveId` — the file is shared with them through it, and is read as the
  *  person who linked it. Null when no such link exists. */
-export async function sharedLinkFor(userId: string, driveId: string, path: string): Promise<{ linkedBy: string | null } | null> {
+export async function sharedLinkFor(
+  userId: string,
+  driveId: string,
+  path: string
+): Promise<{ linkedBy: string | null; drive: TeamspaceDrive } | null> {
   const links = await db.select().from(teamspaceDrives).where(eq(teamspaceDrives.driveId, driveId));
   for (const l of links) {
     const inside = !l.root || path === l.root || path.startsWith(`${l.root}/`);
-    if (inside && (await visibleTeamspace(userId, l.teamspaceId))) return { linkedBy: l.createdBy };
+    if (inside && (await visibleTeamspace(userId, l.teamspaceId))) return { linkedBy: l.createdBy, drive: l };
   }
   return null;
 }
