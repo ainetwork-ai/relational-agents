@@ -10,7 +10,8 @@
     "buy": "node src/cli/buy.js",
     "mandate": "node src/cli/mandate.js",
     "tsumitate": "node src/cli/tsumitate.js",
-    "test": "node --test"
+    "test": "node --test",
+    "web": "node src/web/server.js"
   },
   "dependencies": {
     "viem": "^2.55.8"

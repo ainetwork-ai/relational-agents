@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Family Passbook</title>
+<style>
+  body{font:14px/1.45 system-ui,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#222}
+  h1{font-size:20px} h2{font-size:16px;margin-top:28px}
+  table{border-collapse:collapse;width:100%} td,th{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px;vertical-align:top}
+  code,pre{font:12px/1.4 ui-monospace,monospace} pre{background:#f6f6f6;padding:10px;overflow:auto;min-height:2em}
+  button{margin-right:8px;padding:4px 10px} input{width:110px} .muted{color:#777} .live{color:#0a7;font-weight:600} .dead{color:#c33}
+  .danger{background:#fee;border:1px solid #c33} .row{margin:8px 0}
+</style></head>
+<body>
+<h1>Family Passbook — Uniswap tsumitate inside a signed mandate</h1>
+<p>A family member signs what the agent may buy — the pair, a cap per run, a cap per week, until when — and anyone can revoke it.
+The agent buys WETH with USDC through Uniswap v3 once per week inside that mandate and only inside it, and writes every buy and
+every refusal below with its reason. This page drives the same <code>runOnce</code>, ledger and signer as the CLIs.</p>
+<div id="head" class="muted">loading…</div>
+
+<h2>Mandates</h2>
+<div id="mandates" class="muted">—</div>
+<form id="sign" class="row">Sign a standing mandate as the member:
+  per run <input name="perRun" value="1"> USDC · per week <input name="perPeriod" value="1"> USDC · for <input name="days" value="90"> days
+  <button>Sign</button></form>
+
+<h2>Run</h2>
+<div class="row">Pretend it is <input id="now" type="datetime-local" style="width:200px"> <span class="muted">— empty means now. The period key follows this clock; the chain's clock does not move.</span></div>
+<div class="row"><button id="dry">Dry run — decide and quote, write nothing</button><button id="run" class="danger">Run for real — spends tokenIn</button></div>
+<pre id="out"></pre>
+
+<h2>Passbook</h2>
+<div id="entries" class="muted">—</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const usdc = (v) => (Number(v) / 1e6).toFixed(6).replace(/\.?0+$/, "");
+const weth = (v) => (Number(v) / 1e18).toFixed(8);
+const short = (a) => a ? a.slice(0, 6) + "…" + a.slice(-4) : "";
+const when = () => { const v = $("now").value; return v ? new Date(v).toISOString() : undefined; };
+let explorer = "";
+
+async function call(method, path, body) {
+  const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ?? r.statusText);
+  return j;
+}
+function show(x) { $("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); }
+
+async function load() {
+  const q = when() ? "?now=" + encodeURIComponent(when()) : "";
+  const s = await call("GET", "/api/state" + q);
+  explorer = s.chain.explorerTx;
+  const b = s.balances ? ` · balances: ${s.balances.usdc} USDC, ${s.balances.weth} WETH, ${s.balances.eth} ETH` : "";
+  $("head").textContent = `chain ${s.chain.name} (${s.chain.chainId}) · agent ${s.agent}${b} · period now: ${s.periodKey}` + (s.member ? ` · member ${short(s.member)}` : " · no member key: signing disabled");
+  $("mandates").innerHTML = s.mandates.length ? "<table><tr><th>id</th><th>status</th><th>per run</th><th>per week</th><th>expires</th><th>signed by</th><th></th></tr>" +
+    s.mandates.map((m) => `<tr><td><code>${m.id}</code></td><td class="${m.status === "live" ? "live" : "dead"}">${m.status}</td><td>${usdc(m.perRunCap)} USDC</td><td>${usdc(m.perPeriodCap)} USDC</td><td>${new Date(m.expiresAt * 1000).toISOString().slice(0, 10)}</td><td><code>${short(m.approval?.subject)}</code></td><td>${m.status === "live" ? `<button data-revoke="${m.id}">Revoke</button>` : ""}</td></tr>`).join("") + "</table>"
+    : "no mandate for this agent — sign one below";
+  $("entries").innerHTML = s.entries.length ? "<table><tr><th>at</th><th>kind</th><th>period</th><th>in</th><th>out</th><th>price</th><th>tx</th><th>reason</th></tr>" +
+    [...s.entries].reverse().map((e) => `<tr><td>${e.at.replace("T", " ").slice(0, 19)}</td><td>${e.kind}</td><td>${e.periodKey ?? ""}</td><td>${e.amountIn ? usdc(e.amountIn) + " USDC" : ""}</td><td>${e.amountOut ? weth(e.amountOut) + " WETH" : ""}</td><td>${e.price ? Number(e.price).toFixed(2) : ""}</td><td>${e.txHash ? `<a href="${explorer}${e.txHash}" target="_blank">${short(e.txHash)}</a>` : ""}</td><td>${e.reason ?? ""}</td></tr>`).join("") + "</table>"
+    : "empty — nothing bought or refused yet";
+  document.querySelectorAll("[data-revoke]").forEach((b) => b.onclick = () => act(() => call("POST", "/api/mandate/revoke", { id: b.dataset.revoke, now: when() })));
+}
+async function act(fn) { try { show("…"); show(await fn()); } catch (e) { show("error: " + e.message); } await load(); }
+
+$("sign").onsubmit = (ev) => { ev.preventDefault(); const f = new FormData(ev.target);
+  act(() => call("POST", "/api/mandate/sign", { perRun: f.get("perRun"), perPeriod: f.get("perPeriod"), days: f.get("days"), now: when() })); };
+$("dry").onclick = () => act(() => call("POST", "/api/dry-run", { now: when() }));
+$("run").onclick = () => { if (confirm("This sends a real approve + swap from the agent's wallet. Continue?")) act(() => call("POST", "/api/run", { now: when(), confirm: true })); };
+$("now").onchange = load;
+load().catch((e) => show("error: " + e.message));
+</script>
+</body></html>

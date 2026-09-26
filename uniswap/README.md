@@ -25,6 +25,7 @@ Each layer runs without the layer in front of it.
 | `src/tsumitate.js` | `runOnce()` — one idempotent run: choose a mandate, verify it, check it, quote, swap, record. |
 | `src/chains/` | every contract and token address this package knows. Nothing outside this folder holds one. |
 | `src/cli/` | `fund` (fork only), `buy` (the swap layer alone), `mandate sign`/`revoke`, `tsumitate` (one run; `--dry-run` decides and quotes, writes and swaps nothing). |
+| `src/web/` | `pnpm web` — a local page over the same `runOnce`, ledger and signer: sign, dry-run, run, revoke, read the passbook. |
 | `src/address.js` | the one address comparison, case-insensitive. |
 
 ## Running it on the fork
@@ -97,6 +98,20 @@ provider's short message, never as a silent miss — with one gotcha: **the RPC 
 `eth_getTransactionReceipt` for a transaction it just mined.** One that refuses (the free tier of
 `base-rpc.publicnode.com` does) turns every successful swap into a "may have moved" skip that occupies
 the period. `mainnet.base.org` serves receipts.
+
+## Try it in the browser
+
+```bash
+cd uniswap
+set -a; source .env.base; set +a           # or the fork's AGENT_PK / MEMBER_PK from the section above
+pnpm web                                    # http://127.0.0.1:3120
+```
+
+The page is `src/web/index.html` over five routes in `src/web/server.js`, all of them the CLI's own
+calls (`src/web/api.js`): sign a mandate as the member, move the demo clock (the same `NOW`), dry-run,
+run for real (a confirm dialog, then `confirm: true` in the body — the only route that spends),
+revoke, and the passbook with explorer links. It binds to `127.0.0.1` only, because the agent's key
+sits behind it. `WEB_PORT` changes the port.
 
 ## Honest limits
 

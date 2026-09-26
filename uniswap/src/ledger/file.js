@@ -33,6 +33,7 @@ export function fileLedger(path) {
   return {
     path,
     async mandates() { return load().mandates.map(fromDisk); },
+    async entries() { return load().entries.map(fromDisk); },
     async addMandate(m) {
       const db = load();
       if (db.mandates.some((x) => x.id === m.id)) throw new Error(`mandate ${m.id} already exists`);

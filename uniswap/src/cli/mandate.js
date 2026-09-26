@@ -5,7 +5,7 @@ import { parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { chainByName } from "../chains/index.js";
 import { ledgerByName } from "../ledger/index.js";
-import { mandateTypedData, recoverMandateSigner } from "../mandate/index.js";
+import { signStandingMandate } from "../mandate/index.js";
 
 const [cmd, a, b, c] = process.argv.slice(2);
 const chain = chainByName();
@@ -43,17 +43,9 @@ if (cmd === "sign") {
     if (!Number.isInteger(n) || n <= 0) usage(SIGN, `days "${value}" must be a positive whole number`);
     return n;
   };
-  const m = {
-    id: `m-${Date.now()}`, roomId: process.env.ROOM_ID ?? "room-demo", agent: agent.address, kind: "standing",
-    tokenIn: chain.tokens.USDC.address, tokenOut: chain.tokens.WETH.address,
-    perRunCap: cap(a ?? "20", "perRun"),
-    perPeriodCap: cap(b ?? "100", "perPeriod"),
-    period: process.env.TSUMITATE_PERIOD ?? "week",
-    expiresAt: Math.floor(Date.now() / 1000) + days(c ?? "90") * 86_400, nonce: Date.now(),
-  };
-  const signature = await member.signTypedData(mandateTypedData(m, chain.chainId));
-  const signer = await recoverMandateSigner(m, chain.chainId, signature);
-  m.approval = { method: "wallet-signature", subject: signer, verifiedAt: Math.floor(Date.now() / 1000), ref: signature };
+  const m = await signStandingMandate({ member, agent: agent.address, chain,
+    perRunCap: cap(a ?? "20", "perRun"), perPeriodCap: cap(b ?? "100", "perPeriod"), days: days(c ?? "90"),
+    roomId: process.env.ROOM_ID ?? "room-demo", period: process.env.TSUMITATE_PERIOD ?? "week" });
   await ledger.addMandate(m);
   // A replacer, not two `.toString()` calls: naming the bigint fields one by one means the next
   // bigint field added to a mandate throws here, after `addMandate` has already written it.
