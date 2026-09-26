@@ -17,7 +17,7 @@ export function LanguageSwitch({ className = "" }: { className?: string }) {
     router.refresh();
   };
   return (
-    <div data-testid="language-switch" className={`flex items-center justify-center gap-1 text-[11px] text-neutral-400 ${className}`}>
+    <div data-testid="language-switch" className={`flex items-center justify-center gap-1 text-[11px] text-neutral-400 max-md:text-[13px] ${className}`}>
       {LOCALES.map((l, i) => (
         <span key={l} className="flex items-center gap-1">
           {i > 0 && <span>·</span>}
@@ -26,7 +26,7 @@ export function LanguageSwitch({ className = "" }: { className?: string }) {
             data-testid={`language-${l}`}
             onClick={() => pick(l)}
             aria-pressed={locale === l}
-            className={`rounded px-1 py-0.5 ${locale === l ? "font-semibold text-neutral-700 dark:text-neutral-200" : "hover:text-neutral-600"}`}
+            className={`rounded px-1 py-0.5 max-md:px-2.5 max-md:py-2 ${locale === l ? "font-semibold text-neutral-700 dark:text-neutral-200" : "hover:text-neutral-600"}`}
           >
             {l === "en" ? "English" : LOCALE_NATIVE[l]}
           </button>

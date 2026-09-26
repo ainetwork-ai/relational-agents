@@ -1252,7 +1252,7 @@ function RowLine({
  // is anywhere in the row, unlike Comment/Copy which follow the cell. It was keyed
  // to /dbcell, a group the title cell does not even declare (it declares
  // /titlecell), so it never appeared at all.
-              className="pointer-events-none absolute right-[5px] top-1/2 z-10 flex h-6 -translate-y-1/2 items-center rounded-[6px] bg-white p-[2px] opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:bg-neutral-800"
+              className="pointer-events-none absolute right-[5px] top-1/2 z-10 flex h-6 -translate-y-1/2 items-center rounded-[6px] bg-white p-[2px] touch-reveal opacity-0 transition-opacity group-hover/dbrow:pointer-events-auto group-hover/dbrow:opacity-100 dark:bg-neutral-800"
               style={{
                 boxShadow:
                   "rgba(25, 25, 25, 0.027) 0px 8px 12px 0px, rgba(25, 25, 25, 0.027) 0px 2px 6px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
@@ -1263,10 +1263,11 @@ function RowLine({
                 onClick={() => db.openRow(row.id)}
                 aria-label={t("Open in side peek")}
                 title={t("Open in side peek")}
-                className="flex h-5 items-center gap-1.5 rounded-[4px] px-1 text-[12px] font-medium leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-300 dark:hover:bg-neutral-700"
+                className="flex h-5 items-center gap-1.5 rounded-[4px] px-1 text-[12px] font-medium leading-5 text-[rgb(125,122,117)] transition-colors hover:bg-[rgba(33,27,23,0.05)] dark:text-neutral-300 dark:hover:bg-neutral-700 [@media(hover:none)]:h-7 [@media(hover:none)]:w-7 [@media(hover:none)]:justify-center"
               >
                 <PanelRight size={15} className="text-[rgb(142,139,134)]" />
-                {t("Open")}
+                {/* touch: always shown, so only the icon — the label would cover the title */}
+                <span className="[@media(hover:none)]:hidden">{t("Open")}</span>
               </button>
             </span>
             {/* the row actions that used to sit in the gutter now hover here,

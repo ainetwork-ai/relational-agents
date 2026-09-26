@@ -1102,17 +1102,17 @@ export function DatabaseBlock({
             and the 28px toolbar buttons at +6, both centred; the rule row or the
             table follows with no gap, and there is no rule line here — the line
             the original draws is the column header's own inset shadow. */}
-        <div ref={viewBarRef} data-testid="db-view-bar" className="flex h-10 items-center gap-1">
+        <div ref={viewBarRef} data-testid="db-view-bar" className="flex h-10 items-center gap-1 max-md:h-auto max-md:min-h-10 max-md:flex-wrap max-md:gap-y-0">
           {/* Inline databases carry their name here, as Notion's do. A full-page
               one must not: the page title above IS the database name, and
               printing it twice reads as a bug. */}
           {!fullPage && (
-            <span className="mr-2 whitespace-nowrap text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+            <span className="mr-2 whitespace-nowrap text-sm font-semibold text-neutral-800 max-md:basis-full max-md:truncate max-md:pt-2 dark:text-neutral-100">
               {database.title}
             </span>
           )}
           {/* tabs that don't fit collapse behind the "N more" dropdown */}
-          <div ref={tabsAreaRef} className="relative flex min-w-0 flex-1 items-center gap-1">
+          <div ref={tabsAreaRef} className="relative flex min-w-0 flex-1 items-center gap-1 max-md:min-w-fit">
           <div
             ref={tabsMeasureRef}
             aria-hidden

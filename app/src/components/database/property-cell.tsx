@@ -735,7 +735,7 @@ function UrlCell({
         }}
         aria-label={t("Copy URL")}
         data-tip={t("Copy link")}
-        className="shrink-0 rounded px-1 text-xs text-neutral-400 opacity-0 transition-opacity hover:text-neutral-600 group-hover/urlcell:opacity-100"
+        className="shrink-0 rounded px-1 text-xs text-neutral-400 touch-reveal opacity-0 transition-opacity hover:text-neutral-600 group-hover/urlcell:opacity-100"
       >
         ⧉
       </button>

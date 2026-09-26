@@ -222,7 +222,7 @@ export function TeamspaceDriveBadge({ teamspaceId }: { teamspaceId: string }) {
       title={label}
       onClick={() => openFamilySheet(teamspaceId)}
       className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/60 hover:text-neutral-600 dark:hover:bg-neutral-700 ${
-        state ? "" : "opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
+        state ? "" : "touch-reveal opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
       }`}
     >
       <Users size={13} />

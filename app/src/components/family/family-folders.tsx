@@ -71,10 +71,11 @@ export function FamilyFoldersPill({ teamspaceId }: { teamspaceId: string | null 
       data-testid="family-folders-pill"
       onClick={() => openFamilySheet(teamspaceId)}
       title={t("Family folders")}
-      className="mr-1 flex items-center gap-1.5 rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+      className="mr-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs text-neutral-600 max-md:h-8 max-md:px-2 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
     >
       <Users size={12} />
-      {t("Family folders {n}/{total}", { n: sharing, total })}
+      <span className="max-md:hidden">{t("Family folders {n}/{total}", { n: sharing, total })}</span>
+      <span className="md:hidden">{sharing}/{total}</span>
       <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-amber-400" : sharing ? "bg-emerald-500" : "bg-neutral-300"}`} />
     </button>
   );

@@ -351,7 +351,7 @@ export function RowPeek({
                 (a description belongs to the database, not to one of its rows) */}
             {bodyPageId && (
               <div
-                className={`flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/peekhead:opacity-100 ${
+                className={`flex items-center gap-1 touch-reveal opacity-0 transition-opacity focus-within:opacity-100 group-hover/peekhead:opacity-100 ${
                   page?.icon ? "pt-1" : page?.coverUrl ? "pt-2" : "pt-8"
                 }`}
               >

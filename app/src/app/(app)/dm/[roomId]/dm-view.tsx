@@ -666,8 +666,8 @@ export function DmView({
     >
       {/* Header — leave room on the left so the fixed mobile hamburger (MobileNavToggle) does not overlap */}
       {variant !== "call" && (
-      <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
-        <div className="flex -space-x-2" data-testid="dm-members" aria-label={t("Room members")}>
+      <header className="group flex items-center gap-2 border-b border-neutral-200/80 py-3 pl-10 max-md:min-h-12 max-md:py-1.5 max-md:pl-11 sm:gap-2.5 sm:py-3.5 sm:pl-0 dark:border-neutral-800">
+        <div className="flex -space-x-2 max-sm:hidden" data-testid="dm-members" aria-label={t("Room members")}>
           {/* humans lead the stack; the agent tags along at the end */}
           {[...members]
             .sort((a, b) => Number(a.isAgent) - Number(b.isAgent))
@@ -708,14 +708,14 @@ export function DmView({
                 setRenameDraft(room?.name ?? "");
                 setRenaming(true);
               }}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-all hover:bg-neutral-100 hover:text-neutral-600 focus-visible:opacity-100 group-hover:opacity-100 dark:hover:bg-neutral-800"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-all hover:bg-neutral-100 hover:text-neutral-600 focus-visible:opacity-100 group-hover:opacity-100 max-md:h-9 max-md:w-9 [@media(hover:none)]:opacity-100 dark:hover:bg-neutral-800"
             >
               <Pencil size={14} />
             </button>
           </>
         )}
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1 max-md:gap-0">
           {/* One chip for the agent: that it is here, when it last wrote, and
               the way into the record. It reads as presence, not as a feature. */}
           {room?.rootPageId && (
@@ -724,7 +724,7 @@ export function DmView({
               href={`/p/${room.rootPageId}`}
               aria-label={t("Open relation doc")}
               data-tip={t("Everything the two of you have written")}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 sm:px-2.5 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 max-md:h-9 max-md:w-9 max-md:justify-center max-md:px-0 sm:px-2.5 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
               <FileText size={14} />
               <span className="hidden font-medium text-neutral-700 sm:inline dark:text-neutral-200">
@@ -756,7 +756,7 @@ export function DmView({
               disabled={spending}
               aria-label={t("Ask the agent to order Chuseok songpyeon")}
               data-tip={spending ? `Paying ${SELLER.name}…` : t("The agent orders Chuseok songpyeon ({shop} checks for two real people)", { shop: SELLER.name })}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 dark:hover:bg-amber-950/40 dark:hover:text-amber-400"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 dark:hover:bg-amber-950/40 dark:hover:text-amber-400"
             >
               <ShoppingBag size={14} className={spending ? "animate-pulse" : ""} />
             </button>
@@ -783,7 +783,7 @@ export function DmView({
               onClick={() => setSettingsOpen(true)}
               aria-label={t("Agent settings")}
               data-tip={t("What this agent records and how it speaks")}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
             >
               <SlidersHorizontal size={14} />
             </button>
@@ -796,7 +796,7 @@ export function DmView({
             disabled={organizing}
             aria-label={t("Ask the agent to summarize now")}
             data-tip={organizing ? t("Tidying up…") : t("Tidy up conversation now")}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
           >
             <Sparkles size={14} className={organizing ? "animate-pulse" : ""} />
           </button>
@@ -807,7 +807,7 @@ export function DmView({
               aria-label={t("Invite people")}
               data-tip={t("Invite people")}
               onClick={() => void openInvite()}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 dark:hover:bg-neutral-800"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-all hover:bg-neutral-100 hover:text-neutral-600 active:scale-90 dark:hover:bg-neutral-800"
             >
               <UserPlus size={16} />
             </button>
@@ -845,7 +845,7 @@ export function DmView({
               aria-label={t("Leave room")}
               data-tip={t("Leave chat")}
               onClick={() => setConfirmLeave((v) => !v)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-all hover:bg-red-50 hover:text-red-600 active:scale-90 dark:hover:bg-red-950/40"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 max-md:h-9 max-md:w-9 transition-all hover:bg-red-50 hover:text-red-600 active:scale-90 dark:hover:bg-red-950/40"
             >
               <LogOut size={16} />
             </button>

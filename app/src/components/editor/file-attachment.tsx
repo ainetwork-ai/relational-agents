@@ -48,7 +48,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
         )}
         <span className="truncate font-medium text-neutral-700 dark:text-neutral-200">{fileName}</span>
         <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium max-sm:hidden ${
             ref
               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
               : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
@@ -65,7 +65,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
               target="_blank"
               rel="noopener noreferrer"
               title={t("Open in aindrive")}
-              className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+              className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 max-md:p-2 dark:hover:bg-neutral-800"
             >
               <ExternalLink size={14} />
             </a>
@@ -75,7 +75,7 @@ export function FileAttachment({ blockId, url, name }: { blockId: string; url: s
             href={downloadUrl}
             download={fileName}
             title={t("Download")}
-            className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 max-md:p-2 dark:hover:bg-neutral-800"
           >
             <Download size={14} />
           </a>

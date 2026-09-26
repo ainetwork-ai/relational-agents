@@ -1277,4 +1277,5 @@ export const ko: Record<string, string> = {
   "Navigate": "이동",
   "Change name": "이름 변경",
   "Reset all": "초기화",
+  "Link copied": "링크를 복사했어요",
 };

@@ -309,7 +309,7 @@ function DemoFamily({ onPick, disabled }: { onPick: (member: string) => void; di
   }, []);
   if (!members.length) return null;
   return (
-    <p data-testid="demo-family" className="mt-1.5 flex flex-wrap items-center justify-center gap-1 text-[11px] text-neutral-400">
+    <p data-testid="demo-family" className="mt-1.5 flex flex-wrap items-center justify-center gap-1 text-[11px] text-neutral-400 max-md:text-[13px]">
       {t("As another family member:")}
       {members.map((m) => (
         <button
@@ -318,7 +318,7 @@ function DemoFamily({ onPick, disabled }: { onPick: (member: string) => void; di
           data-testid={`demo-member-${m}`}
           disabled={disabled}
           onClick={() => onPick(m)}
-          className="rounded px-1.5 py-0.5 text-neutral-600 underline-offset-2 hover:bg-neutral-100 hover:underline disabled:opacity-50 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          className="rounded px-1.5 py-0.5 text-neutral-600 underline-offset-2 hover:bg-neutral-100 hover:underline disabled:opacity-50 max-md:px-2.5 max-md:py-2 dark:text-neutral-300 dark:hover:bg-neutral-800"
         >
           {m}
         </button>

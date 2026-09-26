@@ -98,7 +98,7 @@ export function TrashModal() {
               <button
                 data-testid={`trash-restore-${p.id}`}
                 onClick={() => restorePage(p.id)}
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 opacity-0 transition-all hover:bg-neutral-200 group-hover:opacity-100 dark:hover:bg-neutral-600"
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 touch-reveal opacity-0 transition-all hover:bg-neutral-200 group-hover:opacity-100 dark:hover:bg-neutral-600"
               >
                 <RotateCcw size={12} /> {t("Restore")}
               </button>
@@ -116,7 +116,7 @@ export function TrashModal() {
                 className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-all ${
                   armed === p.id
                     ? "bg-red-500 text-white opacity-100 hover:bg-red-600"
-                    : "text-red-500 opacity-0 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                    : "text-red-500 touch-reveal opacity-0 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/30"
                 }`}
               >
                 <Trash2 size={12} /> {armed === p.id ? t("Delete permanently?") : t("Delete")}

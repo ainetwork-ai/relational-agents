@@ -1100,7 +1100,7 @@ function BlockBody({ block, depth, listFirst, listLast, inList }: { block: EBloc
             data-testid={`todo-checkbox-${block.id}`}
             checked={block.content.checked ?? false}
             onChange={(e) => editor.setChecked(block.id, e.target.checked)}
-            className="mx-1 mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
+            className="mx-1 mt-1.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500 max-md:mt-1 max-md:h-5 max-md:w-5"
           />
           <Editable
             block={block}

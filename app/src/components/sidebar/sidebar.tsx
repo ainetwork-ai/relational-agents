@@ -448,7 +448,7 @@ export function Sidebar({
               <button
                 data-testid="sidebar-new-page"
                 onClick={newPage}
-                className="rounded p-0.5 text-neutral-400 opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
+                className="rounded p-0.5 text-neutral-400 max-md:p-2 touch-reveal opacity-0 transition-all hover:bg-neutral-200/60 hover:text-neutral-600 focus-visible:opacity-100 group-hover/section:opacity-100 dark:hover:bg-neutral-700"
                 aria-label={t("Add a page")}
               >
                 <Plus size={14} />
