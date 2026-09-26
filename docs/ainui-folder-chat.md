@@ -24,7 +24,8 @@ decides which granted files to read. AIN-UI protocol and receiver contract:
 [AIN-UI](https://github.com/ainetwork-ai/AIN-UI),
 [Aindrive handoff](https://github.com/ainetwork-ai/aindrive/blob/main/mobile/docs/folder-agent-handoff.md).
 
-Validation: TypeScript, `app/scripts/ainui-boundary-selftest.ts`, package
+Validation: TypeScript, `app/scripts/ainui-boundary-selftest.ts`,
+`node app/scripts/folder-chat-selftest.cjs`, package
 stream/renderer tests, and Aindrive's authenticated folder-chat route tests.
 A local simulated-agent browser fixture verifies progressive text, Stop, and
 folder reset; it does not establish production or native-device delivery.
