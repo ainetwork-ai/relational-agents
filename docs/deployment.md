@@ -55,6 +55,7 @@ While `v100-02` is unreachable, the demo runs on this lab host (`/mnt/newdata/gi
 | LLM | Host vLLM gemma `:8110` |
 | Schema | On the empty DB, `POSTGRES_URL=…127.0.0.1:5439/ainmem_xyz npx drizzle-kit push` (once at first; later changes by hand as in §3.6) |
 | Data | Family demo — `family-demo-accounts.mts --app http://127.0.0.1:3150 --home ~/.ainmem-demo-xyz --no-cli`, then `seed-family-demo.mts --home ~/.ainmem-demo-xyz` with `POSTGRES_URL`, `SESSION_SECRET` (values from .env.xyz) and `OKF_ROOT=deploy-xyz/okf-content`. The phone (aindrive drive) is the same one as dev — do not start a new CLI |
+| Auto-deploy | A merge to `main` deploys by itself within ~2 min: cron runs `/mnt/newdata/git/.autodeploy/autodeploy.sh ainmem-xyz` every 2 minutes. It builds `ainmem_xyz-app:<sha>` from a clean worktree (`/mnt/newdata/git/.autodeploy/relational-agents`), swaps, and rolls back to the previous tag unless `/api/health` answers 200 — so a merge that needs a schema push rolls back until the push is done (§3.6). Merges that touch nothing under `app/` or `docker-compose.xyz.yml` are skipped. Log/state: `~/.autodeploy/ainmem-xyz.{log,deployed,tried}`; a failed commit is not retried — `rm ~/.autodeploy/ainmem-xyz.tried` to retry |
 
 **Do not use** `docker-compose.prod.yml` (project `memory-live`) — another repo runs a stack with that same name on this host.
 
