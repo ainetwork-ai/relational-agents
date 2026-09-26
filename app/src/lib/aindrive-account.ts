@@ -186,6 +186,10 @@ export async function saveAccount(userId: string, server: string, token: string,
     .onConflictDoUpdate({ target: aindriveAccounts.userId, set: row });
   const [holder] = await db.select({ id: users.id }).from(users).where(eq(users.aindriveSub, who.sub));
   if (!holder) await db.update(users).set({ aindriveSub: who.sub }).where(eq(users.id, userId));
+  // show this app's spaces in aindrive's share sheet, so folders can be shared here from there
+  void import("@/lib/aindrive-app")
+    .then((m) => m.registerWithAindrive(userId))
+    .catch((e) => console.warn("[aindrive-app] register:", (e as Error).message));
   return { server, email: row.email, name: row.name, expiresAt: row.expiresAt };
 }
 
