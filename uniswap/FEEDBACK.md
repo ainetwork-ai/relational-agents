@@ -1,8 +1,10 @@
 # FEEDBACK.md — Uniswap stack, ETHGlobal Tokyo 2026 (Continuity track)
 
 Project: **Family Passbook** — a relationship agent that buys WETH with USDC on Uniswap v3 on a
-cadence, only inside a mandate a family member signed, and writes every buy and refusal to a
-passbook. Code: `uniswap/` in this repository; README lists every Uniswap call with `file:line`.
+cadence, only inside an authority its people approved, and writes every buy and refusal to a
+passbook. Two implementations: `uniswap/` (a signed mandate, one JSON file) and the recurring buy in
+the app's Relation Treasury (World ID approvals, `app/src/lib/agent/treasury/`). `uniswap/README.md`
+lists every Uniswap call of both with `file:line`.
 
 ## What we used
 
@@ -35,6 +37,10 @@ passbook. Code: `uniswap/` in this repository; README lists every Uniswap call w
    approval receipt, poll `allowance(owner, router)` on the same client until it is ≥ `amountIn`
    (bounded), then send the swap. **Suggestion:** one sentence in the swap-integration skill —
    "on load-balanced RPCs, confirm the allowance on your own client before sending the swap".
+   **Seen twice, independently:** the app's own swap path (`app/src/lib/agent/treasury/invest.ts`,
+   written apart from `uniswap/`) hit the same `STF`, reason stripped, on the demo server's first
+   live investment (26 Sep, 09:03 JST, three approvals in) — and passed after the same fix, plus
+   quoting after the allowance settles and giving the swap its own gas limit.
 2. **RPCs that refuse receipts.** `base-rpc.publicnode.com` (free tier) answered quotes and
    balances but refused `eth_getTransactionReceipt` for a transaction it had just mined ("Archive
    requests require a personal token"). For a DCA bot that is the worst failure: the swap landed
@@ -57,5 +63,6 @@ passbook. Code: `uniswap/` in this repository; README lists every Uniswap call w
 ## Links
 
 - Mandated buy on Base mainnet: https://basescan.org/tx/0xf08c1b78e29e055692cbd71f61af1189af19825026891dbd7c79448e824064de
-- Where each Uniswap call lives: `uniswap/README.md`, section "The Uniswap pieces".
+- The app's first investment through `invest.ts`, three humans approving: https://basescan.org/tx/0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b
+- Where each Uniswap call lives: `uniswap/README.md`, sections "In the app" and "The Uniswap pieces".
 - Design record: `uniswap/plan.md`.

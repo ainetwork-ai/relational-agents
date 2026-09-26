@@ -76,6 +76,21 @@ every critical spend. No model decides anything about money
 [Demo script](world/DEMO.md) · [integration debriefs](world/DEBRIEF.md) ·
 [integration log](world/integration-log.md) · [plan](world/plan.md)
 
+## Recurring buy — a weekly ETH buy on Uniswap the members approve once
+
+*ETHGlobal Tokyo 2026 · Uniswap Foundation — Best Uniswap Stack Contribution (Continuity).*
+**The submission is [`uniswap/`](uniswap/)**: every Uniswap call with its file and line — the
+standalone package and the recurring buy in the app — what existed before vs what was built this
+weekend, and [`FEEDBACK.md`](uniswap/FEEDBACK.md).
+
+Inside a Relation Treasury a member asks the agent for a recurring buy; the relation's rules decide
+how many verified humans must approve it with World ID; after that the agent buys once a week
+inside those terms — USDC → WETH through Uniswap v3 on Base (QuoterV2, then SwapRouter02
+`exactInputSingle`), from its own wallet — and every run is a row in its history. Anyone can stop
+it without a vote. The swap is [`invest.ts`](app/src/lib/agent/treasury/invest.ts), the weekly
+authority [`recurring.ts`](app/src/lib/agent/treasury/recurring.ts), and the Treasury page shows the
+agent's wallet per chain with every swap.
+
 ## Family Vault — a time capsule that pays interest (demo)
 
 [`family-vault/`](family-vault/) extends the workspace with a family-savings
@@ -172,6 +187,7 @@ agent records deterministically, and only the AI answering paths fail.
 | [`app/src/lib/okf-store.ts`](app/src/lib/okf-store.ts) · [`okf-acl.ts`](app/src/lib/okf-acl.ts) | the memory files and who may read them |
 | [`relational-memory-mcp`](relational-memory-mcp/) | the MCP server over the same bundles |
 | [`world/`](world/) | the World submission — Relation Treasury, its demo script and integration debriefs |
+| [`uniswap/`](uniswap/) | the Uniswap submission — the recurring buy, every Uniswap call with its line, FEEDBACK.md |
 | [`docs/deployment.md`](docs/deployment.md) | how production is put together, and what has bitten us |
 
 ## Why build it this way
