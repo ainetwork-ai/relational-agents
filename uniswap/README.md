@@ -93,7 +93,10 @@ Gas: on the fork the approval takes 46k–55k gas and the swap 114k–149k; mult
 current gas price for the L2 part and read the L1 data fee, which anvil does not model, off the
 first real receipt. `pnpm fund` is fork-only (anvil's balance cheat); on mainnet the deposit is an
 ordinary transfer into the agent's address. A failing RPC surfaces as a `swap-failed` skip with the
-provider's short message, never as a silent miss.
+provider's short message, never as a silent miss — with one gotcha: **the RPC must serve
+`eth_getTransactionReceipt` for a transaction it just mined.** One that refuses (the free tier of
+`base-rpc.publicnode.com` does) turns every successful swap into a "may have moved" skip that occupies
+the period. `mainnet.base.org` serves receipts.
 
 ## Honest limits
 
@@ -130,11 +133,11 @@ provider's short message, never as a silent miss.
 
 | piece | where |
 |---|---|
-| QuoterV2 `quoteExactInputSingle`, as an `eth_call` with no state change | `src/swap/router.js:21`, address at `src/chains/base.js:17` |
-| SwapRouter02 `exactInputSingle` | `src/swap/router.js:51`, address at `src/chains/base.js:18` |
-| a plain ERC-20 `approve` for exactly this buy's amount | `src/swap/router.js:45` |
+| QuoterV2 `quoteExactInputSingle`, as an `eth_call` with no state change | `src/swap/router.js:36`, address at `src/chains/base.js:17` |
+| SwapRouter02 `exactInputSingle` | `src/swap/router.js:67`, address at `src/chains/base.js:18` |
+| a plain ERC-20 `approve` for exactly this buy's amount | `src/swap/router.js:60` |
 | the 0.05% USDC/WETH v3 pool (fee tier 500) | `src/chains/base.js:19` |
-| `amountOutMinimum`, from the executor's slippage bound | `src/swap/router.js:49`, policy at `src/tsumitate.js:6` |
+| `amountOutMinimum`, from the executor's slippage bound | `src/swap/router.js:65`, policy at `src/tsumitate.js:6` |
 
 The fill is read from the swap's own `Transfer` logs rather than from a balance difference, so a
 second buy sharing the recipient in the same block cannot be counted into the family's receipt.

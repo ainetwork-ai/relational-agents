@@ -6,6 +6,21 @@ import { sameAddress } from "../address.js";
  * Uniswap v3 through the periphery contracts, over any RPC the chain template names.
  * quote → QuoterV2 (eth_call, no state). execute → ERC-20 approve + SwapRouter02.exactInputSingle.
  */
+
+// A public RPC is a pool of nodes, and the one that mined the approval and the one that will
+// estimate the swap's gas can be a block apart: the swap is then simulated against a zero
+// allowance and reverts with STF before it is broadcast. Wait, bounded, until this client reads
+// the allowance itself. On a single node (the fork) the first read already sees it.
+const ALLOWANCE_POLLS = 15, ALLOWANCE_POLL_MS = 1000;
+async function untilAllowance(pub, token, owner, spender, amount) {
+  for (let i = 0; i < ALLOWANCE_POLLS; i++) {
+    const seen = await pub.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, spender] });
+    if (seen >= amount) return;
+    await new Promise((resolve) => setTimeout(resolve, ALLOWANCE_POLL_MS));
+  }
+  throw new Error(`allowance for ${spender} not visible after ${ALLOWANCE_POLLS} polls — the approval landed but this RPC does not show it yet`);
+}
+
 export function routerProvider(chain) {
   const pub = createPublicClient({ chain: chain.viemChain, transport: http(chain.rpc) });
   const { quoterV2, swapRouter02, v3FeeTier } = chain.uniswap;
@@ -44,6 +59,7 @@ export function routerProvider(chain) {
     const approveHash = await wallet.writeContract({ address: intent.tokenIn, abi: erc20Abi,
       functionName: "approve", args: [swapRouter02, intent.amountIn] });
     await pub.waitForTransactionReceipt({ hash: approveHash });
+    await untilAllowance(pub, intent.tokenIn, account.address, swapRouter02, intent.amountIn);
 
     // 2. the swap; slippage is enforced by the router through amountOutMinimum
     const amountOutMinimum = priced.amountOutExpected * BigInt(10_000 - intent.slippageBps) / 10_000n;
