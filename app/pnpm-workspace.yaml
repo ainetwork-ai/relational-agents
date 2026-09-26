@@ -20,7 +20,7 @@ ignoredBuiltDependencies:
 # AgentKit ships prebundled code that imports @scure/bip39/wordlists/english,
 # a subpath 2.x stopped exporting. Pin the copy AgentKit resolves to 1.x.
 minimumReleaseAgeExclude:
-  - ain-ui@0.1.1
+  - ain-ui@0.1.1 || 0.2.0
 overrides:
   "@coinbase/agentkit>@scure/bip39": ^1.5.4
   # pptx-preview pins echarts ^5 (XSS advisory, fixed in 6.1.0). The preview's

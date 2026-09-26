@@ -400,3 +400,14 @@ export async function callAindriveSurface(action: import("ain-ui").A2uiAction) {
   if (!Array.isArray(messages)) throw new AindriveError("aindrive did not return an AIN-UI surface. Update aindrive first.");
   return messages as import("ain-ui").A2uiMessage[];
 }
+
+/** Authenticated streaming relay; credentials remain on the server. */
+export async function requestAindriveFolderChat(link: AindriveLink, body?: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  const c = config();
+  if (!c || !actingAsUser()) throw new AindriveError("Connect your aindrive account to use folder chat");
+  return fetch(`${c.server}/api/drives/${encodeURIComponent(link.driveId)}/folder-chat`, {
+    method: body ? "POST" : "GET", signal,
+    headers: { authorization: `Bearer ${c.token}`, "content-type": "application/json", accept: "text/event-stream" },
+    ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store",
+  });
+}
