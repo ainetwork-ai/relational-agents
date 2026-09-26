@@ -272,3 +272,22 @@ Format: `JST time — surface — what happened`.
   re-seated on #3/#2/#1; #4 (the default) stays Alex's, #0 is Bea's, and the
   second-account scene keeps #4 on purpose. Every reset means re-running the
   script three times.
+- 2026-09-26 21:2x → 2026-09-27 00:05 — IDKit — **World now gates staging proofs.**
+  A vote claim on ainmem.ainetwork.xyz came back from the simulator with
+  "Staging verification is not open for this app": since the 01:53 vote,
+  `/api/v4/verify` accepts staging (simulator) proofs only while the app's
+  team has opened a 24 h staging verification window (Portal MCP tool
+  `set_world_id_staging_verification`, authenticated with a team API key) AND
+  the verify call carries that window's token as
+  `x-staging-verification-token` (developer-portal
+  `web/api/v4/verify/staging-access.ts`; docs.world.org says nothing). Fixed
+  by `0c81747` (the header, from `WORLD_STAGING_VERIFICATION_TOKEN`) and
+  `a557801` (`scripts/world-staging-window.mjs`: opens the window with the key
+  at a hidden prompt and saves the token). Window opened 22:22 JST (expires
+  2026-09-27 22:22 JST). **Vote claim end to end again at 00:05 JST** on the
+  try-it room: click → IDKit → simulator Continue → verified → "🌍 Vote
+  claimed", 45 s, of which ~25 s waiting for the IDKit modal to open.
+  FRICTION for the debrief: the gate is undocumented; the refusal names the
+  tool but not where the key comes from (Team settings → API keys) nor that
+  the token must travel on every verify call; a window that lapses mid-event
+  silently breaks every staging integration; the Portal has no button for it.
