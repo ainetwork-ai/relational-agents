@@ -2,7 +2,7 @@
 
 `app/src/components/ainui/drive-browser.tsx` opens `folder-chat.tsx` for the
 currently displayed folder. The renderer is `AinuiFolderChat` from the published
-`ain-ui@0.2.0` package. Picker mode omits chat. Changing folder remounts the chat,
+`ain-ui@0.2.1` package. Picker mode omits chat. Changing folder remounts the chat,
 cancels its request, and clears its agent contexts.
 
 `GET/POST /api/ainui/folder-chat` resolves the browser's source to a server-owned

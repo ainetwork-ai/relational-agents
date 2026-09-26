@@ -30,3 +30,5 @@ Validation: start `scripts/dev.sh`, then run `node app/e2e/ainui.check.mjs` with
 Node 22. It temporarily installs a fixture route, mocks all APIs in Playwright,
 and removes the route afterward. It does not use a database or settle payments.
 Also run the wallet-payment and ainui-boundary selftests under `app/scripts`.
+
+Gallery tiles keep square media slots and two-line names, including failed thumbnails. Folder inventories distinguish photos, files and folders in the current listing; they are not recursive totals. Refresh retains the producer-returned folder path and view instead of reopening the linked root. Regression checks: `app/scripts/ainui-boundary-selftest.ts` and the package gallery test with 237 photos.
