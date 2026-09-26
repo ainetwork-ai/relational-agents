@@ -20,10 +20,11 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   );
   if (!chain || !intent || intent.userId !== session.userId) return fail(t("This link has expired or isn't yours. Ask the agent again."));
   const sentTx = wasSent(token);
-  const fresh = await chain.resolveAddress(intent.name);
+  const read = await Promise.all([chain.resolveAddress(intent.name), chain.loadTree(), chain.balances(intent.from)]).catch(() => null);
+  if (!read) return fail(t("I couldn't reach Sepolia just now. Try again in a moment."));
+  const [fresh, tree, bal] = read;
   if (!sentTx && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
     return fail(t("{name}'s address changed since the agent prepared this, so I stopped. Ask the agent again.", { name: intent.name }));
-  const [tree, bal] = await Promise.all([chain.loadTree(), chain.balances(intent.from)]);
   const who = descendants(tree).find((d) => d.node.name === intent.name)?.node;
   return (
     <SendCard

@@ -31,16 +31,24 @@ export function SendCard(p: Props) {
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
 
+  // the confirm call only records what already happened on chain; a failure here is
+  // retried as a confirm, never as a second transfer
+  async function confirm(hash: string) {
+    setError(null);
+    setState("confirming");
+    const ok = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
+      .then((r) => r.ok)
+      .catch(() => false);
+    setState(ok ? "done" : "error");
+    if (!ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+  }
+
   async function send() {
     setError(null);
     setState("sending");
+    let hash: Hex;
     try {
-      const hash: Hex = await sendUsdcTransfer({ from: p.from, to: p.to, amountMicro: amount });
-      setTx(hash);
-      setState("confirming");
-      const r = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) });
-      setState(r.ok ? "done" : "error");
-      if (!r.ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+      hash = await sendUsdcTransfer({ from: p.from, to: p.to, amountMicro: amount });
     } catch (e) {
       const reason = e instanceof WalletSignatureError ? e.reason : "failed";
       setState("error");
@@ -53,7 +61,10 @@ export function SendCard(p: Props) {
               ? t("Open this page in the browser with your wallet.")
               : t("The wallet couldn't send it: {msg}", { msg: (e as Error).message })
       );
+      return;
     }
+    setTx(hash);
+    await confirm(hash);
   }
 
   return (
@@ -85,6 +96,24 @@ export function SendCard(p: Props) {
               </a>
             )}
           </p>
+        ) : tx ? (
+          // the wallet already sent it: from here on only the confirmation can be retried
+          <div className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-pending">
+            <p>
+              {t("Sent from your wallet.")}{" "}
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+                {t("View on the explorer")}
+              </a>
+            </p>
+            <button
+              data-testid="send-confirm-retry"
+              onClick={() => void confirm(tx)}
+              disabled={state === "confirming"}
+              className="mt-4 w-full rounded-xl border border-neutral-300 py-3 font-medium disabled:opacity-50 dark:border-neutral-600"
+            >
+              {state === "confirming" ? t("Checking…") : t("Check again")}
+            </button>
+          </div>
         ) : (
           <>
             {lowUsdc && <p className="mt-6 text-sm text-amber-700">{t("Your wallet has {have} USDC, less than this.", { have: formatUsdc(BigInt(p.usdcMicro)) })}</p>}
@@ -92,10 +121,10 @@ export function SendCard(p: Props) {
             <button
               data-testid="send-button"
               onClick={() => void send()}
-              disabled={tx !== null || state === "sending" || state === "confirming" || lowUsdc || noGas}
+              disabled={state === "sending" || lowUsdc || noGas}
               className="mt-8 w-full rounded-xl bg-neutral-900 py-4 text-lg font-semibold text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
-              {state === "sending" ? t("Waiting for your wallet…") : state === "confirming" ? t("Sending…") : t("Send")}
+              {state === "sending" ? t("Waiting for your wallet…") : t("Send")}
             </button>
           </>
         )}

@@ -4,7 +4,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { databases, dbProperties, dbRows, teamspaces } from "@/lib/db/schema";
+import { databases, dbProperties, dbRows, pages, teamspaces } from "@/lib/db/schema";
 import { b, createAgentDatabase, writeAgentPage } from "@/lib/agent/agent-pages";
 import { ensureGeneralTeamspace } from "@/lib/workspace";
 import type { T } from "@/i18n/translate";
@@ -47,6 +47,14 @@ export async function ensureNicknamesTable(opts: {
   t: T;
 }): Promise<{ created: boolean; pageId: string | null }> {
   if (await findTable(opts.workspaceId)) return { created: false, pageId: null };
+  // a page of that title already holds the table (maybe renamed): writeAgentPage would
+  // rebuild it and drop the family's database, so leave it alone
+  const [page] = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.workspaceId, opts.workspaceId), eq(pages.title, NICKNAMES_DB_TITLE), eq(pages.isArchived, false)))
+    .limit(1);
+  if (page) return { created: false, pageId: null };
   const [first] = await db.select({ id: teamspaces.id }).from(teamspaces).where(eq(teamspaces.workspaceId, opts.workspaceId)).limit(1);
   const teamspaceId = first?.id ?? (await ensureGeneralTeamspace(opts.workspaceId, opts.byUserId));
   const databaseId = await createAgentDatabase({

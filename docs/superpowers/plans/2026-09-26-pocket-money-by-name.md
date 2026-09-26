@@ -1516,7 +1516,7 @@ The table is a workspace database titled exactly "Family nicknames" (title colum
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { databases, dbProperties, dbRows, teamspaces } from "@/lib/db/schema";
+import { databases, dbProperties, dbRows, pages, teamspaces } from "@/lib/db/schema";
 import { b, createAgentDatabase, writeAgentPage } from "@/lib/agent/agent-pages";
 import { ensureGeneralTeamspace } from "@/lib/workspace";
 import type { T } from "@/i18n/translate";
@@ -1552,8 +1552,21 @@ export async function loadNicknames(workspaceId: string): Promise<Map<string, st
 }
 
 /** Makes the table once, prefilled with every family name; never touches an existing one. */
-export async function ensureNicknamesTable(opts: { workspaceId: string; byUserId: string; tree: FamilyNode; t: T }): Promise<{ created: boolean; pageId: string | null }> {
+export async function ensureNicknamesTable(opts: {
+  workspaceId: string;
+  byUserId: string;
+  tree: FamilyNode;
+  t: T;
+}): Promise<{ created: boolean; pageId: string | null }> {
   if (await findTable(opts.workspaceId)) return { created: false, pageId: null };
+  // a page of that title already holds the table (maybe renamed): writeAgentPage would
+  // rebuild it and drop the family's database, so leave it alone
+  const [page] = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.workspaceId, opts.workspaceId), eq(pages.title, NICKNAMES_DB_TITLE), eq(pages.isArchived, false)))
+    .limit(1);
+  if (page) return { created: false, pageId: null };
   const [first] = await db.select({ id: teamspaces.id }).from(teamspaces).where(eq(teamspaces.workspaceId, opts.workspaceId)).limit(1);
   const teamspaceId = first?.id ?? (await ensureGeneralTeamspace(opts.workspaceId, opts.byUserId));
   const databaseId = await createAgentDatabase({
@@ -1715,14 +1728,17 @@ export default async function SendPage({ searchParams }: { searchParams: Promise
   const chain = familyChain();
   const intent = chain ? verifySendIntent(token, sendSecret()) : null;
   const fail = (msg: string) => (
-    <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">{msg}</main>
+    <main className="mx-auto max-w-sm p-8 text-center text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-error">
+      {msg}
+    </main>
   );
   if (!chain || !intent || intent.userId !== session.userId) return fail(t("This link has expired or isn't yours. Ask the agent again."));
   const sentTx = wasSent(token);
-  const fresh = await chain.resolveAddress(intent.name);
+  const read = await Promise.all([chain.resolveAddress(intent.name), chain.loadTree(), chain.balances(intent.from)]).catch(() => null);
+  if (!read) return fail(t("I couldn't reach Sepolia just now. Try again in a moment."));
+  const [fresh, tree, bal] = read;
   if (!sentTx && (!fresh || fresh.toLowerCase() !== intent.to.toLowerCase()))
     return fail(t("{name}'s address changed since the agent prepared this, so I stopped. Ask the agent again.", { name: intent.name }));
-  const [tree, bal] = await Promise.all([chain.loadTree(), chain.balances(intent.from)]);
   const who = descendants(tree).find((d) => d.node.name === intent.name)?.node;
   return (
     <SendCard
@@ -1776,16 +1792,24 @@ export function SendCard(p: Props) {
   const lowUsdc = BigInt(p.usdcMicro) < amount;
   const noGas = BigInt(p.ethWei) === BigInt(0);
 
+  // the confirm call only records what already happened on chain; a failure here is
+  // retried as a confirm, never as a second transfer
+  async function confirm(hash: string) {
+    setError(null);
+    setState("confirming");
+    const ok = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) })
+      .then((r) => r.ok)
+      .catch(() => false);
+    setState(ok ? "done" : "error");
+    if (!ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+  }
+
   async function send() {
     setError(null);
     setState("sending");
+    let hash: Hex;
     try {
-      const hash: Hex = await sendUsdcTransfer({ from: p.from, to: p.to, amountMicro: amount });
-      setTx(hash);
-      setState("confirming");
-      const r = await fetch("/api/ens/send/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ t: p.token, txHash: hash }) });
-      setState(r.ok ? "done" : "error");
-      if (!r.ok) setError(t("It was sent, but I couldn't confirm it yet. Check the explorer link."));
+      hash = await sendUsdcTransfer({ from: p.from, to: p.to, amountMicro: amount });
     } catch (e) {
       const reason = e instanceof WalletSignatureError ? e.reason : "failed";
       setState("error");
@@ -1798,7 +1822,10 @@ export function SendCard(p: Props) {
               ? t("Open this page in the browser with your wallet.")
               : t("The wallet couldn't send it: {msg}", { msg: (e as Error).message })
       );
+      return;
     }
+    setTx(hash);
+    await confirm(hash);
   }
 
   return (
@@ -1809,7 +1836,12 @@ export function SendCard(p: Props) {
           {formatUsdc(amount)} <span className="text-2xl font-semibold">USDC</span>
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">
-          {p.avatar ? <img src={p.avatar} alt="" className="h-12 w-12 rounded-full object-cover" /> : <div className="h-12 w-12 rounded-full bg-neutral-200 dark:bg-neutral-700" />}
+          {p.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={p.avatar} alt="" className="h-12 w-12 rounded-full object-cover" />
+          ) : (
+            <div className="h-12 w-12 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+          )}
           <div className="text-left">
             <p className="font-medium text-neutral-800 dark:text-neutral-100">{p.display}</p>
             <p className="text-xs text-neutral-500" data-testid="send-name">{p.name}</p>
@@ -1825,6 +1857,24 @@ export function SendCard(p: Props) {
               </a>
             )}
           </p>
+        ) : tx ? (
+          // the wallet already sent it: from here on only the confirmation can be retried
+          <div className="mt-8 text-sm text-neutral-600 dark:text-neutral-300" data-testid="send-pending">
+            <p>
+              {t("Sent from your wallet.")}{" "}
+              <a className="underline" href={`${SEPOLIA_EXPLORER}/tx/${tx}`} target="_blank" rel="noreferrer">
+                {t("View on the explorer")}
+              </a>
+            </p>
+            <button
+              data-testid="send-confirm-retry"
+              onClick={() => void confirm(tx)}
+              disabled={state === "confirming"}
+              className="mt-4 w-full rounded-xl border border-neutral-300 py-3 font-medium disabled:opacity-50 dark:border-neutral-600"
+            >
+              {state === "confirming" ? t("Checking…") : t("Check again")}
+            </button>
+          </div>
         ) : (
           <>
             {lowUsdc && <p className="mt-6 text-sm text-amber-700">{t("Your wallet has {have} USDC, less than this.", { have: formatUsdc(BigInt(p.usdcMicro)) })}</p>}
@@ -1832,10 +1882,10 @@ export function SendCard(p: Props) {
             <button
               data-testid="send-button"
               onClick={() => void send()}
-              disabled={tx !== null || state === "sending" || state === "confirming" || lowUsdc || noGas}
+              disabled={state === "sending" || lowUsdc || noGas}
               className="mt-8 w-full rounded-xl bg-neutral-900 py-4 text-lg font-semibold text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
-              {state === "sending" ? t("Waiting for your wallet…") : state === "confirming" ? t("Sending…") : t("Send")}
+              {state === "sending" ? t("Waiting for your wallet…") : t("Send")}
             </button>
           </>
         )}
