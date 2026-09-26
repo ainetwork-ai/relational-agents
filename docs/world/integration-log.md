@@ -138,3 +138,19 @@ Format: `JST time — surface — what happened`.
   (World ID app id) ever reached the xyz browser bundle — fixed alongside.
   Three registrations for one app: each deploy domain is its own identity
   sector, so a World human gets a different pairwise `sub` on each.
+- 2026-09-26 03:36 — both — **ainmem.ainetwork.xyz now serves a World-enabled
+  build** (`ainmem_xyz-app:e6d5dd7`, previous `e6b8fd4` kept). Root cause of
+  the missing app id: deployment.md §1.1 said to build with a bare
+  `docker build`, which passes no build args, so every xyz image (three today)
+  shipped `NEXT_PUBLIC_WORLD_ID_APP_ID` empty and the vote fell back to the
+  dev simulator; the server side (`WORLD_CLIENT_*` from `.env.xyz`) was live
+  since 03:09 regardless. Fixed by (1) `docker-compose.xyz.yml` passing the two
+  World values `.env.xyz` sets — a first version passed all eight
+  `NEXT_PUBLIC_*` and inlined `""` over the code's defaults (registry chainId
+  became 0), caught by diffing the candidate image against the live one;
+  (2) the doc building through compose. Verified before the swap: 178 routes
+  identical to live, album 2x2 (PR #12) present, no regression markers, app id
+  in exactly one static chunk; after: health 200, container has all World
+  values, DB schema already matched (no migration). Not yet on xyz: the Tokyo
+  Trip seed (treasury rows 0, seats 0) and any real IdP sign-in — both to do
+  before recording.
