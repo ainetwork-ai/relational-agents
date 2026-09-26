@@ -243,8 +243,9 @@ const AGENT = "Tokyo Trip agent";
 const m = (text: string) => matchTreasuryCommand(text, AGENT);
 const money = (text: string) => {
   const c = m(text);
-  assert.ok(c && c.kind !== "status" && c.kind !== "adopt", `expected a money command: ${text}`);
-  return c as Exclude<typeof c, { kind: "status" } | { kind: "adopt" } | null>;
+  // picked by its shape, not by excluding the others: a new command kind must not pass for money
+  assert.ok(c && "toSelf" in c, `expected a money command: ${text}`);
+  return c;
 };
 
 check("@Tokyo Trip agent pay the hotel deposit, $180", () => {

@@ -458,6 +458,16 @@ export const TREASURY_KO = {
   requestEndings: ["줘", "주세요", "줄래", "주라", "주겠니"],
   /** conditional, negated, scheduled or narrated */
   hedge: ["말고", "하지\\s?마", "취소", "나중에", "내일", "어제", "이미", "했어", "했다", "냈어", "보냈어", "하면", "이면"],
+  /** repeated, not once: "매주", "매달", "만원씩" — the one-off matcher refuses these as it does a hedge */
+  recurring: ["매주", "매달", "매월", "매일", "매년", "마다", "씩"],
+  /** with a recurring word and a request ending, a buy said without a dollar figure: "만원", "이더", "코인" */
+  recurringObject: ["\\d", "[천만억]\\s?원", "달러", "이더", "코인", "비트"],
+  /** buying, as a request: "사줘", "사 주세요", "매수해줘" */
+  recurringBuy: ["사\\s?(?:줘|주세요|줄래|주라|주겠니)", "매수", "구입", "모아"],
+  /** recurring requests the matcher must refuse, never read as one payment (scripts/recurring-chat-selftest.mts) */
+  recurringExamples: ["@agent 매주 만원씩 이더 사줘", "@agent 매달 10달러씩 투자해 줘", "@agent 매주 20달러 결제해줘", "@agent 매일 5달러 보내줘"],
+  /** not a request to buy: narrated, or no money in it */
+  recurringNonRequests: ["@agent 매주 이더 사고 있어", "@agent 매주 장보기 목록 만들어줘"],
   /** balance / status */
   status: ["잔액", "잔고"],
   withdraw: "출금",

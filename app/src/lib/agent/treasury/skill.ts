@@ -2,13 +2,27 @@ import "server-only";
 import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatRoomMembers, treasuryActions, treasuryApprovals, treasurySeats, users } from "@/lib/db/schema";
-import { matchTreasuryCommand, mentionsMoney } from "./match";
+import { matchTreasuryCommand, mentionsMoney, mentionsRecurringMoney } from "./match";
 import { evaluateCommand } from "./policy";
 import { appendTreasuryActivity, loadRelationTreasury } from "./memory";
 import { ensureAgentWallet, treasuryBalance, USD_PER_ETH } from "./wallet";
 import { createTreasuryAction, executeIfQuorum } from "./approvals";
 import {
+  authorityExposure,
+  logLine,
+  proposeRecurringBuy,
+  realRunsEnabled,
+  RecurringBuyRefusal,
+  recurringBuyStatus,
+  runRecurringBuy,
+  stopRecurringBuy,
+} from "./recurring";
+import { SKIP_REASON_TEXT } from "./recurring-record";
+import { recurringBuyMarker } from "@/lib/agent/treasurer/surfaces";
+import {
   RATIFY_KIND,
+  RECURRING_BUY_KIND,
+  RECURRING_RUN_KIND,
   REQUEST_TTL_MS,
   type Payee,
   type RatifiedText,
@@ -308,7 +322,7 @@ async function statusReply(t: RelationTreasury, roomId: string, balance: { eth: 
     out.push("Waiting for approval:");
     for (const p of pending)
       out.push(
-        `- ${p.kind === RATIFY_KIND ? `Adopting ${p.memo}` : `${usd(p.amountUsd)}${p.memo ? ` · ${p.memo}` : ""}`} — ${counts.get(p.id) ?? 0} of ${p.requiredApprovals} verified approvals`
+        `- ${p.kind === RATIFY_KIND ? `Adopting ${p.memo}` : p.kind === RECURRING_BUY_KIND ? `${capitalize(p.memo)}, at most ${usd(p.amountUsd)} in all` : `${usd(p.amountUsd)}${p.memo ? ` · ${p.memo}` : ""}`} — ${counts.get(p.id) ?? 0} of ${p.requiredApprovals} verified approvals`
       );
   }
   if (!t.adoptedAt) out.push("Our Treasury Rules were never adopted, so I move no money yet.");
@@ -470,6 +484,9 @@ async function moneyReply(
           eq(treasuryActions.requiredApprovals, 0),
           ne(treasuryActions.status, "blocked"),
           ne(treasuryActions.kind, RATIFY_KIND),
+          // a recurring buy's weekly runs were approved as one authority — they are not payments made alone
+          ne(treasuryActions.kind, RECURRING_BUY_KIND),
+          ne(treasuryActions.kind, RECURRING_RUN_KIND),
           gt(treasuryActions.createdAt, new Date(Date.now() - 3_600_000))
         )
       );
@@ -611,6 +628,131 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
   return out.filter(Boolean).join(" ");
 }
 
+// ── recurring buy ───────────────────────────────────────────────────────────
+
+type RecurringCommand = Extract<TreasuryCommand, { kind: `recurring-${string}` }>;
+
+function isRecurring(cmd: TreasuryCommand): cmd is RecurringCommand {
+  return cmd.kind.startsWith("recurring-");
+}
+
+const RECURRING_EXAMPLE = "“@agent buy $20 of ETH every week for 26 weeks”";
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Mon 12 Oct", or with `full` "Mon 30 Mar 2027 00:00 UTC" — always UTC, the clock ISO weeks run on */
+function utcDay(at: string | number, full = false): string {
+  const d = new Date(at);
+  const day = `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+  if (!full) return day;
+  const hm = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${day} ${d.getUTCFullYear()} ${hm} UTC`;
+}
+
+function weeksWord(n: number): string {
+  return `${n} week${n === 1 ? "" : "s"}`;
+}
+
+/** "0.0000254" WETH as said in chat: four significant digits */
+function wethAmount(whole: string): string {
+  return Number(whole).toLocaleString("en-US", { maximumSignificantDigits: 4 });
+}
+
+async function recurringProposeReply(
+  ctx: TreasuryCommandContext,
+  t: RelationTreasury,
+  cmd: Extract<RecurringCommand, { kind: "recurring-propose" }>,
+  members: Member[]
+): Promise<string> {
+  // seats first, so a failure there leaves nothing half-queued
+  const seated = await seatedUserIds(ctx.roomId);
+  const r = await proposeRecurringBuy({
+    roomId: ctx.roomId,
+    agentUserId: ctx.agentUserId,
+    requesterId: ctx.askerId,
+    weeklyUsd: cmd.weeklyUsd,
+    weeks: cmd.weeks,
+  });
+  if (!r.ok) return r.reason;
+  const { terms } = r.record;
+  const addr = `${terms.agentAddress.slice(0, 6)}…${terms.agentAddress.slice(-4)}`;
+  const out = [
+    `Queued: a recurring buy — ${usd(terms.weeklyUsd)} of ETH every week for ${weeksWord(terms.weeks)}, until ${utcDay(terms.expiresAt * 1000, true)}.`,
+    `It swaps USDC → WETH on Base through Uniswap v3 from my own wallet ${addr}, at most ${usd(authorityExposure(r.record))} in all.`,
+    `Our rule “${r.rule}” means it needs ${humans(r.required)} — approve it in the treasury panel.`,
+  ];
+  if (!realRunsEnabled()) out.push("(Real buys are off on this server, so its weekly runs will be rehearsals that move nothing.)");
+  out.push(...seatShortfall(t, members, seated, r.required));
+  // the room chat draws this line as the request's live card, Approve button included
+  return `${out.join(" ")}\n${recurringBuyMarker(r.actionId)}`;
+}
+
+async function recurringRunReply(ctx: TreasuryCommandContext): Promise<string> {
+  const r = await runRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
+  switch (r.outcome) {
+    case "bought":
+      return `Bought: ${usd(r.weeklyUsd)} → ${wethAmount(r.wethOut)} WETH on Base (week ${r.isoWeek}). tx ${r.txUrl}`;
+    case "skipped":
+      if (r.reason === "already-bought-this-week") return `Skipped this week (already bought in ${r.isoWeek}).`;
+      // a failed swap may have sent a transaction: recurring.ts logged it, and it holds the week
+      if (r.reason === "swap-failed")
+        return `Skipped ${r.isoWeek}: ${SKIP_REASON_TEXT[r.reason]}. If a transaction was sent, it's in Treasury Activity and this week counts as used — check it before asking again.`;
+      return `Skipped ${r.isoWeek}: ${SKIP_REASON_TEXT[r.reason]} — nothing was bought.`;
+    case "rehearsal":
+      return `Rehearsal: I would buy ${usd(r.wouldBuyUsd)} of ETH for ${r.isoWeek} — real buys are off on this server.`;
+    case "none":
+      return `We have no adopted recurring buy — nothing was bought. ${RECURRING_EXAMPLE} sets one up for the members to approve.`;
+  }
+}
+
+async function recurringStopReply(ctx: TreasuryCommandContext): Promise<string> {
+  // read before, only to say which of the two a stop did
+  const before = await recurringBuyStatus(ctx.roomId).catch(() => null);
+  const r = await stopRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
+  if (!r.ok) return r.reason;
+  if (r.actionId === before?.pending?.actionId)
+    return "Withdrew the recurring buy request before it was adopted — it will never run.";
+  return "Stopped the recurring buy. I won't buy again under it.";
+}
+
+async function recurringStatusReply(roomId: string): Promise<string> {
+  const s = await recurringBuyStatus(roomId);
+  const out: string[] = [];
+  if (s.live) {
+    const l = s.live;
+    out.push(
+      `Recurring buy: week ${l.weekIndex} of ${l.weeks} · bought ${l.boughtWeeks} · ${usd(l.investedUsd)} invested · ${wethAmount(l.wethOut)} WETH · this week: ${l.thisWeek}.`,
+      l.nextRunAt ? `Next buy: ${utcDay(l.nextRunAt)}.` : "This is its last week."
+    );
+  }
+  if (s.pending) {
+    const p = s.pending;
+    out.push(
+      `Waiting for approval: a recurring buy — ${usd(p.weeklyUsd)} of ETH every week for ${weeksWord(p.weeks)}, at most ${usd(p.exposureUsd)} in all — ${p.approvals} of ${p.required} verified approvals (“${p.rule}”).`
+    );
+  }
+  if (!out.length) return `We have no recurring buy running. ${RECURRING_EXAMPLE} sets one up for the members to approve.`;
+  if (!s.realRuns) out.push("(Real buys are off on this server — its runs are rehearsals.)");
+  return out.join(" ");
+}
+
+/** Stop and status: any current human member. Proposing and running direct the treasury: the adopted electorate. */
+async function recurringReply(
+  ctx: TreasuryCommandContext,
+  t: RelationTreasury,
+  cmd: RecurringCommand,
+  members: Member[],
+  asker: Member
+): Promise<string> {
+  if (cmd.kind === "recurring-status") return recurringStatusReply(ctx.roomId);
+  if (cmd.kind === "recurring-stop") return recurringStopReply(ctx);
+  if (!t.adoptedAt)
+    return "Our Treasury Rules were never adopted, so I move no money yet. “@agent adopt the rules” puts them to a vote — nothing was moved.";
+  if (!t.electorate.includes(asker.userId))
+    return "You joined after our rules were adopted, so you can't direct the treasury yet. “@agent adopt the new members” puts that to a vote — nothing was moved.";
+  return cmd.kind === "recurring-propose" ? recurringProposeReply(ctx, t, cmd, members) : recurringRunReply(ctx);
+}
+
 /**
  * Answer a treasury command, or return null so the caller carries on with its
  * normal path: null when the text is not about moving money, or when the
@@ -620,7 +762,9 @@ async function adoptReply(ctx: TreasuryCommandContext, t: RelationTreasury, memb
  */
 export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promise<{ text: string } | null> {
   const cmd = matchTreasuryCommand(ctx.text, ctx.agentName);
-  if (!cmd && !mentionsMoney(ctx.text, ctx.agentName)) return null;
+  // "buy ETH every week", in English or Korean: not one payment, and not for the model to answer either
+  const repeated = !cmd && mentionsRecurringMoney(ctx.text, ctx.agentName);
+  if (!cmd && !repeated && !mentionsMoney(ctx.text, ctx.agentName)) return null;
   const treasury = await loadRelationTreasury(ctx.roomId);
   if (!treasury) return null;
   // a message can also arrive over A2A under a member token; only a current
@@ -629,6 +773,10 @@ export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promis
   const asker = members.find((m) => m.userId === ctx.askerId);
   if (!asker) return { text: "Only members of this room can use its treasury — nothing was moved." };
 
+  if (!cmd && repeated)
+    return {
+      text: `I didn't move anything — I don't make a payment again and again from one message. A repeated buy is a recurring buy the members approve once: say ${RECURRING_EXAMPLE}.`,
+    };
   if (!cmd) {
     const example = treasury.payees[0]?.name ?? "the hotel";
     return {
@@ -641,6 +789,22 @@ export async function handleTreasuryCommand(ctx: TreasuryCommandContext): Promis
     } catch (e) {
       console.error("[treasury] adopt failed:", e);
       return { text: `Something went wrong on my side (${(e as Error).message}) — nothing changed.` };
+    }
+  }
+
+  if (isRecurring(cmd)) {
+    try {
+      return { text: await recurringReply(ctx, treasury, cmd, members, asker) };
+    } catch (e) {
+      // never the error's text: a chain error can carry the RPC URL
+      if (e instanceof RecurringBuyRefusal) return { text: e.message };
+      console.error(`[treasury] ${cmd.kind} failed:`, logLine(e));
+      return {
+        text:
+          cmd.kind === "recurring-run"
+            ? "Something went wrong on my side while running the recurring buy — check its history in the treasury panel before asking again."
+            : "Something went wrong on my side — nothing was moved.",
+      };
     }
   }
 

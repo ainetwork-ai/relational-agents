@@ -22,7 +22,9 @@ const CONFIRM_LABEL = "world-approval-confirm";
  *                      callback binds the sub to this account (users.worldSub).
  *   GET  ?action=<id>  an APPROVAL of that pending treasury action. Nothing is
  *                      started yet: this renders, on our origin, what is being
- *                      approved — amount, payee and its address, requester, the
+ *                      approved — amount, payee and its address (a recurring
+ *                      buy: its terms, total, and the agent wallet it trades
+ *                      from on Base), requester, the
  *                      rule, who approved so far. The IdP screen can't say any
  *                      of that, so without this page a link that looks like
  *                      "re-verify your World ID" would collect an approval of a
@@ -180,6 +182,15 @@ function usd(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
+/** A recurring buy is an authority, not a payment: its terms, where it trades and from which wallet — never its stored JSON. */
+function recurringWhat(r: NonNullable<ApprovalCard["recurring"]>): string {
+  return `<h1>Recurring buy</h1>
+       <p class="to"><strong>${esc(usd(r.weeklyUsd))} of ETH every week for ${r.weeks} week${r.weeks === 1 ? "" : "s"}</strong> · at most ${esc(usd(r.exposureUsd))} in total</p>
+       <p class="muted">USDC → WETH on Uniswap v3 on Base, at most once a week, until ${esc(new Date(r.expiresAt).toUTCString())}. Anyone in the room can stop it without a vote.</p>
+       <p class="addr">From the agent's wallet <a href="${esc(r.agentAddressUrl)}" target="_blank" rel="noreferrer">${esc(r.agentAddress)}</a> (basescan)</p>
+       <p class="addr">Terms ${esc(r.digestShort)}</p>`;
+}
+
 function confirmPage(
   c: ApprovalCard,
   f: { returnTo: string; exp: number; token: string; mock: boolean }
@@ -200,7 +211,9 @@ function confirmPage(
            : ""
        }
        <p class="muted">Once adopted, the agent follows this version for every payment.</p>`
-    : `<h1>${esc(usd(c.amountUsd))}</h1>
+    : c.recurring
+      ? recurringWhat(c.recurring)
+      : `<h1>${esc(usd(c.amountUsd))}</h1>
        <p class="to">to <strong>${esc(c.recipient?.label ?? "an unknown recipient")}</strong>${c.memo ? ` · ${esc(c.memo)}` : ""}</p>
        ${
          c.recipient?.address
