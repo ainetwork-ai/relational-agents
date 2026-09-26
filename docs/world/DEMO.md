@@ -2,11 +2,15 @@
 
 **AI manages the money. Humans approve it.**
 
-**The problem the story answers.** Once an AI holds shared money, the question is no
-longer whether the friends trust each other but whether they can trust the AI: when it
-moves money, *who said yes?* Not an account, not a session, not someone's agent, not the
-AI itself — distinct humans, proven at that moment, and named in the record. Every scene
-answers one piece of that; the on-screen caption under each heading says which.
+**The problem the story answers.** Shared money comes with an agreement — who may spend
+it, on what, how many of us must say yes. We write it down, in chat and in a doc. The wallet
+doesn't know any of it: a multisig knows keys and a threshold, not "the hotel comes first" or
+"never to a member's own wallet", and ten wallets of one person are ten signers. So the agent
+that already keeps this relation's memory (AINmem) holds the pot and applies the agreement as
+written — and because "three approved" means nothing if the three are one person, World
+proves that each approval is a distinct human, present now. Every scene answers one piece of
+that; the caption under each heading says which.
+
 Record the voice live (ETHGlobal: no AI narration). Screen: the Tokyo Trip room
 (chat left, treasury panel on top), switching members with the demo login.
 Scenes marked **[pre-record]** depend on outside services (the World IdP, the
@@ -44,18 +48,19 @@ chain) and are captured as separate takes; **[live]** scenes are deterministic.
    (one identity cannot bind two approvers, so Chris and Alex need two distinct
    sandbox World IDs).
 
-## 0 · The problem (0:00–0:12) [live]
+## 0 · The problem (0:00–0:15) [live]
 
 The Tokyo Trip room, panel collapsed: `Shared treasury · $1,000.00`.
 
-> "Five of us put $1,000 in one pot — and handed it to an AI. That raises a question we
-> never had with a human treasurer: if the AI moves our money, *who actually said yes?*
-> Not an account. Not a session. Not your agent. Not the AI itself. Real people, this
-> time. That's what we asked World for."
+> "Have you ever managed money with other people? Five of us are, right now, at ETHGlobal
+> Tokyo. Pooling it was easy. The hard part is what we agreed — who can spend it, on what,
+> how many of us must say yes. We wrote it down. *Our wallet doesn't know any of it.* So we
+> gave the pot to the agent that already keeps our memory — and asked World to make sure
+> every 'yes' is a different, real human."
 
-Caption: `AI manages the money. Humans approve it.`
+Caption: `Shared money comes with an agreement. The wallet doesn't know it.` → `AI manages the money. Humans approve it.`
 
-## 1 · The relation (0:12–0:32) [live — needs the Portal app]
+## 1 · The relation (0:15–0:32) [live — needs the Portal app]
 
 Caption: `One unique human → one vote`
 

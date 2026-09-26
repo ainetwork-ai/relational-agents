@@ -63,12 +63,12 @@ same ACL.
 [Demo script](docs/world/DEMO.md) · [integration debriefs](docs/world/debrief.md) ·
 [integration log](docs/world/integration-log.md) · [plan](docs/world-relation-treasury-scenario.md)
 
-**The problem.** Once an AI holds shared money, the question is no longer whether the
-friends trust each other but whether they can trust the AI: when it moves money, *who said
-yes?* Not an account, not a session, not someone's agent (half the "people" in a group
-chat now are), not the AI itself — distinct humans, proven at that moment, and named in
-the record. A multisig counts keys; one person with ten wallets is ten signers. The
-treasury counts humans, and that is the one fact it asks World for.
+**The problem.** Shared money comes with an agreement — who may spend it, on what, how many
+must say yes — and we keep it in chat and docs. The wallet doesn't know it: a multisig knows
+keys and a threshold, not "the hotel comes first" or "never to a member's own wallet", and
+ten wallets of one person are ten signers. So the agent that already keeps the relation's
+memory holds the pot and applies the agreement as written, and World proves each approval is
+a distinct human, present now — the one fact the treasury asks of anyone.
 
 Five friends pool $1,000 for a trip. The room's agent — the same agent that keeps the
 relation's memory — holds the pot in its own wallet (Sepolia), and what it may do with it is
