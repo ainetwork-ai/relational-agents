@@ -461,7 +461,7 @@ const seoyeonAlbum = await page(P.seoyeonAlbum.title, "📷", [
   photoGrid("seoyeon", under("seoyeon", SEED.dirs.seoyeonJeju, /\.(jpe?g|png)$/i)),
   h2(P.seoyeonAlbum.giftHeading),
   ...(gift ? [{ type: "file" as const, content: { text: gift.spec.title, gift } as BlockContent }] : []),
-  callout("💌", P.seoyeonAlbum.callout),
+  callout("💌", `${P.seoyeonAlbum.callout}\n${SEED.gift.credit}`),
 ], "seoyeon");
 
 // ② the birthday — only in the private teamspace
