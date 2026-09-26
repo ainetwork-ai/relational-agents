@@ -45,7 +45,7 @@ const WARN =
   "flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300";
 
 /** Connect MetaMask and sign the server's challenge; on success the account's wallet is proven. */
-function LoginButton({ live, onLinked, refresh, onError }: { live: Address | null; onLinked: () => Promise<void>; refresh: () => void; onError: (msg: string | null) => void }) {
+function LoginButton({ onLinked, refresh, onError }: { onLinked: () => Promise<void>; refresh: () => void; onError: (msg: string | null) => void }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   return (
@@ -56,8 +56,9 @@ function LoginButton({ live, onLinked, refresh, onError }: { live: Address | nul
       onClick={async () => {
         setBusy(true);
         onError(null);
-        // MetaMask already connected to this site: sign with that wallet; otherwise let it pick one
-        const r = await linkMetaMask({ pick: !live });
+        // Always open MetaMask's account picker: the account this site was authorized for earlier is
+        // not necessarily the one the person chooses now, and signing must use the one they choose.
+        const r = await linkMetaMask();
         setBusy(false);
         refresh();
         if (r.ok) await onLinked();
@@ -100,7 +101,7 @@ export function WalletSection({
     return (
       <SettingsSection title={t("Wallet")}>
         <SettingsRow label={t("Log in with your wallet")} description={t("Then a workspace admin can add you to the family.")}>
-          <LoginButton live={gate.live} onLinked={onLinked} refresh={refresh} onError={setError} />
+          <LoginButton onLinked={onLinked} refresh={refresh} onError={setError} />
           <ErrorLine error={error} />
         </SettingsRow>
       </SettingsSection>
@@ -131,7 +132,7 @@ export function WalletSection({
         <SettingsSection title={t("Wallet")}>
           <SettingsRow label={t("Log in with your wallet")} description={t("Family names are created and managed with your wallet.")}>
             <div data-testid="family-wallet-unproven" className="flex flex-wrap justify-end gap-2">
-              <LoginButton live={gate.live} onLinked={onLinked} refresh={refresh} onError={setError} />
+              <LoginButton onLinked={onLinked} refresh={refresh} onError={setError} />
             </div>
             <ErrorLine error={error} />
           </SettingsRow>

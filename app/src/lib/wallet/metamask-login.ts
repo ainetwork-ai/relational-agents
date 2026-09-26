@@ -58,13 +58,13 @@ function reasonFor(err: unknown): MetaMaskFailure {
 }
 
 /**
- * Pick an account in MetaMask (or, with `pick: false`, take the one it is on), fetch a fresh challenge and sign it.
+ * Pick an account in MetaMask (the picker always opens), fetch a fresh challenge and sign it with that account.
  * Throws `MetaMaskFlowError` (no wallet / no account) or the provider's error (4001 on reject).
  */
-export async function signChallengeWithMetaMask(opts: { pick?: boolean } = {}): Promise<{ address: string; signature: string }> {
+export async function signChallengeWithMetaMask(): Promise<{ address: string; signature: string }> {
   const ethereum = getInjectedProvider();
   if (!ethereum) throw new MetaMaskFlowError("no-wallet", "MetaMask not detected. Please install the extension.");
-  if (opts.pick !== false) await forceAccountPicker(ethereum);
+  await forceAccountPicker(ethereum);
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
   const address = accounts?.[0];
   if (!address) throw new MetaMaskFlowError("no-account", "No MetaMask account available.");
@@ -118,12 +118,11 @@ export async function signInWithMetaMask(
 export type LinkResult = { ok: true; address: string } | { ok: false; error: string; reason: MetaMaskFailure };
 
 /** Prove a MetaMask address for the account signed in now; the session keeps its user.
- *  `pick: false` signs with the account MetaMask is on now instead of opening the account picker.
  *  `error` is English (for logs); `reason` is what a UI translates. */
-export async function linkMetaMask(opts: { pick?: boolean } = {}): Promise<LinkResult> {
+export async function linkMetaMask(): Promise<LinkResult> {
   const fallback = "Connecting MetaMask failed";
   try {
-    const { address, signature } = await signChallengeWithMetaMask({ pick: opts.pick });
+    const { address, signature } = await signChallengeWithMetaMask();
     const res = await fetch("/api/auth/wallet-link", {
       method: "POST",
       headers: { "content-type": "application/json" },
