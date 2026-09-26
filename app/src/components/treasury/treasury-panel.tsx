@@ -7,6 +7,7 @@ import { ChevronRight, X } from "lucide-react";
 import type { RpContext } from "@worldcoin/idkit";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
+import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
 
 const WORLD_ID_APP_ID = process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "";
 // Until the status reports seatEnvironment, fall back to the same variable the
@@ -108,6 +109,7 @@ function memoOf(a: Action): string {
 }
 /** The card's headline: a payment's amount and memo, or what a ratification adopts. */
 function titleOf(a: Action, amount: (n: number) => string): string {
+  if (a.kind === "recurring-buy") return `🔁 ${a.memo.replace(/^recurring buy/, "Recurring buy")}`;
   return a.kind === "ratify" ? `📜 Adopt ${a.memo}` : `${amount(a.amountUsd)} · ${memoOf(a)}`;
 }
 function hoursLeft(iso: string | null): string | null {
@@ -309,6 +311,14 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
           </span>
         )}
         <span className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
+          <Link
+            href={`/treasury/${roomId}`}
+            data-testid="treasury-open-page"
+            className="text-neutral-700 underline-offset-2 hover:underline dark:text-neutral-300"
+          >
+            Open treasury ↗
+          </Link>
+          {" · "}
           <span title={scaleNote}>Sepolia · testnet scale</span>
           {status.address && (
             <>
@@ -499,7 +509,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             </div>
           )}
 
-          {pending.map((a) => {
+          {pending.filter((a) => a.id !== status.recurring?.pending?.actionId).map((a) => {
             const got = a.approvals.length;
             const pct = a.requiredApprovals > 0 ? Math.min(100, (got / a.requiredApprovals) * 100) : 100;
             // quorum met but still pending: the transfer and its gas refund are
@@ -565,7 +575,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                     data-testid="treasury-paying"
                     className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300"
                   >
-                    {a.kind === "ratify"
+                    {a.kind === "ratify" || a.kind === "recurring-buy"
                       ? "Adopting… this updates in a moment."
                       : "Paying on Sepolia… this updates when the payment confirms."}
                   </div>
@@ -598,12 +608,17 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
             );
           })}
 
+          <RecurringBuyPanel key={roomId} roomId={roomId} status={status} onChanged={refresh} />
+
           {history.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800" data-testid="treasury-history">
               {history.map((a) => (
                 <li key={a.id} data-testid="treasury-history-item" className="leading-relaxed">
                   {a.status === "executed" && a.kind === "ratify" && (
                     <span className="text-neutral-700 dark:text-neutral-300">📜 Adopted {a.memo}</span>
+                  )}
+                  {a.status === "executed" && a.kind === "recurring-buy" && (
+                    <span className="text-neutral-700 dark:text-neutral-300">📌 Adopted {a.memo}</span>
                   )}
                   {a.status === "unconfirmed" && (
                     <span className="text-amber-700 dark:text-amber-300">
@@ -624,7 +639,7 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
                       · don&apos;t ask again until it settles
                     </span>
                   )}
-                  {a.status === "executed" && a.kind !== "ratify" && (
+                  {a.status === "executed" && a.kind !== "ratify" && a.kind !== "recurring-buy" && (
                     <span className="text-neutral-700 dark:text-neutral-300">
                       ✅ {usdShort(a.amountUsd)} · {memoOf(a)}
                       {a.txHash && (

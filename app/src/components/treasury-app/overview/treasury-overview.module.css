@@ -1,0 +1,614 @@
+/* Treasury product identity (Claude Design "Treasury.html"), scoped to the
+   overview root through CSS modules so nothing reaches the Notion app. The
+   surface is light-only by design. */
+
+.root {
+  --tr-coral: #ff6b4a;
+  --tr-coral-ink: #e8492b;
+  --tr-tint: #fff0ec;
+  --tr-bg: #f4f5f7;
+  --tr-card: #ffffff;
+  --tr-text: #191f28;
+  --tr-sec: #6b7684;
+  --tr-ter: #b0b8c1;
+  --tr-line: #e5e8eb;
+  --tr-hair: #f2f4f6;
+  --tr-wait: #f59e0b;
+  --tr-wait-bg: #fef3dc;
+  --tr-wait-ink: #a35a00;
+  --tr-ok: #00a86b;
+  --tr-ok-bg: #e5f6ef;
+  --tr-ok-ink: #007a4d;
+
+  color-scheme: light;
+  min-height: 100%;
+  background: var(--tr-bg);
+  color: var(--tr-text);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto,
+    "Helvetica Neue", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.root *,
+.root *::before,
+.root *::after {
+  box-sizing: border-box;
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 44px 32px 96px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- header ---- */
+
+.kicker {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tr-coral-ink);
+  margin: 0 0 6px;
+}
+
+.title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--tr-sec);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+/* ---- stat strip ---- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0 16px;
+}
+
+.stat {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--tr-card);
+  border-radius: 22px;
+  padding: 20px 22px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 0 0 1.5px transparent;
+  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+  min-width: 0;
+}
+
+.stat:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 0 0 1.5px var(--tr-line);
+}
+
+.stat:focus-visible {
+  outline: 2px solid var(--tr-coral);
+  outline-offset: 2px;
+}
+
+.statOn,
+.statOn:hover {
+  background: var(--tr-tint);
+  box-shadow: 0 2px 8px rgba(255, 90, 60, 0.1), inset 0 0 0 1.5px var(--tr-coral);
+}
+
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tr-sec);
+}
+
+.statValue {
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-top: 8px;
+}
+
+.statValueWait {
+  color: var(--tr-wait-ink);
+}
+
+.statValueMuted {
+  color: var(--tr-ter);
+}
+
+.statHint {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tr-sec);
+  margin-top: 4px;
+}
+
+/* ---- list card ---- */
+
+.card {
+  background: var(--tr-card);
+  border-radius: 22px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 8px 16px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 8px 12px;
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.clear {
+  appearance: none;
+  border: 0;
+  background: var(--tr-hair);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333d4b;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--tr-coral);
+  outline-offset: 2px;
+}
+
+/* One grid for the header and every row, so columns line up. */
+.th,
+.tr {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(96px, 0.75fr) minmax(210px, 1.5fr) 92px minmax(140px, 1.25fr) 16px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 8px;
+}
+
+.th {
+  height: 36px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b95a1;
+  border-bottom: 1px solid var(--tr-line);
+}
+
+.thRight {
+  text-align: right;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tr {
+  min-height: 68px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 14px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--tr-hair);
+  border-radius: 12px;
+  transition: background-color 0.12s ease;
+}
+
+.list > li:last-child .tr {
+  border-bottom: 0;
+}
+
+.tr:hover {
+  background: #f9fafb;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tr:focus-visible {
+  outline: 2px solid var(--tr-coral);
+  outline-offset: -2px;
+}
+
+.relation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.relationName {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.balance {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--tr-ter);
+  font-weight: 500;
+}
+
+.cellLabel {
+  display: none;
+}
+
+.recurring {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  /* the pot is right-aligned; keep its "—" from touching this column's "—" */
+  padding-left: 18px;
+}
+
+.recurringLine {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.recurringLine > .liveDot {
+  align-self: center;
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--tr-ok);
+  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.15);
+}
+
+.recurringSub {
+  font-size: 12.5px;
+  color: var(--tr-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recurringSubOk {
+  color: var(--tr-ok-ink);
+  font-weight: 600;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0;
+  width: fit-content;
+}
+
+.chipWait {
+  background: var(--tr-wait-bg);
+  color: var(--tr-wait-ink);
+}
+
+.chipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.approvals {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.count {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--tr-wait-bg);
+  color: var(--tr-wait-ink);
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.others {
+  font-size: 12px;
+  color: var(--tr-sec);
+  white-space: nowrap;
+}
+
+.latest {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.latestLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.latestAt {
+  font-size: 12.5px;
+  color: var(--tr-ter);
+  font-weight: 600;
+}
+
+.chev {
+  color: var(--tr-ter);
+  display: block;
+}
+
+/* ---- states ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px 44px;
+}
+
+.agentMark {
+  width: 56px;
+  height: 56px;
+  border-radius: 17px;
+  background: var(--tr-tint);
+  color: var(--tr-coral);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 74, 0.2);
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 18px 0 6px;
+}
+
+.emptyText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--tr-sec);
+  margin: 0;
+  max-width: 380px;
+}
+
+.btnDark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  margin-top: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tr-text);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btnDark:hover {
+  color: #fff;
+  text-decoration: none;
+  background: #333d4b;
+}
+
+.btnDark:focus-visible {
+  outline: 2px solid var(--tr-coral);
+  outline-offset: 2px;
+}
+
+.skeleton {
+  height: 68px;
+  margin: 0 8px;
+  border-bottom: 1px solid var(--tr-hair);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.skeletonBar {
+  height: 12px;
+  border-radius: 99px;
+  background: var(--tr-hair);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBar {
+    animation: none;
+  }
+}
+
+/* ---- phone: rows become stacked cards ---- */
+
+@media (max-width: 767px) {
+  .page {
+    padding: 56px 16px 104px;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+
+  .stats {
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .stat {
+    padding: 14px 12px 14px 14px;
+    border-radius: 18px;
+  }
+
+  .statLabel {
+    font-size: 12px;
+    line-height: 1.3;
+    min-height: 31px;
+    align-items: flex-start;
+  }
+
+  .statValue {
+    font-size: 24px;
+    margin-top: 6px;
+  }
+
+  .statHint {
+    display: none;
+  }
+
+  .card {
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  .th {
+    display: none;
+  }
+
+  .tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "relation balance"
+      "recurring approvals"
+      "latest latest";
+    row-gap: 10px;
+    column-gap: 12px;
+    padding: 16px 4px;
+  }
+
+  .relation {
+    grid-area: relation;
+  }
+
+  .balance {
+    grid-area: balance;
+  }
+
+  .recurring {
+    grid-area: recurring;
+    padding-left: 0;
+  }
+
+  .approvals {
+    grid-area: approvals;
+  }
+
+  .latest {
+    grid-area: latest;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--tr-sec);
+    padding-top: 10px;
+    border-top: 1px solid var(--tr-hair);
+  }
+
+  .latestLine {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .latestAt {
+    flex: none;
+  }
+
+  .chev {
+    display: none;
+  }
+
+  .cellLabel {
+    display: inline;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tr-sec);
+  }
+}
+
+@media (max-width: 767px) {
+  .approvalsNone {
+    display: none;
+  }
+}
+
+.thIndent {
+  padding-left: 18px;
+}

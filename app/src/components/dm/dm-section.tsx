@@ -8,7 +8,10 @@ import { DmAvatar } from "./dm-avatar";
 import { RelationshipsStrip } from "./relationships-strip";
 import { NewDmModal } from "./new-dm-modal";
 import type { T } from "@/i18n/translate";
-import { useT } from "@/i18n/provider";
+import { useIntlLocale, useT } from "@/i18n/provider";
+import { chipColors } from "@/components/database/option-chip";
+import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
+import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
 
 function preview(room: DmRoomSummary, t: T): string {
   const m = room.lastMessage;
@@ -16,6 +19,62 @@ function preview(room: DmRoomSummary, t: T): string {
   if (m.text) return m.text;
   if (m.hasAttachments) return t("📷 Photo");
   return "";
+}
+
+/** "Mon 9/28" — the mockup's short form in every locale (Intl's own short form changes order and punctuation per locale). */
+function weekdayMonthDay(d: Date, locale: string): string {
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(d);
+  return `${weekday} ${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+/**
+ * A relation row's money line, as in the placement mockup's sidebar: ONE state,
+ * by priority — my vote is owed (orange) › a recurring buy is running (green,
+ * then when it next buys) › nothing (no line at all).
+ */
+function MoneyLine({ money }: { money: TreasurySummaryRoom | undefined }) {
+  const t = useT();
+  const locale = useIntlLocale();
+  if (!money) return null;
+  const usd = (n: number) => `$${n.toLocaleString(locale, { maximumFractionDigits: 2 })}`;
+  const live = money.recurring?.state === "live" ? money.recurring : null;
+  let chip: { color: "orange" | "green"; label: string; dot: boolean } | null = null;
+  let detail: string | null = null;
+  if (money.pendingForMe > 0) {
+    chip = { color: "orange", dot: true, label: t("{n} waiting for your approval", { n: money.pendingForMe }) };
+  } else if (live) {
+    chip = { color: "green", dot: false, label: t("Buying {amount} weekly", { amount: `${live.weeklyUsd} USDC` }) };
+    detail = live.boughtThisWeek
+      ? t("Bought this week")
+      : live.nextRunAt
+        ? t("Next {date}", { date: weekdayMonthDay(new Date(live.nextRunAt), locale) })
+        : null;
+  }
+  if (!chip) return null;
+  const c = chipColors(chip.color);
+  return (
+    <span
+      data-testid={`dm-money-${money.roomId}`}
+      className="mt-[5px] flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-neutral-400 dark:text-neutral-500"
+    >
+      {money.balanceUsd !== null && (
+        <>
+          <span className="tabular-nums">{usd(money.balanceUsd)}</span>
+          <span>·</span>
+        </>
+      )}
+      <span
+        className={`inline-flex h-5 items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 leading-none ${
+          chip.color === "orange" ? "font-medium" : ""
+        }`}
+        style={{ background: c.bg, color: c.text }}
+      >
+        {chip.dot && <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.dot }} />}
+        {chip.label}
+      </span>
+      {detail && <span className="tabular-nums">{detail}</span>}
+    </span>
+  );
 }
 
 /** Sidebar Chats tab, "Relationships" section — sits above the AI chat list. */
@@ -28,6 +87,7 @@ export function DmSection() {
   const [meId, setMeId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const t = useT();
+  const money = useTreasurySummary(useTreasuryV2());
 
   useEffect(() => {
     void load();
@@ -123,6 +183,7 @@ export function DmSection() {
                   >
                     {preview(room, t)}
                   </span>
+                  <MoneyLine money={money.get(room.id)} />
                 </span>
                 {room.unreadCount > 0 && (
                   <span

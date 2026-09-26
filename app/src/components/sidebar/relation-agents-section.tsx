@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { Bot, Pencil, Check } from "lucide-react";
 import { useDmEvents } from "@/hooks/use-dm-events";
 import { useT } from "@/i18n/provider";
+import { chipColors } from "@/components/database/option-chip";
+import { useTreasuryV2 } from "@/components/treasury-app/use-treasury-ui";
+import { useTreasurySummary, type TreasurySummaryRoom } from "@/components/sidebar/use-treasury-summary";
 
 interface RelAgent {
   agentUserId: string;
@@ -13,6 +16,34 @@ interface RelAgent {
   avatarUrl: string | null;
   roomId: string;
   roomName: string;
+}
+
+/** What the agent is holding for its room: a proposal waiting (orange) › a recurring buy running (green) › nothing. */
+function AgentMoneyStatus({ money }: { money: TreasurySummaryRoom | undefined }) {
+  const t = useT();
+  if (!money) return null;
+  const status =
+    money.pendingTotal > 0
+      ? {
+          color: "orange" as const,
+          label:
+            money.pendingTotal > 1
+              ? t("{n} proposals waiting", { n: money.pendingTotal })
+              : t("1 proposal waiting"),
+        }
+      : money.recurring?.state === "live"
+        ? { color: "green" as const, label: t("1 recurring buy running") }
+        : null;
+  if (!status) return null;
+  return (
+    <span
+      data-testid={`agent-money-${money.roomId}`}
+      className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] text-neutral-400 dark:text-neutral-500"
+    >
+      <i className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: chipColors(status.color).dot }} />
+      {status.label}
+    </span>
+  );
 }
 
 /** Sidebar "Agents" section — the relationship agents born from your DM
@@ -23,6 +54,7 @@ export function RelationAgentsSection() {
   const [agents, setAgents] = useState<RelAgent[]>([]);
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const money = useTreasurySummary(useTreasuryV2());
 
   const load = useCallback(async () => {
     const res = await fetch("/api/agent/mine");
@@ -92,6 +124,7 @@ export function RelationAgentsSection() {
                 {a.displayName}
               </button>
             )}
+            {renameFor !== a.agentUserId && <AgentMoneyStatus money={money.get(a.roomId)} />}
             <button
               onClick={() => {
                 if (renameFor === a.agentUserId) void rename(a);
