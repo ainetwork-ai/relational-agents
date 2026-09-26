@@ -20,10 +20,12 @@ import { docPageIdOf, runPipeline } from "./pipeline";
 import { resolveProfile, type RelationshipProfile } from "./profiles";
 import { ensureOkfDocTree, readOkfSectionTexts, sectionTitles } from "./okf-docs";
 import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
-import { answerViewers, ownDriveSources, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
+import { answerViewers, notBookkeeping, readableFile, roomSources, type DriveSource } from "./shared-drives";
+import { folderHandle, mentionedFolders } from "@/lib/mention/folder";
 import { matchPhotoPage, photoPage } from "./photo-page";
 import { PHOTO_RE, knownCaption, warmCaptions } from "./photo-captions";
 import { langOf, matchFamilySkill, runFamilySkill } from "./family-skills";
+import { answerSendOffer, typedSendAnswer } from "./send-offer";
 import { handleTreasuryCommand } from "./treasury/skill";
 import { isSendRequest } from "@/lib/ens-family/send-request";
 import { isAssistantRoom } from "./assistant-room";
@@ -61,6 +63,8 @@ interface DriveContext {
   files: string[];
   /** path → contents of the files opened for this answer */
   opened: Record<string, string>;
+  /** the folders the message @-mentioned (their labels) — the question is about them */
+  named: string[];
 }
 
 /** Who the agent's folder was linked by — its drive calls run as their account. */
@@ -77,16 +81,6 @@ function safeLink(raw: unknown): AindriveLink | null {
     console.error("aindrive link refused:", (e as Error).message);
     return null;
   }
-}
-
-/** The aindrive folders a room's agent may read: what was shared into the
- *  teamspaces everyone reading the answer can see — and, in a person's own
- *  assistant room, their own drives too. */
-async function roomSources(room: { kind: string; name: string; workspaceId: string | null }, roomId: string, message: ChatMessage): Promise<DriveSource[]> {
-  if (!room.workspaceId) return [];
-  const shared = await sharedDriveSources(room.workspaceId, await answerViewers(roomId, message.authorId, message.privateToUserId ?? null));
-  if (!isAssistantRoom(room)) return shared;
-  return [...shared, ...(await ownDriveSources(message.authorId, shared).catch(() => []))];
 }
 
 /** The folder a model-given path belongs to, and the path inside it. */
@@ -280,7 +274,11 @@ async function llmDecision(
   const driveRules = drive
     ? (shared
         ? `\nYou can also read the aindrive folders the members shared with this space (each file is "<folder>/<path>"; the folder name says whose it is). ` +
-          `Answer from these files when they bear on the question, and say which file you took it from. Files:\n`
+          `Answer from these files when they bear on the question, and say which file you took it from. ` +
+          (drive.named.length
+            ? `The message @-mentions the folder${drive.named.length > 1 ? "s" : ""} ${drive.named.map((l) => `"${l}"`).join(", ")} — "this folder" means ${drive.named.length > 1 ? "those" : "it"}, and the list below is all of ${drive.named.length > 1 ? "their" : "its"} files (what is in it can be answered from the list itself). `
+            : "") +
+          `Files:\n`
         : `\nYou also have a linked file folder (aindrive). Its files:\n`) +
       `${drive.files.map((f) => `- ${f}`).join("\n") || "(empty)"}\n` +
       `A photo's "— photo:" note says what is in the picture (it has been looked at); go by it when asked for photos of something, and never open a photo.\n` +
@@ -411,8 +409,18 @@ export async function respondToMessage(
   try {
     // the relation's treasury: a money sentence is matched by shape and decided
     // by the rules in the relation's memory, never by the model (treasury/skill.ts)
+    // "yes" / "no" to the send skill's "Is this Minjun?" — the asker's own open question here,
+    // answered before anything else reads the word (lib/agent/send-offer.ts)
+    const offerAnswer =
+      mentioned && room.workspaceId ? await typedSendAnswer(roomId, message.authorId, message.text).catch(() => null) : null;
+    const offerReply = offerAnswer
+      ? await answerSendOffer(offerAnswer.offerId, message.authorId, offerAnswer.answer, makeT(langOf(message.text))).catch((e: Error) => {
+          console.error("[send-offer] answer failed:", e);
+          return null;
+        })
+      : null;
     const treasuryReply =
-      mentioned && process.env.AGENT_FAKE_LLM !== "1" && !isSendRequest(message.text)
+      mentioned && !offerAnswer && process.env.AGENT_FAKE_LLM !== "1" && !isSendRequest(message.text)
         ? await handleTreasuryCommand({
             roomId,
             agentUserId,
@@ -429,18 +437,18 @@ export async function respondToMessage(
     // (the prompt skill is code end to end, so it runs even with the model faked)
     // (the room and asker: the prompt skill may be waiting on this person's answer)
     const matched =
-      mentioned && room.workspaceId && !treasuryReply ? matchFamilySkill(message.text, { roomId, askerId: message.authorId }) : null;
+      mentioned && room.workspaceId && !treasuryReply && !offerAnswer ? matchFamilySkill(message.text, { roomId, askerId: message.authorId }) : null;
     const skill = matched === "prompt" || matched === "send" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
     // "a page of the tree photos" — photos chosen by what they show (photo-page.ts)
-    const photoSkill = !skill && mentioned && room.workspaceId && !treasuryReply && process.env.AGENT_FAKE_LLM !== "1" && matchPhotoPage(message.text);
+    const photoSkill = !skill && !offerAnswer && mentioned && room.workspaceId && !treasuryReply && process.env.AGENT_FAKE_LLM !== "1" && matchPhotoPage(message.text);
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
     // a skill's answer — null when it was not a request for it after all (the prompt
     // skill hands a "maybe" back), and the agent answers as it would otherwise
-    let done: { text: string } | null = null;
+    let done: { text: string } | null = offerReply;
     if (skill && room.workspaceId) {
-      const sources = skill === "prompt" || skill === "send" ? [] : await roomSources(room, roomId, message).catch(() => []);
+      const sources = skill === "prompt" || skill === "send" ? [] : await roomSources(room, roomId, message.authorId, message.privateToUserId ?? null).catch(() => []);
       const lang = langOf(message.text);
       const viewerIds = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
       done = await runFamilySkill(skill, {
@@ -464,7 +472,7 @@ export async function respondToMessage(
     } else if (done) {
       decision = { action: "reply", text: done.text };
     } else if (photoSkill && room.workspaceId) {
-      const sources = await roomSources(room, roomId, message).catch(() => []);
+      const sources = await roomSources(room, roomId, message.authorId, message.privateToUserId ?? null).catch(() => []);
       const lang = langOf(message.text);
       const done = await photoPage({ workspaceId: room.workspaceId, askerId: message.authorId, sources, text: message.text, lang, say: post }).catch(
         (e: Error) => {
@@ -547,16 +555,21 @@ export async function respondToMessage(
       if (mentioned && aindriveConfigured()) {
         if (own) sources = [{ label: "", link: own, linkedBy: linkerOf(config.aindrive) }];
         else if (room.workspaceId)
-          sources = await roomSources(room, roomId, message).catch((e) => {
+          sources = await roomSources(room, roomId, message.authorId, message.privateToUserId ?? null).catch((e) => {
             console.error("shared drives failed:", e);
             return [];
           });
       }
+   // "@<folder>" names the folders this question is about: only those are
+   // read, and all of their files are listed — "what is in this folder?"
+   // wants the photos and PDFs too, not just what the model can open.
+      const named = mentionedFolders(message.text, sources.filter((s) => s.label).map((s) => folderHandle(s.label)));
+      if (named.length) sources = sources.filter((s) => s.label && named.includes(folderHandle(s.label)));
       const listed = await Promise.all(
         sources.map((src) =>
           runAsOrService(src.linkedBy, () => listTree(src.link, 100, 40, notUserFolder))
             .then((files) => {
-              const kept = src.label ? files.filter(readableFile) : files;
+              const kept = src.label && !named.length ? files.filter(readableFile) : files.filter(notBookkeeping);
               // a photo's name says where, not what — add what it shows, once someone has looked
               const photos = kept.filter((f) => PHOTO_RE.test(f)).map((rel) => ({ src, rel }));
               warmCaptions(photos);
@@ -575,6 +588,7 @@ export async function respondToMessage(
       const drive: DriveContext | null = listed.some((l) => l !== null)
         ? {
             sources,
+            named: sources.filter((s) => named.length && s.label).map((s) => s.label),
             writable: own ? sources[0] : null,
             files: listed.flatMap((l) => l ?? []).slice(0, 150),
             opened: {},

@@ -26,22 +26,65 @@ with World ID instead of a signed mandate; the swap, the once-a-week rule and th
 
 | piece | where |
 |---|---|
-| addresses: QuoterV2, SwapRouter02, the USDC/WETH 0.05% pool (fee tier 500) | [`invest.ts:22`](../app/src/lib/agent/treasury/invest.ts#L22) |
-| `QuoterV2.quoteExactInputSingle`, simulated (it answers by reverting) | [`invest.ts:70`](../app/src/lib/agent/treasury/invest.ts#L70) |
-| an ERC-20 `approve` for exactly this buy, then the allowance read back on the same client until it shows | [`invest.ts:114`](../app/src/lib/agent/treasury/invest.ts#L114) |
-| `amountOutMinimum` from the quote and the slippage bound | [`invest.ts:127`](../app/src/lib/agent/treasury/invest.ts#L127) |
-| `SwapRouter02.exactInputSingle`, with its own gas limit | [`invest.ts:135`](../app/src/lib/agent/treasury/invest.ts#L135) |
-| a receipt wait that fails after broadcast keeps the tx hash, so the week counts as used | [`invest.ts:142`](../app/src/lib/agent/treasury/invest.ts#L142) |
-| the fill read from this swap's WETH `Transfer` log | [`invest.ts:152`](../app/src/lib/agent/treasury/invest.ts#L152) |
-| what the agent holds, priced back through the same pool | [`invest.ts:177`](../app/src/lib/agent/treasury/invest.ts#L177) |
-| once a week inside the approved terms: the decision and its refusal order | [`recurring-record.ts:327`](../app/src/lib/agent/treasury/recurring-record.ts#L327) |
-| one run: the room's lock, the re-checks, the swap, one history row | [`recurring.ts:661`](../app/src/lib/agent/treasury/recurring.ts#L661), swap at [`:690`](../app/src/lib/agent/treasury/recurring.ts#L690) |
+| addresses: QuoterV2, SwapRouter02, the USDC/WETH 0.05% pool (fee tier 500) | [`invest.ts:26`](../app/src/lib/agent/treasury/invest.ts#L26) |
+| `QuoterV2.quoteExactInputSingle`, simulated (it answers by reverting) | [`invest.ts:76`](../app/src/lib/agent/treasury/invest.ts#L76) |
+| an ERC-20 `approve` for exactly this buy, then the allowance read back on the same client until it shows | [`invest.ts:177`](../app/src/lib/agent/treasury/invest.ts#L177) |
+| `amountOutMinimum` from the quote and the slippage bound | [`invest.ts:190`](../app/src/lib/agent/treasury/invest.ts#L190) |
+| `SwapRouter02.exactInputSingle`, with its own gas limit | [`invest.ts:198`](../app/src/lib/agent/treasury/invest.ts#L198) |
+| a receipt wait that fails after broadcast keeps the tx hash, so the week counts as used | [`invest.ts:205`](../app/src/lib/agent/treasury/invest.ts#L205) |
+| the fill read from the swap's WETH `Transfer` log to the agent — on every route | [`uniswap-api.ts:167`](../app/src/lib/agent/treasury/uniswap-api.ts#L167) |
+| what the agent holds, priced back through the same pool | [`invest.ts:230`](../app/src/lib/agent/treasury/invest.ts#L230) |
+| once a week inside the approved terms: the decision and its refusal order | [`recurring-record.ts:341`](../app/src/lib/agent/treasury/recurring-record.ts#L341) |
+| one run: the room's lock, the re-checks, the swap, one history row | [`recurring.ts:663`](../app/src/lib/agent/treasury/recurring.ts#L663), swap at [`:694`](../app/src/lib/agent/treasury/recurring.ts#L694) |
 | adoption by World ID approvals; only payment kinds reach payment code | [`approvals.ts:1008`](../app/src/lib/agent/treasury/approvals.ts#L1008) |
 
 A real swap through this path on Base mainnet (the treasury's first investment, three humans
 approving): [0x9af1ec96…a53a4b](https://basescan.org/tx/0x9af1ec962d9ae5afc1f2446971cbfc253c3e9b2851b063f0e31a823711a53a4b).
 Weekly runs move real USDC only where `TREASURY_INVEST=uniswap-base` and
 `TREASURY_RECURRING_REAL=1` are set; elsewhere a run is a rehearsal that writes nothing.
+
+### Through the Uniswap Trading API
+
+With `UNISWAP_API_KEY` set, a buy asks the Uniswap Trading API first, and the API chooses the route
+per buy. The direct path above is the fallback while nothing has been sent: an API error, or an
+answer the buy won't act on, before a transaction goes out or an order is handed over falls back in
+the same run, and the reason goes on the run's row. After that the run never falls back — a buy
+that may have gone through must not be made twice — and its week stays used.
+
+| piece | where |
+|---|---|
+| the choice of route, and the fallback rule | [`uniswap-api.ts:412`](../app/src/lib/agent/treasury/uniswap-api.ts#L412) |
+| a buy asks for it; an investment takes CLASSIC routes only, a weekly run may take a UniswapX order | [`invest.ts:129`](../app/src/lib/agent/treasury/invest.ts#L129) |
+| pinned: Universal Router 2.1.2 (the swap transaction must call it), Permit2, the UniswapX reactors on Base | [`uniswap-api.ts:22`](../app/src/lib/agent/treasury/uniswap-api.ts#L22) |
+| `/check_approval` answers `approve(Permit2, MaxUint256)`; the approval sent — only once the quote checks out — is ours, for exactly this buy | [`uniswap-api.ts:217`](../app/src/lib/agent/treasury/uniswap-api.ts#L217) |
+| `/quote`: exact input, our slippage bound, a permit for exactly this amount | [`uniswap-api.ts:306`](../app/src/lib/agent/treasury/uniswap-api.ts#L306) |
+| every route is checked against the chain: the quote's minimum, or the order's floor, must reach the v3 pool's price (QuoterV2) less our slippage | [`invest.ts:126`](../app/src/lib/agent/treasury/invest.ts#L126), [`uniswap-api.ts:253`](../app/src/lib/agent/treasury/uniswap-api.ts#L253), [`:279`](../app/src/lib/agent/treasury/uniswap-api.ts#L279) |
+| `permitData` signed as EIP-712 with the agent's key; the primary type is the one no other type names | [`uniswap-api.ts:230`](../app/src/lib/agent/treasury/uniswap-api.ts#L230) |
+| CLASSIC: `/swap`, then the Universal Router transaction — from here on nothing falls back | [`uniswap-api.ts:329`](../app/src/lib/agent/treasury/uniswap-api.ts#L329), [`:332`](../app/src/lib/agent/treasury/uniswap-api.ts#L332) |
+| UniswapX (`DUTCH_V3`, `PRIORITY`): `/order`, then `/orders` polled for up to two minutes | [`uniswap-api.ts:347`](../app/src/lib/agent/treasury/uniswap-api.ts#L347), [`:374`](../app/src/lib/agent/treasury/uniswap-api.ts#L374) |
+| an order still open when the run stops watching holds its week, as a sent swap does | [`recurring-record.ts:357`](../app/src/lib/agent/treasury/recurring-record.ts#L357) |
+| the route and the `/quote` requestId on the run's history row | [`recurring.ts:721`](../app/src/lib/agent/treasury/recurring.ts#L721) |
+
+Tests, offline — mocked fetch and chain, with the answer shapes the API returned on Base:
+`app/scripts/uniswap-api-selftest.mts` (no key; CLASSIC; UniswapX filled; a fallback for each kind
+of API error and refused answer; an order not filled in time; a swap sent, then failed).
+
+Measured on Base on 2026-09-27 with read-only `/quote` calls, USDC → WETH: 0.1 USDC, our demo size,
+routes CLASSIC through one v3 pool — the 0.01% pool, and in one quote the 0.03% pool — where the
+direct path uses the 0.05% pool; at this size QuoterV2 put the 0.01% and 0.05% pools about 0.003%
+apart. UniswapX-only quotes (`protocols: ["UNISWAPX_V3"]`) answered `QuoteAmountTooLowError` from
+0.1 to 250 USDC, `NoRouteFoundError` at 500 and `DUTCH_V3` from 1,000; `["UNISWAPX_V2"]` answered
+`PRIORITY` at 5,000. The docs: "For orders at or below 300 USDC equivalent, UniswapX is included
+only when it meets that 0.2% improvement." So our buys route CLASSIC, and the UniswapX path has run
+only in the tests.
+
+One buy has gone through the API on Base mainnet, sent by `buyWethWithUsdc` — the function the app's
+buy calls — from this package's agent key: 0.1 USDC → 0.0000372796 WETH, CLASSIC through the v3
+0.01% pool,
+[`0x751998a1…`](https://basescan.org/tx/0x751998a1a0ae757a65878fa867a5154e7d9928034a8ef2469f2cf35b2bca6c8c)
+(`/quote` requestId `2ec53c8b798ab04f6aaa47da7187558e`). The direct path's 0.05% pool quoted
+0.0000372524 WETH at the same time. Afterwards the wallet's USDC allowance to Permit2 and Permit2's
+allowance to the Universal Router both read 0.
 
 ## Layout
 
@@ -201,9 +244,45 @@ exactly the 0.3 USDC total. Plan id
 The pull was sent from this package's own agent key, not the pot's: anyone may call `pull`, and the
 USDC still went only to the plan's pot.
 
-Not done yet: no app screen starts a plan. `node --test` runs its Foundry tests on a fork of Base
-mainnet — the real Permit2 and USDC — (`test/recurring-contribution.test.js` runs `forge test
---fork-url`) and skips without Foundry or a Base RPC.
+### In the app
+
+A member starts a plan from the Treasury page with their own wallet — three confirmations: exactly
+the plan's total to Permit2, the same total to this contract until the plan ends, then `start`. The
+plan's salt is the app's for that room member, so the page names them without a table. The agent
+collects the periods that are due — right after a member starts a plan, and before each weekly buy —
+one `pull` per plan after simulating it, and writes each to Treasury Activity. The Contributions tab
+reads everything from `plansOf(pot)` (by person × by month), and Activity lists every collected
+period as money in.
+
+| piece | where |
+|---|---|
+| the contract, Permit2 and USDC on Base, as the server and the browser use them | [`contribution-plan.ts:13`](../app/src/lib/agent/treasury/contribution-plan.ts#L13) |
+| the salt that names the room member who started a plan | [`contribution-plan.ts:56`](../app/src/lib/agent/treasury/contribution-plan.ts#L56) |
+| each period's state from `pulled` and `stoppedAt`: collected, due, missed, upcoming, stopped | [`contribution-plan.ts:106`](../app/src/lib/agent/treasury/contribution-plan.ts#L106) |
+| `plansOf(pot)`, then each member's Permit2 allowance, USDC allowance and balance in one multicall | [`contributions.ts:61`](../app/src/lib/agent/treasury/contributions.ts#L61) |
+| collecting: one room at a time, each pull simulated, then sent with an explicit nonce | [`contributions.ts:225`](../app/src/lib/agent/treasury/contributions.ts#L225), [`:270`](../app/src/lib/agent/treasury/contributions.ts#L270), [`:277`](../app/src/lib/agent/treasury/contributions.ts#L277) |
+| the weekly run collects before it buys; the room hears what came in | [`tools.ts:257`](../app/src/lib/agent/treasurer/tools.ts#L257), [`:270`](../app/src/lib/agent/treasurer/tools.ts#L270) |
+| the member's wallet: `USDC.approve(Permit2, exact)`, `Permit2.approve(USDC, contract, total, until)`, `start` | [`contribution-dialogs.tsx:208`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L208), [`:214`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L214), [`:217`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L217) |
+| the first period collected right after `start`, once the RPC lists the new plan | [`contribution-dialogs.tsx:264`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L264) |
+| `stop`, and the Permit2 allowance set to 0 | [`contribution-dialogs.tsx:502`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L502) |
+| every collected period in the Activity record | [`activity-model.ts:182`](../app/src/components/treasury-app/room/activity-model.ts#L182) |
+
+Run for real against the app on Base mainnet: a presenter signed in with MetaMask (a burner wallet)
+and started $20 a week for three weeks —
+[approve](https://basescan.org/tx/0x2c70f668bf18b715464e7d6542e3d74ddf786a747974092210d9a5f550cf650c) ·
+[Permit2 approve](https://basescan.org/tx/0x2c5338a0c9e3847c092cf20aeb290f355ccec2e82664fe0d7ffa2e4422e5e186) ·
+[start](https://basescan.org/tx/0x5211e354f451d01be9311154f9aec80291e2a25f4d2832f5fec09769ac23a8ce); three friends'
+first periods came in through the app's collect
+([Bea](https://basescan.org/tx/0xe96c1254eb76ccfb8c1b8039965250091afa930f1e05b4204986b4aa25148048) ·
+[Chris](https://basescan.org/tx/0xc85da642783dc88be1d62db3ab2549ad4ffaa4d630e1c0368d2107c7631e11ed) ·
+[Dana](https://basescan.org/tx/0xe5a2d9ef9da587e02330860092fb46c92916b393c7258fc812fe952f5510ced6)); asked in chat,
+the treasurer collected the presenter's first period and bought the week's ETH through the Trading
+API ([0x3b57b0a1…](https://basescan.org/tx/0x3b57b0a10de888be744be0d04398561eb0de69e5cc290aa481b58ad3743c15dc)).
+
+`node --test` runs the contract's Foundry tests on a fork of Base mainnet — the real Permit2 and
+USDC — (`test/recurring-contribution.test.js` runs `forge test --fork-url`) and skips without
+Foundry or a Base RPC; `app/scripts/contribution-plan-selftest.mts` checks the app's plan id against
+the mainnet one.
 
 Per-period pulls are an established pattern: Coinbase Spend Permissions (`SpendPermissionManager`)
 and MetaMask's `ERC20PeriodTransferEnforcer` enforce them for smart accounts. This contract does the
@@ -220,13 +299,15 @@ same for any wallet that has approved Permit2.
 | The Relation Treasury in the app (rules from the relation's doc, World ID approvals, the Sepolia pot, the investing swap) | the World track, see [`world/`](../world/) for what existed before vs what was built |
 | The recurring buy in the app, its Treasury page (the agent's wallet, holdings per chain, every swap), the treasurer agent (7 tools, AG-UI stream, A2UI cards) | **new, built 2026-09-26 during ETHGlobal Tokyo** |
 | `contracts/RecurringContribution.sol` — recurring contributions from members' wallets through Permit2, with Base-fork tests, deployed on Base mainnet | **new, built 2026-09-27 during ETHGlobal Tokyo** |
-| A scheduler that runs the week without a member asking, the Trading API provider | not yet |
+| The app's buy through the Uniswap Trading API (`uniswap-api.ts`), the direct v3 path as its fallback | **new, built 2026-09-27 during ETHGlobal Tokyo** |
+| Members' recurring contributions in the app: start and stop from a member's wallet, the Contributions tab, the agent's collection, the Activity record | **new, built 2026-09-27 during ETHGlobal Tokyo** |
+| A scheduler that runs the week without a member asking; a Trading API provider in this package | not yet |
 
 ## Honest limits
 
 - **One chain template.** `src/chains/base.js` serves the anvil fork and Base mainnet through
-  `RPC_URL`; other chains and the Uniswap Trading API provider are slice 2, behind the same
-  `SwapProvider` interface.
+  `RPC_URL`; other chains and a Uniswap Trading API provider for this package are slice 2, behind
+  the same `SwapProvider` interface (the app's buy has one — "Through the Uniswap Trading API").
 - **The fork is shared.** A red balance assertion in `test/router.execute.test.js` after someone
   else's swap landed between the quote and the fill is not a code defect — rerun it.
 - **`NOW` is not the chain's clock.** It moves the period key, the `at` timestamp and the expiry

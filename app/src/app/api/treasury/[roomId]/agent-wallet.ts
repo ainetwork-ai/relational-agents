@@ -1,6 +1,7 @@
 import "server-only";
 import { createPublicClient, fallback, formatUnits, http, parseAbi, parseEventLogs, type Hex, type Log } from "viem";
 import { base } from "viem/chains";
+import { displayContributions } from "@/lib/agent/treasury/contributions";
 import { INVEST_CHAIN, investConfig, type InvestConfig } from "@/lib/agent/treasury/invest";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SwapAmounts, TreasuryWallet } from "@/components/treasury-app/room/room-types";
@@ -93,12 +94,15 @@ async function investmentSwaps(status: TreasuryStatus, cfg: InvestConfig | null)
   return out;
 }
 
-export async function agentWallet(status: TreasuryStatus): Promise<TreasuryWallet> {
+export async function agentWallet(roomId: string, status: TreasuryStatus): Promise<TreasuryWallet> {
   const cfg = investConfig();
+  const pot = (status.address as `0x${string}` | null | undefined) ?? null;
+  const [swaps, contributions] = await Promise.all([investmentSwaps(status, cfg), displayContributions(roomId, pot)]);
   return {
     base: baseHoldings(status, cfg),
     usdcPerUsd: usdcPerUsd(cfg),
-    swaps: await investmentSwaps(status, cfg),
+    swaps,
     explorable: explorable(),
+    contributions,
   };
 }

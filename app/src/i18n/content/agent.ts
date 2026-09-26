@@ -503,3 +503,18 @@ export const ASSISTANT_ROOM_NAME = "에이전트";
 
 /** "grandma's songpyeon" said casually — not a person or a brand. */
 export const CASUAL_DISH_EXAMPLE = "할머니표 송편";
+
+// ── the send skill's "Is this Minjun?" (src/lib/agent/send-offer.ts) ──────────
+
+/** A whole-message answer to "Is this Minjun?" — regex fragments, lower case, apostrophes and
+ *  end punctuation dropped. Money moves on yes, so only plain yes / no words count. */
+export const SEND_CONFIRM_WORDS = {
+  yes: [
+    "yes", "yeah", "yep", "yup", "sure", "right", "correct", "ok(?:ay)?", "(?:yes,? )?(?:thats|that is) (?:him|her|them|right|correct)", "yes please",
+    "네+", "넵+", "넹+", "예+", "응+", "어+", "맞아(?:요)?", "맞습니다", "맞음", "맞네(?:요)?", "그래(?:요)?", "네 맞아(?:요)?",
+  ],
+  no: [
+    "no", "nope", "nah", "not (?:him|her|them)", "wrong", "wrong person", "cancel", "dont(?: send(?: it)?)?", "no thanks",
+    "아니+", "아니(?:요|야|에요|예요)", "아뇨", "아냐", "아닌데(?:요)?", "아니 보내지 ?마", "보내지 ?마(?:요|세요)?", "취소(?:해(?:줘|요)?)?",
+  ],
+} as const;

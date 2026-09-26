@@ -7,9 +7,10 @@
  * to leave for a block explorer; the explorer is one small link inside.
  */
 
+import type { SwapRoute } from "@/lib/agent/treasury/swap-route";
 import { useId, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, ArrowUpRight, Check, ChevronDown, CircleMinus, Clock, Copy, Repeat, ScrollText, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Check, ChevronDown, CircleMinus, Clock, Copy, Repeat, ScrollText, Wallet } from "lucide-react";
 import { useIntlLocale, useT } from "@/i18n/provider";
 import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import { buildActivity, groupByDay, onChainOnly, type ActivityItem } from "./activity-model";
@@ -28,11 +29,20 @@ const ICONS: Record<ActivityItem["icon"], typeof Repeat> = {
   invest: ArrowLeftRight,
   withdraw: Wallet,
   wait: Clock,
+  contribution: ArrowDownLeft,
 };
 
 const EXPLORER_NAME = { sepolia: "Etherscan", base: "Basescan" } as const;
 
 /** The icon's colour: its state first, then the chain it moved on. */
+/** What a swap's Route line says: the recorded way it went; the pool is named only for the direct path, which always uses the 0.05% pool. */
+function routeText(route: SwapRoute | null): string {
+  if (route === "uniswap-api CLASSIC") return "Uniswap Trading API · Universal Router";
+  if (route === "uniswap-api UniswapX") return "Uniswap Trading API · UniswapX order";
+  if (route === "direct v3") return "Uniswap v3 · USDC/WETH 0.05%";
+  return "Uniswap · Base";
+}
+
 function markClass(item: ActivityItem): string {
   if (item.tone === "wait") return styles.markWait;
   if (item.tone === "bad") return styles.markBad;
@@ -73,7 +83,7 @@ function TxFacts({ item, agentAddress }: { item: ActivityItem; agentAddress: str
       {item.uniswap ? (
         <div>
           <dt>{t("Route")}</dt>
-          <dd>Uniswap v3 · USDC/WETH 0.05%</dd>
+          <dd>{routeText(item.route)}</dd>
         </div>
       ) : (
         item.to && (

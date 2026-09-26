@@ -17,6 +17,16 @@
  *                adoption — what scene 2 does on camera, for a take that
  *                starts after it
  *     --app      base URL printed in the links (default http://localhost:36625)
+ *     --mine 0x…  a presenter's own copy: the same room, rules and faces, its own
+ *                workspace ("… (demo)"), Alex's account is the presenter's wallet
+ *                (MetaMask login lands on it), Chris, Dana and Eli seated, and a
+ *                recurring buy already adopted with their seeded approvals. Its agent
+ *                holds DEMO_POT_KEY (app/.env.demo) and its rows take fixed ids, so
+ *                every server this runs on shows the same pot and names the same
+ *                contributions (scripts/demo-contributions.mts starts those on Base).
+ *                --name sets Alex's name on a new account; an existing account keeps its own,
+ *                and its World ID and notifications: the copy adds rows and changes only
+ *                what it made (--reset removes only the fixed room).
  *
  * Makes, idempotently:
  *   - six accounts reachable by demo login (POST /api/auth/demo-login
@@ -53,6 +63,11 @@
 
 // env first — @/lib/db opens its pool at import time, wallet.ts reads its RPC
 process.loadEnvFile?.(new URL("../.env.local", import.meta.url).pathname);
+try {
+  process.loadEnvFile?.(new URL("../.env.demo", import.meta.url).pathname);
+} catch {
+  // only --mine needs it
+}
 
 const path = await import("node:path");
 const { randomUUID } = await import("node:crypto");
@@ -78,16 +93,27 @@ const arg = (name: string, fallback?: string) => {
   return i > 0 ? process.argv[i + 1] : fallback;
 };
 const TRY = process.argv.includes("--try");
+/** the presenter's wallet — Alex's account in their own copy */
+const MINE = arg("mine")?.toLowerCase();
+if (MINE !== undefined && !/^0x[0-9a-f]{40}$/.test(MINE)) throw new Error("--mine takes the presenter's wallet address (0x…)");
+if (MINE && TRY) throw new Error("--mine and --try are separate copies — pick one");
+const MINE_NAME = arg("name");
+const DEMO_POT_KEY = process.env.DEMO_POT_KEY?.trim();
+if (MINE && !/^0x[0-9a-fA-F]{64}$/.test(DEMO_POT_KEY ?? "")) throw new Error("--mine needs DEMO_POT_KEY in app/.env.demo — the one pot every server shows");
+// fixed ids, so the presenter's copy is the same on every server (contribution salts name members by id)
+const { stableId, MINE_ROOM_ID: FIXED_ROOM_ID } = await import("./demo-ids.mts");
 const RESET = process.argv.includes("--reset");
 const FUND = !process.argv.includes("--no-fund");
 const PRESEAT = !TRY && !process.argv.includes("--no-preseat");
 const JOIN_ALEX2 = !TRY && process.argv.includes("--join-alex2");
 const APP = (arg("app", "http://localhost:36625") as string).replace(/\/+$/, "");
-const WORKSPACE = TRY ? "ETHGlobal Tokyo Team (try it)" : "ETHGlobal Tokyo Team";
+const WORKSPACE = TRY ? "ETHGlobal Tokyo Team (try it)" : MINE ? "ETHGlobal Tokyo Team (demo)" : "ETHGlobal Tokyo Team";
 const ROOM = "Tokyo Trip";
 const TREASURY_USD = 1000;
 // src/lib/world-demo.ts finds each copy by its Alex: `demo:${PREFIX}-alex`
-const PREFIX = TRY ? "try" : "tokyo";
+const PREFIX = TRY ? "try" : MINE ? "mine" : "tokyo";
+/** the presenter's copy: one room id on every server and for every presenter — the friends' contribution salts depend on it */
+const MINE_ROOM_ID = MINE ? FIXED_ROOM_ID : null;
 
 type Key = "alex" | "bea" | "chris" | "dana" | "eli" | "alex2";
 const PEOPLE: { key: Key; slug: string; name: string }[] = [
@@ -122,24 +148,35 @@ const avatarOf = (key: Key | "agent") => `/demo/tokyo/${key}.jpg`;
 
 const ids = {} as Record<Key, string>;
 for (const p of PEOPLE) {
-  const ainAddress = `demo:${p.slug}`;
+  // in the presenter's copy Alex is their wallet: MetaMask login (metamask-verify) finds the account by it
+  const wallet = MINE && p.key === "alex" ? MINE : null;
+  const ainAddress = wallet ?? `demo:${p.slug}`;
+  const name = wallet ? (MINE_NAME ?? p.name) : p.name;
   const avatarUrl = avatarOf(p.key);
   const [found] = await db.select().from(S.users).where(eq(S.users.ainAddress, ainAddress)).limit(1);
   if (found) {
-    if (found.displayName !== p.name || found.avatarUrl !== avatarUrl)
-      await db.update(S.users).set({ displayName: p.name, avatarUrl }).where(eq(S.users.id, found.id));
+    // a presenter's existing account keeps its own name and face unless --name asks
+    if (!wallet && (found.displayName !== name || found.avatarUrl !== avatarUrl))
+      await db.update(S.users).set({ displayName: name, avatarUrl }).where(eq(S.users.id, found.id));
+    if (wallet && MINE_NAME && found.displayName !== MINE_NAME) await db.update(S.users).set({ displayName: MINE_NAME }).where(eq(S.users.id, found.id));
     ids[p.key] = found.id;
   } else {
-    const [created] = await db.insert(S.users).values({ ainAddress, displayName: p.name, avatarUrl }).returning();
+    const [created] = await db
+      .insert(S.users)
+      // Alex's id follows the wallet (two presenters are two accounts); the friends' ids are the same everywhere
+      .values({ ...(MINE ? { id: stableId(`${PREFIX}:${wallet ? `alex:${wallet}` : p.key}`) } : {}), ainAddress, displayName: name, avatarUrl })
+      .returning();
     ids[p.key] = created.id;
   }
 }
 const humanIds = PEOPLE.map((p) => ids[p.key]);
 const roomHumanIds = IN_ROOM.map((p) => ids[p.key]);
+/** the accounts this copy owns: in the presenter's copy Alex is their own wallet account, which the seed never changes */
+const ownIds = MINE ? humanIds.filter((id) => id !== ids.alex) : humanIds;
 await db
   .update(S.users)
   .set({ worldSub: null, worldVerifiedAt: null })
-  .where(inArray(S.users.id, humanIds));
+  .where(inArray(S.users.id, ownIds));
 
 // ── reset ───────────────────────────────────────────────────────────────────
 
@@ -150,14 +187,15 @@ if (RESET) {
   // first one on camera should be the new request's
   const cleared = await db
     .delete(S.notifications)
-    .where(inArray(S.notifications.userId, humanIds))
+    .where(inArray(S.notifications.userId, ownIds))
     .returning({ id: S.notifications.id });
   if (cleared.length) console.log(`cleared ${cleared.length} notification(s) of the demo accounts`);
 
+  // the presenter's copy removes only its own fixed room — never another room the presenter's account made
   const rooms = await db
     .select({ id: S.chatRooms.id })
     .from(S.chatRooms)
-    .where(and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex)));
+    .where(MINE_ROOM_ID ? eq(S.chatRooms.id, MINE_ROOM_ID) : and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex)));
   const roomIds = rooms.map((r) => r.id);
   if (roomIds.length) {
     const actions = await db
@@ -269,13 +307,20 @@ const firstAt = lastAt - (talk.length - 1) * 60_000;
 let [room]: (ChatRoom | undefined)[] = await db
   .select()
   .from(S.chatRooms)
-  .where(and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex), eq(S.chatRooms.kind, "dm")))
+  .where(
+    MINE_ROOM_ID
+      ? eq(S.chatRooms.id, MINE_ROOM_ID)
+      : and(eq(S.chatRooms.name, ROOM), eq(S.chatRooms.createdBy, ids.alex), eq(S.chatRooms.kind, "dm"))
+  )
   .orderBy(S.chatRooms.createdAt)
   .limit(1);
+if (room && MINE && room.createdBy !== ids.alex)
+  throw new Error(`the demo room belongs to another presenter's account — rerun with --reset to hand it to ${MINE}`);
 if (!room)
   [room] = await db
     .insert(S.chatRooms)
     .values({
+      ...(MINE_ROOM_ID ? { id: MINE_ROOM_ID } : {}),
       name: ROOM,
       kind: "dm",
       workspaceId: ws.id,
@@ -331,6 +376,12 @@ if (carriedKey)
     .update(S.users)
     .set({ encryptedPrivateKey: carriedKey })
     .where(and(eq(S.users.id, agentUserId), isNull(S.users.encryptedPrivateKey)));
+// the presenter's copy: the same pot on every server — ensureAgentWallet seals the plain key in place
+if (MINE)
+  await db
+    .update(S.users)
+    .set({ encryptedPrivateKey: DEMO_POT_KEY })
+    .where(and(eq(S.users.id, agentUserId), isNull(S.users.encryptedPrivateKey)));
 
 // the chat, once — a rerun must not repeat it
 const [anyMessage] = await db
@@ -361,6 +412,8 @@ if (!anyMessage) {
 // the WETH stays with the agent. The wallet must exist before the doc names it.
 const { ensureAgentWallet, fundTreasury, treasuryBalance } = await import("../src/lib/agent/treasury/wallet");
 const { address: agentAddress } = await ensureAgentWallet(agentUserId);
+if (MINE && agentAddress.toLowerCase() !== privateKeyToAccount(DEMO_POT_KEY as `0x${string}`).address.toLowerCase())
+  throw new Error(`the agent already holds another key (${agentAddress}) — rerun with --reset to give it DEMO_POT_KEY`);
 
 // Registered in sectionOkfPaths under their own keys, never as profile
 // sections (the recording LLM appends to those; parseEdits accepts only
@@ -547,6 +600,32 @@ try {
   balance = `unavailable (${err instanceof Error ? err.message.split("\n")[0] : String(err)})`;
 }
 
+// ── the presenter's copy: a recurring buy already adopted ──────────────────
+// After the funding: its bar is measured against the pot (the 30% rule).
+// Proposed as the agent's tool proposes it, approved by the three seeded seats
+// (seeded approvals, like the seats), adopted by the same executeIfQuorum an
+// approval runs — so the presenter can run a week's buy from the first minute.
+let recurring = "—";
+if (MINE) {
+  const { recurringBuyStatus, proposeRecurringBuy } = await import("../src/lib/agent/treasury/recurring");
+  const { executeIfQuorum } = await import("../src/lib/agent/treasury/approvals");
+  const before = await recurringBuyStatus(roomId);
+  if (before.live) recurring = `live — ${before.live.weeklyUsd}/week for ${before.live.weeks} weeks`;
+  else {
+    const proposed = before.pending
+      ? { ok: true as const, actionId: before.pending.actionId }
+      : await proposeRecurringBuy({ roomId, agentUserId, requesterId: ids.alex, weeklyUsd: 20, weeks: 12 });
+    if (!proposed.ok) throw new Error(`the recurring buy was not queued: ${proposed.reason}`);
+    await db
+      .insert(S.treasuryApprovals)
+      .values(PRESEATED.map((k) => ({ actionId: proposed.actionId, userId: ids[k], approverKey: `sub:seed:${ids[k]}`, verificationLevel: "dev-simulator" })))
+      .onConflictDoNothing();
+    const adopted = await executeIfQuorum(proposed.actionId);
+    recurring = adopted.executed ? "adopted now — $20/week for 12 weeks" : `NOT adopted (${adopted.approvals}/${adopted.required}${adopted.error ? `, ${adopted.error}` : ""})`;
+    if (!adopted.executed) failed = true;
+  }
+}
+
 // what the treasury will actually read back from the doc just written
 const { loadRelationTreasury } = await import("../src/lib/agent/treasury/memory");
 const rt = await loadRelationTreasury(roomId);
@@ -583,7 +662,10 @@ console.log(`
   rules      ${APP}/p/${rt.rulesPageId}   ${rt.policy.rules.length} rules, ${rt.policy.unparsed.length} unparsed · adopted ${rt.adoptedAt ?? "never"}${adoptedNow ? " (now)" : ""}
   payees     ${rt.payees.map((p) => `${p.name} → ${p.address}`).join(", ") || "none"}
   members    ${IN_ROOM.map((p) => p.name).join(", ")}${JOIN_ALEX2 ? " + Alex (2nd account), joined after the adoption" : TRY ? "" : " — Alex (2nd account) is in the workspace, not the room"}
-  seats      ${seated.map((s) => nameOf(s.userId)).join(", ") || "none"}
+  seats      ${seated.map((s) => nameOf(s.userId)).join(", ") || "none"}${MINE ? `
+  recurring  ${recurring}
+  presenter  ${MINE} — MetaMask login lands on Alex's account
+  ids        ${PEOPLE.map((p) => `${p.key}=${ids[p.key]}`).join(" ")}` : ""}
   logins     POST ${APP}/api/auth/demo-login { "as": "<slug>" }
 ${PEOPLE.map((p) => `               ${p.slug.padEnd(12)} ${p.name}`).join("\n")}`);
 process.exit(failed ? 1 : 0);

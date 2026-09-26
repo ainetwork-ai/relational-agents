@@ -8,6 +8,7 @@ import type { AiTool } from "@/lib/ai";
 import type { T } from "@/i18n";
 import type { A2uiMessage } from "@/lib/x402/a2ui";
 import { treasuryStatus, voters } from "@/lib/agent/treasury/approvals";
+import { collectDueContributions, storyUsd, type CollectResult } from "@/lib/agent/treasury/contributions";
 import { investConfig, usdcForUsd } from "@/lib/agent/treasury/invest";
 import { humanMemberIds, latestAdoption, loadRelationTreasury } from "@/lib/agent/treasury/memory";
 import { evaluateCommand } from "@/lib/agent/treasury/policy";
@@ -84,7 +85,7 @@ export async function roomAgent(roomId: string): Promise<{ agentUserId: string; 
   return bot ?? null;
 }
 
-async function isHumanMember(roomId: string, userId: string): Promise<boolean> {
+export async function isHumanMember(roomId: string, userId: string): Promise<boolean> {
   return (await humanMemberIds(roomId)).includes(userId);
 }
 
@@ -120,7 +121,7 @@ function day(at: string | Date, withYear = false): string {
   return relationDay(at, withYear);
 }
 
-async function postAsAgent(ctx: TreasurerContext, text: string): Promise<void> {
+async function postAsAgent(ctx: Pick<TreasurerContext, "roomId" | "agentUserId">, text: string): Promise<void> {
   await postRoomMessage({ roomId: ctx.roomId, authorId: ctx.agentUserId, text, privateToUserId: null, byAgent: true }).catch(
     (err: unknown) => console.error("treasurer: posting to the room failed:", err)
   );
@@ -252,11 +253,31 @@ export async function stopAndAnnounce(
  * Throws a RecurringBuyRefusal when the asker may not direct the treasury.
  */
 export async function runAndAnnounce(ctx: TreasurerContext): Promise<{ run: RecurringRunResult; line: string | null }> {
+  // the members' contributions that are due come in first, so this week's buy can use them
+  await collectAndAnnounce(ctx).catch((err: unknown) => console.error("treasurer: collecting contributions failed:", err));
   const run = await runRecurringBuy({ roomId: ctx.roomId, byUserId: ctx.askerId });
   if (run.outcome !== "bought") return { run, line: null };
   const line = boughtLine(run, ctx.askerName);
   await postAsAgent(ctx, line);
   return { run, line };
+}
+
+/**
+ * Collects the members' contributions that are due (one Permit2 pull per plan) and tells the room
+ * what came in. Shared by the weekly run and the collect route (a member's button, and the last step
+ * of starting a plan), so both leave the same trace. Collects nothing unless real runs are on.
+ */
+export async function collectAndAnnounce(
+  ctx: Pick<TreasurerContext, "roomId" | "agentUserId">,
+  expect?: `0x${string}`
+): Promise<CollectResult & { line: string | null }> {
+  const result = await collectDueContributions({ roomId: ctx.roomId, agentUserId: ctx.agentUserId, expect });
+  if (result.collected.length === 0) return { ...result, line: null };
+  const perUsd = investConfig()?.usdcPerUsd ?? 0.005;
+  const each = result.collected.map((c) => `${c.name} ${c.amount} USDC (${storyUsd(c.amount, perUsd)})`).join(", ");
+  const line = `Collected this period's contributions through Permit2: ${each}. They're in the pot on Base.`;
+  await postAsAgent(ctx, line);
+  return { ...result, line };
 }
 
 // ── the tools ───────────────────────────────────────────────────────────────

@@ -97,6 +97,7 @@ function Tabs({ roomId }: { roomId: string }) {
   const pathname = usePathname();
   const tabs: Tab[] = [
     { href: treasuryPath(roomId), label: t("Wallet"), exact: true },
+    { href: treasuryPath(roomId, "contributions"), label: t("Contributions"), exact: false },
     { href: treasuryPath(roomId, "activity"), label: t("Activity"), exact: false },
     { href: treasuryPath(roomId, "treasurer"), label: t("Treasurer"), exact: false },
     { href: treasuryPath(roomId, "rules"), label: t("Rules"), exact: false },

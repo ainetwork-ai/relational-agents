@@ -18,6 +18,7 @@ import { useImeGuard } from "@/hooks/use-ime-guard";
 import { A2UI_SURFACE_EVENT, readAgUiStream, type AgUiEvent } from "@/lib/agui/events";
 import type { A2uiMessage } from "@/lib/x402/a2ui";
 import { splitA2uiMarkers } from "@/lib/agent/treasurer/surfaces";
+import { sendOfferSrc } from "@/lib/agent/send-offer-surface";
 import { A2uiSurface } from "@/components/a2ui/surface";
 
 type Mode = "private" | "room";
@@ -73,7 +74,7 @@ function historyItems(roomId: string, turns: HistoryTurn[]): Item[] {
       : splitA2uiMarkers(turn.text).map((p, i): Item =>
           p.kind === "text"
             ? { kind: "assistant", id: `${turn.id}-${i}`, text: p.text }
-            : { kind: "surface", id: `${turn.id}-${i}`, src: surfaceSrc(roomId, p.actionId) }
+            : { kind: "surface", id: `${turn.id}-${i}`, src: p.kind === "send" ? sendOfferSrc(p.view, p.offerId) : surfaceSrc(roomId, p.actionId) }
         )
   );
 }

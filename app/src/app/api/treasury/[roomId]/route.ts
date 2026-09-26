@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
     status,
     room: { id: roomId, name: access.room.name || others.join(", ") || "Relation", members: people, docPageId },
     me: { id: auth.user.id, displayName: auth.user.displayName },
-    wallet: await agentWallet(status),
+    wallet: await agentWallet(roomId, status),
   };
   return NextResponse.json(body);
 }
