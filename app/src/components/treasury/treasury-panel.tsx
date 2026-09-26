@@ -9,7 +9,7 @@ import type { TreasuryStatus } from "@/lib/agent/treasury/types";
 import type { SeatClaimError, SeatEnvironment } from "@/components/treasury/seat-button";
 import { RecurringBuyPanel } from "@/components/treasury/recurring-buy-panel";
 import { UserAvatar } from "@/components/user-avatar";
-import { ADOPTED_RESULT, TREASURY_RESULT, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
+import { ADOPTED_RESULT, TREASURY_RESULT, countedLine, isResultCode, resultCopy, type ResultCopy, type ResultTone } from "@/components/treasury/world-result-copy";
 import { ChainBadge } from "@/components/chain/chain-badge";
 import { useT } from "@/i18n/provider";
 
@@ -171,6 +171,12 @@ function payingActionId(s: StatusView): string | undefined {
 function bannerOf(r: Result | null, s: StatusView): Copy | null {
   if (!r) return null;
   if (r.key === "local") return LOCAL_COPY[r.code] ?? null;
+  // an approval that counted: say where the request stands now
+  if (r.code === "approved" && r.actionId) {
+    const a = s.actions.find((x) => x.id === r.actionId);
+    if (a && a.status === "pending" && a.approvals.length < a.requiredApprovals)
+      return { tone: "ok", text: `${TREASURY_RESULT.approved.text} ${countedLine(a.approvals.length, a.requiredApprovals)}` };
+  }
   const target = r.code === "executing" && r.actionId ? s.actions.find((a) => a.id === r.actionId) : undefined;
   if (target) {
     // the history line says how it ended; a green "paying now" above it would contradict it
@@ -222,6 +228,18 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
   // Read during the first client render; nothing renders until the status
   // fetch lands, so this cannot diverge from the server HTML.
   const [result, setResult] = useState<Result | null>(readResultFromUrl);
+  // the request a return from World ID is about, outlined for a moment and brought into view
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashedRef = useRef<string | null>(null);
+  const resultActionId = result?.key === "treasury" ? result.actionId : undefined;
+  useEffect(() => {
+    if (!resultActionId || flashedRef.current === resultActionId) return;
+    flashedRef.current = resultActionId;
+    setFlashId(resultActionId);
+    document.querySelector(`[data-action-id="${CSS.escape(resultActionId)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const timer = window.setTimeout(() => setFlashId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [resultActionId]);
   const [claiming, setClaiming] = useState(false);
   const [seatErr, setSeatErr] = useState<{ roomId: string; sameHuman: boolean; text: string } | null>(null);
   // IDKit's success screen outlives the claim: the claim box (and the widget
@@ -248,10 +266,10 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
         appliedRef.current = seq;
         enabledRef.current = Boolean(next?.enabled);
         setSnap({ roomId, status: next });
-        // pin a "paying now" banner to the action it is about, once it can be found
+        // pin an "approved" / "paying now" banner to the action it is about, once it can be found
         if (next)
           setResult((r) => {
-            if (!r || r.code !== "executing" || r.key !== "treasury" || r.actionId) return r;
+            if (!r || (r.code !== "executing" && r.code !== "approved") || r.key !== "treasury" || r.actionId) return r;
             const actionId = payingActionId(next);
             return actionId ? { ...r, actionId } : r;
           });
@@ -638,7 +656,12 @@ export function TreasuryPanel({ roomId }: { roomId: string }) {
               <div
                 key={a.id}
                 data-testid="treasury-pending"
-                className="mt-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900"
+                data-action-id={a.id}
+                className={`mt-3 rounded-lg border bg-white p-4 shadow-sm transition-shadow duration-500 dark:bg-neutral-900 ${
+                  flashId === a.id
+                    ? "border-emerald-300 ring-2 ring-emerald-300 dark:border-emerald-700 dark:ring-emerald-700"
+                    : "border-neutral-200 dark:border-neutral-700"
+                }`}
               >
                 <div className="text-xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
                   {pendingTitle(a)}

@@ -18,9 +18,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import type { T } from "@/i18n/translate";
-import { isResultCode, resultCopy, type ResultCopy } from "@/components/treasury/world-result-copy";
+import { countedLine, isResultCode, resultCopy, type ResultCopy } from "@/components/treasury/world-result-copy";
 import { TreasurerChat } from "@/components/treasurer/treasurer-chat";
-import { TreasuryRoomProvider, useTreasuryRoom } from "./room-data";
+import { TreasuryRoomProvider, useTreasuryRoom, type RoomLoad } from "./room-data";
 import { LatestMessage } from "./latest-message";
 import { treasuryPath } from "./room-model";
 import { TreasurerEntry } from "./treasurer-entry";
@@ -57,12 +57,28 @@ function useCallbackResult(): [string | null, () => void] {
   return [code, () => setCode(null)];
 }
 
+/** The request the viewer approved last, while it still waits — what an "approved" banner is about. */
+function lastApproved(load: RoomLoad): { got: number; need: number } | null {
+  if (load.kind !== "ready") return null;
+  const me = load.data.me.id;
+  let best: { at: string; got: number; need: number } | null = null;
+  for (const a of load.data.status.actions) {
+    const mine = a.approvals.find((p) => p.userId === me);
+    if (a.status !== "pending" || !mine || a.approvals.length >= a.requiredApprovals) continue;
+    if (!best || mine.at > best.at) best = { at: mine.at, got: a.approvals.length, need: a.requiredApprovals };
+  }
+  return best;
+}
+
 function ResultBanner() {
   const t = useT();
+  const { load } = useTreasuryRoom();
   const [code, dismiss] = useCallbackResult();
   if (!code) return null;
-  const copy = resultLine(t, code);
-  if (!copy) return null;
+  const line = resultLine(t, code);
+  if (!line) return null;
+  const counted = code === "approved" ? lastApproved(load) : null;
+  const copy = counted ? { ...line, text: `${line.text} ${countedLine(counted.got, counted.need, t)}` } : line;
   const tone = copy.tone === "ok" ? styles.bannerOk : copy.tone === "bad" ? styles.bannerBad : styles.bannerInfo;
   return (
     <div className={`${styles.banner} ${tone}`} role="status" data-testid="treasury-room-result">

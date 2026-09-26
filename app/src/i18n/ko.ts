@@ -1692,4 +1692,6 @@ export const ko: Record<string, string> = {
   "This human already has a vote in this relation — one human, one vote.": "이 사람은 이미 이 관계에 투표권이 있어요 — 한 사람에 한 표예요.",
   "🌍 Claim your vote with World ID": "🌍 World ID로 투표권 받기",
   "Starting World ID…": "World ID 시작 중…",
+  "{got} of {need} counted · 1 more verified human needed.": "{need}명 중 {got}명 반영 · 인증된 사람 1명이 더 필요해요.",
+  "{got} of {need} counted · {left} more verified humans needed.": "{need}명 중 {got}명 반영 · 인증된 사람 {left}명이 더 필요해요.",
 };

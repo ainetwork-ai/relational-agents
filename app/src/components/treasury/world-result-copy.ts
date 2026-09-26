@@ -106,6 +106,18 @@ export function resultCopy(key: "treasury" | "world", code: string): ResultCopy 
   return Object.prototype.hasOwnProperty.call(TREASURY_RESULT, code) ? TREASURY_RESULT[code] : null;
 }
 
+/** After an approval that counted but didn't finish the quorum: "1 of 2 counted · 1 more verified human needed." */
+export const COUNTED = {
+  one: "{got} of {need} counted · 1 more verified human needed.",
+  many: "{got} of {need} counted · {left} more verified humans needed.",
+} as const;
+type Tr = (key: string, vars: Record<string, number>) => string;
+const fill: Tr = (key, vars) => key.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+export function countedLine(got: number, need: number, tr: Tr = fill): string {
+  const left = Math.max(0, need - got);
+  return tr(left === 1 ? COUNTED.one : COUNTED.many, { got, need, left });
+}
+
 /** Every code the callback and connect routes can send back — the selftest walks it. */
 export const RESULT_CODES = [
   "approved", "executed", "executing", "cancelled", "idp-error", "bad-state", "account-switched",
