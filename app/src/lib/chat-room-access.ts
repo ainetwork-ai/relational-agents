@@ -72,7 +72,10 @@ export async function membersByRoom(roomIds: string[]) {
       lastReadAt: chatRoomMembers.lastReadAt,
     })
     .from(chatRoomMembers)
-    .where(inArray(chatRoomMembers.roomId, roomIds));
+    .where(inArray(chatRoomMembers.roomId, roomIds))
+    // the room list fronts each row with its first other human: joined order,
+    // ties by userId, so the face is the same on every load (as the room view's)
+    .orderBy(asc(chatRoomMembers.joinedAt), asc(chatRoomMembers.userId));
   const map = new Map<string, { userId: string; lastReadAt: Date | null }[]>();
   for (const r of rows) {
     const list = map.get(r.roomId) ?? [];

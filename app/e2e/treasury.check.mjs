@@ -252,6 +252,19 @@ async function rpc(method, params) {
   return j.result;
 }
 
+/** The first transaction of exactly `value` wei to `to` from block `from` up to the chain head (at most 30 blocks); null if none. */
+async function findTransfer(to, value, from) {
+  const head = BigInt(await rpc("eth_blockNumber", []));
+  for (let n = from; n <= head && n < from + 30n; n++) {
+    const block = await rpc("eth_getBlockByNumber", [`0x${n.toString(16)}`, true]);
+    const hit = (block?.transactions ?? []).find(
+      (tx) => tx.to && tx.to.toLowerCase() === to.toLowerCase() && BigInt(tx.value) === value
+    );
+    if (hit) return hit.hash;
+  }
+  return null;
+}
+
 const pageId = (path) => Buffer.from(path, "utf8").toString("base64url");
 const pagePath = (id) => Buffer.from(id, "base64url").toString("utf8");
 
@@ -365,6 +378,12 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   assert(reply.includes(`“${RULE_MID}”`), `reply does not quote the rule: ${reply}`);
   assert(/2 verified humans/.test(reply), `reply does not ask for 2 verified humans: ${reply}`);
   assert(reply.includes(HOTEL), `reply does not name the payee: ${reply}`);
+  // what / why / what to do, one line each — and the one-human twist is not given away
+  const [what, why, todo] = reply.split("\n");
+  assert(what.startsWith(`⏳ Queued: $180 to ${HOTEL}`), `first line is not the queued payment: ${what}`);
+  assert(why === `Needs 2 verified humans — our rules: “${RULE_MID}”`, `second line is not the rule: ${why}`);
+  assert(todo === "Approve with World ID in the treasury panel above.", `third line is not the call to approve: ${todo}`);
+  assert(!/counts once/.test(reply), `reply announces the one-human rule up front: ${reply}`);
   const fresh = freshActions(before, await status());
   assert(fresh.length === 1, `expected 1 new action, got ${fresh.length}`);
   const a = fresh[0];
@@ -375,7 +394,7 @@ await scene("b. $180 hotel deposit — cites the $50–$200 rule, waits for 2 ve
   ctx.action180 = a.id;
   ctx.payee180 = a.recipient.address;
   // the ledger line is written before the agent answers
-  const queued = `⏳ Requested by Alex: $180 · ${a.memo} — needs 2 verified humans (“${RULE_MID}”)`;
+  const queued = `📝 Alex asked: $180 · ${a.memo} — needs 2 humans to approve`;
   const texts = await activityTexts();
   assert(texts.some((t) => t.includes(JSON.stringify(queued).slice(1, -1))), `no queued line in Treasury Activity: ${queued}`);
   return `action ${a.id}`;
@@ -426,25 +445,44 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
     15_000,
     "no payout notice in chat"
   );
-  assert(payout.includes("gas sponsored by the relayer"), `payout notice does not mention the gas sponsor: ${payout}`);
+  // who let it happen, on its own line; gas is the relayer's and stays out of the room
+  assert(
+    payout.includes(`.\nApproved by 2 verified humans: Chris and Alex · tx ${a.txHash}`),
+    `payout notice does not name the two approvers on its second line: ${payout}`
+  );
+  assert(!/gas|relayer/i.test(payout), `payout notice talks about gas: ${payout}`);
   const lines = await agentLinesSince(alex, count0);
-  assert(lines.some((l) => /Chris approved with World ID — 1 of 2/.test(l)), `no 1-of-2 notice: ${lines.join(" | ")}`);
+  // the approval shows the step-up was fresh: its sign-in time, after the request
+  const approvedLine = /Chris approved with World ID — 1 of 2 · fresh check at \d{2}:\d{2}, after this request/;
+  assert(lines.some((l) => approvedLine.test(l)), `no fresh 1-of-2 notice: ${lines.join(" | ")}`);
 
   const paidLine = await until(
-    async () => (await activityTexts()).find((t) => t.includes("Paid $180") && t.includes(a.txHash)),
+    async () => (await activityTexts()).find((t) => t.includes("✅ Paid $180") && t.includes(a.txHash)),
     15_000,
     "no activity line with the tx in Treasury Activity"
   );
-  const refundTx = paidLine.match(/refund tx (0x[0-9a-fA-F]{64})/)?.[1];
-  assert(refundTx, `activity line carries no gas refund tx: ${paidLine}`);
-  ctx.refund180 = refundTx;
+  assert(paidLine.includes("approved by Chris and Alex"), `activity line does not name the approvers: ${paidLine}`);
+  assert(paidLine.includes(`https://sepolia.etherscan.io/tx/${a.txHash}`), `activity line does not link the tx: ${paidLine}`);
+  assert(!/refund|relayer/i.test(paidLine), `activity line talks about gas: ${paidLine}`);
+  const activity = await activityTexts();
+  assert(activity.some((t) => approvedLine.test(t)), "the approvals are not in Treasury Activity");
 
-  // the refund is exactly what the payment burned, from the relayer to the treasury
+  // the refund is exactly what the payment burned, from the relayer to the
+  // treasury, and confirmed before the action was marked executed — found on
+  // chain now that the record no longer carries it
+  const burned = BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice);
+  // polled: this RPC node can be a block behind the one the server confirmed on
+  const refundTx = await until(
+    () => findTransfer(ctx.address, burned, BigInt(receipt.blockNumber)),
+    30_000,
+    `no gas refund of exactly ${burned} wei to the treasury after the payment's block ${BigInt(receipt.blockNumber)}`,
+    3_000
+  );
+  ctx.refund180 = refundTx;
   const refundReceipt = await rpc("eth_getTransactionReceipt", [refundTx]);
   assert(refundReceipt && refundReceipt.status === "0x1", `refund receipt ${JSON.stringify(refundReceipt)}`);
   const refund = await rpc("eth_getTransactionByHash", [refundTx]);
   assert(refund.to.toLowerCase() === ctx.address.toLowerCase(), `refund went to ${refund.to}, treasury is ${ctx.address}`);
-  const burned = BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice);
   assert(BigInt(refund.value) === burned, `refund ${BigInt(refund.value)} wei, payment burned ${burned} wei`);
 
   // the refund is confirmed before the action is marked executed; the poll
@@ -480,20 +518,35 @@ await scene("d. $150 — Alex 1/2; his 2nd account as the same human is voided; 
   const one = await approve(alex, ctx.action150, { human: 1 });
   assert(one === "approved", `Alex: ?treasury=${one}`);
 
+  // the 2nd account is seated only for this approval and unseated after it, so
+  // the room is left as the demo needs it: that account has no vote (scene 2)
+  let seatedAlex2 = false;
   if (sql && !(await status()).members.find((m) => m.userId === alex2.id)?.seated) {
     await sql.query(
       "insert into treasury_seats (room_id, user_id, nullifier_hash, verification_level) values ($1, $2, $3, 'dev-simulator') on conflict do nothing",
       [roomId, alex2.id, `e2e:${alex2.id}`]
     );
+    seatedAlex2 = true;
   }
-  const count0 = await messageCount();
-  const dup = await approve(alex2, ctx.action150, { human: 1 });
-  assert(dup === "same-human", `2nd account as Human 1: ?treasury=${dup}`);
-  let a = (await status()).actions.find((x) => x.id === ctx.action150);
-  assert(a.status === "pending" && a.approvals.length === 1, `after the 2nd account: ${a.status}, ${a.approvals.length} approvals`);
-  const lines = await agentLinesSince(alex, count0);
-  assert(lines.some((l) => l.startsWith("⛔ An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
-  if (sql) assert((await worldSubOf(alex2.id)) === null, "the 2nd account got bound to a World ID");
+  let a;
+  try {
+    const count0 = await messageCount();
+    const dup = await approve(alex2, ctx.action150, { human: 1 });
+    assert(dup === "same-human", `2nd account as Human 1: ?treasury=${dup}`);
+    a = (await status()).actions.find((x) => x.id === ctx.action150);
+    assert(a.status === "pending" && a.approvals.length === 1, `after the 2nd account: ${a.status}, ${a.approvals.length} approvals`);
+    const lines = await agentLinesSince(alex, count0);
+    assert(lines.some((l) => l.startsWith("⛔ An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
+    assert((await activityTexts()).some((t) => t.includes("⛔ An approval was voided")), "the voided approval is not in Treasury Activity");
+    if (sql) assert((await worldSubOf(alex2.id)) === null, "the 2nd account got bound to a World ID");
+  } finally {
+    if (seatedAlex2)
+      await sql.query("delete from treasury_seats where room_id = $1 and user_id = $2 and nullifier_hash = $3", [
+        roomId,
+        alex2.id,
+        `e2e:${alex2.id}`,
+      ]);
+  }
 
   const cancelled = await approve(dana, ctx.action150, { deny: true });
   assert(cancelled === "cancelled", `Dana cancel: ?treasury=${cancelled}`);
@@ -509,6 +562,16 @@ await scene("e. $700 to my wallet — refused on the rule, no approval asked, no
   assert(reply.includes(`“${RULE_PERSONAL}”`), `reply does not quote the personal-wallet rule: ${reply}`);
   assert(/30%/.test(reply) && /4 verified members/.test(reply), `reply does not mention the 30% / 4-member rule: ${reply}`);
   assert(!/Queued|Approve with World ID/.test(reply), `reply asks for approvals: ${reply}`);
+  // one thought per line: the refusal, the rule, the share, the purpose, the link
+  const said = reply.split("\n");
+  assert(said[0] === "I won't do that." && said[1].includes(`“${RULE_PERSONAL}”`), `refusal lines: ${JSON.stringify(said)}`);
+  assert(said.some((l) => /^\$700 is also \d+(\.\d)?% of our \$[\d,.]+ — /.test(l)), `no "$700 is also …%" line: ${JSON.stringify(said)}`);
+  assert(said.some((l) => /^Rules: \/p\/[A-Za-z0-9_-]+$/.test(l)), `no rules link line: ${JSON.stringify(said)}`);
+  const refused = `⛔ Refused: $700 to Alex's own wallet — “${RULE_PERSONAL}”`;
+  assert(
+    (await activityTexts()).some((t) => t.includes(JSON.stringify(refused).slice(1, -1))),
+    `no refusal line in Treasury Activity: ${refused}`
+  );
   const st = await status();
   const fresh = freshActions(before, st);
   assert(fresh.length === 1, `expected 1 new action, got ${fresh.length}`);

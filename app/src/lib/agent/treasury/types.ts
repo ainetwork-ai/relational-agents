@@ -61,6 +61,10 @@ export interface RatifiedText {
   bar?: string;
 }
 
+/** Where the relation is: clock times in chat ("fresh check at 14:02") and the
+ *  Treasury Activity date headings ("Friday, Sep 25") are read in this zone. */
+export const TREASURY_TIME_ZONE = "Asia/Tokyo";
+
 /** A pending request stops waiting after this long, unapproved or not. */
 export const REQUEST_TTL_MS = Number(process.env.TREASURY_REQUEST_TTL_HOURS ?? 24) * 3_600_000;
 
@@ -200,6 +204,10 @@ export interface TreasuryProposal {
 
 export interface TreasuryStatus {
   enabled: boolean;
+  /** the account this status was built for — members[].userId === viewerId is "you" */
+  viewerId: string;
+  /** the room's name, as the chat header shows it ("Tokyo Trip") */
+  roomName: string;
   address: string | null;
   balanceUsd: number | null;
   /** idle funds at work: the agent's WETH on Base (bought on Uniswap), priced now; null = investing off */
@@ -215,9 +223,12 @@ export interface TreasuryStatus {
   adoptedAt: string | null;
   /** edits to the doc (or new members) nobody has adopted yet; lines as written */
   proposal: { added: string[]; removed: string[]; reordered: boolean; joined: string[] } | null;
+  /** human members in a stable order: joined first, then by userId (chips must not reshuffle between polls or accounts) */
   members: {
     userId: string;
     displayName: string;
+    /** the face to draw (resolved like every other surface's), null = draw the initial */
+    avatarUrl: string | null;
     seated: boolean;
     seatLevel: string | null;
     /** has completed a World ID for Agents step-up at least once */

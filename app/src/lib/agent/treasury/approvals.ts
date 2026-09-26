@@ -5,6 +5,7 @@ import {
   chatMessages,
   chatRoomBots,
   chatRoomMembers,
+  chatRooms,
   treasuryActions,
   treasuryApprovals,
   treasurySeats,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { publishToRoomMembers } from "@/lib/chat-room-access";
 import { notifyConsent } from "@/lib/notifications";
+import { resolveAvatarUrl } from "@/lib/avatar";
 import { worldIdConfigured, worldIdRpContext } from "@/lib/worldid";
 import { worldIdV4Config } from "@/lib/worldid-v4";
 import { idpMode } from "@/lib/auth/world";
@@ -40,6 +42,7 @@ import {
   RATIFY_KIND,
   REQUEST_TTL_MS,
   TREASURY_SEAT_ACTION,
+  TREASURY_TIME_ZONE,
   type ApprovalResult,
   type RatifiedText,
   type RelationTreasury,
@@ -90,6 +93,27 @@ function usd(n: number): string {
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** "Chris and Alex", "Chris, Dana, and Alex" */
+const listFormat = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
+function nameList(list: string[]): string {
+  return listFormat.format(list);
+}
+
+/** "14:02" — the relation's local clock, so the time in chat matches the room's */
+const clockFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TREASURY_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
+
+/** "[tx 0xbf04…bcab](https://sepolia.etherscan.io/tx/0x…)" — the doc renders it as a link */
+function txLink(txHash: string, explorer = SEPOLIA_EXPLORER): string {
+  return `[tx ${txHash.slice(0, 6)}…${txHash.slice(-4)}](${explorer}/tx/${txHash})`;
 }
 
 const TTL_HOURS = Math.round(REQUEST_TTL_MS / 3_600_000);
@@ -423,6 +447,15 @@ export interface ApprovalCard {
   approvedBy: string[];
   required: number;
   expiresAt: string;
+  /** the room the request belongs to ("Tokyo Trip") */
+  roomName: string;
+  /** display name of the account that opened the page ("Approving as Chris") */
+  approverName: string;
+}
+
+async function roomName(roomId: string): Promise<string> {
+  const [r] = await db.select({ name: chatRooms.name }).from(chatRooms).where(eq(chatRooms.id, roomId)).limit(1);
+  return r?.name ?? "";
 }
 
 /**
@@ -454,6 +487,8 @@ export async function approvalCard(actionId: string, viewerId: string): Promise<
       approvedBy: await approverNames(action.id, eligible),
       required: action.requiredApprovals,
       expiresAt: new Date(action.createdAt.getTime() + REQUEST_TTL_MS).toISOString(),
+      roomName: await roomName(action.roomId),
+      approverName: await displayName(viewerId),
     },
   };
 }
@@ -487,8 +522,12 @@ export async function recordIdpApproval(input: {
     return { ok: false, reason: "stale-proof", message: MSG.stale };
 
   const approverKey = `sub:${input.sub}`;
-  const voided = (why: string) =>
-    postAgentMessage(action.roomId, action.agentUserId, `⛔ An approval was voided: ${why}`);
+  // the room hears it, and the Treasury Activity keeps it
+  const voided = async (why: string) => {
+    const line = `⛔ An approval was voided: ${why}`;
+    await postAgentMessage(action.roomId, action.agentUserId, line);
+    await logActivity(action.roomId, line);
+  };
   const sameHumanApproved = "the same human already approved from another account.";
 
   const bind = await bindWorldSub(input.userId, input.sub);
@@ -539,11 +578,11 @@ export async function recordIdpApproval(input: {
   }
 
   const counted = await countedApprovals(action.id, eligible);
-  await postAgentMessage(
-    action.roomId,
-    action.agentUserId,
-    `✅ ${await displayName(input.userId)} approved with World ID — ${Math.min(counted, action.requiredApprovals)} of ${action.requiredApprovals}`
-  );
+  // the step-up's own sign-in time: the freshness check above is what makes
+  // this approval count, so the room sees it — at the relation's clock
+  const line = `✅ ${await displayName(input.userId)} approved with World ID — ${Math.min(counted, action.requiredApprovals)} of ${action.requiredApprovals} · fresh check at ${clockFormat.format(new Date(input.authTime * 1000))}, after this request`;
+  await postAgentMessage(action.roomId, action.agentUserId, line);
+  await logActivity(action.roomId, line);
 
   return { ok: true, approvals: counted, required: action.requiredApprovals, executed: false, txHash: null };
 }
@@ -686,11 +725,11 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
 
   try {
     const names = await approverNames(claimed.id, eligible);
-    const joined = asked.joined?.length ? `, and ${asked.joined.join(", ")} now vote${asked.joined.length === 1 ? "s" : ""}` : "";
+    const joined = asked.joined?.length ? `, and ${nameList(asked.joined)} now vote${asked.joined.length === 1 ? "s" : ""}` : "";
     await postAgentMessage(
       claimed.roomId,
       claimed.agentUserId,
-      `📜 Adopted: from now on I follow our edited Treasury Rules and Payees${joined} — approved by ${names.join(", ")} (${approvals} of ${plural(required, "verified human")}).`
+      `📜 Adopted: from now on I follow our edited Treasury Rules and Payees${joined}.\nApproved by ${plural(approvals, "verified human")}: ${nameList(names)}`
     );
     const changes = [
       ...(asked.added ?? []).map((l) => `+ “${l}”`),
@@ -699,7 +738,7 @@ async function adopt(claimed: TreasuryAction, approvals: number, eligible: Set<s
     ];
     await logActivity(
       claimed.roomId,
-      `📜 Adopted edited rules and payees — approved by ${names.join(", ")}${changes.length ? `: ${changes.join("; ")}` : ""}`
+      `📜 Adopted edited rules and payees — approved by ${nameList(names)}${changes.length ? `: ${changes.join("; ")}` : ""}`
     );
   } catch (err) {
     console.error(`treasury: could not announce adoption ${claimed.id}:`, err);
@@ -888,20 +927,30 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
   try {
     const { phrase } = await paymentPhrase(claimed);
     const names = await approverNames(actionId, eligible);
-    const approvedBy =
-      required > 0 ? `approved by ${names.join(", ")} (${approvals} of ${plural(required, "verified human")})` : "";
+    // chat: what happened, then who let it happen; the record: the same in one
+    // line with the tx as an explorer link. Gas is the relayer's business, not
+    // the relation's — it stays out of both (the refund tx is on chain).
+    const approvedLine = `Approved by ${plural(approvals, "verified human")}: ${nameList(names)}`;
+    const approvedBy = required > 0 ? `approved by ${nameList(names)}` : "";
 
     if (txHash && investNote) {
-      const done = `📈 Invested ${phrase} — ${investNote}`;
-      if (required > 0) await postAgentMessage(claimed.roomId, claimed.agentUserId, `${done} — ${approvedBy}. tx ${txHash}`);
-      await logActivity(claimed.roomId, `Invested ${phrase} — ${investNote} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} — tx ${txHash}`);
-    } else if (txHash) {
-      const gas = gasSponsored ? " · gas sponsored by the relayer" : "";
+      const explorer = investConfig() ? INVEST_CHAIN.explorer : SEPOLIA_EXPLORER;
       if (required > 0)
-        await postAgentMessage(claimed.roomId, claimed.agentUserId, `✅ Paid ${phrase} — ${approvedBy}. tx ${txHash}${gas}`);
+        await postAgentMessage(
+          claimed.roomId,
+          claimed.agentUserId,
+          `📈 Invested ${phrase} — ${investNote.replace(/\.$/, "")}.\n${approvedLine} · tx ${txHash}`
+        );
       await logActivity(
         claimed.roomId,
-        `Paid ${phrase} — ${required > 0 ? approvedBy : "within what the agent may pay on its own"} — tx ${txHash}${gas}${gasRefundTx ? ` (refund tx ${gasRefundTx})` : ""}`
+        `📈 Invested ${phrase} — ${investNote.replace(/\.$/, "")} — ${required > 0 ? approvedBy : "within what the agent may do on its own"} · ${txLink(txHash, explorer)}`
+      );
+    } else if (txHash) {
+      if (required > 0)
+        await postAgentMessage(claimed.roomId, claimed.agentUserId, `✅ Paid ${phrase}.\n${approvedLine} · tx ${txHash}`);
+      await logActivity(
+        claimed.roomId,
+        `✅ Paid ${phrase} — ${required > 0 ? approvedBy : "within what the agent may pay on its own"} · ${txLink(txHash)}`
       );
       // Idle funds: after an approved payment, if investing is on and nothing is
       // at work yet, the agent says what could be — citing the rule, starting
@@ -914,7 +963,7 @@ export async function executeIfQuorum(actionId: string): Promise<ExecuteResult> 
           claimed.agentUserId,
           `⏳ I sent ${phrase}, but couldn't confirm it yet (tx ${sentTx}) — it may still land. It's marked unconfirmed in the treasury panel; please don't ask for it again until it settles.`
         );
-      await logActivity(claimed.roomId, `⏳ Sent, not confirmed yet: ${phrase} — tx ${sentTx}`);
+      await logActivity(claimed.roomId, `⏳ Sent, not confirmed yet: ${phrase} · ${txLink(sentTx)}`);
     } else if (required > 0) {
       await postAgentMessage(
         claimed.roomId,
@@ -957,7 +1006,7 @@ async function proposeIdleFunds(action: TreasuryAction, treasury: RelationTreasu
     await postAgentMessage(
       action.roomId,
       action.agentUserId,
-      `💡 After that we hold ${usd(balance.usd)}, and nothing else is due yet. ${usd(idle)} could work for us instead of sitting idle — our rules say: “${rule.text}” If you want that, say: @agent invest $${idle} of the idle funds`
+      `💡 After that we hold ${usd(balance.usd)}, and nothing else is due yet.\n${usd(idle)} could work for us instead of sitting idle — our rules: “${rule.text}”\nIf you want that, say: @agent invest $${idle} of the idle funds`
     );
   } catch (err) {
     console.error("treasury: could not propose idle funds:", err);
@@ -997,10 +1046,10 @@ async function settleUnconfirmed(a: TreasuryAction): Promise<Partial<TreasuryAct
   const { phrase } = await paymentPhrase(a);
   if (seen === "success") {
     await postAgentMessage(a.roomId, a.agentUserId, `✅ The payment of ${phrase} confirmed after all — tx ${a.txHash}`);
-    await logActivity(a.roomId, `Paid ${phrase} — confirmed late — tx ${a.txHash}`);
+    await logActivity(a.roomId, `✅ Paid ${phrase} — confirmed late · ${txLink(a.txHash)}`);
   } else {
     await postAgentMessage(a.roomId, a.agentUserId, `⚠️ The payment of ${phrase} reverted on Sepolia — nothing was sent (tx ${a.txHash}).`);
-    await logActivity(a.roomId, `⚠️ Reverted: ${phrase} — tx ${a.txHash}`);
+    await logActivity(a.roomId, `⚠️ Reverted: ${phrase} · ${txLink(a.txHash)}`);
   }
   return next;
 }
@@ -1039,12 +1088,19 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
     }
   }
 
+  // a stable order: members who joined in the same instant would otherwise
+  // come back in whatever order the planner picks, and the chips reshuffle
   const memberRows = await db
-    .select({ userId: users.id, displayName: users.displayName, worldSub: users.worldSub })
+    .select({
+      userId: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      worldSub: users.worldSub,
+    })
     .from(chatRoomMembers)
     .innerJoin(users, eq(users.id, chatRoomMembers.userId))
     .where(and(eq(chatRoomMembers.roomId, roomId), eq(users.isAgent, false)))
-    .orderBy(asc(chatRoomMembers.joinedAt));
+    .orderBy(asc(chatRoomMembers.joinedAt), asc(chatRoomMembers.userId));
   const seats = await db
     .select({ userId: treasurySeats.userId, level: treasurySeats.verificationLevel })
     .from(treasurySeats)
@@ -1165,6 +1221,8 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
   const invested = bot && treasury ? await investedPosition(bot.agentUserId).catch(() => null) : null;
   return {
     enabled: treasury !== null,
+    viewerId,
+    roomName: await roomName(roomId),
     address,
     balanceUsd: balance?.usd ?? null,
     invested: invested
@@ -1187,6 +1245,7 @@ export async function treasuryStatus(roomId: string, viewerId: string): Promise<
     members: memberRows.map((m) => ({
       userId: m.userId,
       displayName: m.displayName,
+      avatarUrl: resolveAvatarUrl(m.displayName, m.avatarUrl),
       seated: seatBy.has(m.userId),
       seatLevel: seatBy.get(m.userId) ?? null,
       worldVerified: m.worldSub !== null,

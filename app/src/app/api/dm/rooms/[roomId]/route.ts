@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import {
@@ -62,10 +62,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ roomId: st
   if ("error" in access) return access.error;
   const { room } = access;
 
+  // a stable order (joined first, ties by id): the header's avatar stack and
+  // every member list read it, and must not reshuffle between loads or accounts
   const memberRows = await db
     .select({ userId: chatRoomMembers.userId, lastReadAt: chatRoomMembers.lastReadAt })
     .from(chatRoomMembers)
-    .where(eq(chatRoomMembers.roomId, roomId));
+    .where(eq(chatRoomMembers.roomId, roomId))
+    .orderBy(asc(chatRoomMembers.joinedAt), asc(chatRoomMembers.userId));
   // same visibility rule as GET .../messages — quiet exchanges belong to their
   // asker only (shared helper so the two loaders can never diverge again)
   const messages = await visibleRoomMessages(roomId, auth.user.id);
