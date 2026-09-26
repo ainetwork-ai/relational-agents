@@ -50,17 +50,21 @@ in the room between the final reset and the first take.
    bindings can't void a take) and the six accounts' notifications cleared.
    Check that the sidebar's **Shared** section shows the rebuilt memory doc
    ("Tokyo Trip · 5 people").
-3. **Vote claims, off camera.** Chris, Dana and Eli each claim their vote
-   through simulator.worldcoin.org with their own simulator identity, so every
-   vote on screen is a real IDKit proof. Alex and Bea stay unseated: Alex
-   claims on camera in scene 1. Alex (2nd account) is not in the room yet:
+3. **Vote claims, off camera.** Bea, Chris, Dana and Eli each claim their vote
+   through simulator.worldcoin.org with their own simulator identity
+   (`scripts/world-sim-vote.mjs`: Bea #0, Chris #3, Dana #2, Eli #1), so every
+   vote on screen is a real IDKit proof. Alex stays unseated and claims on
+   camera in scene 1 with the simulator's default identity (#4).
+   **One block, one reset:** the scenes are shot in order, S0 to S6, so the
+   balance, the invested badge and the chat carry over from scene to scene. Alex (2nd account) is not in the room yet:
    Alex invites it on camera in scene 2 and it uses Alex's identity (the
    scene 2 denial).
 4. **Identities.** Alex, Chris, Dana and Eli each have their own
    simulator.worldcoin.org identity. On the sandbox IdP, Chris and Alex must be
-   two different World IDs (one identity cannot bind two approvers). **Dana
-   never does an IdP step-up before scene 4** — her account must reach scene 4
-   with no World ID bound. The Developer Portal app shows as
+   two different World IDs (one identity cannot bind two approvers). **Eli
+   never does an IdP step-up before scene 4** — the account must reach scene 4
+   with no World ID bound (that is why scene 3½'s approvers are Chris, Dana and
+   Bea). The Developer Portal app shows as
    `Relation Treasury` in the IDKit sheet; the action id stays `treasury-seat`
    ("vote" is only the on-screen word — renaming the action breaks
    verification).
@@ -78,20 +82,20 @@ in the room between the final reset and the first take.
      `NEXT_PUBLIC_WORLD_ID_APP_ID` baked into the build).
    - `"balanceUsd": 1000`.
 6. **Browsers.** One Chrome profile per person — Alex, Alex (2nd account),
-   Chris, Dana — each in its own profile color, so the window frame changes
+   Chris, Dana, Bea — each in its own profile color, so the window frame changes
    when the laptop changes hands. Each profile signs in once with the demo
    login and has a `lang=en` cookie on ainmem.ainetwork.xyz. **1920×1080 window
    at 125% zoom** (CSS 1536×864), clean profiles (no bookmarks bar, no
    extensions), tabless app windows (Etherscan is the one tab), the sidebar on
    the Chats tab. Never open the agent dock, the inbox, Home or header tooltips
    on camera. Keep one simulator window per person as "that person's phone":
-   Alex's single phone answering on Alex's, Alex (2nd)'s and Dana's laptops is
+   Alex's single phone answering on Alex's, Alex (2nd)'s and Eli's laptops is
    the one-human story itself.
 7. **Rehearsing on the mock IdP** (localhost only — never a take): pick the same
    human per member every time — Alex = Human 1, Bea = Human 2, Chris = Human 3,
    Dana = Human 4, Eli = Human 5, Alex (2nd account) = Human 1. **Scene 4 is the
-   exception: on Dana's account pick Human 1** (Alex's human verifying on
-   Dana's laptop). The mock page itself never goes on screen.
+   exception: on Eli's account pick Human 1** (Alex's human verifying on
+   Eli's laptop). The mock page itself never goes on screen.
 
 ### Shot list
 
@@ -109,7 +113,7 @@ in the room between the final reset and the first take.
 |---|---|
 | Scenes 1–2 (the vote) | `World ID · IDKit — Proof of Human` |
 | Scenes 3–4 (the approvals) | `World ID for Agents — fresh step-up` |
-| Every account switch | `Chris's laptop` / `Dana's laptop` — whose screen it is now |
+| Every account switch | `Chris's laptop` / `Eli's laptop` — whose screen it is now |
 | The Sepolia wait (scene 3) | `~40 s later on Sepolia` |
 | Etherscan (scene 3) | `Testnet — the "hotel" is the faucet account that funded the pot` |
 
@@ -228,7 +232,7 @@ Agent: *"Queued: $200 to Savings (idle funds). This needs 3 verified humans. Our
 rules say: “Investing idle funds: 3 verified members approve.”…"* — a pending
 card, 0 / 3. The payee is the agent's own wallet: that is where the WETH will sit.
 
-Chris, Dana and Eli — three browsers, three humans — each tap **Approve with
+Chris, Dana and Bea — three browsers, three humans — each tap **Approve with
 World ID** → the confirmation page ($200.00 to Savings (idle funds), *Sends to*
 the agent's address, the rule, three empty slots) → the World ID for Agents step-up →
 back in the room: **Chris approved with World ID — 1 of 3 · fresh check at
@@ -236,7 +240,7 @@ back in the room: **Chris approved with World ID — 1 of 3 · fresh check at
 
 Then, with no further click: **Invested $200 to Savings (idle funds) — 1 USDC
 → 0.000371977 WETH via Uniswap v3 on Base (demo scale: $1 = 0.005 USDC).
-Approved by 3 verified humans: Chris, Dana, and Eli · tx 0x9af1…** The panel
+Approved by 3 verified humans: Chris, Dana, and Bea · tx 0x9af1…** The panel
 header gains **+ $199.72 invested**, priced through the same pool right now.
 basescan tab (caption: *demo scale — $200 in the story is 1 USDC on Base
 mainnet; the pot itself is testnet*).
@@ -257,8 +261,8 @@ Caption: `Same human twice counts once` · `World ID for Agents — fresh step-u
 
 Alex: `@agent pay the hotel for $150` → Alex approves with his World ID (1 of 2).
 
-`Dana's laptop` — Alex picks up Dana's laptop. Dana has a vote and has never
-done a World ID for Agents step-up. On Dana's account Alex taps **Approve
+`Eli's laptop` — Alex picks up Eli's laptop. Eli has a vote and has never
+done a World ID for Agents step-up. On Eli's account Alex taps **Approve
 with World ID** and verifies with **his own** World ID (his phone) → the IdP
 returns the same pairwise `sub` that already approved from Alex's account →
 
@@ -266,7 +270,7 @@ returns the same pairwise `sub` that already approved from Alex's account →
 
 The card stays at **1 of 2** and nothing is paid.
 
-> "Dana's account, Alex's face. Two accounts, one human — the second approval
+> "Eli's account, Alex's face. Two accounts, one human — the second approval
 > doesn't count, and the money doesn't move."
 
 Narration guardrail: don't say "only the vote holder themselves can approve" —
@@ -296,8 +300,8 @@ Agent — no approval request at all, one thought per line:
 Caption: `What we agreed on was enough`
 
 Alex: `@agent pay the hotel upgrade, $150` → *"Queued: $150 to Hotel Gracery
-Shinjuku (hotel upgrade). This needs 2 verified humans…"* → Bea (her first
-approval on camera; she claimed her vote in scene 1) and Chris approve →
+Shinjuku (hotel upgrade). This needs 2 verified humans…"* → Bea (her second
+approval on camera, after scene 3½) and Chris approve →
 **Paid $150 to Hotel Gracery Shinjuku (hotel upgrade) — approved by Bea, Chris
 (2 of 2 verified humans). tx …**
 

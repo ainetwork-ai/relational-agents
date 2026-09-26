@@ -522,7 +522,7 @@ await scene("c. Chris (Human 3) approves 1/2, Alex (Human 1) approves 2/2 → pa
   return `callback ${callbackMs}ms, executed ${execS}s later · tx ${a.txHash} · gas refund ${refundTx} · balance $${ctx.balanceBefore180} → $${balanceAfter}`;
 });
 
-await scene("d. $150 — Alex 1/2; the same human on Dana's account is voided; the 2nd account has no say; Dana cancels", async () => {
+await scene("d. $150 — Alex 1/2; the same human on Eli's account is voided; the 2nd account has no say; Dana cancels", async () => {
   const before = new Set((await status()).actions.map((a) => a.id));
   const reply = await ask(alex, "@agent pay the hotel for $150");
   assert(reply.includes(`“${RULE_MID}”`) && /2 verified humans/.test(reply), `reply: ${reply}`);
@@ -533,18 +533,18 @@ await scene("d. $150 — Alex 1/2; the same human on Dana's account is voided; t
   const one = await approve(alex, ctx.action150, { human: 1 });
   assert(one === "approved", `Alex: ?treasury=${one}`);
 
-  // scene 4: Alex's human verifying on Dana's laptop — Dana's seat is real
-  // (seeded), her account unbound, and the IdP hands back Alex's sub
+  // scene 4: Alex's human verifying on Eli's laptop — Eli's seat is real
+  // (seeded), the account unbound, and the IdP hands back Alex's sub
   {
     const count0 = await messageCount();
-    const dup = await approve(dana, ctx.action150, { human: 1 });
-    assert(dup === "same-human", `Dana's account as Human 1: ?treasury=${dup}`);
+    const dup = await approve(eli, ctx.action150, { human: 1 });
+    assert(dup === "same-human", `Eli's account as Human 1: ?treasury=${dup}`);
     const a1 = (await status()).actions.find((x) => x.id === ctx.action150);
     assert(a1.status === "pending" && a1.approvals.length === 1, `after the same human: ${a1.status}, ${a1.approvals.length} approvals`);
     const lines = await agentLinesSince(alex, count0);
     assert(lines.some((l) => l.startsWith("An approval was voided")), `no voided notice: ${lines.join(" | ")}`);
     assert((await activityTexts()).some((t) => t.includes("An approval was voided")), "the voided approval is not in Treasury Activity");
-    if (sql) assert((await worldSubOf(dana.id)) === null, "Dana's account got bound to Alex's World ID");
+    if (sql) assert((await worldSubOf(eli.id)) === null, "Eli's account got bound to Alex's World ID");
   }
   // the 2nd account joined after the adoption: it is refused before any World
   // ID check, and nothing binds to it

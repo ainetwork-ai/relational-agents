@@ -310,3 +310,12 @@ Format: `JST time — surface — what happened`.
   `generic_error` from the staging verifier; the retry went through.
   Recording state: room `1ebca8bc…`, $1,000, Chris/Dana/Eli seated (`orb`),
   Alex and Bea unseated, nothing invested.
+- 2026-09-26 17:30 — both — **one block, shot in order**: shooting scene 4
+  in its own block (so that Dana reached it with no IdP step-up) showed
+  `$1,000.00` and no invested badge between scenes that show ~$616 and
+  "+ $199.72 invested". Scene 4's lent laptop is Eli's now and scene 3½'s
+  approvers are Chris, Dana and Bea, so nobody reaches scene 4 bound and the
+  whole video is one reset, S0 → S6. Bea's vote moved off camera (simulator
+  #0) with Chris #3, Dana #2, Eli #1; recording room `1ebca8bc…` holds those
+  four seats, Alex (#4) claims on camera. The e2e's same-human void is on
+  Eli's account to match.
