@@ -1774,7 +1774,7 @@ export function SendCard(p: Props) {
   const [error, setError] = useState<string | null>(null);
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const lowUsdc = BigInt(p.usdcMicro) < amount;
-  const noGas = BigInt(p.ethWei) === 0n;
+  const noGas = BigInt(p.ethWei) === BigInt(0);
 
   async function send() {
     setError(null);
@@ -1832,7 +1832,7 @@ export function SendCard(p: Props) {
             <button
               data-testid="send-button"
               onClick={() => void send()}
-              disabled={state === "sending" || state === "confirming" || lowUsdc || noGas}
+              disabled={tx !== null || state === "sending" || state === "confirming" || lowUsdc || noGas}
               className="mt-8 w-full rounded-xl bg-neutral-900 py-4 text-lg font-semibold text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
               {state === "sending" ? t("Waiting for your wallet…") : state === "confirming" ? t("Sending…") : t("Send")}

@@ -613,10 +613,17 @@ export function DmView({
     // ...plus /p/<page-id> — the agent cites the relationship doc that way,
     // and a citation you cannot open is just noise. Page ids are base64url
     // (the OKF path encoded), not uuids, so the token class has to be wide.
-    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[A-Za-z0-9_-]{8,})/g);
+    const parts = text.split(/(https?:\/\/[^\s<>"')\]]+|0x[0-9a-fA-F]{64}|\/p\/[A-Za-z0-9_-]{8,}|\/send\?t=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g);
     if (parts.length === 1) return text;
     const linkClass = "underline underline-offset-2 text-[#2383e2] dark:text-blue-400";
     return parts.map((part, i) => {
+      if (/^\/send\?t=/.test(part)) {
+        return (
+          <a key={i} href={part} className={linkClass} data-testid="send-link">
+            💸 {t("Review and send")}
+          </a>
+        );
+      }
       const isTx = /^0x[0-9a-fA-F]{64}$/.test(part);
       if (/^\/p\//.test(part)) {
         // the relationship doc (an OKF page — its id is a base64url path) is cited by

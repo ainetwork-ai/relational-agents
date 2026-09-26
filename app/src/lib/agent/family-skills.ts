@@ -14,6 +14,8 @@ import { payGift } from "@/lib/x402/pay";
 import { b, createAgentDatabase, writeAgentPage, type NewBlock } from "./agent-pages";
 import { answersPendingPrompt, asksAboutPrompt, forgetPendingPrompt, promptAsk, saidAsPick } from "@/lib/prompt-export/input";
 import { promptSkill } from "./prompt-skill";
+import { isSendRequest } from "@/lib/ens-family/send-request";
+import { sendByName } from "./send-by-name";
 import type { DriveSource } from "./shared-drives";
 import { makeT, type T } from "@/i18n/translate";
 import { demoLang, familyDemo } from "@/i18n/content/demo-lang";
@@ -48,7 +50,7 @@ import {
  * pages and move money, and "maybe" is not a state either may be in.
  */
 
-export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt";
+export type FamilySkill = "shopping" | "todos" | "album" | "allowance" | "prompt" | "send";
 
 const SKILL_RE = (["allowance", "todos", "album", "shopping"] as const).map((k) => ({
   skill: k,
@@ -73,6 +75,8 @@ const SERVINGS_ACT = anyOf(W.servingsAct);
  */
 export function matchFamilySkill(text: string, from?: { roomId: string; askerId: string }): FamilySkill | null {
   const t = text.replace(/\s+/g, " ");
+  // an amount in USDC with a send verb moves money: it is the send skill's, first
+  if (isSendRequest(t)) return "send";
   const ask = promptAsk(t);
   const answers = from ? answersPendingPrompt(from.roomId, from.askerId, t) : false;
   // first: "make a prompt from the album page" is about the prompt, not the album
@@ -574,5 +578,7 @@ export async function runFamilySkill(skill: FamilySkill, ctx: SkillContext): Pro
       return allowance(ctx);
     case "prompt":
       return promptSkill(ctx);
+    case "send":
+      return sendByName(ctx);
   }
 }

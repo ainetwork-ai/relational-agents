@@ -23,6 +23,7 @@ import { asksForPipeline, buildSalesPipeline } from "./sales-pipeline";
 import { answerViewers, ownDriveSources, readableFile, sharedDriveSources, type DriveSource } from "./shared-drives";
 import { langOf, matchFamilySkill, runFamilySkill } from "./family-skills";
 import { handleTreasuryCommand } from "./treasury/skill";
+import { isSendRequest } from "@/lib/ens-family/send-request";
 import { isAssistantRoom } from "./assistant-room";
 import { makeT } from "@/i18n/translate";
 import { runAsOrService } from "@/lib/aindrive-account";
@@ -408,7 +409,7 @@ export async function respondToMessage(
     // the relation's treasury: a money sentence is matched by shape and decided
     // by the rules in the relation's memory, never by the model (treasury/skill.ts)
     const treasuryReply =
-      mentioned && process.env.AGENT_FAKE_LLM !== "1"
+      mentioned && process.env.AGENT_FAKE_LLM !== "1" && !isSendRequest(message.text)
         ? await handleTreasuryCommand({
             roomId,
             agentUserId,
@@ -426,7 +427,7 @@ export async function respondToMessage(
     // (the room and asker: the prompt skill may be waiting on this person's answer)
     const matched =
       mentioned && room.workspaceId && !treasuryReply ? matchFamilySkill(message.text, { roomId, askerId: message.authorId }) : null;
-    const skill = matched === "prompt" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
+    const skill = matched === "prompt" || matched === "send" || process.env.AGENT_FAKE_LLM !== "1" ? matched : null;
     // a work agent (business profile, or given the skill) can build the pipeline
     const canPipeline =
       profile.key === "business" || (Array.isArray(config.skills) && config.skills.includes("sales-pipeline"));
@@ -434,7 +435,7 @@ export async function respondToMessage(
     // skill hands a "maybe" back), and the agent answers as it would otherwise
     let done: { text: string } | null = null;
     if (skill && room.workspaceId) {
-      const sources = skill === "prompt" ? [] : await roomSources(room, roomId, message).catch(() => []);
+      const sources = skill === "prompt" || skill === "send" ? [] : await roomSources(room, roomId, message).catch(() => []);
       const lang = langOf(message.text);
       const viewerIds = await answerViewers(roomId, message.authorId, message.privateToUserId ?? null);
       done = await runFamilySkill(skill, {
