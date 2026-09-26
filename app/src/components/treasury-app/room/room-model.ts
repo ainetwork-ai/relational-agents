@@ -36,7 +36,7 @@ export function approvalUrl(actionId: string, returnTo: string): string {
   return `/api/auth/world/connect?action=${encodeURIComponent(actionId)}&returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-export function treasuryPath(roomId: string, tab?: "activity" | "treasurer" | "rules"): string {
+export function treasuryPath(roomId: string, tab?: "contributions" | "activity" | "treasurer" | "rules"): string {
   return `/treasury/${encodeURIComponent(roomId)}${tab ? `/${tab}` : ""}`;
 }
 
