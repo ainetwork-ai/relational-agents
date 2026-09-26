@@ -128,3 +128,13 @@ Format: `JST time — surface — what happened`.
   not `users_google_sub_unique`; no data issue). After: drift "schema matches",
   `/api/health` 200, client id/secret server-side only (not in static chunks).
   Still to measure: first real IdP sign-in on prod (time to first success).
+- 2026-09-26 03:00 — Agents — **the demo is `ainmem.ainetwork.xyz`**, not
+  memory.ainetwork.ai: third client `aaa59595-9b57-44e5-8902-09dfc7dc4274`,
+  redirect `https://ainmem.ainetwork.xyz/api/auth/world/callback`, sector
+  `ainmem.ainetwork.xyz` (staged 02:58, created 03:00:02). Secret pasted into
+  `.env.xyz` by hand; `invalid_grant` vs `invalid_client` check passes.
+  memory.ainetwork.ai keeps its own client `e82cf4d2…` and deploy. Found on
+  the way: `docker-compose.xyz.yml` passed no build args, so no `NEXT_PUBLIC_*`
+  (World ID app id) ever reached the xyz browser bundle — fixed alongside.
+  Three registrations for one app: each deploy domain is its own identity
+  sector, so a World human gets a different pairwise `sub` on each.
