@@ -6,7 +6,7 @@
 it, on what, how many of us must say yes. We write it down, in chat and in a doc. The wallet
 doesn't know any of it: a multisig knows keys and a threshold, not "the hotel comes first" or
 "never to a member's own wallet", and ten wallets of one person are ten signers. So the agent
-that already keeps this relation's memory (AINmem) holds the pot and applies the agreement as
+that already keeps this relation's memory — the relation agent — holds the pot and applies the agreement as
 written — and because "three approved" means nothing if the three are one person, World
 proves that each approval is a distinct human, present now. Every scene answers one piece of
 that; the caption under each heading says which.
@@ -138,7 +138,7 @@ relation's memory doc one click away — **Treasury Rules** in plain sentences.
 > this page, but it only follows the version the group adopted."
 
 Alex taps **Claim your vote with World ID** (IDKit, Proof of Human) →
-`🌍 Vote claimed — World ID confirmed you're a unique human. One human, one vote.`
+`Vote claimed — World ID confirmed you're a unique human. One human, one vote.`
 
 > "Before anyone can approve anything, they prove one thing: that they're a
 > unique human. Not who they are — just: one human, one vote."
@@ -166,7 +166,7 @@ Alex: `@agent pay the hotel deposit, $180`
 
 Agent, one thought per line:
 
-> ⏳ Queued: $180 to Hotel Gracery Shinjuku (hotel deposit).
+> Queued: $180 to Hotel Gracery Shinjuku (hotel deposit).
 > Needs 2 verified humans — our rules: “Shared expenses from $50 to $200: 2 verified members approve.”
 > Approve with World ID in the treasury panel above.
 
@@ -186,23 +186,23 @@ Caption: `Your agent can click. It can't be you.`
 and finishes by itself in about 3 seconds — its page says “Signing you in”; that is this
 check. In production this is World App on the member's phone."*)
 
-`Chris's laptop` — Chris taps **🌍 Approve with World ID** → our confirmation
+`Chris's laptop` — Chris taps **Approve with World ID** → our confirmation
 page, in the treasury's coral and Pretendard. Across the top, what happens next:
 `1 Review · this page` → `2 World ID checks you're a unique human · World's page ·
 about 3 s` → `3 Back here · your approval is counted`. Then `Tokyo Trip · shared
 treasury → World ID for Agents`, **$180.00**, the hotel and its full address,
 `Approving as Chris`, the rule, `Approved so far: No one yet — 0 of 2 needed` with
 two empty `verified human` slots, *"The agent can't send this until 2 different
-humans approve it with World ID."* — hold it 4 s → **🌍 Approve with World ID**
+humans approve it with World ID."* — hold it 4 s → **Approve with World ID**
 → the World ID for Agents step-up → back in the room, the banner
-*"✅ Approved — World ID confirmed a unique human, just now. 1 of 2 counted · 1 more
+*"Approved — World ID confirmed a unique human, just now. 1 of 2 counted · 1 more
 verified human needed."* over the request's card (outlined for a moment), and in the chat:
 
-> ✅ Chris approved with World ID — 1 of 2 · fresh check at 14:02, after this request
+> Chris approved with World ID — 1 of 2 · fresh check at 14:02, after this request
 
 Alex approves the same way (`~40 s later on Sepolia`) →
 
-> ✅ Paid $180 to Hotel Gracery Shinjuku (hotel deposit).
+> Paid $180 to Hotel Gracery Shinjuku (hotel deposit).
 > Approved by 2 verified humans: Chris and Alex · tx 0xbf04…
 
 Etherscan tab (caption: *testnet — the "hotel" is the faucet account that funded the pot*).
@@ -218,7 +218,7 @@ Caption: `Idle money works under our rules` → after the swap `Three humans sai
 
 Right after the deposit is paid the agent adds, unprompted:
 
-> 💡 After that we hold $816.03, and nothing else is due yet. $200 could work for
+> After that we hold $816.03, and nothing else is due yet. $200 could work for
 > us instead of sitting idle — our rules say: “Investing idle funds: 3 verified
 > members approve.” If you want that, say: @agent invest $200 of the idle funds
 
@@ -231,10 +231,10 @@ card, 0 / 3. The payee is the agent's own wallet: that is where the WETH will si
 Chris, Dana and Eli — three browsers, three humans — each tap **Approve with
 World ID** → the confirmation page ($200.00 to Savings (idle funds), *Sends to*
 the agent's address, the rule, three empty slots) → the World ID for Agents step-up →
-back in the room: **✅ Chris approved with World ID — 1 of 3 · fresh check at
+back in the room: **Chris approved with World ID — 1 of 3 · fresh check at
 18:10, after this request** … 3 of 3.
 
-Then, with no further click: **📈 Invested $200 to Savings (idle funds) — 1 USDC
+Then, with no further click: **Invested $200 to Savings (idle funds) — 1 USDC
 → 0.000371977 WETH via Uniswap v3 on Base (demo scale: $1 = 0.005 USDC).
 Approved by 3 verified humans: Chris, Dana, and Eli · tx 0x9af1…** The panel
 header gains **+ $199.72 invested**, priced through the same pool right now.
@@ -258,11 +258,11 @@ Caption: `Same human twice counts once` · `World ID for Agents — fresh step-u
 Alex: `@agent pay the hotel for $150` → Alex approves with his World ID (1 of 2).
 
 `Dana's laptop` — Alex picks up Dana's laptop. Dana has a vote and has never
-done a World ID for Agents step-up. On Dana's account Alex taps **🌍 Approve
+done a World ID for Agents step-up. On Dana's account Alex taps **Approve
 with World ID** and verifies with **his own** World ID (his phone) → the IdP
 returns the same pairwise `sub` that already approved from Alex's account →
 
-> ⛔ An approval was voided: the same human already approved from another account.
+> An approval was voided: the same human already approved from another account.
 
 The card stays at **1 of 2** and nothing is paid.
 
@@ -298,7 +298,7 @@ Caption: `What we agreed on was enough`
 Alex: `@agent pay the hotel upgrade, $150` → *"Queued: $150 to Hotel Gracery
 Shinjuku (hotel upgrade). This needs 2 verified humans…"* → Bea (her first
 approval on camera; she claimed her vote in scene 1) and Chris approve →
-**✅ Paid $150 to Hotel Gracery Shinjuku (hotel upgrade) — approved by Bea, Chris
+**Paid $150 to Hotel Gracery Shinjuku (hotel upgrade) — approved by Bea, Chris
 (2 of 2 verified humans). tx …**
 
 > "The deposit was paid. The raid was refused. The idle money is working. What's
