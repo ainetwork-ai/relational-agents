@@ -1,5 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -237,6 +239,13 @@ export async function unbindTryMember(room: DemoRoom, key: MemberKey): Promise<v
   const member = room.members.find((m) => m.key === key);
   if (!member) return;
   await db.update(users).set({ worldSub: null, worldVerifiedAt: null }).where(eq(users.id, member.userId));
+}
+
+/** The narrated demo, in the deploy's uploads volume rather than in git (*.mp4 is ignored); /world/video streams it. */
+export const DEMO_VIDEO_FILE = join(process.cwd(), "public", "uploads", "relation-treasury-demo.mp4");
+
+export function demoVideoAvailable(): boolean {
+  return existsSync(DEMO_VIDEO_FILE);
 }
 
 const RESET_EVERY_MS = 30_000;

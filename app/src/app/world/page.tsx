@@ -5,6 +5,7 @@ import {
   demoLoginEnabled,
   demoRoom,
   demoSnapshot,
+  demoVideoAvailable,
   worldModes,
   type DemoEntry,
   type DemoFace,
@@ -23,8 +24,8 @@ const PRETENDARD_CSS =
 const REPO = "https://github.com/ainetwork-ai/relational-agents";
 const WORLD_DIR = `${REPO}/tree/main/world`;
 const SRC = `${REPO}/blob/main/app/src`;
-// the narrated demo, served by this app so it plays without an account anywhere
-const VIDEO = "/demo/world/relation-treasury.mp4";
+// the narrated demo, streamed by this app (./video) so it plays without an account anywhere
+const VIDEO = "/world/video";
 const VIDEO_POSTER = "/demo/world/relation-treasury-poster.jpg";
 
 const when = new Intl.DateTimeFormat("en-US", {
@@ -212,6 +213,7 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
   const [recording, tryRoom] = await Promise.all([demoRoom("tokyo"), demoRoom("try")]);
   const [live, trial] = await Promise.all([recording && demoSnapshot(recording), tryRoom && demoSnapshot(tryRoom)]);
   const modes = worldModes();
+  const hasVideo = demoVideoAvailable();
   const canEnter = demoLoginEnabled() && tryRoom !== null;
   const note = RESET_NOTE[sp.reset ?? (sp.try === "missing" ? "missing" : "")];
   const flash = note && sp.reset === "done" && canTopUp() ? `${note} If visitors ran its wallet low, it is being topped up now.` : note;
@@ -241,9 +243,15 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
             gets one vote with IDKit, and every payment waits for fresh World ID checks from different humans.
           </p>
           <div className={styles.cta}>
-            <a className={styles.primary} href="#demo">
-              ▶ Watch the 3½-minute demo
-            </a>
+            {hasVideo ? (
+              <a className={styles.primary} href="#demo">
+                ▶ Watch the 3½-minute demo
+              </a>
+            ) : (
+              <a className={styles.primary} href={`${REPO}/blob/main/world/DEMO.md`}>
+                Read the demo script
+              </a>
+            )}
             <a className={styles.secondaryBtn} href="#try">
               Try it yourself — about 2 minutes →
             </a>
@@ -266,15 +274,18 @@ export default async function WorldPage({ searchParams }: { searchParams: Promis
 
         <section className={styles.section} id="demo" aria-labelledby="live">
           <h2 id="live" className={styles.h2}>
-            The demo, and the room it was recorded in
+            {hasVideo ? "The demo, and the room it was recorded in" : "The room from the video, live"}
           </h2>
           <p className={styles.sub}>
-            Three and a half minutes, recorded on this site. Under it, the same room as it is right now: every payment
-            links to its transaction, so you can check it on the chain yourself.
+            {hasVideo ? "Three and a half minutes, recorded on this site. Under it, the same room" : "The Tokyo Trip room we recorded in,"}{" "}
+            as it is right now, read-only: every payment links to its transaction, so you can check it on the chain
+            yourself.
           </p>
-          <video className={styles.video} controls preload="metadata" playsInline poster={VIDEO_POSTER}>
-            <source src={VIDEO} type="video/mp4" />
-          </video>
+          {hasVideo && (
+            <video className={styles.video} controls preload="metadata" playsInline poster={VIDEO_POSTER}>
+              <source src={VIDEO} type="video/mp4" />
+            </video>
+          )}
           {recording && live ? (
             <Statement snap={live} modes={modes} />
           ) : (
