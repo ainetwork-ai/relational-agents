@@ -1516,7 +1516,7 @@ The table is a workspace database titled exactly "Family nicknames" (title colum
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { databases, dbProperties, dbRows, pages, teamspaces } from "@/lib/db/schema";
+import { blocks, databases, dbProperties, dbRows, pages, teamspaces } from "@/lib/db/schema";
 import { b, createAgentDatabase, writeAgentPage } from "@/lib/agent/agent-pages";
 import { ensureGeneralTeamspace } from "@/lib/workspace";
 import type { T } from "@/i18n/translate";
@@ -1524,13 +1524,33 @@ import { descendants, type FamilyNode } from "@/lib/ens-family/family-tree";
 
 export const NICKNAMES_DB_TITLE = "Family nicknames";
 
+/** The live "Family nicknames" page the agent made, if any. */
+async function findPage(workspaceId: string): Promise<string | null> {
+  const [pg] = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.workspaceId, workspaceId), eq(pages.title, NICKNAMES_DB_TITLE), eq(pages.isArchived, false)))
+    .limit(1);
+  return pg?.id ?? null;
+}
+
+/** The table by its title, or — when the family renamed it — through the page that holds it. */
 async function findTable(workspaceId: string): Promise<string | null> {
   const [d] = await db
     .select({ id: databases.id })
     .from(databases)
     .where(and(eq(databases.workspaceId, workspaceId), eq(databases.title, NICKNAMES_DB_TITLE)))
     .limit(1);
-  return d?.id ?? null;
+  if (d) return d.id;
+  const pageId = await findPage(workspaceId);
+  if (!pageId) return null;
+  const [blk] = await db
+    .select({ content: blocks.content })
+    .from(blocks)
+    .where(and(eq(blocks.pageId, pageId), eq(blocks.type, "database")))
+    .limit(1);
+  const id = blk?.content.databaseId;
+  return typeof id === "string" ? id : null;
 }
 
 /** ENS name (lower case) → nicknames. Empty when the workspace has no such database. */
@@ -1558,15 +1578,9 @@ export async function ensureNicknamesTable(opts: {
   tree: FamilyNode;
   t: T;
 }): Promise<{ created: boolean; pageId: string | null }> {
-  if (await findTable(opts.workspaceId)) return { created: false, pageId: null };
-  // a page of that title already holds the table (maybe renamed): writeAgentPage would
-  // rebuild it and drop the family's database, so leave it alone
-  const [page] = await db
-    .select({ id: pages.id })
-    .from(pages)
-    .where(and(eq(pages.workspaceId, opts.workspaceId), eq(pages.title, NICKNAMES_DB_TITLE), eq(pages.isArchived, false)))
-    .limit(1);
-  if (page) return { created: false, pageId: null };
+  // an existing page is never rebuilt: writeAgentPage would drop the family's database
+  // (even a renamed one) along with the page's old blocks
+  if ((await findTable(opts.workspaceId)) || (await findPage(opts.workspaceId))) return { created: false, pageId: null };
   const [first] = await db.select({ id: teamspaces.id }).from(teamspaces).where(eq(teamspaces.workspaceId, opts.workspaceId)).limit(1);
   const teamspaceId = first?.id ?? (await ensureGeneralTeamspace(opts.workspaceId, opts.byUserId));
   const databaseId = await createAgentDatabase({
