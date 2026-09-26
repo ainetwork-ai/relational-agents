@@ -175,6 +175,58 @@ td.f{font-family:"IBM Plex Mono", monospace; white-space:nowrap}
   color:var(--accent); border-left:2px solid var(--accent); padding-left:8px;
 }
 
+/* the map: two bands, and the only two places an arrow crosses between them */
+.map{display:flex; flex-direction:column; gap:0}
+.band{border:1px solid var(--rule-strong); background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:10px}
+.band.off{border-radius:2px 2px 0 0}
+.band.on{border-radius:0 0 2px 2px; border-top:0}
+.band-label{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.band-label b{font:600 13px/1.3 "Zilla Slab", serif; letter-spacing:.01em}
+.band-label span{font-size:12.5px; color:var(--ink-soft)}
+.chips{display:flex; flex-wrap:wrap; gap:6px; align-items:stretch}
+.chip{
+  flex:1 1 150px; min-width:0; border:1px solid; border-radius:2px; padding:7px 9px;
+  display:flex; flex-direction:column; gap:2px;
+}
+.chip b{font:500 12.5px/1.25 "IBM Plex Mono", monospace; overflow-wrap:anywhere}
+.chip span{font-size:11.5px; line-height:1.35; color:var(--ink-soft)}
+.chip.std{border-color:#2A5D8F; background:#DDEAF6} .chip.std b{color:#12283D}
+.chip.ours{border-color:var(--accent); background:var(--accent-soft)} .chip.ours b{color:var(--accent)}
+.chip.rule{border-color:#B4611F; background:#FAE6D8} .chip.rule b{color:#8A4A17}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .chip.std{border-color:#5C93C8; background:#16293C} 
+  :root:not([data-theme="light"]) .chip.std b{color:#9EC4E8}
+  :root:not([data-theme="light"]) .chip.rule{border-color:#C97F40; background:#331F10}
+  :root:not([data-theme="light"]) .chip.rule b{color:#E0A36A}
+}
+:root[data-theme="dark"] .chip.std{border-color:#5C93C8; background:#16293C}
+:root[data-theme="dark"] .chip.std b{color:#9EC4E8}
+:root[data-theme="dark"] .chip.rule{border-color:#C97F40; background:#331F10}
+:root[data-theme="dark"] .chip.rule b{color:#E0A36A}
+.crossing{
+  display:flex; flex-wrap:wrap; gap:8px 24px; justify-content:center;
+  border-inline:1px solid var(--rule-strong); background:var(--surface-2); padding:10px 16px;
+}
+.crossing div{font:500 12px/1.4 "IBM Plex Mono", monospace; color:var(--ink)}
+.crossing div em{font-style:normal; color:var(--ink-soft); font-weight:400}
+.legend{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; margin-top:4px}
+.legend > div{border-left:3px solid; padding:8px 0 8px 11px; display:flex; flex-direction:column; gap:3px}
+.legend b{font:600 13px/1.3 "Zilla Slab", serif}
+.legend span{font-size:12.5px; line-height:1.45; color:var(--ink-soft)}
+.legend .l-std{border-color:#2A5D8F} .legend .l-std b{color:#2A5D8F}
+.legend .l-ours{border-color:var(--accent)} .legend .l-ours b{color:var(--accent)}
+.legend .l-rule{border-color:#B4611F} .legend .l-rule b{color:#B4611F}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .legend .l-std{border-color:#5C93C8} 
+  :root:not([data-theme="light"]) .legend .l-std b{color:#9EC4E8}
+  :root:not([data-theme="light"]) .legend .l-rule{border-color:#C97F40} 
+  :root:not([data-theme="light"]) .legend .l-rule b{color:#E0A36A}
+}
+:root[data-theme="dark"] .legend .l-std{border-color:#5C93C8}
+:root[data-theme="dark"] .legend .l-std b{color:#9EC4E8}
+:root[data-theme="dark"] .legend .l-rule{border-color:#C97F40}
+:root[data-theme="dark"] .legend .l-rule b{color:#E0A36A}
+
 .finds{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
 .find{border:1px solid var(--rule-strong); border-left:3px solid var(--stamp); border-radius:2px; background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:8px}
 .find h3{color:var(--stamp)}
@@ -205,6 +257,7 @@ footer{padding-block:32px; color:var(--ink-soft); font-size:13.5px; display:flex
 
 <nav class="toc">
   <ul>
+    <li><a href="#map">0 · the map</a></li>
     <li><a href="#mandate">1 · the mandate</a></li>
     <li><a href="#gate">2 · the gate</a></li>
     <li><a href="#period">3 · the period key</a></li>
@@ -216,6 +269,66 @@ footer{padding-block:32px; color:var(--ink-soft); font-size:13.5px; display:flex
 </nav>
 
 <div class="wrap">
+
+<section id="map">
+  <div class="head">
+    <span class="eyebrow">00 — orientation</span>
+    <h2>What the chain enforces, and what only this code does</h2>
+  </div>
+  <div class="body">
+    <p>The single most useful thing to hold in your head: <strong>the mandate and its caps live entirely
+    off-chain.</strong> Base has never heard of a mandate. It will move tokens for anyone holding the agent's
+    key who asks properly — “once a week” and “twenty dollars a run” are promises this process keeps, not
+    promises the chain keeps. The only bound the chain itself enforces is <code>amountOutMinimum</code>, the
+    floor under what comes back from the swap.</p>
+  </div>
+
+  <div class="map">
+    <div class="band off">
+      <div class="band-label"><b>Off-chain</b> <span>this process, on one machine. Nothing here is visible to anyone else, and nothing here is enforced by anyone else.</span></div>
+      <div class="chips">
+        <div class="chip std"><b>EIP-712 signature</b><span>a standard way to sign a structured message in a wallet</span></div>
+        <div class="chip ours"><b>SpendMandate</b><span>our eleven fields: pair, caps, cadence, expiry</span></div>
+        <div class="chip rule"><b>verifyApproval</b><span>recover the signer again, every run</span></div>
+        <div class="chip std"><b>ISO-8601 week</b><span>the key that says “this period already happened”</span></div>
+        <div class="chip rule"><b>checkMandate</b><span>seven refusals, in a fixed order</span></div>
+        <div class="chip ours"><b>passbook.json</b><span>every buy and every refusal, with its reason</span></div>
+      </div>
+    </div>
+
+    <div class="crossing">
+      <div>↓ <em>only a run that passed every check sends anything</em></div>
+      <div>↑ <em>the receipt and its Transfer logs come back</em></div>
+    </div>
+
+    <div class="band on">
+      <div class="band-label"><b>On-chain</b> <span>Base mainnet. Public, permanent, and indifferent to our rules — it checks balances, allowances and <code>amountOutMinimum</code>, nothing else.</span></div>
+      <div class="chips">
+        <div class="chip std"><b>QuoterV2</b><span>what this swap would return, changing nothing</span></div>
+        <div class="chip std"><b>ERC-20 approve</b><span>the standard allowance, set to exactly this amount</span></div>
+        <div class="chip std"><b>SwapRouter02</b><span>exactInputSingle, with the minimum output attached</span></div>
+        <div class="chip std"><b>USDC / WETH pool</b><span>the 0.05% v3 pool that actually holds the liquidity</span></div>
+        <div class="chip std"><b>Transfer logs</b><span>the transaction's own record of what moved</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <p>The colours split the same picture a second way — by <em>who decided it</em>, which is worth keeping
+    separate from where it runs.</p>
+  </div>
+  <div class="legend">
+    <div class="l-std"><b>Standard</b><span>Written by someone else and not ours to change: EIP-712, ERC-20, the Uniswap v3 contracts, the ISO week. If we had spelled any of these differently, nothing would interoperate.</span></div>
+    <div class="l-ours"><b>Our design</b><span>Product decisions another team would reasonably make differently: which eleven fields a mandate carries, that the passbook is a JSON file, that the cadence is weekly.</span></div>
+    <div class="l-rule"><b>This project's rules</b><span>Policy inside our code, each one pinned by a test: the refusal order, an unknown <code>kind</code> throwing, re-verifying the signature every run, a broadcast swap taking its period with it.</span></div>
+  </div>
+  <div class="body">
+    <p class="note">This is also the honest limit, stated plainly: a compromised agent process is unbounded,
+    because every rule above sits inside it. Moving the caps onto the chain means a session key on a smart
+    account or a v4 hook — a different project, named in <code>plan.md</code> as rejected scope rather than
+    implied here.</p>
+  </div>
+</section>
 
 <section id="mandate">
   <div class="head">
