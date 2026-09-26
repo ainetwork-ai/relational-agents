@@ -11,6 +11,7 @@ import type { AgUiEvent, PayStep } from "@/lib/x402/agui";
 import { giftPrice } from "@/lib/gift-price";
 import { payX402WithWallet } from "@/lib/wallet/x402";
 import { WalletSignatureError } from "@/lib/wallet/provider";
+import { FilePreview } from "@/components/previews";
 
 interface GiftView {
   spec: {
@@ -21,6 +22,8 @@ interface GiftView {
     amountKrw: number;
     amount: string;
     previewUrl?: string;
+    /** the locked file — a video plays; anything else opens in the file preview */
+    file?: { path: string; mime: string };
     /** sold as an aindrive paid share — paid from the viewer's own wallet */
     sale?: { price: number; currency: string };
   };
@@ -69,6 +72,9 @@ export function GiftBlock({ blockId, gift }: { blockId: string; gift: GiftView }
   const mine = me?.id === spec.recipientUserId;
   const previewRef = spec.previewUrl ? parseAindriveUrl(spec.previewUrl, info?.base) : null;
   const video = `/api/gift/${encodeURIComponent(spec.id)}/video`;
+  // gifts made before `file` reached the client are all videos
+  const isVideo = !spec.file || spec.file.mime.startsWith("video/");
+  const fileName = spec.file?.path.split("/").pop() ?? "";
   const usdc = (Number(spec.amount) / 1e6).toFixed(2);
   const busy = step !== null || walletStep !== null;
 
@@ -162,18 +168,28 @@ export function GiftBlock({ blockId, gift }: { blockId: string; gift: GiftView }
       <div className="flex items-center gap-2 px-3 py-2 text-sm">
         <Gift size={15} className="shrink-0 text-amber-600" />
         <span className="font-medium text-neutral-800 dark:text-neutral-100">{spec.title}</span>
-        <span className="text-xs text-neutral-500">· {t("a video by {name}", { name: spec.recipientName })}</span>
+        <span className="text-xs text-neutral-500">
+          · {isVideo ? t("a video by {name}", { name: spec.recipientName }) : t("from {name}", { name: spec.recipientName })}
+        </span>
         <span className="ml-auto rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
           x402{settlement === "aindrive" || spec.sale ? " · aindrive" : ""}
         </span>
       </div>
       {unlock || mine ? (
         <div>
-          <video data-testid={`gift-video-${blockId}`} src={video} controls playsInline className="block max-h-[420px] w-full bg-black" />
+          {isVideo ? (
+            <video data-testid={`gift-video-${blockId}`} src={video} controls playsInline className="block max-h-[420px] w-full bg-black" />
+          ) : (
+            <div data-testid={`gift-file-${blockId}`} className="max-h-[420px] overflow-auto bg-white dark:bg-[#191919]">
+              <FilePreview src={{ name: fileName, url: video }} compact header={false} className="rounded-none border-0" />
+            </div>
+          )}
           <p className="px-3 py-2 text-xs text-neutral-500">
             {unlock
               ? t("🎁 {by} opened it with {krw} of pocket money · receipt {receipt}", { by: unlock.byName, krw: won(t, spec), receipt: "" })
-              : t("Your video. Family members see a gift that opens with {krw} of pocket money.", { krw: won(t, spec) })}
+              : isVideo
+                ? t("Your video. Family members see a gift that opens with {krw} of pocket money.", { krw: won(t, spec) })
+                : t("Yours. Family members see a gift that opens with {krw}.", { krw: won(t, spec) })}
             {unlock &&
               (isTx(unlock.receipt) ? (
                 <a href={`https://basescan.org/tx/${unlock.receipt}`} target="_blank" rel="noreferrer" className="underline">
