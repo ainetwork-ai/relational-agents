@@ -175,15 +175,21 @@ Over the pending card, before anyone approves (5 s):
 
 Caption: `Your agent can click. It can't be you.`
 
-(Said, not shown: the sandbox IdP uses fake identities and completes without a phone;
-in production the fresh proof comes from World App on the member's own phone.)
+(The confirmation page says it too, in a blue line: *"Sandbox: World uses a fake identity
+and finishes by itself in about 3 seconds — its page says “Signing you in”; that is this
+check. In production this is World App on the member's phone."*)
 
 `Chris's laptop` — Chris taps **🌍 Approve with World ID** → our confirmation
-page (`Tokyo Trip · shared treasury → World ID for Agents`, **$180.00**, the
-hotel and its full address, `Approving as Chris`, the rule, `Approved so far:
-No one yet — 0 of 2 needed`, *"The agent can't send this until 2 different
-humans approve it with World ID."*) — hold it 4 s → **🌍 Approve with World ID**
-→ the World ID for Agents step-up → back in the room:
+page, in the treasury's coral and Pretendard. Across the top, what happens next:
+`1 Review · this page` → `2 World ID checks you're a unique human · World's page ·
+about 3 s` → `3 Back here · your approval is counted`. Then `Tokyo Trip · shared
+treasury → World ID for Agents`, **$180.00**, the hotel and its full address,
+`Approving as Chris`, the rule, `Approved so far: No one yet — 0 of 2 needed` with
+two empty `verified human` slots, *"The agent can't send this until 2 different
+humans approve it with World ID."* — hold it 4 s → **🌍 Approve with World ID**
+→ the World ID for Agents step-up → back in the room, the banner
+*"✅ Approved — World ID confirmed a unique human, just now. 1 of 2 counted · 1 more
+verified human needed."* over the request's card (outlined for a moment), and in the chat:
 
 > ✅ Chris approved with World ID — 1 of 2 · fresh check at 14:02, after this request
 
@@ -216,8 +222,8 @@ rules say: “Investing idle funds: 3 verified members approve.”…"* — a pe
 card, 0 / 3. The payee is the agent's own wallet: that is where the WETH will sit.
 
 Chris, Dana and Eli — three browsers, three humans — each tap **Approve with
-World ID** → the confirmation page ($200.00 to Savings (idle funds), *Paid to*
-the agent's address, the rule, none of 3 yet) → the World ID for Agents step-up →
+World ID** → the confirmation page ($200.00 to Savings (idle funds), *Sends to*
+the agent's address, the rule, three empty slots) → the World ID for Agents step-up →
 back in the room: **✅ Chris approved with World ID — 1 of 3 · fresh check at
 18:10, after this request** … 3 of 3.
 

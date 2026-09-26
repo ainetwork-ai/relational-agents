@@ -57,7 +57,12 @@ would let a hijacked session approve.
 
 Before the IdP, the app shows its own confirmation page — amount, payee name and address,
 requester, the rule, who has approved so far — because the IdP screen cannot say what is being
-approved.
+approved. It also says what comes next (World's page checks you're a unique human, then back
+here, where the approval is counted), because on the sandbox that page says "Signing you in".
+Every outcome that comes back — counted, not counted and why, cancelled, World ID unreachable —
+reads the same in the room and on the treasury page
+([`world-result-copy.ts`](../app/src/components/treasury/world-result-copy.ts)), and a vote can
+be claimed from either.
 
 ## Approve once: a recurring buy
 
@@ -104,7 +109,7 @@ stay right while the code keeps moving.
 | One human, one vote per relation: `treasury_seats` unique on `(room, nullifier)` | [`schema.ts`](../app/src/lib/db/schema.ts) `treasury_seats_room_nullifier`, [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `claimSeat` |
 | The verifier's "already verified" answer mapped to the same-human refusal | [`seat/route.ts`](../app/src/app/api/dm/rooms/%5BroomId%5D/treasury/seat/route.ts) `ALREADY_VERIFIED` |
 | The step-up request: code flow with PKCE (S256), `state`, `nonce`, `max_age=0`, `prompt=login` | [`connect/route.ts`](../app/src/app/api/auth/world/connect/route.ts) `startFlow` |
-| Our confirmation page in front of the IdP, served with `default-src 'none'` | [`connect/route.ts`](../app/src/app/api/auth/world/connect/route.ts) `GET`, `confirmPage` |
+| Our confirmation page in front of the IdP, served with `default-src 'none'` and no script (only the Pretendard stylesheet and fonts from one CDN) | [`connect/route.ts`](../app/src/app/api/auth/world/connect/route.ts) `GET`, `confirmPage` |
 | id_token checks: JWKS signature, issuer, audience, algorithm, `nonce`; `auth_time` passed on, never `iat` | [`world.ts`](../app/src/lib/auth/world.ts) `exchangeWorldCode` |
 | Freshness against the request: `auth_time` after it was created, fail-closed | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval` |
 | Quorum = distinct pairwise `sub`s (`users.world_sub` is unique); the same human from another account is voided | [`approvals.ts`](../app/src/lib/agent/treasury/approvals.ts) `recordIdpApproval`, [`schema.ts`](../app/src/lib/db/schema.ts) `worldSub` |
