@@ -63,6 +63,7 @@ export function SeatButton({
   onClaimed,
   onError,
   className,
+  labels,
 }: {
   roomId: string;
   appId: `app_${string}`;
@@ -76,6 +77,8 @@ export function SeatButton({
   onError: (err: SeatClaimError | null) => void;
   /** the button's look where it sits (the treasury page draws its own); the room panel's by default */
   className?: string;
+  /** the button's words where the page is translated; the room panel's English by default */
+  labels?: { idle: string; starting: string };
 }) {
   const [rpContext, setRpContext] = useState<RpContext | null>(null);
   const [open, setOpen] = useState(false);
@@ -145,7 +148,7 @@ export function SeatButton({
           "mt-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"
         }
       >
-        {starting ? "Starting World ID…" : "🌍 Claim your vote with World ID"}
+        {starting ? (labels?.starting ?? "Starting World ID…") : (labels?.idle ?? "🌍 Claim your vote with World ID")}
       </button>
       {rpContext && (
         <IDKitRequestWidget

@@ -78,6 +78,7 @@ export function VoteClaimCard({ status, roomId, onSeated }: { status: TreasurySt
             action={status.seatAction}
             environment={status.seatEnvironment ?? ENV}
             className={styles.btnDark}
+            labels={{ idle: t("🌍 Claim your vote with World ID"), starting: t("Starting World ID…") }}
             onSeated={() => setClaimed(true)}
             onClaimed={onSeated}
             onError={setError}
