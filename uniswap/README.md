@@ -81,8 +81,13 @@ nothing answers on 8547, so a run reporting skips never touched the chain path.
   `tokenIn`. Slippage is the executor's own `SLIPPAGE_BPS`; the family never signs a minimum output.
 - **A `swap-failed` skip carrying a `txHash` means money may have moved.** That period is then
   treated as bought, so the next run refuses rather than buying on top of it — but nothing yet reads
-  the chain back to find out what actually landed. **Do not point the router provider at a funded
-  real-chain account before that reconciliation exists.**
+  the chain back to find out what actually landed. A confirmed revert carries no `txHash` — the EVM
+  rolled everything back — and leaves its period open. **Do not point the router provider at a
+  funded real-chain account before that reconciliation exists.**
+- **A new mandate starts its own count.** Periods bought and amounts spent are kept per mandate, so
+  revoking and re-signing inside one period lets that period be bought again under the new mandate,
+  with `perPeriodCap` counted from zero. Re-signing needs a family member's key, which the agent
+  never holds; a wallet-wide cap across mandates is slice 2.
 - **`explorerTx` makes a basescan link that does not resolve for a fork transaction.** The hash is
   real on the fork and unknown to the public explorer.
 - **The anvil keys above are demo actors.** They are published test keys; never reuse them anywhere.

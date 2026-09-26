@@ -52,13 +52,16 @@ export function routerProvider(chain) {
       args: [{ tokenIn: intent.tokenIn, tokenOut: intent.tokenOut, fee: v3FeeTier,
                recipient: intent.recipient, amountIn: intent.amountIn, amountOutMinimum,
                sqrtPriceLimitX96: 0n }] });
-    // The swap is broadcast from here on, so every failure below is ambiguous — a timeout or an
-    // undecodable receipt does not mean the tokens stayed put. Carry the hash out with the error so
-    // the caller can file a refusal that names the transaction instead of one that denies it.
+    // The swap is broadcast from here on. A failure below is ambiguous — a timeout or an undecodable
+    // receipt does not mean the tokens stayed put — so it carries the hash out as `err.txHash`, which
+    // the ledger reads as "money may have moved" and answers by occupying the period. The one
+    // exception is a confirmed revert: every state change was rolled back and only gas left the
+    // wallet, so that error keeps the hash in its message and carries no `txHash` — the period must
+    // stay open for the next run.
+    const tagged = (err) => { if (err && typeof err === "object") err.txHash = txHash; return err; };
+    const receipt = await pub.waitForTransactionReceipt({ hash: txHash }).catch((err) => { throw tagged(err); });
+    if (receipt.status !== "success") throw new Error(`swap reverted: ${txHash}`);
     try {
-      const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
-      if (receipt.status !== "success") throw new Error(`swap reverted: ${txHash}`);
-
       // 3. what THIS swap moved, taken from its own Transfer logs. A balance read either side of the
       //    swap would also count anything else that credited the recipient in the same window — two
       //    buys sharing a recipient would each report the other's fill, into the family's passbook.
@@ -72,8 +75,7 @@ export function routerProvider(chain) {
       return { txHash, amountIn: intent.amountIn, amountOut, price: inWhole / outWhole,
                route: priced.route, provider: "router" };
     } catch (err) {
-      if (err && typeof err === "object") err.txHash = txHash;
-      throw err;
+      throw tagged(err);
     }
   }
 
