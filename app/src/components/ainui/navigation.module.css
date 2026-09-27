@@ -1,6 +1,9 @@
 .item { position:relative; min-width:0; width:100%; color:var(--nav-color,#666); }
 .item :global(.ain-ui) { min-width:0; width:100%; }
-.item :global(button) { display:block !important; width:100%; height:28px; min-width:0; padding:3px 22px 3px 24px !important; border:0 !important; border-radius:5px !important; background:transparent !important; color:inherit; text-align:left; font-size:14px; line-height:22px; }
+/* ain-ui's own button keeps a 40px touch target (min-height) and a 13px label; a sidebar row is
+   28px (24px small) with the sidebar's type, and the icon/status offsets below assume that */
+.item :global(button) { display:block !important; width:100%; height:28px; min-height:0 !important; min-width:0; padding:3px 22px 3px 24px !important; border:0 !important; border-radius:5px !important; background:transparent !important; color:inherit; text-align:left; font-size:14px !important; line-height:22px !important; }
+.item :global(button) div, .item :global(button) p { font-size:inherit !important; line-height:inherit !important; font-weight:inherit !important; }
 .item :global(button):hover { background:var(--nav-hover,#e8e8e880) !important; }
 .item :global(button) * { min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .item :global(button) p { margin:0 !important; }
@@ -10,10 +13,10 @@
 .status[data-status=online], .status[data-status=synced] { background:#10b981; }
 .status[data-status=pending], .status[data-status=syncing] { background:#fbbf24; }
 .status[data-status=failed] { background:#ef4444; }
-.item[data-size=small] :global(button) { height:24px; line-height:18px; font-size:11px; padding:3px 4px 3px 24px !important; }
+.item[data-size=small] :global(button) { height:24px; line-height:18px !important; font-size:11px !important; padding:3px 4px 3px 24px !important; }
 .item[data-size=small] .icon { top:5px; }
 .item[data-size=icon] { width:20px; height:20px; flex-shrink:0; }
-.item[data-size=icon] :global(button) { width:20px; height:20px; padding:0 !important; }
+.item[data-size=icon] :global(button) { width:20px; height:20px; min-height:0 !important; padding:0 !important; }
 .item[data-size=icon] :global(button) p { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
 .item[data-size=icon] .icon { top:3px; left:3px; }
 .item[data-size=icon] .status { top:2px; right:1px; width:5px; height:5px; }
