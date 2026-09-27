@@ -65,7 +65,7 @@ export function FamilyFoldersPill({ teamspaceId }: { teamspaceId: string | null 
   const sharing = data.members.filter((m) => m.folders.length).length;
   const total = data.members.length + data.invites.length;
   const off = data.members.some((m) => m.folders.some((f) => !f.online));
-  return <AinuiButton testId="family-folders-pill" label={`${t("Family folders {n}/{total}", { n: sharing, total })}${off ? ` · ${t("Offline")}` : ""}`} onClick={() => openFamilySheet(teamspaceId)} />;
+  return <AinuiButton small testId="family-folders-pill" label={`${t("Family folders {n}/{total}", { n: sharing, total })}${off ? ` · ${t("Offline")}` : ""}`} onClick={() => openFamilySheet(teamspaceId)} />;
 }
 
 /** Mounted once (app layout); opens on openFamilySheet(teamspaceId). */

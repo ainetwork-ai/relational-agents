@@ -23,17 +23,18 @@ export function DriveSurface({ messages, onAction = () => {} }: { messages: A2ui
 }
 
 /** App-owned actions use the same protocol renderer as producer-owned file surfaces. */
-export function AinuiButton({ label, onClick, disabled = false, testId, confirm, className }: {
-  label: string; onClick: () => void | Promise<unknown>; disabled?: boolean; testId?: string; confirm?: string; className?: string;
+/** `small`: a caption-sized, borderless button — for chrome (panel headers, page pills), not a screen's main action. */
+export function AinuiButton({ label, onClick, disabled = false, testId, confirm, className, small = false }: {
+  label: string; onClick: () => void | Promise<unknown>; disabled?: boolean; testId?: string; confirm?: string; className?: string; small?: boolean;
 }) {
   const id = useId();
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const [error, setError] = useState("");
   const messages = useMemo(() => screen(id, [
-    { id: "root", component: "Button", child: "label", action: { event: { name: "activate" } }, ...(confirm ? { confirm } : {}) },
-    { id: "label", component: "Text", text: label },
-  ]), [id, label, confirm]);
+    { id: "root", component: "Button", child: "label", action: { event: { name: "activate" } }, ...(confirm ? { confirm } : {}), ...(small ? { variant: "borderless" } : {}) },
+    { id: "label", component: "Text", text: label, ...(small ? { variant: "caption" } : {}) },
+  ]), [id, label, confirm, small]);
   return <fieldset disabled={disabled || busy} data-testid={testId} className={`min-w-0 border-0 p-0 ${className ?? ""}`}>
     <DriveSurface messages={messages} onAction={async () => {
       if (disabled || running.current) return;
@@ -44,9 +45,10 @@ export function AinuiButton({ label, onClick, disabled = false, testId, confirm,
   </fieldset>;
 }
 
-export function AinuiText({ text }: { text: string }) {
+/** `small`: caption-sized (12px, muted) — status lines in chrome. */
+export function AinuiText({ text, small = false }: { text: string; small?: boolean }) {
   const id = useId();
-  const messages = useMemo(() => screen(id, [{ id: "root", component: "Text", text }]), [id, text]);
+  const messages = useMemo(() => screen(id, [{ id: "root", component: "Text", text, ...(small ? { variant: "caption" } : {}) }]), [id, text, small]);
   return <DriveSurface messages={messages} />;
 }
 
