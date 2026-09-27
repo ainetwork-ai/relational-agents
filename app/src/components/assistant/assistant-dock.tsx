@@ -3,7 +3,7 @@ import { AinuiButton, AinuiText } from "@/components/ainui/surface";
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Send, Sparkles, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useMe } from "@/stores/me";
 import { useT } from "@/i18n/provider";
@@ -124,6 +124,15 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
   const router = useRouter();
   const aindrive = useAindriveInfo();
   const [open, setOpen] = useState(false);
+  // the aindrive folder list at the top of the panel, open unless folded away
+  const [drivesOpen, setDrivesOpenState] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem("ainmem:assistant-drives") === "closed") setDrivesOpenState(false); } catch { /* storage off: stays open */ }
+  }, []);
+  const setDrivesOpen = (v: boolean) => {
+    setDrivesOpenState(v);
+    try { localStorage.setItem("ainmem:assistant-drives", v ? "open" : "closed"); } catch { /* fine */ }
+  };
   const [a, setA] = useState<Assistant | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
@@ -225,13 +234,23 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
       </div>
       {a && (
         <div data-testid="assistant-drives" className="border-b border-neutral-100 px-4 py-2 dark:border-neutral-800">
-          <div className="mb-1 flex items-center">
-            <p className="text-[11px] font-medium text-neutral-400">{t("{n} linked aindrive folders", { n: a.drives.length })}</p>
+          <div className="flex items-center gap-1">
+            {/* the folder list can be folded away; the choice sticks (per browser) */}
+            <button
+              type="button"
+              data-testid="assistant-drives-toggle"
+              aria-expanded={drivesOpen}
+              onClick={() => setDrivesOpen(!drivesOpen)}
+              className="flex items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+            >
+              {drivesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {t("{n} linked aindrive folders", { n: a.drives.length })}
+            </button>
             {a.teamspaceId && (
-              <AinuiButton testId="assistant-family" label={t("Family folders · Invite")} onClick={() => openFamilySheet(a.teamspaceId!)} />
+              <AinuiButton small className="ml-auto" testId="assistant-family" label={t("Family folders · Invite")} onClick={() => openFamilySheet(a.teamspaceId!)} />
             )}
           </div>
-          {a.drives.length === 0 && (
+          {drivesOpen && a.drives.length === 0 && (
             <div data-testid="assistant-no-drives" className="space-y-2 pb-1 text-xs text-neutral-500">
               <p>
                 {t("No aindrive folders are shared in {ws} yet. Connect your aindrive, or share folders into a teamspace, and the agent reads them here.", {
@@ -245,14 +264,14 @@ export function AssistantDock({ workspaceId }: { workspaceId: string | null }) {
               )}
             </div>
           )}
-          <div className="flex flex-wrap gap-1">
+          {drivesOpen && <div data-testid="assistant-drives-list" className="flex flex-col pb-1 pl-1">
             {[...a.drives].sort((x, y) => Number(y.online) - Number(x.online)).slice(0, CHIPS).map((d) => (
-              <AinuiText key={d.label} text={`${d.owner ? `${d.owner} · ` : ""}${d.label} · ${d.online ? t("Connected") : t("Offline")}`} />
+              <AinuiText small key={d.label} text={`${d.owner ? `${d.owner} · ` : ""}${d.label} · ${d.online ? t("Connected") : t("Offline")}`} />
             ))}
             {a.drives.length > CHIPS && (
               <span className="px-1 py-0.5 text-[11px] text-neutral-400">{t("+{n} more", { n: a.drives.length - CHIPS })}</span>
             )}
-          </div>
+          </div>}
         </div>
       )}
       <div ref={listRef} data-testid="assistant-messages" className="flex-1 space-y-3 overflow-y-auto px-4 py-3">

@@ -56,7 +56,7 @@ pnpm tsx scripts/family-demo-trip-date.mts --end today
 - Drive folders, wallet keys, and CLI homes live in `~/.ainmem-demo/` (outside the repo; key files are mode 600).
 - Three aindrive CLIs must be running on this machine for files to open. To bring them back up, just run
   step 1) again. CLIs that are already running are left alone.
-- If `DEMO_LOGIN_ADDRESS` is set, "Start with the demo account" signs in as **Mom**.
+- If `DEMO_LOGIN_ADDRESS` is set, "Start with the demo account" signs in as **Mom**. Set `DEMO_LOGIN_USER_ID` to Mom's user id too: linking a MetaMask wallet on the demo replaces her address, and the id keeps the demo pointing at her.
   Below it, clicking **As another family member: Grandma · Dad · Seoyeon** signs in as that person directly (scenario 4 uses Grandma).
 - The source files and generation tools (photo download, EXIF, recording synthesis, video) are in `~/.ainmem-demo/source/`.
 

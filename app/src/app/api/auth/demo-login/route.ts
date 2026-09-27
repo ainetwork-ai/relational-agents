@@ -26,11 +26,27 @@ export const dynamic = "force-dynamic";
  * that workspace. GET lists who can be picked.
  */
 
-/** The demo account, and the people of the workspaces it owns. */
-async function demoFamily() {
+/**
+ * The demo account. DEMO_LOGIN_USER_ID names it for good: an address can move — someone
+ * trying payments on the demo links a MetaMask wallet (/api/auth/wallet-link), which
+ * replaces the account's placeholder address, and an address-only lookup then made a
+ * fresh, empty "Mom" on the next demo click. Without the id, DEMO_LOGIN_ADDRESS as before.
+ */
+async function demoAccount() {
+  const id = process.env.DEMO_LOGIN_USER_ID?.trim() ?? "";
+  if (/^[0-9a-f-]{36}$/i.test(id)) {
+    const [byId] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (byId) return byId;
+  }
   const configured = (process.env.DEMO_LOGIN_ADDRESS ?? "").toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(configured)) return null;
-  const [demo] = await db.select().from(users).where(eq(users.ainAddress, configured)).limit(1);
+  const [byAddress] = await db.select().from(users).where(eq(users.ainAddress, configured)).limit(1);
+  return byAddress ?? null;
+}
+
+/** The demo account, and the people of the workspaces it owns. */
+async function demoFamily() {
+  const demo = await demoAccount();
   if (!demo) return null;
   const owned = await db
     .select({ id: workspaceMembers.workspaceId })
@@ -79,6 +95,10 @@ async function loginUser(ainAddress: string, displayName: string, homeCoverUrl?:
       .returning();
     user = created;
   }
+  return signIn(user);
+}
+
+async function signIn(user: typeof users.$inferSelect) {
   await ensureWorkspace(user.id, user.displayName);
   const session = await getSession();
   session.userId = user.id;
@@ -129,6 +149,8 @@ export async function POST(req: NextRequest) {
    // workspaces instead of a fresh empty one. There is no second-best account
    // to fall back to: any other lands in an empty app that looks like data
    // loss, so an unset address fails loudly instead.
+    const existing = await demoAccount();
+    if (existing) return NextResponse.json({ user: toPublicUser(await signIn(existing)) });
     const configured = process.env.DEMO_LOGIN_ADDRESS ?? "";
     if (!/^0x[0-9a-f]{40}$/i.test(configured))
       return NextResponse.json({ error: "Demo login is not configured" }, { status: 503 });
