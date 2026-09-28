@@ -11,7 +11,7 @@ reason. The agent holds its own key and never a member's, so it cannot write its
 the signature is recovered again on every run, so it cannot quietly edit one either. This package is
 that back end on its own: no app, no database, one JSON file.
 
-Design record and rejected options: `plan.md`. Task-by-task build log: `tasks.md`.
+Design record and rejected options: `plan.md`.
 
 ## In the app — the recurring buy in the Relation Treasury
 
@@ -257,14 +257,14 @@ period as money in.
 | piece | where |
 |---|---|
 | the contract, Permit2 and USDC on Base, as the server and the browser use them | [`contribution-plan.ts:13`](../app/src/lib/agent/treasury/contribution-plan.ts#L13) |
-| the salt that names the room member who started a plan | [`contribution-plan.ts:56`](../app/src/lib/agent/treasury/contribution-plan.ts#L56) |
-| each period's state from `pulled` and `stoppedAt`: collected, due, missed, upcoming, stopped | [`contribution-plan.ts:106`](../app/src/lib/agent/treasury/contribution-plan.ts#L106) |
-| `plansOf(pot)`, then each member's Permit2 allowance, USDC allowance and balance in one multicall | [`contributions.ts:61`](../app/src/lib/agent/treasury/contributions.ts#L61) |
-| collecting: one room at a time, each pull simulated, then sent with an explicit nonce | [`contributions.ts:225`](../app/src/lib/agent/treasury/contributions.ts#L225), [`:270`](../app/src/lib/agent/treasury/contributions.ts#L270), [`:277`](../app/src/lib/agent/treasury/contributions.ts#L277) |
+| the salt that names the room member who started a plan | [`contribution-plan.ts:59`](../app/src/lib/agent/treasury/contribution-plan.ts#L59) |
+| each period's state from `pulled` and `stoppedAt`: collected, due, missed, upcoming, stopped | [`contribution-plan.ts:109`](../app/src/lib/agent/treasury/contribution-plan.ts#L109) |
+| `plansOf(pot)`, then each member's Permit2 allowance, USDC allowance and balance in one multicall | [`contributions.ts:62`](../app/src/lib/agent/treasury/contributions.ts#L62) |
+| collecting: one room at a time, each pull simulated, then sent with an explicit nonce | [`contributions.ts:230`](../app/src/lib/agent/treasury/contributions.ts#L230), [`:277`](../app/src/lib/agent/treasury/contributions.ts#L277), [`:284`](../app/src/lib/agent/treasury/contributions.ts#L284) |
 | the weekly run collects before it buys; the room hears what came in | [`tools.ts:257`](../app/src/lib/agent/treasurer/tools.ts#L257), [`:270`](../app/src/lib/agent/treasurer/tools.ts#L270) |
-| the member's wallet: `USDC.approve(Permit2, exact)`, `Permit2.approve(USDC, contract, total, until)`, `start` | [`contribution-dialogs.tsx:208`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L208), [`:214`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L214), [`:217`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L217) |
-| the first period collected right after `start`, once the RPC lists the new plan | [`contribution-dialogs.tsx:264`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L264) |
-| `stop`, and the Permit2 allowance set to 0 | [`contribution-dialogs.tsx:502`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L502) |
+| the member's wallet: `USDC.approve(Permit2, exact)`, `Permit2.approve(USDC, contract, total, until)`, `start` | [`contribution-dialogs.tsx:211`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L211), [`:217`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L217), [`:220`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L220) |
+| the first period collected right after `start`, once the RPC lists the new plan | [`contribution-dialogs.tsx:279`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L279) |
+| `stop`, and the Permit2 allowance set to 0 | [`contribution-dialogs.tsx:518`](../app/src/components/treasury-app/room/contribution-dialogs.tsx#L518) |
 | every collected period in the Activity record | [`activity-model.ts:182`](../app/src/components/treasury-app/room/activity-model.ts#L182) |
 
 Run for real against the app on Base mainnet: a presenter signed in with MetaMask (a burner wallet)
