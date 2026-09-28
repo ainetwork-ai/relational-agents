@@ -26,7 +26,6 @@ listed only in the last section, as proposals; this document changes neither the
 | I14 | Demo: seed (`seed-tokyo-trip.mts`, with the `Savings (idle funds)` payee = the agent's wallet), sign-in links `?as=&returnTo=`, e2e, mock IdP | `scripts/`, `e2e/` | new |
 | I15 | AINDrive: aindrive sign-in and drive links; the agent reads the family's shared folders (recipes, recordings, photos), file URLs | `aindrive.ts`, `family-skills.ts` | before / Sep |
 | I16 | x402: gifts — v2 exact scheme, EIP-3009 USDC (Base Sepolia), a provider layer (family ledger, aindrive), a 1 USDC MetaMask gift | `lib/x402/*`, `gift.ts` | Sep (separate from the treasury) |
-| I17 | Family Vault (a time capsule that pays interest), demo | README §Family Vault | existing demo |
 | I18 | Uniswap Family Passbook: USDC → WETH tsumitate inside a signed mandate (EIP-712), a passbook JSON, `/learn` | `uniswap/` | parallel track, **Base mainnet, its own wallet, not wired to the app** |
 
 ## 2. What the scenario uses

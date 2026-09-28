@@ -260,20 +260,6 @@ registration and renewal, and displays a family tree. The agent can resolve a na
 into a proposed USDC transfer. An inline identity confirmation and wallet signature precede
 payment; receipt checks and spent-link tracking prevent repeating the same send after reload.
 
-## Family Vault — a time capsule that pays interest (demo)
-
-[`family-vault/`](family-vault/) extends the workspace with a family-savings
-demo on 1inch Aqua: parents deposit $1,000 for their child with a sealed
-letter in the workspace; a **custom SwapVM** (two new operators:
-`_timeCapsule`, `_lowRiskGuard`) runs it as low-risk liquidity for 18 years;
-at maturity the child's `claim()` moves principal + spread on-chain and the
-same event unlocks the letter — the money and the message arrive together.
-Custody never leaves the family's own vault contract.
-
-Building it also added general dashboard features to the workspace (counter
-formatting, chart and depth widgets — each with an e2e check) and a first
-iteration, a [swap journal](aqua/).
-
 ## Architecture
 
 aindrive connects the source folders. AINMEM provides the family workspace and relationship
@@ -372,8 +358,8 @@ Playwright uses port 34100 by default (`E2E_PORT` overrides it), a disposable OK
 fake AI settings. Its database comes from `app/.env.local`: the default harness does **not**
 create an isolated database. Use a dedicated test database for runs that create or change data.
 Additional `e2e/*.check.mjs` scripts have their own setup requirements; they are not all run by
-`playwright test`. Treasury, chain and fork checks are documented in [World](world/README.md),
-[Uniswap](uniswap/README.md) and [Family Vault](family-vault/README.md).
+`playwright test`. Treasury, chain and fork checks are documented in [World](world/README.md)
+and [Uniswap](uniswap/README.md).
 
 ### Current implementation limits
 
@@ -401,7 +387,6 @@ Additional `e2e/*.check.mjs` scripts have their own setup requirements; they are
 | [`app/src/components/ainui`](app/src/components/ainui/) · [`app/src/lib/ainui-boundary.ts`](app/src/lib/ainui-boundary.ts) | AIN-UI renderer integration and server action restrictions and folder chat |
 | [`app/src/lib/aindrive-backup.ts`](app/src/lib/aindrive-backup.ts) | Markdown/CSV backups to connected folders |
 | [`app/src/lib/files`](app/src/lib/files/) | uploads, resumable transfers and storage |
-| [`family-vault/`](family-vault/) · [`aqua/`](aqua/) | Aqua/SwapVM demos and the earlier swap journal |
 | [`contracts/`](contracts/) · [`sui/`](sui/) · [`ens/`](ens/) | chain contracts and optional integration scripts |
 | [`archive/`](archive/) | earlier couple and sales demos |
 | [`docs/deployment.md`](docs/deployment.md) | production deployment and operational notes |
