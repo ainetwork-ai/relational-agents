@@ -251,6 +251,7 @@ With `UNISWAP_API_KEY`, buys first request a route from the Uniswap Trading API.
 v3 QuoterV2/SwapRouter02 path is a fallback only before a transaction or order is submitted.
 Members can also authorize recurring contributions through Permit2, with bounded plan totals,
 start/stop controls and a contribution history. See [Uniswap integration](uniswap/README.md).
+How it was submitted, demoed and pitched: [ETHGlobal Tokyo 2026](docs/ethglobal-tokyo-2026.md).
 
 ### Family identity and sending by name
 
