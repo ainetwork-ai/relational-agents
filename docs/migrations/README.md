@@ -11,7 +11,7 @@ the ainmem commit hash.
 ---
 unit: <slug>                 # same as the doc file name
 date: YYYY-MM-DD             # date it landed in this repo
-commits: [<hash>, …]         # cherry-pick targets (drop the aqua/ hunks)
+commits: [<hash>, …]         # cherry-pick targets
 scope: [<file path>, …]      # changed files on the app/ side
 db-migration: none | <description>
 depends-on: [<unit>, …]      # docs that must be ported first
@@ -35,5 +35,4 @@ Body sections: **What** / **Why** / **Change details** / **Verification** / **Pi
 | 6 | [db-push-script](2026-09-25-db-push-script.md) | `57799d7` | pending (optional) |
 
 Common premise: these are all general-purpose product features, so there is no
-trading code. `aqua/` (the 1inch pipeline, seeds, review agent) and the data
-seeded into the dev DB are not ported.
+trading code. The data seeded into the dev DB is not ported.
