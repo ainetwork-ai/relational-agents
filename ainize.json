@@ -1,0 +1,10 @@
+{
+  "name": "relational-agents",
+  "kind": "service",
+  "port": 3000,
+  "healthcheck": "/login",
+  "build": { "dockerfile": "app/Dockerfile", "context": "app" },
+  "env": {
+    "OKF_ROOT": "/tmp/okf"
+  }
+}
