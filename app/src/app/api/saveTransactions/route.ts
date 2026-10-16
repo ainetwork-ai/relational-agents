@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveEditAccess } from "@/lib/pages/edit-access";
 import { applyTransactions } from "@/lib/transactions/apply";
+import { recordSigned, verifySigned } from "@/lib/willow/verify-save";
 import type { SaveError, SaveRequest, Transaction } from "@/lib/transactions/types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,10 @@ export async function POST(req: NextRequest) {
   const byPage = new Map<string, Transaction[]>();
   const rejectedIds: string[] = [];
   const reasons: string[] = [];
+  // signed edits applied here but not (yet) in their aindrive drive, and signatures
+  // dropped — the client re-sends the first later and refreshes its certificate
+  const unrecorded: string[] = [];
+  const signatureRefused: string[] = [];
   for (const t of body.transactions) {
     if (!t || typeof t.pageId !== "string" || typeof t.id !== "string") {
       if (t && typeof t.id === "string") rejectedIds.push(t.id);
@@ -43,13 +48,20 @@ export async function POST(req: NextRequest) {
       reasons.push(`${pageId}: ${access.error}`);
       continue;
     }
+    // signed edits (a teamspace linked to aindrive): the signed payload is what
+    // applies, and once applied it is recorded in the drive (docs/willow-ainmem-plan.md Task 6)
+    const willow = await verifySigned(pageId, access.userId, transactions);
+    signatureRefused.push(...willow.signatureRefused);
     const result = await applyTransactions({
       pageId,
       userId: access.userId,
       workspaceId: access.workspaceId,
       clientId,
-      transactions,
+      transactions: willow.transactions,
     });
+    const rec = await recordSigned(pageId, access.userId, willow.signed);
+    unrecorded.push(...rec.unrecorded);
+    signatureRefused.push(...rec.signatureRefused);
     for (const r of result.rejected) {
       rejectedIds.push(r.id);
       reasons.push(`${r.id}: ${r.reason}`);
@@ -62,6 +74,7 @@ export async function POST(req: NextRequest) {
       { status: authProblem ? 403 : 422 }
     );
   }
+  if (unrecorded.length || signatureRefused.length) return NextResponse.json({ unrecorded, signatureRefused });
   return NextResponse.json({});
 }
 

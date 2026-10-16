@@ -11,6 +11,7 @@
  */
 import type { BlockContent, BlockType } from "@/lib/db/schema";
 import type { ItemId, TextItem } from "@/lib/text-crdt/types";
+import type { WireJson } from "@/lib/willow/entry";
 
 /** Where a text instance lives inside a block's content: the main text, or one
  * table cell (docs/text-crdt-design.md §2). */
@@ -82,6 +83,22 @@ export interface Transaction {
   timestamp: number;
   debug: { userAction: string; clientCommitTimeMs: number };
   operations: Operation[];
+  /** In a teamspace linked to an aindrive drive: the transaction signed by the
+   * editing browser's device key as a Willow entry of that drive
+   * (docs/willow-ainmem-plan.md Task 6). The entry's payload is what was signed,
+   * so the server applies the payload, not the fields around it. */
+  signed?: SignedEnvelope;
+}
+
+export interface SignedEnvelope {
+  /** the aindrive drive whose namespace the entry is in */
+  drive: string;
+  /** ["ainmem", teamspaceId, pageId, id], payload = the transaction's JSON */
+  entry: WireJson;
+  /** the device's `_id/cert` entry in the same drive (aindrive's certificate) */
+  cert: WireJson;
+  /** ainmem's binding of the device key to the signed-in user */
+  binding: string;
 }
 
 /** POST /api/saveTransactions — one request carries transactions for any pages */
@@ -92,7 +109,14 @@ export interface SaveRequest {
 
 /** 200: `{}` — like Notion, the body says nothing; the state the client sent
  * is the state, and everyone else hears about it over SSE. */
-export type SaveResponse = Record<string, never>;
+export type SaveResponse = {
+  /** signed transactions applied but not recorded in their aindrive drive yet
+   * (unreachable): the client hands them in again through /api/willow/record */
+  unrecorded?: string[];
+  /** signatures that were dropped (the edits applied unsigned): the client
+   * fetches a fresh device certificate */
+  signatureRefused?: string[];
+};
 
 /** 4xx: the request could not be honoured in full. `rejectedIds` names the
  * transactions that will never apply (no edit right on their page, malformed);

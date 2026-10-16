@@ -378,6 +378,48 @@ export const TURN_INTO: { type: EBlock["type"]; label: string }[] = [
   { type: "equation", label: "Block equation" },
 ];
 
+type BlockAuthors = Record<string, { name: string | null; signed: "wallet" | "attested" | null }>;
+/** one request per page for a while, shared by every block's menu (review I7) */
+const authorsCache = new Map<string, { at: number; p: Promise<BlockAuthors | null> }>();
+const AUTHORS_TTL_MS = 30_000;
+function pageAuthors(pageId: string): Promise<BlockAuthors | null> {
+  const hit = authorsCache.get(pageId);
+  if (hit && Date.now() - hit.at < AUTHORS_TTL_MS) return hit.p;
+  const p = fetch(`/api/pages/${pageId}/authors`)
+    .then((r) => (r.ok ? (r.json() as Promise<{ blocks?: BlockAuthors }>) : null))
+    .then((d) => d?.blocks ?? null)
+    .catch(() => null);
+  authorsCache.set(pageId, { at: Date.now(), p });
+  return p;
+}
+
+/** "Last edited by …" under the block menu, like the original's; in a teamspace
+ *  linked to aindrive, "Signed" when the drive verifies who signed that edit
+ *  (docs/willow-ainmem-plan.md Task 7). */
+function BlockAuthorFooter({ pageId, blockId }: { pageId: string; blockId: string }) {
+  const t = useT();
+  const [who, setWho] = useState<{ name: string | null; signed: "wallet" | "attested" | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void pageAuthors(pageId).then((blocks) => {
+      if (live) setWho(blocks?.[blockId] ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [pageId, blockId]);
+  if (!who?.name) return null;
+  return (
+    <div
+      data-testid="block-menu-edited-by"
+      className="mt-1 border-t border-neutral-100 px-3 pb-1 pt-1.5 text-[11px] leading-tight text-neutral-400 dark:border-neutral-700"
+    >
+      <div>{t("Last edited by {name}", { name: who.name })}</div>
+      {who.signed && <div>{who.signed === "wallet" ? t("Signed · wallet") : t("Signed · vouched by aindrive")}</div>}
+    </div>
+  );
+}
+
 /** The ⠿ grip: draggable AND a click-menu (Delete / Duplicate / Turn into). */
 function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bottom: number } }) {
   const editor = useEditor();
@@ -643,6 +685,7 @@ function BlockHandle({ block, halo }: { block: EBlock; halo: { top: number; bott
               onClick={() => setTurnOpen((v) => !v)}
             />
           </div>
+          {pageId && <BlockAuthorFooter pageId={pageId} blockId={block.id} />}
           </div>,
           document.body
         )}

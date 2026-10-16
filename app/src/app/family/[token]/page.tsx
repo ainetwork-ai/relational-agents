@@ -1,4 +1,5 @@
 "use client";
+import { clearOfflineCaches } from "@/lib/offline/caches";
 import { AinuiButton, AinuiForm } from "@/components/ainui/surface";
 
 import { use, useEffect, useState } from "react";
@@ -138,7 +139,7 @@ export default function FamilyInvitePage({ params }: { params: Promise<{ token: 
             <AinuiButton testId="family-invite-approve" onClick={approve} disabled={phase === "approving"} label={me ? t("Join as {name}", { name: me.displayName }) : t("Approve with aindrive")} />
             {!me && <p className="mt-2 text-[11px] text-neutral-400">{t("When aindrive opens, just tap [Approve].")}</p>}
             {me && (
-              <AinuiButton testId="family-invite-other-account" label={t("Not {name}? Approve with another aindrive account", { name: me.displayName })} onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => setMe(null))} />
+              <AinuiButton testId="family-invite-other-account" label={t("Not {name}? Approve with another aindrive account", { name: me.displayName })} onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => clearOfflineCaches()).then(() => setMe(null))} />
             )}
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
           </div>
