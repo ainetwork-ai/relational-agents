@@ -10,7 +10,6 @@ test-results/
 playwright-report/
 notion-fs/
 app/e2e/.okf-work/
-.gstack/
 
 # runtime/session state — never commit
 .omc/
